@@ -626,6 +626,7 @@ export function FamilyTreeClient({ ancestors, children, displayName, spouse, fam
     relationship_id: null,
     person_id: null,
     is_step: false,
+    user_id: null,
     first_name: null,
     last_name: null,
     primary_email: null,
