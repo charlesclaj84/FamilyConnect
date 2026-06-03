@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Calendar, MessageCircle, Camera, DollarSign, Store, User, GitBranch, BookUser } from 'lucide-react'
+import { Calendar, MessageCircle, Camera, DollarSign, Store, User, GitBranch, BookUser, PiggyBank } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -12,13 +12,13 @@ const features = [
     comingSoon: false,
   },
   {
-    title: 'Family Tree',
+    title: 'Geneology',
     description: 'Build your family tree — link parents, grandparents, children, and spouses across generations.',
     icon: <GitBranch className="h-5 w-5" />,
     comingSoon: false,
   },
   {
-    title: 'Events',
+    title: 'Event Planning',
     description: 'Plan and RSVP to family gatherings, reunions, and celebrations.',
     icon: <Calendar className="h-5 w-5" />,
     comingSoon: true,
@@ -30,9 +30,15 @@ const features = [
     comingSoon: false,
   },
   {
-    title: 'Photos',
+    title: 'Photo Gallery',
     description: 'Upload and share memories, tag family members, build your archive.',
     icon: <Camera className="h-5 w-5" />,
+    comingSoon: true,
+  },
+  {
+    title: 'Budgeting',
+    description: 'Track family finances, set budgets, and manage shared expenses in one place.',
+    icon: <PiggyBank className="h-5 w-5" />,
     comingSoon: true,
   },
   {
