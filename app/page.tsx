@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Calendar, MessageCircle, Camera, DollarSign, Store, Users } from 'lucide-react'
+import { Calendar, MessageCircle, Camera, DollarSign, Store, Users, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -41,22 +41,28 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar */}
-      <header className="border-b bg-background sticky top-0 z-10">
+      <header className="border-b bg-[#e6ecf1] sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold text-primary">Family Connect</span>
+          <div className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Family Connect" width={120} height={60} className="h-10 w-auto" />
+            <span className="text-xl font-bold text-primary">Family Connect</span>
+          </div>
           <div className="flex items-center gap-2">
             <Link href="/login">
-              <Button variant="ghost" size="sm">Sign In</Button>
+              <Button className="bg-[#e6ecf1] text-[#0f2540] border border-[#0f2540] hover:opacity-80 gap-1.5">
+                <User className="h-4 w-4" />
+                Login
+              </Button>
             </Link>
             <Link href="/register">
-              <Button size="sm">Get Started</Button>
+              <Button>Get Started</Button>
             </Link>
           </div>
         </div>
       </header>
 
       {/* Banner */}
-      <div className="w-full flex justify-center bg-white px-4 py-6">
+      <div className="w-full flex justify-center bg-[#011b43] px-4 py-6">
         <Image
           src="/banner.png"
           alt="Family Connect — Stronger Families. Closer Together."
