@@ -78,7 +78,7 @@ export default async function DashboardPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-10">
 
       {/* ── Profile summary + selfie ──────────────────────────────── */}
-      <div className="flex items-center gap-5 rounded-xl border bg-card px-5 py-5">
+      <div className="flex items-center gap-5">
         <div className="relative shrink-0">
           <div className="w-20 h-20 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center select-none">
             {initials ? (
@@ -87,12 +87,7 @@ export default async function DashboardPage() {
               <UserCircle className="h-10 w-10 text-muted-foreground/40" />
             )}
           </div>
-          <div
-            className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1"
-            title="Photo upload coming soon"
-          >
-            <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-          </div>
+
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
@@ -101,9 +96,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Your family portal is ready. Features are being added — stay tuned.
           </p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">
-            Profile photo upload coming soon.
-          </p>
+
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { Calendar, MessageCircle, Camera, DollarSign, Store, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,30 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
+
+      {/* Banner */}
+      <div className="w-full flex justify-center bg-white px-4 py-6">
+        <Image
+          src="/banner.png"
+          alt="Family Connect — Stronger Families. Closer Together."
+          width={800}
+          height={400}
+          className="w-full max-w-2xl h-auto"
+          priority
+        />
+      </div>
+
+      {/* Provides strip */}
+      <div className="w-full flex justify-center bg-white px-4 pb-6">
+        <Image
+          src="/provides.png"
+          alt="Connect. Plan. Celebrate."
+          width={1200}
+          height={200}
+          className="w-full max-w-3xl h-auto"
+          priority
+        />
+      </div>
 
       {/* Hero */}
       <section className="bg-gradient-to-b from-accent/40 to-background py-20 sm:py-28 px-4">
@@ -116,10 +141,10 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Banner */}
-      <section className="py-16 px-4 bg-primary text-primary-foreground">
+      <section className="py-16 px-4 bg-gradient-to-b from-accent/40 to-background">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to connect?</h2>
-          <p className="mb-8 opacity-90">
+          <p className="mb-8 text-muted-foreground">
             Create your free account and bring your family together.
           </p>
           <Link href="/register">

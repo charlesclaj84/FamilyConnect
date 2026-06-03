@@ -26,8 +26,8 @@ function NavLink({ href, label, icon: Icon, active }: (typeof navItems)[number] 
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
         active
-          ? 'bg-primary/10 text-primary font-medium'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+          ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
+          : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
@@ -60,8 +60,8 @@ export function Sidebar() {
               className={cn(
                 'flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors whitespace-nowrap',
                 pathname === href
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
+                  : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
               )}
             >
               <Icon className="h-3.5 w-3.5 shrink-0" />
