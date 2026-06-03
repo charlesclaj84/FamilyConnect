@@ -8,6 +8,7 @@ import {
   Users,
   GitBranch,
   Wallet,
+  MessageCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/direct-lineage',  label: 'My Children',  icon: Users },
   { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
   { href: '/account-summary', label: 'Account',      icon: Wallet },
+  { href: '/chat',            label: 'Chat',          icon: MessageCircle },
 ]
 
 function NavLink({ href, label, icon: Icon, active }: (typeof navItems)[number] & { active: boolean }) {

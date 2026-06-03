@@ -16,8 +16,10 @@ import {
   updateChild,
   deleteChild,
   convertChildToAdult,
+  acceptSpouseChild,
   type ChildRecord,
   type ChildInput,
+  type SpouseChildRecord,
 } from '@/app/actions/children'
 import { CHILD_RELATIONSHIP_TYPES } from '@/lib/family-constants'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, type TshirtCategory } from '@/lib/tshirt-sizes'
@@ -339,9 +341,96 @@ function ChildRow({
   )
 }
 
+// ── Accept spouse child row ────────────────────────────────────────────────────
+
+function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefresh: () => void }) {
+  const [accepting, setAccepting] = useState(false)
+  const [relType, setRelType]     = useState<'Son' | 'Daughter'>(child.spouse_relationship_type as 'Son' | 'Daughter')
+  const [isStep, setIsStep]       = useState(child.spouse_is_step)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
+
+  const fullName = [child.first_name, child.last_name].filter(Boolean).join(' ')
+  const dob      = child.date_of_birth
+    ? new Date(child.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    : 'DOB unknown'
+
+  async function handleAccept() {
+    setLoading(true)
+    setError('')
+    const result = await acceptSpouseChild(child.person_id, relType, isStep)
+    if (result.success) { onRefresh() }
+    else { setError(result.message ?? 'Something went wrong'); setLoading(false) }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 py-4 border-b last:border-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{fullName}</p>
+            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pending</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Born: {dob}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Added by your spouse</p>
+        </div>
+        <Button size="sm" onClick={() => setAccepting(a => !a)}>
+          <Check className="h-3.5 w-3.5" /> Accept as My Child
+        </Button>
+      </div>
+
+      {accepting && (
+        <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-3">
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">They are my</p>
+            <div className="flex gap-3">
+              {(['Son', 'Daughter'] as const).map(val => (
+                <label key={val} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    value={val}
+                    checked={relType === val}
+                    onChange={() => setRelType(val)}
+                    className="accent-primary"
+                  />
+                  {val}
+                </label>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isStep}
+                onChange={e => setIsStep(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
+              Step relationship
+            </label>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" disabled={loading} onClick={handleAccept}>
+              {loading ? 'Saving…' : `Confirm — ${isStep ? 'Step-' : ''}${relType}`}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setAccepting(false)}>
+              <X className="h-3.5 w-3.5" /> Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function DirectLineageClient({ initialChildren }: { initialChildren: ChildRecord[] }) {
+export function DirectLineageClient({
+  initialChildren,
+  spouseChildren = [],
+}: {
+  initialChildren: ChildRecord[]
+  spouseChildren?: SpouseChildRecord[]
+}) {
   const [showAddForm,   setShowAddForm]   = useState(false)
   const [editingId,     setEditingId]     = useState<string | null>(null)
   const [convertingChild, setConvertingChild] = useState<ChildRecord | null>(null)
@@ -378,6 +467,27 @@ export function DirectLineageClient({ initialChildren }: { initialChildren: Chil
         <Button variant="outline" onClick={() => setShowAddForm(true)}>
           <Plus className="h-4 w-4" /> Add Child
         </Button>
+      )}
+
+      {spouseChildren.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold">Pending from Your Spouse</h3>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              {spouseChildren.length} pending
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Your spouse added these children. Accept each one to include them in your own tree.
+          </p>
+          <div className="rounded-lg border">
+            <div className="px-4">
+              {spouseChildren.map(child => (
+                <AcceptChildRow key={child.person_id} child={child} onRefresh={refresh} />
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {convertingChild && (

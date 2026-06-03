@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getMyChildren } from '@/app/actions/children'
-import { getMyAncestors } from '@/app/actions/ancestors'
+import { getMyAncestors, getFamilyMembers } from '@/app/actions/ancestors'
+import { getMySpouse } from '@/app/actions/spouse'
 import { FamilyTreeClient } from '@/components/family-tree/FamilyTreeClient'
 
 export const metadata = { title: 'Family Tree — Family Connect' }
@@ -11,7 +12,12 @@ export default async function FamilyTreePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [children, ancestors] = await Promise.all([getMyChildren(), getMyAncestors()])
+  const [children, ancestors, spouse, familyMembers] = await Promise.all([
+    getMyChildren(),
+    getMyAncestors(),
+    getMySpouse(),
+    getFamilyMembers(),
+  ])
 
   const firstName   = user.user_metadata?.first_name ?? 'You'
   const lastName    = user.user_metadata?.last_name  ?? ''
@@ -30,6 +36,8 @@ export default async function FamilyTreePage() {
         ancestors={ancestors}
         children={children}
         displayName={displayName}
+        spouse={spouse}
+        familyMembers={familyMembers}
       />
     </div>
   )

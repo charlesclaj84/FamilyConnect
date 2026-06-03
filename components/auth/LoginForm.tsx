@@ -65,12 +65,7 @@ export function LoginForm() {
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -81,6 +76,9 @@ export function LoginForm() {
             {errors.password && (
               <p className="text-sm text-destructive">{errors.password.message}</p>
             )}
+            <Link href="/forgot-password" className="text-sm text-primary hover:underline block">
+              Forgot password?
+            </Link>
           </div>
 
           {serverError && (

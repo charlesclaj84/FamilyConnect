@@ -14,15 +14,29 @@ export interface AncestorEntry {
   last_name: string | null
   primary_email: string | null
   date_of_birth: string | null
+  user_id: string | null
 }
 
 export interface AncestorInput {
   relationship_type: AncestorType
-  first_name: string
-  last_name: string
+  // Required when NOT using existing_person_id
+  first_name?: string
+  last_name?: string
   primary_email?: string
   date_of_birth?: string
   is_step: boolean
+  // For linking an existing people record
+  existing_person_id?: string
+  // Reverse relationship (what the current user is to the ancestor) — used when linking existing
+  child_relationship_type?: 'Son' | 'Daughter'
+  child_is_step?: boolean
+}
+
+export interface FamilyMember {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  date_of_birth: string | null
 }
 
 // ── Helper ─────────────────────────────────────────────────────────────────────
@@ -44,6 +58,7 @@ const emptyEntry = (type: AncestorType): AncestorEntry => ({
   relationship_id: null,
   person_id: null,
   is_step: false,
+  user_id: null,
   first_name: null,
   last_name: null,
   primary_email: null,
@@ -51,6 +66,27 @@ const emptyEntry = (type: AncestorType): AncestorEntry => ({
 })
 
 // ── Actions ────────────────────────────────────────────────────────────────────
+
+export async function getFamilyMembers(): Promise<FamilyMember[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const familyCode = user.user_metadata?.family_code ?? ''
+  const myPeopleId = await getMyPeopleId(supabase, user.id)
+
+  let query = supabase
+    .from('people')
+    .select('id, first_name, last_name, date_of_birth')
+    .eq('family_code', familyCode)
+    .order('last_name')
+    .order('first_name')
+
+  if (myPeopleId) query = query.neq('id', myPeopleId)
+
+  const { data } = await query
+  return (data ?? []) as FamilyMember[]
+}
 
 export async function getMyAncestors(): Promise<AncestorEntry[]> {
   const supabase = await createClient()
@@ -85,11 +121,11 @@ export async function getMyAncestors(): Promise<AncestorEntry[]> {
 
   // Fetch person records
   const personIds = Object.values(relByType).map(r => r.related_person_id)
-  const personById: Record<string, { id: string; first_name: string | null; last_name: string | null; primary_email: string | null; date_of_birth: string | null }> = {}
+  const personById: Record<string, { id: string; user_id: string | null; first_name: string | null; last_name: string | null; primary_email: string | null; date_of_birth: string | null }> = {}
   if (personIds.length) {
     const { data: persons } = await supabase
       .from('people')
-      .select('id, first_name, last_name, primary_email, date_of_birth')
+      .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
       .in('id', personIds)
     for (const p of persons ?? []) personById[p.id] = p
   }
@@ -103,6 +139,7 @@ export async function getMyAncestors(): Promise<AncestorEntry[]> {
       relationship_id: rel.id,
       person_id: rel.related_person_id,
       is_step: rel.is_step,
+      user_id: person?.user_id ?? null,
       first_name: person?.first_name ?? null,
       last_name: person?.last_name ?? null,
       primary_email: person?.primary_email ?? null,
@@ -127,15 +164,7 @@ export async function upsertAncestor(
     .select('id')
     .eq('name', input.relationship_type)
     .single()
-
   if (!relType) return { success: false, message: 'Invalid relationship type' }
-
-  const personFields = {
-    first_name: input.first_name.trim() || '',
-    last_name: input.last_name.trim() || '',
-    primary_email: input.primary_email?.trim() || null,
-    date_of_birth: input.date_of_birth || null,
-  }
 
   // Check for existing relationship of this type from this user
   const { data: existingRel } = await supabase
@@ -145,46 +174,105 @@ export async function upsertAncestor(
     .eq('relationship_type_id', relType.id)
     .maybeSingle()
 
-  if (existingRel) {
-    const { error } = await supabase
-      .from('people')
-      .update(personFields)
-      .eq('id', existingRel.related_person_id)
+  let personId: string
 
-    if (error) return { success: false, message: error.message }
+  if (input.existing_person_id) {
+    // ── Path A: link an existing people record ──────────────────────────────
+    personId = input.existing_person_id
 
-    await supabase
-      .from('person_relationships')
-      .update({ is_step: input.is_step })
-      .eq('id', existingRel.id)
+    if (existingRel) {
+      await supabase
+        .from('person_relationships')
+        .update({ related_person_id: personId, is_step: input.is_step })
+        .eq('id', existingRel.id)
+    } else {
+      const { error: relError } = await supabase
+        .from('person_relationships')
+        .insert({
+          person_id: myPeopleId,
+          related_person_id: personId,
+          relationship_type_id: relType.id,
+          is_step: input.is_step,
+          family_code: familyCode,
+          created_by: user.id,
+        })
+      if (relError) return { success: false, message: relError.message }
+    }
+
+    // Create reverse relationship (only for Father/Mother, not grandparents)
+    if (
+      input.child_relationship_type &&
+      (input.relationship_type === 'Father' || input.relationship_type === 'Mother')
+    ) {
+      const { data: childRelType } = await supabase
+        .from('relationship_types')
+        .select('id')
+        .eq('name', input.child_relationship_type)
+        .single()
+
+      if (childRelType) {
+        const { data: reverseExists } = await supabase
+          .from('person_relationships')
+          .select('id')
+          .eq('person_id', personId)
+          .eq('related_person_id', myPeopleId)
+          .eq('relationship_type_id', childRelType.id)
+          .maybeSingle()
+
+        if (!reverseExists) {
+          await supabase.from('person_relationships').insert({
+            person_id: personId,
+            related_person_id: myPeopleId,
+            relationship_type_id: childRelType.id,
+            is_step: input.child_is_step ?? false,
+            family_code: familyCode,
+            created_by: user.id,
+          })
+        }
+      }
+    }
   } else {
-    const { data: newPerson, error: personError } = await supabase
-      .from('people')
-      .insert({
-        family_code: familyCode,
-        is_minor: false,
-        created_by: user.id,
-        ...personFields,
-      })
-      .select('id')
-      .single()
+    // ── Path B: create a new people record ─────────────────────────────────
+    const personFields = {
+      first_name: input.first_name?.trim() || '',
+      last_name: input.last_name?.trim() || '',
+      primary_email: input.primary_email?.trim() || null,
+      date_of_birth: input.date_of_birth || null,
+    }
 
-    if (personError || !newPerson) return { success: false, message: personError?.message ?? 'Failed to create record' }
+    if (existingRel) {
+      const { error } = await supabase
+        .from('people')
+        .update(personFields)
+        .eq('id', existingRel.related_person_id)
+      if (error) return { success: false, message: error.message }
 
-    const { error: relError } = await supabase
-      .from('person_relationships')
-      .insert({
-        person_id: myPeopleId,
-        related_person_id: newPerson.id,
-        relationship_type_id: relType.id,
-        is_step: input.is_step,
-        family_code: familyCode,
-        created_by: user.id,
-      })
+      await supabase
+        .from('person_relationships')
+        .update({ is_step: input.is_step })
+        .eq('id', existingRel.id)
+    } else {
+      const { data: newPerson, error: personError } = await supabase
+        .from('people')
+        .insert({ family_code: familyCode, is_minor: false, created_by: user.id, ...personFields })
+        .select('id')
+        .single()
+      if (personError || !newPerson) return { success: false, message: personError?.message ?? 'Failed to create record' }
 
-    if (relError) {
-      await supabase.from('people').delete().eq('id', newPerson.id)
-      return { success: false, message: relError.message }
+      const { error: relError } = await supabase
+        .from('person_relationships')
+        .insert({
+          person_id: myPeopleId,
+          related_person_id: newPerson.id,
+          relationship_type_id: relType.id,
+          is_step: input.is_step,
+          family_code: familyCode,
+          created_by: user.id,
+        })
+      if (relError) {
+        await supabase.from('people').delete().eq('id', newPerson.id)
+        return { success: false, message: relError.message }
+      }
     }
   }
 

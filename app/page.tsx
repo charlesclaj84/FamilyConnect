@@ -1,39 +1,51 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Calendar, MessageCircle, Camera, DollarSign, Store, Users, User } from 'lucide-react'
+import { Calendar, MessageCircle, Camera, DollarSign, Store, User, GitBranch, BookUser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const features = [
   {
+    title: 'Family Directory',
+    description: 'View detailed profiles for every family member — contact info, birthdays, t-shirt sizes, and more.',
+    icon: <BookUser className="h-5 w-5" />,
+    comingSoon: false,
+  },
+  {
+    title: 'Family Tree',
+    description: 'Build your family tree — link parents, grandparents, children, and spouses across generations.',
+    icon: <GitBranch className="h-5 w-5" />,
+    comingSoon: false,
+  },
+  {
     title: 'Events',
     description: 'Plan and RSVP to family gatherings, reunions, and celebrations.',
     icon: <Calendar className="h-5 w-5" />,
+    comingSoon: true,
   },
   {
     title: 'Chat',
-    description: 'Real-time messaging to stay in touch with the whole family.',
+    description: 'Real-time messaging with your whole family — group chats and direct messages.',
     icon: <MessageCircle className="h-5 w-5" />,
+    comingSoon: false,
   },
   {
     title: 'Photos',
     description: 'Upload and share memories, tag family members, build your archive.',
     icon: <Camera className="h-5 w-5" />,
+    comingSoon: true,
   },
   {
     title: 'Dues',
     description: 'Collect and track family dues and contributions with ease.',
     icon: <DollarSign className="h-5 w-5" />,
+    comingSoon: true,
   },
   {
     title: 'Vendors',
     description: 'Family-trusted vendors offering products and services to members.',
     icon: <Store className="h-5 w-5" />,
-  },
-  {
-    title: 'Directory',
-    description: 'A private directory to connect with all your family members.',
-    icon: <Users className="h-5 w-5" />,
+    comingSoon: true,
   },
 ]
 
@@ -126,9 +138,11 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map((feature) => (
               <Card key={feature.title} className="relative">
-                <span className="absolute top-3 right-3 text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                  Coming Soon
-                </span>
+                {feature.comingSoon && (
+                  <span className="absolute top-3 right-3 text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                    Coming Soon
+                  </span>
+                )}
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-md bg-primary/10 text-primary">

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getMyChildren } from '@/app/actions/children'
+import { getMyChildren, getSpouseChildren } from '@/app/actions/children'
 import { DirectLineageClient } from '@/components/direct-lineage/DirectLineageClient'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -11,7 +11,7 @@ export default async function DirectLineagePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const children = await getMyChildren()
+  const [children, spouseChildren] = await Promise.all([getMyChildren(), getSpouseChildren()])
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
@@ -25,7 +25,7 @@ export default async function DirectLineagePage() {
 
       <Card>
         <CardContent>
-          <DirectLineageClient initialChildren={children} />
+          <DirectLineageClient initialChildren={children} spouseChildren={spouseChildren} />
         </CardContent>
       </Card>
     </div>
