@@ -102,5 +102,19 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   }
 
+  // Seed the people table so the profile page is pre-populated.
+  if (authData.user) {
+    await admin.from('people').insert({
+      user_id: authData.user.id,
+      family_code: familyCode,
+      is_minor: false,
+      first_name: input.firstName.trim(),
+      last_name: input.lastName.trim(),
+      primary_email: input.email.trim().toLowerCase(),
+      created_by: authData.user.id,
+    })
+    // Non-fatal: if this fails the user can fill in their profile manually.
+  }
+
   return { success: true, familyCode: input.mode === 'create' ? familyCode : undefined }
 }

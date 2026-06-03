@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 import { registerUser } from '@/app/actions/register'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,10 +33,12 @@ const schema = z
 type FormData = z.infer<typeof schema>
 
 export function RegisterForm() {
+  const router = useRouter()
   const [mode, setMode] = useState<Mode>('join')
   const [serverError, setServerError] = useState('')
   const [success, setSuccess] = useState(false)
   const [newFamilyCode, setNewFamilyCode] = useState('')
+  const [autoSignedIn, setAutoSignedIn] = useState(false)
 
   const {
     register,
@@ -80,6 +84,22 @@ export function RegisterForm() {
       return
     }
 
+    // Attempt auto sign-in so the user lands in an authenticated state.
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    })
+    if (!signInError) {
+      setAutoSignedIn(true)
+      // For join mode go straight to dashboard; create mode shows the family code first.
+      if (mode === 'join') {
+        router.push('/dashboard')
+        router.refresh()
+        return
+      }
+    }
+
     if (result.familyCode) setNewFamilyCode(result.familyCode)
     setSuccess(true)
   }
@@ -101,14 +121,25 @@ export function RegisterForm() {
           <p className="text-center text-sm text-muted-foreground">
             Write this down — you'll need it to invite family members.
           </p>
-          <p className="text-center text-sm text-muted-foreground">
-            We also sent a confirmation link to your inbox. Click it to activate your account.
-          </p>
+          {!autoSignedIn && (
+            <p className="text-center text-sm text-muted-foreground">
+              We also sent a confirmation link to your inbox. Click it to activate your account.
+            </p>
+          )}
         </CardContent>
         <CardFooter className="justify-center">
-          <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-            Back to sign in
-          </Link>
+          {autoSignedIn ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-colors"
+            >
+              Go to Dashboard →
+            </Link>
+          ) : (
+            <Link href="/login" className="text-sm font-medium text-primary hover:underline">
+              Back to sign in
+            </Link>
+          )}
         </CardFooter>
       </Card>
     )

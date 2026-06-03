@@ -11,8 +11,8 @@ export default async function Navbar() {
     || 'Member'
 
   return (
-    <nav className="border-b bg-background">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <header className="border-b bg-background">
+      <div className="max-w-none px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link href="/dashboard" className="text-xl font-bold text-primary">
           Family Connect
         </Link>
@@ -23,6 +23,6 @@ export default async function Navbar() {
           <SignOutButton />
         </div>
       </div>
-    </nav>
+    </header>
   )
 }
