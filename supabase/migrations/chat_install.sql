@@ -29,9 +29,10 @@ CREATE TABLE chat_participants (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id    UUID        NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
   user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  is_hidden  BOOLEAN     NOT NULL DEFAULT false,
-  can_reply  BOOLEAN     NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  is_hidden    BOOLEAN     NOT NULL DEFAULT false,
+  can_reply    BOOLEAN     NOT NULL DEFAULT true,
+  last_read_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (room_id, user_id)
 );
 

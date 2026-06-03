@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { RoomList } from './RoomList'
 import { MessageThread } from './MessageThread'
 import { NewDmDialog } from './NewDmDialog'
 import { CreateGroupDialog } from './CreateGroupDialog'
-import { deleteDm, type RoomWithMeta } from '@/app/actions/chat'
+import { deleteDm, markRoomRead, type RoomWithMeta } from '@/app/actions/chat'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   initialRooms: RoomWithMeta[]
@@ -21,12 +22,34 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
   const [showThread, setShowThread]     = useState(false)
   const [showNewDm, setShowNewDm]       = useState(false)
   const [showNewGroup, setShowNewGroup] = useState(false)
+  const activeRoomIdRef = useRef(activeRoomId)
 
   const activeRoom = rooms.find(r => r.id === activeRoomId) ?? rooms[0]
 
+  // Global subscription: mark rooms unread when a new message arrives in a non-active room
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('shell_unread_tracker')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          const { room_id, sender_id } = payload.new as { room_id: string; sender_id: string }
+          if (room_id !== activeRoomIdRef.current && sender_id !== currentUserId) {
+            setRooms(prev => prev.map(r => r.id === room_id ? { ...r, has_unread: true } : r))
+          }
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [currentUserId])
+
   function handleSelectRoom(roomId: string) {
     setActiveRoomId(roomId)
+    activeRoomIdRef.current = roomId
     setShowThread(true)
+    // Clear unread and persist read timestamp
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, has_unread: false } : r))
+    markRoomRead(roomId)
   }
 
   function handleRoomCreated(room: RoomWithMeta) {

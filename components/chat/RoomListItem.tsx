@@ -39,9 +39,12 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
           ? <Users className="h-4 w-4 shrink-0 opacity-70" />
           : <MessageCircle className="h-4 w-4 shrink-0 opacity-70" />
         }
-        <span className="truncate">{label}</span>
+        <span className="truncate flex-1">{label}</span>
         {!room.can_reply && room.kind === 'dm' && (
-          <span className="ml-auto text-xs opacity-60 shrink-0">ended</span>
+          <span className="text-xs opacity-60 shrink-0">ended</span>
+        )}
+        {room.has_unread && (
+          <span className="h-2 w-2 rounded-full bg-[#1aa88a] shrink-0" aria-label="Unread messages" />
         )}
       </button>
 

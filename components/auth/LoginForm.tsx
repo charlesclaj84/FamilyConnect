@@ -76,7 +76,7 @@ export function LoginForm() {
             {errors.password && (
               <p className="text-sm text-destructive">{errors.password.message}</p>
             )}
-            <Link href="/forgot-password" className="text-sm text-primary hover:underline block">
+            <Link href="/forgot-password" className="text-sm text-primary hover:underline block text-right">
               Forgot password?
             </Link>
           </div>

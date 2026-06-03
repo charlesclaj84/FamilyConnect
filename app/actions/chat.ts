@@ -33,6 +33,7 @@ export interface RoomWithMeta extends ChatRoom {
   participants: ChatParticipant[]
   last_message_at: string | null
   can_reply: boolean
+  has_unread: boolean
 }
 
 export type SenderMap = Record<string, { first_name: string | null; last_name: string | null }>
@@ -40,7 +41,7 @@ export type SenderMap = Record<string, { first_name: string | null; last_name: s
 // ── Internal helper ────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function enrichRoom(admin: any, room: ChatRoom, familyCode: string, canReply = true): Promise<RoomWithMeta> {
+async function enrichRoom(admin: any, room: ChatRoom, familyCode: string, canReply = true, lastReadAt: string | null = null): Promise<RoomWithMeta> {
   const { data: participantRows } = await admin
     .from('chat_participants')
     .select('user_id')
@@ -71,7 +72,10 @@ async function enrichRoom(admin: any, room: ChatRoom, familyCode: string, canRep
     .limit(1)
     .maybeSingle()
 
-  return { ...room, participants, last_message_at: lastMsg?.created_at ?? null, can_reply: canReply }
+  const lastMessageAt = lastMsg?.created_at ?? null
+  const has_unread = lastMessageAt !== null && (lastReadAt === null || lastMessageAt > lastReadAt)
+
+  return { ...room, participants, last_message_at: lastMessageAt, can_reply: canReply, has_unread }
 }
 
 // ── Family room ────────────────────────────────────────────────────────────────
@@ -344,13 +348,14 @@ export async function getRoomList(): Promise<RoomWithMeta[]> {
   // Fetch only rooms where the current user is visible (not hidden)
   const { data: participations } = await admin
     .from('chat_participants')
-    .select('room_id, can_reply')
+    .select('room_id, can_reply, last_read_at')
     .eq('user_id', user.id)
     .eq('is_hidden', false)
 
   if (!participations?.length) return []
 
-  const canReplyMap = new Map(participations.map(p => [p.room_id, p.can_reply as boolean]))
+  const canReplyMap  = new Map(participations.map(p => [p.room_id, p.can_reply as boolean]))
+  const lastReadMap  = new Map(participations.map(p => [p.room_id, p.last_read_at as string | null]))
   const roomIds = participations.map(p => p.room_id)
 
   const { data: rooms } = await admin
@@ -361,7 +366,9 @@ export async function getRoomList(): Promise<RoomWithMeta[]> {
   if (!rooms?.length) return []
 
   const enriched = await Promise.all(
-    (rooms as ChatRoom[]).map(r => enrichRoom(admin, r, familyCode, canReplyMap.get(r.id) ?? true))
+    (rooms as ChatRoom[]).map(r =>
+      enrichRoom(admin, r, familyCode, canReplyMap.get(r.id) ?? true, lastReadMap.get(r.id) ?? null)
+    )
   )
 
   return enriched.sort((a, b) => {
@@ -440,6 +447,19 @@ export async function getFamilyMembersWithAccounts(): Promise<
     firstName: p.first_name,
     lastName:  p.last_name,
   }))
+}
+
+export async function markRoomRead(roomId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const admin = createAdminClient()
+  await admin
+    .from('chat_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('room_id', roomId)
+    .eq('user_id', user.id)
 }
 
 export async function sendMessage(
