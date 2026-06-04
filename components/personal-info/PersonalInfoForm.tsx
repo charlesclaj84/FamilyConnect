@@ -151,7 +151,7 @@ function GeneralSection({
 }) {
   const [editing, setEditing]       = useState(false)
   const [serverError, setServerError] = useState('')
-  const existingChapterId = (existing as Record<string, unknown>)?.chapter_id as string | null | undefined
+  const existingChapterId = existing?.chapter_id
   const [chapterId, setChapterId]   = useState(existingChapterId ?? '')
 
   const initials = [existing?.first_name?.[0], existing?.last_name?.[0]].filter(Boolean).join('').toUpperCase()
@@ -162,7 +162,7 @@ function GeneralSection({
     defaultValues: {
       prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
       middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
-      nick_name: tv((existing as Record<string, unknown>)?.nick_name as string),
+      nick_name: tv(existing?.nick_name ?? null),
       suffix: tv(existing?.suffix),
       primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
     },
@@ -172,7 +172,7 @@ function GeneralSection({
     reset({
       prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
       middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
-      nick_name: tv((existing as Record<string, unknown>)?.nick_name as string),
+      nick_name: tv(existing?.nick_name ?? null),
       suffix: tv(existing?.suffix),
       primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
     })
@@ -207,7 +207,7 @@ function GeneralSection({
           <Field label="First Name"     value={existing?.first_name} />
           <Field label="Middle Name"    value={existing?.middle_name} />
           <Field label="Last Name"      value={existing?.last_name} />
-          <Field label="Nickname"       value={(existing as Record<string, unknown>)?.nick_name as string} />
+          <Field label="Nickname"       value={existing?.nick_name ?? null} />
           <Field label="Suffix"         value={existing?.suffix} />
           <Field label="Email"          value={existing?.primary_email} />
           <Field label="Phone"          value={existing?.primary_phone} />
