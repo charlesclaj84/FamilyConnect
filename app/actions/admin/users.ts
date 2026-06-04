@@ -80,7 +80,7 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
       assignment_id:    ur.id,
       assignment_scope: ur.scope as 'national' | 'regional' | 'chapter',
       chapter_id:       ur.chapter_id ?? null,
-      chapter_name:     (ur.chapters as { name: string } | null)?.name ?? null,
+      chapter_name:     (ur.chapters as unknown as { name: string } | null)?.name ?? null,
     })
   }
 
