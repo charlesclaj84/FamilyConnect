@@ -115,7 +115,7 @@ export async function getChapters(): Promise<Chapter[]> {
     family_code: c.family_code,
     name:        c.name,
     region_id:   c.region_id ?? null,
-    region_name: (c.regions as { name: string } | null)?.name ?? null,
+    region_name: (c.regions as unknown as { name: string } | null)?.name ?? null,
     created_at:  c.created_at,
   }))
 }
