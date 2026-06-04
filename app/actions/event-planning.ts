@@ -34,7 +34,7 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
   return (data ?? []).map(a => ({
     id:                   a.id,
     event_id:             a.event_id,
-    event_name:           (a.events as { name: string } | null)?.name ?? 'Unknown Event',
+    event_name:           (a.events as unknown as { name: string } | null)?.name ?? 'Unknown Event',
     event_date:           (a.events as { event_date: string | null } | null)?.event_date ?? null,
     event_time:           (a.events as { event_time: string | null } | null)?.event_time ?? null,
     blueprint_item_title: (a.event_blueprint_items as { title: string } | null)?.title ?? '',

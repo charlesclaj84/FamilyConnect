@@ -91,7 +91,7 @@ export async function getEvents(status?: AdminEvent['status']): Promise<AdminEve
 
   return (data ?? []).map(e => ({
     ...e,
-    event_type_name: (e.event_types as { name: string } | null)?.name ?? null,
+    event_type_name: (e.event_types as unknown as { name: string } | null)?.name ?? null,
   })) as AdminEvent[]
 }
 
@@ -393,7 +393,7 @@ export async function getEventReport(eventId: string): Promise<EventReport | nul
   }).sort((a, b) => a.category.localeCompare(b.category) || a.size.localeCompare(b.size))
 
   return {
-    event: { ...event, event_type_name: (event.event_types as { name: string } | null)?.name ?? null } as AdminEvent,
+    event: { ...event, event_type_name: (event.event_types as unknown as { name: string } | null)?.name ?? null } as AdminEvent,
     headcount: attendeePersonIds.length,
     attendees: (attendeePeople ?? []).map(p => ({
       name: [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown',

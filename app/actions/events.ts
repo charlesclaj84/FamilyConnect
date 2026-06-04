@@ -54,7 +54,7 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
     location:        e.location,
     rsvp_deadline:   e.rsvp_deadline,
     status:          e.status as 'published' | 'approved',
-    event_type_name: (e.event_types as { name: string } | null)?.name ?? null,
+    event_type_name: (e.event_types as unknown as { name: string } | null)?.name ?? null,
   }))
 }
 
@@ -76,7 +76,7 @@ export async function getEventDetail(eventId: string): Promise<PublicEvent | nul
     location:        data.location,
     rsvp_deadline:   data.rsvp_deadline,
     status:          data.status as 'published' | 'approved',
-    event_type_name: (data.event_types as { name: string } | null)?.name ?? null,
+    event_type_name: (data.event_types as unknown as { name: string } | null)?.name ?? null,
   }
 }
 

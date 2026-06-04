@@ -93,7 +93,7 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
     is_admin:     p.is_admin,
     can_approve:  p.can_approve,
     chapter_id:   p.chapter_id ?? null,
-    chapter_name: (p.chapters as { name: string } | null)?.name ?? null,
+    chapter_name: (p.chapters as unknown as { name: string } | null)?.name ?? null,
     roles:        (rolesByUserId[p.user_id as string] ?? []).sort((a, b) => a.sort_order - b.sort_order),
   }))
 }
@@ -124,9 +124,9 @@ export async function getMyRoles(): Promise<MyRoleSummary[]> {
     .eq('user_id', user.id)
     .eq('family_code', familyCode)
   return (data ?? []).map(r => ({
-    role_name:        (r.family_roles as { name: string } | null)?.name ?? '',
+    role_name:        (r.family_roles as unknown as { name: string } | null)?.name ?? '',
     assignment_scope: r.scope,
-    chapter_name:     (r.chapters as { name: string } | null)?.name ?? null,
+    chapter_name:     (r.chapters as unknown as { name: string } | null)?.name ?? null,
   }))
 }
 
@@ -148,9 +148,9 @@ export async function getFamilyMemberRoles(): Promise<Record<string, string[]>> 
   for (const r of data ?? []) {
     if (!r.user_id) continue
     const summary: MyRoleSummary = {
-      role_name:        (r.family_roles as { name: string } | null)?.name ?? '',
+      role_name:        (r.family_roles as unknown as { name: string } | null)?.name ?? '',
       assignment_scope: r.scope,
-      chapter_name:     (r.chapters as { name: string } | null)?.name ?? null,
+      chapter_name:     (r.chapters as unknown as { name: string } | null)?.name ?? null,
     }
     const title = formatRoleTitle(summary)
     if (!map[r.user_id]) map[r.user_id] = []
