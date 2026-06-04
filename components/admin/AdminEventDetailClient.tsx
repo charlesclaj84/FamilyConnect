@@ -222,8 +222,8 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
       id: Date.now().toString(), event_id: event.id, blueprint_item_id: blueprintItemId,
       blueprint_item_title: blueprintItems.find(i => i.id === blueprintItemId)?.title ?? '',
       assigned_to: newAssigneeId, assigned_to_name: name,
-      is_complete: false, completed_at: null,
-      response: null, response_status: 'pending', approved_by: null, approved_at: null,
+      is_complete: false, completed_at: null, due_date: newAssigneeDue || null,
+      response: null, response_status: 'pending' as const, approved_by: null, approved_at: null,
     }])
     setNewAssigneeId('')
     setNewAssigneeDue('')
