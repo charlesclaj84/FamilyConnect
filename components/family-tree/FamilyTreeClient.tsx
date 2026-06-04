@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { upsertAncestor, type AncestorEntry, type FamilyMember } from '@/app/actions/ancestors'
+import type { MyRoleSummary } from '@/app/actions/admin/users'
+import { formatRoleTitle } from '@/lib/role-utils'
 import { upsertSpouse, type SpouseEntry } from '@/app/actions/spouse'
 import { SPOUSE_TYPES, type SpouseRelType } from '@/lib/family-constants'
 import { type AncestorType } from '@/lib/family-constants'
@@ -483,7 +485,7 @@ function EditSpouseModal({
 
 // ── Shared node components ─────────────────────────────────────────────────────
 
-function AncestorNode({ entry, onClick }: { entry: AncestorEntry; onClick: () => void }) {
+function AncestorNode({ entry, onClick, titles = [] }: { entry: AncestorEntry; onClick: () => void; titles?: string[] }) {
   const hasData = !!(entry.first_name || entry.last_name)
   const name    = hasData ? [entry.first_name, entry.last_name].filter(Boolean).join(' ') : null
   const label   = entry.is_step ? `Step-${entry.relationship_type}` : entry.relationship_type
@@ -506,6 +508,9 @@ function AncestorNode({ entry, onClick }: { entry: AncestorEntry; onClick: () =>
         <>
           <span className="text-sm font-medium leading-tight">{name}</span>
           <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
+          {titles.map((t, i) => (
+            <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-0.5 leading-tight">{t}</span>
+          ))}
         </>
       ) : (
         <span className="text-xs">{label}</span>
@@ -514,7 +519,7 @@ function AncestorNode({ entry, onClick }: { entry: AncestorEntry; onClick: () =>
   )
 }
 
-function SpouseNode({ spouse, onClick }: { spouse: SpouseEntry | null; onClick: () => void }) {
+function SpouseNode({ spouse, onClick, titles = [] }: { spouse: SpouseEntry | null; onClick: () => void; titles?: string[] }) {
   const hasData = !!spouse
   const name    = hasData ? [spouse.first_name, spouse.last_name].filter(Boolean).join(' ') : null
   const label   = spouse ? `${spouse.is_step ? 'Step-' : ''}${spouse.relationship_type}` : 'Spouse'
@@ -537,6 +542,9 @@ function SpouseNode({ spouse, onClick }: { spouse: SpouseEntry | null; onClick: 
         <>
           <span className="text-sm font-medium leading-tight">{name}</span>
           <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
+          {titles.map((t, i) => (
+            <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-0.5 leading-tight">{t}</span>
+          ))}
         </>
       ) : (
         <span className="text-xs">{label}</span>
@@ -562,7 +570,7 @@ function HGroup({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap justify-center gap-4">{children}</div>
 }
 
-function PersonBox({ name, sublabel, highlight }: { name: string; sublabel: string; highlight?: boolean }) {
+function PersonBox({ name, sublabel, highlight, titles = [] }: { name: string; sublabel: string; highlight?: boolean; titles?: string[] }) {
   return (
     <div className={cn(
       'flex flex-col items-center justify-center rounded-xl border px-3 py-3 min-w-[136px] text-center',
@@ -571,6 +579,11 @@ function PersonBox({ name, sublabel, highlight }: { name: string; sublabel: stri
       <User className="h-5 w-5 mb-1 opacity-50" />
       <span className="text-sm font-medium leading-tight">{name}</span>
       <span className="text-xs text-muted-foreground mt-0.5">{sublabel}</span>
+      {titles.map((t, i) => (
+        <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-1 leading-tight whitespace-nowrap">
+          {t}
+        </span>
+      ))}
     </div>
   )
 }
@@ -598,6 +611,8 @@ interface Props {
   displayName: string
   spouse: SpouseEntry | null
   familyMembers: FamilyMember[]
+  myRoles?: MyRoleSummary[]
+  memberRoles?: Record<string, string[]>
 }
 
 const GRANDPARENT_TYPES: AncestorType[] = [
@@ -606,7 +621,7 @@ const GRANDPARENT_TYPES: AncestorType[] = [
 ]
 const PARENT_TYPES: AncestorType[] = ['Father', 'Mother']
 
-export function FamilyTreeClient({ ancestors, children, displayName, spouse, familyMembers }: Props) {
+export function FamilyTreeClient({ ancestors, children, displayName, spouse, familyMembers, myRoles = [], memberRoles = {} }: Props) {
   const [editingEntry, setEditingEntry]   = useState<AncestorEntry | null>(null)
   const [editingSpouse, setEditingSpouse] = useState(false)
 
@@ -649,8 +664,9 @@ export function FamilyTreeClient({ ancestors, children, displayName, spouse, fam
             <HGroup>
               {GRANDPARENT_TYPES.map(type => {
                 const entry = ancestorByType[type] ?? emptyAncestor(type)
+                const titles = entry.user_id ? (memberRoles[entry.user_id] ?? []) : []
                 return (
-                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} />
+                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} titles={titles} />
                 )
               })}
             </HGroup>
@@ -661,8 +677,9 @@ export function FamilyTreeClient({ ancestors, children, displayName, spouse, fam
             <HGroup>
               {PARENT_TYPES.map(type => {
                 const entry = ancestorByType[type] ?? emptyAncestor(type)
+                const titles = entry.user_id ? (memberRoles[entry.user_id] ?? []) : []
                 return (
-                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} />
+                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} titles={titles} />
                 )
               })}
             </HGroup>
@@ -671,9 +688,18 @@ export function FamilyTreeClient({ ancestors, children, displayName, spouse, fam
 
             <RowLabel>You &amp; Spouse</RowLabel>
             <div className="flex items-center gap-0">
-              <SpouseNode spouse={spouse} onClick={() => setEditingSpouse(true)} />
+              <SpouseNode
+                spouse={spouse}
+                onClick={() => setEditingSpouse(true)}
+                titles={spouse?.user_id ? (memberRoles[spouse.user_id] ?? []) : []}
+              />
               <HConnector />
-              <PersonBox name={displayName} sublabel="You" highlight />
+              <PersonBox
+                name={displayName}
+                sublabel="You"
+                highlight
+                titles={myRoles.map(r => formatRoleTitle(r))}
+              />
             </div>
 
             <Connector />

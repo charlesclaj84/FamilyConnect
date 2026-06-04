@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { saveProfileSection, type PersonalInfoRecord } from '@/app/actions/personal-info'
+import { saveProfileSection, saveChapterAndPropagate, type PersonalInfoRecord } from '@/app/actions/personal-info'
+import type { Chapter } from '@/app/actions/admin/chapters'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 
@@ -124,68 +125,93 @@ function FormActions({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SECTION 1 — My Profile (photo + name)
+// SECTION 1 — General Information (name + contact + chapter)
 // ══════════════════════════════════════════════════════════════════════════════
 
-const nameSchema = z.object({
-  prefix:      z.string().optional(),
-  first_name:  z.string().min(1, 'First name is required'),
-  middle_name: z.string().optional(),
-  last_name:   z.string().min(1, 'Last name is required'),
-  suffix:      z.string().optional(),
+const generalSchema = z.object({
+  prefix:         z.string().optional(),
+  first_name:     z.string().min(1, 'First name is required'),
+  middle_name:    z.string().optional(),
+  last_name:      z.string().min(1, 'Last name is required'),
+  nick_name:      z.string().optional(),
+  suffix:         z.string().optional(),
+  primary_email:  z.string().optional(),
+  primary_phone:  z.string().optional(),
 })
-type NameData = z.infer<typeof nameSchema>
+type GeneralData = z.infer<typeof generalSchema>
 
-function ProfileSection({
+function GeneralSection({
   existing,
+  chapters,
   onSaved,
 }: {
   existing: PersonalInfoRecord | null
+  chapters: Chapter[]
   onSaved: () => void
 }) {
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing]       = useState(false)
   const [serverError, setServerError] = useState('')
-
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<NameData>({
-    resolver: zodResolver(nameSchema),
-    defaultValues: { prefix: tv(existing?.prefix), first_name: tv(existing?.first_name), middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name), suffix: tv(existing?.suffix) },
-  })
+  const existingChapterId = (existing as Record<string, unknown>)?.chapter_id as string | null | undefined
+  const [chapterId, setChapterId]   = useState(existingChapterId ?? '')
 
   const initials = [existing?.first_name?.[0], existing?.last_name?.[0]].filter(Boolean).join('').toUpperCase()
+  const currentChapter = chapters.find(c => c.id === existingChapterId)
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<GeneralData>({
+    resolver: zodResolver(generalSchema),
+    defaultValues: {
+      prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
+      middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
+      nick_name: tv((existing as Record<string, unknown>)?.nick_name as string),
+      suffix: tv(existing?.suffix),
+      primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
+    },
+  })
 
   function handleEditClick() {
-    reset({ prefix: tv(existing?.prefix), first_name: tv(existing?.first_name), middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name), suffix: tv(existing?.suffix) })
+    reset({
+      prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
+      middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
+      nick_name: tv((existing as Record<string, unknown>)?.nick_name as string),
+      suffix: tv(existing?.suffix),
+      primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
+    })
+    setChapterId(existingChapterId ?? '')
     setServerError('')
     setEditing(true)
   }
 
-  function handleCancel() {
-    reset()
-    setEditing(false)
-    setServerError('')
-  }
+  function handleCancel() { reset(); setEditing(false); setServerError('') }
 
-  async function onSubmit(data: NameData) {
+  async function onSubmit(data: GeneralData) {
     setServerError('')
-    const result = await saveProfileSection(data)
-    if (result.success) { setEditing(false); onSaved() }
-    else setServerError(result.message ?? 'Something went wrong')
+    const result = await saveProfileSection({ ...data, chapter_id: chapterId || null })
+    if (!result.success) { setServerError(result.message ?? 'Something went wrong'); return }
+    if (chapterId !== (existingChapterId ?? '')) {
+      await saveChapterAndPropagate(chapterId || null)
+    }
+    setEditing(false)
+    onSaved()
   }
 
   return (
     <SectionCard
-      title="My Profile"
+      title="General Information"
       headerLeft={<Avatar initials={initials} />}
       editing={editing}
       onEditClick={handleEditClick}
     >
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
-          <Field label="Prefix"      value={existing?.prefix} />
-          <Field label="First Name"  value={existing?.first_name} />
-          <Field label="Middle Name" value={existing?.middle_name} />
-          <Field label="Last Name"   value={existing?.last_name} />
-          <Field label="Suffix"      value={existing?.suffix} />
+          <Field label="Prefix"         value={existing?.prefix} />
+          <Field label="First Name"     value={existing?.first_name} />
+          <Field label="Middle Name"    value={existing?.middle_name} />
+          <Field label="Last Name"      value={existing?.last_name} />
+          <Field label="Nickname"       value={(existing as Record<string, unknown>)?.nick_name as string} />
+          <Field label="Suffix"         value={existing?.suffix} />
+          <Field label="Email"          value={existing?.primary_email} />
+          <Field label="Phone"          value={existing?.primary_phone} />
+          <Field label="Chapter"        value={currentChapter?.name} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -212,12 +238,38 @@ function ProfileSection({
               {errors.last_name && <p className="text-xs text-destructive">{errors.last_name.message}</p>}
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="nick_name">Nickname</Label>
+              <Input id="nick_name" placeholder="e.g. Big Mike" {...register('nick_name')} />
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="suffix">Suffix</Label>
               <Select id="suffix" {...register('suffix')}>
                 <option value="">— None —</option>
                 {SUFFIXES.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="primary_email">Email</Label>
+              <Input id="primary_email" type="email" placeholder="you@example.com" {...register('primary_email')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="primary_phone">Phone</Label>
+              <Input id="primary_phone" type="tel" placeholder="(555) 000-0000" {...register('primary_phone')} />
+            </div>
+            {chapters.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="chapter_id">Chapter</Label>
+                <select
+                  id="chapter_id"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={chapterId}
+                  onChange={e => setChapterId(e.target.value)}
+                >
+                  <option value="">— None —</option>
+                  {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
         </form>
@@ -353,137 +405,71 @@ function AddressSection({
   )
 }
 
+
 // ══════════════════════════════════════════════════════════════════════════════
-// SECTION 3 — Contact Information
+// SECTION 3 — Additional Information (dates + t-shirt)
 // ══════════════════════════════════════════════════════════════════════════════
 
-const contactSchema = z.object({
-  primary_email: z.string().optional(),
-  primary_phone: z.string().optional(),
+const additionalSchema = z.object({
+  date_of_birth:   z.string().optional(),
+  sunset_date:     z.string().optional(),
+  tshirt_category: z.string().optional(),
+  tshirt_size:     z.string().optional(),
 })
-type ContactData = z.infer<typeof contactSchema>
+type AdditionalData = z.infer<typeof additionalSchema>
 
-function ContactSection({
-  existing,
-  onSaved,
-}: {
-  existing: PersonalInfoRecord | null
-  onSaved: () => void
-}) {
-  const [editing, setEditing] = useState(false)
+function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRecord | null; onSaved: () => void }) {
+  const [editing, setEditing]     = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<ContactData>({
-    resolver: zodResolver(contactSchema),
-    defaultValues: { primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone) },
+  const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<AdditionalData>({
+    resolver: zodResolver(additionalSchema),
+    defaultValues: {
+      date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
+      tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
+    },
   })
 
+  const selectedCategory = watch('tshirt_category') as TshirtCategory | ''
+  const availableSizes   = selectedCategory && selectedCategory in TSHIRT_SIZES ? TSHIRT_SIZES[selectedCategory as TshirtCategory] : []
+
   function handleEditClick() {
-    reset({ primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone) })
+    reset({
+      date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
+      tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
+    })
     setServerError('')
     setEditing(true)
   }
 
-  function handleCancel() {
-    reset()
-    setEditing(false)
-    setServerError('')
-  }
+  function handleCancel() { reset(); setEditing(false); setServerError('') }
 
-  async function onSubmit(data: ContactData) {
+  async function onSubmit(data: AdditionalData) {
     setServerError('')
     const result = await saveProfileSection(data)
     if (result.success) { setEditing(false); onSaved() }
     else setServerError(result.message ?? 'Something went wrong')
   }
 
-  return (
-    <SectionCard title="Contact Information" editing={editing} onEditClick={handleEditClick}>
-      {!editing ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
-          <Field label="Primary Email" value={existing?.primary_email} />
-          <Field label="Primary Phone" value={existing?.primary_phone} />
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="primary_email">Primary Email</Label>
-              <Input id="primary_email" type="email" placeholder="you@example.com" {...register('primary_email')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="primary_phone">Primary Phone</Label>
-              <Input id="primary_phone" type="tel" placeholder="(555) 000-0000" {...register('primary_phone')} />
-            </div>
-          </div>
-          <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
-        </form>
-      )}
-    </SectionCard>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SECTION 4 — Dates
-// ══════════════════════════════════════════════════════════════════════════════
-
-const datesSchema = z.object({
-  date_of_birth: z.string().optional(),
-  sunset_date:   z.string().optional(),
-})
-type DatesData = z.infer<typeof datesSchema>
-
-function DatesSection({
-  existing,
-  onSaved,
-}: {
-  existing: PersonalInfoRecord | null
-  onSaved: () => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [serverError, setServerError] = useState('')
-
-  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<DatesData>({
-    resolver: zodResolver(datesSchema),
-    defaultValues: { date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date) },
-  })
-
-  function handleEditClick() {
-    reset({ date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date) })
-    setServerError('')
-    setEditing(true)
-  }
-
-  function handleCancel() {
-    reset()
-    setEditing(false)
-    setServerError('')
-  }
-
-  async function onSubmit(data: DatesData) {
-    setServerError('')
-    const result = await saveProfileSection(data)
-    if (result.success) { setEditing(false); onSaved() }
-    else setServerError(result.message ?? 'Something went wrong')
-  }
+  const shirtDisplay = existing?.tshirt_category && existing?.tshirt_size
+    ? `${existing.tshirt_category} — ${existing.tshirt_size}` : null
 
   return (
-    <SectionCard title="Dates" editing={editing} onEditClick={handleEditClick}>
+    <SectionCard title="Additional Information" editing={editing} onEditClick={handleEditClick}>
       {!editing ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
           <Field label="Date of Birth" value={formatDate(existing?.date_of_birth)} />
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Sunset Date</p>
             <p className="text-sm">
-              {formatDate(existing?.sunset_date) || (
-                <span className="text-muted-foreground/40 italic text-xs">Living</span>
-              )}
+              {formatDate(existing?.sunset_date) || <span className="text-muted-foreground/40 italic text-xs">Living</span>}
             </p>
           </div>
+          <Field label="T-Shirt" value={shirtDisplay} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="date_of_birth">Date of Birth</Label>
               <Input id="date_of_birth" type="date" {...register('date_of_birth')} />
@@ -493,101 +479,20 @@ function DatesSection({
               <Input id="sunset_date" type="date" {...register('sunset_date')} />
               <p className="text-xs text-muted-foreground">Leave blank if living.</p>
             </div>
-          </div>
-          <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
-        </form>
-      )}
-    </SectionCard>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SECTION 5 — T-Shirt Size
-// ══════════════════════════════════════════════════════════════════════════════
-
-const tshirtSchema = z.object({
-  tshirt_category: z.string().optional(),
-  tshirt_size:     z.string().optional(),
-})
-type TshirtData = z.infer<typeof tshirtSchema>
-
-function TshirtSection({
-  existing,
-  onSaved,
-}: {
-  existing: PersonalInfoRecord | null
-  onSaved: () => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [serverError, setServerError] = useState('')
-
-  const { handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<TshirtData>({
-    resolver: zodResolver(tshirtSchema),
-    defaultValues: { tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size) },
-  })
-
-  const selectedCategory = watch('tshirt_category') as TshirtCategory | ''
-  const availableSizes   = selectedCategory && selectedCategory in TSHIRT_SIZES ? TSHIRT_SIZES[selectedCategory as TshirtCategory] : []
-
-  function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setValue('tshirt_category', e.target.value)
-    setValue('tshirt_size', '')
-  }
-
-  function handleEditClick() {
-    reset({ tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size) })
-    setServerError('')
-    setEditing(true)
-  }
-
-  function handleCancel() {
-    reset()
-    setEditing(false)
-    setServerError('')
-  }
-
-  async function onSubmit(data: TshirtData) {
-    setServerError('')
-    const result = await saveProfileSection(data)
-    if (result.success) { setEditing(false); onSaved() }
-    else setServerError(result.message ?? 'Something went wrong')
-  }
-
-  const shirtDisplay = existing?.tshirt_category && existing?.tshirt_size
-    ? `${existing.tshirt_category} — ${existing.tshirt_size}`
-    : null
-
-  return (
-    <SectionCard title="T-Shirt Size" editing={editing} onEditClick={handleEditClick}>
-      {!editing ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 pt-1">
-          <Field label="Category" value={existing?.tshirt_category} />
-          <Field label="Size"     value={existing?.tshirt_size} />
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="tshirt_category">Category</Label>
-              <Select id="tshirt_category" value={selectedCategory} onChange={handleCategoryChange}>
+              <Label htmlFor="tshirt_category">T-Shirt Category</Label>
+              <Select id="tshirt_category" value={selectedCategory} onChange={e => { setValue('tshirt_category', e.target.value); setValue('tshirt_size', '') }}>
                 <option value="">— Select —</option>
                 {TSHIRT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tshirt_size">Size</Label>
-              <Select
-                id="tshirt_size"
-                disabled={availableSizes.length === 0}
-                value={watch('tshirt_size') ?? ''}
-                onChange={e => setValue('tshirt_size', e.target.value)}
-              >
+              <Label htmlFor="tshirt_size">T-Shirt Size</Label>
+              <Select id="tshirt_size" disabled={availableSizes.length === 0} value={watch('tshirt_size') ?? ''} onChange={e => setValue('tshirt_size', e.target.value)}>
                 <option value="">— Select —</option>
                 {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
-              {availableSizes.length === 0 && (
-                <p className="text-xs text-muted-foreground">Select a category first.</p>
-              )}
+              {availableSizes.length === 0 && <p className="text-xs text-muted-foreground">Select a category first.</p>}
             </div>
           </div>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
@@ -598,20 +503,18 @@ function TshirtSection({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Root export — composes all five sections
+// Root export — composes all sections
 // ══════════════════════════════════════════════════════════════════════════════
 
-export function PersonalInfoForm({ existing }: { existing: PersonalInfoRecord | null }) {
+export function PersonalInfoForm({ existing, chapters = [] }: { existing: PersonalInfoRecord | null; chapters?: Chapter[] }) {
   const router = useRouter()
   function handleSaved() { router.refresh() }
 
   return (
     <div className="space-y-5">
-      <ProfileSection  existing={existing} onSaved={handleSaved} />
-      <AddressSection  existing={existing} onSaved={handleSaved} />
-      <ContactSection  existing={existing} onSaved={handleSaved} />
-      <DatesSection    existing={existing} onSaved={handleSaved} />
-      <TshirtSection   existing={existing} onSaved={handleSaved} />
+      <GeneralSection      existing={existing} chapters={chapters} onSaved={handleSaved} />
+      <AddressSection      existing={existing} onSaved={handleSaved} />
+      <AdditionalInfoSection existing={existing} onSaved={handleSaved} />
     </div>
   )
 }

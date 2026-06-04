@@ -8,6 +8,7 @@ export interface PersonalInfoData {
   first_name: string
   middle_name?: string
   last_name: string
+  nick_name?: string
   suffix?: string
   primary_email?: string
   primary_phone?: string
@@ -21,6 +22,7 @@ export interface PersonalInfoData {
   sunset_date?: string
   tshirt_category?: string
   tshirt_size?: string
+  chapter_id?: string | null
 }
 
 export type PersonalInfoRecord = PersonalInfoData & {
@@ -122,13 +124,62 @@ export async function upsertPersonalInfo(
         country: normalize(input.country),
         date_of_birth: input.date_of_birth || null,
         sunset_date: input.sunset_date || null,
+        nick_name: normalize(input.nick_name),
         tshirt_category: normalize(input.tshirt_category),
         tshirt_size: normalize(input.tshirt_size),
+        chapter_id: input.chapter_id ?? null,
       },
       { onConflict: 'user_id' }
     )
 
   if (error) return { success: false, message: error.message }
+
+  revalidatePath('/personal-info')
+  return { success: true }
+}
+
+// Saves chapter_id on the user's own record AND propagates to their minor children.
+export async function saveChapterAndPropagate(
+  chapterId: string | null
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  const familyCode = user.user_metadata?.family_code ?? ''
+
+  // Update own record
+  const { data: myRecord, error: myError } = await supabase
+    .from('people')
+    .upsert({ user_id: user.id, family_code: familyCode, is_minor: false, created_by: user.id, chapter_id: chapterId ?? null }, { onConflict: 'user_id' })
+    .select('id')
+    .single()
+
+  if (myError) return { success: false, message: myError.message }
+
+  // Propagate to minor children (person_relationships where I'm the parent)
+  if (myRecord?.id) {
+    const { data: childRelTypes } = await supabase
+      .from('relationship_types')
+      .select('id')
+      .in('name', ['Son', 'Daughter'])
+
+    if (childRelTypes?.length) {
+      const { data: childRels } = await supabase
+        .from('person_relationships')
+        .select('related_person_id')
+        .eq('person_id', myRecord.id)
+        .in('relationship_type_id', childRelTypes.map(t => t.id))
+
+      if (childRels?.length) {
+        await supabase
+          .from('people')
+          .update({ chapter_id: chapterId ?? null })
+          .in('id', childRels.map(r => r.related_person_id))
+          .eq('is_minor', true)
+      }
+    }
+  }
 
   revalidatePath('/personal-info')
   return { success: true }
