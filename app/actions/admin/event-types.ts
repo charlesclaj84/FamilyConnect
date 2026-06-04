@@ -123,7 +123,7 @@ export async function getBlueprintItems(eventTypeId: string): Promise<BlueprintI
 export async function addBlueprintItem(
   eventTypeId: string,
   title: string,
-  options?: { description?: string; due_date?: string; response_type?: 'text' | 'date' | 'checkbox' }
+  options?: { description?: string; due_date?: string; response_type?: 'text' | 'date' | 'checkbox' | 'list' }
 ): Promise<{ success: boolean; error?: string }> {
   const { user, admin } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -157,7 +157,7 @@ export async function addBlueprintItem(
 export async function updateBlueprintItemFull(
   id: string,
   title: string,
-  options?: { description?: string; due_date?: string; response_type?: 'text' | 'date' | 'checkbox' }
+  options?: { description?: string; due_date?: string; response_type?: 'text' | 'date' | 'checkbox' | 'list' }
 ): Promise<{ success: boolean; error?: string }> {
   const { admin } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
