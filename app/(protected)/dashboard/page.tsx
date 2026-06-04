@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                     <p className="font-medium text-sm truncate">{event.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {event.event_date
-                        ? new Date(event.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+                        ? new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
                         : 'Date TBD'}
                     </p>
                     {event.location && (

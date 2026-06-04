@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Pencil, Plus, Check, X, UserPlus, UserMinus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,10 +11,17 @@ import {
   publishEvent, approveEvent, cancelEvent, updateEvent, deleteEvent,
   assignBlueprintItem, unassignBlueprintItem, approveAssignmentResponse,
   updateAssignmentDueDate,
-  createSubEvent, type AdminEvent, type EventAssignment, type EventReport,
+  createSubEvent,
+  getHotelBookings, createHotelBooking, updateHotelBooking, deleteHotelBooking,
+  addPriceEstimate, deletePriceEstimate,
+  addHotelDetail, deleteHotelDetail,
+  type AdminEvent, type EventAssignment, type EventReport,
+  type HotelBooking, type PriceEstimate, type HotelBookingDetail,
 } from '@/app/actions/admin/events'
 import type { BlueprintItem } from '@/app/actions/admin/event-types'
 import type { MemberWithRoles } from '@/app/actions/admin/users'
+import { AddressSelects } from '@/components/ui/AddressSelects'
+import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 
 const STATUS_COLORS: Record<AdminEvent['status'], string> = {
   draft:     'bg-muted text-muted-foreground',
@@ -41,14 +48,120 @@ interface Props {
 
 // ── Edit Event Form ────────────────────────────────────────────────────────────
 
+function EventFormFields({ form, setForm, isSubEvent = false }: {
+  form: Record<string, string>
+  setForm: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  isSubEvent?: boolean
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label>Name <span className="text-destructive">*</span></Label>
+        <Input value={form.name ?? ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label>Description</Label>
+        <Input value={form.description ?? ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Start Date</Label>
+        <Input type="date" value={form.start_date ?? ''} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>End Date</Label>
+        <Input type="date" value={form.end_date ?? ''} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
+      </div>
+
+      {/* All Day toggle */}
+      <div className="sm:col-span-2 flex items-center gap-2 py-1">
+        <input
+          id="is_all_day"
+          type="checkbox"
+          checked={form.is_all_day !== 'false'}
+          onChange={e => setForm(f => ({ ...f, is_all_day: e.target.checked ? 'true' : 'false', start_time: '', end_time: '' }))}
+          className="h-4 w-4 rounded border-input accent-primary"
+        />
+        <label htmlFor="is_all_day" className="text-sm cursor-pointer select-none">All Day</label>
+      </div>
+
+      {form.is_all_day === 'false' && (
+        <>
+          <div className="space-y-1.5">
+            <Label>Start Time</Label>
+            <Input type="time" value={form.start_time ?? ''} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>End Time</Label>
+            <Input type="time" value={form.end_time ?? ''} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+          </div>
+        </>
+      )}
+      {!isSubEvent && (
+        <div className="space-y-1.5">
+          <Label>RSVP Deadline</Label>
+          <Input type="date" value={form.rsvp_deadline ?? ''} onChange={e => setForm(f => ({ ...f, rsvp_deadline: e.target.value }))} />
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Label>Venue / Location Name</Label>
+        <Input placeholder="e.g. Grand Ballroom" value={form.location ?? ''} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+      </div>
+      {/* Country first, then address */}
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label htmlFor="ef_country">Country</Label>
+        <select id="ef_country" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.country ?? ''} onChange={e => setForm(f => ({ ...f, country: e.target.value, state: '' }))}>
+          <option value="">— Select country —</option>
+          {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Street Address</Label>
+        <Input placeholder="123 Main St" value={form.street_address ?? ''} onChange={e => setForm(f => ({ ...f, street_address: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Suite / Apt</Label>
+        <Input placeholder="Suite 200" value={form.suite ?? ''} onChange={e => setForm(f => ({ ...f, suite: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>City</Label>
+        <Input value={form.city ?? ''} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="ef_state">State / Province</Label>
+        {form.country && form.country in REGIONS ? (
+          <select id="ef_state" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.state ?? ''} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}>
+            <option value="">— Select state —</option>
+            {REGIONS[form.country as Country].map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        ) : (
+          <Input id="ef_state" value={form.state ?? ''} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} />
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <Label>Zip Code</Label>
+        <Input value={form.zip_code ?? ''} onChange={e => setForm(f => ({ ...f, zip_code: e.target.value }))} />
+      </div>
+    </div>
+  )
+}
+
 function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSaved: (e: Partial<AdminEvent>) => void; onCancel: () => void }) {
-  const [form, setForm] = useState({
-    name:          event.name,
-    description:   event.description ?? '',
-    event_date:    event.event_date ?? '',
-    event_time:    event.event_time ?? '',
-    location:      event.location ?? '',
-    rsvp_deadline: event.rsvp_deadline ?? '',
+  const [form, setForm] = useState<Record<string, string>>({
+    name:           event.name,
+    description:    event.description ?? '',
+    start_date:     event.start_date ?? '',
+    end_date:       event.end_date ?? '',
+    is_all_day:     event.is_all_day === false ? 'false' : 'true',
+    start_time:     event.start_time ?? '',
+    end_time:       event.end_time ?? '',
+    location:       event.location ?? '',
+    street_address: event.street_address ?? '',
+    suite:          event.suite ?? '',
+    city:           event.city ?? '',
+    state:          event.state ?? '',
+    zip_code:       event.zip_code ?? '',
+    country:        event.country ?? '',
+    rsvp_deadline:  event.rsvp_deadline ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -56,7 +169,13 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
   async function handleSave() {
     if (!form.name.trim()) { setError('Name is required'); return }
     setSaving(true)
-    const result = await updateEvent(event.id, form)
+    const isAllDay = form.is_all_day !== 'false'
+    const result = await updateEvent(event.id, {
+      ...form,
+      is_all_day: isAllDay,
+      start_time: isAllDay ? undefined : form.start_time || undefined,
+      end_time:   isAllDay ? undefined : form.end_time || undefined,
+    })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
     onSaved(form)
   }
@@ -64,32 +183,7 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="pt-4 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Name <span className="text-destructive">*</span></Label>
-            <Input value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setError('') }} />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Description</Label>
-            <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Date</Label>
-            <Input type="date" value={form.event_date} onChange={e => setForm(f => ({ ...f, event_date: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Time <span className="text-muted-foreground text-xs">(optional)</span></Label>
-            <Input type="time" value={form.event_time} onChange={e => setForm(f => ({ ...f, event_time: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Location</Label>
-            <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>RSVP Deadline</Label>
-            <Input type="date" value={form.rsvp_deadline} onChange={e => setForm(f => ({ ...f, rsvp_deadline: e.target.value }))} />
-          </div>
-        </div>
+        <EventFormFields form={form} setForm={setForm} />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Save Changes'}</Button>
@@ -108,60 +202,299 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
   onAdded: (e: AdminEvent) => void
   onCancel: () => void
 }) {
-  const [form, setForm] = useState({ name: '', description: '', event_date: '', event_time: '', location: '', event_type_id: '' })
+  const [form, setForm] = useState<Record<string, string>>({ name: '', description: '', start_date: '', end_date: '', is_all_day: 'true', start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', event_type_id: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSave() {
     if (!form.name.trim()) { setError('Name is required'); return }
     setSaving(true)
-    const result = await createSubEvent(parentId, form)
+    const isAllDay = form.is_all_day !== 'false'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await createSubEvent(parentId, {
+      ...(form as any),
+      is_all_day: isAllDay,
+      start_time: isAllDay ? undefined : form.start_time || undefined,
+      end_time:   isAllDay ? undefined : form.end_time || undefined,
+    })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    // Reload to get the new sub-event
     window.location.reload()
   }
 
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="pt-4 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Name <span className="text-destructive">*</span></Label>
-            <Input placeholder="e.g. Day 1 — Welcome Party" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setError('') }} autoFocus />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Event Template <span className="text-muted-foreground text-xs">(gives this sub-event a planning checklist)</span></Label>
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={form.event_type_id}
-              onChange={e => setForm(f => ({ ...f, event_type_id: e.target.value }))}
-            >
-              <option value="">— None —</option>
-              {eventTypes.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Date</Label>
-            <Input type="date" value={form.event_date} onChange={e => setForm(f => ({ ...f, event_date: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Time <span className="text-muted-foreground text-xs">(optional)</span></Label>
-            <Input type="time" value={form.event_time} onChange={e => setForm(f => ({ ...f, event_time: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Location</Label>
-            <Input placeholder="Venue / Location" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          </div>
+        <div className="space-y-1.5">
+          <Label>Event Template <span className="text-muted-foreground text-xs">(optional — adds a planning checklist)</span></Label>
+          <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.event_type_id} onChange={e => setForm(f => ({ ...f, event_type_id: e.target.value }))}>
+            <option value="">— None —</option>
+            {eventTypes.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
+          </select>
         </div>
+        <EventFormFields form={form} setForm={setForm} isSubEvent />
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button disabled={saving} onClick={handleSave}>{saving ? 'Adding…' : 'Add Sub-Event'}</Button>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Hotel Bookings ─────────────────────────────────────────────────────────────
+
+function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDelete, onAddEstimate, onDeleteEstimate, onAddDetail, onDeleteDetail }: {
+  eventId: string
+  hotels: HotelBooking[]
+  onLoad: () => Promise<void>
+  onAdd: (b: HotelBooking) => void
+  onUpdate: (id: string, patch: Partial<HotelBooking>) => void
+  onDelete: (id: string) => void
+  onAddEstimate: (hotelId: string, est: PriceEstimate) => void
+  onDeleteEstimate: (hotelId: string, estId: string) => void
+  onAddDetail: (hotelId: string, detail: HotelBookingDetail) => void
+  onDeleteDetail: (hotelId: string, detailId: string) => void
+}) {
+  const emptyForm = { hotel_name: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', booking_code: '', booking_deadline: '', website: '', phone: '' }
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(emptyForm)
+  const [editingHotelId, setEditingHotelId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
+  const [addingEst, setAddingEst] = useState<string | null>(null)
+  const [estForm, setEstForm] = useState({ room_type: '', amount: '' })
+  const [addingDetail, setAddingDetail] = useState<string | null>(null)
+  const [detailForm, setDetailForm] = useState({ key: '', value: '' })
+
+  // Auto-load on mount
+  useEffect(() => { onLoad() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAddHotel() {
+    if (!form.hotel_name.trim()) return
+    setSaving(true)
+    const result = await createHotelBooking(eventId, form)
+    if (result.success && result.id) {
+      onAdd({ id: result.id, event_id: eventId, hotel_name: form.hotel_name, street_address: form.street_address || null, suite: form.suite || null, city: form.city || null, state: form.state || null, zip_code: form.zip_code || null, country: form.country || null, booking_code: form.booking_code || null, booking_deadline: form.booking_deadline || null, website: form.website || null, phone: form.phone || null, created_at: new Date().toISOString(), estimates: [], details: [] })
+      setForm(emptyForm)
+      setShowForm(false)
+    }
+    setSaving(false)
+  }
+
+  async function handleUpdateHotel() {
+    if (!editingHotelId || !editForm.hotel_name.trim()) return
+    setSaving(true)
+    const result = await updateHotelBooking(editingHotelId, editForm)
+    if (result.success) {
+      onUpdate(editingHotelId, {
+        hotel_name: editForm.hotel_name, street_address: editForm.street_address || null,
+        suite: editForm.suite || null, city: editForm.city || null, state: editForm.state || null,
+        zip_code: editForm.zip_code || null, country: editForm.country || null,
+        booking_code: editForm.booking_code || null, booking_deadline: editForm.booking_deadline || null,
+        website: editForm.website || null, phone: editForm.phone || null,
+      })
+      setEditingHotelId(null)
+    }
+    setSaving(false)
+  }
+
+  async function handleAddDetail(hotelId: string) {
+    if (!detailForm.key.trim() || !detailForm.value.trim()) return
+    const result = await addHotelDetail(hotelId, detailForm.key, detailForm.value)
+    if (result.success && result.id) {
+      onAddDetail(hotelId, { id: result.id, hotel_booking_id: hotelId, key: detailForm.key, value: detailForm.value, sort_order: 0 })
+      setDetailForm({ key: '', value: '' })
+      setAddingDetail(null)
+    }
+  }
+
+  async function handleAddEstimate(hotelId: string) {
+    if (!estForm.room_type.trim() || !estForm.amount) return
+    const result = await addPriceEstimate(hotelId, { room_type: estForm.room_type, amount: parseFloat(estForm.amount) })
+    if (result.success && result.id) {
+      onAddEstimate(hotelId, { id: result.id, hotel_booking_id: hotelId, room_type: estForm.room_type, amount: parseFloat(estForm.amount), created_at: new Date().toISOString() })
+      setEstForm({ room_type: '', amount: '' })
+      setAddingEst(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Hotel Bookings</CardTitle>
+          <Button size="sm" variant="outline" onClick={() => setShowForm(s => !s)}><Plus className="h-3.5 w-3.5" /> Add Hotel</Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {showForm && (
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5 sm:col-span-2"><Label>Hotel Name <span className="text-destructive">*</span></Label><Input value={form.hotel_name} onChange={e => setForm(f => ({ ...f, hotel_name: e.target.value }))} autoFocus /></div>
+              <div className="space-y-1.5"><Label>Phone Number</Label><Input type="tel" placeholder="(555) 000-0000" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
+              <div className="space-y-1.5 sm:col-span-2"><Label>Website</Label><Input type="url" placeholder="https://..." value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>Booking Code</Label><Input placeholder="Group rate / reservation code" value={form.booking_code} onChange={e => setForm(f => ({ ...f, booking_code: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>Booking Deadline</Label><Input type="date" value={form.booking_deadline} onChange={e => setForm(f => ({ ...f, booking_deadline: e.target.value }))} /></div>
+              {/* Country — full row */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="hotel_country">Country</Label>
+                <select id="hotel_country" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value, state: '' }))}>
+                  <option value="">— Select country —</option>
+                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {/* Address line */}
+              <div className="space-y-1.5"><Label>Street Address</Label><Input value={form.street_address} onChange={e => setForm(f => ({ ...f, street_address: e.target.value }))} /></div>
+              <div className="space-y-1.5"><Label>Suite / Apt</Label><Input value={form.suite} onChange={e => setForm(f => ({ ...f, suite: e.target.value }))} /></div>
+              {/* City, State, Zip */}
+              <div className="space-y-1.5"><Label>City</Label><Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
+              <div className="space-y-1.5">
+                <Label htmlFor="hotel_state">State / Province</Label>
+                {form.country && form.country in REGIONS ? (
+                  <select id="hotel_state" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}>
+                    <option value="">— Select state —</option>
+                    {REGIONS[form.country as Country].map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                ) : (
+                  <Input id="hotel_state" value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))} placeholder="State / Province" />
+                )}
+              </div>
+              <div className="space-y-1.5"><Label>Zip Code</Label><Input value={form.zip_code} onChange={e => setForm(f => ({ ...f, zip_code: e.target.value }))} /></div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={!form.hotel_name.trim() || saving} onClick={handleAddHotel}>{saving ? 'Saving…' : 'Add Hotel'}</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {hotels.length === 0 && !showForm && <p className="text-sm text-muted-foreground">No hotel bookings yet.</p>}
+
+        {hotels.map(hotel => (
+          <div key={hotel.id} className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium text-sm">{hotel.hotel_name}</p>
+                {hotel.booking_code && <p className="text-xs text-muted-foreground">Code: <span className="font-mono">{hotel.booking_code}</span></p>}
+                {hotel.booking_deadline && <p className="text-xs text-muted-foreground">Book by: {hotel.booking_deadline}</p>}
+                {(hotel.city || hotel.street_address) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[hotel.street_address, hotel.suite, hotel.city, hotel.state, hotel.zip_code].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                {hotel.phone && (
+                  <a href={`tel:${hotel.phone}`} className="text-xs text-primary hover:underline block">{hotel.phone}</a>
+                )}
+                {hotel.website && (
+                  <a href={hotel.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate block max-w-[200px]">{hotel.website}</a>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                <button onClick={async () => { if (!confirm('Delete this hotel booking?')) return; await deleteHotelBooking(hotel.id); onDelete(hotel.id) }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+
+            {/* Inline edit form */}
+            {editingHotelId === hotel.id && (
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Edit Hotel</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1.5 sm:col-span-2"><Label>Hotel Name</Label><Input value={editForm.hotel_name} onChange={e => setEditForm(f => ({ ...f, hotel_name: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>Phone</Label><Input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div>
+                  <div className="space-y-1.5 sm:col-span-2"><Label>Website</Label><Input type="url" value={editForm.website} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>Booking Code</Label><Input value={editForm.booking_code} onChange={e => setEditForm(f => ({ ...f, booking_code: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>Booking Deadline</Label><Input type="date" value={editForm.booking_deadline} onChange={e => setEditForm(f => ({ ...f, booking_deadline: e.target.value }))} /></div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Country</Label>
+                    <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editForm.country} onChange={e => setEditForm(f => ({ ...f, country: e.target.value, state: '' }))}>
+                      <option value="">— Select country —</option>
+                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5"><Label>Street Address</Label><Input value={editForm.street_address} onChange={e => setEditForm(f => ({ ...f, street_address: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>Suite / Apt</Label><Input value={editForm.suite} onChange={e => setEditForm(f => ({ ...f, suite: e.target.value }))} /></div>
+                  <div className="space-y-1.5"><Label>City</Label><Input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} /></div>
+                  <div className="space-y-1.5">
+                    <Label>State / Province</Label>
+                    {editForm.country && editForm.country in REGIONS ? (
+                      <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}>
+                        <option value="">— Select —</option>
+                        {REGIONS[editForm.country as Country].map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    ) : (
+                      <Input value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))} />
+                    )}
+                  </div>
+                  <div className="space-y-1.5"><Label>Zip Code</Label><Input value={editForm.zip_code} onChange={e => setEditForm(f => ({ ...f, zip_code: e.target.value }))} /></div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={saving} onClick={handleUpdateHotel}>{saving ? 'Saving…' : 'Save Changes'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingHotelId(null)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Price estimates */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Price Estimates</p>
+              {hotel.estimates.length > 0 && (
+                <div className="divide-y rounded border">
+                  {hotel.estimates.map(est => (
+                    <div key={est.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                      <span>{est.room_type}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">${Number(est.amount).toFixed(2)}</span>
+                        <button onClick={async () => { await deletePriceEstimate(est.id); onDeleteEstimate(hotel.id, est.id) }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {addingEst === hotel.id ? (
+                <div className="flex gap-2 items-center">
+                  <Input placeholder="Room type" value={estForm.room_type} onChange={e => setEstForm(f => ({ ...f, room_type: e.target.value }))} className="h-7 text-sm" />
+                  <Input placeholder="Amount" type="number" min="0" step="0.01" value={estForm.amount} onChange={e => setEstForm(f => ({ ...f, amount: e.target.value }))} className="h-7 text-sm w-28" />
+                  <button onClick={() => handleAddEstimate(hotel.id)} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { setAddingEst(null); setEstForm({ room_type: '', amount: '' }) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+                </div>
+              ) : (
+                <button onClick={() => { setAddingEst(hotel.id); setEstForm({ room_type: '', amount: '' }) }} className="text-xs text-primary hover:opacity-70 flex items-center gap-1">
+                  <Plus className="h-3 w-3" /> Add estimate
+                </button>
+              )}
+            </div>
+
+            {/* Key/value details */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Details</p>
+              {hotel.details.length > 0 && (
+                <div className="divide-y rounded border">
+                  {hotel.details.map(d => (
+                    <div key={d.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                      <span className="text-muted-foreground shrink-0 mr-2">{d.key}</span>
+                      <span className="flex-1 text-right">{d.value}</span>
+                      <button onClick={async () => { await deleteHotelDetail(d.id); onDeleteDetail(hotel.id, d.id) }} className="text-muted-foreground hover:text-destructive ml-2 shrink-0"><X className="h-3 w-3" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {addingDetail === hotel.id ? (
+                <div className="flex gap-2 items-center">
+                  <Input placeholder="Key (e.g. Check-in)" value={detailForm.key} onChange={e => setDetailForm(f => ({ ...f, key: e.target.value }))} className="h-7 text-sm" />
+                  <Input placeholder="Value (e.g. 3:00 PM)" value={detailForm.value} onChange={e => setDetailForm(f => ({ ...f, value: e.target.value }))} className="h-7 text-sm" />
+                  <button onClick={() => handleAddDetail(hotel.id)} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { setAddingDetail(null); setDetailForm({ key: '', value: '' }) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+                </div>
+              ) : (
+                <button onClick={() => { setAddingDetail(hotel.id); setDetailForm({ key: '', value: '' }) }} className="text-xs text-primary hover:opacity-70 flex items-center gap-1">
+                  <Plus className="h-3 w-3" /> Add detail
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   )
@@ -173,6 +506,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   const [report, setReport]           = useState(initialReport)
   const [assignments, setAssignments] = useState(initialAssignments)
   const [subEvents, setSubEvents]     = useState(initialSubEvents)
+  const [hotels, setHotels]           = useState<HotelBooking[]>([])
   const [editing, setEditing]         = useState(false)
   const [showAddSub, setShowAddSub]   = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
@@ -253,8 +587,12 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/admin/events" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-2">
-            <ChevronLeft className="h-3.5 w-3.5" /> Back to Events
+          <Link
+            href={event.parent_event_id ? `/admin/events/${event.parent_event_id}` : '/admin/events'}
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-2"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            {event.parent_event_id ? 'Back to Event' : 'Back to Events'}
           </Link>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold">{event.name}</h1>
@@ -288,8 +626,32 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
         />
       )}
 
-      {/* Sub-events */}
-      <Card>
+      {/* Hotel Bookings — shown first for main events */}
+      {event.parent_event_id === null && (
+        <HotelBookingsSection
+          eventId={event.id}
+          hotels={hotels}
+          onLoad={async () => {
+            const data = await getHotelBookings(event.id)
+            setHotels(data)
+          }}
+          onAdd={b => setHotels(prev => [...prev, b])}
+          onUpdate={(id, patch) => setHotels(prev => prev.map(h => h.id === id ? { ...h, ...patch } : h))}
+          onDelete={id => setHotels(prev => prev.filter(h => h.id !== id))}
+          onAddEstimate={(hotelId, est) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, estimates: [...h.estimates, est] } : h))}
+          onDeleteEstimate={(hotelId, estId) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, estimates: h.estimates.filter(e => e.id !== estId) } : h))}
+          onAddDetail={(hotelId, detail) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, details: [...h.details, detail] } : h))}
+          onDeleteDetail={(hotelId, detailId) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, details: h.details.filter(d => d.id !== detailId) } : h))}
+        />
+      )}
+
+      {/* Sub-events — only shown for top-level events */}
+      {event.parent_event_id && (
+        <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+          This is a sub-event. Sub-events cannot have their own sub-events.
+        </div>
+      )}
+      {!event.parent_event_id && <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Sub-Events</CardTitle>
@@ -329,7 +691,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
             ))
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Blueprint assignments */}
       {blueprintItems.length > 0 && (

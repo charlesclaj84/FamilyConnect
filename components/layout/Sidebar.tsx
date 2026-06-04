@@ -26,7 +26,7 @@ const navItems = [
   { href: '/personal-info',   label: 'My Profile',   icon: UserCircle },
   { href: '/direct-lineage',  label: 'My Children',  icon: Users },
   { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
-  { href: '/events',          label: 'Events',        icon: Calendar },
+  { href: '/events',          label: 'Upcoming Events', icon: Calendar },
   { href: '/account-summary', label: 'Account',      icon: Wallet },
   { href: '/chat',            label: 'Chat',          icon: MessageCircle },
 ]

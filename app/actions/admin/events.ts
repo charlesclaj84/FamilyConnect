@@ -13,7 +13,18 @@ export interface AdminEvent {
   description: string | null
   event_date: string | null
   event_time: string | null
+  start_date: string | null
+  end_date: string | null
+  is_all_day: boolean
+  start_time: string | null
+  end_time: string | null
   location: string | null
+  street_address: string | null
+  suite: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  country: string | null
   rsvp_deadline: string | null
   status: 'draft' | 'published' | 'approved' | 'cancelled'
   created_by: string | null
@@ -21,6 +32,41 @@ export interface AdminEvent {
   approved_at: string | null
   created_at: string
   event_type_name?: string | null
+}
+
+export interface PriceEstimate {
+  id: string
+  hotel_booking_id: string
+  room_type: string
+  amount: number
+  created_at: string
+}
+
+export interface HotelBookingDetail {
+  id: string
+  hotel_booking_id: string
+  key: string
+  value: string
+  sort_order: number
+}
+
+export interface HotelBooking {
+  id: string
+  event_id: string
+  hotel_name: string
+  street_address: string | null
+  suite: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  country: string | null
+  booking_code: string | null
+  booking_deadline: string | null
+  website: string | null
+  phone: string | null
+  created_at: string
+  estimates: PriceEstimate[]
+  details: HotelBookingDetail[]
 }
 
 export interface EventAssignment {
@@ -95,31 +141,48 @@ export async function getEvents(status?: AdminEvent['status']): Promise<AdminEve
   })) as AdminEvent[]
 }
 
+type AddressInput = {
+  street_address?: string; suite?: string; city?: string
+  state?: string; zip_code?: string; country?: string
+}
+
 export async function createEvent(input: {
   name: string
   description?: string
   event_type_id?: string
-  event_date?: string
-  event_time?: string
+  start_date?: string
+  end_date?: string
+  is_all_day?: boolean
+  start_time?: string
+  end_time?: string
   location?: string
   rsvp_deadline?: string
-}): Promise<{ success: boolean; id?: string; error?: string }> {
+} & AddressInput): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
 
   const { data, error } = await admin
     .from('events')
     .insert({
-      family_code:   familyCode,
-      name:          input.name.trim(),
-      description:   input.description?.trim() || null,
-      event_type_id: input.event_type_id || null,
-      event_date:    input.event_date || null,
-      event_time:    input.event_time || null,
-      location:      input.location?.trim() || null,
-      rsvp_deadline: input.rsvp_deadline || null,
-      status:        'draft',
-      created_by:    user!.id,
+      family_code:    familyCode,
+      name:           input.name.trim(),
+      description:    input.description?.trim() || null,
+      event_type_id:  input.event_type_id || null,
+      start_date:     input.start_date || null,
+      end_date:       input.end_date || null,
+      is_all_day:     input.is_all_day ?? true,
+      start_time:     input.is_all_day ? null : (input.start_time || null),
+      end_time:       input.is_all_day ? null : (input.end_time || null),
+      location:       input.location?.trim() || null,
+      street_address: input.street_address?.trim() || null,
+      suite:          input.suite?.trim() || null,
+      city:           input.city?.trim() || null,
+      state:          input.state?.trim() || null,
+      zip_code:       input.zip_code?.trim() || null,
+      country:        input.country?.trim() || null,
+      rsvp_deadline:  input.rsvp_deadline || null,
+      status:         'draft',
+      created_by:     user!.id,
     })
     .select('id')
     .single()
@@ -131,7 +194,7 @@ export async function createEvent(input: {
 
 export async function createSubEvent(
   parentId: string,
-  input: { name: string; description?: string; event_date?: string; event_time?: string; location?: string; event_type_id?: string }
+  input: { name: string; description?: string; start_date?: string; end_date?: string; is_all_day?: boolean; start_time?: string; end_time?: string; location?: string; event_type_id?: string } & AddressInput
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -148,9 +211,18 @@ export async function createSubEvent(
       event_type_id:   input.event_type_id || null,
       name:            input.name.trim(),
       description:     input.description?.trim() || null,
-      event_date:      input.event_date || null,
-      event_time:      input.event_time || null,
+      start_date:      input.start_date || null,
+      end_date:        input.end_date || null,
+      is_all_day:      input.is_all_day ?? true,
+      start_time:      input.is_all_day ? null : (input.start_time || null),
+      end_time:        input.is_all_day ? null : (input.end_time || null),
       location:        input.location?.trim() || null,
+      street_address:  input.street_address?.trim() || null,
+      suite:           input.suite?.trim() || null,
+      city:            input.city?.trim() || null,
+      state:           input.state?.trim() || null,
+      zip_code:        input.zip_code?.trim() || null,
+      country:         input.country?.trim() || null,
       status:          parent.status,
       created_by:      user!.id,
     })
@@ -175,7 +247,7 @@ export async function getSubEvents(parentId: string): Promise<AdminEvent[]> {
 
 export async function updateEvent(
   id: string,
-  input: Partial<{ name: string; description: string; event_date: string; event_time: string; location: string; rsvp_deadline: string; event_type_id: string }>
+  input: Partial<{ name: string; description: string; start_date: string; end_date: string; is_all_day: boolean; start_time: string; end_time: string; location: string; rsvp_deadline: string; event_type_id: string } & AddressInput>
 ): Promise<{ success: boolean; error?: string }> {
   const { admin } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -404,4 +476,166 @@ export async function getEventReport(eventId: string): Promise<EventReport | nul
     non_respondents: nonRespondents,
     total_family_members: allMembers?.length ?? 0,
   }
+}
+
+// ── Hotel bookings ─────────────────────────────────────────────────────────────
+
+export async function getHotelBookings(eventId: string): Promise<HotelBooking[]> {
+  const admin = createAdminClient()
+  const { data: bookings } = await admin
+    .from('event_hotel_bookings')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('created_at')
+
+  if (!bookings?.length) return []
+
+  const ids = bookings.map(b => b.id)
+
+  const [{ data: estimates }, { data: details }] = await Promise.all([
+    admin.from('event_hotel_price_estimates').select('*').in('hotel_booking_id', ids).order('created_at'),
+    admin.from('event_hotel_booking_details').select('*').in('hotel_booking_id', ids).order('sort_order').order('created_at'),
+  ])
+
+  const estimatesByBooking: Record<string, PriceEstimate[]> = {}
+  for (const e of estimates ?? []) {
+    if (!estimatesByBooking[e.hotel_booking_id]) estimatesByBooking[e.hotel_booking_id] = []
+    estimatesByBooking[e.hotel_booking_id].push(e as PriceEstimate)
+  }
+
+  const detailsByBooking: Record<string, HotelBookingDetail[]> = {}
+  for (const d of details ?? []) {
+    if (!detailsByBooking[d.hotel_booking_id]) detailsByBooking[d.hotel_booking_id] = []
+    detailsByBooking[d.hotel_booking_id].push(d as HotelBookingDetail)
+  }
+
+  return bookings.map(b => ({
+    ...b,
+    estimates: estimatesByBooking[b.id] ?? [],
+    details:   detailsByBooking[b.id] ?? [],
+  })) as HotelBooking[]
+}
+
+type HotelInput = { hotel_name: string; street_address?: string; suite?: string; city?: string; state?: string; zip_code?: string; country?: string; booking_code?: string; booking_deadline?: string; website?: string; phone?: string }
+
+export async function createHotelBooking(
+  eventId: string,
+  input: HotelInput
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const { user, admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data, error } = await admin
+    .from('event_hotel_bookings')
+    .insert({
+      event_id:       eventId,
+      hotel_name:     input.hotel_name.trim(),
+      street_address: input.street_address?.trim() || null,
+      suite:          input.suite?.trim() || null,
+      city:           input.city?.trim() || null,
+      state:          input.state?.trim() || null,
+      zip_code:       input.zip_code?.trim() || null,
+      country:        input.country?.trim() || null,
+      booking_code:     input.booking_code?.trim() || null,
+      booking_deadline: input.booking_deadline || null,
+      website:          input.website?.trim() || null,
+      phone:            input.phone?.trim() || null,
+      created_by:       user!.id,
+    })
+    .select('id')
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function updateHotelBooking(
+  id: string,
+  input: HotelInput
+): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { error } = await admin.from('event_hotel_bookings').update({
+    hotel_name:       input.hotel_name.trim(),
+    street_address:   input.street_address?.trim() || null,
+    suite:            input.suite?.trim() || null,
+    city:             input.city?.trim() || null,
+    state:            input.state?.trim() || null,
+    zip_code:         input.zip_code?.trim() || null,
+    country:          input.country?.trim() || null,
+    booking_code:     input.booking_code?.trim() || null,
+    booking_deadline: input.booking_deadline || null,
+    website:          input.website?.trim() || null,
+    phone:            input.phone?.trim() || null,
+  }).eq('id', id)
+
+  return error ? { success: false, error: error.message } : { success: true }
+}
+
+export async function deleteHotelBooking(id: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { error } = await admin.from('event_hotel_bookings').delete().eq('id', id)
+  return error ? { success: false, error: error.message } : { success: true }
+}
+
+export async function addPriceEstimate(
+  hotelBookingId: string,
+  input: { room_type: string; amount: number }
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data, error } = await admin
+    .from('event_hotel_price_estimates')
+    .insert({ hotel_booking_id: hotelBookingId, room_type: input.room_type.trim(), amount: input.amount })
+    .select('id')
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function deletePriceEstimate(id: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { error } = await admin.from('event_hotel_price_estimates').delete().eq('id', id)
+  return error ? { success: false, error: error.message } : { success: true }
+}
+
+export async function addHotelDetail(
+  hotelBookingId: string,
+  key: string,
+  value: string
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data: existing } = await admin
+    .from('event_hotel_booking_details')
+    .select('sort_order')
+    .eq('hotel_booking_id', hotelBookingId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data, error } = await admin
+    .from('event_hotel_booking_details')
+    .insert({ hotel_booking_id: hotelBookingId, key: key.trim(), value: value.trim(), sort_order: (existing?.sort_order ?? 0) + 1 })
+    .select('id')
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, id: data.id }
+}
+
+export async function deleteHotelDetail(id: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { error } = await admin.from('event_hotel_booking_details').delete().eq('id', id)
+  return error ? { success: false, error: error.message } : { success: true }
 }

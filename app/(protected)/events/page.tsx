@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getUpcomingEvents } from '@/app/actions/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, MapPin, Clock, ChevronRight } from 'lucide-react'
+import { Calendar, MapPin, Clock, ChevronRight, Users } from 'lucide-react'
+import { formatDate } from '@/lib/date-utils'
 
 export const metadata = { title: 'Events — Family Connect' }
 
@@ -17,7 +18,7 @@ export default async function EventsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Events</h1>
+        <h1 className="text-3xl font-bold mb-1">Upcoming Events</h1>
         <p className="text-muted-foreground">Upcoming family events. Click an event to view details and RSVP.</p>
       </div>
 
@@ -43,6 +44,11 @@ export default async function EventsPage() {
                       {event.status === 'approved' && (
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Confirmed</span>
                       )}
+                      {event.rsvp_count > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Users className="h-3 w-3" /> {event.rsvp_count}
+                        </span>
+                      )}
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
@@ -50,14 +56,18 @@ export default async function EventsPage() {
                 <CardContent className="space-y-1">
                   {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">
-                    {event.event_date && (
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(event.event_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}</span>
+                    {(event.start_date || event.event_date) && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(event.start_date ?? event.event_date)}
+                        {event.end_date && event.end_date !== event.start_date && ` – ${formatDate(event.end_date)}`}
+                      </span>
                     )}
-                    {event.location && (
-                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {event.location}</span>
+                    {(event.location || event.city) && (
+                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[event.location, event.city, event.state].filter(Boolean).join(', ')}</span>
                     )}
                     {event.rsvp_deadline && (
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> RSVP by {new Date(event.rsvp_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> RSVP by {formatDate(event.rsvp_deadline)}</span>
                     )}
                   </div>
                 </CardContent>

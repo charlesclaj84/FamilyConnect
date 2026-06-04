@@ -14,7 +14,7 @@ import {
 } from '@/app/actions/admin/event-types'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 
-const RESPONSE_TYPE_LABELS: Record<string, string> = { text: 'Text', date: 'Date', checkbox: 'Checkbox', list: 'List' }
+const RESPONSE_TYPE_LABELS: Record<string, string> = { text: 'Text', date: 'Date', checkbox: 'Checkbox', list: 'List', members: 'Family Members' }
 
 function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: BlueprintItem; onDelete: () => void; onUpdate: (title: string) => void; onMove: (direction: 'up' | 'down') => void }) {
   const [editing, setEditing] = useState(false)
@@ -58,12 +58,23 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
 }
 
 function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete: () => void }) {
-  const [expanded, setExpanded]     = useState(false)
-  const [items, setItems]           = useState<BlueprintItem[]>([])
-  const [loaded, setLoaded]         = useState(false)
+  const [expanded, setExpanded]       = useState(false)
+  const [items, setItems]             = useState<BlueprintItem[]>([])
+  const [loaded, setLoaded]           = useState(false)
   const [newItem, setNewItem]         = useState('')
-  const [newRespType, setNewRespType] = useState<'text' | 'date' | 'checkbox' | 'list'>('text')
-  const [adding, setAdding]         = useState(false)
+  const [newRespType, setNewRespType] = useState<'text' | 'date' | 'checkbox' | 'list' | 'members'>('text')
+  const [adding, setAdding]           = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue]     = useState(eventType.name)
+  const [savingName, setSavingName]   = useState(false)
+
+  async function handleSaveName() {
+    if (!nameValue.trim()) return
+    setSavingName(true)
+    await updateEventType(eventType.id, nameValue.trim())
+    setSavingName(false)
+    setEditingName(false)
+  }
 
   async function handleExpand() {
     setExpanded(e => !e)
@@ -99,14 +110,25 @@ function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <button onClick={handleExpand} className="flex items-center gap-2 text-left">
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={handleExpand} className="flex items-center gap-2 text-left shrink-0">
             {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            <CardTitle className="text-base">{eventType.name}</CardTitle>
           </button>
-          <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {editingName ? (
+            <div className="flex items-center gap-2 flex-1">
+              <Input value={nameValue} onChange={e => setNameValue(e.target.value)} className="h-7 text-sm" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }} />
+              <button onClick={handleSaveName} disabled={savingName} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+              <button onClick={() => { setEditingName(false); setNameValue(eventType.name) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+            </div>
+          ) : (
+            <button onClick={handleExpand} className="flex-1 text-left">
+              <CardTitle className="text-base">{nameValue}</CardTitle>
+            </button>
+          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!editingName && <button onClick={() => setEditingName(true)} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>}
+            <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button>
+          </div>
         </div>
         {eventType.description && <p className="text-xs text-muted-foreground pl-6">{eventType.description}</p>}
       </CardHeader>
@@ -132,11 +154,12 @@ function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete
           <div className="space-y-2 pt-1">
             <div className="flex gap-2">
               <Input placeholder="Add checklist item…" value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddItem() }} className="h-8 text-sm flex-1" />
-              <select className="h-8 text-xs rounded border border-input bg-background px-2" value={newRespType} onChange={e => setNewRespType(e.target.value as 'text' | 'date' | 'checkbox' | 'list')}>
+              <select className="h-8 text-xs rounded border border-input bg-background px-2" value={newRespType} onChange={e => setNewRespType(e.target.value as 'text' | 'date' | 'checkbox' | 'list' | 'members')}>
                 <option value="text">Text</option>
                 <option value="date">Date</option>
                 <option value="checkbox">Checkbox</option>
                 <option value="list">List</option>
+                <option value="members">Family Members</option>
               </select>
               <Button size="sm" disabled={!newItem.trim() || adding} onClick={handleAddItem}>
                 <Plus className="h-3.5 w-3.5" />

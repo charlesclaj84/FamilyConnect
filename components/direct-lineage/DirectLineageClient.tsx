@@ -22,6 +22,7 @@ import {
   type SpouseChildRecord,
 } from '@/app/actions/children'
 import { CHILD_RELATIONSHIP_TYPES } from '@/lib/family-constants'
+import { formatDate } from '@/lib/date-utils'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, type TshirtCategory } from '@/lib/tshirt-sizes'
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
@@ -299,7 +300,7 @@ function ChildRow({
   const fullName  = [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(' ')
   const label     = `${child.is_step ? 'Step-' : ''}${child.relationship_type}`
   const dob       = child.date_of_birth
-    ? new Date(child.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    ? formatDate(child.date_of_birth) ?? ''
     : '—'
   const shirt     = child.tshirt_category && child.tshirt_size ? `${child.tshirt_category} / ${child.tshirt_size}` : '—'
   const statusBadge = !child.is_minor
@@ -352,7 +353,7 @@ function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefr
 
   const fullName = [child.first_name, child.last_name].filter(Boolean).join(' ')
   const dob      = child.date_of_birth
-    ? new Date(child.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    ? formatDate(child.date_of_birth) ?? ''
     : 'DOB unknown'
 
   async function handleAccept() {
@@ -496,3 +497,4 @@ export function DirectLineageClient({
     </div>
   )
 }
+

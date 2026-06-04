@@ -9,10 +9,15 @@ export interface PublicEvent {
   name: string
   description: string | null
   event_date: string | null
+  start_date: string | null
+  end_date: string | null
   location: string | null
+  city: string | null
+  state: string | null
   rsvp_deadline: string | null
   status: 'published' | 'approved'
   event_type_name: string | null
+  rsvp_count: number
 }
 
 export interface RsvpPerson {
@@ -40,21 +45,50 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
 
   const { data } = await admin
     .from('events')
-    .select('id, name, description, event_date, location, rsvp_deadline, status, event_types(name)')
+    .select('id, name, description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
     .eq('family_code', familyCode)
     .in('status', ['published', 'approved'])
     .is('parent_event_id', null)
     .order('event_date', { ascending: true, nullsFirst: false })
 
-  return (data ?? []).map(e => ({
+  const events = data ?? []
+  const eventIds = events.map(e => e.id)
+
+  // Count attending RSVP attendees per event
+  const rsvpCountMap: Record<string, number> = {}
+  if (eventIds.length) {
+    const { data: rsvps } = await admin
+      .from('event_rsvp')
+      .select('id, event_id')
+      .in('event_id', eventIds)
+    const rsvpIds = (rsvps ?? []).map(r => r.id)
+    if (rsvpIds.length) {
+      const { data: attendees } = await admin
+        .from('event_rsvp_attendees')
+        .select('rsvp_id, event_rsvp!inner(event_id)')
+        .in('rsvp_id', rsvpIds)
+        .eq('is_attending', true)
+      for (const a of attendees ?? []) {
+        const eventId = (a.event_rsvp as unknown as { event_id: string })?.event_id
+        if (eventId) rsvpCountMap[eventId] = (rsvpCountMap[eventId] ?? 0) + 1
+      }
+    }
+  }
+
+  return events.map(e => ({
     id:              e.id,
     name:            e.name,
     description:     e.description,
     event_date:      e.event_date,
+    start_date:      e.start_date ?? null,
+    end_date:        e.end_date ?? null,
     location:        e.location,
+    city:            e.city ?? null,
+    state:           e.state ?? null,
     rsvp_deadline:   e.rsvp_deadline,
     status:          e.status as 'published' | 'approved',
     event_type_name: (e.event_types as unknown as { name: string } | null)?.name ?? null,
+    rsvp_count:      rsvpCountMap[e.id] ?? 0,
   }))
 }
 
@@ -62,7 +96,7 @@ export async function getEventDetail(eventId: string): Promise<PublicEvent | nul
   const admin = createAdminClient()
   const { data } = await admin
     .from('events')
-    .select('id, name, description, event_date, location, rsvp_deadline, status, event_types(name)')
+    .select('id, name, description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
     .eq('id', eventId)
     .in('status', ['published', 'approved'])
     .single()
@@ -73,10 +107,15 @@ export async function getEventDetail(eventId: string): Promise<PublicEvent | nul
     name:            data.name,
     description:     data.description,
     event_date:      data.event_date,
+    start_date:      data.start_date ?? null,
+    end_date:        data.end_date ?? null,
     location:        data.location,
+    city:            data.city ?? null,
+    state:           data.state ?? null,
     rsvp_deadline:   data.rsvp_deadline,
     status:          data.status as 'published' | 'approved',
     event_type_name: (data.event_types as unknown as { name: string } | null)?.name ?? null,
+    rsvp_count:      0,
   }
 }
 
@@ -206,4 +245,66 @@ export async function submitRsvp(
 
   revalidatePath(`/events/${eventId}`)
   return { success: true }
+}
+
+export interface PublicHotel {
+  id: string
+  hotel_name: string
+  phone: string | null
+  website: string | null
+  booking_code: string | null
+  booking_deadline: string | null
+  street_address: string | null
+  suite: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  country: string | null
+  estimates: { id: string; room_type: string; amount: number }[]
+  details: { id: string; key: string; value: string }[]
+}
+
+export async function getEventHotels(eventId: string): Promise<PublicHotel[]> {
+  const admin = createAdminClient()
+  const { data: bookings } = await admin
+    .from('event_hotel_bookings')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('created_at')
+
+  if (!bookings?.length) return []
+
+  const ids = bookings.map(b => b.id)
+  const [{ data: estimates }, { data: details }] = await Promise.all([
+    admin.from('event_hotel_price_estimates').select('*').in('hotel_booking_id', ids).order('created_at'),
+    admin.from('event_hotel_booking_details').select('*').in('hotel_booking_id', ids).order('sort_order').order('created_at'),
+  ])
+
+  const estMap: Record<string, PublicHotel['estimates']> = {}
+  for (const e of estimates ?? []) {
+    if (!estMap[e.hotel_booking_id]) estMap[e.hotel_booking_id] = []
+    estMap[e.hotel_booking_id].push({ id: e.id, room_type: e.room_type, amount: Number(e.amount) })
+  }
+  const detMap: Record<string, PublicHotel['details']> = {}
+  for (const d of details ?? []) {
+    if (!detMap[d.hotel_booking_id]) detMap[d.hotel_booking_id] = []
+    detMap[d.hotel_booking_id].push({ id: d.id, key: d.key, value: d.value })
+  }
+
+  return bookings.map(b => ({
+    id:               b.id,
+    hotel_name:       b.hotel_name,
+    phone:            b.phone ?? null,
+    website:          b.website ?? null,
+    booking_code:     b.booking_code ?? null,
+    booking_deadline: b.booking_deadline ?? null,
+    street_address:   b.street_address ?? null,
+    suite:            b.suite ?? null,
+    city:             b.city ?? null,
+    state:            b.state ?? null,
+    zip_code:         b.zip_code ?? null,
+    country:          b.country ?? null,
+    estimates:        estMap[b.id] ?? [],
+    details:          detMap[b.id] ?? [],
+  }))
 }

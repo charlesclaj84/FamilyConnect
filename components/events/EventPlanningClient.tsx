@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, X, Pencil } from 'lucide-react'
+import { Check, X, Pencil, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { submitAssignmentResponse, type MyAssignment } from '@/app/actions/event-planning'
+import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
 
 const STATUS_COLORS = {
   pending:   'bg-muted text-muted-foreground',
@@ -20,7 +20,7 @@ const STATUS_LABELS = {
 
 function ResponseDisplay({ response, type, className = 'text-muted-foreground' }: { response: string; type: string; className?: string }) {
   if (type === 'checkbox') return <p className={`text-sm ${className}`}>{response === 'true' ? '✓ Marked complete' : '✗ Not complete'}</p>
-  if (type === 'list') {
+  if (type === 'list' || type === 'members') {
     const items: string[] = (() => { try { return JSON.parse(response) } catch { return [] } })()
     return (
       <ul className={`text-sm space-y-0.5 ${className}`}>
@@ -29,6 +29,37 @@ function ResponseDisplay({ response, type, className = 'text-muted-foreground' }
     )
   }
   return <p className={`text-sm italic ${className}`}>"{response}"</p>
+}
+
+function MembersInput({ value, onChange, familyMembers }: { value: string; onChange: (v: string) => void; familyMembers: FamilyMemberOption[] }) {
+  const selected: string[] = (() => { try { return JSON.parse(value || '[]') } catch { return [] } })()
+
+  function toggle(name: string) {
+    const next = selected.includes(name)
+      ? selected.filter(n => n !== name)
+      : [...selected, name]
+    onChange(JSON.stringify(next))
+  }
+
+  if (familyMembers.length === 0) {
+    return <p className="text-sm text-muted-foreground">No family members found.</p>
+  }
+
+  return (
+    <div className="rounded-lg border divide-y">
+      {familyMembers.map(m => (
+        <label key={m.user_id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors">
+          <input
+            type="checkbox"
+            checked={selected.includes(m.display_name)}
+            onChange={() => toggle(m.display_name)}
+            className="h-4 w-4 rounded border-input accent-primary"
+          />
+          <span className="text-sm">{m.display_name}</span>
+        </label>
+      ))}
+    </div>
+  )
 }
 
 function ListInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -61,7 +92,7 @@ function ListInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-function AssignmentRow({ assignment }: { assignment: MyAssignment }) {
+function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssignment; familyMembers?: FamilyMemberOption[] }) {
   const [editing, setEditing]   = useState(false)
   const [response, setResponse] = useState(assignment.response ?? '')
   const [draft, setDraft]       = useState(assignment.response ?? '')
@@ -86,16 +117,33 @@ function AssignmentRow({ assignment }: { assignment: MyAssignment }) {
     }
   }
 
+  const isPastDue = !!(
+    assignment.due_date &&
+    status !== 'approved' &&
+    assignment.due_date < new Date().toISOString().slice(0, 10)
+  )
+
   return (
     <div className="border-b last:border-0 py-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">{assignment.blueprint_item_title}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">{assignment.blueprint_item_title}</p>
+            {isPastDue && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-medium text-red-600">
+                <Flag className="h-3 w-3 fill-red-600" /> Past Due
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">
             {assignment.event_name}
             {assignment.event_date ? ` · ${assignment.event_date}` : ''}
             {assignment.event_time ? ` at ${assignment.event_time}` : ''}
-            {assignment.due_date ? ` · Due: ${assignment.due_date}` : ''}
+            {assignment.due_date && (
+              <span className={isPastDue ? 'text-red-600 font-medium' : ''}>
+                {` · Due: ${assignment.due_date}`}
+              </span>
+            )}
           </p>
         </div>
         <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[status]}`}>
@@ -127,6 +175,8 @@ function AssignmentRow({ assignment }: { assignment: MyAssignment }) {
               />
               Mark as complete
             </label>
+          ) : assignment.response_type === 'members' ? (
+            <MembersInput value={draft} onChange={setDraft} familyMembers={familyMembers} />
           ) : assignment.response_type === 'list' ? (
             <ListInput value={draft} onChange={setDraft} />
           ) : assignment.response_type === 'date' ? (
@@ -170,7 +220,32 @@ function AssignmentRow({ assignment }: { assignment: MyAssignment }) {
   )
 }
 
-export function EventPlanningClient({ initialAssignments }: { initialAssignments: MyAssignment[] }) {
+// Sort: due date ascending (nulls last), then sort_order ascending
+function sortAssignments(items: MyAssignment[]): MyAssignment[] {
+  return [...items].sort((a, b) => {
+    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+    if (a.due_date && !b.due_date) return -1
+    if (!a.due_date && b.due_date) return 1
+    return a.sort_order - b.sort_order
+  })
+}
+
+function AssignmentSection({ title, items, badge, familyMembers }: { title: string; items: MyAssignment[]; badge?: string; familyMembers: FamilyMemberOption[] }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        {badge && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{items.length}</span>}
+      </div>
+      <div className="space-y-0">
+        {items.map(a => <AssignmentRow key={a.id} assignment={a} familyMembers={familyMembers} />)}
+      </div>
+    </div>
+  )
+}
+
+export function EventPlanningClient({ initialAssignments, familyMembers = [] }: { initialAssignments: MyAssignment[]; familyMembers?: FamilyMemberOption[] }) {
   if (initialAssignments.length === 0) {
     return (
       <div className="text-center py-16">
@@ -188,21 +263,27 @@ export function EventPlanningClient({ initialAssignments }: { initialAssignments
 
   return (
     <div className="space-y-6">
-      {Object.entries(byEvent).map(([eventId, items]) => (
-        <Card key={eventId}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{items[0].event_name}</CardTitle>
-            {items[0].event_date && (
-              <p className="text-xs text-muted-foreground">
-                {items[0].event_date}{items[0].event_time ? ` at ${items[0].event_time}` : ''}
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            {items.map(a => <AssignmentRow key={a.id} assignment={a} />)}
-          </CardContent>
-        </Card>
-      ))}
+      {Object.entries(byEvent).map(([eventId, items]) => {
+        const pending   = sortAssignments(items.filter(a => a.response_status === 'pending'))
+        const submitted = sortAssignments(items.filter(a => a.response_status !== 'pending'))
+
+        return (
+          <Card key={eventId}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{items[0].event_name}</CardTitle>
+              {items[0].event_date && (
+                <p className="text-xs text-muted-foreground">
+                  {items[0].event_date}{items[0].event_time ? ` at ${items[0].event_time}` : ''}
+                </p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <AssignmentSection title="Pending" items={pending} badge="count" familyMembers={familyMembers} />
+              <AssignmentSection title="Submitted" items={submitted} badge="count" familyMembers={familyMembers} />
+            </CardContent>
+          </Card>
+        )
+      })}
     </div>
   )
 }

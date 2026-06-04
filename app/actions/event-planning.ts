@@ -11,8 +11,9 @@ export interface MyAssignment {
   event_date: string | null
   event_time: string | null
   blueprint_item_title: string
+  sort_order: number
   due_date: string | null
-  response_type: 'text' | 'date' | 'checkbox' | 'list'
+  response_type: 'text' | 'date' | 'checkbox' | 'list' | 'members'
   response: string | null
   response_status: 'pending' | 'submitted' | 'approved'
   approved_at: string | null
@@ -27,7 +28,7 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
 
   const { data } = await admin
     .from('event_assignments')
-    .select('id, event_id, response, response_status, approved_at, event_blueprint_items(title, due_date, response_type), events(name, event_date, event_time)')
+    .select('id, event_id, response, response_status, approved_at, event_blueprint_items(title, due_date, response_type, sort_order), events(name, event_date, event_time)')
     .eq('assigned_to', user.id)
     .order('created_at', { ascending: false })
 
@@ -38,8 +39,9 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
     event_date:           (a.events as unknown as { event_date: string | null } | null)?.event_date ?? null,
     event_time:           (a.events as unknown as { event_time: string | null } | null)?.event_time ?? null,
     blueprint_item_title: (a.event_blueprint_items as unknown as { title: string } | null)?.title ?? '',
+    sort_order:           (a.event_blueprint_items as unknown as { sort_order: number } | null)?.sort_order ?? 0,
     due_date:             (a.event_blueprint_items as unknown as { due_date: string | null } | null)?.due_date ?? null,
-    response_type:        ((a.event_blueprint_items as unknown as { response_type: string } | null)?.response_type ?? 'text') as 'text' | 'date' | 'checkbox',
+    response_type:        ((a.event_blueprint_items as unknown as { response_type: string } | null)?.response_type ?? 'text') as 'text' | 'date' | 'checkbox' | 'list' | 'members',
     response:             a.response ?? null,
     response_status:      (a.response_status ?? 'pending') as 'pending' | 'submitted' | 'approved',
     approved_at:          a.approved_at ?? null,
@@ -58,6 +60,33 @@ export async function getMyAssignmentCount(): Promise<number> {
     .eq('assigned_to', user.id)
 
   return count ?? 0
+}
+
+export interface FamilyMemberOption {
+  user_id: string
+  display_name: string
+}
+
+export async function getFamilyMembersForPlanning(): Promise<FamilyMemberOption[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const admin = createAdminClient()
+
+  const { data } = await admin
+    .from('people')
+    .select('user_id, first_name, last_name')
+    .eq('family_code', familyCode)
+    .not('user_id', 'is', null)
+    .order('last_name')
+    .order('first_name')
+
+  return (data ?? []).map(p => ({
+    user_id:      p.user_id as string,
+    display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Family Member',
+  }))
 }
 
 export async function submitAssignmentResponse(

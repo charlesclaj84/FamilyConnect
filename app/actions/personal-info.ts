@@ -23,6 +23,7 @@ export interface PersonalInfoData {
   tshirt_category?: string
   tshirt_size?: string
   chapter_id?: string | null
+  time_zone?: string | null
 }
 
 export type PersonalInfoRecord = PersonalInfoData & {

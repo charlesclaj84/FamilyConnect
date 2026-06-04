@@ -1,11 +1,13 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getEventDetail, getMyRsvp, getMyFamilyForRsvp } from '@/app/actions/events'
+import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
 import { EventRsvpClient } from '@/components/events/EventRsvpClient'
-import { ChevronLeft, Calendar, MapPin, Clock, ListOrdered } from 'lucide-react'
+import { EventHotelsClient } from '@/components/events/EventHotelsClient'
+import { ChevronLeft, Calendar, MapPin, Clock, ListOrdered, BedDouble, ClipboardList } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatDate, formatTime } from '@/lib/date-utils'
 
 export const metadata = { title: 'Event — Family Connect' }
 
@@ -16,11 +18,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [event, myRsvp, familyMembers, subEvents] = await Promise.all([
+  const [event, myRsvp, familyMembers, subEvents, hotels] = await Promise.all([
     getEventDetail(id),
     getMyRsvp(id),
     getMyFamilyForRsvp(),
     getSubEvents(id),
+    getEventHotels(id),
   ])
 
   if (!event) notFound()
@@ -51,29 +54,33 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         )}
 
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-4">
-          {event.event_date && (
+          {(event.start_date || event.event_date) && (
             <span className="flex items-center gap-1.5">
               <Calendar className="h-4 w-4" />
-              {new Date(event.event_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
+              {formatDate(event.start_date ?? event.event_date)}
+              {event.end_date && event.end_date !== event.start_date && ` – ${formatDate(event.end_date)}`}
             </span>
           )}
-          {event.location && (
-            <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {event.location}</span>
+          {(event.location || event.city) && (
+            <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {[event.location, event.city, event.state].filter(Boolean).join(', ')}</span>
           )}
           {event.rsvp_deadline && (
             <span className="flex items-center gap-1.5">
               <Clock className="h-4 w-4" />
-              RSVP by {new Date(event.rsvp_deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+              RSVP by {formatDate(event.rsvp_deadline)}
             </span>
           )}
         </div>
       </div>
 
+      {/* Hotel Options */}
+      {hotels.length > 0 && <EventHotelsClient hotels={hotels} />}
+
       {/* Itinerary */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ListOrdered className="h-4 w-4 text-primary" /> Itinerary
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ListOrdered className="h-5 w-5 text-primary" /> Itinerary
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -85,10 +92,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 <div key={sub.id} className="py-3">
                   <p className="text-sm font-medium">{sub.name}</p>
                   <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
-                    {sub.event_date && (
+                    {(sub.start_date || sub.event_date) && (
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />
-                        {new Date(sub.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                        {sub.event_time ? ` at ${sub.event_time}` : ''}
+                        {formatDate(sub.start_date ?? sub.event_date)}
+                        {sub.start_time ? ` at ${formatTime(sub.start_time)}` : sub.event_time ? ` at ${formatTime(sub.event_time)}` : ''}
                       </span>
                     )}
                     {sub.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {sub.location}</span>}
@@ -102,8 +109,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
-          <h2 className="text-lg font-semibold mb-4">Your RSVP</h2>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ClipboardList className="h-5 w-5 text-primary" /> Your RSVP
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {deadlinePassed && !myRsvp ? (
             <p className="text-sm text-muted-foreground">The RSVP deadline has passed.</p>
           ) : (

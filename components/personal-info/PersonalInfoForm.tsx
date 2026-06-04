@@ -14,18 +14,14 @@ import { saveProfileSection, saveChapterAndPropagate, type PersonalInfoRecord } 
 import type { Chapter } from '@/app/actions/admin/chapters'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
+import { formatDate as fmtDate } from '@/lib/date-utils'
+import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
 const tv = (v: string | null | undefined) => v ?? ''
 
-function formatDate(d?: string | null): string | null {
-  if (!d) return null
-  const [y, m, day] = d.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
-  })
-}
+const formatDate = fmtDate
 
 // ── View-mode field ────────────────────────────────────────────────────────────
 
@@ -415,6 +411,7 @@ const additionalSchema = z.object({
   sunset_date:     z.string().optional(),
   tshirt_category: z.string().optional(),
   tshirt_size:     z.string().optional(),
+  time_zone:       z.string().optional(),
 })
 type AdditionalData = z.infer<typeof additionalSchema>
 
@@ -427,6 +424,7 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
     defaultValues: {
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
       tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
+      time_zone: tv(existing?.time_zone),
     },
   })
 
@@ -437,6 +435,7 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
     reset({
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
       tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
+      time_zone: tv(existing?.time_zone),
     })
     setServerError('')
     setEditing(true)
@@ -466,6 +465,7 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
             </p>
           </div>
           <Field label="T-Shirt" value={shirtDisplay} />
+          <Field label="Time Zone" value={existing?.time_zone ? (TIMEZONE_LABELS[existing.time_zone] ?? existing.time_zone) : null} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -494,6 +494,15 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
               </Select>
               {availableSizes.length === 0 && <p className="text-xs text-muted-foreground">Select a category first.</p>}
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="time_zone">Time Zone</Label>
+              <Select id="time_zone" {...register('time_zone')}>
+                <option value="">— Select —</option>
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                ))}
+              </Select>
+            </div>
           </div>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
         </form>
@@ -518,3 +527,4 @@ export function PersonalInfoForm({ existing, chapters = [] }: { existing: Person
     </div>
   )
 }
+
