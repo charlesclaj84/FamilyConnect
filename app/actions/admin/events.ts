@@ -325,7 +325,7 @@ export async function getEventAssignments(eventId: string): Promise<EventAssignm
     id:                   a.id,
     event_id:             a.event_id,
     blueprint_item_id:    a.blueprint_item_id,
-    blueprint_item_title: (a.event_blueprint_items as { title: string } | null)?.title ?? '',
+    blueprint_item_title: (a.event_blueprint_items as unknown as { title: string } | null)?.title ?? '',
     assigned_to:          a.assigned_to,
     assigned_to_name:     a.assigned_to ? (nameByUserId[a.assigned_to] ?? 'Unknown') : null,
     is_complete:          a.is_complete,
