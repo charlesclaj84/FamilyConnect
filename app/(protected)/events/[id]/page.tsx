@@ -1,13 +1,14 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels } from '@/app/actions/events'
+import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels, getEventRsvpSummary } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
 import { EventRsvpClient } from '@/components/events/EventRsvpClient'
 import { EventHotelsClient } from '@/components/events/EventHotelsClient'
-import { ChevronLeft, Calendar, MapPin, Clock, ListOrdered, BedDouble, ClipboardList } from 'lucide-react'
+import { EventItineraryClient } from '@/components/events/EventItineraryClient'
+import { ChevronLeft, Calendar, MapPin, Clock, BedDouble, ClipboardList, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatDate, formatTime } from '@/lib/date-utils'
+import { formatDate } from '@/lib/date-utils'
 
 export const metadata = { title: 'Event — Family Connect' }
 
@@ -18,12 +19,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [event, myRsvp, familyMembers, subEvents, hotels] = await Promise.all([
+  const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary] = await Promise.all([
     getEventDetail(id),
     getMyRsvp(id),
     getMyFamilyForRsvp(),
     getSubEvents(id),
     getEventHotels(id),
+    getEventRsvpSummary(id),
   ])
 
   if (!event) notFound()
@@ -76,37 +78,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       {/* Hotel Options */}
       {hotels.length > 0 && <EventHotelsClient hotels={hotels} />}
 
-      {/* Itinerary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ListOrdered className="h-5 w-5 text-primary" /> Itinerary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {subEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Itinerary details will appear here as the event is planned.</p>
-          ) : (
-            <div className="divide-y">
-              {subEvents.map(sub => (
-                <div key={sub.id} className="py-3">
-                  <p className="text-sm font-medium">{sub.name}</p>
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
-                    {(sub.start_date || sub.event_date) && (
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />
-                        {formatDate(sub.start_date ?? sub.event_date)}
-                        {sub.start_time ? ` at ${formatTime(sub.start_time)}` : sub.event_time ? ` at ${formatTime(sub.event_time)}` : ''}
-                      </span>
-                    )}
-                    {sub.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {sub.location}</span>}
-                  </div>
-                  {sub.description && <p className="text-xs text-muted-foreground mt-1">{sub.description}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Itinerary — expandable */}
+      <EventItineraryClient subEvents={subEvents} />
 
       <Card>
         <CardHeader>
@@ -127,6 +100,34 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           )}
         </CardContent>
       </Card>
+
+      {/* Who's Coming — flat attending list sorted by first name */}
+      {(() => {
+        // Deduplicate by person_id — any "attending" mark wins
+        const seenIds = new Map<string, string>()
+        for (const entry of rsvpSummary) {
+          for (const a of entry.attendees) {
+            if (a.is_attending) seenIds.set(a.person_id, a.name)
+          }
+        }
+        const deduped = [...seenIds.values()].sort((a, b) => a.localeCompare(b))
+        return deduped.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5 text-primary" /> Who&apos;s Coming ({deduped.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="divide-y">
+                {deduped.map((name, i) => (
+                  <li key={i} className="py-2 text-sm">{name}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null
+      })()}
     </div>
   )
 }

@@ -54,23 +54,37 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
   const events = data ?? []
   const eventIds = events.map(e => e.id)
 
-  // Count attending RSVP attendees per event
+  // Count total individual attending people per event (from event_rsvp_attendees)
   const rsvpCountMap: Record<string, number> = {}
   if (eventIds.length) {
-    const { data: rsvps } = await admin
+    // Get all RSVP ids for these events
+    const { data: rsvps } = await supabase
       .from('event_rsvp')
       .select('id, event_id')
       .in('event_id', eventIds)
-    const rsvpIds = (rsvps ?? []).map(r => r.id)
-    if (rsvpIds.length) {
-      const { data: attendees } = await admin
+
+    if ((rsvps ?? []).length) {
+      const rsvpIds = (rsvps ?? []).map(r => r.id)
+      const rsvpToEvent: Record<string, string> = {}
+      for (const r of rsvps ?? []) rsvpToEvent[r.id] = r.event_id
+
+      // Count unique people marked as attending — deduplicate by person_id per event
+      const { data: attendees } = await supabase
         .from('event_rsvp_attendees')
-        .select('rsvp_id, event_rsvp!inner(event_id)')
+        .select('rsvp_id, person_id')
         .in('rsvp_id', rsvpIds)
         .eq('is_attending', true)
+
+      // Track unique person_id per event to avoid counting the same person twice
+      const seenByEvent: Record<string, Set<string>> = {}
       for (const a of attendees ?? []) {
-        const eventId = (a.event_rsvp as unknown as { event_id: string })?.event_id
-        if (eventId) rsvpCountMap[eventId] = (rsvpCountMap[eventId] ?? 0) + 1
+        const eventId = rsvpToEvent[a.rsvp_id]
+        if (!eventId) continue
+        if (!seenByEvent[eventId]) seenByEvent[eventId] = new Set()
+        seenByEvent[eventId].add(a.person_id)
+      }
+      for (const [eventId, people] of Object.entries(seenByEvent)) {
+        rsvpCountMap[eventId] = people.size
       }
     }
   }
@@ -125,23 +139,40 @@ export async function getMyRsvp(eventId: string): Promise<MyRsvp | null> {
   if (!user) return null
 
   const admin = createAdminClient()
-  const { data: rsvp } = await admin
+
+  // Get the current user's own RSVP row (needed for id when saving)
+  const { data: myRsvp } = await admin
     .from('event_rsvp')
-    .select('id, is_attending')
+    .select('id')
     .eq('event_id', eventId)
     .eq('submitted_by', user.id)
     .maybeSingle()
 
-  if (!rsvp) return null
+  // Get ALL RSVP submissions for this event to build merged per-person status
+  const { data: allRsvps } = await supabase
+    .from('event_rsvp')
+    .select('id')
+    .eq('event_id', eventId)
 
-  const { data: attendees } = await admin
+  if (!allRsvps?.length) return myRsvp ? { id: myRsvp.id, attendee_statuses: [] } : null
+
+  const allRsvpIds = allRsvps.map(r => r.id)
+
+  // Get all per-person attendance across ALL submissions
+  const { data: allAttendees } = await supabase
     .from('event_rsvp_attendees')
-    .select('person_id, is_attending')
-    .eq('rsvp_id', rsvp.id)
+    .select('person_id, is_attending, rsvp_id')
+    .in('rsvp_id', allRsvpIds)
+
+  // Merge: last recorded status per person_id wins
+  const statusByPerson: Record<string, boolean> = {}
+  for (const a of allAttendees ?? []) {
+    statusByPerson[a.person_id] = a.is_attending
+  }
 
   return {
-    id:               rsvp.id,
-    attendee_statuses: (attendees ?? []).map(a => ({ person_id: a.person_id, is_attending: a.is_attending })),
+    id: myRsvp?.id ?? '',
+    attendee_statuses: Object.entries(statusByPerson).map(([person_id, is_attending]) => ({ person_id, is_attending })),
   }
 }
 
@@ -245,6 +276,70 @@ export async function submitRsvp(
 
   revalidatePath(`/events/${eventId}`)
   return { success: true }
+}
+
+export interface RsvpSummaryEntry {
+  submitted_by: string
+  submitter_name: string
+  attendees: { person_id: string; name: string; is_attending: boolean }[]
+}
+
+export async function getEventRsvpSummary(eventId: string): Promise<RsvpSummaryEntry[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const admin = createAdminClient()
+  const familyCode: string = user.user_metadata?.family_code ?? ''
+
+  // All RSVP submissions for this event
+  const { data: rsvps } = await supabase
+    .from('event_rsvp')
+    .select('id, submitted_by')
+    .eq('event_id', eventId)
+
+  if (!rsvps?.length) return []
+
+  const rsvpIds  = rsvps.map(r => r.id)
+  const userIds  = rsvps.map(r => r.submitted_by)
+
+  // Attendee rows for all submissions
+  const { data: attendeeRows } = await supabase
+    .from('event_rsvp_attendees')
+    .select('rsvp_id, person_id, is_attending')
+    .in('rsvp_id', rsvpIds)
+
+  // Person names
+  const personIds = (attendeeRows ?? []).map(a => a.person_id)
+  const { data: people } = personIds.length
+    ? await admin.from('people').select('id, first_name, last_name').in('id', personIds)
+    : { data: [] }
+  const personName = (id: string) => {
+    const p = (people ?? []).find(p => p.id === id)
+    return p ? [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Family Member' : 'Family Member'
+  }
+
+  // Submitter names (from people table via user_id)
+  const { data: submitters } = userIds.length
+    ? await admin.from('people').select('user_id, first_name, last_name').in('user_id', userIds).eq('family_code', familyCode)
+    : { data: [] }
+  const submitterName = (uid: string) => {
+    const p = (submitters ?? []).find(p => p.user_id === uid)
+    return p ? [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Family Member' : 'Family Member'
+  }
+
+  // Group attendees by rsvp_id
+  const attendeesByRsvp: Record<string, { person_id: string; name: string; is_attending: boolean }[]> = {}
+  for (const a of attendeeRows ?? []) {
+    if (!attendeesByRsvp[a.rsvp_id]) attendeesByRsvp[a.rsvp_id] = []
+    attendeesByRsvp[a.rsvp_id].push({ person_id: a.person_id, name: personName(a.person_id), is_attending: a.is_attending })
+  }
+
+  return rsvps.map(r => ({
+    submitted_by:   r.submitted_by,
+    submitter_name: submitterName(r.submitted_by),
+    attendees:      attendeesByRsvp[r.id] ?? [],
+  }))
 }
 
 export interface PublicHotel {

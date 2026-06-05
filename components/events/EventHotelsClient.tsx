@@ -101,18 +101,29 @@ function HotelCard({ hotel }: { hotel: PublicHotel }) {
 }
 
 export function EventHotelsClient({ hotels }: { hotels: PublicHotel[] }) {
+  const [expanded, setExpanded] = useState(false)
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <BedDouble className="h-5 w-5 text-primary" /> Hotel Options
+      <CardHeader className="cursor-pointer select-none" onClick={() => setExpanded(e => !e)}>
+        <CardTitle className="flex items-center justify-between text-lg">
+          <span className="flex items-center gap-2">
+            <BedDouble className="h-5 w-5 text-primary" /> Hotel Options
+            <span className="text-xs font-normal text-muted-foreground">({hotels.length} {hotels.length === 1 ? 'hotel' : 'hotels'})</span>
+          </span>
+          {expanded
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          }
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {hotels.map(hotel => (
-          <HotelCard key={hotel.id} hotel={hotel} />
-        ))}
-      </CardContent>
+      {expanded && (
+        <CardContent className="space-y-3">
+          {hotels.map(hotel => (
+            <HotelCard key={hotel.id} hotel={hotel} />
+          ))}
+        </CardContent>
+      )}
     </Card>
   )
 }

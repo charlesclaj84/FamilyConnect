@@ -27,9 +27,10 @@ function buildInitialStatuses(
 export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadlinePassed }: Props) {
   const [statuses, setStatuses]   = useState(() => buildInitialStatuses(familyMembers, existingRsvp))
   const [editStatuses, setEditStatuses] = useState<Record<string, boolean>>({})
-  const [editing, setEditing]     = useState(!existingRsvp)   // open for edit if no prior RSVP
+  const hasPersonalRsvp            = !!(existingRsvp?.id)
+  const [editing, setEditing]     = useState(!hasPersonalRsvp)   // edit mode if no personal submission yet
   const [saving, setSaving]       = useState(false)
-  const [saved, setSaved]         = useState(!!existingRsvp)
+  const [saved, setSaved]         = useState(hasPersonalRsvp)
   const [error, setError]         = useState('')
 
   function startEdit() {
@@ -153,7 +154,7 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save RSVP'}
         </Button>
-        {existingRsvp && (
+        {hasPersonalRsvp && (
           <Button variant="outline" onClick={cancelEdit}>Cancel</Button>
         )}
       </div>
