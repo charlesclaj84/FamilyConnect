@@ -3,11 +3,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels, getEventRsvpSummary } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
+import { getOrCreateEventCollection } from '@/app/actions/photos'
 import { EventRsvpClient } from '@/components/events/EventRsvpClient'
 import { EventHotelsClient } from '@/components/events/EventHotelsClient'
 import { EventItineraryClient } from '@/components/events/EventItineraryClient'
-import { ChevronLeft, Calendar, MapPin, Clock, BedDouble, ClipboardList, Users } from 'lucide-react'
+import { ChevronLeft, Calendar, MapPin, Clock, ClipboardList, Users, Camera } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
 
 export const metadata = { title: 'Event — Family Connect' }
@@ -19,13 +21,17 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary] = await Promise.all([
+  const admin = createAdminClient()
+  const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
+
+  const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary, photoCollection] = await Promise.all([
     getEventDetail(id),
     getMyRsvp(id),
     getMyFamilyForRsvp(),
     getSubEvents(id),
     getEventHotels(id),
     getEventRsvpSummary(id),
+    getOrCreateEventCollection(id),
   ])
 
   if (!event) notFound()
@@ -100,6 +106,25 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           )}
         </CardContent>
       </Card>
+
+      {/* Photo Collection link */}
+      {photoCollection && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Camera className="h-5 w-5 text-primary" /> Photos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href={`/photos/${photoCollection.id}`}
+              className="text-sm text-primary hover:underline"
+            >
+              Browse &amp; upload event photos →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Who's Coming — flat attending list sorted by first name */}
       {(() => {

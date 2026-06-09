@@ -103,16 +103,41 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   }
 
   // Seed the people table so the profile page is pre-populated.
+  // When joining an existing family, first try to link to a pre-existing record
+  // (e.g. a family member added this person as a child/relative before they registered).
   if (authData.user) {
-    await admin.from('people').insert({
-      user_id: authData.user.id,
-      family_code: familyCode,
-      is_minor: false,
-      first_name: input.firstName.trim(),
-      last_name: input.lastName.trim(),
-      primary_email: input.email.trim().toLowerCase(),
-      created_by: authData.user.id,
-    })
+    const normalizedEmail = input.email.trim().toLowerCase()
+    let linked = false
+
+    if (input.mode === 'join') {
+      const { data: existing } = await admin
+        .from('people')
+        .select('id')
+        .eq('family_code', familyCode)
+        .eq('primary_email', normalizedEmail)
+        .is('user_id', null)
+        .maybeSingle()
+
+      if (existing) {
+        await admin
+          .from('people')
+          .update({ user_id: authData.user.id, primary_email: normalizedEmail })
+          .eq('id', existing.id)
+        linked = true
+      }
+    }
+
+    if (!linked) {
+      await admin.from('people').insert({
+        user_id: authData.user.id,
+        family_code: familyCode,
+        is_minor: false,
+        first_name: input.firstName.trim(),
+        last_name: input.lastName.trim(),
+        primary_email: normalizedEmail,
+        created_by: authData.user.id,
+      })
+    }
     // Non-fatal: if this fails the user can fill in their profile manually.
   }
 

@@ -1,0 +1,246 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { Plus, Trash2, ChevronRight, PlayCircle, Calendar } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
+import Link from 'next/link'
+
+const STATUS_NEXT: Record<Election['status'], Election['status'] | null> = {
+  draft: 'nominations',
+  nominations: 'voting',
+  voting: 'closed',
+  closed: null,
+}
+
+const STATUS_LABEL: Record<Election['status'], string> = {
+  draft: 'Draft',
+  nominations: 'Nominations Open',
+  voting: 'Voting Open',
+  closed: 'Closed',
+}
+
+const STATUS_ACTION: Record<Election['status'], string> = {
+  draft: 'Open Nominations',
+  nominations: 'Start Voting',
+  voting: 'Close Election',
+  closed: '',
+}
+
+const STATUS_COLOR: Record<Election['status'], string> = {
+  draft: 'bg-blue-100 text-blue-700',
+  nominations: 'bg-amber-100 text-amber-700',
+  voting: 'bg-green-100 text-green-700',
+  closed: 'bg-muted text-muted-foreground',
+}
+
+function fmtDate(s: string) {
+  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+interface Props {
+  initialElections: Election[]
+}
+
+export function AdminElectionsClient({ initialElections }: Props) {
+  const [elections, setElections] = useState(initialElections)
+  const [showForm, setShowForm] = useState(false)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [positions, setPositions] = useState([{ title: '', max_winners: 1 }])
+  const [nomOpenAt, setNomOpenAt] = useState('')
+  const [nomCloseAt, setNomCloseAt] = useState('')
+  const [voteOpenAt, setVoteOpenAt] = useState('')
+  const [voteCloseAt, setVoteCloseAt] = useState('')
+  const [error, setError] = useState('')
+  const [isPending, startTransition] = useTransition()
+
+  function addPosition() { setPositions(p => [...p, { title: '', max_winners: 1 }]) }
+  function updatePosition(i: number, field: 'title' | 'max_winners', value: string | number) {
+    setPositions(p => p.map((pos, idx) => idx === i ? { ...pos, [field]: value } : pos))
+  }
+  function removePosition(i: number) { setPositions(p => p.filter((_, idx) => idx !== i)) }
+
+  function handleCreate() {
+    if (!title.trim()) { setError('Title is required'); return }
+    if (positions.some(p => !p.title.trim())) { setError('All positions need a title'); return }
+    setError('')
+    startTransition(async () => {
+      const result = await createElection({
+        title, description,
+        nominations_open_at: nomOpenAt ? new Date(nomOpenAt).toISOString() : null,
+        nominations_close_at: nomCloseAt ? new Date(nomCloseAt).toISOString() : null,
+        voting_open_at: voteOpenAt ? new Date(voteOpenAt).toISOString() : null,
+        voting_close_at: voteCloseAt ? new Date(voteCloseAt).toISOString() : null,
+        positions,
+      })
+      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      setTitle(''); setDescription('')
+      setPositions([{ title: '', max_winners: 1 }])
+      setNomOpenAt(''); setNomCloseAt(''); setVoteOpenAt(''); setVoteCloseAt('')
+      setShowForm(false)
+    })
+  }
+
+  function handleAdvanceStatus(election: Election) {
+    const next = STATUS_NEXT[election.status]
+    if (!next) return
+    startTransition(async () => {
+      await updateElectionStatus(election.id, next)
+      setElections(prev => prev.map(e => e.id === election.id ? { ...e, status: next } : e))
+    })
+  }
+
+  function handleDelete(id: string) {
+    if (!confirm('Delete this election and all its data?')) return
+    startTransition(async () => {
+      await deleteElection(id)
+      setElections(prev => prev.filter(e => e.id !== id))
+    })
+  }
+
+  return (
+    <div className="space-y-6">
+      {!showForm ? (
+        <Button size="sm" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4 mr-1" /> New Election
+        </Button>
+      ) : (
+        <div className="rounded-xl border bg-card p-5 space-y-5 max-w-xl">
+          <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">New Election</h2>
+
+          <div className="space-y-1.5">
+            <Label>Title</Label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="2026 Officer Elections" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Description (optional)</Label>
+            <Textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} />
+          </div>
+
+          {/* Nomination window */}
+          <div className="space-y-2 rounded-lg border bg-amber-50/60 p-3">
+            <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5" /> Nominations Window
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Opens</Label>
+                <Input type="datetime-local" value={nomOpenAt} onChange={e => setNomOpenAt(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Closes</Label>
+                <Input type="datetime-local" value={nomCloseAt} onChange={e => setNomCloseAt(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          {/* Voting window */}
+          <div className="space-y-2 rounded-lg border bg-green-50/60 p-3">
+            <p className="text-xs font-semibold text-green-800 uppercase tracking-wide flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5" /> Voting Window
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Opens</Label>
+                <Input type="datetime-local" value={voteOpenAt} onChange={e => setVoteOpenAt(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Closes</Label>
+                <Input type="datetime-local" value={voteCloseAt} onChange={e => setVoteCloseAt(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Positions</p>
+            {positions.map((pos, i) => (
+              <div key={i} className="flex gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Position {i + 1}</Label>
+                  <Input value={pos.title} onChange={e => updatePosition(i, 'title', e.target.value)} placeholder="President" />
+                </div>
+                <div className="w-20 space-y-1">
+                  <Label className="text-xs">Winners</Label>
+                  <Input type="number" min="1" value={pos.max_winners} onChange={e => updatePosition(i, 'max_winners', parseInt(e.target.value) || 1)} />
+                </div>
+                {positions.length > 1 && (
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-8 w-8 p-0" onClick={() => removePosition(i)}>×</Button>
+                )}
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={addPosition}>+ Add Position</Button>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleCreate} disabled={isPending}>
+              {isPending ? 'Creating…' : 'Create Election'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); setError('') }}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {elections.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No elections yet.</p>
+      ) : (
+        <ul className="divide-y rounded-xl border overflow-hidden">
+          {elections.map(e => {
+            const next = STATUS_NEXT[e.status]
+            return (
+              <li key={e.id} className="px-4 py-3 space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{e.title}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[e.status]}`}>
+                        {STATUS_LABEL[e.status]}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {next && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdvanceStatus(e)}>
+                        <PlayCircle className="h-3 w-3 mr-1" /> {STATUS_ACTION[e.status]}
+                      </Button>
+                    )}
+                    <Link href={`/elections/${e.id}`}>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(e.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Date windows */}
+                {(e.nominations_open_at || e.voting_open_at) && (
+                  <div className="flex flex-wrap gap-x-6 gap-y-0.5 pl-0.5">
+                    {e.nominations_open_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Nominations: {fmtDate(e.nominations_open_at)}
+                        {e.nominations_close_at ? ` – ${fmtDate(e.nominations_close_at)}` : ''}
+                      </p>
+                    )}
+                    {e.voting_open_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Voting: {fmtDate(e.voting_open_at)}
+                        {e.voting_close_at ? ` – ${fmtDate(e.voting_close_at)}` : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}

@@ -1,17 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Camera, UserCircle } from 'lucide-react'
+import { Pencil, Camera, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { saveProfileSection, saveChapterAndPropagate, type PersonalInfoRecord } from '@/app/actions/personal-info'
+import { saveProfileSection, saveChapterAndPropagate, uploadAvatar, type PersonalInfoRecord } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/admin/chapters'
+import { Avatar } from '@/components/ui/Avatar'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
@@ -36,24 +37,46 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-// ── Profile avatar placeholder ─────────────────────────────────────────────────
+// ── Avatar with upload ─────────────────────────────────────────────────────────
 
-function Avatar({ initials }: { initials: string }) {
+function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl?: string | null }) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
+  const [isPending, startTransition] = useTransition()
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPreview(URL.createObjectURL(file))
+    const fd = new FormData()
+    fd.append('file', file)
+    startTransition(async () => {
+      const result = await uploadAvatar(fd)
+      if (!result.success) setPreview(existingUrl ?? null)
+    })
+  }
+
   return (
     <div className="relative shrink-0">
-      <div className="w-14 h-14 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center select-none">
-        {initials ? (
-          <span className="text-lg font-semibold text-muted-foreground">{initials}</span>
-        ) : (
-          <UserCircle className="h-7 w-7 text-muted-foreground/40" />
-        )}
-      </div>
-      <div
-        className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1"
-        title="Photo upload coming soon"
+      <Avatar url={preview} initials={initials} size="md" />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={isPending}
+        className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
+        title="Upload photo"
       >
-        <Camera className="h-3 w-3 text-muted-foreground" />
-      </div>
+        {isPending
+          ? <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
+          : <Camera className="h-3 w-3 text-muted-foreground" />}
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        onChange={handleChange}
+      />
     </div>
   )
 }
@@ -151,6 +174,7 @@ function GeneralSection({
   const [chapterId, setChapterId]   = useState(existingChapterId ?? '')
 
   const initials = [existing?.first_name?.[0], existing?.last_name?.[0]].filter(Boolean).join('').toUpperCase()
+  const avatarUrl = existing?.avatar_url ?? null
   const currentChapter = chapters.find(c => c.id === existingChapterId)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<GeneralData>({
@@ -193,7 +217,7 @@ function GeneralSection({
   return (
     <SectionCard
       title="General Information"
-      headerLeft={<Avatar initials={initials} />}
+      headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} />}
       editing={editing}
       onEditClick={handleEditClick}
     >

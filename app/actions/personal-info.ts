@@ -3,6 +3,40 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
+export async function uploadAvatar(
+  formData: FormData
+): Promise<{ success: boolean; url?: string; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { success: false, message: 'No file provided' }
+  if (file.size > 2 * 1024 * 1024) return { success: false, message: 'File must be under 2 MB' }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${user.id}/avatar.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadError) return { success: false, message: uploadError.message }
+
+  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+
+  const { error: updateError } = await supabase
+    .from('people')
+    .update({ avatar_url: publicUrl })
+    .eq('user_id', user.id)
+
+  if (updateError) return { success: false, message: updateError.message }
+
+  revalidatePath('/personal-info')
+  revalidatePath('/dashboard')
+  return { success: true, url: publicUrl }
+}
+
 export interface PersonalInfoData {
   prefix?: string
   first_name: string
@@ -31,6 +65,8 @@ export type PersonalInfoRecord = PersonalInfoData & {
   user_id: string
   family_code: string
   is_minor: boolean
+  nick_name?: string | null
+  avatar_url?: string | null
   created_at: string
   updated_at: string
 }

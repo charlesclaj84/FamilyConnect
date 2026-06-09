@@ -55,6 +55,14 @@ export default async function EventsPage() {
                 </CardHeader>
                 <CardContent className="space-y-1">
                   {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
+                  {event.official_description && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-primary hover:underline select-none">
+                        Official Information ▸
+                      </summary>
+                      <p className="mt-1 text-sm text-foreground border-l-2 border-primary pl-3 py-1">{event.official_description}</p>
+                    </details>
+                  )}
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-1">
                     {(event.start_date || event.event_date) && (
                       <span className="flex items-center gap-1">

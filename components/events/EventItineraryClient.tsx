@@ -55,6 +55,12 @@ function SubEventEntry({ sub }: { sub: AdminEvent }) {
           {sub.description && (
             <p className="text-sm text-muted-foreground">{sub.description}</p>
           )}
+          {sub.official_description && (
+            <div className="rounded-md border-l-4 border-primary bg-primary/5 px-3 py-2">
+              <p className="text-xs font-semibold text-primary mb-0.5">Official Information</p>
+              <p className="text-sm">{sub.official_description}</p>
+            </div>
+          )}
           {sub.event_type_name && (
             <p className="text-xs text-muted-foreground">Type: {sub.event_type_name}</p>
           )}

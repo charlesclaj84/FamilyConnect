@@ -63,6 +63,26 @@ function EventFormFields({ form, setForm, isSubEvent = false }: {
         <Label>Description</Label>
         <Input value={form.description ?? ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
       </div>
+      <div className="space-y-1.5 sm:col-span-2">
+        <Label>Official Description <span className="text-muted-foreground text-xs">(published to Upcoming Events)</span></Label>
+        <textarea
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] resize-y"
+          value={form.official_description ?? ''}
+          onChange={e => setForm(f => ({ ...f, official_description: e.target.value }))}
+          placeholder="Publicly visible information about this event…"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Budget ($)</Label>
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          value={form.budget_dollars ?? ''}
+          onChange={e => setForm(f => ({ ...f, budget_dollars: e.target.value }))}
+        />
+      </div>
       <div className="space-y-1.5">
         <Label>Start Date</Label>
         <Input type="date" value={form.start_date ?? ''} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
@@ -147,21 +167,23 @@ function EventFormFields({ form, setForm, isSubEvent = false }: {
 
 function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSaved: (e: Partial<AdminEvent>) => void; onCancel: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({
-    name:           event.name,
-    description:    event.description ?? '',
-    start_date:     event.start_date ?? '',
-    end_date:       event.end_date ?? '',
-    is_all_day:     event.is_all_day === false ? 'false' : 'true',
-    start_time:     event.start_time ?? '',
-    end_time:       event.end_time ?? '',
-    location:       event.location ?? '',
-    street_address: event.street_address ?? '',
-    suite:          event.suite ?? '',
-    city:           event.city ?? '',
-    state:          event.state ?? '',
-    zip_code:       event.zip_code ?? '',
-    country:        event.country ?? '',
-    rsvp_deadline:  event.rsvp_deadline ?? '',
+    name:                event.name,
+    description:         event.description ?? '',
+    official_description: event.official_description ?? '',
+    budget_dollars:      event.budget_amount_cents > 0 ? (event.budget_amount_cents / 100).toFixed(2) : '',
+    start_date:          event.start_date ?? '',
+    end_date:            event.end_date ?? '',
+    is_all_day:          event.is_all_day === false ? 'false' : 'true',
+    start_time:          event.start_time ?? '',
+    end_time:            event.end_time ?? '',
+    location:            event.location ?? '',
+    street_address:      event.street_address ?? '',
+    suite:               event.suite ?? '',
+    city:                event.city ?? '',
+    state:               event.state ?? '',
+    zip_code:            event.zip_code ?? '',
+    country:             event.country ?? '',
+    rsvp_deadline:       event.rsvp_deadline ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -175,6 +197,8 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
       is_all_day: isAllDay,
       start_time: isAllDay ? undefined : form.start_time || undefined,
       end_time:   isAllDay ? undefined : form.end_time || undefined,
+      budget_amount_cents: form.budget_dollars ? Math.round(parseFloat(form.budget_dollars) * 100) : 0,
+      official_description: form.official_description || undefined,
     })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
     onSaved(form)
@@ -202,7 +226,7 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
   onAdded: (e: AdminEvent) => void
   onCancel: () => void
 }) {
-  const [form, setForm] = useState<Record<string, string>>({ name: '', description: '', start_date: '', end_date: '', is_all_day: 'true', start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', event_type_id: '' })
+  const [form, setForm] = useState<Record<string, string>>({ name: '', description: '', official_description: '', budget_dollars: '', start_date: '', end_date: '', is_all_day: 'true', start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', event_type_id: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -216,6 +240,8 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
       is_all_day: isAllDay,
       start_time: isAllDay ? undefined : form.start_time || undefined,
       end_time:   isAllDay ? undefined : form.end_time || undefined,
+      budget_amount_cents: form.budget_dollars ? Math.round(parseFloat(form.budget_dollars) * 100) : 0,
+      official_description: form.official_description || undefined,
     })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
     window.location.reload()

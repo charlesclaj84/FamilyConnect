@@ -1,55 +1,61 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Calendar, MessageCircle, Camera, DollarSign, Store, User, GitBranch, BookUser, PiggyBank } from 'lucide-react'
+import { Calendar, MessageCircle, Camera, Store, User, GitBranch, BookUser, Wallet, Megaphone, Vote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const features = [
   {
     title: 'Family Directory',
-    description: 'View detailed profiles for every family member — contact info, birthdays, t-shirt sizes, and more.',
+    description: 'Full profiles for every member — contact info, org role, birthdays, t-shirt sizes, and active status.',
     icon: <BookUser className="h-5 w-5" />,
     comingSoon: false,
   },
   {
-    title: 'Geneology',
-    description: 'Build your family tree — link parents, grandparents, children, and spouses across generations.',
+    title: 'Genealogy',
+    description: 'Map your family tree across generations — link parents, grandparents, children, and spouses.',
     icon: <GitBranch className="h-5 w-5" />,
     comingSoon: false,
   },
   {
     title: 'Event Planning',
-    description: 'Plan and RSVP to family gatherings, reunions, and celebrations.',
+    description: 'Organize reunions with sub-events, hotel options, RSVP tracking, itineraries, and day-of check-in.',
     icon: <Calendar className="h-5 w-5" />,
-    comingSoon: true,
+    comingSoon: false,
+  },
+  {
+    title: 'Photo Collections',
+    description: 'Create event galleries, upload memories, and tag family members in photos.',
+    icon: <Camera className="h-5 w-5" />,
+    comingSoon: false,
+  },
+  {
+    title: 'Account & Finances',
+    description: 'Track dues and payments, view family P&L, manage funds, and record milestone disbursements.',
+    icon: <Wallet className="h-5 w-5" />,
+    comingSoon: false,
+  },
+  {
+    title: 'Announcements',
+    description: 'Post news to the entire family or a specific chapter, with pin-to-dashboard for important updates.',
+    icon: <Megaphone className="h-5 w-5" />,
+    comingSoon: false,
+  },
+  {
+    title: 'Elections',
+    description: 'Run officer elections with a full nominations window, ballot acceptance, and family-wide voting.',
+    icon: <Vote className="h-5 w-5" />,
+    comingSoon: false,
   },
   {
     title: 'Chat',
-    description: 'Real-time messaging with your whole family — group chats and direct messages.',
+    description: 'Real-time messaging with the whole family — group chats and direct messages.',
     icon: <MessageCircle className="h-5 w-5" />,
     comingSoon: false,
   },
   {
-    title: 'Photo Gallery',
-    description: 'Upload and share memories, tag family members, build your archive.',
-    icon: <Camera className="h-5 w-5" />,
-    comingSoon: true,
-  },
-  {
-    title: 'Budgeting',
-    description: 'Track family finances, set budgets, and manage shared expenses in one place.',
-    icon: <PiggyBank className="h-5 w-5" />,
-    comingSoon: true,
-  },
-  {
-    title: 'Dues',
-    description: 'Collect and track family dues and contributions with ease.',
-    icon: <DollarSign className="h-5 w-5" />,
-    comingSoon: true,
-  },
-  {
     title: 'Vendors',
-    description: 'Family-trusted vendors offering products and services to members.',
+    description: 'Family-trusted businesses offering exclusive products and services to members.',
     icon: <Store className="h-5 w-5" />,
     comingSoon: true,
   },

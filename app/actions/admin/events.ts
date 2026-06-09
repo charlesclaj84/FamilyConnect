@@ -32,6 +32,8 @@ export interface AdminEvent {
   approved_at: string | null
   created_at: string
   event_type_name?: string | null
+  budget_amount_cents: number
+  official_description: string | null
 }
 
 export interface PriceEstimate {
@@ -149,6 +151,8 @@ type AddressInput = {
 export async function createEvent(input: {
   name: string
   description?: string
+  official_description?: string
+  budget_amount_cents?: number
   event_type_id?: string
   start_date?: string
   end_date?: string
@@ -180,9 +184,11 @@ export async function createEvent(input: {
       state:          input.state?.trim() || null,
       zip_code:       input.zip_code?.trim() || null,
       country:        input.country?.trim() || null,
-      rsvp_deadline:  input.rsvp_deadline || null,
-      status:         'draft',
-      created_by:     user!.id,
+      rsvp_deadline:        input.rsvp_deadline || null,
+      official_description: input.official_description?.trim() || null,
+      budget_amount_cents:  input.budget_amount_cents ?? 0,
+      status:               'draft',
+      created_by:           user!.id,
     })
     .select('id')
     .single()
@@ -194,7 +200,7 @@ export async function createEvent(input: {
 
 export async function createSubEvent(
   parentId: string,
-  input: { name: string; description?: string; start_date?: string; end_date?: string; is_all_day?: boolean; start_time?: string; end_time?: string; location?: string; event_type_id?: string } & AddressInput
+  input: { name: string; description?: string; official_description?: string; start_date?: string; end_date?: string; is_all_day?: boolean; start_time?: string; end_time?: string; location?: string; event_type_id?: string } & AddressInput
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -222,9 +228,10 @@ export async function createSubEvent(
       city:            input.city?.trim() || null,
       state:           input.state?.trim() || null,
       zip_code:        input.zip_code?.trim() || null,
-      country:         input.country?.trim() || null,
-      status:          parent.status,
-      created_by:      user!.id,
+      country:              input.country?.trim() || null,
+      official_description: input.official_description?.trim() || null,
+      status:               parent.status,
+      created_by:           user!.id,
     })
     .select('id')
     .single()
@@ -247,7 +254,7 @@ export async function getSubEvents(parentId: string): Promise<AdminEvent[]> {
 
 export async function updateEvent(
   id: string,
-  input: Partial<{ name: string; description: string; start_date: string; end_date: string; is_all_day: boolean; start_time: string; end_time: string; location: string; rsvp_deadline: string; event_type_id: string } & AddressInput>
+  input: Partial<{ name: string; description: string; official_description: string; budget_amount_cents: number; start_date: string; end_date: string; is_all_day: boolean; start_time: string; end_time: string; location: string; rsvp_deadline: string; event_type_id: string } & AddressInput>
 ): Promise<{ success: boolean; error?: string }> {
   const { admin } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -271,6 +278,11 @@ export async function publishEvent(id: string): Promise<{ success: boolean; erro
 
   const { error } = await admin.from('events').update({ status: 'published' }).eq('id', id)
   if (error) return { success: false, error: error.message }
+
+  // Auto-create a photo collection for the event when it goes live
+  const { getOrCreateEventCollection } = await import('@/app/actions/photos')
+  await getOrCreateEventCollection(id).catch(() => null)
+
   revalidatePath('/admin/events')
   revalidatePath('/events')
   return { success: true }

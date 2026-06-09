@@ -18,17 +18,28 @@ import {
   CalendarClock,
   Menu,
   X,
+  BookOpen,
+  Megaphone,
+  FileText,
+  Vote,
+  BarChart3,
+  Camera,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard',       label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/personal-info',   label: 'My Profile',   icon: UserCircle },
-  { href: '/direct-lineage',  label: 'My Children',  icon: Users },
-  { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
-  { href: '/events',          label: 'Upcoming Events', icon: Calendar },
-  { href: '/account-summary', label: 'Account',      icon: Wallet },
-  { href: '/chat',            label: 'Chat',          icon: MessageCircle },
+  { href: '/dashboard',       label: 'Dashboard',         icon: LayoutDashboard },
+  { href: '/personal-info',   label: 'My Profile',        icon: UserCircle },
+  { href: '/direct-lineage',  label: 'My Children',       icon: Users },
+  { href: '/family-tree',     label: 'Family Tree',       icon: GitBranch },
+  { href: '/members',         label: 'Member Directory',  icon: UsersRound },
+  { href: '/announcements',   label: 'Announcements',     icon: Megaphone },
+  { href: '/events',          label: 'Upcoming Events',   icon: Calendar },
+  { href: '/account-summary', label: 'Account',           icon: Wallet },
+  { href: '/documents',       label: 'Documents',         icon: FileText },
+  { href: '/elections',       label: 'Elections',         icon: Vote },
+  { href: '/photos',          label: 'Photos',            icon: Camera },
+  { href: '/chat',            label: 'Chat',              icon: MessageCircle },
 ]
 
 const managementItems = [
@@ -36,10 +47,14 @@ const managementItems = [
 ]
 
 const adminItems = [
-  { href: '/admin/users',        label: 'Users',                icon: UsersRound },
-  { href: '/admin/user-roles',   label: 'User Roles',           icon: ShieldCheck },
-  { href: '/admin/chapters',     label: 'Regions & Chapters',   icon: ShieldCheck },
-  { href: '/admin/event-types',  label: 'Event Templates',      icon: ListChecks },
+  { href: '/admin/users',          label: 'Users',                icon: UsersRound },
+  { href: '/admin/user-roles',     label: 'User Roles',           icon: ShieldCheck },
+  { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
+  { href: '/admin/event-types',    label: 'Event Templates',      icon: ListChecks },
+  { href: '/admin/announcements',  label: 'Announcements',        icon: Megaphone },
+  { href: '/admin/account',        label: 'Account Management',   icon: Wallet },
+  { href: '/admin/elections',      label: 'Elections',            icon: Vote },
+  { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
 ]
 
 function NavLink({ href, label, icon: Icon, active, onClick }: {

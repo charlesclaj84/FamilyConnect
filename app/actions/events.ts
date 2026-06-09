@@ -8,6 +8,7 @@ export interface PublicEvent {
   id: string
   name: string
   description: string | null
+  official_description: string | null
   event_date: string | null
   start_date: string | null
   end_date: string | null
@@ -45,7 +46,7 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
 
   const { data } = await admin
     .from('events')
-    .select('id, name, description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
+    .select('id, name, description, official_description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
     .eq('family_code', familyCode)
     .in('status', ['published', 'approved'])
     .is('parent_event_id', null)
@@ -90,19 +91,20 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
   }
 
   return events.map(e => ({
-    id:              e.id,
-    name:            e.name,
-    description:     e.description,
-    event_date:      e.event_date,
-    start_date:      e.start_date ?? null,
-    end_date:        e.end_date ?? null,
-    location:        e.location,
-    city:            e.city ?? null,
-    state:           e.state ?? null,
-    rsvp_deadline:   e.rsvp_deadline,
-    status:          e.status as 'published' | 'approved',
-    event_type_name: (e.event_types as unknown as { name: string } | null)?.name ?? null,
-    rsvp_count:      rsvpCountMap[e.id] ?? 0,
+    id:                   e.id,
+    name:                 e.name,
+    description:          e.description,
+    official_description: (e as any).official_description ?? null,
+    event_date:           e.event_date,
+    start_date:           e.start_date ?? null,
+    end_date:             e.end_date ?? null,
+    location:             e.location,
+    city:                 e.city ?? null,
+    state:                e.state ?? null,
+    rsvp_deadline:        e.rsvp_deadline,
+    status:               e.status as 'published' | 'approved',
+    event_type_name:      (e.event_types as unknown as { name: string } | null)?.name ?? null,
+    rsvp_count:           rsvpCountMap[e.id] ?? 0,
   }))
 }
 
@@ -110,26 +112,27 @@ export async function getEventDetail(eventId: string): Promise<PublicEvent | nul
   const admin = createAdminClient()
   const { data } = await admin
     .from('events')
-    .select('id, name, description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
+    .select('id, name, description, official_description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
     .eq('id', eventId)
     .in('status', ['published', 'approved'])
     .single()
 
   if (!data) return null
   return {
-    id:              data.id,
-    name:            data.name,
-    description:     data.description,
-    event_date:      data.event_date,
-    start_date:      data.start_date ?? null,
-    end_date:        data.end_date ?? null,
-    location:        data.location,
-    city:            data.city ?? null,
-    state:           data.state ?? null,
-    rsvp_deadline:   data.rsvp_deadline,
-    status:          data.status as 'published' | 'approved',
-    event_type_name: (data.event_types as unknown as { name: string } | null)?.name ?? null,
-    rsvp_count:      0,
+    id:                   data.id,
+    name:                 data.name,
+    description:          data.description,
+    official_description: (data as any).official_description ?? null,
+    event_date:           data.event_date,
+    start_date:           data.start_date ?? null,
+    end_date:             data.end_date ?? null,
+    location:             data.location,
+    city:                 data.city ?? null,
+    state:                data.state ?? null,
+    rsvp_deadline:        data.rsvp_deadline,
+    status:               data.status as 'published' | 'approved',
+    event_type_name:      (data.event_types as unknown as { name: string } | null)?.name ?? null,
+    rsvp_count:           0,
   }
 }
 

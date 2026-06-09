@@ -1,14 +1,21 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Calendar, UserCircle, DollarSign, Clock, MapPin, ChevronRight,
+  Calendar, UserCircle, MapPin, ChevronRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUpcomingEvents } from '@/app/actions/events'
 import { getMyRoles } from '@/app/actions/admin/users'
+import { getLinkPersonBannerData } from '@/app/actions/link-person'
+import { getPinnedAnnouncements } from '@/app/actions/announcements'
+import { getMyDuesSummary } from '@/app/actions/dues'
+import { getUnreadCount } from '@/app/actions/notifications'
 import { formatRoleTitle } from '@/lib/role-utils'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
+import { DuesStatusCard } from '@/components/dues/DuesStatusCard'
+import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
+import { DashboardStats } from '@/components/dashboard/DashboardStats'
 
 
 export const metadata = { title: 'Dashboard — Family Connect' }
@@ -22,10 +29,24 @@ export default async function DashboardPage() {
   const lastName  = user.user_metadata?.last_name ?? ''
   const initials  = [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase()
 
-  const [upcomingEvents, myRoles] = await Promise.all([
+  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const admin = createAdminClient()
+
+  const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult] = await Promise.all([
     getUpcomingEvents().then(e => e.slice(0, 3)),
     getMyRoles(),
+    getLinkPersonBannerData(),
+    getPinnedAnnouncements(),
+    getMyDuesSummary(),
+    getUnreadCount(),
+    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
   ])
+
+  const memberCount = memberCountResult.count ?? 0
+  const nextEvent = upcomingEvents[0]
+  const daysToNextEvent = nextEvent
+    ? Math.max(0, Math.round((new Date(nextEvent.start_date ?? nextEvent.event_date ?? '').getTime() - Date.now()) / 86400000))
+    : null
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-10">
@@ -58,35 +79,26 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Next Due Date widget ──────────────────────────────────── */}
+      {/* ── Quick stats ───────────────────────────────────────────── */}
+      <DashboardStats memberCount={memberCount} daysToNextEvent={daysToNextEvent} nextEventId={nextEvent?.id ?? null} unreadCount={unreadCount} />
+
+      {/* ── Link existing person banner ───────────────────────────── */}
+      {linkBannerData.showBanner && (
+        <LinkPersonBanner unlinkedPeople={linkBannerData.unlinkedPeople} />
+      )}
+
+      {/* ── Pinned Announcements ──────────────────────────────────── */}
+      {pinnedAnnouncements.length > 0 && (
+        <section className="space-y-3">
+          {pinnedAnnouncements.map(a => <AnnouncementCard key={a.id} announcement={a} />)}
+          <Link href="/announcements" className="text-xs text-primary hover:underline">View all announcements</Link>
+        </section>
+      )}
+
+      {/* ── Account widget ────────────────────────────────────────── */}
       <section className="flex flex-col items-end">
-        <h2 className="text-lg font-semibold mb-4 w-full max-w-sm">Dues</h2>
-        <Card className="max-w-sm w-full">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground font-normal">
-              <div className="p-1.5 rounded-md bg-primary/10 text-primary">
-                <DollarSign className="h-4 w-4" />
-              </div>
-              Next Due Date
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-end gap-2">
-              <span className="text-2xl font-semibold">$0.00</span>
-              <span className="text-sm text-muted-foreground mb-0.5">due</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              No dues scheduled
-            </div>
-            <Button size="sm" disabled className="w-full cursor-not-allowed opacity-60">
-              Make a Payment
-            </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              Payment processing coming soon.
-            </p>
-          </CardContent>
-        </Card>
+        <h2 className="text-lg font-semibold mb-4 w-full max-w-sm">Account</h2>
+        <DuesStatusCard summary={duesSummary} />
       </section>
 
       {/* ── Upcoming Events ───────────────────────────────────────── */}
