@@ -10,6 +10,7 @@ export interface Announcement {
   body: string
   scope: string
   pinned: boolean
+  pinned_until: string | null
   published_at: string
   author_name: string | null
   chapter_id: string | null
@@ -21,7 +22,14 @@ export interface AnnouncementInput {
   body: string
   scope: 'national' | 'regional' | 'chapter'
   pinned: boolean
+  pinned_until?: string | null
   chapter_id?: string | null
+}
+
+function isPinActive(a: { pinned: boolean; pinned_until: string | null }): boolean {
+  if (!a.pinned) return false
+  if (!a.pinned_until) return true
+  return new Date(a.pinned_until) > new Date()
 }
 
 export interface Chapter {
@@ -36,7 +44,7 @@ export async function getChapters(): Promise<Chapter[]> {
 }
 
 function mapAnnouncement(a: {
-  id: string; title: string; body: string; scope: string; pinned: boolean; published_at: string;
+  id: string; title: string; body: string; scope: string; pinned: boolean; pinned_until?: string | null; published_at: string;
   chapter_id: string | null; people: unknown; chapters: unknown
 }): Announcement {
   return {
@@ -45,6 +53,7 @@ function mapAnnouncement(a: {
     body: a.body,
     scope: a.scope,
     pinned: a.pinned,
+    pinned_until: a.pinned_until ?? null,
     published_at: a.published_at,
     chapter_id: a.chapter_id,
     chapter_name: a.chapters ? (a.chapters as { name: string }).name : null,
@@ -59,12 +68,18 @@ export async function getAnnouncements(): Promise<Announcement[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('announcements')
-    .select('id, title, body, scope, pinned, published_at, chapter_id, people(first_name, last_name), chapters(name)')
-    .order('pinned', { ascending: false })
+    .select('id, title, body, scope, pinned, pinned_until, published_at, chapter_id, people(first_name, last_name), chapters(name)')
     .order('published_at', { ascending: false })
     .limit(50)
 
-  return (data ?? []).map(a => mapAnnouncement(a as Parameters<typeof mapAnnouncement>[0]))
+  const mapped = (data ?? []).map(a => mapAnnouncement(a as Parameters<typeof mapAnnouncement>[0]))
+  // Active pins first, then by published_at desc
+  return mapped.sort((a, b) => {
+    const aPin = isPinActive(a) ? 1 : 0
+    const bPin = isPinActive(b) ? 1 : 0
+    if (aPin !== bPin) return bPin - aPin
+    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+  })
 }
 
 // Member: only national/regional + chapter-matching announcements
@@ -79,22 +94,28 @@ export async function getMyAnnouncements(): Promise<Announcement[]> {
 
   const { data } = await supabase
     .from('announcements')
-    .select('id, title, body, scope, pinned, published_at, chapter_id, people(first_name, last_name), chapters(name)')
-    .order('pinned', { ascending: false })
+    .select('id, title, body, scope, pinned, pinned_until, published_at, chapter_id, people(first_name, last_name), chapters(name)')
     .order('published_at', { ascending: false })
     .limit(50)
 
   const raw = (data ?? []) as Parameters<typeof mapAnnouncement>[0][]
-  return raw
+  const mapped = raw
     .filter(a => {
       if (a.scope === 'national' || a.scope === 'regional') return true
       if (a.scope === 'chapter') {
-        if (!a.chapter_id) return true  // unscoped chapter announcements shown to all
+        if (!a.chapter_id) return true
         return a.chapter_id === myChapterId
       }
       return true
     })
     .map(mapAnnouncement)
+
+  return mapped.sort((a, b) => {
+    const aPin = isPinActive(a) ? 1 : 0
+    const bPin = isPinActive(b) ? 1 : 0
+    if (aPin !== bPin) return bPin - aPin
+    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+  })
 }
 
 export async function getPinnedAnnouncements(): Promise<Announcement[]> {
@@ -108,13 +129,14 @@ export async function getPinnedAnnouncements(): Promise<Announcement[]> {
 
   const { data } = await supabase
     .from('announcements')
-    .select('id, title, body, scope, pinned, published_at, chapter_id, people(first_name, last_name), chapters(name)')
+    .select('id, title, body, scope, pinned, pinned_until, published_at, chapter_id, people(first_name, last_name), chapters(name)')
     .eq('pinned', true)
     .order('published_at', { ascending: false })
     .limit(10)
 
   const raw = (data ?? []) as Parameters<typeof mapAnnouncement>[0][]
   return raw
+    .filter(a => isPinActive(a))
     .filter(a => {
       if (a.scope === 'national' || a.scope === 'regional') return true
       if (a.scope === 'chapter') return !a.chapter_id || a.chapter_id === myChapterId
@@ -140,6 +162,7 @@ export async function createAnnouncement(
     body: input.body.trim(),
     scope: input.scope,
     pinned: input.pinned,
+    pinned_until: input.pinned && input.pinned_until ? input.pinned_until : null,
     chapter_id: input.scope === 'chapter' ? (input.chapter_id ?? null) : null,
     author_id: myPerson?.id ?? null,
   })

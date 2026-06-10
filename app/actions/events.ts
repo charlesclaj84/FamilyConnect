@@ -167,10 +167,15 @@ export async function getMyRsvp(eventId: string): Promise<MyRsvp | null> {
     .select('person_id, is_attending, rsvp_id')
     .in('rsvp_id', allRsvpIds)
 
-  // Merge: last recorded status per person_id wins
+  // Merge: build baseline from all other submissions first, then apply the current
+  // user's own RSVP entries on top so their submission always takes priority.
   const statusByPerson: Record<string, boolean> = {}
+  const myRsvpId = myRsvp?.id
   for (const a of allAttendees ?? []) {
-    statusByPerson[a.person_id] = a.is_attending
+    if (a.rsvp_id !== myRsvpId) statusByPerson[a.person_id] = a.is_attending
+  }
+  for (const a of allAttendees ?? []) {
+    if (a.rsvp_id === myRsvpId) statusByPerson[a.person_id] = a.is_attending
   }
 
   return {

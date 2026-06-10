@@ -26,6 +26,7 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
   const [scope, setScope] = useState<'national' | 'regional' | 'chapter'>('national')
   const [chapterId, setChapterId] = useState('')
   const [pinned, setPinned] = useState(false)
+  const [pinnedUntil, setPinnedUntil] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -36,6 +37,7 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
     startTransition(async () => {
       const result = await createAnnouncement({
         title, body, scope, pinned,
+        pinned_until: pinned && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         chapter_id: scope === 'chapter' ? chapterId : null,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
@@ -47,7 +49,7 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
         chapter_id: scope === 'chapter' ? chapterId : null,
         chapter_name: scope === 'chapter' ? (selectedChapter?.name ?? null) : null,
       }, ...prev])
-      setTitle(''); setBody(''); setScope('national'); setChapterId(''); setPinned(false); setShowForm(false)
+      setTitle(''); setBody(''); setScope('national'); setChapterId(''); setPinned(false); setPinnedUntil(''); setShowForm(false)
     })
   }
 
@@ -113,9 +115,26 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
               </div>
             )}
 
-            <div className="flex items-center gap-2 mt-5 sm:mt-6">
-              <input type="checkbox" id="ann-pinned" checked={pinned} onChange={e => setPinned(e.target.checked)} />
-              <Label htmlFor="ann-pinned">Pin to dashboard</Label>
+            <div className="flex flex-col gap-1.5 mt-5 sm:mt-6">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="ann-pinned" checked={pinned} onChange={e => { setPinned(e.target.checked); if (!e.target.checked) setPinnedUntil('') }} />
+                <Label htmlFor="ann-pinned">Pin to dashboard</Label>
+              </div>
+              {pinned && (
+                <div className="flex items-center gap-2 ml-5 mt-1">
+                  <Label htmlFor="ann-pinned-until" className="text-xs text-muted-foreground whitespace-nowrap">Expire on</Label>
+                  <input
+                    type="date"
+                    id="ann-pinned-until"
+                    value={pinnedUntil}
+                    onChange={e => setPinnedUntil(e.target.value)}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  />
+                  {pinnedUntil && (
+                    <button type="button" onClick={() => setPinnedUntil('')} className="text-xs text-muted-foreground hover:text-foreground">clear</button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

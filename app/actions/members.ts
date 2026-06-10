@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { computeIsMinor } from '@/lib/age-utils'
 
 export interface MemberRecord {
   id: string
@@ -16,6 +17,7 @@ export interface MemberRecord {
   chapter_name: string | null
   primary_role_title: string | null
   is_active: boolean
+  is_minor: boolean
 }
 
 export async function getMembers(): Promise<MemberRecord[]> {
@@ -23,27 +25,26 @@ export async function getMembers(): Promise<MemberRecord[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // Fetch all non-minor adults in the family
+  // Fetch all people in the family (adults and minors)
   const { data: people } = await supabase
     .from('people')
-    .select('id, user_id, prefix, first_name, last_name, nick_name, avatar_url, primary_email, primary_phone, chapter_id, chapters(name)')
-    .eq('is_minor', false)
+    .select('id, user_id, prefix, first_name, last_name, nick_name, avatar_url, primary_email, primary_phone, chapter_id, date_of_birth, chapters(name)')
     .order('last_name')
     .order('first_name')
 
   if (!people) return []
 
-  // Fetch all role assignments for this family (column is `name`, not `title`)
+  // user_roles links by user_id (not person_id) — build a user_id → role name map
   const { data: roleAssignments } = await supabase
     .from('user_roles')
-    .select('person_id, family_roles(name)')
+    .select('user_id, family_roles(name)')
 
-  const primaryRoleByPersonId = new Map<string, string>()
+  const primaryRoleByUserId = new Map<string, string>()
   for (const ra of roleAssignments ?? []) {
-    const personId = ra.person_id
+    const userId = (ra as any).user_id as string | undefined
     const name = (ra.family_roles as any)?.name as string | undefined
-    if (name && !primaryRoleByPersonId.has(personId)) {
-      primaryRoleByPersonId.set(personId, name)
+    if (name && userId && !primaryRoleByUserId.has(userId)) {
+      primaryRoleByUserId.set(userId, name)
     }
   }
 
@@ -59,7 +60,8 @@ export async function getMembers(): Promise<MemberRecord[]> {
     primary_phone: p.primary_phone ?? null,
     chapter_id: p.chapter_id ?? null,
     chapter_name: (p.chapters as any)?.name ?? null,
-    primary_role_title: primaryRoleByPersonId.get(p.id) ?? null,
+    primary_role_title: p.user_id ? (primaryRoleByUserId.get(p.user_id) ?? null) : null,
     is_active: !!p.user_id,
+    is_minor: computeIsMinor((p as any).date_of_birth),
   }))
 }

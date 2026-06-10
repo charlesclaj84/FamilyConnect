@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { CHILD_RELATIONSHIP_TYPES, SPOUSE_TYPES, type ChildRelationshipType } from '@/lib/family-constants'
+import { computeIsMinor } from '@/lib/age-utils'
 
 export interface ChildRecord {
   relationship_id: string
@@ -125,7 +126,7 @@ export async function getMyChildren(): Promise<ChildRecord[]> {
         tshirt_size: p.tshirt_size ?? null,
         relationship_type: (typeNameById[rel.relationship_type_id] ?? 'Son') as ChildRelationshipType,
         is_step: rel.is_step,
-        is_minor: p.is_minor,
+        is_minor: computeIsMinor(p.date_of_birth),
       }
     })
 

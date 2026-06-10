@@ -130,6 +130,170 @@ export async function getMyAncestors(): Promise<AncestorEntry[]> {
     for (const p of persons ?? []) personById[p.id] = p
   }
 
+  // ── Reverse lookup: populate missing Father/Mother slots ────────────────────
+  // A parent may have added the current user as their Son/Daughter without a
+  // corresponding row from the current user's side. Detect those rows and infer
+  // whether the parent is Father or Mother via their spouse type or established role.
+  if (!relByType['Father'] || !relByType['Mother']) {
+    const { data: extraTypes } = await supabase
+      .from('relationship_types')
+      .select('id, name')
+      .in('name', ['Son', 'Daughter', 'Husband', 'Wife', 'Partner'])
+
+    const extraIdByName = Object.fromEntries((extraTypes ?? []).map(t => [t.name, t.id]))
+    const extraNameById = Object.fromEntries((extraTypes ?? []).map(t => [t.id, t.name]))
+    const childTypeIds2 = (['Son', 'Daughter'] as const).map(n => extraIdByName[n]).filter((id): id is string => !!id)
+    const spouseTypeIds2 = (['Husband', 'Wife', 'Partner'] as const).map(n => extraIdByName[n]).filter((id): id is string => !!id)
+
+    if (childTypeIds2.length) {
+      const { data: reverseRels } = await supabase
+        .from('person_relationships')
+        .select('id, person_id, is_step')
+        .eq('related_person_id', myPeopleId)
+        .in('relationship_type_id', childTypeIds2)
+
+      const parentIds = (reverseRels ?? []).map(r => r.person_id)
+
+      if (parentIds.length) {
+        const [parentPeopleRes, spouseRelsRes, establishedRolesRes] = await Promise.all([
+          supabase.from('people')
+            .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+            .in('id', parentIds),
+          spouseTypeIds2.length
+            ? supabase.from('person_relationships')
+                .select('person_id, relationship_type_id')
+                .in('person_id', parentIds)
+                .in('relationship_type_id', spouseTypeIds2)
+            : Promise.resolve({ data: null }),
+          // typeIds already contains Father + Mother IDs from the main query above
+          supabase.from('person_relationships')
+            .select('related_person_id, relationship_type_id')
+            .in('related_person_id', parentIds)
+            .in('relationship_type_id', typeIds),
+        ])
+
+        const parentPeopleById: typeof personById = Object.fromEntries(
+          (parentPeopleRes.data ?? []).map(p => [p.id, p])
+        )
+        const parentSpouseType: Record<string, string> = {}
+        for (const r of spouseRelsRes.data ?? []) {
+          parentSpouseType[(r as { person_id: string; relationship_type_id: string }).person_id] =
+            extraNameById[(r as { person_id: string; relationship_type_id: string }).relationship_type_id] ?? ''
+        }
+        const parentEstRole: Record<string, string> = {}
+        for (const r of establishedRolesRes.data ?? []) {
+          parentEstRole[r.related_person_id] = typeNameById[r.relationship_type_id] ?? ''
+        }
+
+        for (const rel of reverseRels ?? []) {
+          if (relByType['Father'] && relByType['Mother']) break
+
+          const parent = parentPeopleById[rel.person_id]
+          if (!parent) continue
+          if (Object.values(relByType).some(r => r.related_person_id === rel.person_id)) continue
+
+          // Infer Father or Mother from spouse type, then established role, then available slot
+          let role: 'Father' | 'Mother' | null = null
+          const st = parentSpouseType[rel.person_id]
+          if (st === 'Wife') role = 'Father'
+          else if (st === 'Husband') role = 'Mother'
+          else {
+            const et = parentEstRole[rel.person_id]
+            if (et === 'Father') role = 'Father'
+            else if (et === 'Mother') role = 'Mother'
+          }
+          if (!role) role = !relByType['Father'] ? 'Father' : 'Mother'
+
+          if (!relByType[role]) {
+            const roleTypeId = types?.find(t => t.name === role)?.id
+            if (!roleTypeId) continue
+            relByType[role] = {
+              id: rel.id,
+              related_person_id: rel.person_id,
+              relationship_type_id: roleTypeId,
+              is_step: rel.is_step,
+            }
+            personById[rel.person_id] = parent
+          }
+        }
+      }
+    }
+  }
+
+  // ── Derive ancestors by traversing the tree upward ──────────────────────────
+  // Each entry means: "slot = (via person)'s (as) ancestor".
+  // Process in a while-loop so future levels (great-grandparents, etc.) are
+  // handled automatically — just add entries to derivationMap and extend
+  // ANCESTOR_TYPES; the traversal logic here never needs to change.
+  const derivationMap: Array<{ slot: AncestorType; via: AncestorType; as: 'Father' | 'Mother' }> = [
+    { slot: 'Paternal Grandfather', via: 'Father', as: 'Father' },
+    { slot: 'Paternal Grandmother', via: 'Father', as: 'Mother' },
+    { slot: 'Maternal Grandfather', via: 'Mother', as: 'Father' },
+    { slot: 'Maternal Grandmother', via: 'Mother', as: 'Mother' },
+    // Future: extend ANCESTOR_TYPES and uncomment / add entries below:
+    // { slot: 'Paternal Great-Grandfather', via: 'Paternal Grandfather', as: 'Father' },
+    // { slot: 'Paternal Great-Grandmother', via: 'Paternal Grandfather', as: 'Mother' },
+    // { slot: 'Maternal Great-Grandfather', via: 'Maternal Grandfather', as: 'Father' },
+    // { slot: 'Maternal Great-Grandmother', via: 'Maternal Grandfather', as: 'Mother' },
+  ]
+
+  // typeIds / types already contains Father, Mother, and all grandparent IDs
+  // (they are all in ANCESTOR_TYPES and were fetched at the top of this function)
+  const parentRelTypeIds = (['Father', 'Mother'] as const)
+    .map(n => types.find(t => t.name === n)?.id)
+    .filter((id): id is string => !!id)
+
+  let pending = derivationMap.filter(d => !relByType[d.slot])
+
+  while (pending.length > 0) {
+    // Only process entries whose prerequisite slot is already resolved this round
+    const actionable = pending.filter(d => !!relByType[d.via]?.related_person_id)
+    if (!actionable.length) break
+
+    const sourceIds = [...new Set(actionable.map(d => relByType[d.via]!.related_person_id))]
+
+    const { data: derivedRels } = await supabase
+      .from('person_relationships')
+      .select('id, person_id, related_person_id, relationship_type_id, is_step')
+      .in('person_id', sourceIds)
+      .in('relationship_type_id', parentRelTypeIds)
+
+    // Fetch any person records not already loaded
+    const newPersonIds = [...new Set(
+      (derivedRels ?? []).map(r => r.related_person_id).filter(id => !personById[id])
+    )]
+    if (newPersonIds.length) {
+      const { data: newPersons } = await supabase
+        .from('people')
+        .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+        .in('id', newPersonIds)
+      for (const p of newPersons ?? []) personById[p.id] = p
+    }
+
+    let anyResolved = false
+    for (const d of actionable) {
+      if (relByType[d.slot]) continue
+      const srcId = relByType[d.via]!.related_person_id
+      const asTypeId = types.find(t => t.name === d.as)?.id
+      if (!asTypeId) continue
+      const match = (derivedRels ?? []).find(r => r.person_id === srcId && r.relationship_type_id === asTypeId)
+      if (match) {
+        const slotTypeId = types.find(t => t.name === d.slot)?.id
+        if (!slotTypeId) continue
+        relByType[d.slot] = {
+          id: match.id,
+          related_person_id: match.related_person_id,
+          relationship_type_id: slotTypeId,
+          is_step: match.is_step,
+        }
+        anyResolved = true
+      }
+    }
+
+    if (!anyResolved) break
+    pending = pending.filter(d => !relByType[d.slot])
+  }
+
   return ANCESTOR_TYPES.map(type => {
     const rel = relByType[type]
     if (!rel) return emptyEntry(type)

@@ -211,9 +211,14 @@ function EditChildForm({ child, onDone }: { child: ChildRecord; onDone: () => vo
     else setServerError(result.message ?? 'Something went wrong')
   }
 
+  const fullName = [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(' ')
+
   return (
-    <Card className="border-border">
+    <Card className="border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20">
       <CardContent className="pt-4">
+        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <Pencil className="h-3 w-3" /> Editing — {fullName}
+        </p>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <ChildFormFields register={register} errors={errors} watch={watch} setValue={setValue} serverError={serverError} />
           <div className="flex gap-2">

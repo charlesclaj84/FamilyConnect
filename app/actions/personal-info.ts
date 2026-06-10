@@ -219,5 +219,6 @@ export async function saveChapterAndPropagate(
   }
 
   revalidatePath('/personal-info')
+  revalidatePath('/dashboard')
   return { success: true }
 }

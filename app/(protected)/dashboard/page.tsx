@@ -8,13 +8,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUpcomingEvents } from '@/app/actions/events'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { getLinkPersonBannerData } from '@/app/actions/link-person'
-import { getPinnedAnnouncements } from '@/app/actions/announcements'
+import { getPinnedAnnouncements, getChapters } from '@/app/actions/announcements'
 import { getMyDuesSummary } from '@/app/actions/dues'
 import { getUnreadCount } from '@/app/actions/notifications'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
+import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
+import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
 import { DuesStatusCard } from '@/components/dues/DuesStatusCard'
-import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
 
 
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
   const familyCode: string = user.user_metadata?.family_code ?? ''
   const admin = createAdminClient()
 
-  const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult] = await Promise.all([
+  const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters] = await Promise.all([
     getUpcomingEvents().then(e => e.slice(0, 3)),
     getMyRoles(),
     getLinkPersonBannerData(),
@@ -40,9 +41,15 @@ export default async function DashboardPage() {
     getMyDuesSummary(),
     getUnreadCount(),
     admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
+    supabase.from('people').select('chapter_id, chapters(name)').eq('user_id', user.id).maybeSingle(),
+    getChapters(),
   ])
 
   const memberCount = memberCountResult.count ?? 0
+  const myPersonData = myPersonResult.data as { chapter_id: string | null; chapters?: { name: string } | null } | null
+  const myChapterId = myPersonData?.chapter_id ?? null
+  const myChapterName = (myPersonData?.chapters as { name: string } | null)?.name ?? null
+  const needsChapter = !myChapterId && chapters.length > 0
   const nextEvent = upcomingEvents[0]
   const daysToNextEvent = nextEvent
     ? Math.max(0, Math.round((new Date(nextEvent.start_date ?? nextEvent.event_date ?? '').getTime() - Date.now()) / 86400000))
@@ -76,6 +83,12 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+          {myChapterName && (
+            <p className="text-sm text-muted-foreground mt-1.5 flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {myChapterName} Chapter
+            </p>
+          )}
         </div>
       </div>
 
@@ -87,12 +100,17 @@ export default async function DashboardPage() {
         <LinkPersonBanner unlinkedPeople={linkBannerData.unlinkedPeople} />
       )}
 
+      {/* ── Chapter reminder ─────────────────────────────────────── */}
+      {needsChapter && (
+        <ChapterReminderBanner chapters={chapters} />
+      )}
+
       {/* ── Pinned Announcements ──────────────────────────────────── */}
       {pinnedAnnouncements.length > 0 && (
-        <section className="space-y-3">
-          {pinnedAnnouncements.map(a => <AnnouncementCard key={a.id} announcement={a} />)}
+        <>
+          <PinnedAnnouncementsBanner announcements={pinnedAnnouncements} />
           <Link href="/announcements" className="text-xs text-primary hover:underline">View all announcements</Link>
-        </section>
+        </>
       )}
 
       {/* ── Account widget ────────────────────────────────────────── */}

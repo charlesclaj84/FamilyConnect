@@ -62,8 +62,11 @@ export function MemberDirectoryClient({ members }: Props) {
               <div key={member.id} className="rounded-xl border bg-card p-4 flex items-start gap-3">
                 <Avatar url={member.avatar_url} initials={initials} size="sm" />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="font-medium text-sm truncate">{displayName}</p>
+                    {member.is_minor && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 shrink-0">Minor</span>
+                    )}
                     {member.is_active ? (
                       <span title="Active in Family Connect"><CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" /></span>
                     ) : (
@@ -76,7 +79,7 @@ export function MemberDirectoryClient({ members }: Props) {
                   )}
 
                   {member.chapter_name && (
-                    <p className="text-xs text-muted-foreground">{member.chapter_name}</p>
+                    <p className="text-xs text-muted-foreground">{member.chapter_name} Chapter</p>
                   )}
 
                   {member.primary_phone && (

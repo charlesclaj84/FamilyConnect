@@ -25,9 +25,13 @@ function buildInitialStatuses(
 }
 
 export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadlinePassed }: Props) {
-  const [statuses, setStatuses]   = useState(() => buildInitialStatuses(familyMembers, existingRsvp))
-  const [editStatuses, setEditStatuses] = useState<Record<string, boolean>>({})
   const hasPersonalRsvp            = !!(existingRsvp?.id)
+  const [statuses, setStatuses]   = useState(() => buildInitialStatuses(familyMembers, existingRsvp))
+  // Pre-populate edit form with any inherited (parent-submitted) statuses so the
+  // child sees their existing RSVP when they open the form for the first time.
+  const [editStatuses, setEditStatuses] = useState<Record<string, boolean>>(
+    () => hasPersonalRsvp ? {} : buildInitialStatuses(familyMembers, existingRsvp)
+  )
   const [editing, setEditing]     = useState(!hasPersonalRsvp)   // edit mode if no personal submission yet
   const [saving, setSaving]       = useState(false)
   const [saved, setSaved]         = useState(hasPersonalRsvp)

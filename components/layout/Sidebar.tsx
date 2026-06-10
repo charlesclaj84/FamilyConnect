@@ -27,19 +27,50 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const navItems = [
-  { href: '/dashboard',       label: 'Dashboard',         icon: LayoutDashboard },
-  { href: '/personal-info',   label: 'My Profile',        icon: UserCircle },
-  { href: '/direct-lineage',  label: 'My Children',       icon: Users },
-  { href: '/family-tree',     label: 'Family Tree',       icon: GitBranch },
-  { href: '/members',         label: 'Member Directory',  icon: UsersRound },
-  { href: '/announcements',   label: 'Announcements',     icon: Megaphone },
-  { href: '/events',          label: 'Upcoming Events',   icon: Calendar },
-  { href: '/account-summary', label: 'Account',           icon: Wallet },
-  { href: '/documents',       label: 'Documents',         icon: FileText },
-  { href: '/elections',       label: 'Elections',         icon: Vote },
-  { href: '/photos',          label: 'Photos',            icon: Camera },
-  { href: '/chat',            label: 'Chat',              icon: MessageCircle },
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+interface NavGroup {
+  section?: { label: string; icon: React.ComponentType<{ className?: string }> }
+  items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
+  {
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    section: { label: 'Personal', icon: UserCircle },
+    items: [
+      { href: '/personal-info',   label: 'My Profile',       icon: UserCircle },
+      { href: '/direct-lineage',  label: 'My Children',      icon: Users },
+      { href: '/account-summary', label: 'Account Summary',  icon: Wallet },
+    ],
+  },
+  {
+    section: { label: 'Community', icon: UsersRound },
+    items: [
+      { href: '/chat',          label: 'Chat',             icon: MessageCircle },
+      { href: '/announcements', label: 'Announcements',    icon: Megaphone },
+      { href: '/events',        label: 'Upcoming Events',  icon: Calendar },
+      { href: '/members',       label: 'Member Directory', icon: UsersRound },
+      { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
+    ],
+  },
+  {
+    section: { label: 'Resources', icon: BookOpen },
+    items: [
+      { href: '/photos',             label: 'Photos',           icon: Camera },
+      { href: '/documents',          label: 'Documents',        icon: FileText },
+      { href: '/elections',          label: 'Elections',        icon: Vote },
+      { href: '/family-finances',    label: 'Family Finances',  icon: BarChart3 },
+    ],
+  },
 ]
 
 const managementItems = [
@@ -131,9 +162,16 @@ export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?:
     <>
       {/* ── Desktop: sticky left panel ─────────────────────────────── */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r bg-background">
-        <nav className="sticky top-0 flex flex-col gap-0.5 p-3 pt-6">
-          {navItems.map(item => (
-            <NavLink key={item.href} {...item} active={pathname === item.href} />
+        <nav className="sticky top-0 flex flex-col p-3 pt-6 overflow-y-auto">
+          {navGroups.map((group, i) => (
+            <div key={i}>
+              {group.section && <SectionDivider label={group.section.label} icon={group.section.icon} />}
+              <div className="flex flex-col gap-0.5 mt-0.5">
+                {group.items.map(item => (
+                  <NavLink key={item.href} {...item} active={pathname === item.href} />
+                ))}
+              </div>
+            </div>
           ))}
           {hasAssignments && (
             <NavLink href="/event-planning" label="Event Planning" icon={ClipboardList} active={pathname === '/event-planning'} />
@@ -174,14 +212,16 @@ export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?:
                 <X className="h-4 w-4 text-[#0f2540]" />
               </button>
             </div>
-            <nav className="flex flex-col gap-0.5 p-3 overflow-y-auto">
-              {navItems.map(item => (
-                <NavLink
-                  key={item.href}
-                  {...item}
-                  active={pathname === item.href}
-                  onClick={() => setMobileOpen(false)}
-                />
+            <nav className="flex flex-col p-3 overflow-y-auto">
+              {navGroups.map((group, i) => (
+                <div key={i}>
+                  {group.section && <SectionDivider label={group.section.label} icon={group.section.icon} />}
+                  <div className="flex flex-col gap-0.5 mt-0.5">
+                    {group.items.map(item => (
+                      <NavLink key={item.href} {...item} active={pathname === item.href} onClick={() => setMobileOpen(false)} />
+                    ))}
+                  </div>
+                </div>
               ))}
               {hasAssignments && (
                 <NavLink href="/event-planning" label="Event Planning" icon={ClipboardList} active={pathname === '/event-planning'} onClick={() => setMobileOpen(false)} />

@@ -478,5 +478,62 @@ export async function sendMessage(
     .insert({ room_id: roomId, sender_id: user.id, body: trimmed })
 
   if (error) return { success: false, error: error.message }
+
+  // Notify other participants (best-effort)
+  try {
+    const admin = createAdminClient()
+    const [roomResult, senderResult] = await Promise.all([
+      admin.from('chat_rooms').select('kind, name, family_code').eq('id', roomId).single(),
+      admin.from('people').select('first_name, last_name').eq('user_id', user.id).maybeSingle(),
+    ])
+    const room = roomResult.data
+    const sender = senderResult.data
+    if (room && sender) {
+      const senderName = [sender.first_name, sender.last_name].filter(Boolean).join(' ') || 'Someone'
+      const notifTitle =
+        room.kind === 'dm'    ? `New Message From: ${senderName}` :
+        room.kind === 'group' ? `${room.name ?? 'Group Chat'} — New Message From: ${senderName}` :
+                                `Family Chat — New Message From: ${senderName}`
+
+      const { data: participants } = await admin
+        .from('chat_participants')
+        .select('user_id')
+        .eq('room_id', roomId)
+        .eq('is_hidden', false)
+        .neq('user_id', user.id)
+
+      if (participants?.length) {
+        const otherUserIds = participants.map(p => p.user_id)
+        const { data: people } = await admin
+          .from('people')
+          .select('id, user_id')
+          .in('user_id', otherUserIds)
+          .eq('family_code', room.family_code)
+
+        if (people?.length) {
+          const link = '/chat'
+          // Replace any existing unread chat notification for this room per recipient
+          for (const person of people) {
+            await admin.from('notifications')
+              .delete()
+              .eq('recipient_id', person.id)
+              .eq('link', link)
+              .eq('type', 'chat')
+              .is('read_at', null)
+            await admin.from('notifications').insert({
+              family_code: room.family_code,
+              recipient_id: person.id,
+              type: 'chat',
+              title: notifTitle,
+              link,
+            })
+          }
+        }
+      }
+    }
+  } catch {
+    // Notifications are best-effort; don't fail the send
+  }
+
   return { success: true }
 }
