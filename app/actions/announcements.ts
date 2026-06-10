@@ -26,7 +26,7 @@ export interface AnnouncementInput {
   chapter_id?: string | null
 }
 
-function isPinActive(a: { pinned: boolean; pinned_until: string | null }): boolean {
+function isPinActive(a: { pinned: boolean; pinned_until?: string | null }): boolean {
   if (!a.pinned) return false
   if (!a.pinned_until) return true
   return new Date(a.pinned_until) > new Date()

@@ -45,6 +45,7 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
       const selectedChapter = chapters.find(c => c.id === chapterId)
       setAnnouncements(prev => [{
         id: crypto.randomUUID(), title, body, scope, pinned,
+        pinned_until: pinned && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         published_at: new Date().toISOString(), author_name: 'You',
         chapter_id: scope === 'chapter' ? chapterId : null,
         chapter_name: scope === 'chapter' ? (selectedChapter?.name ?? null) : null,
