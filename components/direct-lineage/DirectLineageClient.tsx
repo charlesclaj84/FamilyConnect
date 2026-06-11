@@ -311,6 +311,9 @@ function ChildRow({
   const statusBadge = !child.is_minor
     ? <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Adult</span>
     : null
+  const joinedBadge = child.has_account
+    ? <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-2 py-0.5 rounded-full">Joined</span>
+    : null
 
   async function handleDelete() {
     if (!confirm(`Remove ${fullName} from your children list?`)) return
@@ -326,14 +329,20 @@ function ChildRow({
           <p className="font-medium">{fullName}</p>
           <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{label}</span>
           {statusBadge}
+          {joinedBadge}
         </div>
         <p className="text-sm text-muted-foreground">Born: {dob} &middot; T-Shirt: {shirt}</p>
+        {child.has_account && (
+          <p className="text-xs text-muted-foreground">Has joined Family Connect — they manage their own profile.</p>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Button size="sm" variant="outline" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" /> Edit
-        </Button>
-        {child.is_minor && (
+        {!child.has_account && (
+          <Button size="sm" variant="outline" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </Button>
+        )}
+        {child.is_minor && !child.has_account && (
           <Button size="sm" variant="outline" onClick={onConvert}>
             <ArrowUpCircle className="h-3.5 w-3.5" /> Convert to Adult
           </Button>

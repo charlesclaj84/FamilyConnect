@@ -2,11 +2,8 @@ import Link from 'next/link'
 import { DollarSign, CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
+import { formatCurrency } from '@/lib/currency-utils'
 import type { DuesSummary } from '@/app/actions/dues'
-
-function formatDollars(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
-}
 
 interface Props {
   summary: DuesSummary[]
@@ -33,7 +30,7 @@ export function DuesStatusCard({ summary, showViewLink = true }: Props) {
   }
 
   const unpaid = summary.filter(s => !s.paid)
-  const totalDueCents = unpaid.reduce((sum, s) => sum + s.schedule.amount_cents, 0)
+  const totalDueCents = unpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
 
   return (
     <Card className="max-w-sm w-full">
@@ -54,14 +51,14 @@ export function DuesStatusCard({ summary, showViewLink = true }: Props) {
         ) : (
           <>
             <div className="flex items-end gap-2">
-              <span className="text-2xl font-semibold">{formatDollars(totalDueCents)}</span>
-              <span className="text-sm text-muted-foreground mb-0.5">outstanding</span>
+              <span className="text-2xl font-semibold">{formatCurrency(totalDueCents)}</span>
+              <span className="text-sm text-muted-foreground mb-0.5">remaining</span>
             </div>
             <ul className="space-y-1">
               {unpaid.map(s => (
                 <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
-                  {s.schedule.label} — {formatDollars(s.schedule.amount_cents)}
+                  {s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}
                 </li>
               ))}
             </ul>

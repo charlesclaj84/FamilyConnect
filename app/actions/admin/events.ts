@@ -651,3 +651,204 @@ export async function deleteHotelDetail(id: string): Promise<{ success: boolean;
   const { error } = await admin.from('event_hotel_booking_details').delete().eq('id', id)
   return error ? { success: false, error: error.message } : { success: true }
 }
+
+// ── Event budgets: line items + expenses + backing fund ──────────────────────
+
+export interface EventBudgetItem {
+  id: string
+  event_id: string
+  title: string
+  description: string | null
+  budget_cents: number
+  sort_order: number
+  spent_cents: number
+}
+
+export interface EventExpense {
+  id: string
+  event_id: string
+  budget_item_id: string | null
+  budget_item_title: string | null
+  fund_id: string | null
+  fund_name: string | null
+  amount_cents: number
+  spent_date: string
+  description: string | null
+  created_at: string
+}
+
+async function adminPersonId(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
+  const { data } = await admin.from('people').select('id').eq('user_id', userId).maybeSingle()
+  return data?.id ?? null
+}
+
+export async function getEventBudgetItems(eventId: string): Promise<EventBudgetItem[]> {
+  const admin = createAdminClient()
+  const [itemsRes, expRes] = await Promise.all([
+    admin.from('event_budget_items').select('*').eq('event_id', eventId).order('sort_order').order('created_at'),
+    admin.from('event_expenses').select('budget_item_id, amount_cents').eq('event_id', eventId),
+  ])
+  const spentByItem = new Map<string, number>()
+  for (const e of expRes.data ?? []) {
+    if (e.budget_item_id) spentByItem.set(e.budget_item_id, (spentByItem.get(e.budget_item_id) ?? 0) + e.amount_cents)
+  }
+  return (itemsRes.data ?? []).map(i => ({
+    id: i.id,
+    event_id: i.event_id,
+    title: i.title,
+    description: i.description,
+    budget_cents: i.budget_cents,
+    sort_order: i.sort_order,
+    spent_cents: spentByItem.get(i.id) ?? 0,
+  }))
+}
+
+export async function addEventBudgetItem(
+  eventId: string,
+  input: { title: string; description?: string; budget_cents: number }
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const { user, admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin || !user) return { success: false, error: 'Not authorized' }
+
+  const { data: last } = await admin
+    .from('event_budget_items').select('sort_order').eq('event_id', eventId)
+    .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+
+  const { data, error } = await admin.from('event_budget_items').insert({
+    event_id: eventId,
+    family_code: familyCode,
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    budget_cents: input.budget_cents,
+    sort_order: (last?.sort_order ?? 0) + 1,
+    created_by: await adminPersonId(admin, user.id),
+  }).select('id').single()
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/admin/events/${eventId}`)
+  revalidatePath('/family-finances')
+  return { success: true, id: data.id }
+}
+
+export async function updateEventBudgetItem(
+  id: string,
+  input: Partial<{ title: string; description: string; budget_cents: number; sort_order: number }>
+): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data, error } = await admin.from('event_budget_items').update({
+    ...input,
+    title: input.title?.trim(),
+    description: input.description?.trim() || null,
+  }).eq('id', id).select('event_id').single()
+
+  if (error) return { success: false, error: error.message }
+  if (data?.event_id) revalidatePath(`/admin/events/${data.event_id}`)
+  revalidatePath('/family-finances')
+  return { success: true }
+}
+
+export async function deleteEventBudgetItem(id: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data, error } = await admin.from('event_budget_items').delete().eq('id', id).select('event_id').single()
+  if (error) return { success: false, error: error.message }
+  if (data?.event_id) revalidatePath(`/admin/events/${data.event_id}`)
+  revalidatePath('/family-finances')
+  return { success: true }
+}
+
+export async function getEventExpenses(eventId: string): Promise<EventExpense[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('event_expenses')
+    .select('*, event_budget_items(title), funds(name)')
+    .eq('event_id', eventId)
+    .order('spent_date', { ascending: false })
+
+  return (data ?? []).map(e => ({
+    id: e.id,
+    event_id: e.event_id,
+    budget_item_id: e.budget_item_id,
+    budget_item_title: (e.event_budget_items as { title: string } | null)?.title ?? null,
+    fund_id: e.fund_id,
+    fund_name: (e.funds as { name: string } | null)?.name ?? null,
+    amount_cents: e.amount_cents,
+    spent_date: e.spent_date,
+    description: e.description,
+    created_at: e.created_at,
+  }))
+}
+
+export async function recordEventExpense(
+  eventId: string,
+  input: {
+    description: string
+    amount_cents: number
+    spent_date: string
+    budget_item_id: string | null
+    fund_id: string | null
+  }
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const { user, admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin || !user) return { success: false, error: 'Not authorized' }
+
+  // Default to the event's backing fund when none is chosen.
+  let fundId = input.fund_id
+  if (fundId === null) {
+    const { data: backing } = await admin.from('funds').select('id').eq('event_id', eventId).maybeSingle()
+    fundId = backing?.id ?? null
+  }
+
+  const { data, error } = await admin.from('event_expenses').insert({
+    event_id: eventId,
+    budget_item_id: input.budget_item_id,
+    fund_id: fundId,
+    family_code: familyCode,
+    amount_cents: input.amount_cents,
+    spent_date: input.spent_date,
+    description: input.description.trim() || null,
+    recorded_by: await adminPersonId(admin, user.id),
+  }).select('id').single()
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/admin/events/${eventId}`)
+  revalidatePath('/family-finances')
+  return { success: true, id: data.id }
+}
+
+export async function deleteEventExpense(id: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { data, error } = await admin.from('event_expenses').delete().eq('id', id).select('event_id').single()
+  if (error) return { success: false, error: error.message }
+  if (data?.event_id) revalidatePath(`/admin/events/${data.event_id}`)
+  revalidatePath('/family-finances')
+  return { success: true }
+}
+
+/** Link (or unlink) the one fund that backs this event. Enforces the 1:1 relationship. */
+export async function setEventFund(
+  eventId: string,
+  fundId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  const { admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  // Clear any fund currently backing this event (partial-unique index on event_id).
+  const { error: clearErr } = await admin
+    .from('funds').update({ event_id: null }).eq('family_code', familyCode).eq('event_id', eventId)
+  if (clearErr) return { success: false, error: clearErr.message }
+
+  if (fundId) {
+    const { error } = await admin.from('funds').update({ event_id: eventId }).eq('id', fundId)
+    if (error) return { success: false, error: error.message }
+  }
+
+  revalidatePath(`/admin/events/${eventId}`)
+  revalidatePath('/family-finances')
+  return { success: true }
+}

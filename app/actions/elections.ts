@@ -74,8 +74,7 @@ export async function getElectionDetail(id: string): Promise<{
     supabase
       .from('election_nominations')
       .select('id, position_id, nominee_id, accepted, people(first_name, last_name)')
-      .eq('election_id', id)
-      .eq('accepted', true),
+      .eq('election_id', id),
   ])
 
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
@@ -143,7 +142,8 @@ export async function submitNomination(
     position_id: positionId,
     nominee_id: nomineeId,
     nominated_by: myPerson?.id ?? null,
-    accepted: null,
+    // Self-nominations are accepted automatically; nominations of others await acceptance.
+    accepted: myPerson?.id === nomineeId ? true : null,
   })
   if (error) return { success: false, message: error.message }
   revalidatePath(`/elections/${electionId}`)
@@ -193,6 +193,7 @@ export async function createElection(input: {
   voting_open_at: string | null
   voting_close_at: string | null
   positions: { title: string; max_winners: number }[]
+  announce?: boolean
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -222,6 +223,30 @@ export async function createElection(input: {
       }))
     )
   }
+
+  // Optionally post a family announcement about the new election.
+  if (input.announce) {
+    const fmtDate = (s: string | null) =>
+      s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+    const nomOpen = fmtDate(input.nominations_open_at)
+    const parts = [
+      `A new election, "${input.title.trim()}", has been created.`,
+      input.description.trim() || null,
+      nomOpen ? `Nominations open ${nomOpen}.` : 'Watch for nominations to open soon.',
+    ].filter(Boolean)
+    await supabase.from('announcements').insert({
+      family_code: familyCode,
+      title: `New Election: ${input.title.trim()}`,
+      body: parts.join(' '),
+      scope: 'national',
+      pinned: false,
+      author_id: myPerson?.id ?? null,
+    })
+    revalidatePath('/announcements')
+    revalidatePath('/dashboard')
+    revalidatePath('/admin/announcements')
+  }
+
   revalidatePath('/elections')
   revalidatePath('/admin/elections')
   return { success: true, id: election.id }

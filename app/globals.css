@@ -137,3 +137,26 @@
     color: #1aa88a;
   }
 }
+
+/* ── Landing-page feature animations ───────────────────────────── */
+@keyframes fc-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes fc-float-slow {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50%      { transform: translateY(12px) translateX(6px); }
+}
+@keyframes fc-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.fc-float       { animation: fc-float 6s ease-in-out infinite; }
+.fc-float-slow  { animation: fc-float-slow 9s ease-in-out infinite; }
+.fc-shimmer {
+  background-size: 200% 100%;
+  animation: fc-shimmer 3.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-float, .fc-float-slow, .fc-shimmer { animation: none; }
+}

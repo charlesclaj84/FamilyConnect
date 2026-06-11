@@ -1,47 +1,97 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getMyChildren } from '@/app/actions/children'
-import { getMyAncestors, getFamilyMembers } from '@/app/actions/ancestors'
-import { getMySpouse } from '@/app/actions/spouse'
+import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  getAncestorRows,
+  getDescendantTree,
+  buildPartnerGroups,
+  getFamilyMembers,
+} from '@/app/actions/ancestors'
+import { getPersonPartners } from '@/app/actions/spouse'
 import { getMyRoles, getFamilyMemberRoles } from '@/app/actions/admin/users'
 import { FamilyTreeClient } from '@/components/family-tree/FamilyTreeClient'
 
 export const metadata = { title: 'Family Tree — Family Connect' }
 
-export default async function FamilyTreePage() {
+export default async function FamilyTreePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>
+}) {
+  const { view } = await searchParams
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [children, ancestors, spouse, familyMembers, myRoles, memberRoles] = await Promise.all([
-    getMyChildren(),
-    getMyAncestors(),
-    getMySpouse(),
+  const admin = createAdminClient()
+
+  // Resolve current user's person record
+  const { data: myPerson } = await admin
+    .from('people')
+    .select('id, first_name, last_name, family_code')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  // Validate the view param belongs to the same family
+  let subjectPersonId = myPerson?.id ?? ''
+  let isViewMode = false
+  let viewSubjectName: string | null = null
+
+  if (view && view !== myPerson?.id) {
+    const { data: subjectPerson } = await admin
+      .from('people')
+      .select('id, first_name, last_name, family_code')
+      .eq('id', view)
+      .maybeSingle()
+
+    if (subjectPerson && subjectPerson.family_code === (myPerson as { family_code?: string } | null)?.family_code) {
+      subjectPersonId = subjectPerson.id
+      isViewMode = true
+      viewSubjectName = [subjectPerson.first_name, subjectPerson.last_name].filter(Boolean).join(' ')
+    }
+    // If invalid / cross-family: silently fall back to own tree
+  }
+
+  const [ancestorRows, descendants, partners, familyMembers, myRoles, memberRoles] = await Promise.all([
+    getAncestorRows(subjectPersonId, myPerson?.id ?? ''),
+    getDescendantTree(subjectPersonId),
+    getPersonPartners(subjectPersonId),
     getFamilyMembers(),
     getMyRoles(),
     getFamilyMemberRoles(),
   ])
 
-  const firstName   = user.user_metadata?.first_name ?? 'You'
-  const lastName    = user.user_metadata?.last_name  ?? ''
-  const displayName = [firstName, lastName].filter(Boolean).join(' ')
+  const partnerGroups = await buildPartnerGroups(subjectPersonId, partners, descendants)
+
+  const displayName = isViewMode
+    ? (viewSubjectName ?? 'Member')
+    : [
+        user.user_metadata?.first_name ?? myPerson?.first_name ?? '',
+        user.user_metadata?.last_name  ?? myPerson?.last_name  ?? '',
+      ].filter(Boolean).join(' ') || 'You'
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Family Tree</h1>
         <p className="text-muted-foreground">
-          Your direct lineage — two generations above and as many as exist below you.
+          {isViewMode
+            ? `Viewing ${viewSubjectName ?? 'member'}'s family tree.`
+            : 'Your full lineage — as many generations as available.'}
         </p>
       </div>
 
       <FamilyTreeClient
-        ancestors={ancestors}
-        children={children}
+        ancestorRows={ancestorRows}
+        partnerGroups={partnerGroups}
         displayName={displayName}
-        spouse={spouse}
+        isViewMode={isViewMode}
+        viewSubjectName={viewSubjectName}
+        myPersonId={myPerson?.id ?? null}
+        subjectPersonId={subjectPersonId}
         familyMembers={familyMembers}
-        myRoles={myRoles}
+        myRoles={isViewMode ? [] : myRoles}
         memberRoles={memberRoles}
       />
     </div>

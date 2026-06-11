@@ -24,6 +24,7 @@ import {
   Vote,
   BarChart3,
   Camera,
+  ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -38,55 +39,78 @@ interface NavGroup {
   items: NavItem[]
 }
 
-const navGroups: NavGroup[] = [
-  {
+const adminItems: NavItem[] = [
+  { href: '/admin/users',      label: 'User Management',    icon: UsersRound },
+  { href: '/admin/chapters',   label: 'Regions & Chapters', icon: ShieldCheck },
+  { href: '/admin/user-roles', label: 'Board Positions',    icon: ShieldCheck },
+  { href: '/admin/elections',  label: 'Elections',          icon: Vote },
+  { href: '/admin/reports',    label: 'Reports',            icon: BarChart3 },
+]
+
+// Build the nav groups for the current user. Items are gated by role/assignments
+// so a section only appears when the user can reach at least one of its links.
+function buildNavGroups(isAdmin: boolean, hasAssignments: boolean): NavGroup[] {
+  const eventItems: NavItem[] = [
+    { href: '/events', label: 'Upcoming Events', icon: Calendar },
+    ...(hasAssignments ? [{ href: '/event-planning',    label: 'Event Planning',    icon: ClipboardList }] : []),
+    ...(isAdmin        ? [{ href: '/admin/events',      label: 'Event Management',  icon: CalendarClock }] : []),
+    ...(isAdmin        ? [{ href: '/admin/event-types', label: 'Event Templates',   icon: ListChecks }]    : []),
+  ]
+
+  const groups: NavGroup[] = [
+    {
+      items: [
+        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      section: { label: 'Personal', icon: UserCircle },
+      items: [
+        { href: '/personal-info',   label: 'My Profile',   icon: UserCircle },
+        { href: '/direct-lineage',  label: 'My Children',  icon: Users },
+        { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
+      ],
+    },
+    {
+      section: { label: 'Community', icon: UsersRound },
+      items: [
+        { href: '/chat',          label: 'Chat',             icon: MessageCircle },
+        { href: '/announcements', label: 'Announcements',    icon: Megaphone },
+        { href: '/members',       label: 'Member Directory', icon: UsersRound },
+      ],
+    },
+  ]
+
+  groups.push({ section: { label: 'Events', icon: CalendarClock }, items: eventItems })
+
+  groups.push({
+    section: { label: 'Accounting', icon: Wallet },
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/account-summary', label: 'Account Summary',   icon: Wallet },
+      { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
+      ...(isAdmin ? [{ href: '/admin/account', label: 'Account Management', icon: ShieldCheck }] : []),
     ],
-  },
-  {
-    section: { label: 'Personal', icon: UserCircle },
-    items: [
-      { href: '/personal-info',   label: 'My Profile',       icon: UserCircle },
-      { href: '/direct-lineage',  label: 'My Children',      icon: Users },
-      { href: '/account-summary', label: 'Account Summary',  icon: Wallet },
-    ],
-  },
-  {
-    section: { label: 'Community', icon: UsersRound },
-    items: [
-      { href: '/chat',          label: 'Chat',             icon: MessageCircle },
-      { href: '/announcements', label: 'Announcements',    icon: Megaphone },
-      { href: '/events',        label: 'Upcoming Events',  icon: Calendar },
-      { href: '/members',       label: 'Member Directory', icon: UsersRound },
-      { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
-    ],
-  },
-  {
+  })
+
+  groups.push({
     section: { label: 'Resources', icon: BookOpen },
     items: [
-      { href: '/photos',             label: 'Photos',           icon: Camera },
-      { href: '/documents',          label: 'Documents',        icon: FileText },
-      { href: '/elections',          label: 'Elections',        icon: Vote },
-      { href: '/family-finances',    label: 'Family Finances',  icon: BarChart3 },
+      { href: '/photos',    label: 'Photos',    icon: Camera },
+      { href: '/documents', label: 'Documents', icon: FileText },
+      { href: '/elections', label: 'Elections', icon: Vote },
     ],
-  },
-]
+  })
 
-const managementItems = [
-  { href: '/admin/events', label: 'Events', icon: CalendarClock },
-]
+  if (isAdmin) {
+    groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
+  }
 
-const adminItems = [
-  { href: '/admin/users',          label: 'Users',                icon: UsersRound },
-  { href: '/admin/user-roles',     label: 'User Roles',           icon: ShieldCheck },
-  { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
-  { href: '/admin/event-types',    label: 'Event Templates',      icon: ListChecks },
-  { href: '/admin/announcements',  label: 'Announcements',        icon: Megaphone },
-  { href: '/admin/account',        label: 'Account Management',   icon: Wallet },
-  { href: '/admin/elections',      label: 'Elections',            icon: Vote },
-  { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
-]
+  return groups
+}
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + '/')
+}
 
 function NavLink({ href, label, icon: Icon, active, onClick }: {
   href: string
@@ -124,35 +148,95 @@ function SectionDivider({ label, icon: Icon }: { label: string; icon: React.Comp
   )
 }
 
-function ManagementSection({ pathname, onNavClick }: { pathname: string; onNavClick?: () => void }) {
+// A nav group. Sections with more than one item become collapsible sliders;
+// single-item sections (and the top-level Dashboard group) render statically.
+// `open`/`onToggle` are owned by NavTree so only one section stays open at a time.
+function NavSection({ group, pathname, open, onToggle, onNavClick }: {
+  group: NavGroup
+  pathname: string
+  open: boolean
+  onToggle: () => void
+  onNavClick?: () => void
+}) {
+  const { section, items } = group
+
+  const links = items.map(item => (
+    <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} onClick={onNavClick} />
+  ))
+
+  // No section header (e.g. Dashboard) — render the items plainly.
+  if (!section) {
+    return <div className="flex flex-col gap-0.5">{links}</div>
+  }
+
+  const Icon = section.icon
+
+  // A single option doesn't need a slider — keep it as a static divider.
+  if (items.length <= 1) {
+    return (
+      <div>
+        <SectionDivider label={section.label} icon={Icon} />
+        <div className="flex flex-col gap-0.5 mt-0.5">{links}</div>
+      </div>
+    )
+  }
+
+  // More than one option — collapsible slider.
   return (
     <div>
-      <SectionDivider label="Management" icon={CalendarClock} />
-      <div className="flex flex-col gap-0.5">
-        {managementItems.map(item => (
-          <NavLink key={item.href} {...item} active={pathname.startsWith(item.href)} onClick={onNavClick} />
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center gap-1.5 px-3 py-1.5 mt-3 group"
+      >
+        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <Icon className="h-3 w-3" /> {section.label}
+        </span>
+        <div className="h-px flex-1 bg-border" />
+        <ChevronDown
+          className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', open ? '' : '-rotate-90')}
+        />
+      </button>
+      {open && <div className="flex flex-col gap-0.5 mt-0.5">{links}</div>}
     </div>
   )
 }
 
-function AdminSection({ pathname, onNavClick }: { pathname: string; onNavClick?: () => void }) {
+function NavTree({ groups, pathname, onNavClick }: {
+  groups: NavGroup[]
+  pathname: string
+  onNavClick?: () => void
+}) {
+  // Accordion: only one collapsible section open at a time. Default to the
+  // section that contains the active route so the current page stays visible.
+  const collapsible = (g: NavGroup) => Boolean(g.section) && g.items.length > 1
+  const activeSection = groups.find(g => collapsible(g) && g.items.some(it => isActive(pathname, it.href)))
+  const [openSection, setOpenSection] = useState<string | null>(activeSection?.section?.label ?? null)
+
   return (
-    <div>
-      <SectionDivider label="Admin" icon={ShieldCheck} />
-      <div className="flex flex-col gap-0.5">
-        {adminItems.map(item => (
-          <NavLink key={item.href} {...item} active={pathname.startsWith(item.href)} onClick={onNavClick} />
-        ))}
-      </div>
-    </div>
+    <>
+      {groups.map((group, i) => {
+        const label = group.section?.label ?? `group-${i}`
+        return (
+          <NavSection
+            key={label}
+            group={group}
+            pathname={pathname}
+            open={openSection === label}
+            onToggle={() => setOpenSection(curr => (curr === label ? null : label))}
+            onNavClick={onNavClick}
+          />
+        )
+      })}
+    </>
   )
 }
 
 export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?: boolean; hasAssignments?: boolean }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const navGroups = buildNavGroups(isAdmin, hasAssignments)
 
   useEffect(() => {
     setMobileOpen(false)
@@ -163,21 +247,7 @@ export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?:
       {/* ── Desktop: sticky left panel ─────────────────────────────── */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r bg-background">
         <nav className="sticky top-0 flex flex-col p-3 pt-6 overflow-y-auto">
-          {navGroups.map((group, i) => (
-            <div key={i}>
-              {group.section && <SectionDivider label={group.section.label} icon={group.section.icon} />}
-              <div className="flex flex-col gap-0.5 mt-0.5">
-                {group.items.map(item => (
-                  <NavLink key={item.href} {...item} active={pathname === item.href} />
-                ))}
-              </div>
-            </div>
-          ))}
-          {hasAssignments && (
-            <NavLink href="/event-planning" label="Event Planning" icon={ClipboardList} active={pathname === '/event-planning'} />
-          )}
-          {isAdmin && <ManagementSection pathname={pathname} />}
-          {isAdmin && <AdminSection pathname={pathname} />}
+          <NavTree groups={navGroups} pathname={pathname} />
         </nav>
       </aside>
 
@@ -213,21 +283,7 @@ export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?:
               </button>
             </div>
             <nav className="flex flex-col p-3 overflow-y-auto">
-              {navGroups.map((group, i) => (
-                <div key={i}>
-                  {group.section && <SectionDivider label={group.section.label} icon={group.section.icon} />}
-                  <div className="flex flex-col gap-0.5 mt-0.5">
-                    {group.items.map(item => (
-                      <NavLink key={item.href} {...item} active={pathname === item.href} onClick={() => setMobileOpen(false)} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {hasAssignments && (
-                <NavLink href="/event-planning" label="Event Planning" icon={ClipboardList} active={pathname === '/event-planning'} onClick={() => setMobileOpen(false)} />
-              )}
-              {isAdmin && <ManagementSection pathname={pathname} onNavClick={() => setMobileOpen(false)} />}
-              {isAdmin && <AdminSection pathname={pathname} onNavClick={() => setMobileOpen(false)} />}
+              <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
             </nav>
           </div>
         </>

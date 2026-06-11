@@ -1,24 +1,31 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { User, Pencil, Plus, Users, Heart } from 'lucide-react'
+import { User, Pencil, Plus, Users, Heart, Info, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
-import { upsertAncestor, type AncestorEntry, type FamilyMember } from '@/app/actions/ancestors'
+import {
+  upsertAncestor,
+  type AncestorEntry,
+  type AncestorPerson,
+  type AncestorRow,
+  type DescendantNode,
+  type PartnerGroup,
+  type FamilyMember,
+} from '@/app/actions/ancestors'
 import type { MyRoleSummary } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { upsertSpouse, type SpouseEntry } from '@/app/actions/spouse'
-import { SPOUSE_TYPES, type SpouseRelType } from '@/lib/family-constants'
-import { type AncestorType } from '@/lib/family-constants'
-import type { ChildRecord } from '@/app/actions/children'
+import { SPOUSE_TYPES, type SpouseRelType, type AncestorType } from '@/lib/family-constants'
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -50,6 +57,21 @@ function ModeToggle({ mode, onChange }: { mode: 'select' | 'create'; onChange: (
   )
 }
 
+// Adapter: AncestorPerson → AncestorEntry (for EditAncestorModal compatibility)
+function toAncestorEntry(person: AncestorPerson): AncestorEntry {
+  return {
+    relationship_type: person.relationship_type as AncestorType,
+    relationship_id:   person.relationship_id,
+    person_id:         person.person_id,
+    is_step:           person.is_step,
+    user_id:           person.user_id,
+    first_name:        person.first_name,
+    last_name:         person.last_name,
+    primary_email:     person.primary_email,
+    date_of_birth:     person.date_of_birth,
+  }
+}
+
 // ── Ancestor modal ─────────────────────────────────────────────────────────────
 
 const newSchema = z.object({
@@ -62,10 +84,10 @@ const newSchema = z.object({
 type NewFormData = z.infer<typeof newSchema>
 
 const selectSchema = z.object({
-  existing_person_id:    z.string().min(1, 'Please select a person'),
+  existing_person_id:      z.string().min(1, 'Please select a person'),
   child_relationship_type: z.enum(['Son', 'Daughter']),
-  child_is_step:         z.boolean(),
-  is_step:               z.boolean(),
+  child_is_step:           z.boolean(),
+  is_step:                 z.boolean(),
 })
 type SelectFormData = z.infer<typeof selectSchema>
 
@@ -98,10 +120,10 @@ function EditAncestorModal({
   const selectForm = useForm<SelectFormData>({
     resolver: zodResolver(selectSchema),
     defaultValues: {
-      existing_person_id:    '',
+      existing_person_id:      '',
       child_relationship_type: 'Son',
-      child_is_step:         false,
-      is_step:               false,
+      child_is_step:           false,
+      is_step:                 false,
     },
   })
 
@@ -119,11 +141,11 @@ function EditAncestorModal({
   async function onSubmitSelect(data: SelectFormData) {
     setServerError('')
     const result = await upsertAncestor({
-      relationship_type:      entry.relationship_type,
-      is_step:                data.is_step,
-      existing_person_id:     data.existing_person_id,
+      relationship_type:       entry.relationship_type,
+      is_step:                 data.is_step,
+      existing_person_id:      data.existing_person_id,
       child_relationship_type: isParent ? data.child_relationship_type : undefined,
-      child_is_step:          isParent ? data.child_is_step : undefined,
+      child_is_step:           isParent ? data.child_is_step : undefined,
     })
     if (result.success) onClose()
     else setServerError(result.message ?? 'Something went wrong')
@@ -264,92 +286,103 @@ function EditAncestorModal({
   )
 }
 
-// ── Spouse modal ───────────────────────────────────────────────────────────────
+// ── Partner modal (add new OR edit existing) ───────────────────────────────────
 
-const spouseNewSchema = z.object({
-  my_relationship_type: z.enum(['Husband', 'Wife', 'Partner']),
+const partnerNewSchema = z.object({
+  my_relationship_type: z.enum(SPOUSE_TYPES),
   first_name:    z.string().min(1, 'First name is required'),
   last_name:     z.string().min(1, 'Last name is required'),
   primary_email: z.string().optional(),
   date_of_birth: z.string().optional(),
   is_step:       z.boolean(),
 })
-type SpouseNewFormData = z.infer<typeof spouseNewSchema>
+type PartnerNewFormData = z.infer<typeof partnerNewSchema>
 
-const spouseSelectSchema = z.object({
-  existing_person_id:       z.string().min(1, 'Please select a person'),
-  my_relationship_type:     z.enum(['Husband', 'Wife', 'Partner']),
-  reverse_relationship_type: z.enum(['Husband', 'Wife', 'Partner']),
-  is_step:                  z.boolean(),
+const partnerSelectSchema = z.object({
+  existing_person_id:        z.string().min(1, 'Please select a person'),
+  my_relationship_type:      z.enum(SPOUSE_TYPES),
+  reverse_relationship_type: z.enum(SPOUSE_TYPES),
+  is_step:                   z.boolean(),
 })
-type SpouseSelectFormData = z.infer<typeof spouseSelectSchema>
+type PartnerSelectFormData = z.infer<typeof partnerSelectSchema>
 
-function EditSpouseModal({
-  spouse,
+function EditPartnerModal({
+  partner,
   familyMembers,
   onClose,
 }: {
-  spouse: SpouseEntry | null
+  partner: SpouseEntry | null   // null = add new
   familyMembers: FamilyMember[]
   onClose: () => void
 }) {
   const [mode, setMode] = useState<'select' | 'create'>('create')
   const [serverError, setServerError] = useState('')
-  const hasData = !!spouse
-  const isValidated = !!spouse?.user_id
+  const isEditing = !!partner
+  const isValidated = !!partner?.user_id
 
-  const newForm = useForm<SpouseNewFormData>({
-    resolver: zodResolver(spouseNewSchema),
+  const newForm = useForm<PartnerNewFormData>({
+    resolver: zodResolver(partnerNewSchema),
     defaultValues: {
-      my_relationship_type: (spouse?.relationship_type as SpouseRelType) ?? 'Husband',
-      first_name:    spouse?.first_name    ?? '',
-      last_name:     spouse?.last_name     ?? '',
-      primary_email: spouse?.primary_email ?? '',
-      date_of_birth: spouse?.date_of_birth ?? '',
-      is_step:       spouse?.is_step       ?? false,
+      my_relationship_type: (partner?.relationship_type as SpouseRelType) ?? 'Husband',
+      first_name:    partner?.first_name    ?? '',
+      last_name:     partner?.last_name     ?? '',
+      primary_email: partner?.primary_email ?? '',
+      date_of_birth: partner?.date_of_birth ?? '',
+      is_step:       partner?.is_step       ?? false,
     },
   })
 
-  const selectForm = useForm<SpouseSelectFormData>({
-    resolver: zodResolver(spouseSelectSchema),
+  const selectForm = useForm<PartnerSelectFormData>({
+    resolver: zodResolver(partnerSelectSchema),
     defaultValues: {
-      existing_person_id:       '',
-      my_relationship_type:     'Husband',
+      existing_person_id:        '',
+      my_relationship_type:      'Husband',
       reverse_relationship_type: 'Wife',
-      is_step:                  false,
+      is_step:                   false,
     },
   })
 
-  // Auto-suggest reverse type
   const myType = selectForm.watch('my_relationship_type')
   const suggestedReverse: SpouseRelType =
-    myType === 'Husband' ? 'Wife' : myType === 'Wife' ? 'Husband' : 'Partner'
+    myType === 'Husband' ? 'Wife'
+    : myType === 'Wife' ? 'Husband'
+    : myType === 'Ex-Husband' ? 'Ex-Wife'
+    : myType === 'Ex-Wife' ? 'Ex-Husband'
+    : 'Partner'
 
-  async function onSubmitNew(data: SpouseNewFormData) {
-    setServerError('')
-    const result = await upsertSpouse({ ...data })
-    if (result.success) onClose()
-    else setServerError(result.message ?? 'Something went wrong')
-  }
-
-  async function onSubmitSelect(data: SpouseSelectFormData) {
+  async function onSubmitNew(data: PartnerNewFormData) {
     setServerError('')
     const result = await upsertSpouse({
-      existing_person_id:       data.existing_person_id,
-      my_relationship_type:     data.my_relationship_type,
-      reverse_relationship_type: data.reverse_relationship_type,
-      is_step:                  data.is_step,
+      relationship_id: partner?.relationship_id,
+      ...data,
     })
     if (result.success) onClose()
     else setServerError(result.message ?? 'Something went wrong')
   }
 
+  async function onSubmitSelect(data: PartnerSelectFormData) {
+    setServerError('')
+    const result = await upsertSpouse({
+      relationship_id:           partner?.relationship_id,
+      existing_person_id:        data.existing_person_id,
+      my_relationship_type:      data.my_relationship_type,
+      reverse_relationship_type: data.reverse_relationship_type,
+      is_step:                   data.is_step,
+    })
+    if (result.success) onClose()
+    else setServerError(result.message ?? 'Something went wrong')
+  }
+
+  const title = isEditing
+    ? `Edit ${partner.relationship_type}`
+    : 'Add Partner'
+
   return (
     <Dialog
       open
       onClose={onClose}
-      title={hasData ? 'Edit Spouse' : 'Add Spouse'}
-      description="Link or add your spouse / partner."
+      title={title}
+      description="Link or add a spouse, partner, or ex-partner."
     >
       <ModeToggle mode={mode} onChange={m => { setMode(m); setServerError('') }} />
 
@@ -473,7 +506,7 @@ function EditSpouseModal({
 
           <div className="flex gap-2 pt-1">
             <Button type="submit" disabled={newForm.formState.isSubmitting} className="flex-1">
-              {newForm.formState.isSubmitting ? 'Saving…' : hasData ? 'Save Changes' : 'Add Spouse'}
+              {newForm.formState.isSubmitting ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Partner'}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           </div>
@@ -483,80 +516,9 @@ function EditSpouseModal({
   )
 }
 
-// ── Shared node components ─────────────────────────────────────────────────────
-
-function AncestorNode({ entry, onClick, titles = [] }: { entry: AncestorEntry; onClick: () => void; titles?: string[] }) {
-  const hasData = !!(entry.first_name || entry.last_name)
-  const name    = hasData ? [entry.first_name, entry.last_name].filter(Boolean).join(' ') : null
-  const label   = entry.is_step ? `Step-${entry.relationship_type}` : entry.relationship_type
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'group relative flex flex-col items-center justify-center rounded-xl border px-3 py-3 min-w-[136px] text-center transition-all hover:ring-2 hover:ring-primary/40',
-        hasData
-          ? 'border-border bg-card shadow-sm'
-          : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground',
-      )}
-    >
-      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {hasData ? <Pencil className="h-3 w-3 text-muted-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
-      </div>
-      <User className="h-5 w-5 mb-1 opacity-50" />
-      {hasData ? (
-        <>
-          <span className="text-sm font-medium leading-tight">{name}</span>
-          <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
-          {titles.map((t, i) => (
-            <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-0.5 leading-tight">{t}</span>
-          ))}
-        </>
-      ) : (
-        <span className="text-xs">{label}</span>
-      )}
-    </button>
-  )
-}
-
-function SpouseNode({ spouse, onClick, titles = [] }: { spouse: SpouseEntry | null; onClick: () => void; titles?: string[] }) {
-  const hasData = !!spouse
-  const name    = hasData ? [spouse.first_name, spouse.last_name].filter(Boolean).join(' ') : null
-  const label   = spouse ? `${spouse.is_step ? 'Step-' : ''}${spouse.relationship_type}` : 'Spouse'
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'group relative flex flex-col items-center justify-center rounded-xl border px-3 py-3 min-w-[136px] text-center transition-all hover:ring-2 hover:ring-primary/40',
-        hasData
-          ? 'border-border bg-card shadow-sm'
-          : 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground',
-      )}
-    >
-      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {hasData ? <Pencil className="h-3 w-3 text-muted-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
-      </div>
-      <Heart className="h-5 w-5 mb-1 opacity-50" />
-      {hasData ? (
-        <>
-          <span className="text-sm font-medium leading-tight">{name}</span>
-          <span className="text-xs text-muted-foreground mt-0.5">{label}</span>
-          {titles.map((t, i) => (
-            <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-0.5 leading-tight">{t}</span>
-          ))}
-        </>
-      ) : (
-        <span className="text-xs">{label}</span>
-      )}
-    </button>
-  )
-}
-
 // ── Layout helpers ─────────────────────────────────────────────────────────────
 
 function Connector() { return <div className="w-px h-6 bg-border mx-auto" /> }
-function HConnector() { return <div className="h-px w-8 bg-border self-center" /> }
 
 function RowLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -570,35 +532,97 @@ function HGroup({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap justify-center gap-4">{children}</div>
 }
 
-function PersonBox({ name, sublabel, highlight, titles = [] }: { name: string; sublabel: string; highlight?: boolean; titles?: string[] }) {
+interface PersonBoxProps {
+  name: string
+  sublabel: string
+  highlight?: boolean
+  titles?: string[]
+  isDashed?: boolean
+  icon?: 'user' | 'heart'
+  onClick?: () => void
+  onEdit?: () => void
+}
+
+function PersonBox({ name, sublabel, highlight, titles = [], isDashed, icon = 'user', onClick, onEdit }: PersonBoxProps) {
   return (
-    <div className={cn(
-      'flex flex-col items-center justify-center rounded-xl border px-3 py-3 min-w-[136px] text-center',
-      highlight ? 'ring-2 ring-primary' : 'border-border bg-card shadow-sm',
-    )}>
-      <User className="h-5 w-5 mb-1 opacity-50" />
-      <span className="text-sm font-medium leading-tight">{name}</span>
+    <div
+      className={cn(
+        'group relative flex flex-col items-center justify-center rounded-xl border px-3 py-3 min-w-[136px] text-center',
+        highlight ? 'ring-2 ring-primary bg-card' : '',
+        isDashed
+          ? 'border-dashed border-muted-foreground/40 bg-muted/30 text-muted-foreground'
+          : 'border-border bg-card shadow-sm',
+        onClick ? 'cursor-pointer hover:shadow-md hover:ring-1 hover:ring-primary/30 transition-all' : '',
+      )}
+      onClick={onClick}
+    >
+      {icon === 'heart'
+        ? <Heart className="h-5 w-5 mb-1 opacity-50" />
+        : <User className="h-5 w-5 mb-1 opacity-50" />
+      }
+      <span className={cn('text-sm font-medium leading-tight', isDashed && 'text-xs font-normal')}>{name}</span>
       <span className="text-xs text-muted-foreground mt-0.5">{sublabel}</span>
       {titles.map((t, i) => (
-        <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-1 leading-tight whitespace-nowrap">
+        <span key={i} className="text-xs bg-[#0f2540] text-[#e6ecfa] px-1.5 py-0.5 rounded-full mt-0.5 leading-tight whitespace-nowrap">
           {t}
         </span>
       ))}
+      {onEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); onEdit() }}
+          className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 hover:bg-muted/60"
+          title="Edit"
+        >
+          <Pencil className="h-3 w-3 text-muted-foreground" />
+        </button>
+      )}
+      {isDashed && !onEdit && (
+        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Plus className="h-3 w-3 text-muted-foreground" />
+        </div>
+      )}
     </div>
   )
 }
 
-function KidBranch({ child }: { child: ChildRecord }) {
-  const name  = [child.first_name, child.last_name].filter(Boolean).join(' ')
-  const label = `${child.is_step ? 'Step-' : ''}${child.relationship_type}`
+// ── DescendantBranch (recursive) ───────────────────────────────────────────────
+
+function DescendantBranch({
+  node,
+  memberRoles,
+  onView,
+}: {
+  node: DescendantNode
+  memberRoles: Record<string, string[]>
+  onView: (personId: string) => void
+}) {
+  const name   = [node.first_name, node.last_name].filter(Boolean).join(' ') || 'Unknown'
+  const label  = `${node.is_step ? 'Step-' : ''}${node.relationship_type}`
+  const titles = node.user_id ? (memberRoles[node.user_id] ?? []) : []
+
   return (
     <div className="flex flex-col items-center gap-1">
-      <PersonBox name={name} sublabel={label} />
-      <Connector />
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 px-3 py-2 min-w-[136px] text-center text-muted-foreground/50">
-        <Plus className="h-3.5 w-3.5 mb-0.5" />
-        <span className="text-xs">Add grandchild</span>
-      </div>
+      <PersonBox
+        name={name}
+        sublabel={label}
+        titles={titles}
+        onClick={() => onView(node.person_id)}
+      />
+      {node.children.length > 0 && (
+        <>
+          <Connector />
+          <HGroup>
+            {node.children.map(child => (
+              <DescendantBranch
+                key={child.person_id}
+                node={child}
+                memberRoles={memberRoles}
+                onView={onView}
+              />
+            ))}
+          </HGroup>
+        </>
+      )}
     </div>
   )
 }
@@ -606,138 +630,190 @@ function KidBranch({ child }: { child: ChildRecord }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface Props {
-  ancestors: AncestorEntry[]
-  children: ChildRecord[]
+  ancestorRows: AncestorRow[]
+  partnerGroups: PartnerGroup[]
   displayName: string
-  spouse: SpouseEntry | null
+  isViewMode: boolean
+  viewSubjectName: string | null
+  myPersonId: string | null
+  subjectPersonId: string
   familyMembers: FamilyMember[]
   myRoles?: MyRoleSummary[]
   memberRoles?: Record<string, string[]>
 }
 
-const GRANDPARENT_TYPES: AncestorType[] = [
-  'Paternal Grandfather', 'Paternal Grandmother',
-  'Maternal Grandfather', 'Maternal Grandmother',
-]
-const PARENT_TYPES: AncestorType[] = ['Father', 'Mother']
+export function FamilyTreeClient({
+  ancestorRows,
+  partnerGroups,
+  displayName,
+  isViewMode,
+  viewSubjectName,
+  myPersonId,
+  subjectPersonId,
+  familyMembers,
+  myRoles = [],
+  memberRoles = {},
+}: Props) {
+  const router = useRouter()
+  const [editingAncestor, setEditingAncestor] = useState<AncestorEntry | null>(null)
+  const [editingPartner, setEditingPartner]   = useState<SpouseEntry | null | 'new'>(null)
 
-export function FamilyTreeClient({ ancestors, children, displayName, spouse, familyMembers, myRoles = [], memberRoles = {} }: Props) {
-  const [editingEntry, setEditingEntry]   = useState<AncestorEntry | null>(null)
-  const [editingSpouse, setEditingSpouse] = useState(false)
-
-  const ancestorByType = useMemo(
-    () => Object.fromEntries(ancestors.map(a => [a.relationship_type, a])),
-    [ancestors],
-  )
-
-  function handleClose() {
-    setEditingEntry(null)
-    setEditingSpouse(false)
-    window.location.reload()
+  function viewPersonTree(personId: string | null) {
+    if (!personId) return
+    if (personId === myPersonId) router.push('/family-tree')
+    else router.push(`/family-tree?view=${personId}`)
   }
 
-  const emptyAncestor = (type: AncestorType): AncestorEntry => ({
-    relationship_type: type,
-    relationship_id: null,
-    person_id: null,
-    is_step: false,
-    user_id: null,
-    first_name: null,
-    last_name: null,
-    primary_email: null,
-    date_of_birth: null,
-  })
+  function handleClose() {
+    setEditingAncestor(null)
+    setEditingPartner(null)
+    router.refresh()
+  }
+
+  const sortedRows = [...ancestorRows].sort((a, b) => b.generation - a.generation)
 
   return (
     <>
+      {/* View mode banner */}
+      {isViewMode && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4 text-sm text-blue-800">
+          <Info className="h-4 w-4 shrink-0" />
+          <span>You are viewing <strong>{viewSubjectName ?? 'this member'}&apos;s</strong> tree.</span>
+          <Link href="/family-tree" className="ml-auto flex items-center gap-1 font-medium hover:underline whitespace-nowrap">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            View Your Tree
+          </Link>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
-            Your Tree
+            {isViewMode ? `${viewSubjectName ?? 'Member'}'s Tree` : 'Your Tree'}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center gap-1 py-4 overflow-x-auto">
 
-            <RowLabel>Grandparents</RowLabel>
+            {/* Dynamic ancestor rows (highest generation first) */}
+            {sortedRows.map((row, rowIdx) => (
+              <div key={row.generation} className="contents">
+                <RowLabel>{row.label}</RowLabel>
+                <HGroup>
+                  {row.people.map((person, idx) => {
+                    const name = person.is_placeholder
+                      ? `Add ${person.relationship_label}`
+                      : [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown'
+                    const titles = person.user_id ? (memberRoles[person.user_id] ?? []) : []
+                    return (
+                      <PersonBox
+                        key={person.person_id ?? `ph-${row.generation}-${idx}`}
+                        name={name}
+                        sublabel={person.relationship_label}
+                        titles={titles}
+                        isDashed={person.is_placeholder}
+                        onClick={person.person_id ? () => viewPersonTree(person.person_id) : undefined}
+                        onEdit={person.is_editable && !isViewMode && person.relationship_type
+                          ? () => setEditingAncestor(toAncestorEntry(person))
+                          : undefined}
+                      />
+                    )
+                  })}
+                </HGroup>
+                {rowIdx < sortedRows.length - 1 || partnerGroups.length > 0 || !isViewMode ? (
+                  <Connector />
+                ) : null}
+              </div>
+            ))}
+
+            {/* You + Partners row */}
+            <RowLabel>{isViewMode ? (viewSubjectName ?? 'Member') : 'You'}</RowLabel>
             <HGroup>
-              {GRANDPARENT_TYPES.map(type => {
-                const entry = ancestorByType[type] ?? emptyAncestor(type)
-                const titles = entry.user_id ? (memberRoles[entry.user_id] ?? []) : []
-                return (
-                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} titles={titles} />
-                )
-              })}
-            </HGroup>
-
-            <Connector />
-
-            <RowLabel>Parents</RowLabel>
-            <HGroup>
-              {PARENT_TYPES.map(type => {
-                const entry = ancestorByType[type] ?? emptyAncestor(type)
-                const titles = entry.user_id ? (memberRoles[entry.user_id] ?? []) : []
-                return (
-                  <AncestorNode key={type} entry={entry} onClick={() => setEditingEntry(entry)} titles={titles} />
-                )
-              })}
-            </HGroup>
-
-            <Connector />
-
-            <RowLabel>You &amp; Spouse</RowLabel>
-            <div className="flex items-center gap-0">
-              <SpouseNode
-                spouse={spouse}
-                onClick={() => setEditingSpouse(true)}
-                titles={spouse?.user_id ? (memberRoles[spouse.user_id] ?? []) : []}
-              />
-              <HConnector />
               <PersonBox
                 name={displayName}
-                sublabel="You"
+                sublabel={isViewMode ? 'Viewing' : 'You'}
                 highlight
                 titles={myRoles.map(r => formatRoleTitle(r))}
+                onClick={isViewMode && myPersonId ? () => viewPersonTree(myPersonId) : undefined}
               />
-            </div>
+              {partnerGroups.map((group, idx) => group.partner && (
+                <PersonBox
+                  key={group.partner.person_id ?? `partner-${idx}`}
+                  name={[group.partner.first_name, group.partner.last_name].filter(Boolean).join(' ') || 'Unknown'}
+                  sublabel={`${group.partner.is_step ? 'Step-' : ''}${group.partner.relationship_type}`}
+                  titles={group.partner.user_id ? (memberRoles[group.partner.user_id] ?? []) : []}
+                  icon="heart"
+                  onClick={group.partner.person_id ? () => viewPersonTree(group.partner!.person_id) : undefined}
+                  onEdit={!isViewMode ? () => setEditingPartner(group.partner) : undefined}
+                />
+              ))}
+              {!isViewMode && (
+                <PersonBox
+                  name={partnerGroups.length === 0 ? 'Add Spouse / Partner' : 'Add Partner'}
+                  sublabel={partnerGroups.length === 0 ? 'Spouse, ex, partner…' : 'Another partner'}
+                  isDashed
+                  icon="heart"
+                  onClick={() => setEditingPartner('new')}
+                />
+              )}
+            </HGroup>
 
-            <Connector />
-
-            <RowLabel>Children</RowLabel>
-            {children.length > 0 ? (
-              <HGroup>
-                {children.map(child => <KidBranch key={child.person_id} child={child} />)}
-              </HGroup>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                No children yet. Add them on the{' '}
-                <Link href="/direct-lineage" className="text-primary hover:underline">
-                  Direct Lineage
-                </Link>{' '}
-                page.
-              </p>
-            )}
+            {/* Children — grouped by partner when multiple groups have kids */}
+            {(() => {
+              const groupsWithKids = partnerGroups.filter(g => g.children.length > 0)
+              if (groupsWithKids.length === 0) return null
+              if (groupsWithKids.length === 1) {
+                return (
+                  <>
+                    <Connector />
+                    <HGroup>
+                      {groupsWithKids[0].children.map(child => (
+                        <DescendantBranch key={child.person_id} node={child} memberRoles={memberRoles} onView={viewPersonTree} />
+                      ))}
+                    </HGroup>
+                  </>
+                )
+              }
+              return groupsWithKids.map((group, idx) => {
+                const partnerName = group.partner
+                  ? [group.partner.first_name, group.partner.last_name].filter(Boolean).join(' ') || group.partner.relationship_type
+                  : null
+                return (
+                  <div key={group.partner?.person_id ?? `unmatched-${idx}`} className="contents">
+                    <Connector />
+                    <RowLabel>{partnerName ? `With ${partnerName}` : 'Other children'}</RowLabel>
+                    <HGroup>
+                      {group.children.map(child => (
+                        <DescendantBranch key={child.person_id} node={child} memberRoles={memberRoles} onView={viewPersonTree} />
+                      ))}
+                    </HGroup>
+                  </div>
+                )
+              })
+            })()}
 
           </div>
         </CardContent>
       </Card>
 
-      <p className="mt-4 text-xs text-muted-foreground text-center">
-        Click any node to add or edit. Use &ldquo;Select Existing Person&rdquo; to link someone already in your family.
+      <p className="mt-3 text-xs text-muted-foreground text-center">
+        {isViewMode
+          ? 'Click any person to view their tree.'
+          : 'Click any person to view their tree. Click a node\'s pencil icon to edit.'}
       </p>
 
-      {editingEntry && (
+      {editingAncestor && (
         <EditAncestorModal
-          entry={editingEntry}
+          entry={editingAncestor}
           familyMembers={familyMembers}
           onClose={handleClose}
         />
       )}
 
-      {editingSpouse && (
-        <EditSpouseModal
-          spouse={spouse}
+      {editingPartner !== null && (
+        <EditPartnerModal
+          partner={editingPartner === 'new' ? null : editingPartner}
           familyMembers={familyMembers}
           onClose={handleClose}
         />

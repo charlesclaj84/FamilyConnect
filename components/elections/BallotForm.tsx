@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle, Vote, UserPlus } from 'lucide-react'
+import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { castVote, submitNomination, respondToNomination, type Election, type ElectionPosition, type ElectionNomination } from '@/app/actions/elections'
 import type { MemberRecord } from '@/app/actions/members'
@@ -143,21 +143,26 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {/* Current accepted nominations per position */}
+          {/* Current candidates per position (accepted + pending acceptance) */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground">Current Candidates</h3>
             {positions.map(pos => {
-              const posNoms = nominations.filter(n => n.position_id === pos.id)
+              const posNoms = nominations.filter(n => n.position_id === pos.id && n.accepted !== false)
               return (
                 <div key={pos.id} className="space-y-1.5">
                   <p className="text-sm font-medium">{pos.title}</p>
                   {posNoms.length === 0 ? (
-                    <p className="text-xs text-muted-foreground pl-2">No accepted nominations yet.</p>
+                    <p className="text-xs text-muted-foreground pl-2">No nominations yet.</p>
                   ) : (
                     <ul className="space-y-1 pl-2">
                       {posNoms.map(n => (
                         <li key={n.id} className="text-sm text-muted-foreground flex items-center gap-1.5">
-                          <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" /> {n.nominee_name}
+                          {n.accepted === true
+                            ? <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                            : <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                          {n.nominee_name}
+                          {n.accepted === null && <span className="text-xs text-amber-600">(pending acceptance)</span>}
+                          {n.accepted === false && <span className="text-xs text-muted-foreground">(declined)</span>}
                         </li>
                       ))}
                     </ul>
@@ -177,7 +182,7 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
           </h2>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {positions.map(pos => {
-            const posNoms = nominations.filter(n => n.position_id === pos.id)
+            const posNoms = nominations.filter(n => n.position_id === pos.id && n.accepted === true)
             const myVote = votes[pos.id]
             return (
               <div key={pos.id} className="space-y-3">

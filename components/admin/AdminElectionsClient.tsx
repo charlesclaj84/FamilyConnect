@@ -5,6 +5,7 @@ import { Plus, Trash2, ChevronRight, PlayCircle, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import Link from 'next/link'
@@ -43,9 +44,10 @@ function fmtDate(s: string) {
 
 interface Props {
   initialElections: Election[]
+  roles: string[]
 }
 
-export function AdminElectionsClient({ initialElections }: Props) {
+export function AdminElectionsClient({ initialElections, roles }: Props) {
   const [elections, setElections] = useState(initialElections)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
@@ -55,6 +57,7 @@ export function AdminElectionsClient({ initialElections }: Props) {
   const [nomCloseAt, setNomCloseAt] = useState('')
   const [voteOpenAt, setVoteOpenAt] = useState('')
   const [voteCloseAt, setVoteCloseAt] = useState('')
+  const [announce, setAnnounce] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -76,11 +79,12 @@ export function AdminElectionsClient({ initialElections }: Props) {
         voting_open_at: voteOpenAt ? new Date(voteOpenAt).toISOString() : null,
         voting_close_at: voteCloseAt ? new Date(voteCloseAt).toISOString() : null,
         positions,
+        announce,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
       setTitle(''); setDescription('')
       setPositions([{ title: '', max_winners: 1 }])
-      setNomOpenAt(''); setNomCloseAt(''); setVoteOpenAt(''); setVoteCloseAt('')
+      setNomOpenAt(''); setNomCloseAt(''); setVoteOpenAt(''); setVoteCloseAt(''); setAnnounce(false)
       setShowForm(false)
     })
   }
@@ -161,7 +165,10 @@ export function AdminElectionsClient({ initialElections }: Props) {
               <div key={i} className="flex gap-2 items-end">
                 <div className="flex-1 space-y-1">
                   <Label className="text-xs">Position {i + 1}</Label>
-                  <Input value={pos.title} onChange={e => updatePosition(i, 'title', e.target.value)} placeholder="President" />
+                  <Select value={pos.title} onChange={e => updatePosition(i, 'title', e.target.value)}>
+                    <option value="">— Select position —</option>
+                    {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                  </Select>
                 </div>
                 <div className="w-20 space-y-1">
                   <Label className="text-xs">Winners</Label>
@@ -172,8 +179,21 @@ export function AdminElectionsClient({ initialElections }: Props) {
                 )}
               </div>
             ))}
+            {roles.length === 0 && (
+              <p className="text-xs text-muted-foreground">No positions defined yet. Add roles under User Roles first.</p>
+            )}
             <Button size="sm" variant="outline" onClick={addPosition}>+ Add Position</Button>
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={announce}
+              onChange={e => setAnnounce(e.target.checked)}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+            Post an announcement about this election
+          </label>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2">

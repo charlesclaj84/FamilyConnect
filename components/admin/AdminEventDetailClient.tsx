@@ -15,13 +15,19 @@ import {
   getHotelBookings, createHotelBooking, updateHotelBooking, deleteHotelBooking,
   addPriceEstimate, deletePriceEstimate,
   addHotelDetail, deleteHotelDetail,
+  getEventBudgetItems, addEventBudgetItem, deleteEventBudgetItem,
+  getEventExpenses, recordEventExpense, deleteEventExpense, setEventFund,
   type AdminEvent, type EventAssignment, type EventReport,
   type HotelBooking, type PriceEstimate, type HotelBookingDetail,
+  type EventBudgetItem, type EventExpense,
 } from '@/app/actions/admin/events'
 import type { BlueprintItem } from '@/app/actions/admin/event-types'
 import type { MemberWithRoles } from '@/app/actions/admin/users'
 import { AddressSelects } from '@/components/ui/AddressSelects'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
+import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+
+interface BudgetFund { id: string; name: string; event_id: string | null }
 
 const STATUS_COLORS: Record<AdminEvent['status'], string> = {
   draft:     'bg-muted text-muted-foreground',
@@ -44,6 +50,7 @@ interface Props {
   canApprove: boolean
   initialSubEvents: AdminEvent[]
   eventTypes: import('@/app/actions/admin/event-types').EventType[]
+  funds: BudgetFund[]
 }
 
 // ── Edit Event Form ────────────────────────────────────────────────────────────
@@ -528,7 +535,220 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function AdminEventDetailClient({ report: initialReport, assignments: initialAssignments, blueprintItems, members, canApprove, initialSubEvents, eventTypes }: Props) {
+// ── Event Budget (line items + expenses + backing fund) ─────────────────────
+
+function EventBudgetSection({ eventId, funds }: { eventId: string; funds: BudgetFund[] }) {
+  const [items, setItems]       = useState<EventBudgetItem[]>([])
+  const [expenses, setExpenses] = useState<EventExpense[]>([])
+  const [backingFundId, setBackingFundId] = useState(funds.find(f => f.event_id === eventId)?.id ?? '')
+  const [busy, setBusy]   = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const [bi, ex] = await Promise.all([getEventBudgetItems(eventId), getEventExpenses(eventId)])
+      if (!cancelled) { setItems(bi); setExpenses(ex) }
+    })()
+    return () => { cancelled = true }
+  }, [eventId])
+
+  // New line item
+  const [itTitle, setItTitle]   = useState('')
+  const [itBudget, setItBudget] = useState('')
+  // New expense
+  const [exDesc, setExDesc]     = useState('')
+  const [exAmount, setExAmount] = useState('')
+  const [exDate, setExDate]     = useState(new Date().toISOString().split('T')[0])
+  const [exItem, setExItem]     = useState('')
+  const [exFund, setExFund]     = useState('')
+
+  const totalBudgeted = items.reduce((s, i) => s + i.budget_cents, 0)
+  const totalSpent    = expenses.reduce((s, e) => s + e.amount_cents, 0)
+
+  async function changeBackingFund(fundId: string) {
+    setBackingFundId(fundId)
+    setBusy(true)
+    const res = await setEventFund(eventId, fundId || null)
+    setBusy(false)
+    if (!res.success) setError(res.error ?? 'Could not set backing fund')
+  }
+
+  async function addItem() {
+    if (!itTitle.trim() || !itBudget) { setError('Line item needs a title and budget'); return }
+    setError(''); setBusy(true)
+    const res = await addEventBudgetItem(eventId, { title: itTitle, budget_cents: dollarsToCents(itBudget) })
+    setBusy(false)
+    if (!res.success || !res.id) { setError(res.error ?? 'Failed'); return }
+    setItems(prev => [...prev, { id: res.id!, event_id: eventId, title: itTitle.trim(), description: null, budget_cents: dollarsToCents(itBudget), sort_order: prev.length + 1, spent_cents: 0 }])
+    setItTitle(''); setItBudget('')
+  }
+
+  async function removeItem(id: string) {
+    setBusy(true)
+    await deleteEventBudgetItem(id)
+    setBusy(false)
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function addExpense() {
+    if (!exDesc.trim() || !exAmount) { setError('Expense needs a description and amount'); return }
+    setError(''); setBusy(true)
+    const fundId = exFund || backingFundId || null
+    const res = await recordEventExpense(eventId, {
+      description: exDesc,
+      amount_cents: dollarsToCents(exAmount),
+      spent_date: exDate,
+      budget_item_id: exItem || null,
+      fund_id: fundId,
+    })
+    setBusy(false)
+    if (!res.success || !res.id) { setError(res.error ?? 'Failed'); return }
+    const item = items.find(i => i.id === exItem)
+    const fund = funds.find(f => f.id === fundId)
+    setExpenses(prev => [{
+      id: res.id!, event_id: eventId, budget_item_id: exItem || null, budget_item_title: item?.title ?? null,
+      fund_id: fundId, fund_name: fund?.name ?? null, amount_cents: dollarsToCents(exAmount),
+      spent_date: exDate, description: exDesc.trim(), created_at: new Date().toISOString(),
+    }, ...prev])
+    if (exItem) setItems(prev => prev.map(i => i.id === exItem ? { ...i, spent_cents: i.spent_cents + dollarsToCents(exAmount) } : i))
+    setExDesc(''); setExAmount(''); setExItem('')
+  }
+
+  async function removeExpense(e: EventExpense) {
+    setBusy(true)
+    await deleteEventExpense(e.id)
+    setBusy(false)
+    setExpenses(prev => prev.filter(x => x.id !== e.id))
+    if (e.budget_item_id) setItems(prev => prev.map(i => i.id === e.budget_item_id ? { ...i, spent_cents: Math.max(0, i.spent_cents - e.amount_cents) } : i))
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Budget &amp; Expenses</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Backing fund */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <Label className="sm:w-40">Backing fund</Label>
+          <select
+            value={backingFundId}
+            disabled={busy}
+            onChange={e => changeBackingFund(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-full sm:w-64"
+          >
+            <option value="">— None —</option>
+            {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <span className="text-xs text-muted-foreground">Expenses default to drawing down this fund.</span>
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {/* Line items */}
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">Budget Line Items</p>
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No line items yet.</p>
+          ) : (
+            <div className="divide-y rounded-xl border">
+              {items.map(i => {
+                const remaining = i.budget_cents - i.spent_cents
+                return (
+                  <div key={i.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{i.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Budget {formatCurrency(i.budget_cents)} · Spent {formatCurrency(i.spent_cents)} ·{' '}
+                        <span className={remaining < 0 ? 'text-destructive' : 'text-green-600'}>
+                          {remaining < 0 ? `${formatCurrency(-remaining)} over` : `${formatCurrency(remaining)} left`}
+                        </span>
+                      </p>
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeItem(i.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Line item</Label>
+              <Input value={itTitle} onChange={e => setItTitle(e.target.value)} placeholder="Catering" className="h-8 w-44" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Budget ($)</Label>
+              <Input type="number" min="0" step="0.01" value={itBudget} onChange={e => setItBudget(e.target.value)} className="h-8 w-28" />
+            </div>
+            <Button size="sm" disabled={busy} onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
+          </div>
+        </div>
+
+        {/* Expenses */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">Expenses</p>
+            <p className="text-xs text-muted-foreground">Budgeted {formatCurrency(totalBudgeted)} · Spent {formatCurrency(totalSpent)}</p>
+          </div>
+          {expenses.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No expenses recorded.</p>
+          ) : (
+            <div className="divide-y rounded-xl border">
+              {expenses.map(e => (
+                <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{e.description ?? 'Expense'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {e.spent_date}{e.budget_item_title ? ` · ${e.budget_item_title}` : ''}{e.fund_name ? ` · from ${e.fund_name}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-sm font-medium text-destructive">{formatCurrency(e.amount_cents)}</span>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeExpense(e)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Description</Label>
+              <Input value={exDesc} onChange={e => setExDesc(e.target.value)} placeholder="Deposit" className="h-8 w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Amount ($)</Label>
+              <Input type="number" min="0" step="0.01" value={exAmount} onChange={e => setExAmount(e.target.value)} className="h-8 w-28" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date</Label>
+              <Input type="date" value={exDate} onChange={e => setExDate(e.target.value)} className="h-8 w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Line item</Label>
+              <select value={exItem} onChange={e => setExItem(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
+                <option value="">— Unbudgeted —</option>
+                {items.map(i => <option key={i.id} value={i.id}>{i.title}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Paid from</Label>
+              <select value={exFund} onChange={e => setExFund(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
+                <option value="">{backingFundId ? 'Backing fund' : 'General cash'}</option>
+                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <Button size="sm" disabled={busy} onClick={addExpense}><Plus className="h-3.5 w-3.5" /> Add Expense</Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function AdminEventDetailClient({ report: initialReport, assignments: initialAssignments, blueprintItems, members, canApprove, initialSubEvents, eventTypes, funds }: Props) {
   const [report, setReport]           = useState(initialReport)
   const [assignments, setAssignments] = useState(initialAssignments)
   const [subEvents, setSubEvents]     = useState(initialSubEvents)
@@ -669,6 +889,11 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
           onAddDetail={(hotelId, detail) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, details: [...h.details, detail] } : h))}
           onDeleteDetail={(hotelId, detailId) => setHotels(prev => prev.map(h => h.id === hotelId ? { ...h, details: h.details.filter(d => d.id !== detailId) } : h))}
         />
+      )}
+
+      {/* Budget & Expenses — top-level events only */}
+      {event.parent_event_id === null && (
+        <EventBudgetSection eventId={event.id} funds={funds} />
       )}
 
       {/* Sub-events — only shown for top-level events */}

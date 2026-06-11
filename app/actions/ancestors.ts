@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ANCESTOR_TYPES, type AncestorType } from '@/lib/family-constants'
+import { ANCESTOR_TYPES, SPOUSE_TYPES, type AncestorType } from '@/lib/family-constants'
+import type { SpouseEntry } from '@/app/actions/spouse'
 
 export interface AncestorEntry {
   relationship_type: AncestorType
@@ -442,4 +444,543 @@ export async function upsertAncestor(
 
   revalidatePath('/family-tree')
   return { success: true }
+}
+
+// ── New tree-wide BFS interfaces ───────────────────────────────────────────────
+
+export interface AncestorPerson {
+  person_id: string | null
+  relationship_id: string | null
+  first_name: string | null
+  last_name: string | null
+  user_id: string | null
+  primary_email: string | null
+  date_of_birth: string | null
+  relationship_label: string    // display label, e.g. "Father", "Paternal Grandfather"
+  relationship_type: AncestorType | null  // null for gen 3+ (not directly editable)
+  is_step: boolean
+  is_placeholder: boolean       // empty slot shown on own gen 1-2
+  is_editable: boolean          // true only when viewer === subject
+}
+
+export interface AncestorRow {
+  generation: number            // 1 = parents, 2 = grandparents, 3+ = great-grandparents
+  label: string
+  people: AncestorPerson[]
+}
+
+export interface DescendantNode {
+  relationship_id: string
+  person_id: string
+  relationship_type: 'Son' | 'Daughter'
+  is_step: boolean
+  first_name: string
+  last_name: string
+  date_of_birth: string | null
+  user_id: string | null
+  children: DescendantNode[]
+}
+
+export interface PartnerGroup {
+  partner: SpouseEntry | null
+  children: DescendantNode[]
+}
+
+function generationLabel(n: number): string {
+  if (n === 1) return 'Parents'
+  if (n === 2) return 'Grandparents'
+  if (n === 3) return 'Great-Grandparents'
+  return `${n - 1}× Great-Grandparents`
+}
+
+type PersonRecord = {
+  id: string
+  user_id: string | null
+  first_name: string | null
+  last_name: string | null
+  primary_email: string | null
+  date_of_birth: string | null
+}
+
+type RelRecord = {
+  id: string
+  related_person_id: string
+  relationship_type_id: string
+  is_step: boolean
+}
+
+// ── getAncestorRows ────────────────────────────────────────────────────────────
+
+export async function getAncestorRows(
+  subjectPersonId: string,
+  viewerPersonId: string
+): Promise<AncestorRow[]> {
+  if (!subjectPersonId) return []
+  const admin = createAdminClient()
+  const isOwnTree = subjectPersonId === viewerPersonId
+  const result: AncestorRow[] = []
+
+  // Fetch all relationship type IDs we need
+  const { data: allTypes } = await admin
+    .from('relationship_types')
+    .select('id, name')
+    .in('name', [...ANCESTOR_TYPES, 'Son', 'Daughter', ...SPOUSE_TYPES])
+
+  const typeIdByName: Record<string, string> = Object.fromEntries(
+    (allTypes ?? []).map((t: { id: string; name: string }) => [t.name, t.id])
+  )
+  const typeNameById: Record<string, string> = Object.fromEntries(
+    (allTypes ?? []).map((t: { id: string; name: string }) => [t.id, t.name])
+  )
+
+  const ancestorTypeIds = ANCESTOR_TYPES.map(n => typeIdByName[n]).filter(Boolean)
+  const childTypeIds = ['Son', 'Daughter'].map(n => typeIdByName[n]).filter(Boolean)
+  const spouseTypeIds = [...SPOUSE_TYPES].map(n => typeIdByName[n]).filter(Boolean)
+
+  // ── Fetch direct ancestor relationships from subject ─────────────────────
+  const { data: directRels } = await admin
+    .from('person_relationships')
+    .select('id, related_person_id, relationship_type_id, is_step')
+    .eq('person_id', subjectPersonId)
+    .in('relationship_type_id', ancestorTypeIds)
+
+  const relByType: Record<string, RelRecord> = {}
+  for (const rel of (directRels ?? []) as RelRecord[]) {
+    const name = typeNameById[rel.relationship_type_id]
+    if (name && !relByType[name]) relByType[name] = rel
+  }
+
+  const personById: Record<string, PersonRecord> = {}
+  const initialPersonIds = Object.values(relByType).map(r => r.related_person_id)
+  if (initialPersonIds.length) {
+    const { data: persons } = await admin
+      .from('people')
+      .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+      .in('id', initialPersonIds)
+    for (const p of (persons ?? []) as PersonRecord[]) personById[p.id] = p
+  }
+
+  // ── Reverse lookup: infer Father/Mother if not explicitly set ───────────
+  // Someone may have added the subject as their Son/Daughter without the subject
+  // creating a Father/Mother entry from their side.
+  if (!relByType['Father'] || !relByType['Mother']) {
+    if (childTypeIds.length) {
+      const { data: reverseRels } = await admin
+        .from('person_relationships')
+        .select('id, person_id, is_step')
+        .eq('related_person_id', subjectPersonId)
+        .in('relationship_type_id', childTypeIds)
+
+      const parentIds = ((reverseRels ?? []) as { id: string; person_id: string; is_step: boolean }[]).map(r => r.person_id)
+
+      if (parentIds.length) {
+        const [parentPeopleRes, spouseRelsRes, establishedRolesRes] = await Promise.all([
+          admin.from('people')
+            .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+            .in('id', parentIds),
+          spouseTypeIds.length
+            ? admin.from('person_relationships')
+                .select('person_id, relationship_type_id')
+                .in('person_id', parentIds)
+                .in('relationship_type_id', spouseTypeIds)
+            : Promise.resolve({ data: null }),
+          admin.from('person_relationships')
+            .select('related_person_id, relationship_type_id')
+            .in('related_person_id', parentIds)
+            .in('relationship_type_id', ancestorTypeIds),
+        ])
+
+        const parentPeopleById: Record<string, PersonRecord> = Object.fromEntries(
+          ((parentPeopleRes.data ?? []) as PersonRecord[]).map(p => [p.id, p])
+        )
+        const parentSpouseType: Record<string, string> = {}
+        for (const r of (spouseRelsRes.data ?? []) as { person_id: string; relationship_type_id: string }[]) {
+          parentSpouseType[r.person_id] = typeNameById[r.relationship_type_id] ?? ''
+        }
+        const parentEstRole: Record<string, string> = {}
+        for (const r of (establishedRolesRes.data ?? []) as { related_person_id: string; relationship_type_id: string }[]) {
+          parentEstRole[r.related_person_id] = typeNameById[r.relationship_type_id] ?? ''
+        }
+
+        for (const rel of (reverseRels ?? []) as { id: string; person_id: string; is_step: boolean }[]) {
+          if (relByType['Father'] && relByType['Mother']) break
+
+          const parent = parentPeopleById[rel.person_id]
+          if (!parent) continue
+          if (Object.values(relByType).some(r => r.related_person_id === rel.person_id)) continue
+
+          let role: 'Father' | 'Mother' | null = null
+          const st = parentSpouseType[rel.person_id]
+          if (st === 'Wife') role = 'Father'
+          else if (st === 'Husband') role = 'Mother'
+          else {
+            const et = parentEstRole[rel.person_id]
+            if (et === 'Father') role = 'Father'
+            else if (et === 'Mother') role = 'Mother'
+          }
+          if (!role) role = !relByType['Father'] ? 'Father' : 'Mother'
+
+          if (!relByType[role]) {
+            const roleTypeId = typeIdByName[role]
+            if (!roleTypeId) continue
+            relByType[role] = {
+              id: rel.id,
+              related_person_id: rel.person_id,
+              relationship_type_id: roleTypeId,
+              is_step: rel.is_step,
+            }
+            personById[rel.person_id] = parent
+          }
+        }
+      }
+    }
+  }
+
+  // ── Derive grandparents (gen 2) via traversal ────────────────────────────
+  const parentRelTypeIds = ['Father', 'Mother'].map(n => typeIdByName[n]).filter(Boolean)
+
+  const derivationMap: Array<{ slot: AncestorType; via: AncestorType; as: 'Father' | 'Mother' }> = [
+    { slot: 'Paternal Grandfather', via: 'Father', as: 'Father' },
+    { slot: 'Paternal Grandmother', via: 'Father', as: 'Mother' },
+    { slot: 'Maternal Grandfather', via: 'Mother', as: 'Father' },
+    { slot: 'Maternal Grandmother', via: 'Mother', as: 'Mother' },
+  ]
+
+  let pending = derivationMap.filter(d => !relByType[d.slot])
+
+  while (pending.length > 0) {
+    const actionable = pending.filter(d => !!relByType[d.via]?.related_person_id)
+    if (!actionable.length) break
+
+    const sourceIds = [...new Set(actionable.map(d => relByType[d.via]!.related_person_id))]
+    const { data: derivedRels } = await admin
+      .from('person_relationships')
+      .select('id, person_id, related_person_id, relationship_type_id, is_step')
+      .in('person_id', sourceIds)
+      .in('relationship_type_id', parentRelTypeIds)
+
+    const newPersonIds = [...new Set(
+      ((derivedRels ?? []) as (RelRecord & { person_id: string })[])
+        .map(r => r.related_person_id)
+        .filter(id => !personById[id])
+    )]
+    if (newPersonIds.length) {
+      const { data: newPersons } = await admin
+        .from('people')
+        .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+        .in('id', newPersonIds)
+      for (const p of (newPersons ?? []) as PersonRecord[]) personById[p.id] = p
+    }
+
+    let anyResolved = false
+    for (const d of actionable) {
+      if (relByType[d.slot]) continue
+      const srcId = relByType[d.via]!.related_person_id
+      const asTypeId = typeIdByName[d.as]
+      if (!asTypeId) continue
+      const match = ((derivedRels ?? []) as (RelRecord & { person_id: string })[])
+        .find(r => r.person_id === srcId && r.relationship_type_id === asTypeId)
+      if (match) {
+        const slotTypeId = typeIdByName[d.slot]
+        if (!slotTypeId) continue
+        relByType[d.slot] = {
+          id: match.id,
+          related_person_id: match.related_person_id,
+          relationship_type_id: slotTypeId,
+          is_step: match.is_step,
+        }
+        anyResolved = true
+      }
+    }
+    if (!anyResolved) break
+    pending = pending.filter(d => !relByType[d.slot])
+  }
+
+  // ── Build Gen 1 row ───────────────────────────────────────────────────────
+  const gen1Types: AncestorType[] = ['Father', 'Mother']
+  const gen1People: AncestorPerson[] = []
+  for (const type of gen1Types) {
+    const rel = relByType[type]
+    if (rel) {
+      const person = personById[rel.related_person_id]
+      gen1People.push({
+        person_id: rel.related_person_id,
+        relationship_id: rel.id,
+        first_name: person?.first_name ?? null,
+        last_name: person?.last_name ?? null,
+        user_id: person?.user_id ?? null,
+        primary_email: person?.primary_email ?? null,
+        date_of_birth: person?.date_of_birth ?? null,
+        relationship_label: rel.is_step ? `Step-${type}` : type,
+        relationship_type: type,
+        is_step: rel.is_step,
+        is_placeholder: false,
+        is_editable: isOwnTree,
+      })
+    } else if (isOwnTree) {
+      gen1People.push({
+        person_id: null, relationship_id: null, first_name: null, last_name: null,
+        user_id: null, primary_email: null, date_of_birth: null,
+        relationship_label: type, relationship_type: type,
+        is_step: false, is_placeholder: true, is_editable: true,
+      })
+    }
+  }
+  if (gen1People.length > 0) result.push({ generation: 1, label: 'Parents', people: gen1People })
+
+  // ── Build Gen 2 row ───────────────────────────────────────────────────────
+  const gen2Types: Array<{ slot: AncestorType; parentSlot: AncestorType }> = [
+    { slot: 'Paternal Grandfather', parentSlot: 'Father' },
+    { slot: 'Paternal Grandmother', parentSlot: 'Father' },
+    { slot: 'Maternal Grandfather', parentSlot: 'Mother' },
+    { slot: 'Maternal Grandmother', parentSlot: 'Mother' },
+  ]
+  const gen2People: AncestorPerson[] = []
+  for (const { slot, parentSlot } of gen2Types) {
+    const rel = relByType[slot]
+    if (rel) {
+      const person = personById[rel.related_person_id]
+      gen2People.push({
+        person_id: rel.related_person_id,
+        relationship_id: rel.id,
+        first_name: person?.first_name ?? null,
+        last_name: person?.last_name ?? null,
+        user_id: person?.user_id ?? null,
+        primary_email: person?.primary_email ?? null,
+        date_of_birth: person?.date_of_birth ?? null,
+        relationship_label: rel.is_step ? `Step-${slot}` : slot,
+        relationship_type: slot,
+        is_step: rel.is_step,
+        is_placeholder: false,
+        is_editable: isOwnTree,
+      })
+    } else if (isOwnTree && relByType[parentSlot]?.related_person_id) {
+      // Only show placeholder when corresponding parent exists
+      gen2People.push({
+        person_id: null, relationship_id: null, first_name: null, last_name: null,
+        user_id: null, primary_email: null, date_of_birth: null,
+        relationship_label: slot, relationship_type: slot,
+        is_step: false, is_placeholder: true, is_editable: true,
+      })
+    }
+  }
+  if (gen2People.length > 0) result.push({ generation: 2, label: 'Grandparents', people: gen2People })
+
+  // ── Gen 3+ BFS from gen-2 person_ids ────────────────────────────────────
+  let queue = gen2Types
+    .map(({ slot }) => relByType[slot]?.related_person_id)
+    .filter((id): id is string => !!id)
+  queue = [...new Set(queue)]
+
+  let generation = 2
+  const MAX_DEPTH = 8
+
+  while (queue.length > 0 && generation < MAX_DEPTH) {
+    generation++
+
+    const { data: rels } = await admin
+      .from('person_relationships')
+      .select('id, person_id, related_person_id, relationship_type_id, is_step')
+      .in('person_id', queue)
+      .in('relationship_type_id', parentRelTypeIds)
+
+    if (!rels?.length) break
+
+    const newPersonIds = [...new Set(
+      (rels as (RelRecord & { person_id: string })[]).map(r => r.related_person_id)
+    )]
+    const { data: persons } = await admin
+      .from('people')
+      .select('id, user_id, first_name, last_name, primary_email, date_of_birth')
+      .in('id', newPersonIds)
+    const newPersonById: Record<string, PersonRecord> = Object.fromEntries(
+      ((persons ?? []) as PersonRecord[]).map(p => [p.id, p])
+    )
+
+    const rowPeople: AncestorPerson[] = (rels as (RelRecord & { person_id: string })[]).map(rel => {
+      const typeName = typeNameById[rel.relationship_type_id] ?? 'Ancestor'
+      const person = newPersonById[rel.related_person_id]
+      return {
+        person_id: rel.related_person_id,
+        relationship_id: rel.id,
+        first_name: person?.first_name ?? null,
+        last_name: person?.last_name ?? null,
+        user_id: person?.user_id ?? null,
+        primary_email: person?.primary_email ?? null,
+        date_of_birth: person?.date_of_birth ?? null,
+        relationship_label: rel.is_step ? `Step-${typeName}` : typeName,
+        relationship_type: null,
+        is_step: rel.is_step,
+        is_placeholder: false,
+        is_editable: false,
+      }
+    })
+
+    result.push({ generation, label: generationLabel(generation), people: rowPeople })
+    queue = [...new Set(newPersonIds)]
+  }
+
+  return result
+}
+
+// ── getDescendantTree ──────────────────────────────────────────────────────────
+
+export async function getDescendantTree(subjectPersonId: string): Promise<DescendantNode[]> {
+  if (!subjectPersonId) return []
+  const admin = createAdminClient()
+
+  const { data: childTypes } = await admin
+    .from('relationship_types')
+    .select('id, name')
+    .in('name', ['Son', 'Daughter'])
+  if (!childTypes?.length) return []
+
+  const childTypeIds = (childTypes as { id: string }[]).map(t => t.id)
+  const typeNameById: Record<string, string> = Object.fromEntries(
+    (childTypes as { id: string; name: string }[]).map(t => [t.id, t.name])
+  )
+
+  // BFS downward — track parent node for each queue entry
+  type QueueEntry = { personId: string; parentNode: DescendantNode | null }
+  const roots: DescendantNode[] = []
+  const nodeByPersonId: Record<string, DescendantNode> = {}
+
+  let queue: QueueEntry[] = [{ personId: subjectPersonId, parentNode: null }]
+
+  while (queue.length > 0) {
+    const personIds = queue.map(q => q.personId)
+
+    const { data: rels } = await admin
+      .from('person_relationships')
+      .select('id, person_id, related_person_id, relationship_type_id, is_step')
+      .in('person_id', personIds)
+      .in('relationship_type_id', childTypeIds)
+
+    if (!rels?.length) break
+
+    const relChildIds = [...new Set(
+      (rels as (RelRecord & { person_id: string })[]).map(r => r.related_person_id)
+    )]
+    const { data: persons } = await admin
+      .from('people')
+      .select('id, user_id, first_name, last_name, date_of_birth')
+      .in('id', relChildIds)
+
+    const personById: Record<string, { id: string; user_id: string | null; first_name: string | null; last_name: string | null; date_of_birth: string | null }> = Object.fromEntries(
+      ((persons ?? []) as { id: string; user_id: string | null; first_name: string | null; last_name: string | null; date_of_birth: string | null }[]).map(p => [p.id, p])
+    )
+
+    const nextQueue: QueueEntry[] = []
+
+    for (const qEntry of queue) {
+      const childRels = (rels as (RelRecord & { person_id: string })[])
+        .filter(r => r.person_id === qEntry.personId)
+
+      for (const rel of childRels) {
+        if (nodeByPersonId[rel.related_person_id]) continue // already in tree
+        const person = personById[rel.related_person_id]
+        if (!person) continue
+
+        const node: DescendantNode = {
+          relationship_id: rel.id,
+          person_id: rel.related_person_id,
+          relationship_type: (typeNameById[rel.relationship_type_id] ?? 'Son') as 'Son' | 'Daughter',
+          is_step: rel.is_step,
+          first_name: person.first_name ?? '',
+          last_name: person.last_name ?? '',
+          date_of_birth: person.date_of_birth ?? null,
+          user_id: person.user_id ?? null,
+          children: [],
+        }
+
+        nodeByPersonId[rel.related_person_id] = node
+
+        if (qEntry.parentNode) {
+          qEntry.parentNode.children.push(node)
+        } else {
+          roots.push(node)
+        }
+
+        nextQueue.push({ personId: rel.related_person_id, parentNode: node })
+      }
+    }
+
+    queue = nextQueue
+  }
+
+  return roots
+}
+
+// ── buildPartnerGroups ─────────────────────────────────────────────────────────
+
+export async function buildPartnerGroups(
+  subjectPersonId: string,
+  partners: SpouseEntry[],
+  topLevelDescendants: DescendantNode[]
+): Promise<PartnerGroup[]> {
+  if (!partners.length && !topLevelDescendants.length) return []
+
+  const admin = createAdminClient()
+
+  const CURRENT_TYPES = ['Husband', 'Wife', 'Partner'] as const
+  const isCurrentType = (t: string) => (CURRENT_TYPES as readonly string[]).includes(t)
+
+  if (!topLevelDescendants.length) {
+    // No children — one group per partner, empty children
+    const groups: PartnerGroup[] = partners
+      .sort((a, b) => (isCurrentType(b.relationship_type) ? 1 : 0) - (isCurrentType(a.relationship_type) ? 1 : 0))
+      .map(p => ({ partner: p, children: [] }))
+    return groups
+  }
+
+  // Find which partner is also a parent of each top-level child
+  const partnerPersonIds = partners.map(p => p.person_id)
+  const childPersonIds = topLevelDescendants.map(d => d.person_id)
+
+  const { data: childTypes } = await admin
+    .from('relationship_types')
+    .select('id')
+    .in('name', ['Son', 'Daughter'])
+  const childTypeIds = (childTypes as { id: string }[] | null)?.map(t => t.id) ?? []
+
+  let childToPartner: Record<string, string> = {}
+
+  if (partnerPersonIds.length && childTypeIds.length) {
+    const { data: coParentRels } = await admin
+      .from('person_relationships')
+      .select('person_id, related_person_id')
+      .in('related_person_id', childPersonIds)
+      .in('person_id', partnerPersonIds)
+      .in('relationship_type_id', childTypeIds)
+
+    for (const rel of (coParentRels ?? []) as { person_id: string; related_person_id: string }[]) {
+      if (!childToPartner[rel.related_person_id]) {
+        childToPartner[rel.related_person_id] = rel.person_id
+      }
+    }
+  }
+
+  // Sort partners: current types first
+  const sortedPartners = [...partners].sort((a, b) =>
+    (isCurrentType(b.relationship_type) ? 1 : 0) - (isCurrentType(a.relationship_type) ? 1 : 0)
+  )
+
+  const groups: PartnerGroup[] = sortedPartners.map(p => ({ partner: p, children: [] }))
+  const unmatched: DescendantNode[] = []
+
+  for (const child of topLevelDescendants) {
+    const partnerId = childToPartner[child.person_id]
+    const group = partnerId ? groups.find(g => g.partner?.person_id === partnerId) : undefined
+    if (group) {
+      group.children.push(child)
+    } else {
+      unmatched.push(child)
+    }
+  }
+
+  if (unmatched.length) {
+    groups.push({ partner: null, children: unmatched })
+  }
+
+  return groups
 }

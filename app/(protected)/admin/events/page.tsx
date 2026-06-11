@@ -5,7 +5,7 @@ import { getEvents } from '@/app/actions/admin/events'
 import { getEventTypes } from '@/app/actions/admin/event-types'
 import { AdminEventsClient } from '@/components/admin/AdminEventsClient'
 
-export const metadata = { title: 'Events — Admin' }
+export const metadata = { title: 'Event Management — Admin' }
 
 export default async function AdminEventsPage() {
   const supabase = await createClient()
@@ -21,7 +21,7 @@ export default async function AdminEventsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Events</h1>
+        <h1 className="text-3xl font-bold mb-1">Event Management</h1>
         <p className="text-muted-foreground">Create, publish, and manage family events.</p>
       </div>
       <AdminEventsClient

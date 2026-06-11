@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getEventReport, getEventAssignments, getSubEvents } from '@/app/actions/admin/events'
 import { getBlueprintItems, getEventTypes } from '@/app/actions/admin/event-types'
 import { getFamilyMembersWithRoles } from '@/app/actions/admin/users'
+import { getFunds } from '@/app/actions/funds'
 import { AdminEventDetailClient } from '@/components/admin/AdminEventDetailClient'
 
 export const metadata = { title: 'Event Detail — Admin' }
@@ -19,12 +20,13 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
   const { data: person } = await admin.from('people').select('is_admin, can_approve').eq('user_id', user.id).maybeSingle()
   if (!person?.is_admin) redirect('/dashboard')
 
-  const [report, assignments, members, subEvents, eventTypes] = await Promise.all([
+  const [report, assignments, members, subEvents, eventTypes, funds] = await Promise.all([
     getEventReport(id),
     getEventAssignments(id),
     getFamilyMembersWithRoles(),
     getSubEvents(id),
     getEventTypes(),
+    getFunds(),
   ])
 
   if (!report) notFound()
@@ -43,6 +45,7 @@ export default async function AdminEventDetailPage({ params }: { params: Promise
         canApprove={person?.can_approve === true}
         initialSubEvents={subEvents}
         eventTypes={eventTypes}
+        funds={funds.map(f => ({ id: f.id, name: f.name, event_id: f.event_id }))}
       />
     </div>
   )

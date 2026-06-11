@@ -3,8 +3,7 @@
 import { DollarSign, Users, Calendar, TrendingUp, ShirtIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { OrgStats } from '@/app/actions/admin/reports'
-
-function formatDollars(cents: number) { return `$${(cents / 100).toFixed(2)}` }
+import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 
 interface Props {
   stats: OrgStats

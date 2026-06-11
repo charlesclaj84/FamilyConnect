@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
-import { getFunds, getAllDisbursements } from '@/app/actions/funds'
+import { getFunds, getAllDisbursements, getFundAllocations } from '@/app/actions/funds'
 import { AdminDuesClient } from '@/components/admin/AdminDuesClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 
@@ -24,11 +24,12 @@ export default async function AdminAccountPage() {
 
   const familyCode: string = user.user_metadata?.family_code ?? ''
 
-  const [schedules, payments, fundsData, allDisbursements, membersResult] = await Promise.all([
+  const [schedules, payments, fundsData, allDisbursements, allocations, membersResult] = await Promise.all([
     getDuesSchedules(),
     getAllDuesPayments(),
     getFunds(),
     getAllDisbursements(),
+    getFundAllocations(),
     admin
       .from('people')
       .select('id, first_name, last_name, nick_name, date_of_birth')
@@ -71,6 +72,7 @@ export default async function AdminAccountPage() {
           initialFunds={fundsData}
           allMilestones={allMilestones}
           allDisbursements={allDisbursements}
+          initialAllocations={allocations}
           members={members}
         />
       </div>

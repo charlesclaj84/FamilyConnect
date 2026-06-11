@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil, X, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { disambiguatedName } from '@/lib/name-utils'
+import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import {
   createDuesSchedule, updateDuesSchedule, recordPayment, deleteDuesSchedule,
   type DuesSchedule, type DuesPayment,
@@ -20,13 +22,12 @@ interface Props {
   members: Person[]
 }
 
-function formatDollars(cents: number) { return `$${(cents / 100).toFixed(2)}` }
-
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
 
 export function AdminDuesClient({ initialSchedules, initialPayments, members }: Props) {
+  const router = useRouter()
   const [schedules, setSchedules] = useState(initialSchedules)
-  const [payments] = useState(initialPayments)
+  const [payments, setPayments] = useState(initialPayments)
   const [tab, setTab] = useState<'schedules' | 'payments' | 'record'>('schedules')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -128,7 +129,27 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
         notes: rpNotes || null,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
+      // Optimistically add to the payment history list.
+      const cents = Math.round(parseFloat(rpAmount) * 100)
+      const member = members.find(m => m.id === rpPersonId)
+      const schedule = schedules.find(s => s.id === rpScheduleId)
+      setPayments(prev => [{
+        id: `temp-${Date.now()}`,
+        person_id: rpPersonId,
+        person_name: member ? `${member.first_name} ${member.last_name}` : null,
+        schedule_id: rpScheduleId || null,
+        schedule_label: schedule?.label ?? null,
+        amount_cents: cents,
+        status: rpStatus,
+        payment_date: rpDate,
+        payment_method: rpMethod || null,
+        notes: rpNotes || null,
+        created_at: new Date().toISOString(),
+      }, ...prev])
       setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpNotes('')
+      setTab('payments')
+      // Refresh server data so fund balances (routed dues) update too.
+      router.refresh()
     })
   }
 

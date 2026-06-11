@@ -18,6 +18,7 @@ export interface ChildRecord {
   relationship_type: ChildRelationshipType
   is_step: boolean
   is_minor: boolean
+  has_account: boolean
 }
 
 export interface SpouseChildRecord {
@@ -104,7 +105,7 @@ export async function getMyChildren(): Promise<ChildRecord[]> {
   const personIds = relationships.map(r => r.related_person_id)
   const { data: persons } = await supabase
     .from('people')
-    .select('id, first_name, middle_name, last_name, date_of_birth, tshirt_category, tshirt_size, is_minor')
+    .select('id, first_name, middle_name, last_name, date_of_birth, tshirt_category, tshirt_size, is_minor, user_id')
     .in('id', personIds)
 
   if (!persons?.length) return []
@@ -127,6 +128,7 @@ export async function getMyChildren(): Promise<ChildRecord[]> {
         relationship_type: (typeNameById[rel.relationship_type_id] ?? 'Son') as ChildRelationshipType,
         is_step: rel.is_step,
         is_minor: computeIsMinor(p.date_of_birth),
+        has_account: Boolean(p.user_id),
       }
     })
 
@@ -206,6 +208,21 @@ export async function updateChild(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+
+  // Once the child has joined Family Connect (claimed their own account),
+  // they manage their own profile — the parent can no longer edit them.
+  const { data: target } = await supabase
+    .from('people')
+    .select('user_id')
+    .eq('id', personId)
+    .maybeSingle()
+
+  if (target?.user_id) {
+    return {
+      success: false,
+      message: 'This person has joined Family Connect and now manages their own profile.',
+    }
+  }
 
   const { error: personError } = await supabase
     .from('people')

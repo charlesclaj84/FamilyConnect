@@ -150,20 +150,28 @@ export async function createAnnouncement(
   input: AnnouncementInput
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+  if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
 
   const familyCode: string = user.user_metadata?.family_code ?? ''
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
+  const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
+  const isAdmin = myPerson?.is_admin === true
 
-  const { error } = await supabase.from('announcements').insert({
+  // Anyone can post; only admins can target a scope or pin.
+  const scope = isAdmin ? input.scope : 'national'
+  const pinned = isAdmin ? input.pinned : false
+
+  // Service-role insert so non-admin members can post (RLS limits inserts to admins).
+  const { error } = await admin.from('announcements').insert({
     family_code: familyCode,
     title: input.title.trim(),
     body: input.body.trim(),
-    scope: input.scope,
-    pinned: input.pinned,
-    pinned_until: input.pinned && input.pinned_until ? input.pinned_until : null,
-    chapter_id: input.scope === 'chapter' ? (input.chapter_id ?? null) : null,
+    scope,
+    pinned,
+    pinned_until: pinned && input.pinned_until ? input.pinned_until : null,
+    chapter_id: scope === 'chapter' ? (input.chapter_id ?? null) : null,
     author_id: myPerson?.id ?? null,
   })
 

@@ -1,65 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { Calendar, MessageCircle, Camera, Store, User, GitBranch, BookUser, Wallet, Megaphone, Vote } from 'lucide-react'
+import { User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-const features = [
-  {
-    title: 'Family Directory',
-    description: 'Full profiles for every member — contact info, org role, birthdays, t-shirt sizes, and active status.',
-    icon: <BookUser className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Genealogy',
-    description: 'Map your family tree across generations — link parents, grandparents, children, and spouses.',
-    icon: <GitBranch className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Event Planning',
-    description: 'Organize reunions with sub-events, hotel options, RSVP tracking, itineraries, and day-of check-in.',
-    icon: <Calendar className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Photo Collections',
-    description: 'Create event galleries, upload memories, and tag family members in photos.',
-    icon: <Camera className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Account & Finances',
-    description: 'Track dues and payments, view family P&L, manage funds, and record milestone disbursements.',
-    icon: <Wallet className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Announcements',
-    description: 'Post news to the entire family or a specific chapter, with pin-to-dashboard for important updates.',
-    icon: <Megaphone className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Elections',
-    description: 'Run officer elections with a full nominations window, ballot acceptance, and family-wide voting.',
-    icon: <Vote className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Chat',
-    description: 'Real-time messaging with the whole family — group chats and direct messages.',
-    icon: <MessageCircle className="h-5 w-5" />,
-    comingSoon: false,
-  },
-  {
-    title: 'Vendors',
-    description: 'Family-trusted businesses offering exclusive products and services to members.',
-    icon: <Store className="h-5 w-5" />,
-    comingSoon: true,
-  },
-]
+import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
 
 export default function LandingPage() {
   return (
@@ -137,40 +80,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="py-16 sm:py-20 px-4 bg-muted/30">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3">
-              Everything Your Family Needs
-            </h2>
-            <p className="text-muted-foreground">
-              Powerful features designed for large families — all in one place.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((feature) => (
-              <Card key={feature.title} className="relative">
-                {feature.comingSoon && (
-                  <span className="absolute top-3 right-3 text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                    Coming Soon
-                  </span>
-                )}
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-primary/10 text-primary">
-                      {feature.icon}
-                    </div>
-                    <CardTitle className="text-lg">{feature.title}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FeatureShowcase />
 
       {/* CTA Banner */}
       <section className="py-16 px-4 bg-gradient-to-b from-accent/40 to-background">
@@ -189,12 +99,17 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t py-8 px-4 bg-background">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">Family Connect</span>
-          <span>Keeping families together.</span>
-          <div className="flex gap-4">
-            <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
-            <Link href="/register" className="hover:text-foreground transition-colors">Register</Link>
+        <div className="max-w-6xl mx-auto flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">Family Connect</span>
+            <span>Keeping families together.</span>
+            <div className="flex gap-4">
+              <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
+              <Link href="/register" className="hover:text-foreground transition-colors">Register</Link>
+            </div>
+          </div>
+          <div className="border-t pt-4 text-center text-xs text-muted-foreground">
+            &copy; {new Date().getFullYear()} ClearPath Digital. All rights reserved.
           </div>
         </div>
       </footer>
