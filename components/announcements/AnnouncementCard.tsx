@@ -1,6 +1,7 @@
 import { Pin } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import type { Announcement } from '@/app/actions/announcements'
+import { formatDate } from '@/lib/date-utils'
 
 function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -8,7 +9,7 @@ function formatRelative(iso: string): string {
   if (days === 0) return 'Today'
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days} days ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatDate(iso) ?? ''
 }
 
 export function AnnouncementCard({ announcement }: { announcement: Announcement }) {

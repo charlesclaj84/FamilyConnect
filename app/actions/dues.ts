@@ -323,7 +323,7 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('dues_payments')
-    .select('*, people(first_name, last_name), dues_schedules(label)')
+    .select('*, people!person_id(first_name, last_name), dues_schedules(label)')
     .order('payment_date', { ascending: false })
   return (data ?? []).map(mapPayment)
 }
@@ -419,13 +419,7 @@ export async function getFamilyPnL(): Promise<PnLData> {
   if (!user) return empty
   const familyCode: string = user.user_metadata?.family_code ?? ''
 
-  const [paymentsRes, fundsRes, contribRes, disbRes, budgetItemsRes, expensesRes, eventsRes] = await Promise.all([
-    admin
-      .from('dues_payments')
-      .select('*, people(first_name, last_name), dues_schedules(label)')
-      .eq('family_code', familyCode)
-      .eq('status', 'paid')
-      .order('payment_date', { ascending: false }),
+  const [fundsRes, contribRes, disbRes, budgetItemsRes, expensesRes, eventsRes] = await Promise.all([
     admin.from('funds').select('id, name, event_id, priority').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents, source, dues_payment_id').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
@@ -434,7 +428,28 @@ export async function getFamilyPnL(): Promise<PnLData> {
     admin.from('events').select('id, name').eq('family_code', familyCode).is('parent_event_id', null),
   ])
 
-  const payments: DuesPayment[] = (paymentsRes.data ?? []).map(mapPayment)
+  // Paid dues for the family. dues_payments has TWO foreign keys to people
+  // (person_id and recorded_by), so the people embed MUST be disambiguated to
+  // person_id — otherwise PostgREST errors and the result is silently empty.
+  const PAYMENT_SELECT = '*, people!person_id(first_name, last_name), dues_schedules(label)'
+  const routedPaymentIds = [...new Set(
+    (contribRes.data ?? [])
+      .filter(c => c.source === 'dues_routing' && c.dues_payment_id)
+      .map(c => c.dues_payment_id as string),
+  )]
+  const [byFamilyRes, byRoutedRes] = await Promise.all([
+    admin.from('dues_payments').select(PAYMENT_SELECT).eq('family_code', familyCode).eq('status', 'paid'),
+    routedPaymentIds.length
+      ? admin.from('dues_payments').select(PAYMENT_SELECT).in('id', routedPaymentIds).eq('status', 'paid')
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+  ])
+  const paymentById = new Map<string, Record<string, unknown>>()
+  for (const p of (byFamilyRes.data ?? [])) paymentById.set(p.id as string, p)
+  for (const p of (byRoutedRes.data ?? [])) paymentById.set(p.id as string, p)
+
+  const payments: DuesPayment[] = [...paymentById.values()]
+    .map(mapPayment)
+    .sort((a, b) => b.payment_date.localeCompare(a.payment_date))
   const totalIncomeCents = payments.reduce((s, p) => s + (p.amount_cents ?? 0), 0)
 
   // Money collected outside of dues (admin top-ups + member contributions).

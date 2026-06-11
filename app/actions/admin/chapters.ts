@@ -28,6 +28,7 @@ export interface CustomRole {
   is_global: boolean
   sort_order: number
   family_code: string | null
+  enabled: boolean   // is this position used by the family? (custom roles always true)
 }
 
 async function getAuthenticatedAdmin() {
@@ -158,13 +159,40 @@ export async function getAllRolesWithGlobal(): Promise<CustomRole[]> {
   const familyCode: string = user.user_metadata?.family_code ?? ''
   const admin = createAdminClient()
 
-  const { data } = await admin
-    .from('family_roles')
-    .select('*')
-    .or(`family_code.is.null,family_code.eq.${familyCode}`)
-    .order('sort_order')
+  const [rolesRes, exclusionsRes] = await Promise.all([
+    admin.from('family_roles').select('*').or(`family_code.is.null,family_code.eq.${familyCode}`).order('sort_order'),
+    admin.from('family_role_exclusions').select('role_id').eq('family_code', familyCode),
+  ])
 
-  return (data ?? []) as CustomRole[]
+  const excluded = new Set((exclusionsRes.data ?? []).map(e => e.role_id))
+  return (rolesRes.data ?? []).map(r => ({
+    ...r,
+    enabled: r.is_global ? !excluded.has(r.id) : true,   // custom roles are always used
+  })) as CustomRole[]
+}
+
+/** Enable/disable a GLOBAL board position for the current family. */
+export async function setRoleEnabled(
+  roleId: string,
+  enabled: boolean,
+): Promise<{ success: boolean; error?: string }> {
+  const { admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  if (enabled) {
+    const { error } = await admin.from('family_role_exclusions').delete().eq('family_code', familyCode).eq('role_id', roleId)
+    if (error) return { success: false, error: error.message }
+  } else {
+    const { error } = await admin.from('family_role_exclusions').upsert(
+      { family_code: familyCode, role_id: roleId },
+      { onConflict: 'family_code,role_id' },
+    )
+    if (error) return { success: false, error: error.message }
+  }
+  revalidatePath('/admin/user-roles')
+  revalidatePath('/admin/elections')
+  revalidatePath('/admin/users')
+  return { success: true }
 }
 
 export async function createCustomRole(input: {

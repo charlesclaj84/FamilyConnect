@@ -2,27 +2,21 @@
 
 import { useState, useMemo, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, DollarSign, AlertCircle, History, Search, ArrowUpDown, ChevronUp, ChevronDown, Check, X } from 'lucide-react'
+import { CheckCircle2, Clock, DollarSign, AlertCircle, History, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+import { formatCurrency } from '@/lib/currency-utils'
+import { formatDate } from '@/lib/date-utils'
 import { installmentCents, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
-import { setMyDuesPlan, recordPayment, type DuesSummary, type DuesPayment } from '@/app/actions/dues'
+import { setMyDuesPlan, type DuesSummary, type DuesPayment } from '@/app/actions/dues'
 
 type SortDir = 'asc' | 'desc'
 type HistCol = 'schedule' | 'date' | 'amount'
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-}
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
+const fmtDate = (s: string) => formatDate(s) ?? ''
 
 function SortTh({
   label, active, dir, onClick, align = 'left',
@@ -44,16 +38,14 @@ function SortTh({
 interface Props {
   summary: DuesSummary[]
   history: DuesPayment[]
-  personId: string | null
 }
 
-export function DuesDetailSection({ summary, history, personId }: Props) {
+export function DuesDetailSection({ summary, history }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   // Local mirror of summary so cadence changes recompute installments instantly.
   const [rows, setRows] = useState<DuesSummary[]>(summary)
-  const [payingId, setPayingId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   // Re-sync when the server re-fetches (e.g. after recording a payment).
@@ -211,13 +203,8 @@ export function DuesDetailSection({ summary, history, personId }: Props) {
                     <DuesRow
                       key={s.schedule.id}
                       row={s}
-                      personId={personId}
                       isPending={isPending}
-                      paying={payingId === s.schedule.id}
                       onCadence={cadence => changeCadence(s.schedule.id, cadence)}
-                      onTogglePay={() => { setError(''); setPayingId(id => id === s.schedule.id ? null : s.schedule.id) }}
-                      onPaid={() => { setPayingId(null); router.refresh() }}
-                      onError={setError}
                     />
                   ))}
                 </tbody>
@@ -298,100 +285,40 @@ export function DuesDetailSection({ summary, history, personId }: Props) {
   )
 }
 
-// ── A single outstanding-dues row, with cadence picker + inline pay form ──
+// ── A single outstanding-dues row, with cadence picker ──
 
-function DuesRow({
-  row, personId, isPending, paying, onCadence, onTogglePay, onPaid, onError,
-}: {
+function DuesRow({ row, isPending, onCadence }: {
   row: DuesSummary
-  personId: string | null
   isPending: boolean
-  paying: boolean
   onCadence: (cadence: PayCadence) => void
-  onTogglePay: () => void
-  onPaid: () => void
-  onError: (msg: string) => void
 }) {
-  const suggested = Math.min(row.installmentCents, row.remainingBalanceCents)
-  const [amount, setAmount] = useState((suggested / 100).toFixed(2))
-  const [date, setDate] = useState(todayISO())
-  const [method, setMethod] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function submit() {
-    if (!personId) { onError('Your profile is not linked yet — contact an admin.'); return }
-    const cents = dollarsToCents(amount)
-    if (cents <= 0) { onError('Enter a payment amount greater than $0.'); return }
-    setSaving(true)
-    const res = await recordPayment({
-      person_id: personId,
-      schedule_id: row.schedule.id,
-      amount_cents: cents,
-      status: 'paid',
-      payment_date: date,
-      payment_method: method.trim() || null,
-      notes: null,
-    })
-    setSaving(false)
-    if (!res.success) { onError(res.message ?? 'Could not record payment'); return }
-    onPaid()
-  }
-
   return (
-    <>
-      <tr className="border-b last:border-0 hover:bg-muted/30">
-        <td className="py-2.5 pr-3">
-          <p className="font-medium">{row.schedule.label}</p>
-          {row.schedule.description && <p className="text-xs text-muted-foreground">{row.schedule.description}</p>}
-          <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
-        </td>
-        <td className="py-2.5 pr-3">
-          <Select
-            value={row.cadence}
-            disabled={isPending}
-            onChange={e => onCadence(e.target.value as PayCadence)}
-            className="h-7 text-xs capitalize w-32"
-          >
-            {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
-          </Select>
-        </td>
-        <td className="py-2.5 pr-3 text-right font-semibold whitespace-nowrap">{formatCurrency(row.installmentCents)}</td>
-        <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
-          {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
-        </td>
-        <td className="py-2.5 pr-3 text-right font-semibold text-amber-600 whitespace-nowrap">{formatCurrency(row.remainingBalanceCents)}</td>
-        <td className="py-2.5 text-right">
-          <Button size="sm" variant={paying ? 'ghost' : 'outline'} onClick={onTogglePay}>
-            {paying ? <><X className="h-3.5 w-3.5" /> Cancel</> : 'Record Payment'}
-          </Button>
-        </td>
-      </tr>
-      {paying && (
-        <tr className="bg-muted/20">
-          <td colSpan={6} className="px-3 py-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Amount</Label>
-                <Input value={amount} onChange={e => setAmount(e.target.value)} className="h-8 w-28" inputMode="decimal" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Date</Label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8 w-40" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Method</Label>
-                <Input value={method} onChange={e => setMethod(e.target.value)} placeholder="Check, Venmo…" className="h-8 w-36" />
-              </div>
-              <Button size="sm" disabled={saving} onClick={submit}>
-                <Check className="h-3.5 w-3.5" /> {saving ? 'Saving…' : 'Confirm Payment'}
-              </Button>
-              <Button size="sm" variant="outline" disabled title="Online payments are coming soon">
-                Pay Online (coming soon)
-              </Button>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+    <tr className="border-b last:border-0 hover:bg-muted/30">
+      <td className="py-2.5 pr-3">
+        <p className="font-medium">{row.schedule.label}</p>
+        {row.schedule.description && <p className="text-xs text-muted-foreground">{row.schedule.description}</p>}
+        <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
+      </td>
+      <td className="py-2.5 pr-3">
+        <Select
+          value={row.cadence}
+          disabled={isPending}
+          onChange={e => onCadence(e.target.value as PayCadence)}
+          className="h-7 text-xs capitalize w-32"
+        >
+          {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
+        </Select>
+      </td>
+      <td className="py-2.5 pr-3 text-right font-semibold whitespace-nowrap">{formatCurrency(row.installmentCents)}</td>
+      <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+        {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
+      </td>
+      <td className="py-2.5 pr-3 text-right font-semibold text-amber-600 whitespace-nowrap">{formatCurrency(row.remainingBalanceCents)}</td>
+      <td className="py-2.5 text-right">
+        <Button size="sm" variant="outline" disabled title="Online payments are coming soon">
+          Pay Online (coming soon)
+        </Button>
+      </td>
+    </tr>
   )
 }

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAllRolesWithGlobal } from '@/app/actions/admin/chapters'
 import { AdminUserRolesClient } from '@/components/admin/AdminUserRolesClient'
 
-export const metadata = { title: 'User Roles — Admin' }
+export const metadata = { title: 'Board Positions — Admin' }
 
 export default async function AdminUserRolesPage() {
   const supabase = await createClient()
@@ -20,8 +20,8 @@ export default async function AdminUserRolesPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">User Roles</h1>
-        <p className="text-muted-foreground">View global roles and create custom roles for your family organization.</p>
+        <h1 className="text-3xl font-bold mb-1">Board Positions</h1>
+        <p className="text-muted-foreground">Choose which board positions your family uses, and create your own custom positions.</p>
       </div>
       <AdminUserRolesClient initialRoles={roles} />
     </div>

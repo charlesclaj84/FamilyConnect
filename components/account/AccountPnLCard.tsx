@@ -21,9 +21,10 @@ export function AccountPnLCard({ data }: Props) {
             <span className="text-sm text-muted-foreground font-medium">Total Collected</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalCollectedCents)}</p>
-          <p className="text-xs text-muted-foreground">
-            Dues {formatCurrency(data.totalIncomeCents)} · Contributions {formatCurrency(data.totalContributionsCents)}
-          </p>
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            <p className="flex items-center justify-between gap-2"><span>Dues</span><span className="font-medium text-foreground">{formatCurrency(data.totalIncomeCents)}</span></p>
+            <p className="flex items-center justify-between gap-2"><span>Contributions</span><span className="font-medium text-foreground">{formatCurrency(data.totalContributionsCents)}</span></p>
+          </div>
         </div>
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
+import { formatDate } from '@/lib/date-utils'
 import {
   createFund, updateFund, deleteFund,
   createMilestone, deleteMilestone,
@@ -406,7 +407,7 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
                   <div className="flex-1">
                     <p className="text-sm font-medium">{d.person_name ?? 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground">
-                      {d.fund_name} {d.milestone_name ? `· ${d.milestone_name}` : ''} · {d.disbursed_date}
+                      {d.fund_name} {d.milestone_name ? `· ${d.milestone_name}` : ''} · {formatDate(d.disbursed_date)}
                     </p>
                     {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
                   </div>

@@ -19,6 +19,8 @@ export interface AssignedRole extends FamilyRole {
   assignment_scope: 'national' | 'regional' | 'chapter'
   chapter_id: string | null
   chapter_name: string | null
+  region_id: string | null
+  region_name: string | null
 }
 
 export interface MemberWithRoles {
@@ -67,7 +69,7 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
   const userIds = people.map(p => p.user_id as string)
   const { data: userRoles } = await admin
     .from('user_roles')
-    .select('id, user_id, role_id, scope, chapter_id, family_roles(id, name, category, sort_order, scope, is_global), chapters(name)')
+    .select('id, user_id, role_id, scope, chapter_id, region_id, family_roles(id, name, category, sort_order, scope, is_global), chapters(name), regions(name)')
     .eq('family_code', familyCode)
     .in('user_id', userIds)
 
@@ -81,6 +83,8 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
       assignment_scope: ur.scope as 'national' | 'regional' | 'chapter',
       chapter_id:       ur.chapter_id ?? null,
       chapter_name:     (ur.chapters as unknown as { name: string } | null)?.name ?? null,
+      region_id:        (ur as { region_id?: string | null }).region_id ?? null,
+      region_name:      (ur.regions as unknown as { name: string } | null)?.name ?? null,
     })
   }
 
@@ -104,12 +108,13 @@ export async function getAllRoles(): Promise<FamilyRole[]> {
   if (!user) return []
   const familyCode: string = user.user_metadata?.family_code ?? ''
   const admin = createAdminClient()
-  const { data } = await admin
-    .from('family_roles')
-    .select('*')
-    .or(`family_code.is.null,family_code.eq.${familyCode}`)
-    .order('sort_order')
-  return (data ?? []) as FamilyRole[]
+  const [rolesRes, exclusionsRes] = await Promise.all([
+    admin.from('family_roles').select('*').or(`family_code.is.null,family_code.eq.${familyCode}`).order('sort_order'),
+    admin.from('family_role_exclusions').select('role_id').eq('family_code', familyCode),
+  ])
+  // Only positions the family actually uses (custom roles are always included).
+  const excluded = new Set((exclusionsRes.data ?? []).map(e => e.role_id))
+  return (rolesRes.data ?? []).filter(r => r.is_global ? !excluded.has(r.id) : true) as FamilyRole[]
 }
 
 export async function getMyRoles(): Promise<MyRoleSummary[]> {
@@ -199,7 +204,8 @@ export async function assignRole(
   targetUserId: string,
   roleId: string,
   scope: 'national' | 'regional' | 'chapter' = 'national',
-  chapterId?: string
+  chapterId?: string,
+  regionId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -216,7 +222,8 @@ export async function assignRole(
       role_id:     roleId,
       assigned_by: user.id,
       scope,
-      chapter_id:  chapterId ?? null,
+      chapter_id:  scope === 'chapter' ? (chapterId ?? null) : null,
+      region_id:   scope === 'regional' ? (regionId ?? null) : null,
     })
 
   return error ? { success: false, error: error.message } : { success: true }

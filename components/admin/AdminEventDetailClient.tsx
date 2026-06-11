@@ -26,6 +26,7 @@ import type { MemberWithRoles } from '@/app/actions/admin/users'
 import { AddressSelects } from '@/components/ui/AddressSelects'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+import { formatDate } from '@/lib/date-utils'
 
 interface BudgetFund { id: string; name: string; event_id: string | null }
 
@@ -410,7 +411,7 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
               <div>
                 <p className="font-medium text-sm">{hotel.hotel_name}</p>
                 {hotel.booking_code && <p className="text-xs text-muted-foreground">Code: <span className="font-mono">{hotel.booking_code}</span></p>}
-                {hotel.booking_deadline && <p className="text-xs text-muted-foreground">Book by: {hotel.booking_deadline}</p>}
+                {hotel.booking_deadline && <p className="text-xs text-muted-foreground">Book by: {formatDate(hotel.booking_deadline)}</p>}
                 {(hotel.city || hotel.street_address) && (
                   <p className="text-xs text-muted-foreground">
                     {[hotel.street_address, hotel.suite, hotel.city, hotel.state, hotel.zip_code].filter(Boolean).join(', ')}
@@ -702,7 +703,7 @@ function EventBudgetSection({ eventId, funds }: { eventId: string; funds: Budget
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{e.description ?? 'Expense'}</p>
                     <p className="text-xs text-muted-foreground">
-                      {e.spent_date}{e.budget_item_title ? ` · ${e.budget_item_title}` : ''}{e.fund_name ? ` · from ${e.fund_name}` : ''}
+                      {formatDate(e.spent_date)}{e.budget_item_title ? ` · ${e.budget_item_title}` : ''}{e.fund_name ? ` · from ${e.fund_name}` : ''}
                     </p>
                   </div>
                   <span className="text-sm font-medium text-destructive">{formatCurrency(e.amount_cents)}</span>
@@ -849,7 +850,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
             {event.event_type_name && <span className="text-xs text-muted-foreground">{event.event_type_name}</span>}
-            {event.event_date && <span className="text-sm text-muted-foreground">{event.event_date}{event.event_time ? ` at ${event.event_time}` : ''}</span>}
+            {event.event_date && <span className="text-sm text-muted-foreground">{formatDate(event.event_date)}{event.event_time ? ` at ${event.event_time}` : ''}</span>}
             {event.location && <span className="text-sm text-muted-foreground">· {event.location}</span>}
           </div>
         </div>
@@ -921,7 +922,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                 <div>
                   <Link href={`/admin/events/${sub.id}`} className="text-sm font-medium hover:underline">{sub.name}</Link>
                   <p className="text-xs text-muted-foreground">
-                    {sub.event_date ?? 'Date TBD'}{sub.event_time ? ` at ${sub.event_time}` : ''}{sub.location ? ` · ${sub.location}` : ''}
+                    {sub.event_date ? formatDate(sub.event_date) : 'Date TBD'}{sub.event_time ? ` at ${sub.event_time}` : ''}{sub.location ? ` · ${sub.location}` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -963,7 +964,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                     <div key={a.id} className="flex items-start justify-between gap-2 bg-muted/40 rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium">{a.assigned_to_name ?? 'Unknown'}</p>
-                        {a.due_date && <p className="text-xs text-muted-foreground">Due: {a.due_date}</p>}
+                        {a.due_date && <p className="text-xs text-muted-foreground">Due: {formatDate(a.due_date)}</p>}
                         {a.response && (
                           <p className="text-xs text-muted-foreground mt-0.5 italic">"{a.response}"</p>
                         )}

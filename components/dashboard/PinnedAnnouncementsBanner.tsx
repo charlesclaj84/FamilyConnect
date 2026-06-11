@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Pin } from 'lucide-react'
 import type { Announcement } from '@/app/actions/announcements'
+import { formatDate } from '@/lib/date-utils'
 
 const STORAGE_KEY = 'dismissed_announcements'
 
@@ -28,7 +29,7 @@ function formatRelative(iso: string): string {
   if (days === 0) return 'Today'
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days} days ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatDate(iso) ?? ''
 }
 
 interface Props {

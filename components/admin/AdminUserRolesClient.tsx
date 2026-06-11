@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Trash2, Lock } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { Plus, Trash2, Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createCustomRole, deleteCustomRole, type CustomRole } from '@/app/actions/admin/chapters'
+import { createCustomRole, deleteCustomRole, setRoleEnabled, type CustomRole } from '@/app/actions/admin/chapters'
 
 const SCOPE_LABELS = { national: 'National', regional: 'Regional', chapter: 'Chapter' }
 const CATEGORY_LABELS = { executive_officer: 'Executive Officer', appointed_position: 'Appointed Position' }
@@ -21,9 +21,25 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
   })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
+  const [editingPositions, setEditingPositions] = useState(false)
+  const [, startTransition]   = useTransition()
 
   const globalRoles = roles.filter(r => r.is_global)
   const customRoles = roles.filter(r => !r.is_global)
+  const enabledGlobalRoles = globalRoles.filter(r => r.enabled)
+  const usedCount = enabledGlobalRoles.length
+
+  function handleToggleEnabled(role: CustomRole) {
+    const next = !role.enabled
+    setRoles(prev => prev.map(r => r.id === role.id ? { ...r, enabled: next } : r))
+    startTransition(async () => {
+      const result = await setRoleEnabled(role.id, next)
+      if (!result.success) {
+        setError(result.error ?? 'Could not update')
+        setRoles(prev => prev.map(r => r.id === role.id ? { ...r, enabled: !next } : r))
+      }
+    })
+  }
 
   async function handleAdd() {
     if (!roleForm.name.trim()) { setError('Name is required'); return }
@@ -42,27 +58,66 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
 
   return (
     <div className="space-y-8">
-      {/* Global roles — read-only */}
+      {/* Global positions — choose which your family uses */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Lock className="h-4 w-4 text-muted-foreground" />
-            Global Roles
-            <span className="text-xs font-normal text-muted-foreground">(system-defined · cannot be edited or deleted)</span>
-          </CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              Standard Board Positions
+              <span className="text-xs font-normal text-muted-foreground">({usedCount} of {globalRoles.length} in use)</span>
+            </CardTitle>
+            <Button size="sm" variant={editingPositions ? 'default' : 'outline'} onClick={() => { setEditingPositions(e => !e); setError('') }}>
+              {editingPositions ? <><Check className="h-3.5 w-3.5" /> Done</> : <><Pencil className="h-3.5 w-3.5" /> Edit</>}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="divide-y rounded-lg border">
-            {globalRoles.map(r => (
-              <div key={r.id} className="flex items-center justify-between px-3 py-2">
-                <span className="text-sm">{r.name}</span>
-                <div className="flex gap-2">
-                  <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[r.category]}</span>
-                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{SCOPE_LABELS[r.scope]}</span>
-                </div>
+          {error && <p className="text-sm text-destructive mb-3">{error}</p>}
+
+          {!editingPositions ? (
+            // ── View: only the positions the family uses ──
+            usedCount === 0 ? (
+              <p className="text-sm text-muted-foreground">No positions selected yet. Use <strong>Edit</strong> to choose the positions your family uses.</p>
+            ) : (
+              <div className="divide-y rounded-lg border">
+                {enabledGlobalRoles.map(r => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-sm truncate">{r.name}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[r.category]}</span>
+                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{SCOPE_LABELS[r.scope]}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )
+          ) : (
+            // ── Edit: check positions to add/remove ──
+            <>
+              <div className="divide-y rounded-lg border">
+                {globalRoles.map(r => (
+                  <label key={r.id} className={`flex items-center justify-between gap-3 px-3 py-2 cursor-pointer select-none transition-colors ${r.enabled ? '' : 'opacity-55'}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={r.enabled}
+                        onChange={() => handleToggleEnabled(r)}
+                        className="h-4 w-4 rounded border-input accent-primary shrink-0"
+                      />
+                      <span className="text-sm truncate">{r.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">{CATEGORY_LABELS[r.category]}</span>
+                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{SCOPE_LABELS[r.scope]}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Checked positions are available in elections and role assignments. Standard positions can’t be renamed — add your own below.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 

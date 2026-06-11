@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { formatDate } from '@/lib/date-utils'
 
 export interface Election {
   id: string
@@ -226,9 +227,7 @@ export async function createElection(input: {
 
   // Optionally post a family announcement about the new election.
   if (input.announce) {
-    const fmtDate = (s: string | null) =>
-      s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
-    const nomOpen = fmtDate(input.nominations_open_at)
+    const nomOpen = formatDate(input.nominations_open_at)
     const parts = [
       `A new election, "${input.title.trim()}", has been created.`,
       input.description.trim() || null,

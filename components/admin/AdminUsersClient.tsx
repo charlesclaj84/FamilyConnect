@@ -10,7 +10,7 @@ import {
   setAdminFlag, setApproveFlag, assignRole, revokeRoleByAssignmentId,
   type MemberWithRoles, type FamilyRole, type AssignedRole,
 } from '@/app/actions/admin/users'
-import type { Chapter } from '@/app/actions/admin/chapters'
+import type { Chapter, Region } from '@/app/actions/admin/chapters'
 
 const SCOPE_LABELS = { national: 'National', regional: 'Regional', chapter: 'Chapter' }
 
@@ -18,13 +18,16 @@ interface Props {
   members: MemberWithRoles[]
   roles: FamilyRole[]
   chapters: Chapter[]
+  regions: Region[]
   currentUserId: string
 }
 
 function RoleBadge({ role, onRemove }: { role: AssignedRole; onRemove: () => void }) {
   const scopeLabel = role.assignment_scope === 'chapter' && role.chapter_name
     ? role.chapter_name
-    : SCOPE_LABELS[role.assignment_scope]
+    : role.assignment_scope === 'regional' && role.region_name
+      ? `${role.region_name} Region`
+      : SCOPE_LABELS[role.assignment_scope]
   return (
     <span className="inline-flex items-center gap-1 text-xs bg-[#e6ecfa] text-[#0f2540] px-2 py-0.5 rounded-full">
       <span className="font-medium">{role.name}</span>
@@ -36,16 +39,18 @@ function RoleBadge({ role, onRemove }: { role: AssignedRole; onRemove: () => voi
   )
 }
 
-function AssignRoleDialog({ member, allRoles, chapters, onClose, onAssigned }: {
+function AssignRoleDialog({ member, allRoles, chapters, regions, onClose, onAssigned }: {
   member: MemberWithRoles
   allRoles: FamilyRole[]
   chapters: Chapter[]
+  regions: Region[]
   onClose: () => void
   onAssigned: (role: AssignedRole) => void
 }) {
   const [selectedId, setSelectedId]   = useState('')
   const [scope, setScope]             = useState<'national' | 'regional' | 'chapter'>('national')
   const [chapterId, setChapterId]     = useState('')
+  const [regionId, setRegionId]       = useState('')
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState('')
 
@@ -57,32 +62,67 @@ function AssignRoleDialog({ member, allRoles, chapters, onClose, onAssigned }: {
   async function handleAssign() {
     if (!selectedId) return
     if (scope === 'chapter' && !chapterId) { setError('Select a chapter'); return }
+    if (scope === 'regional' && !regionId) { setError('Select a region'); return }
     setLoading(true)
-    const result = await assignRole(member.user_id, selectedId, scope, chapterId || undefined)
+    const result = await assignRole(member.user_id, selectedId, scope, chapterId || undefined, regionId || undefined)
     if (!result.success) { setError(result.error ?? 'Error'); setLoading(false); return }
     const role = allRoles.find(r => r.id === selectedId)!
     const chapter = chapters.find(c => c.id === chapterId)
+    const region = regions.find(r => r.id === regionId)
     onAssigned({
       ...role,
       assignment_id:    Date.now().toString(),
       assignment_scope: scope,
-      chapter_id:       chapterId || null,
-      chapter_name:     chapter?.name ?? null,
+      chapter_id:       scope === 'chapter' ? (chapterId || null) : null,
+      chapter_name:     scope === 'chapter' ? (chapter?.name ?? null) : null,
+      region_id:        scope === 'regional' ? (regionId || null) : null,
+      region_name:      scope === 'regional' ? (region?.name ?? null) : null,
     })
     onClose()
   }
 
   return (
-    <Dialog open onClose={onClose} title="Assign Role" description={`Assign a role to ${member.first_name} ${member.last_name}`}>
+    <Dialog open onClose={onClose} title="Assign Board Position" description={`Give ${member.first_name} ${member.last_name} a board position`}>
       <div className="space-y-4 mt-2">
         {available.length === 0 ? (
-          <p className="text-sm text-muted-foreground">All roles are already assigned.</p>
+          <p className="text-sm text-muted-foreground">All board positions are already assigned.</p>
         ) : (
           <>
+            {/* 1 — Level */}
             <div className="space-y-1.5">
-              <Label>Role</Label>
+              <Label>Level</Label>
+              <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={scope} onChange={e => { setScope(e.target.value as 'national' | 'regional' | 'chapter'); setChapterId(''); setRegionId(''); setError('') }}>
+                <option value="national">National</option>
+                <option value="regional">Regional</option>
+                <option value="chapter">Chapter</option>
+              </select>
+            </div>
+
+            {/* 2 — Region or Chapter, depending on the level */}
+            {scope === 'regional' && (
+              <div className="space-y-1.5">
+                <Label>Region</Label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={regionId} onChange={e => { setRegionId(e.target.value); setError('') }}>
+                  <option value="">— Select region —</option>
+                  {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+            )}
+            {scope === 'chapter' && (
+              <div className="space-y-1.5">
+                <Label>Chapter</Label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={chapterId} onChange={e => { setChapterId(e.target.value); setError('') }}>
+                  <option value="">— Select chapter —</option>
+                  {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* 3 — Board Position */}
+            <div className="space-y-1.5">
+              <Label>Board Position</Label>
               <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={selectedId} onChange={e => { setSelectedId(e.target.value); setError('') }}>
-                <option value="">— Select a role —</option>
+                <option value="">— Select a position —</option>
                 {executive.length > 0 && (
                   <optgroup label="Executive Officers">
                     {executive.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -95,31 +135,12 @@ function AssignRoleDialog({ member, allRoles, chapters, onClose, onAssigned }: {
                 )}
               </select>
             </div>
-
-            <div className="space-y-1.5">
-              <Label>Level</Label>
-              <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={scope} onChange={e => { setScope(e.target.value as 'national' | 'regional' | 'chapter'); setChapterId('') }}>
-                <option value="national">National</option>
-                <option value="regional">Regional</option>
-                <option value="chapter">Chapter</option>
-              </select>
-            </div>
-
-            {scope === 'chapter' && (
-              <div className="space-y-1.5">
-                <Label>Chapter</Label>
-                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={chapterId} onChange={e => { setChapterId(e.target.value); setError('') }}>
-                  <option value="">— Select chapter —</option>
-                  {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            )}
           </>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex gap-2">
           <Button className="flex-1" disabled={!selectedId || loading} onClick={handleAssign}>
-            {loading ? 'Assigning…' : 'Assign Role'}
+            {loading ? 'Assigning…' : 'Assign Board Position'}
           </Button>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
         </div>
@@ -128,7 +149,7 @@ function AssignRoleDialog({ member, allRoles, chapters, onClose, onAssigned }: {
   )
 }
 
-export function AdminUsersClient({ members: initialMembers, roles, chapters, currentUserId }: Props) {
+export function AdminUsersClient({ members: initialMembers, roles, chapters, regions, currentUserId }: Props) {
   const [members, setMembers]         = useState(initialMembers)
   const [search, setSearch]           = useState('')
   const [assigningFor, setAssigningFor] = useState<MemberWithRoles | null>(null)
@@ -225,7 +246,7 @@ export function AdminUsersClient({ members: initialMembers, roles, chapters, cur
                   <RoleBadge key={role.assignment_id} role={role} onRemove={() => handleRevoke(member, role.assignment_id)} />
                 ))}
                 <button onClick={() => setAssigningFor(member)} className="inline-flex items-center gap-1 text-xs text-primary hover:opacity-70 transition-opacity px-1">
-                  <Plus className="h-3 w-3" /> Add Role
+                  <Plus className="h-3 w-3" /> Add Board Position
                 </button>
               </div>
             </CardContent>
@@ -238,6 +259,7 @@ export function AdminUsersClient({ members: initialMembers, roles, chapters, cur
           member={assigningFor}
           allRoles={roles}
           chapters={chapters}
+          regions={regions}
           onClose={() => setAssigningFor(null)}
           onAssigned={role => {
             updateMember(assigningFor.user_id, { roles: [...assigningFor.roles, role] })

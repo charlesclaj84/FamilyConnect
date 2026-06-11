@@ -5,6 +5,7 @@ import { Check, X, Pencil, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
+import { formatDate } from '@/lib/date-utils'
 
 const STATUS_COLORS = {
   pending:   'bg-muted text-muted-foreground',
@@ -137,11 +138,11 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
           </div>
           <p className="text-xs text-muted-foreground">
             {assignment.event_name}
-            {assignment.event_date ? ` · ${assignment.event_date}` : ''}
+            {assignment.event_date ? ` · ${formatDate(assignment.event_date)}` : ''}
             {assignment.event_time ? ` at ${assignment.event_time}` : ''}
             {assignment.due_date && (
               <span className={isPastDue ? 'text-red-600 font-medium' : ''}>
-                {` · Due: ${assignment.due_date}`}
+                {` · Due: ${formatDate(assignment.due_date)}`}
               </span>
             )}
           </p>

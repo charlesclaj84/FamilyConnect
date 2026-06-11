@@ -43,7 +43,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/users',      label: 'User Management',    icon: UsersRound },
   { href: '/admin/chapters',   label: 'Regions & Chapters', icon: ShieldCheck },
   { href: '/admin/user-roles', label: 'Board Positions',    icon: ShieldCheck },
-  { href: '/admin/elections',  label: 'Elections',          icon: Vote },
+  { href: '/admin/elections',  label: 'Election Management', icon: Vote },
   { href: '/admin/reports',    label: 'Reports',            icon: BarChart3 },
 ]
 
@@ -213,6 +213,11 @@ function NavTree({ groups, pathname, onNavClick }: {
   const collapsible = (g: NavGroup) => Boolean(g.section) && g.items.length > 1
   const activeSection = groups.find(g => collapsible(g) && g.items.some(it => isActive(pathname, it.href)))
   const [openSection, setOpenSection] = useState<string | null>(activeSection?.section?.label ?? null)
+
+  // Collapse every section when the user lands on the Dashboard.
+  useEffect(() => {
+    if (pathname === '/dashboard') setOpenSection(null)
+  }, [pathname])
 
   return (
     <>

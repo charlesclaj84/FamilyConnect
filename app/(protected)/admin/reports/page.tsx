@@ -20,7 +20,7 @@ export default async function AdminReportsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Organization Reports</h1>
+        <h1 className="text-3xl font-bold mb-1">Reports</h1>
         <p className="text-muted-foreground">Membership, event, dues, and attendance overview.</p>
       </div>
       <AdminReportsClient stats={stats} />

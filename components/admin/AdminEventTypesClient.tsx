@@ -13,6 +13,7 @@ import {
   type EventType, type BlueprintItem,
 } from '@/app/actions/admin/event-types'
 import { ArrowUp, ArrowDown } from 'lucide-react'
+import { formatDate } from '@/lib/date-utils'
 
 const RESPONSE_TYPE_LABELS: Record<string, string> = { text: 'Text', date: 'Date', checkbox: 'Checkbox', list: 'List', members: 'Family Members' }
 
@@ -44,7 +45,7 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
         <span className="text-sm">{item.title}</span>
         <div className="flex gap-2 mt-0.5">
           <span className="text-xs text-muted-foreground">{RESPONSE_TYPE_LABELS[item.response_type]}</span>
-          {item.due_date && <span className="text-xs text-muted-foreground">Due: {item.due_date}</span>}
+          {item.due_date && <span className="text-xs text-muted-foreground">Due: {formatDate(item.due_date)}</span>}
         </div>
       </div>
       <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-all">

@@ -5,6 +5,7 @@ import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { castVote, submitNomination, respondToNomination, type Election, type ElectionPosition, type ElectionNomination } from '@/app/actions/elections'
 import type { MemberRecord } from '@/app/actions/members'
+import { formatDate } from '@/lib/date-utils'
 
 interface Props {
   election: Election
@@ -16,9 +17,7 @@ interface Props {
   myNominations: ElectionNomination[]
 }
 
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+const fmtDate = (s: string) => formatDate(s) ?? ''
 
 export function BallotForm({ election, positions, nominations, myVotes, members, myPersonId, myNominations }: Props) {
   const [votes, setVotes] = useState<Record<string, string>>(myVotes)

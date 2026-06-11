@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
+import { formatDate } from '@/lib/date-utils'
 import Link from 'next/link'
 
 const STATUS_NEXT: Record<Election['status'], Election['status'] | null> = {
@@ -38,9 +39,7 @@ const STATUS_COLOR: Record<Election['status'], string> = {
   closed: 'bg-muted text-muted-foreground',
 }
 
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+const fmtDate = (s: string) => formatDate(s) ?? ''
 
 interface Props {
   initialElections: Election[]

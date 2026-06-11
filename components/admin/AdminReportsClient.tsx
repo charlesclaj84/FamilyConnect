@@ -1,9 +1,10 @@
 'use client'
 
-import { DollarSign, Users, Calendar, TrendingUp, ShirtIcon } from 'lucide-react'
+import { DollarSign, Users, Calendar, TrendingUp, ShirtIcon, Receipt } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { OrgStats } from '@/app/actions/admin/reports'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
+import { formatDateNumeric } from '@/lib/date-utils'
 
 interface Props {
   stats: OrgStats
@@ -115,6 +116,45 @@ export function AdminReportsClient({ stats }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Financial Activity — who recorded each money entry */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <Receipt className="h-4 w-4" /> Recent Financial Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {stats.recentActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No financial activity recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Date</th>
+                    <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Type</th>
+                    <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">Amount</th>
+                    <th className="py-2 text-left text-xs font-medium text-muted-foreground">Recorded By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.recentActivity.map(a => (
+                    <tr key={a.id} className="border-b last:border-0">
+                      <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground text-xs">{formatDateNumeric(a.date)}</td>
+                      <td className="py-2 pr-3">{a.type}</td>
+                      <td className={`py-2 pr-3 text-right font-medium whitespace-nowrap ${a.amountCents < 0 ? 'text-rose-600' : 'text-green-600'}`}>
+                        {a.amountCents < 0 ? '−' : ''}{formatDollars(Math.abs(a.amountCents))}
+                      </td>
+                      <td className="py-2 text-muted-foreground">{a.recordedBy ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

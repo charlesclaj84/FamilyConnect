@@ -5,7 +5,7 @@ import { getAllElections } from '@/app/actions/elections'
 import { getAllRoles } from '@/app/actions/admin/users'
 import { AdminElectionsClient } from '@/components/admin/AdminElectionsClient'
 
-export const metadata = { title: 'Elections — Admin' }
+export const metadata = { title: 'Election Management — Admin' }
 
 export default async function AdminElectionsPage() {
   const supabase = await createClient()
@@ -21,7 +21,7 @@ export default async function AdminElectionsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Elections</h1>
+        <h1 className="text-3xl font-bold mb-1">Election Management</h1>
         <p className="text-muted-foreground">Create and manage family officer elections.</p>
       </div>
       <AdminElectionsClient initialElections={elections} roles={roles.map(r => r.name)} />

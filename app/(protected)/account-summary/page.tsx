@@ -10,8 +10,6 @@ export default async function AccountSummaryPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-
   const [duesSummary, paymentHistory] = await Promise.all([
     getMyDuesSummary(),
     getMyPaymentHistory(),
@@ -29,7 +27,7 @@ export default async function AccountSummaryPage() {
           <h2 className="text-lg font-semibold">My Dues</h2>
           <p className="text-sm text-muted-foreground">Your personal dues status, payment history, and outstanding amounts.</p>
         </div>
-        <DuesDetailSection summary={duesSummary} history={paymentHistory} personId={myPerson?.id ?? null} />
+        <DuesDetailSection summary={duesSummary} history={paymentHistory} />
       </section>
     </div>
   )

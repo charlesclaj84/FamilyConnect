@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
+import { formatDate } from '@/lib/date-utils'
 import {
   createDuesSchedule, updateDuesSchedule, recordPayment, deleteDuesSchedule,
   type DuesSchedule, type DuesPayment,
@@ -266,8 +267,8 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
                         <p className="text-sm font-medium">{s.label}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDollars(s.amount_cents)} — {s.frequency}
-                          {s.start_date && ` · from ${s.start_date}`}
-                          {s.end_date && ` to ${s.end_date}`}
+                          {s.start_date && ` · from ${formatDate(s.start_date)}`}
+                          {s.end_date && ` to ${formatDate(s.end_date)}`}
                         </p>
                         {s.description && <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>}
                       </div>
@@ -297,7 +298,7 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
                   <div className="flex-1">
                     <p className="text-sm font-medium">{p.person_name ?? 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.schedule_label ?? 'No schedule'} · {p.payment_date}
+                      {p.schedule_label ?? 'No schedule'} · {formatDate(p.payment_date)}
                       {p.payment_method && ` · ${p.payment_method}`}
                     </p>
                   </div>

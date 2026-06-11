@@ -12,6 +12,7 @@ import { getPinnedAnnouncements, getChapters } from '@/app/actions/announcements
 import { getMyDuesSummary } from '@/app/actions/dues'
 import { getUnreadCount } from '@/app/actions/notifications'
 import { formatRoleTitle } from '@/lib/role-utils'
+import { formatDate } from '@/lib/date-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
@@ -138,9 +139,7 @@ export default async function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{event.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {event.event_date
-                        ? new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-                        : 'Date TBD'}
+                      {event.event_date ? formatDate(event.event_date) : 'Date TBD'}
                     </p>
                     {event.location && (
                       <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">

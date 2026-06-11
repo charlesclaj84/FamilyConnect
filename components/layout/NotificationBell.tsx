@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react'
 import { Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
+import { formatDate } from '@/lib/date-utils'
 
 interface Props {
   initialNotifications: Notification[]
@@ -17,7 +18,7 @@ function timeAgo(iso: string): string {
   if (mins < 60) return `${mins}m ago`
   const hours = Math.floor(mins / 60)
   if (hours < 24) return `${hours}h ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDate(iso) ?? ''
 }
 
 export function NotificationBell({ initialNotifications, personId }: Props) {

@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getEvents } from '@/app/actions/admin/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersRound, ListChecks, CalendarClock, Clock } from 'lucide-react'
+import { formatDate } from '@/lib/date-utils'
 
 export const metadata = { title: 'Admin — Family Connect' }
 
@@ -79,7 +80,7 @@ export default async function AdminPage() {
             {draftEvents.slice(0, 5).map(e => (
               <Link key={e.id} href={`/admin/events/${e.id}`} className="block rounded-lg border bg-card px-4 py-3 hover:shadow-sm transition-shadow">
                 <p className="font-medium text-sm">{e.name}</p>
-                <p className="text-xs text-muted-foreground">{e.event_date ?? 'Date TBD'} · {e.location ?? 'Location TBD'}</p>
+                <p className="text-xs text-muted-foreground">{e.event_date ? formatDate(e.event_date) : 'Date TBD'} · {e.location ?? 'Location TBD'}</p>
               </Link>
             ))}
           </div>

@@ -1,10 +1,35 @@
-/** Format a DATE string (YYYY-MM-DD) as "Jun 15, 2026" */
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+function ordinal(n: number): string {
+  const v = n % 100
+  if (v >= 11 && v <= 13) return 'th'
+  switch (n % 10) {
+    case 1: return 'st'
+    case 2: return 'nd'
+    case 3: return 'rd'
+    default: return 'th'
+  }
+}
+
+/**
+ * Format a date — either a date-only string (YYYY-MM-DD) or an ISO timestamp —
+ * as "Monday June 12th, 2026". Used site-wide (reports use formatDateNumeric instead).
+ */
 export function formatDate(date: string | null | undefined): string | null {
   if (!date) return null
-  const [y, m, d] = date.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
-  })
+  const [y, m, d] = date.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return null
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return `${WEEKDAYS[dt.getUTCDay()]} ${MONTHS[m - 1]} ${d}${ordinal(d)}, ${y}`
+}
+
+/** Format a date as MM/DD/YYYY — used on reports. */
+export function formatDateNumeric(date: string | null | undefined): string | null {
+  if (!date) return null
+  const [y, m, d] = date.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return null
+  return `${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}/${y}`
 }
 
 /** Format a TIME string (HH:MM or HH:MM:SS) as "2:30 PM" */

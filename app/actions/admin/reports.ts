@@ -3,6 +3,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export interface FinancialActivity {
+  id: string
+  date: string
+  type: string
+  amountCents: number
+  recordedBy: string | null
+}
+
 export interface OrgStats {
   totalMembers: number
   totalMinors: number
@@ -13,6 +21,7 @@ export interface OrgStats {
   duesCollectedCents: number
   duesOutstandingCents: number
   tshirtBreakdown: { category: string; size: string; count: number }[]
+  recentActivity: FinancialActivity[]
 }
 
 export async function getOrgStats(): Promise<OrgStats> {
@@ -23,7 +32,7 @@ export async function getOrgStats(): Promise<OrgStats> {
     return {
       totalMembers: 0, totalMinors: 0, membersByChapter: [], totalEvents: 0,
       upcomingEvents: 0, avgRsvpRate: null, duesCollectedCents: 0,
-      duesOutstandingCents: 0, tshirtBreakdown: [],
+      duesOutstandingCents: 0, tshirtBreakdown: [], recentActivity: [],
     }
   }
   const familyCode: string = user.user_metadata?.family_code ?? ''
@@ -36,17 +45,25 @@ export async function getOrgStats(): Promise<OrgStats> {
     rsvpResult,
     duesPaidResult,
     tshirtResult,
+    peopleNamesResult,
+    contributionsResult,
+    disbursementsResult,
+    expensesResult,
   ] = await Promise.all([
     admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
     admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', true),
     admin.from('people').select('chapters(name)').eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
     admin.from('events').select('id, status, start_date', { count: 'exact' }).eq('family_code', familyCode).neq('status', 'cancelled'),
     admin.from('event_rsvp').select('event_id').eq('family_code', familyCode),
-    admin.from('dues_payments').select('amount_cents, status').eq('family_code', familyCode),
+    admin.from('dues_payments').select('id, amount_cents, status, payment_date, recorded_by').eq('family_code', familyCode),
     admin.from('event_rsvp_attendees')
       .select('people(tshirt_category, tshirt_size)')
       .eq('is_attending', true)
       .not('people', 'is', null),
+    admin.from('people').select('id, first_name, last_name').eq('family_code', familyCode),
+    admin.from('fund_contributions').select('id, amount_cents, contributed_date, recorded_by').eq('family_code', familyCode),
+    admin.from('fund_disbursements').select('id, amount_cents, disbursed_date, recorded_by').eq('family_code', familyCode),
+    admin.from('event_expenses').select('id, amount_cents, spent_date, recorded_by').eq('family_code', familyCode),
   ])
 
   // Members by chapter
@@ -89,6 +106,28 @@ export async function getOrgStats(): Promise<OrgStats> {
     })
     .sort((a, b) => b.count - a.count)
 
+  // Recent financial activity — tagged with the user who recorded each entry.
+  const nameById = new Map<string, string>(
+    (peopleNamesResult.data ?? []).map(p => [p.id, `${p.first_name} ${p.last_name}`.trim()]),
+  )
+  const nameOf = (id: string | null) => (id ? (nameById.get(id) ?? null) : null)
+  const recentActivity: FinancialActivity[] = [
+    ...(duesPaidResult.data ?? []).filter(p => p.status === 'paid').map(p => ({
+      id: `pay-${p.id}`, date: p.payment_date, type: 'Dues payment', amountCents: p.amount_cents, recordedBy: nameOf(p.recorded_by),
+    })),
+    ...(contributionsResult.data ?? []).map(c => ({
+      id: `con-${c.id}`, date: c.contributed_date, type: 'Fund contribution', amountCents: c.amount_cents, recordedBy: nameOf(c.recorded_by),
+    })),
+    ...(disbursementsResult.data ?? []).map(d => ({
+      id: `dis-${d.id}`, date: d.disbursed_date, type: 'Fund disbursement', amountCents: -d.amount_cents, recordedBy: nameOf(d.recorded_by),
+    })),
+    ...(expensesResult.data ?? []).map(e => ({
+      id: `exp-${e.id}`, date: e.spent_date, type: 'Event expense', amountCents: -e.amount_cents, recordedBy: nameOf(e.recorded_by),
+    })),
+  ]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 20)
+
   return {
     totalMembers: membersResult.count ?? 0,
     totalMinors: minorsResult.count ?? 0,
@@ -99,5 +138,6 @@ export async function getOrgStats(): Promise<OrgStats> {
     duesCollectedCents,
     duesOutstandingCents,
     tshirtBreakdown,
+    recentActivity,
   }
 }

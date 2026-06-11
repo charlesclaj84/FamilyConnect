@@ -159,8 +159,9 @@ export async function createAnnouncement(
   const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
   const isAdmin = myPerson?.is_admin === true
 
-  // Anyone can post; only admins can target a scope or pin.
-  const scope = isAdmin ? input.scope : 'national'
+  // Anyone can post and target an audience (National / Regional / Chapter);
+  // only admins can pin to the dashboard.
+  const scope = input.scope
   const pinned = isAdmin ? input.pinned : false
 
   // Service-role insert so non-admin members can post (RLS limits inserts to admins).

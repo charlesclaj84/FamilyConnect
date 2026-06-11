@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type AdminEvent } from '@/app/actions/admin/events'
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
+import { formatDate } from '@/lib/date-utils'
 
 const STATUS_LABELS: Record<AdminEvent['status'], string> = {
   draft:     'Draft',
@@ -194,8 +195,8 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {event.start_date ? `${event.start_date}${event.end_date && event.end_date !== event.start_date ? ` – ${event.end_date}` : ''}` : 'Date TBD'} · {event.location ?? 'Location TBD'}
-                    {event.rsvp_deadline && ` · RSVP by ${event.rsvp_deadline}`}
+                    {event.start_date ? `${formatDate(event.start_date)}${event.end_date && event.end_date !== event.start_date ? ` – ${formatDate(event.end_date)}` : ''}` : 'Date TBD'} · {event.location ?? 'Location TBD'}
+                    {event.rsvp_deadline && ` · RSVP by ${formatDate(event.rsvp_deadline)}`}
                   </p>
                 </div>
 

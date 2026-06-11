@@ -45,8 +45,11 @@ export function FundsSection({ funds, isAdmin }: Props) {
           <p className="text-sm text-muted-foreground">No funds set up yet.</p>
         ) : (
           funds.map(fund => {
-            const pct = fund.goal_cents
-              ? Math.min(100, Math.round((fund.total_disbursed_cents / fund.goal_cents) * 100))
+            // Status bar = money currently IN the fund (balance) toward its target
+            // (the goal if set, otherwise the minimum balance).
+            const target = fund.goal_cents ?? (fund.minimum_cents > 0 ? fund.minimum_cents : null)
+            const pct = target
+              ? Math.max(0, Math.min(100, Math.round((fund.balance_cents / target) * 100)))
               : null
             const isOpen = expanded === fund.id
             return (
@@ -74,7 +77,7 @@ export function FundsSection({ funds, isAdmin }: Props) {
                   <div className="text-right shrink-0 text-xs text-muted-foreground">
                     <p className="font-medium text-sm text-foreground">{fmt(fund.balance_cents)}</p>
                     <p>balance</p>
-                    {fund.goal_cents && <p>of {fmt(fund.goal_cents)} goal</p>}
+                    {target && <p>of {fmt(target)} {fund.goal_cents ? 'goal' : 'minimum'}</p>}
                   </div>
                   {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                 </button>

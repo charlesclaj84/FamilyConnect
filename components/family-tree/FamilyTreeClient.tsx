@@ -24,6 +24,7 @@ import {
 } from '@/app/actions/ancestors'
 import type { MyRoleSummary } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
+import { formatDate } from '@/lib/date-utils'
 import { upsertSpouse, type SpouseEntry } from '@/app/actions/spouse'
 import { SPOUSE_TYPES, type SpouseRelType, type AncestorType } from '@/lib/family-constants'
 
@@ -31,7 +32,7 @@ import { SPOUSE_TYPES, type SpouseRelType, type AncestorType } from '@/lib/famil
 
 function formatMember(m: FamilyMember) {
   const name = [m.first_name, m.last_name].filter(Boolean).join(' ') || '(No name)'
-  const dob  = m.date_of_birth ? m.date_of_birth : 'DOB unknown'
+  const dob  = m.date_of_birth ? (formatDate(m.date_of_birth) ?? 'DOB unknown') : 'DOB unknown'
   return `${name} — ${dob}`
 }
 

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { computeIsMinor } from '@/lib/age-utils'
+import { formatRoleTitle } from '@/lib/role-utils'
 
 export interface MemberRecord {
   id: string
@@ -34,17 +35,22 @@ export async function getMembers(): Promise<MemberRecord[]> {
 
   if (!people) return []
 
-  // user_roles links by user_id (not person_id) — build a user_id → role name map
+  // user_roles links by user_id (not person_id) — build a user_id → scoped title map
+  // (e.g. "Texas Chapter President", "National Secretary", "Regional President").
   const { data: roleAssignments } = await supabase
     .from('user_roles')
-    .select('user_id, family_roles(name)')
+    .select('user_id, scope, family_roles(name), chapters(name)')
 
   const primaryRoleByUserId = new Map<string, string>()
   for (const ra of roleAssignments ?? []) {
     const userId = (ra as any).user_id as string | undefined
     const name = (ra.family_roles as any)?.name as string | undefined
     if (name && userId && !primaryRoleByUserId.has(userId)) {
-      primaryRoleByUserId.set(userId, name)
+      primaryRoleByUserId.set(userId, formatRoleTitle({
+        role_name: name,
+        assignment_scope: (ra as any).scope ?? 'national',
+        chapter_name: (ra.chapters as any)?.name ?? null,
+      }))
     }
   }
 
