@@ -89,6 +89,16 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     return { success: false, message: authError.message }
   }
 
+  // Stamp family_code into app_metadata. Unlike user_metadata (set via signUp's
+  // `data` above), app_metadata is NOT editable by end users, so it is the only
+  // JWT claim safe to trust for family membership — used by the people-insert
+  // RLS bootstrap and by getOrCreate profile paths before a people row exists.
+  if (authData.user) {
+    await admin.auth.admin.updateUserById(authData.user.id, {
+      app_metadata: { family_code: familyCode },
+    })
+  }
+
   if (input.mode === 'create' && authData.user) {
     const { error: familyError } = await admin.from('families').insert({
       family_code: familyCode,

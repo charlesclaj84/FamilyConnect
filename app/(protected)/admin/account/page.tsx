@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundAllocations } from '@/app/actions/funds'
 import { AdminDuesClient } from '@/components/admin/AdminDuesClient'
@@ -22,7 +23,7 @@ export default async function AdminAccountPage() {
 
   if (!myPerson?.is_admin) redirect('/dashboard')
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const [schedules, payments, fundsData, allDisbursements, allocations, membersResult] = await Promise.all([
     getDuesSchedules(),

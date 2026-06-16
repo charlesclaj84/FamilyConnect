@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface PhotoCollection {
@@ -136,7 +137,7 @@ export async function getOrCreateEventCollection(eventId: string): Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   // Check if a collection already exists for this event
   const { data: existing } = await supabase
@@ -176,7 +177,7 @@ export async function createCollection(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   const { data, error } = await supabase.from('photo_collections').insert({
@@ -200,7 +201,7 @@ export async function uploadPhoto(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   const file = formData.get('file') as File | null

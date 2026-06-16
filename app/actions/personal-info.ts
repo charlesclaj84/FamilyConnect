@@ -112,7 +112,7 @@ export async function saveProfileSection(
     .upsert(
       {
         user_id: user.id,
-        family_code: user.user_metadata?.family_code ?? '',
+        family_code: user.app_metadata?.family_code ?? '',
         is_minor: false,
         created_by: user.id,
         ...cleaned,
@@ -133,7 +133,7 @@ export async function upsertPersonalInfo(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code
+  const familyCode = user.app_metadata?.family_code
   if (!familyCode) return { success: false, message: 'No family code associated with account' }
 
   const normalize = (v?: string) => v?.trim() || null
@@ -183,7 +183,7 @@ export async function saveChapterAndPropagate(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = user.app_metadata?.family_code ?? ''
 
   // Update own record
   const { data: myRecord, error: myError } = await supabase

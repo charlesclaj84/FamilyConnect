@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface FinancialActivity {
@@ -35,7 +36,7 @@ export async function getOrgStats(): Promise<OrgStats> {
       duesOutstandingCents: 0, tshirtBreakdown: [], recentActivity: [],
     }
   }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const [
     membersResult,

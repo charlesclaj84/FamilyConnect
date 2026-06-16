@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { CHILD_RELATIONSHIP_TYPES, SPOUSE_TYPES, type ChildRelationshipType } from '@/lib/family-constants'
 import { computeIsMinor } from '@/lib/age-utils'
@@ -61,7 +62,7 @@ async function getOrCreateMyPeopleId(
     .from('people')
     .insert({
       user_id: user.id,
-      family_code: user.user_metadata?.family_code ?? '',
+      family_code: user.app_metadata?.family_code ?? '',
       first_name: user.user_metadata?.first_name ?? '',
       last_name: user.user_metadata?.last_name ?? '',
       primary_email: user.email ?? null,
@@ -146,7 +147,7 @@ export async function addChild(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getOrCreateMyPeopleId(supabase, user)
   if (!myPeopleId) return { success: false, message: 'Could not find your profile' }
 
@@ -375,7 +376,7 @@ export async function acceptSpouseChild(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getOrCreateMyPeopleId(supabase, user)
   if (!myPeopleId) return { success: false, message: 'Could not find your profile' }
 

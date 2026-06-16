@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatRoleTitle } from '@/lib/role-utils'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
@@ -53,7 +54,7 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data: people } = await admin
@@ -106,7 +107,7 @@ export async function getAllRoles(): Promise<FamilyRole[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
   const [rolesRes, exclusionsRes] = await Promise.all([
     admin.from('family_roles').select('*').or(`family_code.is.null,family_code.eq.${familyCode}`).order('sort_order'),
@@ -121,7 +122,7 @@ export async function getMyRoles(): Promise<MyRoleSummary[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
   const { data } = await admin
     .from('user_roles')
@@ -141,7 +142,7 @@ export async function getFamilyMemberRoles(): Promise<Record<string, string[]>> 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return {}
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -212,7 +213,7 @@ export async function assignRole(
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
   const { error } = await admin
     .from('user_roles')
@@ -251,7 +252,7 @@ export async function revokeRole(
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
   const { error } = await admin
     .from('user_roles')

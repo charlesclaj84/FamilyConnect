@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface Region {
@@ -43,7 +44,7 @@ async function getAuthenticatedAdmin() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   return { user, admin: person?.is_admin ? adminClient : null, familyCode, adminClient }
 }
 
@@ -54,7 +55,7 @@ export async function getRegions(): Promise<Region[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -102,7 +103,7 @@ export async function getChapters(): Promise<Chapter[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -156,7 +157,7 @@ export async function getAllRolesWithGlobal(): Promise<CustomRole[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const [rolesRes, exclusionsRes] = await Promise.all([

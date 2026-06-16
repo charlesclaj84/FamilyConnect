@@ -11,12 +11,14 @@ const STATUS_COLORS = {
   pending:   'bg-muted text-muted-foreground',
   submitted: 'bg-blue-100 text-blue-700',
   approved:  'bg-green-100 text-green-700',
+  cancelled: 'bg-destructive/10 text-destructive',
 }
 
 const STATUS_LABELS = {
   pending:   'No response yet',
   submitted: 'Response submitted — awaiting approval',
   approved:  'Approved',
+  cancelled: 'Cancelled — event ended',
 }
 
 function ResponseDisplay({ response, type, className = 'text-muted-foreground' }: { response: string; type: string; className?: string }) {

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
 
@@ -177,7 +178,7 @@ export async function createFund(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   // New funds go to the end of the priority order (lowest precedence).
@@ -236,7 +237,7 @@ export async function createMilestone(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { error } = await admin.from('fund_milestones').insert({
     fund_id: fundId,
     family_code: familyCode,
@@ -287,7 +288,7 @@ export async function recordDisbursement(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   const { error } = await admin.from('fund_disbursements').insert({
@@ -345,7 +346,7 @@ export async function saveFundAllocations(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
   if (!myPerson?.is_admin) return { success: false, message: 'Admins only' }
 
@@ -392,7 +393,7 @@ export async function recordFundContribution(input: {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
   if (!myPerson?.is_admin) return { success: false, message: 'Admins only' }
 
@@ -423,7 +424,7 @@ export async function contributeToFund(input: {
   if (!user) return { success: false, message: 'Not authenticated' }
   if (input.amount_cents <= 0) return { success: false, message: 'Enter an amount greater than $0' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
   if (!myPerson) return { success: false, message: 'Profile not found' }
 

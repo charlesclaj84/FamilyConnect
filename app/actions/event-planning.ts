@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface MyAssignment {
@@ -15,7 +16,7 @@ export interface MyAssignment {
   due_date: string | null
   response_type: 'text' | 'date' | 'checkbox' | 'list' | 'members'
   response: string | null
-  response_status: 'pending' | 'submitted' | 'approved'
+  response_status: 'pending' | 'submitted' | 'approved' | 'cancelled'
   approved_at: string | null
 }
 
@@ -26,10 +27,19 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
 
   const admin = createAdminClient()
 
+  // Sweep tasks whose event has ended without completion into the 'cancelled'
+  // state (best-effort — ignored if the function isn't migrated yet).
+  await admin.rpc('cancel_overdue_event_assignments')
+
+  // Only show open tasks: pending or submitted. This inherently hides items that
+  // are done (approved) or cancelled. is_complete is also honoured for
+  // forward-compatibility. All columns are NOT NULL, so the filters are NULL-safe.
   const { data } = await admin
     .from('event_assignments')
     .select('id, event_id, response, response_status, approved_at, event_blueprint_items(title, due_date, response_type, sort_order), events(name, event_date, event_time)')
     .eq('assigned_to', user.id)
+    .eq('is_complete', false)
+    .in('response_status', ['pending', 'submitted'])
     .order('created_at', { ascending: false })
 
   return (data ?? []).map(a => ({
@@ -43,7 +53,7 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
     due_date:             (a.event_blueprint_items as unknown as { due_date: string | null } | null)?.due_date ?? null,
     response_type:        ((a.event_blueprint_items as unknown as { response_type: string } | null)?.response_type ?? 'text') as 'text' | 'date' | 'checkbox' | 'list' | 'members',
     response:             a.response ?? null,
-    response_status:      (a.response_status ?? 'pending') as 'pending' | 'submitted' | 'approved',
+    response_status:      (a.response_status ?? 'pending') as 'pending' | 'submitted' | 'approved' | 'cancelled',
     approved_at:          a.approved_at ?? null,
   }))
 }
@@ -54,10 +64,13 @@ export async function getMyAssignmentCount(): Promise<number> {
   if (!user) return 0
 
   const admin = createAdminClient()
+  await admin.rpc('cancel_overdue_event_assignments')
   const { count } = await admin
     .from('event_assignments')
     .select('id', { count: 'exact', head: true })
     .eq('assigned_to', user.id)
+    .eq('is_complete', false)
+    .in('response_status', ['pending', 'submitted'])
 
   return count ?? 0
 }
@@ -72,7 +85,7 @@ export async function getFamilyMembersForPlanning(): Promise<FamilyMemberOption[
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data } = await admin

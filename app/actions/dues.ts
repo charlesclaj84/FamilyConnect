@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
@@ -194,7 +195,7 @@ export async function createDuesSchedule(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { error } = await supabase.from('dues_schedules').insert({ ...input, family_code: familyCode, active: true })
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
@@ -283,7 +284,7 @@ export async function setMyDuesPlan(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
   if (!myPerson) return { success: false, message: 'Profile not found' }
 
@@ -371,7 +372,7 @@ export async function recordPayment(input: {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
   if (!myPerson) return { success: false, message: 'Profile not found' }
 
@@ -417,7 +418,7 @@ export async function getFamilyPnL(): Promise<PnLData> {
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return empty
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const [fundsRes, contribRes, disbRes, budgetItemsRes, expensesRes, eventsRes] = await Promise.all([
     admin.from('funds').select('id, name, event_id, priority').eq('family_code', familyCode),

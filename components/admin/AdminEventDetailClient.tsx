@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Pencil, Plus, Check, X, UserPlus, UserMinus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronDown, Pencil, Plus, Check, X, UserPlus, UserMinus, Trash2, Lock, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,12 +11,13 @@ import {
   publishEvent, approveEvent, cancelEvent, updateEvent, deleteEvent,
   assignBlueprintItem, unassignBlueprintItem, approveAssignmentResponse,
   updateAssignmentDueDate,
-  createSubEvent,
+  createSubEvent, moveSubEvent,
   getHotelBookings, createHotelBooking, updateHotelBooking, deleteHotelBooking,
   addPriceEstimate, deletePriceEstimate,
   addHotelDetail, deleteHotelDetail,
   getEventBudgetItems, addEventBudgetItem, deleteEventBudgetItem,
   getEventExpenses, recordEventExpense, deleteEventExpense, setEventFund,
+  closeBudget,
   type AdminEvent, type EventAssignment, type EventReport,
   type HotelBooking, type PriceEstimate, type HotelBookingDetail,
   type EventBudgetItem, type EventExpense,
@@ -27,6 +28,7 @@ import { AddressSelects } from '@/components/ui/AddressSelects'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
+import { cn } from '@/lib/utils'
 
 interface BudgetFund { id: string; name: string; event_id: string | null }
 
@@ -41,6 +43,7 @@ const RESPONSE_STATUS_COLORS = {
   pending:   'text-muted-foreground',
   submitted: 'text-blue-600',
   approved:  'text-green-600',
+  cancelled: 'text-destructive',
 }
 
 interface Props {
@@ -52,6 +55,41 @@ interface Props {
   initialSubEvents: AdminEvent[]
   eventTypes: import('@/app/actions/admin/event-types').EventType[]
   funds: BudgetFund[]
+}
+
+// ── Collapsible section wrapper ─────────────────────────────────────────────────
+
+// A Card whose body collapses behind its title. `action` renders to the right of
+// the title (e.g. an Add or Close button). When `canToggle` is false the header
+// stays expanded and the chevron is dimmed — used to keep an open budget visible.
+function CollapsibleSection({ title, open, onToggle, canToggle = true, action, children }: {
+  title: React.ReactNode
+  open: boolean
+  onToggle: () => void
+  canToggle?: boolean
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={canToggle ? onToggle : undefined}
+            aria-expanded={open}
+            disabled={!canToggle}
+            className={cn('flex items-center gap-2 min-w-0 flex-1 text-left', canToggle ? 'cursor-pointer' : 'cursor-default')}
+          >
+            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open ? '' : '-rotate-90', !canToggle && 'opacity-30')} />
+            <CardTitle className="truncate">{title}</CardTitle>
+          </button>
+          {action && <div className="shrink-0">{action}</div>}
+        </div>
+      </CardHeader>
+      {open && children}
+    </Card>
+  )
 }
 
 // ── Edit Event Form ────────────────────────────────────────────────────────────
@@ -278,9 +316,12 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
 
 // ── Hotel Bookings ─────────────────────────────────────────────────────────────
 
-function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDelete, onAddEstimate, onDeleteEstimate, onAddDetail, onDeleteDetail }: {
+function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggle, onLoad, onAdd, onUpdate, onDelete, onAddEstimate, onDeleteEstimate, onAddDetail, onDeleteDetail }: {
   eventId: string
   hotels: HotelBooking[]
+  readOnly?: boolean
+  open: boolean
+  onToggle: () => void
   onLoad: () => Promise<void>
   onAdd: (b: HotelBooking) => void
   onUpdate: (id: string, patch: Partial<HotelBooking>) => void
@@ -354,13 +395,14 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Hotel Bookings</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setShowForm(s => !s)}><Plus className="h-3.5 w-3.5" /> Add Hotel</Button>
-        </div>
-      </CardHeader>
+    <CollapsibleSection
+      title="Hotel Bookings"
+      open={open}
+      onToggle={onToggle}
+      action={!readOnly && (
+        <Button size="sm" variant="outline" onClick={() => { if (!open) onToggle(); setShowForm(s => !s) }}><Plus className="h-3.5 w-3.5" /> Add Hotel</Button>
+      )}
+    >
       <CardContent className="space-y-4">
         {showForm && (
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -424,10 +466,12 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
                   <a href={hotel.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate block max-w-[200px]">{hotel.website}</a>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-                <button onClick={async () => { if (!confirm('Delete this hotel booking?')) return; await deleteHotelBooking(hotel.id); onDelete(hotel.id) }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
-              </div>
+              {!readOnly && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                  <button onClick={async () => { if (!confirm('Delete this hotel booking?')) return; await deleteHotelBooking(hotel.id); onDelete(hotel.id) }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
+              )}
             </div>
 
             {/* Inline edit form */}
@@ -480,13 +524,13 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
                       <span>{est.room_type}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">${Number(est.amount).toFixed(2)}</span>
-                        <button onClick={async () => { await deletePriceEstimate(est.id); onDeleteEstimate(hotel.id, est.id) }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                        {!readOnly && <button onClick={async () => { await deletePriceEstimate(est.id); onDeleteEstimate(hotel.id, est.id) }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              {addingEst === hotel.id ? (
+              {readOnly ? null : addingEst === hotel.id ? (
                 <div className="flex gap-2 items-center">
                   <Input placeholder="Room type" value={estForm.room_type} onChange={e => setEstForm(f => ({ ...f, room_type: e.target.value }))} className="h-7 text-sm" />
                   <Input placeholder="Amount" type="number" min="0" step="0.01" value={estForm.amount} onChange={e => setEstForm(f => ({ ...f, amount: e.target.value }))} className="h-7 text-sm w-28" />
@@ -509,12 +553,12 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
                     <div key={d.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
                       <span className="text-muted-foreground shrink-0 mr-2">{d.key}</span>
                       <span className="flex-1 text-right">{d.value}</span>
-                      <button onClick={async () => { await deleteHotelDetail(d.id); onDeleteDetail(hotel.id, d.id) }} className="text-muted-foreground hover:text-destructive ml-2 shrink-0"><X className="h-3 w-3" /></button>
+                      {!readOnly && <button onClick={async () => { await deleteHotelDetail(d.id); onDeleteDetail(hotel.id, d.id) }} className="text-muted-foreground hover:text-destructive ml-2 shrink-0"><X className="h-3 w-3" /></button>}
                     </div>
                   ))}
                 </div>
               )}
-              {addingDetail === hotel.id ? (
+              {readOnly ? null : addingDetail === hotel.id ? (
                 <div className="flex gap-2 items-center">
                   <Input placeholder="Key (e.g. Check-in)" value={detailForm.key} onChange={e => setDetailForm(f => ({ ...f, key: e.target.value }))} className="h-7 text-sm" />
                   <Input placeholder="Value (e.g. 3:00 PM)" value={detailForm.value} onChange={e => setDetailForm(f => ({ ...f, value: e.target.value }))} className="h-7 text-sm" />
@@ -530,7 +574,7 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
           </div>
         ))}
       </CardContent>
-    </Card>
+    </CollapsibleSection>
   )
 }
 
@@ -538,7 +582,17 @@ function HotelBookingsSection({ eventId, hotels, onLoad, onAdd, onUpdate, onDele
 
 // ── Event Budget (line items + expenses + backing fund) ─────────────────────
 
-function EventBudgetSection({ eventId, funds }: { eventId: string; funds: BudgetFund[] }) {
+function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, onToggle }: {
+  eventId: string
+  funds: BudgetFund[]
+  closed: boolean
+  closedAt: string | null
+  onClose: () => void
+  open: boolean
+  onToggle: () => void
+}) {
+  // A closed budget is frozen — reuse the existing read-only gating throughout.
+  const readOnly = closed
   const [items, setItems]       = useState<EventBudgetItem[]>([])
   const [expenses, setExpenses] = useState<EventExpense[]>([])
   const [backingFundId, setBackingFundId] = useState(funds.find(f => f.event_id === eventId)?.id ?? '')
@@ -625,24 +679,36 @@ function EventBudgetSection({ eventId, funds }: { eventId: string; funds: Budget
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Budget &amp; Expenses</CardTitle>
-      </CardHeader>
+    <CollapsibleSection
+      title="Budget & Expenses"
+      open={open}
+      onToggle={onToggle}
+      // An open budget can't be collapsed — it stays visible until officially closed.
+      canToggle={closed}
+      action={closed ? (
+        <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+          <Lock className="h-3 w-3" /> Closed{closedAt ? ` ${formatDate(closedAt)}` : ''}
+        </span>
+      ) : (
+        <Button size="sm" variant="outline" onClick={onClose}>
+          <Lock className="h-3.5 w-3.5" /> Close Budget
+        </Button>
+      )}
+    >
       <CardContent className="space-y-5">
         {/* Backing fund */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <Label className="sm:w-40">Backing fund</Label>
           <select
             value={backingFundId}
-            disabled={busy}
+            disabled={busy || readOnly}
             onChange={e => changeBackingFund(e.target.value)}
-            className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-full sm:w-64"
+            className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-full sm:w-64 disabled:opacity-70"
           >
             <option value="">— None —</option>
             {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
-          <span className="text-xs text-muted-foreground">Expenses default to drawing down this fund.</span>
+          {!readOnly && <span className="text-xs text-muted-foreground">Expenses default to drawing down this fund.</span>}
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -667,25 +733,29 @@ function EventBudgetSection({ eventId, funds }: { eventId: string; funds: Budget
                         </span>
                       </p>
                     </div>
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeItem(i.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!readOnly && (
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeItem(i.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 )
               })}
             </div>
           )}
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Line item</Label>
-              <Input value={itTitle} onChange={e => setItTitle(e.target.value)} placeholder="Catering" className="h-8 w-44" />
+          {!readOnly && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Line item</Label>
+                <Input value={itTitle} onChange={e => setItTitle(e.target.value)} placeholder="Catering" className="h-8 w-44" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Budget ($)</Label>
+                <Input type="number" min="0" step="0.01" value={itBudget} onChange={e => setItBudget(e.target.value)} className="h-8 w-28" />
+              </div>
+              <Button size="sm" disabled={busy} onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Budget ($)</Label>
-              <Input type="number" min="0" step="0.01" value={itBudget} onChange={e => setItBudget(e.target.value)} className="h-8 w-28" />
-            </div>
-            <Button size="sm" disabled={busy} onClick={addItem}><Plus className="h-3.5 w-3.5" /> Add Item</Button>
-          </div>
+          )}
         </div>
 
         {/* Expenses */}
@@ -707,45 +777,49 @@ function EventBudgetSection({ eventId, funds }: { eventId: string; funds: Budget
                     </p>
                   </div>
                   <span className="text-sm font-medium text-destructive">{formatCurrency(e.amount_cents)}</span>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeExpense(e)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {!readOnly && (
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" disabled={busy} onClick={() => removeExpense(e)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Description</Label>
-              <Input value={exDesc} onChange={e => setExDesc(e.target.value)} placeholder="Deposit" className="h-8 w-40" />
+          {!readOnly && (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input value={exDesc} onChange={e => setExDesc(e.target.value)} placeholder="Deposit" className="h-8 w-40" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Amount ($)</Label>
+                <Input type="number" min="0" step="0.01" value={exAmount} onChange={e => setExAmount(e.target.value)} className="h-8 w-28" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date</Label>
+                <Input type="date" value={exDate} onChange={e => setExDate(e.target.value)} className="h-8 w-40" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Line item</Label>
+                <select value={exItem} onChange={e => setExItem(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
+                  <option value="">— Unbudgeted —</option>
+                  {items.map(i => <option key={i.id} value={i.id}>{i.title}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Paid from</Label>
+                <select value={exFund} onChange={e => setExFund(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
+                  <option value="">{backingFundId ? 'Backing fund' : 'General cash'}</option>
+                  {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              </div>
+              <Button size="sm" disabled={busy} onClick={addExpense}><Plus className="h-3.5 w-3.5" /> Add Expense</Button>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Amount ($)</Label>
-              <Input type="number" min="0" step="0.01" value={exAmount} onChange={e => setExAmount(e.target.value)} className="h-8 w-28" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Date</Label>
-              <Input type="date" value={exDate} onChange={e => setExDate(e.target.value)} className="h-8 w-40" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Line item</Label>
-              <select value={exItem} onChange={e => setExItem(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
-                <option value="">— Unbudgeted —</option>
-                {items.map(i => <option key={i.id} value={i.id}>{i.title}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Paid from</Label>
-              <select value={exFund} onChange={e => setExFund(e.target.value)} className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm w-40">
-                <option value="">{backingFundId ? 'Backing fund' : 'General cash'}</option>
-                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
-            </div>
-            <Button size="sm" disabled={busy} onClick={addExpense}><Plus className="h-3.5 w-3.5" /> Add Expense</Button>
-          </div>
+          )}
         </div>
       </CardContent>
-    </Card>
+    </CollapsibleSection>
   )
 }
 
@@ -763,6 +837,44 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   const [newAssigneeDue, setNewAssigneeDue]     = useState('')
 
   const event = report.event
+
+  // A passed event is read-only: its core details can be viewed but not edited.
+  // "Passed" uses the effective end (end_date → start_date → legacy event_date),
+  // compared as YYYY-MM-DD strings. Today is captured once via a lazy initializer
+  // to keep render pure.
+  const [today] = useState(() => new Date().toISOString().slice(0, 10))
+  const effectiveEnd = event.end_date ?? event.start_date ?? event.event_date
+  const isPast = !!effectiveEnd && effectiveEnd.slice(0, 10) < today
+
+  // Budget stays open (editable, and cannot be collapsed) until officially closed —
+  // even after the event has passed — so late invoices can still be recorded.
+  const [budgetClosedAt, setBudgetClosedAt] = useState<string | null>(event.budget_closed_at ?? null)
+  const budgetClosed = !!budgetClosedAt
+
+  // Per-section collapse state. Everything starts expanded.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    hotels: true, budget: true, subEvents: true, checklist: true, tshirts: true, attendees: true,
+  })
+  const toggleSection = (key: string) => setOpenSections(s => ({ ...s, [key]: !s[key] }))
+
+  async function handleCloseBudget() {
+    if (!confirm('Officially close the budget? Line items and expenses can no longer be added or edited.')) return
+    const res = await closeBudget(event.id)
+    if (res.success) setBudgetClosedAt(res.closed_at ?? new Date().toISOString())
+    else alert(res.error ?? 'Could not close the budget.')
+  }
+
+  async function handleMoveSub(id: string, direction: 'up' | 'down') {
+    setSubEvents(prev => {
+      const idx = prev.findIndex(s => s.id === id)
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+      if (idx === -1 || swapIdx < 0 || swapIdx >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+      return next
+    })
+    await moveSubEvent(id, event.id, direction)
+  }
 
   // Group assignments by blueprint item
   const assignmentsByItemId: Record<string, EventAssignment[]> = {}
@@ -841,12 +953,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
             <ChevronLeft className="h-3.5 w-3.5" />
             {event.parent_event_id ? 'Back to Event' : 'Back to Events'}
           </Link>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold">{event.name}</h1>
-            <button onClick={() => setEditing(e => !e)} className="text-muted-foreground hover:text-foreground transition-colors">
-              <Pencil className="h-4 w-4" />
-            </button>
-          </div>
+          <h1 className="text-3xl font-bold">{event.name}</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
             {event.event_type_name && <span className="text-xs text-muted-foreground">{event.event_type_name}</span>}
@@ -855,14 +962,23 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
           </div>
         </div>
 
-        <div className="flex gap-2 shrink-0 flex-wrap">
-          {event.status === 'draft' && <Button disabled={actionLoading} onClick={handlePublish}>Publish</Button>}
-          {event.status === 'published' && canApprove && <Button disabled={actionLoading} onClick={handleApprove}>Approve</Button>}
-          {event.status !== 'cancelled' && <Button variant="outline" disabled={actionLoading} onClick={handleCancel}>Cancel</Button>}
+        <div className="flex gap-2 shrink-0 flex-wrap items-center">
+          {isPast ? (
+            <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+              <Lock className="h-3 w-3" /> View only — event has passed
+            </span>
+          ) : !editing && (
+            <Button variant="outline" disabled={actionLoading} onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </Button>
+          )}
+          {!isPast && event.status === 'draft' && <Button disabled={actionLoading} onClick={handlePublish}>Publish</Button>}
+          {!isPast && event.status === 'published' && canApprove && <Button disabled={actionLoading} onClick={handleApprove}>Approve</Button>}
+          {!isPast && event.status !== 'cancelled' && <Button variant="outline" disabled={actionLoading} onClick={handleCancel}>Cancel</Button>}
         </div>
       </div>
 
-      {editing && (
+      {editing && !isPast && (
         <EditEventForm
           event={event}
           onSaved={patch => {
@@ -878,6 +994,9 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
         <HotelBookingsSection
           eventId={event.id}
           hotels={hotels}
+          readOnly={isPast}
+          open={openSections.hotels}
+          onToggle={() => toggleSection('hotels')}
           onLoad={async () => {
             const data = await getHotelBookings(event.id)
             setHotels(data)
@@ -892,9 +1011,17 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
         />
       )}
 
-      {/* Budget & Expenses — top-level events only */}
+      {/* Budget & Expenses — top-level events only. Stays open/editable until closed. */}
       {event.parent_event_id === null && (
-        <EventBudgetSection eventId={event.id} funds={funds} />
+        <EventBudgetSection
+          eventId={event.id}
+          funds={funds}
+          closed={budgetClosed}
+          closedAt={budgetClosedAt}
+          onClose={handleCloseBudget}
+          open={openSections.budget}
+          onToggle={() => toggleSection('budget')}
+        />
       )}
 
       {/* Sub-events — only shown for top-level events */}
@@ -903,21 +1030,22 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
           This is a sub-event. Sub-events cannot have their own sub-events.
         </div>
       )}
-      {!event.parent_event_id && <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Sub-Events</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => setShowAddSub(s => !s)}>
-              <Plus className="h-3.5 w-3.5" /> Add
-            </Button>
-          </div>
-        </CardHeader>
+      {!event.parent_event_id && <CollapsibleSection
+        title="Sub-Events"
+        open={openSections.subEvents}
+        onToggle={() => toggleSection('subEvents')}
+        action={!isPast && (
+          <Button size="sm" variant="outline" onClick={() => { if (!openSections.subEvents) toggleSection('subEvents'); setShowAddSub(s => !s) }}>
+            <Plus className="h-3.5 w-3.5" /> Add
+          </Button>
+        )}
+      >
         <CardContent className="space-y-3">
           {showAddSub && <AddSubEventForm parentId={event.id} eventTypes={eventTypes} onAdded={e => setSubEvents(prev => [...prev, e])} onCancel={() => setShowAddSub(false)} />}
           {subEvents.length === 0 && !showAddSub ? (
             <p className="text-sm text-muted-foreground">No sub-events yet. Use "Add" to break this event into days or sessions.</p>
           ) : (
-            subEvents.map(sub => (
+            subEvents.map((sub, i) => (
               <div key={sub.id} className="flex items-center justify-between border rounded-lg px-3 py-2.5">
                 <div>
                   <Link href={`/admin/events/${sub.id}`} className="text-sm font-medium hover:underline">{sub.name}</Link>
@@ -927,28 +1055,37 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>{sub.status}</span>
-                  <button
-                    onClick={async () => {
-                      if (!confirm(`Delete "${sub.name}"?`)) return
-                      await deleteEvent(sub.id)
-                      setSubEvents(prev => prev.filter(s => s.id !== sub.id))
-                    }}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
-                    title="Delete sub-event"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {!isPast && (
+                    <>
+                      <button onClick={() => handleMoveSub(sub.id, 'up')} disabled={i === 0} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move up">
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleMoveSub(sub.id, 'down')} disabled={i === subEvents.length - 1} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move down">
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Delete "${sub.name}"?`)) return
+                          await deleteEvent(sub.id)
+                          setSubEvents(prev => prev.filter(s => s.id !== sub.id))
+                        }}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete sub-event"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))
           )}
         </CardContent>
-      </Card>}
+      </CollapsibleSection>}
 
       {/* Blueprint assignments */}
       {blueprintItems.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Planning Checklist</CardTitle></CardHeader>
+        <CollapsibleSection title="Planning Checklist" open={openSections.checklist} onToggle={() => toggleSection('checklist')}>
           <CardContent className="space-y-4">
             {blueprintItems.map(item => {
               const itemAssignments = assignmentsByItemId[item.id] ?? []
@@ -969,24 +1106,29 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                           <p className="text-xs text-muted-foreground mt-0.5 italic">"{a.response}"</p>
                         )}
                         <span className={`text-xs font-medium ${RESPONSE_STATUS_COLORS[a.response_status]}`}>
-                          {a.response_status === 'pending' ? 'No response yet' : a.response_status === 'submitted' ? 'Response submitted' : '✓ Approved'}
+                          {a.response_status === 'pending' ? 'No response yet'
+                            : a.response_status === 'submitted' ? 'Response submitted'
+                            : a.response_status === 'cancelled' ? 'Cancelled — event ended'
+                            : '✓ Approved'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {a.response_status === 'submitted' && canApprove && (
-                          <button onClick={() => handleApproveResponse(a.id)} className="text-xs text-green-600 hover:opacity-70 flex items-center gap-0.5">
-                            <Check className="h-3.5 w-3.5" /> Approve
+                      {!isPast && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {a.response_status === 'submitted' && canApprove && (
+                            <button onClick={() => handleApproveResponse(a.id)} className="text-xs text-green-600 hover:opacity-70 flex items-center gap-0.5">
+                              <Check className="h-3.5 w-3.5" /> Approve
+                            </button>
+                          )}
+                          <button onClick={() => handleUnassign(a.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                            <UserMinus className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                        <button onClick={() => handleUnassign(a.id)} className="text-muted-foreground hover:text-destructive transition-colors">
-                          <UserMinus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
 
                   {/* Add assignee */}
-                  {addMemberForItem === item.id ? (
+                  {isPast ? null : addMemberForItem === item.id ? (
                     <div className="flex flex-wrap gap-2 items-center">
                       <select
                         className="flex-1 text-xs rounded border border-input bg-background px-2 py-1.5 min-w-[140px]"
@@ -1030,7 +1172,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
               )
             })}
           </CardContent>
-        </Card>
+        </CollapsibleSection>
       )}
 
       {/* Report metrics */}
@@ -1041,8 +1183,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
       </div>
 
       {report.tshirt_breakdown.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>T-Shirt Summary</CardTitle></CardHeader>
+        <CollapsibleSection title="T-Shirt Summary" open={openSections.tshirts} onToggle={() => toggleSection('tshirts')}>
           <CardContent>
             <div className="divide-y">
               {report.tshirt_breakdown.map(t => (
@@ -1053,12 +1194,11 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
               ))}
             </div>
           </CardContent>
-        </Card>
+        </CollapsibleSection>
       )}
 
       {report.attendees.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Attendees ({report.attendees.length})</CardTitle></CardHeader>
+        <CollapsibleSection title={`Attendees (${report.attendees.length})`} open={openSections.attendees} onToggle={() => toggleSection('attendees')}>
           <CardContent>
             <div className="divide-y">
               {report.attendees.map((a, i) => (
@@ -1069,7 +1209,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
               ))}
             </div>
           </CardContent>
-        </Card>
+        </CollapsibleSection>
       )}
     </div>
   )

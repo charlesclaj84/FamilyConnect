@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface PublicEvent {
@@ -41,7 +42,7 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -52,7 +53,16 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
     .is('parent_event_id', null)
     .order('event_date', { ascending: true, nullsFirst: false })
 
-  const events = data ?? []
+  // Drop events whose end has already passed. The effective "end" of an event is
+  // its end_date, falling back to start_date, then the legacy event_date — so a
+  // multi-day event stays visible while it's ongoing and only drops off the day
+  // after it finishes. Events with no date at all (Date TBD) are kept. Compared
+  // as YYYY-MM-DD strings to sidestep timezone drift.
+  const today = new Date().toISOString().slice(0, 10)
+  const events = (data ?? []).filter(e => {
+    const effectiveEnd = e.end_date ?? e.start_date ?? e.event_date
+    return !effectiveEnd || effectiveEnd.slice(0, 10) >= today
+  })
   const eventIds = events.map(e => e.id)
 
   // Count total individual attending people per event (from event_rsvp_attendees)
@@ -189,7 +199,7 @@ export async function getMyFamilyForRsvp(): Promise<RsvpPerson[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   // Get current user's people record
@@ -298,7 +308,7 @@ export async function getEventRsvpSummary(eventId: string): Promise<RsvpSummaryE
   if (!user) return []
 
   const admin = createAdminClient()
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   // All RSVP submissions for this event
   const { data: rsvps } = await supabase

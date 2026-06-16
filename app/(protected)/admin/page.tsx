@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { getEvents } from '@/app/actions/admin/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersRound, ListChecks, CalendarClock, Clock } from 'lucide-react'
@@ -15,7 +16,7 @@ export default async function AdminPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
   if (!person?.is_admin) redirect('/dashboard')

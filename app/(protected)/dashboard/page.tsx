@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Calendar, UserCircle, MapPin, ChevronRight,
+  Calendar, MapPin, ChevronRight,
 } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { getUpcomingEvents } from '@/app/actions/events'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { getLinkPersonBannerData } from '@/app/actions/link-person'
@@ -31,7 +33,7 @@ export default async function DashboardPage() {
   const lastName  = user.user_metadata?.last_name ?? ''
   const initials  = [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase()
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters] = await Promise.all([
@@ -61,16 +63,7 @@ export default async function DashboardPage() {
 
       {/* ── Profile summary + selfie ──────────────────────────────── */}
       <div className="flex items-center gap-5">
-        <div className="relative shrink-0">
-          <div className="w-20 h-20 rounded-full bg-muted border-2 border-dashed border-border flex items-center justify-center select-none">
-            {initials ? (
-              <span className="text-2xl font-semibold text-muted-foreground">{initials}</span>
-            ) : (
-              <UserCircle className="h-10 w-10 text-muted-foreground/40" />
-            )}
-          </div>
-
-        </div>
+        <Avatar initials={initials} size="lg" />
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
             Welcome back, {firstName}!
@@ -115,8 +108,8 @@ export default async function DashboardPage() {
       )}
 
       {/* ── Account widget ────────────────────────────────────────── */}
-      <section className="flex flex-col items-end">
-        <h2 className="text-lg font-semibold mb-4 w-full max-w-sm">Account</h2>
+      <section>
+        <h2 className="text-lg font-semibold mb-4">Account</h2>
         <DuesStatusCard summary={duesSummary} />
       </section>
 

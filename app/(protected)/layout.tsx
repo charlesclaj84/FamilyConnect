@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyAssignmentCount } from '@/app/actions/event-planning'
 import Navbar from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
 
@@ -12,12 +13,15 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const admin = createAdminClient()
-      const [personResult, assignmentResult] = await Promise.all([
+      // Count only outstanding items (shared with the Event Planning page) so the
+      // nav link hides once everything is completed or cancelled. This also sweeps
+      // overdue tasks into the 'cancelled' state.
+      const [personResult, assignmentCount] = await Promise.all([
         admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle(),
-        admin.from('event_assignments').select('id', { count: 'exact', head: true }).eq('assigned_to', user.id),
+        getMyAssignmentCount(),
       ])
       isAdmin = personResult.data?.is_admin === true
-      hasAssignments = (assignmentResult.count ?? 0) > 0
+      hasAssignments = assignmentCount > 0
     }
   } catch {
     // Non-fatal

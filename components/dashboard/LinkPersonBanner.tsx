@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { UserCheck, X } from 'lucide-react'
+import { useMemo, useState, useTransition } from 'react'
+import { UserCheck, X, Search, ChevronDown } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import type { MatchReason } from '@/lib/match-utils'
 import type { UnlinkedPerson } from '@/app/actions/link-person'
 import { linkPersonToCurrentUser } from '@/app/actions/link-person'
 
@@ -11,29 +13,92 @@ interface Props {
   unlinkedPeople: UnlinkedPerson[]
 }
 
+const REASON_LABELS: Record<MatchReason, string> = {
+  name: 'Name',
+  email: 'Email',
+  phone: 'Phone',
+  dob: 'Birthday',
+}
+
 export function LinkPersonBanner({ unlinkedPeople }: Props) {
   const [dismissed, setDismissed] = useState(false)
-  const [selectedId, setSelectedId] = useState('')
+  const [search, setSearch] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const [error, setError] = useState('')
+  const [linkingId, setLinkingId] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return unlinkedPeople
+    return unlinkedPeople.filter(p =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(q),
+    )
+  }, [unlinkedPeople, search])
+
+  const strongMatches = filtered.filter(p => p.isStrong)
+  const others = filtered.filter(p => !p.isStrong)
 
   if (dismissed) return null
 
-  function handleLink() {
-    if (!selectedId) {
-      setError('Please select your name from the list.')
-      return
-    }
+  function handleLink(id: string) {
     setError('')
+    setLinkingId(id)
     startTransition(async () => {
-      const result = await linkPersonToCurrentUser(selectedId)
+      const result = await linkPersonToCurrentUser(id)
       if (result.success) {
-        // Page will revalidate and the banner data will be gone
+        // Page revalidates and the banner data disappears.
         setDismissed(true)
       } else {
         setError(result.message)
+        setLinkingId('')
       }
     })
+  }
+
+  function PersonCard({ person }: { person: UnlinkedPerson }) {
+    const initials = [person.first_name[0], person.last_name[0]]
+      .filter(Boolean)
+      .join('')
+      .toUpperCase()
+    const birthYear = person.date_of_birth
+      ? new Date(person.date_of_birth).getFullYear()
+      : null
+    const isThisLinking = isPending && linkingId === person.id
+
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-amber-950/40 px-3 py-2.5">
+        <Avatar initials={initials} size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">
+            {person.first_name} {person.last_name}
+            {birthYear ? <span className="text-muted-foreground font-normal"> · b. {birthYear}</span> : null}
+            {person.is_minor ? <span className="text-muted-foreground font-normal"> · minor</span> : null}
+          </p>
+          {person.reasons.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {person.reasons.map(r => (
+                <span
+                  key={r}
+                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                >
+                  {REASON_LABELS[r]} match
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleLink(person.id)}
+          disabled={isPending}
+          className="shrink-0"
+        >
+          {isThisLinking ? 'Linking…' : 'This is me'}
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -48,40 +113,68 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
             Were you already added to the family?
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-            A family member may have already added you. Select your name below to link your account to the existing record.
+            A family member may have already added you. Find yourself below and link your
+            account to the existing record.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select
-            value={selectedId}
-            onChange={e => setSelectedId(e.target.value)}
-            className="flex-1 h-9 text-sm"
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name…"
+            className="pl-8 bg-white dark:bg-amber-950/40"
             disabled={isPending}
-          >
-            <option value="">— Select your name —</option>
-            {unlinkedPeople.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.first_name} {p.last_name}
-                {p.date_of_birth ? ` (b. ${new Date(p.date_of_birth).getFullYear()})` : ''}
-                {p.is_minor ? ' (minor)' : ''}
-              </option>
-            ))}
-          </Select>
-          <Button
-            size="sm"
-            onClick={handleLink}
-            disabled={isPending || !selectedId}
-            className="shrink-0"
-          >
-            {isPending ? 'Linking…' : 'Link My Account'}
-          </Button>
+          />
         </div>
+
+        {/* Strong matches — the records most likely to be the current user */}
+        {strongMatches.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+              {strongMatches.length === 1 ? 'Is this you?' : 'These might be you'}
+            </p>
+            {strongMatches.map(p => (
+              <PersonCard key={p.id} person={p} />
+            ))}
+          </div>
+        )}
+
+        {/* Everyone else — collapsed by default when there's already a strong match */}
+        {others.length > 0 && (
+          strongMatches.length > 0 && !showAll ? (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-amber-800 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              Don&apos;t see yourself? Browse everyone ({others.length})
+            </button>
+          ) : (
+            <div className="space-y-2">
+              {strongMatches.length > 0 && (
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                  Everyone else
+                </p>
+              )}
+              {others.map(p => (
+                <PersonCard key={p.id} person={p} />
+              ))}
+            </div>
+          )
+        )}
+
+        {strongMatches.length === 0 && others.length === 0 && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">No matching family members found.</p>
+        )}
 
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       </div>
 
       <button
+        type="button"
         onClick={() => setDismissed(true)}
         className="shrink-0 self-start text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
         aria-label="Dismiss"

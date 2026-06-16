@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface EventType {
@@ -9,6 +10,7 @@ export interface EventType {
   family_code: string
   name: string
   description: string | null
+  sort_order: number
   created_by: string | null
   created_at: string
 }
@@ -38,7 +40,7 @@ async function getAuthenticatedAdmin() {
 
   if (!person?.is_admin) return { user: null, admin: null, familyCode: '' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   return { user, admin: adminClient, familyCode }
 }
 
@@ -49,12 +51,13 @@ export async function getEventTypes(): Promise<EventType[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
   const { data } = await admin
     .from('event_types')
     .select('*')
     .eq('family_code', familyCode)
+    .order('sort_order')
     .order('name')
 
   return (data ?? []) as EventType[]
@@ -67,9 +70,14 @@ export async function createEventType(
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
 
+  // New templates go to the end of the family's list.
+  const { data: last } = await admin
+    .from('event_types').select('sort_order').eq('family_code', familyCode)
+    .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+
   const { data, error } = await admin
     .from('event_types')
-    .insert({ name: name.trim(), description: description?.trim() || null, family_code: familyCode, created_by: user!.id })
+    .insert({ name: name.trim(), description: description?.trim() || null, family_code: familyCode, sort_order: (last?.sort_order ?? 0) + 1, created_by: user!.id })
     .select('id')
     .single()
 
@@ -101,6 +109,106 @@ export async function deleteEventType(id: string): Promise<{ success: boolean; e
   if (!admin) return { success: false, error: 'Not authorized' }
 
   const { error } = await admin.from('event_types').delete().eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/admin/event-types')
+  return { success: true }
+}
+
+export async function moveEventType(
+  id: string,
+  direction: 'up' | 'down'
+): Promise<{ success: boolean; error?: string }> {
+  const { admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  // Same order as the list (sort_order, then name) so neighbours match the UI.
+  const { data: items } = await admin
+    .from('event_types')
+    .select('id, sort_order')
+    .eq('family_code', familyCode)
+    .order('sort_order')
+    .order('name')
+
+  if (!items?.length) return { success: false, error: 'No templates found' }
+
+  const idx = items.findIndex(i => i.id === id)
+  if (idx === -1) return { success: false, error: 'Template not found' }
+
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (swapIdx < 0 || swapIdx >= items.length) return { success: true } // at a boundary
+
+  const current = items[idx]
+  const swap    = items[swapIdx]
+  await admin.from('event_types').update({ sort_order: swap.sort_order }).eq('id', current.id)
+  await admin.from('event_types').update({ sort_order: current.sort_order }).eq('id', swap.id)
+
+  revalidatePath('/admin/event-types')
+  return { success: true }
+}
+
+// ── Sub-template links ───────────────────────────────────────────────────────
+// A template can auto-include other templates as sub-events.
+
+export interface SubTemplate {
+  link_id: string
+  child_event_type_id: string
+  name: string
+  sort_order: number
+}
+
+export async function getSubTemplates(eventTypeId: string): Promise<SubTemplate[]> {
+  const admin = createAdminClient()
+  const { data: links } = await admin
+    .from('event_type_sub_templates')
+    .select('id, child_event_type_id, sort_order')
+    .eq('parent_event_type_id', eventTypeId)
+    .order('sort_order')
+
+  if (!links?.length) return []
+
+  const childIds = links.map(l => l.child_event_type_id)
+  const { data: types } = await admin.from('event_types').select('id, name').in('id', childIds)
+  const nameById = Object.fromEntries((types ?? []).map(t => [t.id, t.name]))
+
+  return links.map(l => ({
+    link_id:             l.id,
+    child_event_type_id: l.child_event_type_id,
+    name:                nameById[l.child_event_type_id] ?? 'Unknown template',
+    sort_order:          l.sort_order,
+  }))
+}
+
+export async function addSubTemplate(
+  parentEventTypeId: string,
+  childEventTypeId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { admin, familyCode } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+  if (parentEventTypeId === childEventTypeId) return { success: false, error: 'A template cannot include itself.' }
+
+  // Both templates must belong to this family.
+  const { data: types } = await admin
+    .from('event_types').select('id').eq('family_code', familyCode).in('id', [parentEventTypeId, childEventTypeId])
+  if ((types?.length ?? 0) < 2) return { success: false, error: 'Template not found' }
+
+  const { data: last } = await admin
+    .from('event_type_sub_templates').select('sort_order').eq('parent_event_type_id', parentEventTypeId)
+    .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+
+  const { error } = await admin
+    .from('event_type_sub_templates')
+    .insert({ parent_event_type_id: parentEventTypeId, child_event_type_id: childEventTypeId, sort_order: (last?.sort_order ?? 0) + 1 })
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/admin/event-types')
+  return { success: true }
+}
+
+export async function removeSubTemplate(linkId: string): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const { error } = await admin.from('event_type_sub_templates').delete().eq('id', linkId)
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/event-types')
   return { success: true }

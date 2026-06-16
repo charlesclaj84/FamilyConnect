@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SPOUSE_TYPES, type SpouseRelType } from '@/lib/family-constants'
 
@@ -138,7 +139,7 @@ export async function upsertSpouse(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getMyPeopleId(supabase, user.id)
   if (!myPeopleId) return { success: false, message: 'Could not find your profile' }
 

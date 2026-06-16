@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   if (!familyCode) return { room: null, error: 'No family code found on your account' }
 
   const admin = createAdminClient()
@@ -155,7 +156,7 @@ export async function getOrCreateDmRoom(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data: otherPerson } = await admin
@@ -254,7 +255,7 @@ export async function createGroupRoom(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const trimmedName = name.trim()
   if (!trimmedName) return { room: null, error: 'Group name is required' }
 
@@ -342,7 +343,7 @@ export async function getRoomList(): Promise<RoomWithMeta[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   // Fetch only rooms where the current user is visible (not hidden)
@@ -401,7 +402,7 @@ export async function getSenderMap(roomId: string): Promise<SenderMap> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return {}
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   const { data: participants } = await admin
@@ -433,7 +434,7 @@ export async function getFamilyMembersWithAccounts(): Promise<
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const { data } = await supabase
     .from('people')

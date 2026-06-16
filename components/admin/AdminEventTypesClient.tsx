@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  createEventType, updateEventType, deleteEventType,
+  createEventType, updateEventType, deleteEventType, moveEventType,
   getBlueprintItems, addBlueprintItem, updateBlueprintItem, deleteBlueprintItem,
   updateBlueprintItemFull, moveBlueprintItem,
-  type EventType, type BlueprintItem,
+  getSubTemplates, addSubTemplate, removeSubTemplate,
+  type EventType, type BlueprintItem, type SubTemplate,
 } from '@/app/actions/admin/event-types'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
@@ -58,9 +59,12 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
   )
 }
 
-function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete: () => void }) {
+function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, isLast }: { eventType: EventType; allEventTypes: EventType[]; onDelete: () => void; onMove: (direction: 'up' | 'down') => void; isFirst: boolean; isLast: boolean }) {
   const [expanded, setExpanded]       = useState(false)
   const [items, setItems]             = useState<BlueprintItem[]>([])
+  const [subTemplates, setSubTemplates] = useState<SubTemplate[]>([])
+  const [newSubId, setNewSubId]       = useState('')
+  const [addingSub, setAddingSub]     = useState(false)
   const [loaded, setLoaded]           = useState(false)
   const [newItem, setNewItem]         = useState('')
   const [newRespType, setNewRespType] = useState<'text' | 'date' | 'checkbox' | 'list' | 'members'>('text')
@@ -80,11 +84,34 @@ function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete
   async function handleExpand() {
     setExpanded(e => !e)
     if (!loaded) {
-      const data = await getBlueprintItems(eventType.id)
-      setItems(data)
+      const [itemData, subData] = await Promise.all([getBlueprintItems(eventType.id), getSubTemplates(eventType.id)])
+      setItems(itemData)
+      setSubTemplates(subData)
       setLoaded(true)
     }
   }
+
+  async function handleAddSubTemplate() {
+    if (!newSubId) return
+    setAddingSub(true)
+    const res = await addSubTemplate(eventType.id, newSubId)
+    if (res.success) {
+      setSubTemplates(await getSubTemplates(eventType.id))
+      setNewSubId('')
+    } else {
+      alert(res.error ?? 'Could not add sub-event template.')
+    }
+    setAddingSub(false)
+  }
+
+  async function handleRemoveSubTemplate(linkId: string) {
+    await removeSubTemplate(linkId)
+    setSubTemplates(prev => prev.filter(s => s.link_id !== linkId))
+  }
+
+  // Templates available to add: everything except this one and those already linked.
+  const linkedChildIds = new Set(subTemplates.map(s => s.child_event_type_id))
+  const subTemplateOptions = allEventTypes.filter(t => t.id !== eventType.id && !linkedChildIds.has(t.id))
 
   async function handleMoveItem(id: string, direction: 'up' | 'down') {
     await moveBlueprintItem(id, eventType.id, direction)
@@ -127,6 +154,8 @@ function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete
             </button>
           )}
           <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={() => onMove('up')} disabled={isFirst} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button onClick={() => onMove('down')} disabled={isLast} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
             {!editingName && <button onClick={() => setEditingName(true)} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>}
             <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button>
           </div>
@@ -167,6 +196,36 @@ function EventTypeCard({ eventType, onDelete }: { eventType: EventType; onDelete
               </Button>
             </div>
           </div>
+
+          {/* Auto-included sub-event templates */}
+          <div className="space-y-2 pt-3 mt-1 border-t">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto-included sub-events</p>
+            {subTemplates.length > 0 ? (
+              <div>
+                {subTemplates.map(s => (
+                  <div key={s.link_id} className="group/sub flex items-center gap-2 py-1.5 border-b last:border-0">
+                    <span className="text-sm flex-1 min-w-0 truncate">{s.name}</span>
+                    <button onClick={() => handleRemoveSubTemplate(s.link_id)} className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover/sub:opacity-100 transition-all" title="Remove sub-event template">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">None. Added templates are auto-created as sub-events whenever an event uses this template.</p>
+            )}
+            {subTemplateOptions.length > 0 && (
+              <div className="flex gap-2 pt-1">
+                <select className="h-8 text-sm rounded border border-input bg-background px-2 flex-1" value={newSubId} onChange={e => setNewSubId(e.target.value)}>
+                  <option value="">— Add a template as sub-event —</option>
+                  {subTemplateOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <Button size="sm" disabled={!newSubId || addingSub} onClick={handleAddSubTemplate}>
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>
@@ -194,6 +253,18 @@ export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes
     if (!confirm('Delete this event type and all its checklist items?')) return
     await deleteEventType(id)
     setEventTypes(prev => prev.filter(t => t.id !== id))
+  }
+
+  async function handleMove(id: string, direction: 'up' | 'down') {
+    setEventTypes(prev => {
+      const idx = prev.findIndex(t => t.id === id)
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+      if (idx === -1 || swapIdx < 0 || swapIdx >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+      return next
+    })
+    await moveEventType(id, direction)
   }
 
   return (
@@ -227,7 +298,7 @@ export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes
       {eventTypes.length === 0 && !showForm ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No event types yet. Create one to get started.</p>
       ) : (
-        eventTypes.map(et => <EventTypeCard key={et.id} eventType={et} onDelete={() => handleDelete(et.id)} />)
+        eventTypes.map((et, i) => <EventTypeCard key={et.id} eventType={et} allEventTypes={eventTypes} onDelete={() => handleDelete(et.id)} onMove={dir => handleMove(et.id, dir)} isFirst={i === 0} isLast={i === eventTypes.length - 1} />)
       )}
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface AdminEvent {
@@ -34,6 +35,8 @@ export interface AdminEvent {
   event_type_name?: string | null
   budget_amount_cents: number
   official_description: string | null
+  budget_closed_at: string | null
+  sort_order: number
 }
 
 export interface PriceEstimate {
@@ -82,7 +85,7 @@ export interface EventAssignment {
   completed_at: string | null
   due_date: string | null
   response: string | null
-  response_status: 'pending' | 'submitted' | 'approved'
+  response_status: 'pending' | 'submitted' | 'approved' | 'cancelled'
   approved_by: string | null
   approved_at: string | null
 }
@@ -108,7 +111,7 @@ async function getAuthenticatedAdmin() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   return {
     user,
     admin: person?.is_admin ? adminClient : null,
@@ -123,7 +126,7 @@ export async function getEvents(status?: AdminEvent['status']): Promise<AdminEve
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   let query = admin
@@ -194,6 +197,35 @@ export async function createEvent(input: {
     .single()
 
   if (error) return { success: false, error: error.message }
+
+  // Auto-include the template's linked child templates as sub-events. Single level
+  // only — a child template's own sub-templates are not expanded (sub-events can't nest).
+  if (input.event_type_id) {
+    const { data: subLinks } = await admin
+      .from('event_type_sub_templates')
+      .select('child_event_type_id, sort_order')
+      .eq('parent_event_type_id', input.event_type_id)
+      .order('sort_order')
+
+    if (subLinks?.length) {
+      const childIds = subLinks.map(l => l.child_event_type_id)
+      const { data: childTypes } = await admin.from('event_types').select('id, name').in('id', childIds)
+      const nameById = Object.fromEntries((childTypes ?? []).map(t => [t.id, t.name]))
+
+      const rows = subLinks.map((l, i) => ({
+        family_code:     familyCode,
+        parent_event_id: data.id,
+        event_type_id:   l.child_event_type_id,
+        name:            nameById[l.child_event_type_id] ?? 'Sub-Event',
+        is_all_day:      true,
+        status:          'draft' as const,
+        sort_order:      i + 1,
+        created_by:      user!.id,
+      }))
+      await admin.from('events').insert(rows)
+    }
+  }
+
   revalidatePath('/admin/events')
   return { success: true, id: data.id }
 }
@@ -209,11 +241,17 @@ export async function createSubEvent(
   if (!parent) return { success: false, error: 'Parent event not found' }
   if (parent.parent_event_id) return { success: false, error: 'Sub-events cannot be nested further' }
 
+  // Append to the end of the parent's existing sub-events.
+  const { data: lastSub } = await admin
+    .from('events').select('sort_order').eq('parent_event_id', parentId)
+    .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+
   const { data, error } = await admin
     .from('events')
     .insert({
       family_code:     familyCode,
       parent_event_id: parentId,
+      sort_order:      (lastSub?.sort_order ?? 0) + 1,
       event_type_id:   input.event_type_id || null,
       name:            input.name.trim(),
       description:     input.description?.trim() || null,
@@ -247,9 +285,44 @@ export async function getSubEvents(parentId: string): Promise<AdminEvent[]> {
     .from('events')
     .select('*')
     .eq('parent_event_id', parentId)
+    .order('sort_order', { ascending: true })
     .order('event_date', { ascending: true, nullsFirst: false })
     .order('event_time', { ascending: true, nullsFirst: false })
   return (data ?? []) as AdminEvent[]
+}
+
+export async function moveSubEvent(
+  id: string,
+  parentId: string,
+  direction: 'up' | 'down'
+): Promise<{ success: boolean; error?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  // Same order as getSubEvents so neighbours match what's displayed.
+  const { data: subs } = await admin
+    .from('events')
+    .select('id, sort_order')
+    .eq('parent_event_id', parentId)
+    .order('sort_order', { ascending: true })
+    .order('event_date', { ascending: true, nullsFirst: false })
+    .order('event_time', { ascending: true, nullsFirst: false })
+
+  if (!subs?.length) return { success: false, error: 'No sub-events found' }
+
+  const idx = subs.findIndex(s => s.id === id)
+  if (idx === -1) return { success: false, error: 'Sub-event not found' }
+
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+  if (swapIdx < 0 || swapIdx >= subs.length) return { success: true } // at a boundary
+
+  const current = subs[idx]
+  const swap    = subs[swapIdx]
+  await admin.from('events').update({ sort_order: swap.sort_order }).eq('id', current.id)
+  await admin.from('events').update({ sort_order: current.sort_order }).eq('id', swap.id)
+
+  revalidatePath(`/admin/events/${parentId}`)
+  return { success: true }
 }
 
 export async function updateEvent(
@@ -258,6 +331,15 @@ export async function updateEvent(
 ): Promise<{ success: boolean; error?: string }> {
   const { admin } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
+
+  // Passed events are read-only — mirror the UI lockout so a stale/forged client
+  // can't edit history. Effective end is end_date → start_date → legacy event_date.
+  const { data: existing } = await admin
+    .from('events').select('event_date, start_date, end_date').eq('id', id).maybeSingle()
+  const effectiveEnd = existing?.end_date ?? existing?.start_date ?? existing?.event_date
+  if (effectiveEnd && effectiveEnd.slice(0, 10) < new Date().toISOString().slice(0, 10)) {
+    return { success: false, error: 'This event has passed and can no longer be edited.' }
+  }
 
   const { error } = await admin.from('events').update({
     ...input,
@@ -387,6 +469,8 @@ export async function approveAssignmentResponse(
 
 export async function getEventAssignments(eventId: string): Promise<EventAssignment[]> {
   const admin = createAdminClient()
+  // Reflect lapsed tasks: cancel any still-open item whose event has ended.
+  await admin.rpc('cancel_overdue_event_assignments')
   const { data } = await admin
     .from('event_assignments')
     .select('*, event_blueprint_items(title)')
@@ -416,7 +500,7 @@ export async function getEventAssignments(eventId: string): Promise<EventAssignm
     completed_at:         a.completed_at,
     due_date:             a.due_date ?? null,
     response:             a.response ?? null,
-    response_status:      (a.response_status ?? 'pending') as 'pending' | 'submitted' | 'approved',
+    response_status:      (a.response_status ?? 'pending') as 'pending' | 'submitted' | 'approved' | 'cancelled',
     approved_by:          a.approved_by ?? null,
     approved_at:          a.approved_at ?? null,
   }))
@@ -428,7 +512,7 @@ export async function getEventReport(eventId: string): Promise<EventReport | nul
   if (!user) return null
 
   const admin = createAdminClient()
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
 
   const { data: event } = await admin.from('events').select('*, event_types(name)').eq('id', eventId).single()
   if (!event) return null
@@ -709,6 +793,7 @@ export async function addEventBudgetItem(
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin || !user) return { success: false, error: 'Not authorized' }
+  if (await isBudgetClosed(admin, eventId)) return { success: false, error: 'The budget is closed and can no longer be edited.' }
 
   const { data: last } = await admin
     .from('event_budget_items').select('sort_order').eq('event_id', eventId)
@@ -794,6 +879,7 @@ export async function recordEventExpense(
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin || !user) return { success: false, error: 'Not authorized' }
+  if (await isBudgetClosed(admin, eventId)) return { success: false, error: 'The budget is closed and can no longer be edited.' }
 
   // Default to the event's backing fund when none is chosen.
   let fundId = input.fund_id
@@ -837,6 +923,7 @@ export async function setEventFund(
 ): Promise<{ success: boolean; error?: string }> {
   const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
+  if (await isBudgetClosed(admin, eventId)) return { success: false, error: 'The budget is closed and can no longer be edited.' }
 
   // Clear any fund currently backing this event (partial-unique index on event_id).
   const { error: clearErr } = await admin
@@ -851,4 +938,23 @@ export async function setEventFund(
   revalidatePath(`/admin/events/${eventId}`)
   revalidatePath('/family-finances')
   return { success: true }
+}
+
+/** Officially close an event's budget. Once closed, line items and expenses are frozen. */
+export async function closeBudget(eventId: string): Promise<{ success: boolean; error?: string; closed_at?: string }> {
+  const { admin } = await getAuthenticatedAdmin()
+  if (!admin) return { success: false, error: 'Not authorized' }
+
+  const closed_at = new Date().toISOString()
+  const { error } = await admin.from('events').update({ budget_closed_at: closed_at }).eq('id', eventId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/admin/events/${eventId}`)
+  return { success: true, closed_at }
+}
+
+/** True once the event's budget has been officially closed. */
+async function isBudgetClosed(admin: ReturnType<typeof createAdminClient>, eventId: string): Promise<boolean> {
+  const { data } = await admin.from('events').select('budget_closed_at').eq('id', eventId).maybeSingle()
+  return !!data?.budget_closed_at
 }

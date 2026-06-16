@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ANCESTOR_TYPES, SPOUSE_TYPES, type AncestorType } from '@/lib/family-constants'
@@ -74,7 +75,7 @@ export async function getFamilyMembers(): Promise<FamilyMember[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getMyPeopleId(supabase, user.id)
 
   let query = supabase
@@ -321,7 +322,7 @@ export async function upsertAncestor(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getMyPeopleId(supabase, user.id)
   if (!myPeopleId) return { success: false, message: 'Could not find your profile' }
 

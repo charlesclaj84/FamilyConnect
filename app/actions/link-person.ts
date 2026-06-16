@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { scoreMatch, type MatchReason } from '@/lib/match-utils'
 
 export interface UnlinkedPerson {
   id: string
@@ -10,6 +12,12 @@ export interface UnlinkedPerson {
   last_name: string
   date_of_birth: string | null
   is_minor: boolean
+  /** Match score against the registrant; higher is more likely to be them. */
+  score: number
+  /** Why this record matched (badges shown to the user). No raw PII. */
+  reasons: MatchReason[]
+  /** True when this is a confident match (exact identity signal or close name). */
+  isStrong: boolean
 }
 
 export type LinkPersonResult =
@@ -29,13 +37,13 @@ export async function getLinkPersonBannerData(): Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { showBanner: false, unlinkedPeople: [] }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   if (!familyCode) return { showBanner: false, unlinkedPeople: [] }
 
-  // Find the current user's own person record
+  // Find the current user's own person record (plus the fields we match on)
   const { data: myPerson } = await supabase
     .from('people')
-    .select('id, created_by')
+    .select('id, created_by, first_name, last_name, nick_name, primary_email, primary_phone, date_of_birth')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -52,18 +60,49 @@ export async function getLinkPersonBannerData(): Promise<{
 
   if ((count ?? 0) > 0) return { showBanner: false, unlinkedPeople: [] }
 
-  // Fetch unlinked people in the family
+  // Fetch unlinked people in the family. Email/phone/nick_name are pulled only
+  // to compute the match server-side — they are NOT returned to the client.
   const { data: unlinked } = await supabase
     .from('people')
-    .select('id, first_name, last_name, date_of_birth, is_minor')
+    .select('id, first_name, last_name, nick_name, primary_email, primary_phone, date_of_birth, is_minor')
     .eq('family_code', familyCode)
     .is('user_id', null)
-    .order('last_name')
-    .order('first_name')
 
   if (!unlinked || unlinked.length === 0) return { showBanner: false, unlinkedPeople: [] }
 
-  return { showBanner: true, unlinkedPeople: unlinked }
+  // The stub's email may be empty if registration didn't copy it — fall back to
+  // the auth email, which is the strongest signal a brand-new user has.
+  const registrant = {
+    first_name: myPerson.first_name,
+    last_name: myPerson.last_name,
+    nick_name: myPerson.nick_name,
+    primary_email: myPerson.primary_email || user.email,
+    primary_phone: myPerson.primary_phone,
+    date_of_birth: myPerson.date_of_birth,
+  }
+
+  const ranked: UnlinkedPerson[] = unlinked
+    .map(p => {
+      const { score, reasons, isStrong } = scoreMatch(registrant, p)
+      // Strip contact PII — only name, birth year, and match reasons reach the browser.
+      return {
+        id: p.id,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        date_of_birth: p.date_of_birth,
+        is_minor: p.is_minor,
+        score,
+        reasons,
+        isStrong,
+      }
+    })
+    .sort((a, b) =>
+      b.score - a.score ||
+      a.last_name.localeCompare(b.last_name) ||
+      a.first_name.localeCompare(b.first_name),
+    )
+
+  return { showBanner: true, unlinkedPeople: ranked }
 }
 
 /**
@@ -77,7 +116,7 @@ export async function linkPersonToCurrentUser(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
   // Validate the target exists in the same family and is unlinked

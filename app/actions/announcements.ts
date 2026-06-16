@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface Announcement {
@@ -155,7 +156,7 @@ export async function createAnnouncement(
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
 
-  const familyCode: string = user.user_metadata?.family_code ?? ''
+  const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
   const isAdmin = myPerson?.is_admin === true
 
