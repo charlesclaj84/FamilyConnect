@@ -97,10 +97,13 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
+  // Dues are LIVE. The `/dues` route itself only redirects to Account Summary,
+  // but this entry also un-hides the `dues` resource row in Groups & Permissions
+  // so a treasurer can be granted `dues:edit` without being made an administrator.
   {
     href: '/dues',
     label: 'Dues',
-    status: 'future',
+    status: 'live',
     blurb: 'Dues schedules at any cadence, with a payment plan that fits your budget.',
   },
   {
@@ -198,16 +201,21 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'Reusable event blueprints that auto-assign the planning checklist.',
   },
+  // Accounting is LIVE — it is where dues get set up: schedules, recorded
+  // payments, and the funds those payments route into. `/admin/dues` is the legacy
+  // URL for the same tool and only redirects here, so it ships alongside it.
+  // The route stays `/admin/account` because that string is also the permission
+  // resource key, wired into RLS via permission_table_map. Only the name changed.
   {
     href: '/admin/account',
-    label: 'Account Management',
-    status: 'future',
+    label: 'Accounting',
+    status: 'live',
     blurb: 'Dues schedules, funds, and payment routing for the whole family.',
   },
   {
     href: '/admin/dues',
     label: 'Dues Management',
-    status: 'future',
+    status: 'live',
     blurb: 'Dues schedules, funds, and payment routing for the whole family.',
   },
 ]

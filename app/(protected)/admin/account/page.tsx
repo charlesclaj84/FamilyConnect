@@ -5,12 +5,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundAllocations } from '@/app/actions/funds'
-import { AdminDuesClient } from '@/components/admin/AdminDuesClient'
-import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
+import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
+import { resolveSection } from '@/components/admin/account-sections'
 
-export const metadata = { title: 'Account Management — Admin — Family Connect' }
+export const metadata = { title: 'Accounting — Admin — Family Connect' }
 
-export default async function AdminAccountPage() {
+export default async function AdminAccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -19,6 +23,11 @@ export default async function AdminAccountPage() {
   await requireView(user.id, 'admin/account')
 
   const familyCode = await getMyFamilyCode(user.id)
+
+  // Resolved server-side so the first paint already shows the right section — and so
+  // the client's initial state matches the server HTML exactly, which is what keeps
+  // this free of hydration mismatch. searchParams is a Promise in Next 16.
+  const initialSection = resolveSection((await searchParams).section)
 
   const [schedules, payments, fundsData, allDisbursements, allocations, membersResult] = await Promise.all([
     getDuesSchedules(),
@@ -50,28 +59,25 @@ export default async function AdminAccountPage() {
     : { data: [] }
   const allMilestones = milestonesResult.data ?? []
 
+  // Widened only at xl, where the rail appears: every narrower width keeps the
+  // measure the rest of the admin pages use.
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-12">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8 xl:max-w-6xl">
       <div>
-        <h1 className="text-3xl font-bold mb-1">Account Management</h1>
+        <h1 className="text-3xl font-bold mb-1">Accounting</h1>
         <p className="text-muted-foreground">Manage dues schedules, record payments, and administer family funds.</p>
       </div>
 
-      <AdminDuesClient
+      <AdminAccountShell
+        initialSection={initialSection}
         initialSchedules={schedules}
         initialPayments={payments}
+        initialFunds={fundsData}
+        allMilestones={allMilestones}
+        allDisbursements={allDisbursements}
+        initialAllocations={allocations}
         members={members}
       />
-
-      <div className="border-t pt-8">
-        <AdminFundsClient
-          initialFunds={fundsData}
-          allMilestones={allMilestones}
-          allDisbursements={allDisbursements}
-          initialAllocations={allocations}
-          members={members}
-        />
-      </div>
     </div>
   )
 }

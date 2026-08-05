@@ -17,6 +17,7 @@ import {
   saveFundAllocations, recordFundContribution,
   type FundWithStats, type FundMilestone, type FundDisbursement, type FundAllocationRow,
 } from '@/app/actions/funds'
+import { isFundsSection, type AccountSection } from '@/components/admin/account-sections'
 
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
@@ -24,6 +25,8 @@ const SHOW_OPEN_CONTRIBUTIONS = false
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 
 interface Props {
+  /** Which section the shell is showing. This component renders only its own. */
+  section: AccountSection
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
   allDisbursements: FundDisbursement[]
@@ -31,9 +34,11 @@ interface Props {
   members: Person[]
 }
 
-export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements, initialAllocations, members }: Props) {
+export function AdminFundsClient({ section, initialFunds, allMilestones, allDisbursements, initialAllocations, members }: Props) {
   const confirm = useConfirm()
-  const [tab, setTab] = useState<'funds' | 'milestones' | 'disbursements' | 'record' | 'routing'>('funds')
+  // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
+  // below stays identical to the tab-strip version.
+  const tab: AccountSection = section
   const [funds, setFunds] = useState(initialFunds)
   const [disbursements, setDisbursements] = useState(allDisbursements)
   const [error, setError] = useState('')
@@ -120,6 +125,17 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
   const [fcAmount, setFcAmount] = useState('')
   const [fcDate, setFcDate] = useState(new Date().toISOString().split('T')[0])
   const [fcNotes, setFcNotes] = useState('')
+
+  // The deleted tab strip cleared `error` on every tab click; this preserves that.
+  // Adjusted during render, not in an effect, so a stale validation message never
+  // paints for a frame in the wrong panel. `routingMsg` is deliberately NOT cleared:
+  // the old strip cleared only `error`, so "Routing saved." survived a tab switch
+  // and must keep surviving a section switch.
+  const [prevSection, setPrevSection] = useState(section)
+  if (prevSection !== section) {
+    setPrevSection(section)
+    setError('')
+  }
 
   function handleRecordContribution() {
     if (!fcFundId || !fcAmount) { setError('Fund and amount required'); return }
@@ -302,29 +318,10 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
     })
   }
 
-  const tabs = [
-    { id: 'funds' as const, label: 'Funds' },
-    { id: 'routing' as const, label: 'Routing' },
-    { id: 'milestones' as const, label: 'Milestones' },
-    { id: 'disbursements' as const, label: 'Disbursements' },
-    { id: 'record' as const, label: 'Record Disbursement' },
-  ]
+  if (!isFundsSection(section)) return null
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold">Family Funds</h2>
-      <div className="flex gap-2 border-b flex-wrap">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setTab(t.id); setError('') }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {tab === 'funds' && (
         <div className="space-y-4">
           <div className="rounded-xl border bg-card p-4 space-y-3">
@@ -469,7 +466,7 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
         </div>
       )}
 
-      {tab === 'record' && (
+      {tab === 'record-disbursement' && (
         <div className="rounded-xl border bg-card p-4 space-y-4 max-w-md">
           <div className="space-y-1.5">
             <Label>Fund</Label>
@@ -635,8 +632,17 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
             )}
           </div>
 
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {routingMsg && <p className="text-sm text-muted-foreground">{routingMsg}</p>}
+        </div>
+      )}
+
+      {/* Moved out of Routing: recording a contribution is manual money entry, not
+          routing configuration. The form state lives on the component, not in this
+          block, so it survives switching away and back. */}
+      {tab === 'record-contribution' && (
+        <div className="space-y-6">
           <div className="rounded-xl border bg-card p-4 space-y-3 max-w-md">
-            <h3 className="text-sm font-semibold">Add Contribution</h3>
             <p className="text-xs text-muted-foreground">Record money added to a fund directly by an admin (outside of dues routing).</p>
             <div className="space-y-1.5">
               <Label>Fund</Label>

@@ -48,6 +48,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/user-roles', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/elections',  label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',    label: 'Reports',              icon: BarChart3 },
+  { href: '/admin/account',    label: 'Accounting',           icon: Wallet },
 ]
 
 // Build the nav groups for the current user. Every item is listed unconditionally
@@ -92,7 +93,6 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
     items: [
       { href: '/account-summary', label: 'Account Summary',   icon: Wallet },
       { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
-      { href: '/admin/account', label: 'Account Management', icon: ShieldCheck },
     ],
   })
 

@@ -15,10 +15,16 @@ import {
   createDuesSchedule, updateDuesSchedule, recordPayment, deleteDuesSchedule,
   type DuesSchedule, type DuesPayment,
 } from '@/app/actions/dues'
+import { isDuesSection, type AccountSection } from '@/components/admin/account-sections'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 
 interface Props {
+  /** Which section the shell is showing. This component renders only its own. */
+  section: AccountSection
+  /** The live section, for handlers that jump after an await. See handleRecordPayment. */
+  sectionRef: React.RefObject<AccountSection>
+  onNavigate: (next: AccountSection) => void
   initialSchedules: DuesSchedule[]
   initialPayments: DuesPayment[]
   members: Person[]
@@ -26,12 +32,14 @@ interface Props {
 
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
 
-export function AdminDuesClient({ initialSchedules, initialPayments, members }: Props) {
+export function AdminDuesClient({ section, sectionRef, onNavigate, initialSchedules, initialPayments, members }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [schedules, setSchedules] = useState(initialSchedules)
   const [payments, setPayments] = useState(initialPayments)
-  const [tab, setTab] = useState<'schedules' | 'payments' | 'record'>('schedules')
+  // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
+  // below stays identical to the tab-strip version.
+  const tab: AccountSection = section
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -60,6 +68,17 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
   const [rpMethod, setRpMethod] = useState('')
   const [rpStatus, setRpStatus] = useState<'paid' | 'pending' | 'waived'>('paid')
   const [rpNotes, setRpNotes] = useState('')
+
+  // The deleted tab strip cleared `error` on every tab click; this preserves that.
+  // Adjusted during render rather than in an effect on purpose — an effect runs
+  // after paint, which would flash a Record Payment validation message inside the
+  // Add Schedule card for a frame. Hooks above are all called unconditionally, so
+  // this bare `if` does not affect hook order.
+  const [prevSection, setPrevSection] = useState(section)
+  if (prevSection !== section) {
+    setPrevSection(section)
+    setError('')
+  }
 
   function startEdit(s: DuesSchedule) {
     setEditId(s.id)
@@ -166,32 +185,20 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
         created_at: new Date().toISOString(),
       }, ...prev])
       setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpNotes('')
-      setTab('payments')
+      // Jump to the history so the new row is visible — but only if the admin is
+      // still somewhere in Dues. The save is awaited, so by now they may have moved
+      // to Funds or Settings, and yanking the whole page there would be new
+      // behavior the two independent tab strips could not produce.
+      if (isDuesSection(sectionRef.current)) onNavigate('payments')
       // Refresh server data so fund balances (routed dues) update too.
       router.refresh()
     })
   }
 
-  const tabs = [
-    { id: 'schedules' as const, label: 'Schedules' },
-    { id: 'payments' as const, label: 'Payment History' },
-    { id: 'record' as const, label: 'Record Payment' },
-  ]
+  if (!isDuesSection(section)) return null
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 border-b">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setTab(t.id); setError('') }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${tab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {tab === 'schedules' && (
         <div className="space-y-4">
           {/* Add schedule form */}
@@ -330,7 +337,7 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
         </div>
       )}
 
-      {tab === 'record' && (
+      {tab === 'record-payment' && (
         <div className="rounded-xl border bg-card p-4 space-y-4 max-w-md">
           <div className="space-y-1.5">
             <Label>Member</Label>

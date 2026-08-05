@@ -80,7 +80,7 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('admin/reports',       'Reports',                'admin',      210),
   ('admin/events',        'Event Management',       'admin',      220),
   ('admin/event-types',   'Event Templates',        'admin',      230),
-  ('admin/account',       'Account Management',     'admin',      240),
+  ('admin/account',       'Accounting',             'admin',      240),
   ('admin/announcements', 'Announcement Management','admin',      250)
 ON CONFLICT (key) DO UPDATE
   SET label = EXCLUDED.label, category = EXCLUDED.category, sort_order = EXCLUDED.sort_order;

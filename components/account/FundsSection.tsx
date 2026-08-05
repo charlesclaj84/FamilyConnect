@@ -35,7 +35,7 @@ export function FundsSection({ funds, isAdmin }: Props) {
           Family Funds
         </CardTitle>
         {isAdmin && (
-          <Link href="/admin/account#funds" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+          <Link href="/admin/account?section=funds" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
             Manage Funds
           </Link>
         )}
