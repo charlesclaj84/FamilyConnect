@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getUpcomingEvents } from '@/app/actions/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, MapPin, Clock, ChevronRight, Users } from 'lucide-react'
@@ -12,6 +13,8 @@ export default async function EventsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'events')
 
   const events = await getUpcomingEvents()
 

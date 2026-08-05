@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getAllElections } from '@/app/actions/elections'
 import { ChevronRight, Vote } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,6 +23,8 @@ export default async function ElectionsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'elections')
 
   const elections = await getAllElections()
   const active = elections.filter(e => e.status === 'nominations' || e.status === 'voting')

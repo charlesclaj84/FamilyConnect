@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { can } from '@/lib/auth/permissions'
+import { can, requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getFamilyPnL } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
@@ -13,6 +13,8 @@ export default async function FamilyFinancesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'family-finances')
 
   const admin = createAdminClient()
   const [pnlData, funds] = await Promise.all([

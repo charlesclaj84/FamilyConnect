@@ -103,22 +103,23 @@ export interface EventReport {
 async function getAuthenticatedAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { user: null, admin: null, familyCode: '', canApprove: false }
+  if (!user) return { user: null, admin: null, adminClient: null, familyCode: '', canApprove: false }
 
   const adminClient = createAdminClient()
-  const { data: person } = await adminClient
-    .from('people')
-    .select('is_admin, can_approve')
-    .eq('user_id', user.id)
-    .maybeSingle()
 
-  const familyCode = await getMyFamilyCode(user.id)
+  // Authority is `can()` alone. There is no people.is_admin / can_approve lookup
+  // here any more — 20260618000002 dropped both columns.
+  const [familyCode, mayEdit] = await Promise.all([
+    getMyFamilyCode(user.id),
+    can(user.id, 'admin/events', 'edit'),
+  ])
+
   return {
     user,
-    admin: (await can(user.id, 'admin/events', 'edit')) ? adminClient : null,
+    admin: mayEdit ? adminClient : null,
     adminClient,
     familyCode,
-    canApprove: await can(user.id, 'admin/events', 'edit'),
+    canApprove: mayEdit,
   }
 }
 
@@ -372,7 +373,7 @@ export async function publishEvent(id: string): Promise<{ success: boolean; erro
 }
 
 export async function approveEvent(id: string): Promise<{ success: boolean; error?: string }> {
-  const { user, admin, adminClient, canApprove } = await getAuthenticatedAdmin()
+  const { user, adminClient, canApprove } = await getAuthenticatedAdmin()
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!canApprove) return { success: false, error: 'You do not have event approval authority' }
 
@@ -409,14 +410,54 @@ export async function deleteEvent(id: string): Promise<{ success: boolean; error
   return { success: true }
 }
 
+/**
+ * event_assignments has no family_code of its own — family comes from the parent
+ * event — and the mutations below take a bare id from the client while running on
+ * the service-role key, so RLS is not there to confine them. Without this check an
+ * administrator in one family could act on another family's task by id.
+ */
+async function assignmentInFamily(
+  admin: NonNullable<Awaited<ReturnType<typeof getAuthenticatedAdmin>>['admin']>,
+  assignmentId: string,
+  familyCode: string
+): Promise<boolean> {
+  if (!familyCode) return false
+  const { data } = await admin
+    .from('event_assignments')
+    .select('id, events!inner(family_code)')
+    .eq('id', assignmentId)
+    .eq('events.family_code', familyCode)
+    .maybeSingle()
+  return Boolean(data)
+}
+
+/** Same confinement, for the mutations that identify the event directly. */
+async function eventInFamily(
+  admin: NonNullable<Awaited<ReturnType<typeof getAuthenticatedAdmin>>['admin']>,
+  eventId: string,
+  familyCode: string
+): Promise<boolean> {
+  if (!familyCode) return false
+  const { data } = await admin
+    .from('events')
+    .select('id')
+    .eq('id', eventId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  return Boolean(data)
+}
+
 export async function assignBlueprintItem(
   eventId: string,
   blueprintItemId: string,
   assignedTo: string,
   dueDate?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { user, admin } = await getAuthenticatedAdmin()
+  const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
+  if (!(await eventInFamily(admin, eventId, familyCode))) {
+    return { success: false, error: 'Event not found' }
+  }
 
   const { error } = await admin
     .from('event_assignments')
@@ -432,8 +473,11 @@ export async function updateAssignmentDueDate(
   assignmentId: string,
   dueDate: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
+  if (!(await assignmentInFamily(admin, assignmentId, familyCode))) {
+    return { success: false, error: 'Assignment not found' }
+  }
 
   const { error } = await admin.from('event_assignments').update({ due_date: dueDate || null }).eq('id', assignmentId)
   return error ? { success: false, error: error.message } : { success: true }
@@ -442,8 +486,11 @@ export async function updateAssignmentDueDate(
 export async function unassignBlueprintItem(
   assignmentId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
+  if (!(await assignmentInFamily(admin, assignmentId, familyCode))) {
+    return { success: false, error: 'Assignment not found' }
+  }
 
   const { error } = await admin.from('event_assignments').delete().eq('id', assignmentId)
   return error ? { success: false, error: error.message } : { success: true }
@@ -456,9 +503,12 @@ export async function approveAssignmentResponse(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
-  const adminClient = createAdminClient()
-  const { data: person } = await adminClient.from('people').select('can_approve').eq('user_id', user.id).maybeSingle()
   if (!(await can(user.id, 'admin/events', 'edit'))) return { success: false, error: 'Not authorized to approve responses' }
+
+  const adminClient = createAdminClient()
+  if (!(await assignmentInFamily(adminClient, assignmentId, await getMyFamilyCode(user.id)))) {
+    return { success: false, error: 'Assignment not found' }
+  }
 
   const { error } = await adminClient
     .from('event_assignments')

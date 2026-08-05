@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { getMyPersonId } from '@/lib/auth/family'
+import { requireView } from '@/lib/auth/permissions'
 import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels, getEventRsvpSummary } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
 import { getOrCreateEventCollection } from '@/app/actions/photos'
@@ -10,7 +10,6 @@ import { EventHotelsClient } from '@/components/events/EventHotelsClient'
 import { EventItineraryClient } from '@/components/events/EventItineraryClient'
 import { ChevronLeft, Calendar, MapPin, Clock, ClipboardList, Users, Camera } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
 
 export const metadata = { title: 'Event — Family Connect' }
@@ -22,8 +21,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const admin = createAdminClient()
-  const myPersonId = await getMyPersonId(user.id)
+  await requireView(user.id, 'events')
 
   const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary, photoCollection] = await Promise.all([
     getEventDetail(id),

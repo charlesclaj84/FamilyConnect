@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { can } from '@/lib/auth/permissions'
+import { can, requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnnouncements, getChapters } from '@/app/actions/announcements'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
@@ -12,6 +12,8 @@ export default async function AnnouncementsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'announcements')
 
   const admin = createAdminClient()
   const canManage = await can(user.id, 'announcements', 'edit')

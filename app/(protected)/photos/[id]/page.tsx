@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getMyPersonId } from '@/lib/auth/family'
-import { can } from '@/lib/auth/permissions'
+import { can, requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCollectionDetail } from '@/app/actions/photos'
 import { getMembers } from '@/app/actions/members'
@@ -17,6 +17,8 @@ export default async function PhotoCollectionPage({ params }: { params: Promise<
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'photos')
 
   const admin = createAdminClient()
   const myPersonId = await getMyPersonId(user.id)

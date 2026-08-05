@@ -2,7 +2,8 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyPersonId } from '@/lib/auth/family'
+import { requireView } from '@/lib/auth/permissions'
 import { getElectionDetail, getElectionResults } from '@/app/actions/elections'
 import { getMembers } from '@/app/actions/members'
 import { formatDate } from '@/lib/date-utils'
@@ -17,8 +18,11 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const admin = createAdminClient()
-  const { data: myPerson } = await admin.from('people').select('id').eq('user_id', user.id).maybeSingle()
+  await requireView(user.id, 'elections')
+
+  // The caller's people.id in the family they are currently viewing. A user_id
+  // lookup would match one row per membership and fail for multi-family members.
+  const myPersonId = await getMyPersonId(user.id)
 
   const [{ election, positions, nominations, myVotes }, members, results] = await Promise.all([
     getElectionDetail(id),
@@ -28,8 +32,8 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
 
   if (!election) notFound()
 
-  const myNominations = myPerson
-    ? nominations.filter(n => n.nominee_id === myPerson.id)
+  const myNominations = myPersonId
+    ? nominations.filter(n => n.nominee_id === myPersonId)
     : []
 
   const STATUS_LABEL: Record<string, string> = {
@@ -81,7 +85,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
         nominations={nominations}
         myVotes={myVotes}
         members={members}
-        myPersonId={myPerson?.id ?? null}
+        myPersonId={myPersonId || null}
         myNominations={myNominations}
       />
 

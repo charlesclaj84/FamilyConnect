@@ -3,7 +3,20 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * Everything here reads through the service-role client, so RLS — and with it the
+ * family scoping and the permission checks from 20260618000001 — does NOT apply.
+ * Each function therefore has to do both jobs itself.
+ *
+ * The subtle one is family: `event_assignments.assigned_to` is an auth.users id,
+ * which is IDENTICAL across every family the user belongs to, and the table has
+ * no family_code of its own — family lives on the parent event. So filtering on
+ * assigned_to alone returns the user's tasks in ALL their families. Every query
+ * below joins `events!inner` and pins `events.family_code` to the active family.
+ */
 
 export interface MyAssignment {
   id: string
@@ -24,6 +37,10 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
+  if (!(await can(user.id, 'event-planning', 'view'))) return []
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return []
 
   const admin = createAdminClient()
 
@@ -36,8 +53,9 @@ export async function getMyAssignments(): Promise<MyAssignment[]> {
   // forward-compatibility. All columns are NOT NULL, so the filters are NULL-safe.
   const { data } = await admin
     .from('event_assignments')
-    .select('id, event_id, response, response_status, approved_at, event_blueprint_items(title, due_date, response_type, sort_order), events(name, event_date, event_time)')
+    .select('id, event_id, response, response_status, approved_at, event_blueprint_items(title, due_date, response_type, sort_order), events!inner(name, event_date, event_time, family_code)')
     .eq('assigned_to', user.id)
+    .eq('events.family_code', familyCode)
     .eq('is_complete', false)
     .in('response_status', ['pending', 'submitted'])
     .order('created_at', { ascending: false })
@@ -63,12 +81,18 @@ export async function getMyAssignmentCount(): Promise<number> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return 0
 
+  if (!(await can(user.id, 'event-planning', 'view'))) return 0
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return 0
+
   const admin = createAdminClient()
   await admin.rpc('cancel_overdue_event_assignments')
   const { count } = await admin
     .from('event_assignments')
-    .select('id', { count: 'exact', head: true })
+    .select('id, events!inner(family_code)', { count: 'exact', head: true })
     .eq('assigned_to', user.id)
+    .eq('events.family_code', familyCode)
     .eq('is_complete', false)
     .in('response_status', ['pending', 'submitted'])
 
@@ -85,7 +109,11 @@ export async function getFamilyMembersForPlanning(): Promise<FamilyMemberOption[
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  if (!(await can(user.id, 'event-planning', 'view'))) return []
+
   const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return []
+
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -110,18 +138,28 @@ export async function submitAssignmentResponse(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'Not authorized' }
+
   const admin = createAdminClient()
 
-  // Verify this assignment belongs to the user and isn't approved
+  // Verify this assignment belongs to the user and isn't approved. assigned_to is
+  // the same id in every family, so the event's family_code is what confines this
+  // to the family currently being viewed.
   const { data: existing } = await admin
     .from('event_assignments')
-    .select('assigned_to, response_status')
+    .select('assigned_to, response_status, events!inner(family_code)')
     .eq('id', assignmentId)
-    .single()
+    .eq('events.family_code', familyCode)
+    .maybeSingle()
 
   if (!existing) return { success: false, error: 'Assignment not found' }
   if (existing.assigned_to !== user.id) return { success: false, error: 'Not authorized' }
   if (existing.response_status === 'approved') return { success: false, error: 'This response has been approved and cannot be edited' }
+  // No `event-planning:edit` check here on purpose. permission_table_map gives
+  // event_assignments a self_expr of `assigned_to = auth.uid()`, OR-ed OUTSIDE the
+  // permission check, so RLS always lets an assignee answer their own task. The
+  // assigned_to comparison above is that same rule.
 
   const { error } = await admin
     .from('event_assignments')

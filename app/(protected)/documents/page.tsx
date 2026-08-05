@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { can } from '@/lib/auth/permissions'
+import { can, requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
@@ -11,6 +11,8 @@ export default async function DocumentsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'documents')
 
   const admin = createAdminClient()
   const canManage = await can(user.id, 'documents', 'delete')

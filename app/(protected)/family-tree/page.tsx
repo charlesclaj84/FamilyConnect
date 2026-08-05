@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyActiveMembership } from '@/lib/auth/family'
+import { requireView } from '@/lib/auth/permissions'
 import {
   getAncestorRows,
   getDescendantTree,
@@ -24,14 +26,23 @@ export default async function FamilyTreePage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  await requireView(user.id, 'family-tree')
+
   const admin = createAdminClient()
 
-  // Resolve current user's person record
-  const { data: myPerson } = await admin
-    .from('people')
-    .select('id, first_name, last_name, family_code')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // Resolve the caller's person row IN THE FAMILY THEY ARE CURRENTLY VIEWING.
+  // Selecting on user_id alone matches one row per membership, so .maybeSingle()
+  // errors outright for anyone in more than one family — take the id from the
+  // active-membership resolver and look the row up by primary key instead.
+  const { familyCode, personId } = await getMyActiveMembership(user.id)
+
+  const { data: myPerson } = personId
+    ? await admin
+        .from('people')
+        .select('id, first_name, last_name, family_code')
+        .eq('id', personId)
+        .maybeSingle()
+    : { data: null }
 
   // Validate the view param belongs to the same family
   let subjectPersonId = myPerson?.id ?? ''
@@ -45,7 +56,9 @@ export default async function FamilyTreePage({
       .eq('id', view)
       .maybeSingle()
 
-    if (subjectPerson && subjectPerson.family_code === (myPerson as { family_code?: string } | null)?.family_code) {
+    // Compare against the ACTIVE family code, not myPerson's — the two agree, but
+    // this way a failed person lookup cannot degrade the check to undefined.
+    if (subjectPerson && familyCode && subjectPerson.family_code === familyCode) {
       subjectPersonId = subjectPerson.id
       isViewMode = true
       viewSubjectName = [subjectPerson.first_name, subjectPerson.last_name].filter(Boolean).join(' ')

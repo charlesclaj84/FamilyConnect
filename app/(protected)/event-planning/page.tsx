@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getMyAssignments, getFamilyMembersForPlanning } from '@/app/actions/event-planning'
 import { EventPlanningClient } from '@/components/events/EventPlanningClient'
 
@@ -9,6 +10,8 @@ export default async function EventPlanningPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'event-planning')
 
   const [assignments, familyMembers] = await Promise.all([
     getMyAssignments(),
