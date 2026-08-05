@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -475,11 +476,15 @@ export function DirectLineageClient({
   initialChildren: ChildRecord[]
   spouseChildren?: SpouseChildRecord[]
 }) {
+  const router = useRouter()
   const [showAddForm,   setShowAddForm]   = useState(false)
   const [editingId,     setEditingId]     = useState<string | null>(null)
   const [convertingChild, setConvertingChild] = useState<ChildRecord | null>(null)
 
-  function refresh() { window.location.reload() }
+  // An RSC refresh rather than a document reload: the list below is rendered straight
+  // from props, so refetching the route is all that is needed to show a new child —
+  // and it keeps scroll position and the rest of the page's state.
+  function refresh() { router.refresh() }
 
   return (
     <div className="space-y-6">

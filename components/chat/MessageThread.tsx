@@ -16,9 +16,15 @@ interface Props {
   room: RoomWithMeta
   currentUserId: string
   onBack: () => void
+  /**
+   * Reports a membership change up to the shell, which owns the room list. The
+   * participant list rendered here comes from that list, so without this an added
+   * member would not appear until the whole page was reloaded.
+   */
+  onParticipantsChange: (roomId: string, next: ChatParticipant[]) => void
 }
 
-export function MessageThread({ room, currentUserId, onBack }: Props) {
+export function MessageThread({ room, currentUserId, onBack, onParticipantsChange }: Props) {
   const confirm = useConfirm()
   const [messages, setMessages]         = useState<ChatMessage[]>([])
   const [senderMap, setSenderMap]       = useState<SenderMap>({})
@@ -28,6 +34,7 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
   const [showMembers, setShowMembers]   = useState(false)
   const [addMembers, setAddMembers]     = useState<{ userId: string; firstName: string | null; lastName: string | null }[]>([])
   const [memberLoading, setMemberLoading] = useState(false)
+  const [memberError, setMemberError]   = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const isCreator = room.kind === 'group' && room.created_by === currentUserId
@@ -110,9 +117,16 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
     })
     if (!ok) return
     setMemberLoading(true)
-    await addGroupMember(room.id, userId)
-    setAddMembers(prev => prev.filter(m => m.userId !== userId))
+    const result = await addGroupMember(room.id, userId)
     setMemberLoading(false)
+    if (!result.success) { setMemberError(result.error ?? 'Could not add member'); return }
+    setMemberError('')
+    setAddMembers(prev => prev.filter(m => m.userId !== userId))
+    onParticipantsChange(room.id, [...room.participants, {
+      user_id: userId,
+      first_name: member?.firstName ?? null,
+      last_name: member?.lastName ?? null,
+    }])
   }
 
   async function handleRemove(userId: string) {
@@ -128,9 +142,20 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
     })
     if (!ok) return
     setMemberLoading(true)
-    await removeGroupMember(room.id, userId)
+    const result = await removeGroupMember(room.id, userId)
     setMemberLoading(false)
-    window.location.reload()
+    if (!result.success) { setMemberError(result.error ?? 'Could not remove member'); return }
+    setMemberError('')
+    onParticipantsChange(room.id, room.participants.filter(p => p.user_id !== userId))
+    // Offer them back in the "add members" list rather than making the creator
+    // reopen the panel to see the change.
+    if (participant) {
+      setAddMembers(prev => prev.some(m => m.userId === userId) ? prev : [...prev, {
+        userId,
+        firstName: participant.first_name,
+        lastName: participant.last_name,
+      }])
+    }
   }
 
   function resolveName(userId: string) {
@@ -169,6 +194,8 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
       {room.kind === 'group' && showMembers && isCreator && (
         <div className="border-b bg-muted/30 px-4 py-3 space-y-3">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Members</p>
+
+          {memberError && <p className="text-xs text-destructive">{memberError}</p>}
 
           <div className="space-y-1">
             {activeParticipants.map(p => {

@@ -156,9 +156,14 @@ export async function getPinnedAnnouncements(): Promise<Announcement[]> {
     .slice(0, 2)
 }
 
+/**
+ * Returns the new row's id so a client list can show it under its real id. Without
+ * that, an optimistic row carries an invented id and the delete/pin buttons on it
+ * silently address a row that does not exist.
+ */
 export async function createAnnouncement(
   input: AnnouncementInput
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -178,7 +183,7 @@ export async function createAnnouncement(
   const pinned = isAdmin ? input.pinned : false
 
   // Service-role insert so non-admin members can post (RLS limits inserts to admins).
-  const { error } = await admin.from('announcements').insert({
+  const { data, error } = await admin.from('announcements').insert({
     family_code: familyCode,
     title: input.title.trim(),
     body: input.body.trim(),
@@ -187,13 +192,13 @@ export async function createAnnouncement(
     pinned_until: pinned && input.pinned_until ? input.pinned_until : null,
     chapter_id: scope === 'chapter' ? (input.chapter_id ?? null) : null,
     author_id: myPerson?.id ?? null,
-  })
+  }).select('id').single()
 
   if (error) return { success: false, message: error.message }
   revalidatePath('/announcements')
   revalidatePath('/dashboard')
   revalidatePath('/admin/announcements')
-  return { success: true }
+  return { success: true, id: data?.id }
 }
 
 export async function deleteAnnouncement(

@@ -7,7 +7,7 @@ import { MessageThread } from './MessageThread'
 import { NewDmDialog } from './NewDmDialog'
 import { CreateGroupDialog } from './CreateGroupDialog'
 import { useConfirm } from '@/components/ui/confirm'
-import { deleteDm, markRoomRead, type RoomWithMeta } from '@/app/actions/chat'
+import { deleteDm, markRoomRead, type RoomWithMeta, type ChatParticipant } from '@/app/actions/chat'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
@@ -59,6 +59,11 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
     handleSelectRoom(room.id)
   }
 
+  /** The thread renders participants from this list, so membership edits land here. */
+  function handleParticipantsChange(roomId: string, next: ChatParticipant[]) {
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, participants: next } : r))
+  }
+
   async function handleDeleteDm(roomId: string) {
     const room = rooms.find(r => r.id === roomId)
     const other = room?.participants.find(p => p.user_id !== currentUserId)
@@ -103,6 +108,7 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
               room={activeRoom}
               currentUserId={currentUserId}
               onBack={() => setShowThread(false)}
+              onParticipantsChange={handleParticipantsChange}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">

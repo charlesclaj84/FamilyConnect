@@ -229,28 +229,29 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
 // Milestone CRUD (admin only)
 // -------------------------------------------------------
 
+/** Returns the inserted row so the admin page can list it without a refetch. */
 export async function createMilestone(
   fundId: string,
   input: { name: string; description: string; amount_cents: number; sort_order?: number }
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; milestone?: FundMilestone; message?: string }> {
   const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  const { error } = await admin.from('fund_milestones').insert({
+  const { data, error } = await admin.from('fund_milestones').insert({
     fund_id: fundId,
     family_code: familyCode,
     name: input.name.trim(),
     description: input.description.trim() || null,
     amount_cents: input.amount_cents,
     sort_order: input.sort_order ?? 0,
-  })
+  }).select('id, fund_id, name, description, amount_cents, sort_order').single()
 
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
-  return { success: true }
+  return { success: true, milestone: data }
 }
 
 export async function updateMilestone(

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { FileText, Download, Trash2, Upload, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import { uploadDocument, deleteDocument, type DocumentRecord } from '@/app/actions/documents'
 
 const CATEGORIES = [
@@ -31,8 +33,13 @@ interface Props {
 }
 
 export function DocumentList({ initialDocuments, isAdmin }: Props) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [documents, setDocuments] = useState(initialDocuments)
+  // `useServerState`: an uploaded file used to stay invisible until the page was left
+  // and re-entered. The row is not built client-side because two of its fields — the
+  // uploader's name and the storage download URL — only exist once the server has read
+  // the row back, so the upload handler refreshes instead.
+  const [documents, setDocuments] = useServerState(initialDocuments)
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [showUpload, setShowUpload] = useState(false)
@@ -69,6 +76,10 @@ export function DocumentList({ initialDocuments, isAdmin }: Props) {
       const result = await uploadDocument(fd)
       if (!result.success) { setError(result.message ?? 'Upload failed'); return }
       setShowUpload(false); setFileName(''); setFileDescription(''); setSelectedFile(null)
+      if (fileRef.current) fileRef.current.value = ''
+      // Explicit, rather than leaning on the action's `revalidatePath`, so the new
+      // row lands whatever path this list is mounted under.
+      router.refresh()
     })
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { Plus, Trash2, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createFund, updateFund, deleteFund,
   createMilestone, deleteMilestone,
@@ -39,14 +40,14 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
   // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
   // below stays identical to the tab-strip version.
   const tab: AccountSection = section
-  const [funds, setFunds] = useState(initialFunds)
-  const [disbursements, setDisbursements] = useState(allDisbursements)
+  // `useServerState` keeps these in sync when the page re-fetches (e.g. after a dues
+  // payment routes into funds) — the shell never unmounts this panel, so a plain
+  // `useState` initializer would go stale for the rest of the visit.
+  const [funds, setFunds] = useServerState(initialFunds)
+  const [disbursements, setDisbursements] = useServerState(allDisbursements)
+  const [milestones, setMilestones] = useServerState(allMilestones)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
-
-  // Keep balances in sync when the page re-fetches (e.g. after a dues payment routes into funds).
-  useEffect(() => { setFunds(initialFunds) }, [initialFunds])
-  useEffect(() => { setDisbursements(allDisbursements) }, [allDisbursements])
 
   // ── New fund form ──
   const [nfName, setNfName] = useState('')
@@ -157,7 +158,6 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
     })
   }
 
-  const milestones = allMilestones // server-fetched, not re-fetching on create for simplicity
   const filteredMilestones = rdFundId ? milestones.filter(m => m.fund_id === rdFundId) : []
 
   function handleCreateFund() {
@@ -243,13 +243,19 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
         description: nmDesc,
         amount_cents: Math.round(parseFloat(nmAmount) * 100),
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.milestone) { setError(result.message ?? 'Failed'); return }
+      // Also puts it in the disbursement form's milestone dropdown right away.
+      const created = result.milestone
+      setMilestones(prev => [...prev, created])
+      setFunds(prev => prev.map(f => f.id === created.fund_id
+        ? { ...f, milestone_count: f.milestone_count + 1 }
+        : f))
       setNmName(''); setNmDesc(''); setNmAmount('')
     })
   }
 
   async function handleDeleteMilestone(id: string) {
-    const milestone = allMilestones.find(m => m.id === id)
+    const milestone = milestones.find(m => m.id === id)
     const ok = await confirm({
       title: 'Delete milestone',
       description: milestone
@@ -259,7 +265,16 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
       destructive: true,
     })
     if (!ok) return
-    startTransition(async () => { await deleteMilestone(id) })
+    startTransition(async () => {
+      const result = await deleteMilestone(id)
+      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      setMilestones(prev => prev.filter(m => m.id !== id))
+      if (milestone) {
+        setFunds(prev => prev.map(f => f.id === milestone.fund_id
+          ? { ...f, milestone_count: Math.max(0, f.milestone_count - 1) }
+          : f))
+      }
+    })
   }
 
   function handleRecordDisbursement() {
@@ -283,7 +298,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
         : f))
       const fund = funds.find(f => f.id === fundId)
       const person = members.find(m => m.id === personId)
-      const milestone = allMilestones.find(m => m.id === milestoneId)
+      const milestone = milestones.find(m => m.id === milestoneId)
       setDisbursements(prev => [{
         id: `temp-${Date.now()}`,
         fund_id: fundId,

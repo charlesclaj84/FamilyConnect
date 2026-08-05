@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createChapter, deleteChapter, createCustomRole, deleteCustomRole,
   type Chapter, type CustomRole,
@@ -21,9 +23,13 @@ interface Props {
 }
 
 export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [chapters, setChapters] = useState(initialChapters)
-  const [roles, setRoles]       = useState(initialRoles)
+  // `useServerState`: both create handlers below hand off to `router.refresh()`
+  // rather than building a row locally, so adopting the refreshed props is what
+  // actually makes the new row appear.
+  const [chapters, setChapters] = useServerState(initialChapters)
+  const [roles, setRoles]       = useServerState(initialRoles)
 
   // Chapter form
   const [chapterName, setChapterName] = useState('')
@@ -41,7 +47,9 @@ export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
     setChapterSaving(true)
     const result = await createChapter(chapterName.trim())
     if (!result.success) { setChapterError(result.error ?? 'Error'); setChapterSaving(false); return }
-    window.location.reload()
+    setChapterName('')
+    setChapterSaving(false)
+    router.refresh()
   }
 
   async function handleDeleteChapter(id: string, name: string) {
@@ -61,7 +69,10 @@ export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
     setRoleSaving(true)
     const result = await createCustomRole(roleForm)
     if (!result.success) { setRoleError(result.error ?? 'Error'); setRoleSaving(false); return }
-    window.location.reload()
+    setRoleForm({ name: '', category: 'executive_officer', scope: 'national' })
+    setShowRoleForm(false)
+    setRoleSaving(false)
+    router.refresh()
   }
 
   async function handleDeleteRole(id: string, name: string) {

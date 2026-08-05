@@ -1,20 +1,25 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import { createCustomRole, deleteCustomRole, setRoleEnabled, type CustomRole } from '@/app/actions/admin/chapters'
 
 const SCOPE_LABELS = { national: 'National', regional: 'Regional', chapter: 'Chapter' }
 const CATEGORY_LABELS = { executive_officer: 'Executive Officer', appointed_position: 'Appointed Position' }
 
 export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRole[] }) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [roles, setRoles]             = useState(initialRoles)
+  // `useServerState`: `handleAdd` refreshes rather than building a row, so adopting
+  // the refreshed props is what makes the new role appear.
+  const [roles, setRoles]             = useServerState(initialRoles)
   const [showForm, setShowForm]       = useState(false)
   const [roleForm, setRoleForm]       = useState({
     name:     '',
@@ -57,7 +62,10 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
     setSaving(true)
     const result = await createCustomRole(roleForm)
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    window.location.reload()
+    setRoleForm({ name: '', category: 'executive_officer', scope: 'national' })
+    setShowForm(false)
+    setSaving(false)
+    router.refresh()
   }
 
   async function handleDelete(id: string, name: string) {

@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createRegion, deleteRegion, createChapter, deleteChapter,
   type Region, type Chapter,
@@ -109,9 +111,12 @@ function RegionGroup({
 }
 
 export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: Props) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [regions, setRegions]     = useState(initialRegions)
-  const [chapters, setChapters]   = useState(initialChapters)
+  // `useServerState`: `handleAddRegion` refreshes rather than building a row, so
+  // adopting the refreshed props is what makes the new region appear.
+  const [regions, setRegions]     = useServerState(initialRegions)
+  const [chapters, setChapters]   = useServerState(initialChapters)
   const [newRegion, setNewRegion] = useState('')
   const [addingRegion, setAddingRegion] = useState(false)
   const [regionError, setRegionError]   = useState('')
@@ -122,7 +127,9 @@ export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: 
     setRegionError('')
     const result = await createRegion(newRegion.trim())
     if (!result.success) { setRegionError(result.error ?? 'Error'); setAddingRegion(false); return }
-    window.location.reload()
+    setNewRegion('')
+    setAddingRegion(false)
+    router.refresh()
   }
 
   async function handleDeleteRegion(id: string, name: string) {

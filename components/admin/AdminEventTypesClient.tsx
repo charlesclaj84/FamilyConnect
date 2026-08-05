@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createEventType, updateEventType, deleteEventType, moveEventType,
   getBlueprintItems, addBlueprintItem, updateBlueprintItem, deleteBlueprintItem,
@@ -274,8 +276,11 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
 }
 
 export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes: EventType[] }) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [eventTypes, setEventTypes] = useState(initialEventTypes)
+  // `useServerState`: `handleCreate` refreshes rather than building a row, so
+  // adopting the refreshed props is what makes the new type appear.
+  const [eventTypes, setEventTypes] = useServerState(initialEventTypes)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -287,8 +292,10 @@ export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes
     setSaving(true)
     const result = await createEventType(name.trim(), description.trim())
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    const { data } = await import('@/app/actions/admin/event-types').then(m => Promise.resolve({ data: null }))
-    window.location.reload()
+    setName(''); setDescription('')
+    setShowForm(false)
+    setSaving(false)
+    router.refresh()
   }
 
   async function handleDelete(id: string) {

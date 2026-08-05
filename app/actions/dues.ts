@@ -190,18 +190,27 @@ export async function getDuesSchedules(): Promise<DuesSchedule[]> {
   return data ?? []
 }
 
+/**
+ * Returns the inserted row, not just a success flag: the admin page keeps its
+ * schedule list in client state, so it needs the real row (with its real id) to
+ * show the new schedule without waiting for — or depending on — a refetch.
+ */
 export async function createDuesSchedule(
   input: Omit<DuesSchedule, 'id' | 'active'>
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; schedule?: DuesSchedule; message?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  const { error } = await supabase.from('dues_schedules').insert({ ...input, family_code: familyCode, active: true })
+  const { data, error } = await supabase
+    .from('dues_schedules')
+    .insert({ ...input, family_code: familyCode, active: true })
+    .select('*')
+    .single()
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
-  return { success: true }
+  return { success: true, schedule: data }
 }
 
 export async function updateDuesSchedule(

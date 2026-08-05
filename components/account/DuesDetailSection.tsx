@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useTransition } from 'react'
+import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Clock, DollarSign, AlertCircle, History, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { installmentCents, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import { setMyDuesPlan, type DuesSummary, type DuesPayment } from '@/app/actions/dues'
 
 type SortDir = 'asc' | 'desc'
@@ -47,11 +48,10 @@ export function DuesDetailSection({ summary, history }: Props) {
   const [isPending, startTransition] = useTransition()
 
   // Local mirror of summary so cadence changes recompute installments instantly.
-  const [rows, setRows] = useState<DuesSummary[]>(summary)
+  // `useServerState` re-syncs it whenever the server re-fetches — after recording a
+  // payment, and after an admin adds a dues schedule, which revalidates this page.
+  const [rows, setRows] = useServerState<DuesSummary[]>(summary)
   const [error, setError] = useState('')
-
-  // Re-sync when the server re-fetches (e.g. after recording a payment).
-  useEffect(() => { setRows(summary) }, [summary])
 
   const unpaid = rows.filter(s => !s.paid)
   const paidPayments = history.filter(p => p.status === 'paid')

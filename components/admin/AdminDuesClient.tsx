@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createDuesSchedule, updateDuesSchedule, recordPayment, deleteDuesSchedule,
   type DuesSchedule, type DuesPayment,
@@ -35,8 +36,12 @@ const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time
 export function AdminDuesClient({ section, sectionRef, onNavigate, initialSchedules, initialPayments, members }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
-  const [schedules, setSchedules] = useState(initialSchedules)
-  const [payments, setPayments] = useState(initialPayments)
+  // `useServerState`, not `useState`: the shell keeps this panel mounted across
+  // section switches, so a plain initializer would be read exactly once per visit and
+  // every later server render ignored — which is why a freshly added schedule used to
+  // show up only after leaving the page.
+  const [schedules, setSchedules] = useServerState(initialSchedules)
+  const [payments, setPayments] = useServerState(initialPayments)
   // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
   // below stays identical to the tab-strip version.
   const tab: AccountSection = section
@@ -134,7 +139,11 @@ export function AdminDuesClient({ section, sectionRef, onNavigate, initialSchedu
         end_date: nsEndDate || null,
         description: nsDescription.trim() || null,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.schedule) { setError(result.message ?? 'Failed'); return }
+      // Show it straight away, in the server's order (`getDuesSchedules` sorts by
+      // label), so the list reads the same before and after the next refresh.
+      const created = result.schedule
+      setSchedules(prev => [...prev, created].sort((a, b) => a.label.localeCompare(b.label)))
       setNsLabel(''); setNsAmount(''); setNsStartDate(''); setNsEndDate(''); setNsDescription('')
     })
   }

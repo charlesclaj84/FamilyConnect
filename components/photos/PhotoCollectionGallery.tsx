@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useRef, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { X, Upload, Tag, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatPersonName } from '@/lib/name-utils'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import { uploadPhoto, deletePhoto, tagPersonInPhoto, untagPersonFromPhoto } from '@/app/actions/photos'
 import type { Photo } from '@/app/actions/photos'
 
@@ -23,8 +25,12 @@ interface Props {
 export function PhotoCollectionGallery({
   collectionId, initialPhotos, currentPersonId, isAdmin, allMembers
 }: Props) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [photos, setPhotos] = useState(initialPhotos)
+  // `useServerState`: an uploaded photo used to stay invisible until the page was left
+  // and re-entered. The row is not built client-side because its storage image URL
+  // only exists once the server has read the row back, so the handler refreshes.
+  const [photos, setPhotos] = useServerState(initialPhotos)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [tagTarget, setTagTarget] = useState<string | null>(null)
   const [tagSearch, setTagSearch] = useState('')
@@ -53,6 +59,9 @@ export function PhotoCollectionGallery({
     if (!result.success) { setError(result.message ?? 'Upload failed'); return }
     setCaption('')
     if (fileRef.current) fileRef.current.value = ''
+    // Explicit, rather than leaning on the action's `revalidatePath`, so the new
+    // photo lands whatever path this gallery is mounted under.
+    router.refresh()
   }
 
   async function handleDelete(photo: Photo) {

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import {
   createAnnouncement, deleteAnnouncement, togglePinAnnouncement,
   type Announcement, type Chapter,
@@ -21,7 +22,9 @@ interface Props {
 
 export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Props) {
   const confirm = useConfirm()
-  const [announcements, setAnnouncements] = useState(initialAnnouncements)
+  // `useServerState`: a plain initializer reads props once and would then ignore
+  // every later server render.
+  const [announcements, setAnnouncements] = useServerState(initialAnnouncements)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -42,11 +45,13 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
         pinned_until: pinned && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         chapter_id: scope === 'chapter' ? chapterId : null,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      // The real id matters: Delete and Pin on the new card address it directly, and
+      // an invented one would send them after a row that does not exist.
+      if (!result.success || !result.id) { setError(result.message ?? 'Failed'); return }
 
       const selectedChapter = chapters.find(c => c.id === chapterId)
       setAnnouncements(prev => [{
-        id: crypto.randomUUID(), title, body, scope, pinned,
+        id: result.id!, title, body, scope, pinned,
         pinned_until: pinned && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         published_at: new Date().toISOString(), author_name: 'You',
         chapter_id: scope === 'chapter' ? chapterId : null,

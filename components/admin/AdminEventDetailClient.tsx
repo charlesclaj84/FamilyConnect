@@ -12,7 +12,7 @@ import {
   publishEvent, approveEvent, cancelEvent, updateEvent, deleteEvent,
   assignBlueprintItem, unassignBlueprintItem, approveAssignmentResponse,
   updateAssignmentDueDate,
-  createSubEvent, moveSubEvent,
+  createSubEvent, moveSubEvent, getSubEvents,
   getHotelBookings, createHotelBooking, updateHotelBooking, deleteHotelBooking,
   addPriceEstimate, deletePriceEstimate,
   addHotelDetail, deleteHotelDetail,
@@ -277,7 +277,8 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
 function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
   parentId: string
   eventTypes: import('@/app/actions/admin/event-types').EventType[]
-  onAdded: (e: AdminEvent) => void
+  /** Called after a successful save so the parent can refetch its sub-event list. */
+  onAdded: () => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState<Record<string, string>>({ name: '', description: '', official_description: '', budget_dollars: '', start_date: '', end_date: '', is_all_day: 'true', start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', event_type_id: '' })
@@ -298,7 +299,11 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
       official_description: form.official_description || undefined,
     })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    window.location.reload()
+    setSaving(false)
+    // The parent refetches rather than us handing up a row we cannot assemble:
+    // `createSubEvent` returns only an id, and a sub-event row carries a joined
+    // event_type_name plus a status and sort_order the server derives.
+    onAdded()
   }
 
   return (
@@ -1165,7 +1170,17 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
         )}
       >
         <CardContent className="space-y-3">
-          {showAddSub && <AddSubEventForm parentId={event.id} eventTypes={eventTypes} onAdded={e => setSubEvents(prev => [...prev, e])} onCancel={() => setShowAddSub(false)} />}
+          {showAddSub && (
+            <AddSubEventForm
+              parentId={event.id}
+              eventTypes={eventTypes}
+              onAdded={async () => {
+                setShowAddSub(false)
+                setSubEvents(await getSubEvents(event.id))
+              }}
+              onCancel={() => setShowAddSub(false)}
+            />
+          )}
           {subEvents.length === 0 && !showAddSub ? (
             <p className="text-sm text-muted-foreground">No sub-events yet. Use "Add" to break this event into days or sessions.</p>
           ) : (

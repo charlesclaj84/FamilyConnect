@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
+import { useServerState } from '@/lib/use-server-state'
 import Link from 'next/link'
 
 const STATUS_NEXT: Record<Election['status'], Election['status'] | null> = {
@@ -49,7 +50,9 @@ interface Props {
 
 export function AdminElectionsClient({ initialElections, roles }: Props) {
   const confirm = useConfirm()
-  const [elections, setElections] = useState(initialElections)
+  // `useServerState`: a plain initializer reads props once and would then ignore
+  // every later server render, including the one carrying a newly created election.
+  const [elections, setElections] = useServerState(initialElections)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -82,7 +85,19 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
         positions,
         announce,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.id) { setError(result.message ?? 'Failed'); return }
+      // Prepend, matching `getAllElections`' created_at-descending order.
+      setElections(prev => [{
+        id: result.id!,
+        title: title.trim(),
+        description: description.trim() || null,
+        status: 'draft',
+        nominations_open_at: nomOpenAt ? new Date(nomOpenAt).toISOString() : null,
+        nominations_close_at: nomCloseAt ? new Date(nomCloseAt).toISOString() : null,
+        voting_open_at: voteOpenAt ? new Date(voteOpenAt).toISOString() : null,
+        voting_close_at: voteCloseAt ? new Date(voteCloseAt).toISOString() : null,
+        created_at: new Date().toISOString(),
+      }, ...prev])
       setTitle(''); setDescription('')
       setPositions([{ title: '', max_winners: 1 }])
       setNomOpenAt(''); setNomCloseAt(''); setVoteOpenAt(''); setVoteCloseAt(''); setAnnounce(false)

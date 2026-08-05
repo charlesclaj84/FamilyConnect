@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, ChevronRight, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { useServerState } from '@/lib/use-server-state'
 import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type AdminEvent } from '@/app/actions/admin/events'
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
@@ -34,8 +36,13 @@ interface Props {
 }
 
 export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Props) {
+  const router = useRouter()
   const confirm = useConfirm()
-  const [events, setEvents] = useState(initialEvents)
+  // `useServerState`: `handleCreate` refreshes rather than building a row — it
+  // cannot, since `event_type_name` is a join and the server resolves the legacy
+  // event_date/event_time fields — so adopting the refreshed props is what makes the
+  // new event appear.
+  const [events, setEvents] = useServerState(initialEvents)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', event_type_id: '', start_date: '', end_date: '', is_all_day: true, start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', rsvp_deadline: '' })
   const [saving, setSaving] = useState(false)
@@ -51,7 +58,10 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
     setSaving(true)
     const result = await createEvent({ name: form.name, description: form.description, event_type_id: form.event_type_id || undefined, start_date: form.start_date || undefined, end_date: form.end_date || undefined, is_all_day: form.is_all_day, start_time: form.is_all_day ? undefined : form.start_time || undefined, end_time: form.is_all_day ? undefined : form.end_time || undefined, location: form.location, street_address: form.street_address, suite: form.suite, city: form.city, state: form.state, zip_code: form.zip_code, country: form.country, rsvp_deadline: form.rsvp_deadline || undefined })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    window.location.reload()
+    setForm({ name: '', description: '', event_type_id: '', start_date: '', end_date: '', is_all_day: true, start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', rsvp_deadline: '' })
+    setShowForm(false)
+    setSaving(false)
+    router.refresh()
   }
 
   const eventName = (id: string) => events.find(e => e.id === id)?.name ?? 'this event'
