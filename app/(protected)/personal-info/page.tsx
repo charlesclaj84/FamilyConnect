@@ -1,10 +1,13 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getPersonalInfo } from '@/app/actions/personal-info'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
+import { MyFamiliesSection } from '@/components/personal-info/MyFamiliesSection'
+import { getMyFamilies } from '@/lib/auth/family'
 
 export const metadata = { title: 'My Profile — Family Connect' }
 
@@ -13,10 +16,13 @@ export default async function PersonalInfoPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [existing, myRoles, chapters] = await Promise.all([
+  await requireView(user.id, 'personal-info')
+
+  const [existing, myRoles, chapters, families] = await Promise.all([
     getPersonalInfo(),
     getMyRoles(),
     getChapters(),
+    getMyFamilies(user.id),
   ])
 
   return (
@@ -33,6 +39,8 @@ export default async function PersonalInfoPage() {
           </div>
         )}
       </div>
+
+      <MyFamiliesSection families={families} />
 
       <PersonalInfoForm existing={existing} chapters={chapters} />
     </div>

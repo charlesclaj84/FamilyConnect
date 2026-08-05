@@ -202,11 +202,13 @@ export async function getMyFamilyForRsvp(): Promise<RsvpPerson[]> {
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
-  // Get current user's people record
+  // Get current user's people record in the family being viewed — RSVPs and the
+  // household they cover are family-scoped.
   const { data: me } = await admin
     .from('people')
     .select('id, first_name, last_name, is_minor, tshirt_category, tshirt_size')
     .eq('user_id', user.id)
+    .eq('family_code', familyCode)
     .maybeSingle()
 
   if (!me) return []

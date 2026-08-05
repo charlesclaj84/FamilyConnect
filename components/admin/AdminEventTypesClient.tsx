@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   createEventType, updateEventType, deleteEventType, moveEventType,
   getBlueprintItems, addBlueprintItem, updateBlueprintItem, deleteBlueprintItem,
@@ -22,9 +23,16 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(item.title)
   const [saving, setSaving] = useState(false)
+  const confirm = useConfirm()
 
   async function save() {
     if (!value.trim()) return
+    const ok = await confirm({
+      title: 'Rename checklist item',
+      description: `Rename "${item.title}" to "${value.trim()}"?`,
+      confirmLabel: 'Save',
+    })
+    if (!ok) return
     setSaving(true)
     await updateBlueprintItem(item.id, value.trim())
     onUpdate(value.trim())
@@ -72,9 +80,16 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue]     = useState(eventType.name)
   const [savingName, setSavingName]   = useState(false)
+  const confirm = useConfirm()
 
   async function handleSaveName() {
     if (!nameValue.trim()) return
+    const ok = await confirm({
+      title: 'Rename event type',
+      description: `Rename "${eventType.name}" to "${nameValue.trim()}"?`,
+      confirmLabel: 'Save',
+    })
+    if (!ok) return
     setSavingName(true)
     await updateEventType(eventType.id, nameValue.trim())
     setSavingName(false)
@@ -105,6 +120,16 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
   }
 
   async function handleRemoveSubTemplate(linkId: string) {
+    const sub = subTemplates.find(s => s.link_id === linkId)
+    const ok = await confirm({
+      title: 'Remove sub-event template',
+      description: sub
+        ? `Remove "${sub.name}" as a sub-event of "${eventType.name}"?`
+        : `Remove this sub-event template from "${eventType.name}"?`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     await removeSubTemplate(linkId)
     setSubTemplates(prev => prev.filter(s => s.link_id !== linkId))
   }
@@ -114,6 +139,12 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
   const subTemplateOptions = allEventTypes.filter(t => t.id !== eventType.id && !linkedChildIds.has(t.id))
 
   async function handleMoveItem(id: string, direction: 'up' | 'down') {
+    const ok = await confirm({
+      title: 'Reorder checklist',
+      description: `Move "${items.find(i => i.id === id)?.title ?? 'this item'}" ${direction}?`,
+      confirmLabel: 'Move',
+    })
+    if (!ok) return
     await moveBlueprintItem(id, eventType.id, direction)
     const data = await getBlueprintItems(eventType.id)
     setItems(data)
@@ -131,6 +162,16 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
   }
 
   async function handleDeleteItem(id: string) {
+    const item = items.find(i => i.id === id)
+    const ok = await confirm({
+      title: 'Delete checklist item',
+      description: item
+        ? `Delete "${item.title}" from the "${eventType.name}" checklist? This cannot be undone.`
+        : 'Delete this checklist item? This cannot be undone.',
+      confirmLabel: 'Delete item',
+      destructive: true,
+    })
+    if (!ok) return
     await deleteBlueprintItem(id)
     setItems(prev => prev.filter(i => i.id !== id))
   }
@@ -233,6 +274,7 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
 }
 
 export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes: EventType[] }) {
+  const confirm = useConfirm()
   const [eventTypes, setEventTypes] = useState(initialEventTypes)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -250,12 +292,27 @@ export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this event type and all its checklist items?')) return
+    const eventType = eventTypes.find(t => t.id === id)
+    const ok = await confirm({
+      title: 'Delete event type',
+      description: eventType
+        ? `Delete "${eventType.name}" and all of its checklist items? This cannot be undone.`
+        : 'Delete this event type and all its checklist items? This cannot be undone.',
+      confirmLabel: 'Delete event type',
+      destructive: true,
+    })
+    if (!ok) return
     await deleteEventType(id)
     setEventTypes(prev => prev.filter(t => t.id !== id))
   }
 
   async function handleMove(id: string, direction: 'up' | 'down') {
+    const ok = await confirm({
+      title: 'Reorder event types',
+      description: `Move "${eventTypes.find(t => t.id === id)?.name ?? 'this event type'}" ${direction}?`,
+      confirmLabel: 'Move',
+    })
+    if (!ok) return
     setEventTypes(prev => {
       const idx = prev.findIndex(t => t.id === id)
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Search, CheckCircle, Circle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { useConfirm } from '@/components/ui/confirm'
 import { checkInAttendee, type CheckInAttendee } from '@/app/actions/admin/event-checkin'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function EventCheckInClient({ eventId, initialAttendees }: Props) {
+  const confirm = useConfirm()
   const [attendees, setAttendees] = useState(initialAttendees)
   const [query, setQuery] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -21,7 +23,17 @@ export function EventCheckInClient({ eventId, initialAttendees }: Props) {
 
   const checkedIn = attendees.filter(a => !!a.checked_in_at).length
 
-  function handleToggle(attendeeId: string, currentlyCheckedIn: boolean) {
+  async function handleToggle(attendeeId: string, currentlyCheckedIn: boolean) {
+    const name = attendees.find(a => a.id === attendeeId)?.name ?? 'this attendee'
+    const ok = await confirm({
+      title: currentlyCheckedIn ? 'Undo check-in' : 'Check in',
+      description: currentlyCheckedIn
+        ? `Undo the check-in for ${name}?`
+        : `Check in ${name}?`,
+      confirmLabel: currentlyCheckedIn ? 'Undo check-in' : 'Check in',
+      destructive: currentlyCheckedIn,
+    })
+    if (!ok) return
     startTransition(async () => {
       const result = await checkInAttendee(attendeeId, eventId, !currentlyCheckedIn)
       if (result.success) {

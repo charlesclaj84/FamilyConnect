@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm'
 import { submitRsvp, type RsvpPerson, type MyRsvp } from '@/app/actions/events'
 
 interface Props {
@@ -25,6 +26,7 @@ function buildInitialStatuses(
 }
 
 export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadlinePassed }: Props) {
+  const confirm = useConfirm()
   const hasPersonalRsvp            = !!(existingRsvp?.id)
   const [statuses, setStatuses]   = useState(() => buildInitialStatuses(familyMembers, existingRsvp))
   // Pre-populate edit form with any inherited (parent-submitted) statuses so the
@@ -55,12 +57,19 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
   }
 
   async function handleSave() {
-    setSaving(true)
-    setError('')
     const personStatuses = familyMembers.map(m => ({
       person_id:    m.person_id,
       is_attending: editStatuses[m.person_id] ?? false,
     }))
+    const attending = personStatuses.filter(p => p.is_attending).length
+    const ok = await confirm({
+      title: hasPersonalRsvp ? 'Update RSVP' : 'Submit RSVP',
+      description: `${hasPersonalRsvp ? 'Update' : 'Submit'} your RSVP with ${attending} of ${personStatuses.length} attending?`,
+      confirmLabel: hasPersonalRsvp ? 'Update RSVP' : 'Submit RSVP',
+    })
+    if (!ok) return
+    setSaving(true)
+    setError('')
     const result = await submitRsvp(eventId, personStatuses)
     setSaving(false)
     if (result.success) {

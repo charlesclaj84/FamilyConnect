@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
@@ -27,6 +28,7 @@ const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time
 
 export function AdminDuesClient({ initialSchedules, initialPayments, members }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [schedules, setSchedules] = useState(initialSchedules)
   const [payments, setPayments] = useState(initialPayments)
   const [tab, setTab] = useState<'schedules' | 'payments' | 'record'>('schedules')
@@ -72,8 +74,14 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
 
   function cancelEdit() { setEditId(null); setError('') }
 
-  function handleSaveEdit() {
+  async function handleSaveEdit() {
     if (!editId || !editLabel || !editAmount) { setError('Label and amount required'); return }
+    const ok = await confirm({
+      title: 'Save dues schedule',
+      description: `Apply your edits to "${editLabel}" (${formatDollars(Math.round(parseFloat(editAmount || '0') * 100))} ${editFreq})?`,
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await updateDuesSchedule(editId, {
@@ -112,7 +120,17 @@ export function AdminDuesClient({ initialSchedules, initialPayments, members }: 
     })
   }
 
-  function handleDeleteSchedule(id: string) {
+  async function handleDeleteSchedule(id: string) {
+    const schedule = schedules.find(s => s.id === id)
+    const ok = await confirm({
+      title: 'Delete dues schedule',
+      description: schedule
+        ? `Delete the dues schedule "${schedule.label}" (${formatDollars(schedule.amount_cents)} ${schedule.frequency})? This cannot be undone.`
+        : 'Delete this dues schedule? This cannot be undone.',
+      confirmLabel: 'Delete schedule',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => { await deleteDuesSchedule(id); setSchedules(prev => prev.filter(s => s.id !== id)) })
   }
 

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyPersonId } from '@/lib/auth/family'
 
 export interface Notification {
   id: string
@@ -18,17 +19,15 @@ export async function getNotifications(): Promise<Notification[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data: myPerson } = await supabase
-    .from('people')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!myPerson) return []
+  // Notifications hang off a family-scoped people row, so only the active
+  // family's notifications are relevant here.
+  const personId = await getMyPersonId(user.id)
+  if (!personId) return []
 
   const { data } = await supabase
     .from('notifications')
     .select('id, type, title, body, link, read_at, created_at')
-    .eq('recipient_id', myPerson.id)
+    .eq('recipient_id', personId)
     .order('created_at', { ascending: false })
     .limit(30)
 
@@ -40,17 +39,13 @@ export async function getUnreadCount(): Promise<number> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return 0
 
-  const { data: myPerson } = await supabase
-    .from('people')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!myPerson) return 0
+  const personId = await getMyPersonId(user.id)
+  if (!personId) return 0
 
   const { count } = await supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
-    .eq('recipient_id', myPerson.id)
+    .eq('recipient_id', personId)
     .is('read_at', null)
 
   return count ?? 0
@@ -71,17 +66,13 @@ export async function markAllNotificationsRead(): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
-  const { data: myPerson } = await supabase
-    .from('people')
-    .select('id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!myPerson) return
+  const personId = await getMyPersonId(user.id)
+  if (!personId) return
 
   await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
-    .eq('recipient_id', myPerson.id)
+    .eq('recipient_id', personId)
     .is('read_at', null)
 }
 

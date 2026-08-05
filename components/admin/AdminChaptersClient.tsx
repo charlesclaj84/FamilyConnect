@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   createChapter, deleteChapter, createCustomRole, deleteCustomRole,
   type Chapter, type CustomRole,
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
+  const confirm = useConfirm()
   const [chapters, setChapters] = useState(initialChapters)
   const [roles, setRoles]       = useState(initialRoles)
 
@@ -43,7 +45,13 @@ export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
   }
 
   async function handleDeleteChapter(id: string, name: string) {
-    if (!confirm(`Delete chapter "${name}"?`)) return
+    const ok = await confirm({
+      title: 'Delete chapter',
+      description: `Delete the chapter "${name}"? This cannot be undone.`,
+      confirmLabel: 'Delete chapter',
+      destructive: true,
+    })
+    if (!ok) return
     await deleteChapter(id)
     setChapters(prev => prev.filter(c => c.id !== id))
   }
@@ -57,7 +65,13 @@ export function AdminChaptersClient({ initialChapters, initialRoles }: Props) {
   }
 
   async function handleDeleteRole(id: string, name: string) {
-    if (!confirm(`Delete role "${name}"?`)) return
+    const ok = await confirm({
+      title: 'Delete role',
+      description: `Delete the role "${name}"? Anyone currently holding it will lose it.`,
+      confirmLabel: 'Delete role',
+      destructive: true,
+    })
+    if (!ok) return
     const result = await deleteCustomRole(id)
     if (result.success) setRoles(prev => prev.filter(r => r.id !== id))
     else alert(result.error)

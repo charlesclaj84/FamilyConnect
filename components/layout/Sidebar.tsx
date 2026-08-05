@@ -25,8 +25,10 @@ import {
   BarChart3,
   Camera,
   ChevronDown,
+  KeyRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isFeatureFuture } from '@/lib/features'
 
 interface NavItem {
   href: string
@@ -40,21 +42,23 @@ interface NavGroup {
 }
 
 const adminItems: NavItem[] = [
-  { href: '/admin/users',      label: 'User Management',    icon: UsersRound },
-  { href: '/admin/chapters',   label: 'Regions & Chapters', icon: ShieldCheck },
-  { href: '/admin/user-roles', label: 'Board Positions',    icon: ShieldCheck },
-  { href: '/admin/elections',  label: 'Election Management', icon: Vote },
-  { href: '/admin/reports',    label: 'Reports',            icon: BarChart3 },
+  { href: '/admin/users',      label: 'User Management',      icon: UsersRound },
+  { href: '/admin/groups',     label: 'Groups & Permissions', icon: KeyRound },
+  { href: '/admin/chapters',   label: 'Regions & Chapters',   icon: ShieldCheck },
+  { href: '/admin/user-roles', label: 'Board Positions',      icon: ShieldCheck },
+  { href: '/admin/elections',  label: 'Election Management',  icon: Vote },
+  { href: '/admin/reports',    label: 'Reports',              icon: BarChart3 },
 ]
 
-// Build the nav groups for the current user. Items are gated by role/assignments
-// so a section only appears when the user can reach at least one of its links.
-function buildNavGroups(isAdmin: boolean, hasAssignments: boolean): NavGroup[] {
+// Build the nav groups for the current user. Every item is listed unconditionally
+// and then filtered by what the member may actually view — the permission model is
+// the single authority, so there is no separate isAdmin branch here any more.
+function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGroup[] {
   const eventItems: NavItem[] = [
     { href: '/events', label: 'Upcoming Events', icon: Calendar },
-    ...(hasAssignments ? [{ href: '/event-planning',    label: 'Event Planning',    icon: ClipboardList }] : []),
-    ...(isAdmin        ? [{ href: '/admin/events',      label: 'Event Management',  icon: CalendarClock }] : []),
-    ...(isAdmin        ? [{ href: '/admin/event-types', label: 'Event Templates',   icon: ListChecks }]    : []),
+    ...(hasAssignments ? [{ href: '/event-planning', label: 'Event Planning', icon: ClipboardList }] : []),
+    { href: '/admin/events',      label: 'Event Management', icon: CalendarClock },
+    { href: '/admin/event-types', label: 'Event Templates',  icon: ListChecks },
   ]
 
   const groups: NavGroup[] = [
@@ -88,7 +92,7 @@ function buildNavGroups(isAdmin: boolean, hasAssignments: boolean): NavGroup[] {
     items: [
       { href: '/account-summary', label: 'Account Summary',   icon: Wallet },
       { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
-      ...(isAdmin ? [{ href: '/admin/account', label: 'Account Management', icon: ShieldCheck }] : []),
+      { href: '/admin/account', label: 'Account Management', icon: ShieldCheck },
     ],
   })
 
@@ -101,11 +105,21 @@ function buildNavGroups(isAdmin: boolean, hasAssignments: boolean): NavGroup[] {
     ],
   })
 
-  if (isAdmin) {
-    groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
-  }
+  groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
 
+  // Two independent gates, both narrowing:
+  //   * roadmap — has the feature shipped at all? (lib/features.ts)
+  //   * permission — may THIS member view it? (viewable, from the permission model)
+  // Then drop any section left with nothing in it. proxy.ts still gates the
+  // roadmap routes and RLS still gates the data, so this is presentation only.
   return groups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item =>
+        !isFeatureFuture(item.href) && viewable.has(item.href.replace(/^\//, '')),
+      ),
+    }))
+    .filter(group => group.items.length > 0)
 }
 
 function isActive(pathname: string, href: string) {
@@ -136,7 +150,10 @@ function NavLink({ href, label, icon: Icon, active, onClick }: {
   )
 }
 
-function SectionDivider({ label, icon: Icon }: { label: string; icon: React.ComponentType<{ className?: string }> }) {
+function SectionDivider({ label, icon: Icon }: {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+}) {
   return (
     <div className="flex items-center gap-1.5 px-3 py-1.5 mt-3">
       <div className="h-px flex-1 bg-border" />
@@ -238,10 +255,10 @@ function NavTree({ groups, pathname, onNavClick }: {
   )
 }
 
-export function Sidebar({ isAdmin = false, hasAssignments = false }: { isAdmin?: boolean; hasAssignments?: boolean }) {
+export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navGroups = buildNavGroups(isAdmin, hasAssignments)
+  const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
 
   useEffect(() => {
     setMobileOpen(false)

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireView } from '@/lib/auth/permissions'
 import { getEvents } from '@/app/actions/admin/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersRound, ListChecks, CalendarClock, Clock } from 'lucide-react'
@@ -18,8 +19,7 @@ export default async function AdminPage() {
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
 
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/users')
 
   const [membersResult, draftEvents] = await Promise.all([
     admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).not('user_id', 'is', null),

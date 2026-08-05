@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getMembers } from '@/app/actions/members'
 import { MemberDirectoryClient } from '@/components/members/MemberDirectoryClient'
 
@@ -9,6 +10,8 @@ export default async function MembersPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'members')
 
   const members = await getMembers()
 

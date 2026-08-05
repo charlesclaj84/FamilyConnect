@@ -6,6 +6,8 @@ interface Props {
   daysToNextEvent: number | null
   nextEventId?: string | null
   unreadCount: number
+  /** False while Events is still on the roadmap — see lib/features.ts. */
+  eventsLive: boolean
 }
 
 function StatCard({ icon: Icon, label, value, color }: {
@@ -27,7 +29,7 @@ function StatCard({ icon: Icon, label, value, color }: {
   )
 }
 
-export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unreadCount }: Props) {
+export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unreadCount, eventsLive }: Props) {
   const eventLabel = daysToNextEvent === null
     ? 'No events'
     : daysToNextEvent === 0
@@ -40,7 +42,9 @@ export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unre
         <StatCard icon={Users} label="Members" value={String(memberCount)} color="bg-blue-100 text-blue-700" />
       </Link>
 
-      {nextEventId ? (
+      {/* Omitted entirely until Events ships, rather than shown as "coming soon".
+          The row simply narrows to the stats that mean something today. */}
+      {!eventsLive ? null : nextEventId ? (
         <Link href={`/events/${nextEventId}`} className="flex-1">
           <StatCard icon={CalendarDays} label="Next Event" value={eventLabel} color="bg-purple-100 text-purple-700" />
         </Link>

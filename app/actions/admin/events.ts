@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -114,10 +115,10 @@ async function getAuthenticatedAdmin() {
   const familyCode = await getMyFamilyCode(user.id)
   return {
     user,
-    admin: person?.is_admin ? adminClient : null,
+    admin: (await can(user.id, 'admin/events', 'edit')) ? adminClient : null,
     adminClient,
     familyCode,
-    canApprove: person?.can_approve === true,
+    canApprove: await can(user.id, 'admin/events', 'edit'),
   }
 }
 
@@ -457,7 +458,7 @@ export async function approveAssignmentResponse(
 
   const adminClient = createAdminClient()
   const { data: person } = await adminClient.from('people').select('can_approve').eq('user_id', user.id).maybeSingle()
-  if (!person?.can_approve) return { success: false, error: 'Not authorized to approve responses' }
+  if (!(await can(user.id, 'admin/events', 'edit'))) return { success: false, error: 'Not authorized to approve responses' }
 
   const { error } = await adminClient
     .from('event_assignments')

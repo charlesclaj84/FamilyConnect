@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOrgStats } from '@/app/actions/admin/reports'
 import { AdminReportsClient } from '@/components/admin/AdminReportsClient'
@@ -12,8 +13,7 @@ export default async function AdminReportsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/reports')
 
   const stats = await getOrgStats()
 

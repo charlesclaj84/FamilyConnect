@@ -485,7 +485,12 @@ export async function sendMessage(
     const admin = createAdminClient()
     const [roomResult, senderResult] = await Promise.all([
       admin.from('chat_rooms').select('kind, name, family_code').eq('id', roomId).single(),
-      admin.from('people').select('first_name, last_name').eq('user_id', user.id).maybeSingle(),
+      // Name is a shared profile field so either row would do, but a multi-family
+      // user has several — scope it so this resolves to exactly one.
+      admin.from('people').select('first_name, last_name')
+        .eq('user_id', user.id)
+        .eq('family_code', await getMyFamilyCode(user.id))
+        .maybeSingle(),
     ])
     const room = roomResult.data
     const sender = senderResult.data

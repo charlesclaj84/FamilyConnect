@@ -6,6 +6,7 @@ import { RoomList } from './RoomList'
 import { MessageThread } from './MessageThread'
 import { NewDmDialog } from './NewDmDialog'
 import { CreateGroupDialog } from './CreateGroupDialog'
+import { useConfirm } from '@/components/ui/confirm'
 import { deleteDm, markRoomRead, type RoomWithMeta } from '@/app/actions/chat'
 import { createClient } from '@/lib/supabase/client'
 
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMembers }: Props) {
+  const confirm = useConfirm()
   const [rooms, setRooms]               = useState<RoomWithMeta[]>(initialRooms)
   const [activeRoomId, setActiveRoomId] = useState(familyRoomId)
   const [showThread, setShowThread]     = useState(false)
@@ -58,6 +60,18 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
   }
 
   async function handleDeleteDm(roomId: string) {
+    const room = rooms.find(r => r.id === roomId)
+    const other = room?.participants.find(p => p.user_id !== currentUserId)
+    const withWhom = other
+      ? ([other.first_name, other.last_name].filter(Boolean).join(' ') || 'this family member')
+      : 'this family member'
+    const ok = await confirm({
+      title: 'Delete conversation',
+      description: `Delete your conversation with ${withWhom}? The messages are removed and cannot be recovered.`,
+      confirmLabel: 'Delete conversation',
+      destructive: true,
+    })
+    if (!ok) return
     await deleteDm(roomId)
     setRooms(prev => prev.filter(r => r.id !== roomId))
     if (activeRoomId === roomId) {

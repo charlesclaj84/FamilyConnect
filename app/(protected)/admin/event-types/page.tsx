@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEventTypes } from '@/app/actions/admin/event-types'
 import { AdminEventTypesClient } from '@/components/admin/AdminEventTypesClient'
@@ -12,8 +13,7 @@ export default async function AdminEventTypesPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/event-types')
 
   const eventTypes = await getEventTypes()
 

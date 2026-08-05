@@ -5,6 +5,7 @@ import { UserCheck, X, Search, ChevronDown } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useConfirm } from '@/components/ui/confirm'
 import type { MatchReason } from '@/lib/match-utils'
 import type { UnlinkedPerson } from '@/app/actions/link-person'
 import { linkPersonToCurrentUser } from '@/app/actions/link-person'
@@ -21,6 +22,7 @@ const REASON_LABELS: Record<MatchReason, string> = {
 }
 
 export function LinkPersonBanner({ unlinkedPeople }: Props) {
+  const confirm = useConfirm()
   const [dismissed, setDismissed] = useState(false)
   const [search, setSearch] = useState('')
   const [showAll, setShowAll] = useState(false)
@@ -41,7 +43,15 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
 
   if (dismissed) return null
 
-  function handleLink(id: string) {
+  async function handleLink(id: string) {
+    const person = unlinkedPeople.find(p => p.id === id)
+    const name = person ? `${person.first_name} ${person.last_name}` : 'this person'
+    const ok = await confirm({
+      title: 'Link to your account',
+      description: `Link ${name}'s record to your account? Their history becomes yours, and this cannot be undone.`,
+      confirmLabel: 'Link record',
+    })
+    if (!ok) return
     setError('')
     setLinkingId(id)
     startTransition(async () => {

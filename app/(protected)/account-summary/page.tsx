@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getMyPaymentHistory } from '@/app/actions/dues'
 import { DuesDetailSection } from '@/components/account/DuesDetailSection'
 
@@ -9,6 +10,8 @@ export default async function AccountSummaryPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'account-summary')
 
   const [duesSummary, paymentHistory] = await Promise.all([
     getMyDuesSummary(),

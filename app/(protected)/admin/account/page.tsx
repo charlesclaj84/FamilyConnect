@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
@@ -15,13 +16,7 @@ export default async function AdminAccountPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin
-    .from('people')
-    .select('is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!myPerson?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/account')
 
   const familyCode = await getMyFamilyCode(user.id)
 

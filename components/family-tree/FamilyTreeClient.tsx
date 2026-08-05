@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   upsertAncestor,
   type AncestorEntry,
@@ -101,6 +102,7 @@ function EditAncestorModal({
   familyMembers: FamilyMember[]
   onClose: () => void
 }) {
+  const confirm = useConfirm()
   const [mode, setMode] = useState<'select' | 'create'>('create')
   const [serverError, setServerError] = useState('')
   const hasData = !!(entry.first_name || entry.last_name)
@@ -132,7 +134,19 @@ function EditAncestorModal({
   const isStepSelect = selectForm.watch('is_step')
   const stepLabel    = (isStepNew || isStepSelect) ? `Step-${entry.relationship_type}` : entry.relationship_type
 
+  // Only an overwrite of an existing entry needs confirming — adding one for the
+  // first time is not an edit.
+  async function confirmOverwrite() {
+    if (!hasData) return true
+    return confirm({
+      title: `Change ${entry.relationship_type}`,
+      description: `Replace the ${entry.relationship_type} currently recorded (${[entry.first_name, entry.last_name].filter(Boolean).join(' ')}) with what you have entered?`,
+      confirmLabel: 'Save changes',
+    })
+  }
+
   async function onSubmitNew(data: NewFormData) {
+    if (!(await confirmOverwrite())) return
     setServerError('')
     const result = await upsertAncestor({ relationship_type: entry.relationship_type, ...data })
     if (result.success) onClose()
@@ -140,6 +154,7 @@ function EditAncestorModal({
   }
 
   async function onSubmitSelect(data: SelectFormData) {
+    if (!(await confirmOverwrite())) return
     setServerError('')
     const result = await upsertAncestor({
       relationship_type:       entry.relationship_type,
@@ -316,6 +331,7 @@ function EditPartnerModal({
   familyMembers: FamilyMember[]
   onClose: () => void
 }) {
+  const confirm = useConfirm()
   const [mode, setMode] = useState<'select' | 'create'>('create')
   const [serverError, setServerError] = useState('')
   const isEditing = !!partner
@@ -351,7 +367,19 @@ function EditPartnerModal({
     : myType === 'Ex-Wife' ? 'Ex-Husband'
     : 'Partner'
 
+  // Adding a partner for the first time is a create; overwriting an existing one
+  // is the edit that needs confirming.
+  async function confirmOverwrite() {
+    if (!partner) return true
+    return confirm({
+      title: `Change ${partner.relationship_type}`,
+      description: `Replace the ${partner.relationship_type.toLowerCase()} currently recorded (${[partner.first_name, partner.last_name].filter(Boolean).join(' ')}) with what you have entered?`,
+      confirmLabel: 'Save changes',
+    })
+  }
+
   async function onSubmitNew(data: PartnerNewFormData) {
+    if (!(await confirmOverwrite())) return
     setServerError('')
     const result = await upsertSpouse({
       relationship_id: partner?.relationship_id,
@@ -362,6 +390,7 @@ function EditPartnerModal({
   }
 
   async function onSubmitSelect(data: PartnerSelectFormData) {
+    if (!(await confirmOverwrite())) return
     setServerError('')
     const result = await upsertSpouse({
       relationship_id:           partner?.relationship_id,

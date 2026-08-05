@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -37,15 +38,11 @@ async function getAuthenticatedAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { user: null, admin: null, familyCode: '' }
 
-  const adminClient = createAdminClient()
-  const { data: person } = await adminClient
-    .from('people')
-    .select('is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
   const familyCode = await getMyFamilyCode(user.id)
-  return { user, admin: person?.is_admin ? adminClient : null, familyCode, adminClient }
+
+  const adminClient = createAdminClient()
+  // Authority comes from the caller's groups, resolved for the active family.
+  return { user, admin: (await can(user.id, 'admin/chapters', 'edit')) ? adminClient : null, familyCode, adminClient }
 }
 
 // ── Regions ────────────────────────────────────────────────────────────────────

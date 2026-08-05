@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type AdminEvent } from '@/app/actions/admin/events'
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Props) {
+  const confirm = useConfirm()
   const [events, setEvents] = useState(initialEvents)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', event_type_id: '', start_date: '', end_date: '', is_all_day: true, start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', rsvp_deadline: '' })
@@ -52,7 +54,15 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
     window.location.reload()
   }
 
+  const eventName = (id: string) => events.find(e => e.id === id)?.name ?? 'this event'
+
   async function handlePublish(id: string) {
+    const ok = await confirm({
+      title: 'Publish event',
+      description: `Publish "${eventName(id)}"? Members will be able to see it and RSVP.`,
+      confirmLabel: 'Publish',
+    })
+    if (!ok) return
     setActionLoading(id)
     await publishEvent(id)
     updateEvent(id, { status: 'published' })
@@ -60,6 +70,12 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
   }
 
   async function handleApprove(id: string) {
+    const ok = await confirm({
+      title: 'Approve event',
+      description: `Approve "${eventName(id)}"?`,
+      confirmLabel: 'Approve',
+    })
+    if (!ok) return
     setActionLoading(id)
     await approveEvent(id)
     updateEvent(id, { status: 'approved' })
@@ -67,7 +83,14 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
   }
 
   async function handleCancel(id: string) {
-    if (!confirm('Cancel this event?')) return
+    const ok = await confirm({
+      title: 'Cancel event',
+      description: `Cancel "${eventName(id)}"? Members who have RSVP'd will see it as cancelled.`,
+      confirmLabel: 'Cancel event',
+      cancelLabel: 'Keep event',
+      destructive: true,
+    })
+    if (!ok) return
     setActionLoading(id)
     await cancelEvent(id)
     updateEvent(id, { status: 'cancelled' })
@@ -75,7 +98,13 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Permanently delete this event? This cannot be undone.')) return
+    const ok = await confirm({
+      title: 'Delete event',
+      description: `Permanently delete "${eventName(id)}" and everything attached to it — RSVPs, budget and itinerary? This cannot be undone.`,
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+    })
+    if (!ok) return
     setActionLoading(id)
     await deleteEvent(id)
     setEvents(prev => prev.filter(e => e.id !== id))

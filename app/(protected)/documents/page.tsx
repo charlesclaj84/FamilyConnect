@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
@@ -12,7 +13,7 @@ export default async function DocumentsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
+  const canManage = await can(user.id, 'documents', 'delete')
 
   const documents = await getDocuments()
 
@@ -22,7 +23,7 @@ export default async function DocumentsPage() {
         <h1 className="text-3xl font-bold mb-1">Documents</h1>
         <p className="text-muted-foreground">Meeting minutes, bylaws, forms, and more.</p>
       </div>
-      <DocumentList initialDocuments={documents} isAdmin={!!person?.is_admin} />
+      <DocumentList initialDocuments={documents} isAdmin={canManage} />
     </div>
   )
 }

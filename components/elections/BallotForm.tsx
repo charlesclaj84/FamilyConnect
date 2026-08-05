@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/components/ui/confirm'
 import { castVote, submitNomination, respondToNomination, type Election, type ElectionPosition, type ElectionNomination } from '@/app/actions/elections'
 import type { MemberRecord } from '@/app/actions/members'
 import { formatDate } from '@/lib/date-utils'
@@ -20,6 +21,7 @@ interface Props {
 const fmtDate = (s: string) => formatDate(s) ?? ''
 
 export function BallotForm({ election, positions, nominations, myVotes, members, myPersonId, myNominations }: Props) {
+  const confirm = useConfirm()
   const [votes, setVotes] = useState<Record<string, string>>(myVotes)
   const [nomineeId, setNomineeId] = useState('')
   const [nominatingPositionId, setNominatingPositionId] = useState('')
@@ -27,8 +29,17 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  function handleVote(positionId: string, nomineePersonId: string) {
+  async function handleVote(positionId: string, nomineePersonId: string) {
     if (election.status !== 'voting') return
+    const position = positions.find(p => p.id === positionId)
+    const nominee = nominations.find(n => n.position_id === positionId && n.nominee_id === nomineePersonId)
+    const alreadyVoted = !!votes[positionId]
+    const ok = await confirm({
+      title: alreadyVoted ? 'Change your vote' : 'Cast your vote',
+      description: `${alreadyVoted ? 'Change your vote' : 'Vote'} for ${nominee?.nominee_name ?? 'this nominee'} as ${position?.title ?? 'this position'}?`,
+      confirmLabel: alreadyVoted ? 'Change vote' : 'Cast vote',
+    })
+    if (!ok) return
     setVotes(prev => ({ ...prev, [positionId]: nomineePersonId }))
     startTransition(async () => {
       const result = await castVote(election.id, positionId, nomineePersonId)
@@ -56,7 +67,16 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
     })
   }
 
-  function handleRespond(nominationId: string, accepted: boolean) {
+  async function handleRespond(nominationId: string, accepted: boolean) {
+    const nomination = myNominations.find(n => n.id === nominationId)
+    const position = positions.find(p => p.id === nomination?.position_id)
+    const ok = await confirm({
+      title: accepted ? 'Accept nomination' : 'Decline nomination',
+      description: `${accepted ? 'Accept' : 'Decline'} the nomination for ${position?.title ?? 'this position'}? This cannot be changed.`,
+      confirmLabel: accepted ? 'Accept' : 'Decline',
+      destructive: !accepted,
+    })
+    if (!ok) return
     startTransition(async () => {
       await respondToNomination(nominationId, accepted, election.id)
     })

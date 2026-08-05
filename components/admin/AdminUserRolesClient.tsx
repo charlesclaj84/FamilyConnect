@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import { createCustomRole, deleteCustomRole, setRoleEnabled, type CustomRole } from '@/app/actions/admin/chapters'
 
 const SCOPE_LABELS = { national: 'National', regional: 'Regional', chapter: 'Chapter' }
 const CATEGORY_LABELS = { executive_officer: 'Executive Officer', appointed_position: 'Appointed Position' }
 
 export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRole[] }) {
+  const confirm = useConfirm()
   const [roles, setRoles]             = useState(initialRoles)
   const [showForm, setShowForm]       = useState(false)
   const [roleForm, setRoleForm]       = useState({
@@ -29,8 +31,17 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
   const enabledGlobalRoles = globalRoles.filter(r => r.enabled)
   const usedCount = enabledGlobalRoles.length
 
-  function handleToggleEnabled(role: CustomRole) {
+  async function handleToggleEnabled(role: CustomRole) {
     const next = !role.enabled
+    const ok = await confirm({
+      title: next ? 'Add position' : 'Remove position',
+      description: next
+        ? `Make "${role.name}" available for elections and role assignments?`
+        : `Remove "${role.name}" from the positions your family uses? It will no longer be offered in elections or role assignments.`,
+      confirmLabel: next ? 'Add position' : 'Remove position',
+      destructive: !next,
+    })
+    if (!ok) return
     setRoles(prev => prev.map(r => r.id === role.id ? { ...r, enabled: next } : r))
     startTransition(async () => {
       const result = await setRoleEnabled(role.id, next)
@@ -50,7 +61,13 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete role "${name}"?`)) return
+    const ok = await confirm({
+      title: 'Delete role',
+      description: `Delete the custom role "${name}"? Anyone currently holding it will lose it.`,
+      confirmLabel: 'Delete role',
+      destructive: true,
+    })
+    if (!ok) return
     const result = await deleteCustomRole(id)
     if (result.success) setRoles(prev => prev.filter(r => r.id !== id))
     else alert(result.error)

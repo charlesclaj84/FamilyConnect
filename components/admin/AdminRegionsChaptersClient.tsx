@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   createRegion, deleteRegion, createChapter, deleteChapter,
   type Region, type Chapter,
@@ -108,6 +109,7 @@ function RegionGroup({
 }
 
 export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: Props) {
+  const confirm = useConfirm()
   const [regions, setRegions]     = useState(initialRegions)
   const [chapters, setChapters]   = useState(initialChapters)
   const [newRegion, setNewRegion] = useState('')
@@ -124,7 +126,13 @@ export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: 
   }
 
   async function handleDeleteRegion(id: string, name: string) {
-    if (!confirm(`Delete region "${name}"? Its chapters will move to National.`)) return
+    const ok = await confirm({
+      title: 'Delete region',
+      description: `Delete the region "${name}"? Its chapters will move to National. This cannot be undone.`,
+      confirmLabel: 'Delete region',
+      destructive: true,
+    })
+    if (!ok) return
     await deleteRegion(id)
     setRegions(prev => prev.filter(r => r.id !== id))
     setChapters(prev => prev.map(c => c.region_id === id ? { ...c, region_id: null, region_name: null } : c))
@@ -144,9 +152,18 @@ export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: 
     setChapters(prev => [...prev, newChapter].sort((a, b) => a.name.localeCompare(b.name)))
   }
 
-  function handleDeleteChapter(id: string) {
-    if (!confirm('Delete this chapter?')) return
-    deleteChapter(id)
+  async function handleDeleteChapter(id: string) {
+    const name = chapters.find(c => c.id === id)?.name
+    const ok = await confirm({
+      title: 'Delete chapter',
+      description: name
+        ? `Delete the chapter "${name}"? This cannot be undone.`
+        : 'Delete this chapter? This cannot be undone.',
+      confirmLabel: 'Delete chapter',
+      destructive: true,
+    })
+    if (!ok) return
+    await deleteChapter(id)
     setChapters(prev => prev.filter(c => c.id !== id))
   }
 

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm'
 import { uploadDocument, deleteDocument, type DocumentRecord } from '@/app/actions/documents'
 
 const CATEGORIES = [
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function DocumentList({ initialDocuments, isAdmin }: Props) {
+  const confirm = useConfirm()
   const [documents, setDocuments] = useState(initialDocuments)
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -70,7 +72,14 @@ export function DocumentList({ initialDocuments, isAdmin }: Props) {
     })
   }
 
-  function handleDelete(doc: DocumentRecord) {
+  async function handleDelete(doc: DocumentRecord) {
+    const ok = await confirm({
+      title: 'Delete document',
+      description: `Delete "${doc.name}"? The file is removed for everyone in the family and cannot be recovered.`,
+      confirmLabel: 'Delete document',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deleteDocument(doc.id, doc.file_path)
       setDocuments(prev => prev.filter(d => d.id !== doc.id))

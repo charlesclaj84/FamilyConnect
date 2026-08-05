@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -89,8 +90,12 @@ export async function getMyAnnouncements(): Promise<Announcement[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // chapter_id is per-family — resolve it in the family being viewed.
   const { data: myPerson } = await supabase
-    .from('people').select('chapter_id').eq('user_id', user.id).maybeSingle()
+    .from('people').select('chapter_id')
+    .eq('user_id', user.id)
+    .eq('family_code', await getMyFamilyCode(user.id))
+    .maybeSingle()
   const myChapterId: string | null = (myPerson as { chapter_id: string | null } | null)?.chapter_id ?? null
 
   const { data } = await supabase
@@ -124,8 +129,12 @@ export async function getPinnedAnnouncements(): Promise<Announcement[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
+  // chapter_id is per-family — resolve it in the family being viewed.
   const { data: myPerson } = await supabase
-    .from('people').select('chapter_id').eq('user_id', user.id).maybeSingle()
+    .from('people').select('chapter_id')
+    .eq('user_id', user.id)
+    .eq('family_code', await getMyFamilyCode(user.id))
+    .maybeSingle()
   const myChapterId: string | null = (myPerson as { chapter_id: string | null } | null)?.chapter_id ?? null
 
   const { data } = await supabase
@@ -157,8 +166,11 @@ export async function createAnnouncement(
   if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
-  const isAdmin = myPerson?.is_admin === true
+  const { data: myPerson } = await admin.from('people').select('id')
+    .eq('user_id', user.id)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  const isAdmin = await can(user.id, 'announcements', 'edit')
 
   // Anyone can post and target an audience (National / Regional / Chapter);
   // only admins can pin to the dashboard.

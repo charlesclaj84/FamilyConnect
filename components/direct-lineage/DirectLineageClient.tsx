@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Dialog } from '@/components/ui/dialog'
+import { useConfirm } from '@/components/ui/confirm'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   addChild,
@@ -188,6 +189,7 @@ function AddChildForm({ onDone }: { onDone: () => void }) {
 // ── Inline Edit form ───────────────────────────────────────────────────────────
 
 function EditChildForm({ child, onDone }: { child: ChildRecord; onDone: () => void }) {
+  const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<ChildFormData>({
@@ -204,14 +206,20 @@ function EditChildForm({ child, onDone }: { child: ChildRecord; onDone: () => vo
     },
   })
 
+  const fullName = [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(' ')
+
   async function onSubmit(data: ChildFormData) {
+    const ok = await confirm({
+      title: 'Save changes',
+      description: `Apply your edits to ${fullName}'s record?`,
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setServerError('')
     const result = await updateChild(child.person_id, child.relationship_id, data as ChildInput)
     if (result.success) onDone()
     else setServerError(result.message ?? 'Something went wrong')
   }
-
-  const fullName = [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(' ')
 
   return (
     <Card className="border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20">
@@ -239,6 +247,7 @@ function EditChildForm({ child, onDone }: { child: ChildRecord; onDone: () => vo
 // ── Convert-to-Adult dialog ────────────────────────────────────────────────────
 
 function ConvertDialog({ child, onClose }: { child: ChildRecord; onClose: () => void }) {
+  const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
   const [done, setDone] = useState(false)
 
@@ -250,6 +259,12 @@ function ConvertDialog({ child, onClose }: { child: ChildRecord; onClose: () => 
   const label    = `${child.is_step ? 'Step-' : ''}${child.relationship_type}`
 
   async function onSubmit(data: ConvertFormData) {
+    const ok = await confirm({
+      title: 'Convert to adult',
+      description: `Move ${fullName} to adult status and invite ${data.email}? This cannot be undone.`,
+      confirmLabel: 'Convert',
+    })
+    if (!ok) return
     setServerError('')
     const result = await convertChildToAdult(child.person_id, data.email)
     if (result.success) { setDone(true); setTimeout(onClose, 1200) }
@@ -300,6 +315,7 @@ function ChildRow({
   onConvert: () => void
   onRefresh: () => void
 }) {
+  const confirm = useConfirm()
   const [deleting, setDeleting] = useState(false)
 
   const fullName  = [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(' ')
@@ -316,7 +332,13 @@ function ChildRow({
     : null
 
   async function handleDelete() {
-    if (!confirm(`Remove ${fullName} from your children list?`)) return
+    const ok = await confirm({
+      title: 'Remove from your children',
+      description: `Remove ${fullName} (${label}) from your children list? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     setDeleting(true)
     await deleteChild(child.person_id, child.relationship_id)
     onRefresh()
@@ -359,6 +381,7 @@ function ChildRow({
 // ── Accept spouse child row ────────────────────────────────────────────────────
 
 function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefresh: () => void }) {
+  const confirm = useConfirm()
   const [accepting, setAccepting] = useState(false)
   const [relType, setRelType]     = useState<'Son' | 'Daughter'>(child.spouse_relationship_type as 'Son' | 'Daughter')
   const [isStep, setIsStep]       = useState(child.spouse_is_step)
@@ -371,6 +394,12 @@ function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefr
     : 'DOB unknown'
 
   async function handleAccept() {
+    const ok = await confirm({
+      title: 'Add to your children',
+      description: `Add ${fullName} to your children list as your ${isStep ? 'step-' : ''}${relType.toLowerCase()}?`,
+      confirmLabel: 'Add',
+    })
+    if (!ok) return
     setLoading(true)
     setError('')
     const result = await acceptSpouseChild(child.person_id, relType, isStep)

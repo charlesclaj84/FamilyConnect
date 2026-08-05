@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getUpcomingEvents } from '@/app/actions/events'
@@ -20,6 +21,7 @@ import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBan
 import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
 import { DuesStatusCard } from '@/components/dues/DuesStatusCard'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
+import { isFeatureLive } from '@/lib/features'
 
 
 export const metadata = { title: 'Dashboard — Family Connect' }
@@ -29,6 +31,8 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  await requireView(user.id, 'dashboard')
+
   const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Member'
   const lastName  = user.user_metadata?.last_name ?? ''
   const initials  = [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase()
@@ -36,15 +40,22 @@ export default async function DashboardPage() {
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
 
+  // The dashboard has shipped but several of the features it surfaces have not.
+  // Skip those queries entirely and render the roadmap state instead of links
+  // that would only hit the gate — see lib/features.ts.
+  const eventsLive = isFeatureLive('/events')
+  const announcementsLive = isFeatureLive('/announcements')
+
   const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters] = await Promise.all([
-    getUpcomingEvents().then(e => e.slice(0, 3)),
+    eventsLive ? getUpcomingEvents().then(e => e.slice(0, 3)) : [],
     getMyRoles(),
     getLinkPersonBannerData(),
-    getPinnedAnnouncements(),
+    announcementsLive ? getPinnedAnnouncements() : [],
     getMyDuesSummary(),
     getUnreadCount(),
     admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
-    supabase.from('people').select('chapter_id, chapters(name)').eq('user_id', user.id).maybeSingle(),
+    // chapter_id is per-family — scope to the family being viewed.
+    supabase.from('people').select('chapter_id, chapters(name)').eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
     getChapters(),
   ])
 
@@ -87,7 +98,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Quick stats ───────────────────────────────────────────── */}
-      <DashboardStats memberCount={memberCount} daysToNextEvent={daysToNextEvent} nextEventId={nextEvent?.id ?? null} unreadCount={unreadCount} />
+      <DashboardStats memberCount={memberCount} daysToNextEvent={daysToNextEvent} nextEventId={nextEvent?.id ?? null} unreadCount={unreadCount} eventsLive={eventsLive} />
 
       {/* ── Link existing person banner ───────────────────────────── */}
       {linkBannerData.showBanner && (
@@ -114,6 +125,8 @@ export default async function DashboardPage() {
       </section>
 
       {/* ── Upcoming Events ───────────────────────────────────────── */}
+      {/* Omitted entirely until Events ships — no placeholder, no badge. */}
+      {eventsLive && (
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Upcoming Events</h2>
@@ -148,7 +161,7 @@ export default async function DashboardPage() {
           </div>
         )}
       </section>
-
+      )}
 
     </div>
   )

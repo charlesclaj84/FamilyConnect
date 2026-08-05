@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { installmentCents, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
+import { useConfirm } from '@/components/ui/confirm'
 import { setMyDuesPlan, type DuesSummary, type DuesPayment } from '@/app/actions/dues'
 
 type SortDir = 'asc' | 'desc'
@@ -42,6 +43,7 @@ interface Props {
 
 export function DuesDetailSection({ summary, history }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
 
   // Local mirror of summary so cadence changes recompute installments instantly.
@@ -59,7 +61,16 @@ export function DuesDetailSection({ summary, history }: Props) {
     .filter(s => s.nextInstallmentDate)
     .sort((a, b) => (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? ''))[0] ?? null
 
-  function changeCadence(scheduleId: string, cadence: PayCadence) {
+  async function changeCadence(scheduleId: string, cadence: PayCadence) {
+    const row = rows.find(r => r.schedule.id === scheduleId)
+    const ok = await confirm({
+      title: 'Change payment plan',
+      description: row
+        ? `Pay "${row.schedule.label}" ${cadence} — ${formatCurrency(installmentCents(row.annualTotalCents, cadence))} per instalment?`
+        : `Change this payment plan to ${cadence}?`,
+      confirmLabel: 'Change plan',
+    })
+    if (!ok) return
     setRows(prev => prev.map(r =>
       r.schedule.id === scheduleId
         ? { ...r, cadence, hasExplicitPlan: true, installmentCents: installmentCents(r.annualTotalCents, cadence) }

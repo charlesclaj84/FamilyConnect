@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements, initialAllocations, members }: Props) {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<'funds' | 'milestones' | 'disbursements' | 'record' | 'routing'>('funds')
   const [funds, setFunds] = useState(initialFunds)
   const [disbursements, setDisbursements] = useState(allDisbursements)
@@ -91,7 +93,13 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
     })
   }
 
-  function handleSaveAllocations() {
+  async function handleSaveAllocations() {
+    const ok = await confirm({
+      title: 'Save routing',
+      description: 'Save this routing configuration? Future dues payments will be split across funds using these percentages and priorities.',
+      confirmLabel: 'Save routing',
+    })
+    if (!ok) return
     setRoutingMsg(''); setError('')
     startTransition(async () => {
       // Priority is derived from row order (top row = priority 0).
@@ -172,15 +180,34 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
     })
   }
 
-  function handleDeleteFund(id: string) {
+  async function handleDeleteFund(id: string) {
+    const fund = funds.find(f => f.id === id)
+    const ok = await confirm({
+      title: 'Delete fund',
+      description: fund
+        ? `Delete the fund "${fund.name}"? Its balance of ${fmt(fund.balance_cents)} and its milestones go with it. This cannot be undone.`
+        : 'Delete this fund and its milestones? This cannot be undone.',
+      confirmLabel: 'Delete fund',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deleteFund(id)
       setFunds(prev => prev.filter(f => f.id !== id))
     })
   }
 
-  function handleToggleOpen(fund: FundWithStats) {
+  async function handleToggleOpen(fund: FundWithStats) {
     const next = !fund.open_contributions
+    const ok = await confirm({
+      title: next ? 'Open fund to contributions' : 'Close fund to contributions',
+      description: next
+        ? `Let members contribute to "${fund.name}" directly?`
+        : `Stop members from contributing to "${fund.name}" directly?`,
+      confirmLabel: next ? 'Open fund' : 'Close fund',
+      destructive: !next,
+    })
+    if (!ok) return
     setFunds(prev => prev.map(f => f.id === fund.id ? { ...f, open_contributions: next } : f))
     startTransition(async () => {
       const res = await updateFund(fund.id, { open_contributions: next })
@@ -205,7 +232,17 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
     })
   }
 
-  function handleDeleteMilestone(id: string) {
+  async function handleDeleteMilestone(id: string) {
+    const milestone = allMilestones.find(m => m.id === id)
+    const ok = await confirm({
+      title: 'Delete milestone',
+      description: milestone
+        ? `Delete the milestone "${milestone.name}" (${fmt(milestone.amount_cents)})? This cannot be undone.`
+        : 'Delete this milestone? This cannot be undone.',
+      confirmLabel: 'Delete milestone',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => { await deleteMilestone(id) })
   }
 
@@ -248,7 +285,17 @@ export function AdminFundsClient({ initialFunds, allMilestones, allDisbursements
     })
   }
 
-  function handleDeleteDisbursement(id: string) {
+  async function handleDeleteDisbursement(id: string) {
+    const disbursement = disbursements.find(d => d.id === id)
+    const ok = await confirm({
+      title: 'Delete disbursement',
+      description: disbursement
+        ? `Delete the ${fmt(disbursement.amount_cents)} disbursement to ${disbursement.person_name ?? 'this member'} from ${disbursement.fund_name ?? 'the fund'}? The amount returns to the fund balance. This cannot be undone.`
+        : 'Delete this disbursement? The amount returns to the fund balance. This cannot be undone.',
+      confirmLabel: 'Delete disbursement',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deleteDisbursement(id)
       setDisbursements(prev => prev.filter(d => d.id !== id))

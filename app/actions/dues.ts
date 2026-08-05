@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
@@ -231,9 +232,10 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data: myPerson } = await supabase
-    .from('people').select('id').eq('user_id', user.id).maybeSingle()
-  if (!myPerson) return []
+  // Dues are owed per family, so this must be the active family's person row.
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return []
+  const myPerson = { id: myPersonId }
 
   const [schedulesResult, paymentsResult, plansResult] = await Promise.all([
     supabase.from('dues_schedules').select('*').eq('active', true).order('label'),
@@ -285,8 +287,9 @@ export async function setMyDuesPlan(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-  if (!myPerson) return { success: false, message: 'Profile not found' }
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  const myPerson = { id: myPersonId }
 
   const { error } = await supabase
     .from('dues_member_plans')
@@ -304,8 +307,9 @@ export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: bo
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-  if (!myPerson) return { success: false, message: 'Profile not found' }
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  const myPerson = { id: myPersonId }
 
   const { error } = await supabase
     .from('dues_member_plans')
@@ -334,9 +338,9 @@ export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data: myPerson } = await supabase
-    .from('people').select('id').eq('user_id', user.id).maybeSingle()
-  if (!myPerson) return []
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return []
+  const myPerson = { id: myPersonId }
 
   const { data } = await supabase
     .from('dues_payments')
@@ -373,11 +377,15 @@ export async function recordPayment(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
+  const { data: myPerson } = await supabase
+    .from('people').select('id')
+    .eq('user_id', user.id)
+    .eq('family_code', familyCode)
+    .maybeSingle()
   if (!myPerson) return { success: false, message: 'Profile not found' }
 
   // A non-admin may only record their own payments.
-  if (!myPerson.is_admin && input.person_id !== myPerson.id) {
+  if (!(await can(user.id, 'dues', 'edit')) && input.person_id !== myPerson.id) {
     return { success: false, message: 'You can only record your own payments.' }
   }
 

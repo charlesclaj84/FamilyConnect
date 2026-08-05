@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { useConfirm } from '@/components/ui/confirm'
 import { saveProfileSection, saveChapterAndPropagate, uploadAvatar, type PersonalInfoRecord } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/admin/chapters'
 import { Avatar } from '@/components/ui/Avatar'
@@ -40,13 +41,22 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 // ── Avatar with upload ─────────────────────────────────────────────────────────
 
 function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl?: string | null }) {
+  const confirm = useConfirm()
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
   const [isPending, startTransition] = useTransition()
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    const ok = await confirm({
+      title: existingUrl ? 'Replace profile photo' : 'Set profile photo',
+      description: existingUrl
+        ? `Replace your profile photo with "${file.name}"? Your current photo is removed.`
+        : `Use "${file.name}" as your profile photo?`,
+      confirmLabel: existingUrl ? 'Replace photo' : 'Set photo',
+    })
+    if (!ok) { if (fileRef.current) fileRef.current.value = ''; return }
     setPreview(URL.createObjectURL(file))
     const fd = new FormData()
     fd.append('file', file)
@@ -168,6 +178,7 @@ function GeneralSection({
   chapters: Chapter[]
   onSaved: () => void
 }) {
+  const confirm = useConfirm()
   const [editing, setEditing]       = useState(false)
   const [serverError, setServerError] = useState('')
   const existingChapterId = existing?.chapter_id
@@ -204,10 +215,19 @@ function GeneralSection({
   function handleCancel() { reset(); setEditing(false); setServerError('') }
 
   async function onSubmit(data: GeneralData) {
+    const chapterChanged = chapterId !== (existingChapterId ?? '')
+    const ok = await confirm({
+      title: 'Save general information',
+      description: chapterChanged
+        ? `Save your changes and move to the ${chapters.find(c => c.id === chapterId)?.name ?? 'selected'} chapter? Your household moves with you.`
+        : 'Save your changes to your general information?',
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setServerError('')
     const result = await saveProfileSection({ ...data, chapter_id: chapterId || null })
     if (!result.success) { setServerError(result.message ?? 'Something went wrong'); return }
-    if (chapterId !== (existingChapterId ?? '')) {
+    if (chapterChanged) {
       await saveChapterAndPropagate(chapterId || null)
     }
     setEditing(false)
@@ -319,6 +339,7 @@ function AddressSection({
   existing: PersonalInfoRecord | null
   onSaved: () => void
 }) {
+  const confirm = useConfirm()
   const [editing, setEditing] = useState(false)
   const [serverError, setServerError] = useState('')
 
@@ -351,6 +372,12 @@ function AddressSection({
   }
 
   async function onSubmit(data: AddressData) {
+    const ok = await confirm({
+      title: 'Save address',
+      description: 'Save your changes to your address?',
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
     if (result.success) { setEditing(false); onSaved() }
@@ -440,6 +467,7 @@ const additionalSchema = z.object({
 type AdditionalData = z.infer<typeof additionalSchema>
 
 function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRecord | null; onSaved: () => void }) {
+  const confirm = useConfirm()
   const [editing, setEditing]     = useState(false)
   const [serverError, setServerError] = useState('')
 
@@ -468,6 +496,12 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
   function handleCancel() { reset(); setEditing(false); setServerError('') }
 
   async function onSubmit(data: AdditionalData) {
+    const ok = await confirm({
+      title: 'Save additional information',
+      description: 'Save your changes to your additional information?',
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
     if (result.success) { setEditing(false); onSaved() }

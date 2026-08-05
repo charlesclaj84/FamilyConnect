@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -32,13 +33,7 @@ async function getAuthenticatedAdmin() {
   if (!user) return { user: null, admin: null, familyCode: '' }
 
   const adminClient = createAdminClient()
-  const { data: person } = await adminClient
-    .from('people')
-    .select('is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!person?.is_admin) return { user: null, admin: null, familyCode: '' }
+  if (!(await can(user.id, 'admin/event-types', 'edit'))) return { user: null, admin: null, familyCode: '' }
 
   const familyCode = await getMyFamilyCode(user.id)
   return { user, admin: adminClient, familyCode }

@@ -40,11 +40,14 @@ export async function getLinkPersonBannerData(): Promise<{
   const familyCode = await getMyFamilyCode(user.id)
   if (!familyCode) return { showBanner: false, unlinkedPeople: [] }
 
-  // Find the current user's own person record (plus the fields we match on)
+  // Find the current user's own person record in this family (plus the fields we
+  // match on). A multi-family user has one row per family; only the one in the
+  // family being viewed can be linked to that family's unlinked records.
   const { data: myPerson } = await supabase
     .from('people')
     .select('id, created_by, first_name, last_name, nick_name, primary_email, primary_phone, date_of_birth')
     .eq('user_id', user.id)
+    .eq('family_code', familyCode)
     .maybeSingle()
 
   if (!myPerson) return { showBanner: false, unlinkedPeople: [] }
@@ -130,11 +133,12 @@ export async function linkPersonToCurrentUser(
   if (target.family_code !== familyCode) return { success: false, message: 'Person is not in your family.' }
   if (target.user_id) return { success: false, message: 'That person already has an account linked.' }
 
-  // Find the current stub record (created at registration)
+  // Find the current stub record (created at registration) for THIS family.
   const { data: stub } = await admin
     .from('people')
     .select('id')
     .eq('user_id', user.id)
+    .eq('family_code', familyCode)
     .maybeSingle()
 
   if (!stub) return { success: false, message: 'Could not find your current profile record.' }
@@ -149,8 +153,8 @@ export async function linkPersonToCurrentUser(
     return { success: false, message: 'Your current record already has family connections. Please contact an admin to merge.' }
   }
 
-  // Clear user_id from the stub first — the UNIQUE constraint on user_id
-  // means we can't set it on the target while the stub still holds it.
+  // Clear user_id from the stub first — UNIQUE(user_id, family_code) means we
+  // can't set it on the target while the stub still holds it for this family.
   const { error: clearError } = await admin
     .from('people')
     .update({ user_id: null })

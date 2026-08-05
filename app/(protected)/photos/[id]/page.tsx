@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getMyPersonId } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCollectionDetail } from '@/app/actions/photos'
 import { getMembers } from '@/app/actions/members'
@@ -17,11 +19,7 @@ export default async function PhotoCollectionPage({ params }: { params: Promise<
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin
-    .from('people')
-    .select('id, is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  const myPersonId = await getMyPersonId(user.id)
 
   const [{ collection, photos }, members] = await Promise.all([
     getCollectionDetail(id),
@@ -61,8 +59,8 @@ export default async function PhotoCollectionPage({ params }: { params: Promise<
       <PhotoCollectionGallery
         collectionId={id}
         initialPhotos={photos}
-        currentPersonId={myPerson?.id ?? null}
-        isAdmin={!!myPerson?.is_admin}
+        currentPersonId={myPersonId || null}
+        isAdmin={await can(user.id, 'photos', 'delete')}
         allMembers={allMembers}
       />
     </div>

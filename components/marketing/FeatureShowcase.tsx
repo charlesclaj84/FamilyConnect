@@ -7,6 +7,25 @@ import {
   FileText, ShieldCheck, BarChart3, Store, Check, ImageIcon, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isFeatureFuture, LIVE_FEATURES } from '@/lib/features'
+
+// Whether to mark an entry "Coming Soon". Anything tied to a route reads its
+// status from lib/features.ts so the landing page can't drift from the app;
+// `comingSoon` covers entries that have no route yet at all.
+function isComingSoon(entry: { feature?: string; comingSoon?: boolean }) {
+  return entry.comingSoon === true || (entry.feature ? isFeatureFuture(entry.feature) : false)
+}
+
+function ComingSoonPill({ className }: { className?: string }) {
+  return (
+    <span className={cn(
+      'text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground px-2 py-0.5 rounded-full',
+      className,
+    )}>
+      Coming Soon
+    </span>
+  )
+}
 
 // ── Scroll-reveal helper ─────────────────────────────────────────────────────
 
@@ -72,6 +91,7 @@ interface Spotlight {
   accent: string      // gradient for the placeholder + icon
   badge: string       // icon chip gradient
   image: string
+  feature: string     // route this row is selling — drives its shipped/coming-soon state
 }
 
 const spotlights: Spotlight[] = [
@@ -91,6 +111,7 @@ const spotlights: Spotlight[] = [
     accent: 'from-emerald-500 via-teal-500 to-cyan-600',
     badge: 'from-emerald-500 to-teal-600',
     image: '/features/events.png',
+    feature: '/events',
   },
   {
     eyebrow: 'Money, handled',
@@ -108,6 +129,7 @@ const spotlights: Spotlight[] = [
     accent: 'from-amber-500 via-orange-500 to-rose-500',
     badge: 'from-amber-500 to-orange-600',
     image: '/features/finances.png',
+    feature: '/family-finances',
   },
   {
     eyebrow: 'Know your people',
@@ -125,6 +147,7 @@ const spotlights: Spotlight[] = [
     accent: 'from-violet-500 via-purple-500 to-fuchsia-600',
     badge: 'from-violet-500 to-purple-600',
     image: '/features/family-tree.png',
+    feature: '/family-tree',
   },
 ]
 
@@ -133,7 +156,8 @@ interface MiniFeature {
   blurb: string
   icon: ReactNode
   accent: string
-  comingSoon?: boolean
+  feature?: string     // route backing this card, when it has one
+  comingSoon?: boolean // for cards with no route yet
 }
 
 const miniFeatures: MiniFeature[] = [
@@ -142,42 +166,49 @@ const miniFeatures: MiniFeature[] = [
     blurb: 'Run real officer elections — nominate yourself or others, accept or decline, then vote family-wide. Positions pull straight from your board roster, results tally live, and a launch announcement goes out automatically.',
     icon: <Vote className="h-5 w-5" />,
     accent: 'from-indigo-500 to-blue-600',
+    feature: '/elections',
   },
   {
     title: 'Announcements',
     blurb: 'Now anyone in the family can share news. Admins can pin the important stuff to the top so it surfaces right on everyone’s dashboard.',
     icon: <Megaphone className="h-5 w-5" />,
     accent: 'from-amber-500 to-yellow-600',
+    feature: '/announcements',
   },
   {
     title: 'Family Chat',
     blurb: 'Real-time group threads and private direct messages keep the whole family talking between gatherings.',
     icon: <MessageCircle className="h-5 w-5" />,
     accent: 'from-sky-500 to-cyan-600',
+    feature: '/chat',
   },
   {
     title: 'Photo Collections',
     blurb: 'Spin up a gallery for every event, upload your favorite memories, add captions, and relive the moments together.',
     icon: <Camera className="h-5 w-5" />,
     accent: 'from-pink-500 to-rose-600',
+    feature: '/photos',
   },
   {
     title: 'Documents',
     blurb: 'Keep bylaws, forms, meeting minutes, and family records in one shared, always-available place.',
     icon: <FileText className="h-5 w-5" />,
     accent: 'from-slate-500 to-gray-700',
+    feature: '/documents',
   },
   {
     title: 'Regions & Chapters',
     blurb: 'Organize a large family into regional chapters with scoped leadership and board positions for every level.',
     icon: <ShieldCheck className="h-5 w-5" />,
     accent: 'from-teal-500 to-emerald-600',
+    feature: '/admin/chapters',
   },
   {
     title: 'Leadership Reports',
     blurb: 'Membership, dues collected vs. outstanding, RSVP turnout, and t-shirt counts — the numbers leadership needs at a glance.',
     icon: <BarChart3 className="h-5 w-5" />,
     accent: 'from-rose-500 to-red-600',
+    feature: '/admin/reports',
   },
   {
     title: 'Trusted Vendors',
@@ -206,6 +237,11 @@ export function FeatureShowcase() {
             Family Connect replaces the group texts, spreadsheets, and shoeboxes of receipts with
             one beautiful, private home for your people, your plans, and your money.
           </p>
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto mt-4">
+            <span className="font-medium text-foreground">Live today:</span>{' '}
+            {LIVE_FEATURES.map(f => f.label).join(' · ')}. Everything marked
+            {' '}<ComingSoonPill className="align-middle" />{' '}is on the way.
+          </p>
         </Reveal>
 
         {/* Spotlight rows */}
@@ -222,6 +258,7 @@ export function FeatureShowcase() {
                         {s.icon}
                       </div>
                       <span className="text-xs font-semibold uppercase tracking-widest text-primary">{s.eyebrow}</span>
+                      {isComingSoon(s) && <ComingSoonPill />}
                     </div>
                     <h3 className="text-2xl sm:text-3xl font-bold leading-tight">{s.title}</h3>
                     <p className="text-muted-foreground text-base sm:text-lg">{s.blurb}</p>
@@ -256,11 +293,7 @@ export function FeatureShowcase() {
           {miniFeatures.map((f, i) => (
             <Reveal key={f.title} delay={(i % 4) * 80}>
               <div className="group relative h-full rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40">
-                {f.comingSoon && (
-                  <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                    Coming Soon
-                  </span>
-                )}
+                {isComingSoon(f) && <ComingSoonPill className="absolute top-3 right-3" />}
                 <div className={cn(
                   'mb-3 inline-flex p-2.5 rounded-xl text-white shadow-sm bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6',
                   f.accent,

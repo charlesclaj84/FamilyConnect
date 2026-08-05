@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, Send, UserPlus, UserMinus, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MessageBubble } from './MessageBubble'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   getMessages, getSenderMap, sendMessage, getFamilyMembersWithAccounts,
   addGroupMember, removeGroupMember,
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function MessageThread({ room, currentUserId, onBack }: Props) {
+  const confirm = useConfirm()
   const [messages, setMessages]         = useState<ChatMessage[]>([])
   const [senderMap, setSenderMap]       = useState<SenderMap>({})
   const [body, setBody]                 = useState('')
@@ -97,6 +99,16 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
   }
 
   async function handleAdd(userId: string) {
+    const member = addMembers.find(m => m.userId === userId)
+    const name = member
+      ? ([member.firstName, member.lastName].filter(Boolean).join(' ') || 'this family member')
+      : 'this family member'
+    const ok = await confirm({
+      title: 'Add to group',
+      description: `Add ${name} to "${threadTitle}"? They will be able to read the conversation.`,
+      confirmLabel: 'Add',
+    })
+    if (!ok) return
     setMemberLoading(true)
     await addGroupMember(room.id, userId)
     setAddMembers(prev => prev.filter(m => m.userId !== userId))
@@ -104,6 +116,17 @@ export function MessageThread({ room, currentUserId, onBack }: Props) {
   }
 
   async function handleRemove(userId: string) {
+    const participant = room.participants.find(p => p.user_id === userId)
+    const name = participant
+      ? ([participant.first_name, participant.last_name].filter(Boolean).join(' ') || 'this family member')
+      : 'this family member'
+    const ok = await confirm({
+      title: 'Remove from group',
+      description: `Remove ${name} from "${threadTitle}"? They lose access to the conversation.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     setMemberLoading(true)
     await removeGroupMember(room.id, userId)
     setMemberLoading(false)

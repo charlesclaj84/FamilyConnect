@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAllElections } from '@/app/actions/elections'
 import { getAllRoles } from '@/app/actions/admin/users'
@@ -13,8 +14,7 @@ export default async function AdminElectionsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/elections')
 
   const [elections, roles] = await Promise.all([getAllElections(), getAllRoles()])
 

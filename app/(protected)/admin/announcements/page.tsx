@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnnouncements, getChapters } from '@/app/actions/announcements'
 import { AdminAnnouncementsClient } from '@/components/admin/AdminAnnouncementsClient'
@@ -12,8 +13,7 @@ export default async function AdminAnnouncementsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/announcements')
 
   const [announcements, chapters] = await Promise.all([
     getAnnouncements(),

@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEvents } from '@/app/actions/admin/events'
 import { getEventTypes } from '@/app/actions/admin/event-types'
@@ -13,8 +15,7 @@ export default async function AdminEventsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin, can_approve').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/events')
 
   const [events, eventTypes] = await Promise.all([getEvents(), getEventTypes()])
 
@@ -27,7 +28,7 @@ export default async function AdminEventsPage() {
       <AdminEventsClient
         initialEvents={events}
         eventTypes={eventTypes}
-        canApprove={person?.can_approve === true}
+        canApprove={await can(user.id, 'admin/events', 'edit')}
       />
     </div>
   )

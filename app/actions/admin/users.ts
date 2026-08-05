@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatRoleTitle } from '@/lib/role-utils'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
@@ -30,8 +31,6 @@ export interface MemberWithRoles {
   first_name: string | null
   last_name: string | null
   primary_email: string | null
-  is_admin: boolean
-  can_approve: boolean
   chapter_id: string | null
   chapter_name: string | null
   roles: AssignedRole[]
@@ -39,14 +38,13 @@ export interface MemberWithRoles {
 
 export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
 
-async function assertAdmin(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<boolean> {
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('people')
-    .select('is_admin')
-    .eq('user_id', userId)
-    .maybeSingle()
-  return data?.is_admin === true
+/**
+ * Board-position assignment is governed by edit rights on the Board Positions
+ * page. Replaces the old is_admin lookup: authority now comes from group
+ * membership, resolved per active family by lib/auth/permissions.ts.
+ */
+async function assertCanManageRoles(userId: string): Promise<boolean> {
+  return can(userId, 'admin/user-roles', 'edit')
 }
 
 export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
@@ -59,7 +57,7 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
 
   const { data: people } = await admin
     .from('people')
-    .select('id, user_id, first_name, last_name, primary_email, is_admin, can_approve, chapter_id, chapters(name)')
+    .select('id, user_id, first_name, last_name, primary_email, chapter_id, chapters(name)')
     .eq('family_code', familyCode)
     .not('user_id', 'is', null)
     .order('last_name')
@@ -95,8 +93,6 @@ export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
     first_name:   p.first_name,
     last_name:    p.last_name,
     primary_email: p.primary_email,
-    is_admin:     p.is_admin,
-    can_approve:  p.can_approve,
     chapter_id:   p.chapter_id ?? null,
     chapter_name: (p.chapters as unknown as { name: string } | null)?.name ?? null,
     roles:        (rolesByUserId[p.user_id as string] ?? []).sort((a, b) => a.sort_order - b.sort_order),
@@ -165,41 +161,9 @@ export async function getFamilyMemberRoles(): Promise<Record<string, string[]>> 
   return map
 }
 
-export async function setAdminFlag(
-  targetUserId: string,
-  isAdmin: boolean
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
-
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('people')
-    .update({ is_admin: isAdmin })
-    .eq('user_id', targetUserId)
-
-  return error ? { success: false, error: error.message } : { success: true }
-}
-
-export async function setApproveFlag(
-  targetUserId: string,
-  canApprove: boolean
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
-
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('people')
-    .update({ can_approve: canApprove })
-    .eq('user_id', targetUserId)
-
-  return error ? { success: false, error: error.message } : { success: true }
-}
+// setAdminFlag / setApproveFlag were removed in the authorization rebuild.
+// Authority now comes from group membership — see app/actions/admin/permissions.ts
+// (setGroupMembership) and the Groups & Permissions page.
 
 export async function assignRole(
   targetUserId: string,
@@ -211,7 +175,7 @@ export async function assignRole(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
+  if (!(await assertCanManageRoles(user.id))) return { success: false, error: 'Not authorized' }
 
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -236,7 +200,7 @@ export async function revokeRoleByAssignmentId(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
+  if (!(await assertCanManageRoles(user.id))) return { success: false, error: 'Not authorized' }
 
   const admin = createAdminClient()
   const { error } = await admin.from('user_roles').delete().eq('id', assignmentId)
@@ -250,7 +214,7 @@ export async function revokeRole(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
+  if (!(await assertCanManageRoles(user.id))) return { success: false, error: 'Not authorized' }
 
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -271,7 +235,7 @@ export async function updateUserProfile(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Not authenticated' }
-  if (!(await assertAdmin(supabase, user.id))) return { success: false, error: 'Not authorized' }
+  if (!(await assertCanManageRoles(user.id))) return { success: false, error: 'Not authorized' }
 
   const admin = createAdminClient()
   const { error } = await admin.from('people').update(data).eq('id', peopleId)

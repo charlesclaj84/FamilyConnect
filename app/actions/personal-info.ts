@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilyCode } from '@/lib/auth/family'
 
 export async function uploadAvatar(
   formData: FormData
@@ -25,6 +26,8 @@ export async function uploadAvatar(
 
   const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
 
+  // avatar_url is a shared profile field, so this intentionally has no
+  // family_code filter: the picture applies to every family the user is in.
   const { error: updateError } = await supabase
     .from('people')
     .update({ avatar_url: publicUrl })
@@ -76,10 +79,16 @@ export async function getPersonalInfo(): Promise<PersonalInfoRecord | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  // A multi-family user has one row per family. Profile fields are kept in sync
+  // across them, but chapter_id / is_admin are per-family, so read the row for
+  // the family currently being viewed.
+  const familyCode = await getMyFamilyCode(user.id)
+
   const { data } = await supabase
     .from('people')
     .select('*')
     .eq('user_id', user.id)
+    .eq('family_code', familyCode)
     .maybeSingle()
 
   return data ?? null
@@ -107,17 +116,24 @@ export async function saveProfileSection(
     }
   }
 
+  // Write to the row for the family being viewed. app_metadata.family_code is
+  // only the family the account was created in, which is the wrong target once a
+  // user belongs to more than one. Shared profile columns propagate to the user's
+  // other families via the people_sync_shared_profile trigger.
+  const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
+  if (!familyCode) return { success: false, message: 'No family associated with account' }
+
   const { error } = await supabase
     .from('people')
     .upsert(
       {
         user_id: user.id,
-        family_code: user.app_metadata?.family_code ?? '',
+        family_code: familyCode,
         is_minor: false,
         created_by: user.id,
         ...cleaned,
       },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id,family_code' }
     )
 
   if (error) return { success: false, message: error.message }
@@ -133,7 +149,8 @@ export async function upsertPersonalInfo(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.app_metadata?.family_code
+  // The family being viewed, not the one the account was created in.
+  const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code
   if (!familyCode) return { success: false, message: 'No family code associated with account' }
 
   const normalize = (v?: string) => v?.trim() || null
@@ -166,7 +183,7 @@ export async function upsertPersonalInfo(
         tshirt_size: normalize(input.tshirt_size),
         chapter_id: input.chapter_id ?? null,
       },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id,family_code' }
     )
 
   if (error) return { success: false, message: error.message }
@@ -183,12 +200,15 @@ export async function saveChapterAndPropagate(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  const familyCode = user.app_metadata?.family_code ?? ''
+  // chapter_id is per-family, so this must target the family being viewed —
+  // chapters themselves belong to a single family.
+  const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
+  if (!familyCode) return { success: false, message: 'No family associated with account' }
 
   // Update own record
   const { data: myRecord, error: myError } = await supabase
     .from('people')
-    .upsert({ user_id: user.id, family_code: familyCode, is_minor: false, created_by: user.id, chapter_id: chapterId ?? null }, { onConflict: 'user_id' })
+    .upsert({ user_id: user.id, family_code: familyCode, is_minor: false, created_by: user.id, chapter_id: chapterId ?? null }, { onConflict: 'user_id,family_code' })
     .select('id')
     .single()
 

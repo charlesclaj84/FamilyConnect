@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { useConfirm } from '@/components/ui/confirm'
 import { saveChapterAndPropagate } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/announcements'
 
@@ -14,6 +15,7 @@ interface Props {
 
 export function ChapterReminderBanner({ chapters }: Props) {
   const router = useRouter()
+  const confirm = useConfirm()
   const [dismissed, setDismissed] = useState(false)
   const [chapterId, setChapterId] = useState('')
   const [error, setError] = useState('')
@@ -31,8 +33,14 @@ export function ChapterReminderBanner({ chapters }: Props) {
     )
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!chapterId) { setError('Please select a chapter.'); return }
+    const ok = await confirm({
+      title: 'Set your chapter',
+      description: `Set your chapter to ${chapters.find(c => c.id === chapterId)?.name ?? 'the selected chapter'}? Everyone in your household moves with you.`,
+      confirmLabel: 'Set chapter',
+    })
+    if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await saveChapterAndPropagate(chapterId)

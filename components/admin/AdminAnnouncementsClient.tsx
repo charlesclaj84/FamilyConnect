@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   createAnnouncement, deleteAnnouncement, togglePinAnnouncement,
   type Announcement, type Chapter,
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Props) {
+  const confirm = useConfirm()
   const [announcements, setAnnouncements] = useState(initialAnnouncements)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
@@ -54,14 +56,34 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
     })
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
+    const announcement = announcements.find(a => a.id === id)
+    const ok = await confirm({
+      title: 'Delete announcement',
+      description: announcement
+        ? `Delete "${announcement.title}"? Members will no longer see it. This cannot be undone.`
+        : 'Delete this announcement? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deleteAnnouncement(id)
       setAnnouncements(prev => prev.filter(a => a.id !== id))
     })
   }
 
-  function handleTogglePin(id: string, current: boolean) {
+  async function handleTogglePin(id: string, current: boolean) {
+    const announcement = announcements.find(a => a.id === id)
+    const label = announcement ? `"${announcement.title}"` : 'this announcement'
+    const ok = await confirm({
+      title: current ? 'Unpin announcement' : 'Pin announcement',
+      description: current
+        ? `Unpin ${label}? It will drop out of the banner at the top of members' dashboards.`
+        : `Pin ${label} to the top of members' dashboards?`,
+      confirmLabel: current ? 'Unpin' : 'Pin',
+    })
+    if (!ok) return
     startTransition(async () => {
       await togglePinAnnouncement(id, !current)
       setAnnouncements(prev => prev.map(a => a.id === id ? { ...a, pinned: !current } : a))

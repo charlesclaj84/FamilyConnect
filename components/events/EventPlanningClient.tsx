@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Check, X, Pencil, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
 import { formatDate } from '@/lib/date-utils'
 
@@ -96,6 +97,7 @@ function ListInput({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssignment; familyMembers?: FamilyMemberOption[] }) {
+  const confirm = useConfirm()
   const [editing, setEditing]   = useState(false)
   const [response, setResponse] = useState(assignment.response ?? '')
   const [draft, setDraft]       = useState(assignment.response ?? '')
@@ -107,6 +109,12 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
 
   async function handleSave() {
     if (!draft.trim()) { setError('Response cannot be empty'); return }
+    const ok = await confirm({
+      title: response ? 'Update response' : 'Submit response',
+      description: `${response ? 'Update' : 'Submit'} your response for "${assignment.blueprint_item_title}"? It goes to the event organiser for approval.`,
+      confirmLabel: response ? 'Update response' : 'Submit response',
+    })
+    if (!ok) return
     setSaving(true)
     setError('')
     const result = await submitAssignmentResponse(assignment.id, draft.trim())

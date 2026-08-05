@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import {
   getOrCreateFamilyRoom,
   getRoomList,
@@ -13,6 +14,8 @@ export default async function ChatPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  await requireView(user.id, 'chat')
 
   const [{ room: familyRoom, error: chatError }, rooms, familyMembers] = await Promise.all([
     getOrCreateFamilyRoom(),

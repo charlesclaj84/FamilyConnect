@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getChapters, getRegions } from '@/app/actions/admin/chapters'
 import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
@@ -12,8 +13,7 @@ export default async function AdminChaptersPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/chapters')
 
   const [regions, chapters] = await Promise.all([getRegions(), getChapters()])
 

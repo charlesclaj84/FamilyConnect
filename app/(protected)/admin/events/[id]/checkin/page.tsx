@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireView } from '@/lib/auth/permissions'
 import { getCheckInList } from '@/app/actions/admin/event-checkin'
 import { EventCheckInClient } from '@/components/admin/EventCheckInClient'
 
@@ -15,8 +16,7 @@ export default async function EventCheckInPage({ params }: { params: Promise<{ i
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: person } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
-  if (!person?.is_admin) redirect('/dashboard')
+  await requireView(user.id, 'admin/events')
 
   const { data: event } = await admin.from('events').select('name').eq('id', id).maybeSingle()
   if (!event) notFound()

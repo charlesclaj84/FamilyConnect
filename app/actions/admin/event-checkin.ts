@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyPersonId } from '@/lib/auth/family'
 
 export interface CheckInAttendee {
   id: string
@@ -54,16 +56,11 @@ export async function checkInAttendee(
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin
-    .from('people')
-    .select('id, is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (!myPerson?.is_admin) return { success: false, message: 'Admin access required' }
+  if (!(await can(user.id, 'admin/events', 'edit'))) return { success: false, message: 'Admin access required' }
+  const myPersonId = await getMyPersonId(user.id)
 
   const updatePayload = checkedIn
-    ? { checked_in_at: new Date().toISOString(), checked_in_by: myPerson.id }
+    ? { checked_in_at: new Date().toISOString(), checked_in_by: myPersonId }
     : { checked_in_at: null, checked_in_by: null }
 
   const { error } = await admin

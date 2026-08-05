@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAnnouncements, getChapters } from '@/app/actions/announcements'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
@@ -13,7 +14,7 @@ export default async function AnnouncementsPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin.from('people').select('is_admin').eq('user_id', user.id).maybeSingle()
+  const canManage = await can(user.id, 'announcements', 'edit')
 
   const [announcements, chapters] = await Promise.all([getAnnouncements(), getChapters()])
 
@@ -25,7 +26,7 @@ export default async function AnnouncementsPage() {
       </div>
 
       <div className="mb-8">
-        <NewAnnouncementForm isAdmin={myPerson?.is_admin === true} chapters={chapters} />
+        <NewAnnouncementForm isAdmin={canManage} chapters={chapters} />
       </div>
 
       {announcements.length === 0 ? (

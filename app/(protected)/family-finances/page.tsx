@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getFamilyPnL } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
@@ -14,12 +15,6 @@ export default async function FamilyFinancesPage() {
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin
-    .from('people')
-    .select('is_admin')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
   const [pnlData, funds] = await Promise.all([
     getFamilyPnL(),
     getFunds(),
@@ -41,7 +36,7 @@ export default async function FamilyFinancesPage() {
       </section>
 
       <section>
-        <FundsSection funds={funds} isAdmin={!!myPerson?.is_admin} />
+        <FundsSection funds={funds} isAdmin={await can(user.id, 'family-finances', 'edit')} />
       </section>
     </div>
   )

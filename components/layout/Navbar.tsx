@@ -1,10 +1,11 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { NotificationBell } from '@/components/layout/NotificationBell'
+import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { getNotifications } from '@/app/actions/notifications'
+import { getMyFamilies } from '@/lib/auth/family'
 
 export default async function Navbar() {
   const supabase = await createClient()
@@ -14,17 +15,20 @@ export default async function Navbar() {
     || user?.email?.split('@')[0]
     || 'Member'
 
-  // Fetch notifications + person id for real-time sub (non-fatal if user not fully set up)
+  // Fetch notifications + memberships (non-fatal if user not fully set up).
+  // personId must come from the ACTIVE family's people row — a multi-family user
+  // has one row per family, and the real-time notification filter is per row.
   let notifications: Awaited<ReturnType<typeof getNotifications>> = []
   let personId = ''
+  let families: Awaited<ReturnType<typeof getMyFamilies>> = []
   if (user) {
-    const admin = createAdminClient()
-    const [notifResult, personResult] = await Promise.all([
+    const [notifResult, familyResult] = await Promise.all([
       getNotifications(),
-      admin.from('people').select('id').eq('user_id', user.id).maybeSingle(),
+      getMyFamilies(user.id),
     ])
     notifications = notifResult
-    personId = personResult.data?.id ?? ''
+    families = familyResult
+    personId = families.find(f => f.isActive)?.personId ?? ''
   }
 
   return (
@@ -35,6 +39,7 @@ export default async function Navbar() {
           <span className="text-xl font-bold text-primary">Family Connect</span>
         </Link>
         <div className="flex items-center gap-3">
+          <FamilySwitcher families={families} />
           <span className="hidden sm:block text-sm text-muted-foreground">
             {firstName}
           </span>

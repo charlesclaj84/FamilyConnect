@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
 import Link from 'next/link'
@@ -47,6 +48,7 @@ interface Props {
 }
 
 export function AdminElectionsClient({ initialElections, roles }: Props) {
+  const confirm = useConfirm()
   const [elections, setElections] = useState(initialElections)
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
@@ -88,17 +90,33 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
     })
   }
 
-  function handleAdvanceStatus(election: Election) {
+  async function handleAdvanceStatus(election: Election) {
     const next = STATUS_NEXT[election.status]
     if (!next) return
+    const ok = await confirm({
+      title: STATUS_ACTION[election.status],
+      description: `Move "${election.title}" from ${STATUS_LABEL[election.status]} to ${STATUS_LABEL[next]}? This cannot be stepped back.`,
+      confirmLabel: STATUS_ACTION[election.status],
+      destructive: next === 'closed',
+    })
+    if (!ok) return
     startTransition(async () => {
       await updateElectionStatus(election.id, next)
       setElections(prev => prev.map(e => e.id === election.id ? { ...e, status: next } : e))
     })
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('Delete this election and all its data?')) return
+  async function handleDelete(id: string) {
+    const election = elections.find(e => e.id === id)
+    const ok = await confirm({
+      title: 'Delete election',
+      description: election
+        ? `Delete "${election.title}" and all of its nominations and votes? This cannot be undone.`
+        : 'Delete this election and all its data? This cannot be undone.',
+      confirmLabel: 'Delete election',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deleteElection(id)
       setElections(prev => prev.filter(e => e.id !== id))

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatPersonName } from '@/lib/name-utils'
+import { useConfirm } from '@/components/ui/confirm'
 import { uploadPhoto, deletePhoto, tagPersonInPhoto, untagPersonFromPhoto } from '@/app/actions/photos'
 import type { Photo } from '@/app/actions/photos'
 
@@ -22,6 +23,7 @@ interface Props {
 export function PhotoCollectionGallery({
   collectionId, initialPhotos, currentPersonId, isAdmin, allMembers
 }: Props) {
+  const confirm = useConfirm()
   const [photos, setPhotos] = useState(initialPhotos)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [tagTarget, setTagTarget] = useState<string | null>(null)
@@ -53,7 +55,16 @@ export function PhotoCollectionGallery({
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  function handleDelete(photo: Photo) {
+  async function handleDelete(photo: Photo) {
+    const ok = await confirm({
+      title: 'Delete photo',
+      description: photo.caption
+        ? `Delete "${photo.caption}"? The photo and its tags are removed for everyone. This cannot be undone.`
+        : 'Delete this photo? It is removed for everyone, along with its tags. This cannot be undone.',
+      confirmLabel: 'Delete photo',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await deletePhoto(photo.id, photo.file_path, collectionId)
       setPhotos(prev => prev.filter(p => p.id !== photo.id))
@@ -68,7 +79,17 @@ export function PhotoCollectionGallery({
     })
   }
 
-  function handleUntag(photoId: string, personId: string) {
+  async function handleUntag(photoId: string, personId: string) {
+    const person = allMembers.find(m => m.id === personId)
+    const ok = await confirm({
+      title: 'Remove tag',
+      description: person
+        ? `Remove the tag for ${formatPersonName(person)} from this photo?`
+        : 'Remove this tag from the photo?',
+      confirmLabel: 'Remove tag',
+      destructive: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       await untagPersonFromPhoto(photoId, personId, collectionId)
     })

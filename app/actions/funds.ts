@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
+import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
 
@@ -347,8 +348,8 @@ export async function saveFundAllocations(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
-  if (!myPerson?.is_admin) return { success: false, message: 'Admins only' }
+  if (!(await can(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const myPersonId = await getMyPersonId(user.id)
 
   // Allocations must total exactly 100% (or all zero to disable routing).
   const totalBps = rows.reduce((s, r) => s + Math.round(r.basis_points), 0)
@@ -371,7 +372,7 @@ export async function saveFundAllocations(
         family_code: familyCode,
         fund_id: r.fund_id,
         basis_points: Math.round(r.basis_points),
-        created_by: myPerson.id,
+        created_by: myPersonId,
       })),
       { onConflict: 'family_code,fund_id' },
     )
@@ -394,8 +395,8 @@ export async function recordFundContribution(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await supabase.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
-  if (!myPerson?.is_admin) return { success: false, message: 'Admins only' }
+  if (!(await can(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const myPersonId = await getMyPersonId(user.id)
 
   const { error } = await admin.from('fund_contributions').insert({
     fund_id: input.fund_id,
@@ -404,7 +405,7 @@ export async function recordFundContribution(input: {
     source: 'admin_manual',
     contributed_date: input.contributed_date,
     notes: input.notes,
-    recorded_by: myPerson.id,
+    recorded_by: myPersonId,
   })
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
@@ -425,8 +426,8 @@ export async function contributeToFund(input: {
   if (input.amount_cents <= 0) return { success: false, message: 'Enter an amount greater than $0' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-  if (!myPerson) return { success: false, message: 'Profile not found' }
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
 
   // The fund must belong to this family and be open to member contributions.
   const { data: fund } = await admin
@@ -441,7 +442,7 @@ export async function contributeToFund(input: {
     source: 'member_contribution',
     contributed_date: new Date().toISOString().slice(0, 10),
     notes: input.notes,
-    recorded_by: myPerson.id,
+    recorded_by: myPersonId,
   })
   if (error) return { success: false, message: error.message }
   revalidatePath('/family-finances')

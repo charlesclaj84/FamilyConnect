@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm'
 import {
   publishEvent, approveEvent, cancelEvent, updateEvent, deleteEvent,
   assignBlueprintItem, unassignBlueprintItem, approveAssignmentResponse,
@@ -233,9 +234,16 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const confirm = useConfirm()
 
   async function handleSave() {
     if (!form.name.trim()) { setError('Name is required'); return }
+    const ok = await confirm({
+      title: 'Save event changes',
+      description: `Apply your edits to "${event.name}"?`,
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setSaving(true)
     const isAllDay = form.is_all_day !== 'false'
     const result = await updateEvent(event.id, {
@@ -341,6 +349,7 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
   const [estForm, setEstForm] = useState({ room_type: '', amount: '' })
   const [addingDetail, setAddingDetail] = useState<string | null>(null)
   const [detailForm, setDetailForm] = useState({ key: '', value: '' })
+  const confirm = useConfirm()
 
   // Auto-load on mount
   useEffect(() => { onLoad() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -359,6 +368,12 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
 
   async function handleUpdateHotel() {
     if (!editingHotelId || !editForm.hotel_name.trim()) return
+    const ok = await confirm({
+      title: 'Save hotel booking',
+      description: `Apply your edits to "${editForm.hotel_name}"?`,
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
     setSaving(true)
     const result = await updateHotelBooking(editingHotelId, editForm)
     if (result.success) {
@@ -469,7 +484,17 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
               {!readOnly && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
-                  <button onClick={async () => { if (!confirm('Delete this hotel booking?')) return; await deleteHotelBooking(hotel.id); onDelete(hotel.id) }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Delete hotel booking',
+                      description: `Delete "${hotel.hotel_name}" and its rates and details? This cannot be undone.`,
+                      confirmLabel: 'Delete booking',
+                      destructive: true,
+                    })
+                    if (!ok) return
+                    await deleteHotelBooking(hotel.id)
+                    onDelete(hotel.id)
+                  }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               )}
             </div>
@@ -524,7 +549,17 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
                       <span>{est.room_type}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">${Number(est.amount).toFixed(2)}</span>
-                        {!readOnly && <button onClick={async () => { await deletePriceEstimate(est.id); onDeleteEstimate(hotel.id, est.id) }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
+                        {!readOnly && <button onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Delete price estimate',
+                            description: `Delete the "${est.room_type}" estimate from ${hotel.hotel_name}?`,
+                            confirmLabel: 'Delete estimate',
+                            destructive: true,
+                          })
+                          if (!ok) return
+                          await deletePriceEstimate(est.id)
+                          onDeleteEstimate(hotel.id, est.id)
+                        }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
                       </div>
                     </div>
                   ))}
@@ -553,7 +588,17 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
                     <div key={d.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
                       <span className="text-muted-foreground shrink-0 mr-2">{d.key}</span>
                       <span className="flex-1 text-right">{d.value}</span>
-                      {!readOnly && <button onClick={async () => { await deleteHotelDetail(d.id); onDeleteDetail(hotel.id, d.id) }} className="text-muted-foreground hover:text-destructive ml-2 shrink-0"><X className="h-3 w-3" /></button>}
+                      {!readOnly && <button onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Delete detail',
+                          description: `Delete "${d.key}" from ${hotel.hotel_name}?`,
+                          confirmLabel: 'Delete detail',
+                          destructive: true,
+                        })
+                        if (!ok) return
+                        await deleteHotelDetail(d.id)
+                        onDeleteDetail(hotel.id, d.id)
+                      }} className="text-muted-foreground hover:text-destructive ml-2 shrink-0"><X className="h-3 w-3" /></button>}
                     </div>
                   ))}
                 </div>
@@ -598,6 +643,7 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
   const [backingFundId, setBackingFundId] = useState(funds.find(f => f.event_id === eventId)?.id ?? '')
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState('')
+  const confirm = useConfirm()
 
   useEffect(() => {
     let cancelled = false
@@ -622,6 +668,16 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
   const totalSpent    = expenses.reduce((s, e) => s + e.amount_cents, 0)
 
   async function changeBackingFund(fundId: string) {
+    const fundName = funds.find(f => f.id === fundId)?.name
+    const ok = await confirm({
+      title: fundId ? 'Change backing fund' : 'Clear backing fund',
+      description: fundId
+        ? `Back this event's budget with "${fundName}"? Expenses recorded here will draw against that fund.`
+        : 'Remove the backing fund from this event’s budget?',
+      confirmLabel: fundId ? 'Change fund' : 'Clear fund',
+      destructive: !fundId,
+    })
+    if (!ok) return
     setBackingFundId(fundId)
     setBusy(true)
     const res = await setEventFund(eventId, fundId || null)
@@ -640,6 +696,16 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
   }
 
   async function removeItem(id: string) {
+    const item = items.find(i => i.id === id)
+    const ok = await confirm({
+      title: 'Delete budget line item',
+      description: item
+        ? `Delete the line item "${item.title}" (${formatCurrency(item.budget_cents)} budgeted)? This cannot be undone.`
+        : 'Delete this budget line item? This cannot be undone.',
+      confirmLabel: 'Delete line item',
+      destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
     await deleteEventBudgetItem(id)
     setBusy(false)
@@ -671,6 +737,13 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
   }
 
   async function removeExpense(e: EventExpense) {
+    const ok = await confirm({
+      title: 'Delete expense',
+      description: `Delete the ${formatCurrency(e.amount_cents)} expense "${e.description}"? The amount will be credited back to its line item. This cannot be undone.`,
+      confirmLabel: 'Delete expense',
+      destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
     await deleteEventExpense(e.id)
     setBusy(false)
@@ -824,6 +897,7 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
 }
 
 export function AdminEventDetailClient({ report: initialReport, assignments: initialAssignments, blueprintItems, members, canApprove, initialSubEvents, eventTypes, funds }: Props) {
+  const confirm = useConfirm()
   const [report, setReport]           = useState(initialReport)
   const [assignments, setAssignments] = useState(initialAssignments)
   const [subEvents, setSubEvents]     = useState(initialSubEvents)
@@ -858,13 +932,25 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   const toggleSection = (key: string) => setOpenSections(s => ({ ...s, [key]: !s[key] }))
 
   async function handleCloseBudget() {
-    if (!confirm('Officially close the budget? Line items and expenses can no longer be added or edited.')) return
+    const ok = await confirm({
+      title: 'Close budget',
+      description: 'Officially close this budget? Line items and expenses can no longer be added or edited.',
+      confirmLabel: 'Close budget',
+      destructive: true,
+    })
+    if (!ok) return
     const res = await closeBudget(event.id)
     if (res.success) setBudgetClosedAt(res.closed_at ?? new Date().toISOString())
     else alert(res.error ?? 'Could not close the budget.')
   }
 
   async function handleMoveSub(id: string, direction: 'up' | 'down') {
+    const ok = await confirm({
+      title: 'Reorder sub-events',
+      description: `Move "${subEvents.find(s => s.id === id)?.name ?? 'this sub-event'}" ${direction} in the schedule?`,
+      confirmLabel: 'Move',
+    })
+    if (!ok) return
     setSubEvents(prev => {
       const idx = prev.findIndex(s => s.id === id)
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1
@@ -884,6 +970,12 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   }
 
   async function handlePublish() {
+    const ok = await confirm({
+      title: 'Publish event',
+      description: `Publish "${event.name}"? Members will be able to see it and RSVP.`,
+      confirmLabel: 'Publish',
+    })
+    if (!ok) return
     setActionLoading(true)
     await publishEvent(event.id)
     setReport(r => ({ ...r, event: { ...r.event, status: 'published' } }))
@@ -891,6 +983,12 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   }
 
   async function handleApprove() {
+    const ok = await confirm({
+      title: 'Approve event',
+      description: `Approve "${event.name}"?`,
+      confirmLabel: 'Approve',
+    })
+    if (!ok) return
     setActionLoading(true)
     await approveEvent(event.id)
     setReport(r => ({ ...r, event: { ...r.event, status: 'approved' } }))
@@ -898,7 +996,14 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   }
 
   async function handleCancel() {
-    if (!confirm('Cancel this event?')) return
+    const ok = await confirm({
+      title: 'Cancel event',
+      description: `Cancel "${event.name}"? Members who have RSVP'd will see it as cancelled.`,
+      confirmLabel: 'Cancel event',
+      cancelLabel: 'Keep event',
+      destructive: true,
+    })
+    if (!ok) return
     setActionLoading(true)
     await cancelEvent(event.id)
     setReport(r => ({ ...r, event: { ...r.event, status: 'cancelled' } }))
@@ -925,11 +1030,30 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   }
 
   async function handleUnassign(assignmentId: string) {
+    const assignment = assignments.find(a => a.id === assignmentId)
+    const ok = await confirm({
+      title: 'Remove assignee',
+      description: assignment
+        ? `Remove ${assignment.assigned_to_name} from "${assignment.blueprint_item_title}"? Any response they submitted is removed with them.`
+        : 'Remove this assignee? Any response they submitted is removed with them.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     await unassignBlueprintItem(assignmentId)
     setAssignments(prev => prev.filter(a => a.id !== assignmentId))
   }
 
   async function handleApproveResponse(assignmentId: string) {
+    const assignment = assignments.find(a => a.id === assignmentId)
+    const ok = await confirm({
+      title: 'Approve response',
+      description: assignment
+        ? `Approve ${assignment.assigned_to_name}'s response for "${assignment.blueprint_item_title}"?`
+        : 'Approve this response?',
+      confirmLabel: 'Approve',
+    })
+    if (!ok) return
     await approveAssignmentResponse(assignmentId)
     setAssignments(prev => prev.map(a => a.id === assignmentId
       ? { ...a, response_status: 'approved' }
@@ -1065,7 +1189,13 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                       </button>
                       <button
                         onClick={async () => {
-                          if (!confirm(`Delete "${sub.name}"?`)) return
+                          const ok = await confirm({
+                            title: 'Delete sub-event',
+                            description: `Permanently delete "${sub.name}" and everything attached to it? This cannot be undone.`,
+                            confirmLabel: 'Delete sub-event',
+                            destructive: true,
+                          })
+                          if (!ok) return
                           await deleteEvent(sub.id)
                           setSubEvents(prev => prev.filter(s => s.id !== sub.id))
                         }}

@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getMyPersonId } from '@/lib/auth/family'
 import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels, getEventRsvpSummary } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
 import { getOrCreateEventCollection } from '@/app/actions/photos'
@@ -22,7 +23,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: myPerson } = await admin.from('people').select('id, is_admin').eq('user_id', user.id).maybeSingle()
+  const myPersonId = await getMyPersonId(user.id)
 
   const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary, photoCollection] = await Promise.all([
     getEventDetail(id),
