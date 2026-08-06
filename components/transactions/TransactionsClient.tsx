@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   CirclePlus,
   Trash2,
+  Undo2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -23,7 +24,7 @@ import { formatDate } from '@/lib/date-utils'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
-import { recordPayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
+import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
   recordDisbursement, deleteDisbursement, recordFundContribution,
   type FundMilestone, type FundDisbursement, type FundContribution,
@@ -42,10 +43,20 @@ interface Props {
   funds: FundOption[]
   milestones: FundMilestone[]
   members: Person[]
-  /** May record dues/donation payments — `dues` edit. */
-  canRecordPayments: boolean
-  /** May record fund money in or out — `family-finances` edit. */
-  canRecordFunds: boolean
+  /**
+   * One grant per add button, resolved on the server from LEDGER_RESOURCE. Four
+   * separate booleans rather than the old two, so a treasurer can be allowed to
+   * record dues without also being allowed to record donations, and someone can log
+   * a contribution without being able to pay money out.
+   */
+  canRecordDues: boolean
+  canRecordDonations: boolean
+  canRecordContributions: boolean
+  canRecordDisbursements: boolean
+  /** Erasing the record of money paid out is separable from paying it out. */
+  canDeleteDisbursements: boolean
+  /** May post a correcting entry against an existing payment. */
+  canReverse: boolean
 }
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -84,10 +95,15 @@ const SOURCE_LABELS: Record<string, string> = {
  *
  * This is the operational half of Accounting, and it is NOT an admin page: reading
  * the ledgers needs only `transactions` view, which every member has unless the
- * family restricts it. Recording is separate — the two `can…` props gate the buttons
- * on the same permissions the server actions enforce (`dues` edit for payments,
- * `family-finances` edit for fund money), so a member who may look but not write
- * simply sees no buttons rather than a form that fails on submit.
+ * family restricts it. Recording is separate, and now granular — one grant per add
+ * button, resolved from LEDGER_RESOURCE and enforced identically by the server
+ * actions, so a member who may look but not write simply sees no button rather than a
+ * form that fails on submit.
+ *
+ * No member can record their own dues here, by design. Recording a payment asserts
+ * that money changed hands, and letting the person who owes it make that assertion is
+ * what basic accounting exists to prevent. The member-facing path is Pay Online, where
+ * a processor attests instead.
  *
  * Dues and Donations are split because they answer different questions even though
  * they share a table: "is everyone paid up" and "how is the drive going" are not the
@@ -103,8 +119,12 @@ export function TransactionsClient({
   funds,
   milestones,
   members,
-  canRecordPayments,
-  canRecordFunds,
+  canRecordDues,
+  canRecordDonations,
+  canRecordContributions,
+  canRecordDisbursements,
+  canDeleteDisbursements,
+  canReverse,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -175,7 +195,43 @@ export function TransactionsClient({
   const donationPayments = payments.filter(p => p.schedule_kind === 'donation')
   const filteredMilestones = rdFundId ? milestones.filter(m => m.fund_id === rdFundId) : []
 
-  const canRecord = ledger === 'dues' || ledger === 'donations' ? canRecordPayments : canRecordFunds
+  // One boolean per ledger, so the visible button always matches the grant the
+  // server action will demand. RECORD_BY_LEDGER is keyed the same way LEDGER_RESOURCE
+  // is, which is what keeps the two in step.
+  const RECORD_BY_LEDGER: Record<Ledger, boolean> = {
+    dues:          canRecordDues,
+    donations:     canRecordDonations,
+    contributions: canRecordContributions,
+    disbursements: canRecordDisbursements,
+  }
+  const canRecord = RECORD_BY_LEDGER[ledger]
+
+  /**
+   * Reverse a posted payment.
+   *
+   * Confirmed rather than instant: it writes a permanent second row, and unlike most
+   * destructive-looking actions it cannot be undone by repeating it — the unique index
+   * on reverses_id allows exactly one reversal per payment.
+   */
+  async function handleReverse(payment: DuesPayment) {
+    const ok = await confirm({
+      title: 'Reverse this payment',
+      description:
+        `Post a correcting entry of ${fmt(-payment.amount_cents)} against ${payment.person_name ?? 'this member'}'s `
+        + `${fmt(payment.amount_cents)} payment? The original stays on the ledger — reversing is how a `
+        + 'mistake is corrected, because posted payments cannot be edited or deleted. '
+        + 'Any money this payment routed into funds is taken back out of the same funds.',
+      confirmLabel: 'Post reversal',
+      destructive: true,
+    })
+    if (!ok) return
+    setError('')
+    startTransition(async () => {
+      const result = await reversePayment(payment.id, '')
+      if (!result.success) { setError(result.message ?? 'Failed to reverse'); return }
+      router.refresh()
+    })
+  }
 
   function handleRecordPayment() {
     if (!rpPersonId || !rpScheduleId || !rpAmount) { setError('Member, schedule and amount required'); return }
@@ -208,6 +264,8 @@ export function TransactionsClient({
         payment_method: rpMethod || null,
         notes: rpNotes || null,
         created_at: new Date().toISOString(),
+        reverses_id: null,
+        reversed_by_id: null,
       }, ...prev])
       setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpNotes('')
       setRecording(null)
@@ -377,7 +435,13 @@ export function TransactionsClient({
       <div className="min-w-0 space-y-4">
         {/* ── Dues and Donations: two views of dues_payments, split by kind ── */}
         {(ledger === 'dues' || ledger === 'donations') && (
-          <PaymentLedger rows={ledger === 'dues' ? duesPayments : donationPayments} kind={ledger} />
+          <PaymentLedger
+            rows={ledger === 'dues' ? duesPayments : donationPayments}
+            kind={ledger}
+            canReverse={canReverse}
+            onReverse={handleReverse}
+            pending={isPending}
+          />
         )}
 
         {ledger === 'contributions' && (
@@ -429,7 +493,7 @@ export function TransactionsClient({
                       {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
                     </div>
                     <span className="text-sm font-medium text-green-600 whitespace-nowrap">{fmt(d.amount_cents)}</span>
-                    {canRecordFunds && (
+                    {canDeleteDisbursements && (
                       <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteDisbursement(d.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -658,7 +722,23 @@ export function TransactionsClient({
 }
 
 /** Dues and donation payments render identically; only the empty state differs. */
-function PaymentLedger({ rows, kind }: { rows: DuesPayment[]; kind: Ledger }) {
+/**
+ * A payment ledger.
+ *
+ * There is no edit or delete here, and there never will be: dues_payments is
+ * append-only, enforced by a database trigger the service role cannot bypass. A
+ * mistake is corrected by posting a reversal — an equal and opposite row — so both
+ * entries stay visible and the ledger records what actually happened, including the
+ * error. Reversed originals are struck through and their reversal is marked, rather
+ * than leaving two rows that merely happen to sum to zero.
+ */
+function PaymentLedger({ rows, kind, canReverse, onReverse, pending }: {
+  rows: DuesPayment[]
+  kind: Ledger
+  canReverse: boolean
+  onReverse: (payment: DuesPayment) => void
+  pending: boolean
+}) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -668,24 +748,45 @@ function PaymentLedger({ rows, kind }: { rows: DuesPayment[]; kind: Ledger }) {
   }
   return (
     <ul className="divide-y rounded-xl border overflow-hidden">
-      {rows.map(p => (
-        <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{p.person_name ?? 'Unknown'}</p>
-            <p className="text-xs text-muted-foreground">
-              {p.schedule_label ?? 'No schedule'} · {formatDate(p.payment_date)}
-              {p.payment_method && ` · ${p.payment_method}`}
-            </p>
-            {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
-          </div>
-          <span className={cn(
-            'text-sm font-medium whitespace-nowrap',
-            p.status === 'paid' ? 'text-green-600' : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600',
-          )}>
-            {p.status === 'waived' ? 'Waived' : fmt(p.amount_cents)}
-          </span>
-        </li>
-      ))}
+      {rows.map(p => {
+        const isReversal = Boolean(p.reverses_id)
+        const isReversed = Boolean(p.reversed_by_id)
+        // Only a settled, un-reversed original can be reversed. A pending row has
+        // nothing to undo, and a reversal is not itself reversible.
+        const reversible = canReverse && !isReversal && !isReversed && p.status !== 'pending'
+        return (
+          <li key={p.id} className={cn('flex items-center gap-3 px-4 py-3', isReversed && 'bg-muted/40')}>
+            <div className="min-w-0 flex-1">
+              <p className={cn('text-sm font-medium', isReversed && 'line-through text-muted-foreground')}>
+                {p.person_name ?? 'Unknown'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {p.schedule_label ?? 'No schedule'} · {formatDate(p.payment_date)}
+                {p.payment_method && ` · ${p.payment_method}`}
+              </p>
+              {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
+              {isReversed && <p className="text-xs font-medium text-amber-700">Reversed</p>}
+              {isReversal && <p className="text-xs font-medium text-amber-700">Correcting entry</p>}
+            </div>
+            <span className={cn(
+              'text-sm font-medium whitespace-nowrap',
+              isReversed ? 'text-muted-foreground line-through'
+                : isReversal ? 'text-amber-700'
+                  : p.status === 'paid' ? 'text-green-600'
+                    : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600',
+            )}>
+              {p.status === 'waived' ? 'Waived' : fmt(p.amount_cents)}
+            </span>
+            {reversible && (
+              <Button size="sm" variant="ghost" disabled={pending}
+                className="h-7 shrink-0 px-2 text-xs text-amber-700 hover:text-amber-800"
+                onClick={() => onReverse(p)}>
+                <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
+              </Button>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }

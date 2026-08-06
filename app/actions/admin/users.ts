@@ -44,7 +44,7 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  * membership, resolved per active family by lib/auth/permissions.ts.
  */
 async function assertCanManageRoles(userId: string): Promise<boolean> {
-  return can(userId, 'admin/user-roles', 'edit')
+  return can(userId, 'admin/boardpositions', 'edit')
 }
 
 export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {

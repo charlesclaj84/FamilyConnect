@@ -56,11 +56,15 @@ CREATE TABLE IF NOT EXISTS public.permission_resources (
   sort_order INT  NOT NULL DEFAULT 0
 );
 
+-- NOTE: Dashboard and the four Personal features (My Profile, My Families, My
+-- Children, Family Tree) are deliberately ABSENT from this seed. 20260806000006
+-- removed them: they are a member's own things, always viewable, and not something a
+-- family administers. An unregistered resource defaults to view 'any' and cannot be
+-- restricted, which is the intended behaviour here rather than the usual defect — see
+-- that migration for the full argument and for the person_relationships write policies
+-- it had to rebuild first. They are omitted here as well as deleted there because this
+-- insert is ON CONFLICT DO UPDATE and would otherwise resurrect them on replay.
 INSERT INTO public.permission_resources (key, label, category, sort_order) VALUES
-  ('dashboard',           'Dashboard',              'general',    10),
-  ('personal-info',       'My Profile',             'personal',   20),
-  ('direct-lineage',      'My Children',            'personal',   30),
-  ('family-tree',         'Family Tree',            'personal',   40),
   ('chat',                'Chat',                   'community',  50),
   ('announcements',       'Announcements',          'community',  60),
   ('members',             'Member Directory',       'community',  70),
@@ -76,7 +80,10 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('admin/users',         'User Management',        'admin',      160),
   ('admin/groups',        'Groups & Permissions',   'admin',      170),
   ('admin/chapters',      'Regions & Chapters',     'admin',      180),
-  ('admin/user-roles',    'Board Positions',        'admin',      190),
+  -- Key renamed from 'admin/user-roles' by 20260805000006, together with the route.
+  -- The literal is updated here too because this insert is ON CONFLICT DO UPDATE and
+  -- would otherwise re-add the old key on replay.
+  ('admin/boardpositions','Board Positions',        'admin',      190),
   ('admin/elections',     'Election Management',    'admin',      200),
   ('admin/reports',       'Reports',                'admin',      210),
   ('admin/events',        'Event Management',       'admin',      220),
@@ -443,6 +450,9 @@ BEGIN
     ON CONFLICT (group_id, resource_key, action) DO NOTHING;
 
     -- General: view the member-facing pages, manage only their own records.
+    -- 'general' and 'personal' are listed for completeness but hold no rows since
+    -- 20260806000006 — Dashboard and the Personal features are viewable by every
+    -- member without a grant, so there is nothing to grant.
     INSERT INTO public.group_permissions (group_id, resource_key, action, scope)
     SELECT v_general, pr.key, 'view', 'any'
     FROM public.permission_resources pr
@@ -452,8 +462,11 @@ BEGIN
     INSERT INTO public.group_permissions (group_id, resource_key, action, scope)
     SELECT v_general, k, act, sc
     FROM (VALUES
-      ('personal-info',   'edit'::public.permission_action, 'own'::public.permission_scope),
-      ('account-summary', 'view',   'own'),
+      -- 'personal-info' used to carry edit/own here. Removed with the resource in
+      -- 20260806000006: group_permissions.resource_key is a foreign key, so seeding a
+      -- grant for a key that no longer exists would abort this migration on a fresh
+      -- database. Editing your own profile needs no grant now — it never really did.
+      ('account-summary', 'view'::public.permission_action,  'own'::public.permission_scope),
       ('chat',            'create', 'any'),
       ('chat',            'edit',   'own'),
       ('chat',            'delete', 'own'),

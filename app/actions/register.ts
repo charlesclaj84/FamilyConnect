@@ -1,5 +1,6 @@
 'use server'
 
+import { randomInt } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -17,10 +18,39 @@ export interface RegisterInput {
   familyName?: string
 }
 
+/**
+ * The family code is deliberately public — it is meant to be shared so relatives
+ * can join — but it is still read aloud, written down and typed, and it is the
+ * string a join request is keyed on. So it has to be unguessable enough not to be
+ * walked, and unambiguous enough to be dictated over a phone.
+ *
+ * Both of which the previous generator failed:
+ *   Math.random().toString(36).substring(2, 8).toUpperCase()
+ * was not cryptographically random; not length-guaranteed (Math.random() can
+ * produce a short base-36 expansion — 0.5 renders as "0.i" — so substring(2, 8)
+ * silently yielded fewer than six characters); and base-36 uppercased contains
+ * both 0/O and 1/I.
+ *
+ * This alphabet drops 0, 1, I, L, O and U — the digit/letter confusions, plus U so
+ * the set cannot spell anything unfortunate. 30^6 ≈ 729 million codes.
+ */
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
+const CODE_LENGTH = 6
+
 function generateCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase()
+  let out = ''
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    out += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]
+  }
+  return out
 }
 
+/**
+ * The read-then-insert check below is a courtesy that produces a clean error
+ * instead of a constraint violation; it is not the uniqueness guarantee and does
+ * not close the race between the SELECT and the INSERT. That guarantee is
+ * `family_code TEXT UNIQUE NOT NULL` (20260602000000_families.sql:3).
+ */
 async function generateUniqueFamilyCode(): Promise<string | null> {
   const admin = createAdminClient()
   for (let i = 0; i < 5; i++) {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { CHILD_RELATIONSHIP_TYPES, SPOUSE_TYPES, type ChildRelationshipType } from '@/lib/family-constants'
 import { computeIsMinor } from '@/lib/age-utils'
@@ -379,6 +379,13 @@ export async function acceptSpouseChild(
   const familyCode = await getMyFamilyCode(user.id)
   const myPeopleId = await getOrCreateMyPeopleId(supabase, user)
   if (!myPeopleId) return { success: false, message: 'Could not find your profile' }
+
+  // childPersonId is supplied by the caller. The relationship row created below
+  // carries the CALLER's family_code, so RLS accepts it whichever family the
+  // child is really in — this check is what keeps the link inside one family.
+  if (!(await belongsToFamily('people', childPersonId, familyCode))) {
+    return { success: false, message: 'Person not found' }
+  }
 
   const { data: relType } = await supabase
     .from('relationship_types')

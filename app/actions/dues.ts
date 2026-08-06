@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
-import { can, canAny } from '@/lib/auth/permissions'
+import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
+import { canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
@@ -57,6 +57,10 @@ export interface DuesPayment {
   payment_method: string | null
   notes: string | null
   created_at: string
+  /** Set when THIS row is a reversal of another payment. */
+  reverses_id: string | null
+  /** Set when another row reverses THIS one — so the ledger can say so. */
+  reversed_by_id: string | null
 }
 
 export interface DuesSummary {
@@ -150,6 +154,20 @@ export interface PnLData {
 type AdminClient = ReturnType<typeof createAdminClient>
 
 /**
+ * Which Accounting section governs a schedule, by kind.
+ *
+ * Both kinds are dues_schedules rows, but they are two sections of the Accounting
+ * admin page and two separate grants (20260806000007): maintaining what members owe
+ * and running a donation drive are different jobs. The kind is always resolved from
+ * the row — or, on create, from the same validated value the row is built with —
+ * never from a caller's claim about which permission to check.
+ */
+const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
+  dues: 'admin/account/dues',
+  donation: 'admin/account/donations',
+}
+
+/**
  * Normalize a dues_schedules row's `kind`.
  *
  * Anything that is not exactly 'donation' is dues — which covers the column being
@@ -192,6 +210,8 @@ function mapPayment(p: any): DuesPayment {
     payment_method: p.payment_method,
     notes: p.notes,
     created_at: p.created_at,
+    reverses_id: p.reverses_id ?? null,
+    reversed_by_id: null,
   }
 }
 
@@ -283,14 +303,18 @@ export async function createDuesSchedule(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  // The insert below goes through the user's client, so RLS would refuse it anyway —
-  // but the check is stated here too, so that swapping in the admin client one day
-  // cannot silently open this up. dues_schedules maps to 'admin/account'.
-  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
-
   // Never taken on trust: an unrecognized kind would be a schedule nobody owes and
   // nobody can donate to, invisible on both pages.
   const kind: ScheduleKind = input.kind === 'donation' ? 'donation' : 'dues'
+
+  // Dues and Donations are separate sections of Accounting and separate grants, so
+  // the kind decides which one is demanded — resolved above from the input, never
+  // trusted as a permission claim, because the invariants below are forced onto the
+  // row from the same value. Someone who may open a donation drive is not thereby
+  // able to change what members owe.
+  if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'create'))) {
+    return { success: false, message: 'Not authorized' }
+  }
   if (kind === 'donation' && !input.goal_cents) {
     return { success: false, message: 'A donation needs a goal to work toward' }
   }
@@ -323,8 +347,6 @@ export async function updateDuesSchedule(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  // A dues schedule is family-wide configuration — there is no personal copy to own.
-  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // The row's own kind decides which fields are legal, so it is read rather than
@@ -340,6 +362,13 @@ export async function updateDuesSchedule(
     .from('dues_schedules').select('kind, goal_cents').eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
+
+  // Gated on the ROW's kind, deliberately after it is read: this is family-wide
+  // configuration with no personal copy to own, hence canAny. Checking before the read
+  // would mean guessing the section from the caller's payload.
+  if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'edit'))) {
+    return { success: false, message: 'Not authorized' }
+  }
   const goalCents = input.goal_cents === undefined ? existing.goal_cents : input.goal_cents
   if (kind === 'donation' && !goalCents) {
     return { success: false, message: 'A donation needs a goal to work toward' }
@@ -361,11 +390,20 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  // Family-scoped for the same reason as the update above: the service-role client
-  // does not apply RLS, so the id alone must not be enough. Deleting a schedule takes
-  // every member's obligation with it, so it needs the unrestricted grant.
-  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
+
+  // Family-scoped for the same reason as the update above: the service-role client
+  // does not apply RLS, so the id alone must not be enough. The row is read first so
+  // its kind can choose the grant — deleting a schedule takes every member's
+  // obligation with it, so it needs the unrestricted one.
+  const { data: existing } = await admin
+    .from('dues_schedules').select('kind').eq('id', id).eq('family_code', familyCode).maybeSingle()
+  if (!existing) return { success: false, message: 'Schedule not found' }
+  const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
+  if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'delete'))) {
+    return { success: false, message: 'Not authorized' }
+  }
+
   const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
@@ -518,6 +556,14 @@ export async function setMyDuesPlan(
   if (!myPersonId) return { success: false, message: 'Profile not found' }
   const myPerson = { id: myPersonId }
 
+  // scheduleId comes from the client. The plan row below is stamped with the
+  // caller's OWN family_code, so RLS is satisfied no matter which family the
+  // schedule belongs to — this check is the only thing stopping a member of one
+  // family enrolling against another family's schedule.
+  if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
+    return { success: false, message: 'Schedule not found' }
+  }
+
   const { error } = await supabase
     .from('dues_member_plans')
     .upsert(
@@ -530,18 +576,39 @@ export async function setMyDuesPlan(
   return { success: true }
 }
 
+/**
+ * Drop the caller's chosen cadence for one schedule, reverting to the default.
+ *
+ * Self-service under requireMember() semantics: choosing monthly versus annual is a
+ * display preference, not an adjustment to a due. It changes no ledger row and no
+ * annual obligation — only the instalment size and next-due date shown back to the
+ * member — so it needs no grant. It still owes the two checks a self-service action
+ * always owes: the row is genuinely the caller's, and the id from the client belongs
+ * to their family.
+ *
+ * The family check was missing entirely. `person_id` scoped the delete to the caller,
+ * so nothing could be destroyed cross-family, but a scheduleId from another family
+ * would silently match nothing and report success — and the moment this action grows
+ * an upsert it becomes a real hole. Checked here rather than trusted.
+ */
 export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+  const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
   if (!myPersonId) return { success: false, message: 'Profile not found' }
   const myPerson = { id: myPersonId }
+
+  if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
+    return { success: false, message: 'Schedule not found' }
+  }
 
   const { error } = await supabase
     .from('dues_member_plans')
     .delete()
     .eq('person_id', myPerson.id)
+    .eq('family_code', familyCode)
     .eq('schedule_id', scheduleId)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
@@ -557,7 +624,12 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
     .from('dues_payments')
     .select('*, people!person_id(first_name, last_name), dues_schedules(label, kind)')
     .order('payment_date', { ascending: false })
-  return (data ?? []).map(mapPayment)
+
+  const rows = (data ?? []).map(mapPayment)
+  // Back-link each original to the reversal that cancels it, so the ledger can mark
+  // it rather than silently showing two rows that happen to sum to zero.
+  const reversedBy = new Map(rows.filter(r => r.reverses_id).map(r => [r.reverses_id as string, r.id]))
+  return rows.map(r => ({ ...r, reversed_by_id: reversedBy.get(r.id) ?? null }))
 }
 
 export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
@@ -607,22 +679,53 @@ export async function recordPayment(input: {
     .maybeSingle()
   if (!myPerson) return { success: false, message: 'Profile not found' }
 
-  // A non-admin may only record their own payments.
-  if (!(await can(user.id, 'dues', 'edit')) && input.person_id !== myPerson.id) {
-    return { success: false, message: 'You can only record your own payments.' }
-  }
-
   // Required, and re-scoped to this family here: the insert below runs on the admin
   // client, which bypasses RLS, so nothing else would stop a schedule id belonging
   // to another family from being written onto this family's payment.
+  //
+  // `kind` is read from the schedule ROW, never from the client: it decides which
+  // permission is demanded, so accepting it as an argument would let a caller with
+  // only donation rights post a dues payment by mislabelling it.
   if (!input.schedule_id) return { success: false, message: 'A dues schedule is required' }
   const { data: schedule } = await admin
     .from('dues_schedules')
-    .select('id')
+    .select('id, kind')
     .eq('id', input.schedule_id)
     .eq('family_code', familyCode)
     .maybeSingle()
   if (!schedule) return { success: false, message: 'Dues schedule not found' }
+
+  // Recording a payment asserts that money changed hands. The person who OWES it does
+  // not get to make that assertion — basic accounting, and the reason the old
+  // self-payment branch is gone. The member-facing path is Pay Online, where a
+  // processor attests instead of the member.
+  //
+  // The branch this replaces was also a live privilege escalation:
+  //     if (!(await can(user.id, 'dues', 'edit')) && input.person_id !== myPerson.id)
+  // can() is TRUE for scope 'own', so an own-scoped grant made the first operand false,
+  // short-circuited the && , and authorised recording a payment for ANYONE.
+  //
+  // canAny, not can: these records have no coherent "own" version — a payment recorded
+  // for yourself is precisely the abuse case.
+  const kind: ScheduleKind = schedule.kind === 'donation' ? 'donation' : 'dues'
+  const resource = kind === 'donation'
+    ? 'transactions/donation-payments'
+    : 'transactions/dues-payments'
+  if (!(await canAny(user.id, resource, 'create'))) {
+    return {
+      success: false,
+      message: kind === 'donation'
+        ? 'You do not have permission to record donation payments.'
+        : 'You do not have permission to record dues payments.',
+    }
+  }
+
+  // The person being credited must be in this family. person_id is client-supplied and
+  // is written onto a row stamped with the caller's own family_code, which satisfies
+  // RLS regardless of where that person actually lives.
+  if (!(await belongsToFamily('people', input.person_id, familyCode))) {
+    return { success: false, message: 'Member not found' }
+  }
 
   const { data: payment, error } = await admin.from('dues_payments').insert({
     family_code: familyCode,
@@ -643,6 +746,109 @@ export async function recordPayment(input: {
   }
 
   revalidatePath('/account-summary')
+  revalidatePath('/admin/account')
+  revalidatePath('/family-finances')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+/**
+ * Post a correcting entry against a payment.
+ *
+ * dues_payments is append-only — 20260806000002 enforces that with a trigger the
+ * service role cannot bypass — so a mis-keyed amount is corrected by posting an equal
+ * and opposite row, never by editing or deleting the original. Both stay visible,
+ * which is the point: the ledger records what happened, including the mistake.
+ *
+ * THE MIRROR IS NOT A RE-RUN OF THE WATERFALL. A paid payment was split across funds
+ * by routePaidPayment using the fund priorities in force AT THE TIME. Reversing it
+ * must undo THAT split, so this negates the fund_contributions rows the original
+ * actually produced. Re-running routeContribution would allocate against today's
+ * priorities and balances, quietly moving money between funds with no record of a
+ * transfer.
+ */
+export async function reversePayment(
+  paymentId: string,
+  reason: string,
+): Promise<{ success: boolean; message?: string }> {
+  const admin = createAdminClient()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  const familyCode = await getMyFamilyCode(user.id)
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
+
+  // Its own grant: undoing a posting is not the same authority as making one.
+  if (!(await canAny(user.id, 'transactions/reversals', 'create'))) {
+    return { success: false, message: 'You do not have permission to reverse payments.' }
+  }
+
+  // Read the original family-scoped — the id is client-supplied and this runs on the
+  // service role, so `.eq('id', …)` alone would reach another family's ledger.
+  const { data: original } = await admin
+    .from('dues_payments')
+    .select('id, person_id, schedule_id, amount_cents, status, payment_date, reverses_id')
+    .eq('id', paymentId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  if (!original) return { success: false, message: 'Payment not found' }
+
+  if (original.reverses_id) {
+    return { success: false, message: 'That row is itself a reversal.' }
+  }
+
+  // The unique index on reverses_id is the real guard against double-reversal; this
+  // check exists to say so in words rather than as a constraint violation.
+  const { data: existing } = await admin
+    .from('dues_payments')
+    .select('id')
+    .eq('reverses_id', paymentId)
+    .maybeSingle()
+  if (existing) return { success: false, message: 'That payment has already been reversed.' }
+
+  const { data: reversal, error } = await admin.from('dues_payments').insert({
+    family_code:    familyCode,
+    person_id:      original.person_id,
+    schedule_id:    original.schedule_id,
+    amount_cents:   -original.amount_cents,
+    status:         original.status,
+    payment_date:   new Date().toISOString().split('T')[0],
+    payment_method: null,
+    notes:          reason?.trim() ? `Reversal: ${reason.trim()}` : 'Reversal',
+    recorded_by:    myPersonId,
+    reverses_id:    original.id,
+    // Stamped immediately: the mirror below IS this row's routing, so the waterfall
+    // must never run against it.
+    routed_at:      new Date().toISOString(),
+  }).select('id').single()
+  if (error || !reversal) {
+    return { success: false, message: error?.message ?? 'Failed to post the reversal' }
+  }
+
+  // Negate exactly what the original produced, fund by fund.
+  const { data: originalRouting } = await admin
+    .from('fund_contributions')
+    .select('fund_id, amount_cents')
+    .eq('family_code', familyCode)
+    .eq('dues_payment_id', original.id)
+
+  if (originalRouting?.length) {
+    await admin.from('fund_contributions').insert(
+      originalRouting.map(c => ({
+        fund_id:          c.fund_id,
+        family_code:      familyCode,
+        amount_cents:     -c.amount_cents,
+        source:           'reversal',
+        dues_payment_id:  reversal.id,
+        contributed_date: new Date().toISOString().split('T')[0],
+        recorded_by:      myPersonId,
+      })),
+    )
+  }
+
+  revalidatePath('/account-summary')
+  revalidatePath('/transactions')
   revalidatePath('/admin/account')
   revalidatePath('/family-finances')
   revalidatePath('/dashboard')

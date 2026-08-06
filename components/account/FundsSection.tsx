@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, ChevronRight, Target, Award, HeartHandshake, Check } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { ChevronDown, ChevronRight, Target, Award } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { contributeToFund, type FundWithStats } from '@/app/actions/funds'
-import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
+import { type FundWithStats } from '@/app/actions/funds'
+import { formatCurrency as fmt } from '@/lib/currency-utils'
 
-// Member "open contributions" feature is hidden for now; flip to re-enable.
-const SHOW_OPEN_CONTRIBUTIONS = false
+// Member-initiated "open contributions" was removed along with the contributeToFund
+// server action it called. The action was live, unpermissioned service-role code that
+// happened to be unreachable because this flag was false — and a boolean hiding a
+// button is not a gate. If open member giving becomes a product feature, it comes back
+// with its own permission resource, not a flag.
 
 interface Props {
   funds: FundWithStats[]
@@ -63,7 +64,6 @@ export function FundsSection({ funds, isAdmin }: Props) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{fund.name}</p>
                       <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{pctLabel(fund.allocation_bps)} of dues</span>
-                      {SHOW_OPEN_CONTRIBUTIONS && fund.open_contributions && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Open</span>}
                     </div>
                     {fund.description && (
                       <p className="text-xs text-muted-foreground truncate">{fund.description}</p>
@@ -90,7 +90,6 @@ export function FundsSection({ funds, isAdmin }: Props) {
                     <p className="text-xs text-muted-foreground">
                       Contributed {fmt(fund.total_contributed_cents)} · Disbursed {fmt(fund.total_disbursed_cents)} · Balance {fmt(fund.balance_cents)}
                     </p>
-                    {SHOW_OPEN_CONTRIBUTIONS && fund.open_contributions && <ContributeForm fundId={fund.id} fundName={fund.name} />}
                   </div>
                 )}
               </div>
@@ -99,50 +98,5 @@ export function FundsSection({ funds, isAdmin }: Props) {
         )}
       </CardContent>
     </Card>
-  )
-}
-
-function ContributeForm({ fundId, fundName }: { fundId: string; fundName: string }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  const [amount, setAmount] = useState('')
-  const [notes, setNotes] = useState('')
-  const [msg, setMsg] = useState('')
-
-  function submit() {
-    const cents = dollarsToCents(amount)
-    if (cents <= 0) { setMsg('Enter an amount greater than $0.'); return }
-    setMsg('')
-    startTransition(async () => {
-      const res = await contributeToFund({ fund_id: fundId, amount_cents: cents, notes: notes.trim() || null })
-      if (!res.success) { setMsg(res.message ?? 'Could not contribute'); return }
-      setAmount(''); setNotes(''); setMsg(`Thank you! Contributed to ${fundName}.`)
-      router.refresh()
-    })
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium flex items-center gap-1.5"><HeartHandshake className="h-3.5 w-3.5 text-emerald-600" /> Contribute to this fund</p>
-      <div className="flex flex-wrap items-end gap-2">
-        <Input
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          placeholder="25.00"
-          inputMode="decimal"
-          className="h-8 w-28"
-        />
-        <Input
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Note (optional)"
-          className="h-8 w-44"
-        />
-        <Button size="sm" disabled={isPending} onClick={submit}>
-          <Check className="h-3.5 w-3.5" /> {isPending ? 'Sending…' : 'Contribute'}
-        </Button>
-      </div>
-      {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
-    </div>
   )
 }

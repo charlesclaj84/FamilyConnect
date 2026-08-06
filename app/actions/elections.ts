@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
+import { can } from '@/lib/auth/permissions'
 import { requireEdit, requireDelete } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
@@ -76,7 +77,10 @@ export async function getElectionDetail(id: string): Promise<{
     supabase.from('election_positions').select('*').eq('election_id', id).order('sort_order'),
     supabase
       .from('election_nominations')
-      .select('id, position_id, nominee_id, accepted, people(first_name, last_name)')
+      // people!…_nominee_id_fkey: the table also has nominated_by, and a bare
+      // `people(...)` is refused with PGRST201 — silently, since the error is
+      // dropped, leaving every nominee showing as "Unknown".
+      .select('id, position_id, nominee_id, accepted, people!election_nominations_nominee_id_fkey(first_name, last_name)')
       .eq('election_id', id),
   ])
 
@@ -107,11 +111,31 @@ export async function getElectionDetail(id: string): Promise<{
   }
 }
 
+/**
+ * Vote tallies for one election.
+ *
+ * Reads through the SERVICE-ROLE client, because a tally has to count every vote
+ * including those the reader cannot see individually. That bypasses RLS entirely,
+ * so the family scoping RLS would have done has to be done here by hand:
+ * election_votes carries no family_code of its own, so the check belongs on the
+ * election the id names. Without it, `id` is the only thing standing between any
+ * signed-in user and another family's results — and this returns nominee names,
+ * not just numbers.
+ */
 export async function getElectionResults(id: string): Promise<ElectionVoteCount[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!(await belongsToFamily('elections', id, familyCode))) return []
+  if (!(await can(user.id, 'elections', 'view'))) return []
+
   const admin = createAdminClient()
   const { data: votes } = await admin
     .from('election_votes')
-    .select('position_id, nominee_id, people(first_name, last_name)')
+    // Disambiguated to the nominee; voter_id is the other foreign key to people.
+    .select('position_id, nominee_id, people!election_votes_nominee_id_fkey(first_name, last_name)')
     .eq('election_id', id)
 
   const counts = new Map<string, { nominee_name: string; count: number }>()

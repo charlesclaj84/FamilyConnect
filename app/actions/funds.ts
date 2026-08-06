@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { canAny } from '@/lib/auth/permissions'
-import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
+import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
 
@@ -142,11 +142,20 @@ export async function getFundWithMilestones(fundId: string): Promise<{
   return { fund: fundRes.data ?? null, milestones: milestonesRes.data ?? [] }
 }
 
+/**
+ * Every disbursement, newest first.
+ *
+ * The people embed MUST name fund_disbursements_person_id_fkey. The table has TWO
+ * foreign keys to people — person_id (who was paid) and recorded_by (who entered
+ * it) — and an ambiguous `people(...)` makes PostgREST refuse the whole query with
+ * PGRST201. Because the error is dropped on the floor here, that surfaces as an
+ * empty ledger rather than a failure. Same trap as getFundContributions below.
+ */
 export async function getAllDisbursements(): Promise<FundDisbursement[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('fund_disbursements')
-    .select('*, funds(name), fund_milestones(name), people(first_name, last_name)')
+    .select('*, funds(name), fund_milestones(name), people!fund_disbursements_person_id_fkey(first_name, last_name)')
     .order('disbursed_date', { ascending: false })
 
   return (data ?? []).map(d => ({
@@ -206,11 +215,12 @@ export async function getFundContributions(): Promise<FundContribution[]> {
   })
 }
 
+/** As getAllDisbursements, narrowed to one fund — and with the same embed trap. */
 export async function getDisbursementsForFund(fundId: string): Promise<FundDisbursement[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('fund_disbursements')
-    .select('*, funds(name), fund_milestones(name), people(first_name, last_name)')
+    .select('*, funds(name), fund_milestones(name), people!fund_disbursements_person_id_fkey(first_name, last_name)')
     .eq('fund_id', fundId)
     .order('disbursed_date', { ascending: false })
 
@@ -251,7 +261,8 @@ export async function createFund(input: {
   // A fund is family-wide configuration with no personal copy, so scope 'own' is not
   // a grant that means anything here — see canAny. Checked in the action because a
   // server action is reachable directly, whatever gates the page that renders it.
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // Creating a fund is Accounting configuration, not a transaction.
+  if (!(await canAny(user.id, 'admin/account/funds', 'create'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   // New funds go to the end of the priority order (lowest precedence).
@@ -284,7 +295,7 @@ export async function updateFund(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/account/funds', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   const { error } = await admin.from('funds').update(input).eq('id', id).eq('family_code', familyCode)
@@ -299,7 +310,7 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/account/funds', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // Family-scoped: this deletes a balance and every milestone hanging off it, and the
@@ -326,7 +337,8 @@ export async function createMilestone(
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // What an award is worth — its own section, its own grant.
+  if (!(await canAny(user.id, 'admin/account/milestones', 'create'))) return { success: false, message: 'Not authorized' }
 
   // The fund must be this family's — the insert below bypasses RLS.
   const { data: fund } = await admin
@@ -355,7 +367,7 @@ export async function updateMilestone(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/account/milestones', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   const { error } = await admin.from('fund_milestones').update(input).eq('id', id).eq('family_code', familyCode)
@@ -369,7 +381,7 @@ export async function deleteMilestone(id: string): Promise<{ success: boolean; m
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/account/milestones', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   const { error } = await admin.from('fund_milestones').delete().eq('id', id).eq('family_code', familyCode)
@@ -404,17 +416,30 @@ export async function recordDisbursement(input: {
   // canAny, not can: the row a member would "own" here is a disbursement paying money
   // to THEMSELVES, so honouring scope 'own' would authorize precisely the payout a
   // restricted grant exists to prevent.
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // Paying money OUT of a fund. Its own grant, separate from logging money in:
+  // 'transactions/fund-disbursements' create. canAny throughout — the disbursement
+  // paying the caller THEMSELVES is the abuse case, so scope 'own' must never admit.
+  if (!(await canAny(user.id, 'transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
-  // Fund and recipient are re-scoped to this family: the insert below runs on the
-  // service-role client, which bypasses RLS, so ids alone must not be enough.
-  const [{ data: fund }, { data: recipient }] = await Promise.all([
+  // Fund, recipient AND milestone are re-scoped to this family: the insert below runs
+  // on the service-role client, which bypasses RLS, so ids alone must not be enough.
+  //
+  // milestone_id was previously written straight from the caller. It is nullable and
+  // optional, so it looked harmless — but it is a client-supplied id landing on a row
+  // stamped with the caller's own family_code, which satisfies every policy. Naming
+  // another family's fund_milestones id attached this family's payout to their
+  // milestone and corrupted that fund's progress accounting.
+  const [{ data: fund }, { data: recipient }, milestoneOk] = await Promise.all([
     admin.from('funds').select('id').eq('id', input.fund_id).eq('family_code', familyCode).maybeSingle(),
     admin.from('people').select('id').eq('id', input.person_id).eq('family_code', familyCode).maybeSingle(),
+    input.milestone_id
+      ? belongsToFamily('fund_milestones', input.milestone_id, familyCode)
+      : Promise.resolve(true),
   ])
   if (!fund) return { success: false, message: 'Fund not found' }
   if (!recipient) return { success: false, message: 'Recipient not found in this family' }
+  if (!milestoneOk) return { success: false, message: 'Milestone not found' }
 
   const { error } = await admin.from('fund_disbursements').insert({
     fund_id: input.fund_id,
@@ -443,7 +468,8 @@ export async function deleteDisbursement(id: string): Promise<{ success: boolean
   if (!user) return { success: false, message: 'Not authenticated' }
   // Same reasoning as recordDisbursement, canAny included: deleting your own payout is
   // how you would cover up having recorded it.
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // Erasing the record of a payout is a distinct authority from making one.
+  if (!(await canAny(user.id, 'transactions/fund-disbursements', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   const { error } = await admin.from('fund_disbursements').delete().eq('id', id).eq('family_code', familyCode)
@@ -485,7 +511,8 @@ export async function saveFundAllocations(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // Redrawing the split that every future payment follows.
+  if (!(await canAny(user.id, 'admin/account/routing', 'edit'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
   // Allocations must total exactly 100% (or all zero to disable routing).
@@ -555,7 +582,8 @@ export async function recordFundContribution(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  // Logging money INTO a fund by hand.
+  if (!(await canAny(user.id, 'transactions/fund-contributions', 'create'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
   const contributorName = input.contributor_name?.trim() || null
@@ -598,41 +626,12 @@ export async function recordFundContribution(input: {
   return { success: true }
 }
 
-/** Voluntary member contribution to a fund flagged open_contributions. Any family member may use this. */
-export async function contributeToFund(input: {
-  fund_id: string
-  amount_cents: number
-  notes: string | null
-}): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (input.amount_cents <= 0) return { success: false, message: 'Enter an amount greater than $0' }
-
-  const familyCode = await getMyFamilyCode(user.id)
-  const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
-
-  // The fund must belong to this family and be open to member contributions.
-  const { data: fund } = await admin
-    .from('funds').select('id, open_contributions').eq('id', input.fund_id).eq('family_code', familyCode).maybeSingle()
-  if (!fund) return { success: false, message: 'Fund not found' }
-  if (!fund.open_contributions) return { success: false, message: 'This fund is not open to member contributions' }
-
-  const { error } = await admin.from('fund_contributions').insert({
-    fund_id: input.fund_id,
-    family_code: familyCode,
-    amount_cents: input.amount_cents,
-    source: 'member_contribution',
-    contributed_date: new Date().toISOString().slice(0, 10),
-    // Giver and recorder are the same person here, by definition of this path.
-    contributor_person_id: myPersonId,
-    notes: input.notes,
-    recorded_by: myPersonId,
-  })
-  if (error) return { success: false, message: error.message }
-  revalidatePath('/family-finances')
-  revalidatePath('/admin/account')
-  return { success: true }
-}
+// contributeToFund was removed here. It was an exported 'use server' function that
+// inserted into fund_contributions through the service role with no permission check
+// at all — reachable by any signed-in member via a direct POST. It appeared safe only
+// because the one UI that called it sat behind a hardcoded `false`. A boolean hiding a
+// button is not a gate, and an ungated service-role INSERT into the family's money is
+// not something to leave lying around for the flag to be flipped later.
+//
+// If open member giving becomes a product feature it returns with its own permission
+// resource under Accounting > Transactions, like the other four recording paths.

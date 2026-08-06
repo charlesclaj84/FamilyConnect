@@ -11,25 +11,9 @@ import {
   type GroupSummary, type ResourceSummary, type PolicyMap,
 } from '@/app/actions/admin/permissions'
 import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
-import type { PermissionAction, PermissionScope } from '@/lib/auth/permissions'
-
-const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
-const SCOPES_FOR: Record<PermissionAction, PermissionScope[]> = {
-  view: ['none', 'own', 'any'], create: ['none', 'any'],
-  edit: ['none', 'own', 'any'], delete: ['none', 'own', 'any'],
-}
-const SCOPE_LABEL: Record<PermissionScope, string> = { none: '—', own: 'Own', any: 'All' }
-const SCOPE_STYLE: Record<PermissionScope, string> = {
-  none: 'bg-muted text-muted-foreground',
-  own: 'bg-amber-100 text-amber-800',
-  any: 'bg-green-100 text-green-800',
-}
-
-const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'accounting', 'resources', 'admin']
-const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', events: 'Events',
-  accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
-}
+import {
+  ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
+} from '@/components/admin/resource-groups'
 
 interface Props {
   groups: GroupSummary[]
@@ -53,20 +37,8 @@ export function AdminUserAccessClient({
 
   const covered = new Set(groupCoveredKeys)
 
-  const sections = (() => {
-    const map = new Map<string, ResourceSummary[]>()
-    for (const r of resources) map.set(r.category, [...(map.get(r.category) ?? []), r])
-    return [...map.entries()]
-      .sort((a, b) => {
-        const ai = CATEGORY_ORDER.indexOf(a[0]); const bi = CATEGORY_ORDER.indexOf(b[0])
-        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-      })
-      .map(([category, list]) => ({
-        category,
-        label: CATEGORY_LABEL[category] ?? category,
-        list: [...list].sort((a, b) => a.label.localeCompare(b.label)),
-      }))
-  })()
+  // Shared with AdminGroupsClient — same catalog, same grouping, same sub-sections.
+  const sections = groupResources(resources)
 
   // Every control here edits someone's access, so nothing runs until it is
   // confirmed — the grid is one click away from silently widening a member's rights.
@@ -100,9 +72,9 @@ export function AdminUserAccessClient({
       <div className="flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          Group policies win. Where any of a member&apos;s groups already sets a page and action, the
-          individual override is ignored — those cells are greyed out. Only pages that have shipped
-          are listed.
+          Group policies win. Where any of a member&apos;s groups already sets a row and action, the
+          individual override is ignored — those cells are greyed out. Only features that have
+          shipped are listed, and each row shows only the actions that mean something for it.
         </p>
       </div>
 
@@ -173,21 +145,29 @@ export function AdminUserAccessClient({
                 <table className="w-full min-w-[34rem] text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Page</th>
+                      <th className="py-2 pr-4 font-medium">Feature</th>
                       {ACTIONS.map(a => <th key={a} className="py-2 pr-3 font-medium capitalize">{a}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {sections.map(({ category, label, list }) => (
+                    {sections.map(({ category, label, rows }) => (
                       <Fragment key={category}>
                         <tr>
                           <td colSpan={5} className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {label}
                           </td>
                         </tr>
-                        {list.map(r => (
-                          <tr key={r.key} className="border-b last:border-0">
-                            <td className="py-1.5 pr-4">{r.label}</td>
+                        {rows.map(({ resource: r, header, nested }) => (
+                          <Fragment key={r.key}>
+                            {header && (
+                              <tr>
+                                <td colSpan={5} className="pt-3 pb-1 pl-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  └ {header}
+                                </td>
+                              </tr>
+                            )}
+                          <tr className="border-b last:border-0">
+                            <td className={cn('py-1.5 pr-4', nested && 'pl-8')}>{r.label}</td>
                             {ACTIONS.map(action => {
                               const k = `${r.key}:${action}`
                               const isCovered = covered.has(k)
@@ -195,7 +175,7 @@ export function AdminUserAccessClient({
                               return (
                                 <td key={action} className="py-1.5 pr-3">
                                   <div className={cn('flex gap-0.5', isCovered && 'opacity-40')}>
-                                    {SCOPES_FOR[action].map(scope => (
+                                    {scopesFor(r, action).map(scope => (
                                       <button key={scope} type="button"
                                         disabled={!rights.edit || isPending || isCovered}
                                         onClick={() => run({
@@ -221,6 +201,7 @@ export function AdminUserAccessClient({
                               )
                             })}
                           </tr>
+                          </Fragment>
                         ))}
                       </Fragment>
                     ))}

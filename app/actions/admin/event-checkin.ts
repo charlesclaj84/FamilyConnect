@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
+import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyPersonId } from '@/lib/auth/family'
+import { getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 
 export interface CheckInAttendee {
   id: string
@@ -13,7 +14,30 @@ export interface CheckInAttendee {
   checked_in_at: string | null
 }
 
+/**
+ * The check-in roster for one event.
+ *
+ * Two embed hazards, both of which used to make this return an empty list —
+ * PostgREST reports them as errors and the discarded `error` turned that into
+ * "nobody is attending":
+ *
+ *   * `people` is ambiguous on event_rsvp_attendees (person_id, checked_in_by),
+ *     so the attendee side must name person_id explicitly (PGRST201).
+ *   * event_rsvp has NO foreign key to people at all — it records submitted_by,
+ *     an auth.users id — so `event_rsvp(people(...))` is not a relationship
+ *     PostgREST can walk (PGRST200). The submitter's name is resolved with a
+ *     second lookup keyed on user_id instead.
+ */
+/**
+ * The day-of check-in roster: every attending person's real name plus who submitted
+ * their RSVP. Keyed on event_id, which carries no family, so the event is confirmed
+ * into the caller's family first — the page gates on 'admin/events' and so does this.
+ */
 export async function getCheckInList(eventId: string): Promise<CheckInAttendee[]> {
+  const g = await requireRead('admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', eventId, g.familyCode))) return []
+
   const admin = createAdminClient()
 
   const { data } = await admin
@@ -22,25 +46,44 @@ export async function getCheckInList(eventId: string): Promise<CheckInAttendee[]
       id,
       is_attending,
       checked_in_at,
-      people(first_name, last_name),
-      event_rsvp(people(first_name, last_name))
+      people!event_rsvp_attendees_person_id_fkey(first_name, last_name),
+      event_rsvp(submitted_by)
     `)
     .eq('event_id', eventId)
     .eq('is_attending', true)
     .order('id')
 
-  return (data ?? []).map(row => {
+  const rows = data ?? []
+
+  const submitterIds = [...new Set(
+    rows.map(r => (r.event_rsvp as any)?.submitted_by).filter(Boolean) as string[],
+  )]
+
+  const nameByUserId = new Map<string, string>()
+  if (submitterIds.length) {
+    // Family-scoped too: user_id is an auth id, and a multi-family submitter has a
+    // people row in each of their families. Without this the name could be resolved
+    // from the wrong family's row.
+    const { data: submitters } = await admin
+      .from('people')
+      .select('user_id, first_name, last_name')
+      .eq('family_code', g.familyCode)
+      .in('user_id', submitterIds)
+    for (const p of submitters ?? []) {
+      if (p.user_id) nameByUserId.set(p.user_id, `${p.first_name} ${p.last_name}`)
+    }
+  }
+
+  return rows.map(row => {
     const attendeePerson = (row.people as any) ?? null
-    const rsvpPerson = (row.event_rsvp as any)?.people ?? null
+    const submittedBy = (row.event_rsvp as any)?.submitted_by as string | null | undefined
 
     return {
       id: row.id,
       name: attendeePerson
         ? `${attendeePerson.first_name} ${attendeePerson.last_name}`
         : 'Unknown',
-      rsvp_submitted_by: rsvpPerson
-        ? `${rsvpPerson.first_name} ${rsvpPerson.last_name}`
-        : null,
+      rsvp_submitted_by: submittedBy ? nameByUserId.get(submittedBy) ?? null : null,
       checked_in_at: row.checked_in_at ?? null,
     }
   })

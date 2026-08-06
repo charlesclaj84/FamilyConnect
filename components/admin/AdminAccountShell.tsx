@@ -18,7 +18,9 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { AdminIncomeClient } from '@/components/admin/AdminIncomeClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
-import { SECTION_LABELS, type AccountSection } from '@/components/admin/account-sections'
+import {
+  SECTION_LABELS, type AccountSection, type AccountRights,
+} from '@/components/admin/account-sections'
 import type { DuesSchedule } from '@/app/actions/dues'
 import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
 
@@ -105,6 +107,8 @@ interface Props {
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
   initialAllocations: FundAllocationRow[]
+  /** Per-section grants, resolved on the server from SECTION_RESOURCE. */
+  rights: AccountRights
 }
 
 /**
@@ -134,8 +138,22 @@ export function AdminAccountShell({
   initialFunds,
   allMilestones,
   initialAllocations,
+  rights,
 }: Props) {
-  const [section, setSection] = useState<AccountSection>(initialSection)
+  // Only the sections this caller may view, and only the rails that still hold one.
+  // Derived from the same rights the server actions enforce, so a visible rail always
+  // leads somewhere the caller can actually go.
+  const visibleGroups = SECTION_GROUPS
+    .map(group => ({ ...group, items: group.items.filter(item => rights[item.id].view) }))
+    .filter(group => group.items.length > 0)
+
+  // Landing on a section they cannot view — a stale link, or a grant removed since the
+  // page was last open — falls back to the first thing they can see.
+  const allowedInitial = rights[initialSection].view
+    ? initialSection
+    : visibleGroups[0]?.items[0].id ?? initialSection
+
+  const [section, setSection] = useState<AccountSection>(allowedInitial)
 
   // Which section's create dialog is open, or null. Keyed by section rather than a
   // boolean per form so the rail's single trigger needs no per-section wiring.
@@ -158,8 +176,20 @@ export function AdminAccountShell({
   // whichever one contains the active section, so the two can never disagree and
   // the URL still needs to carry nothing but `?section=`.
   const activeGroup =
-    SECTION_GROUPS.find(group => group.items.some(item => item.id === section)) ?? SECTION_GROUPS[0]
+    visibleGroups.find(group => group.items.some(item => item.id === section)) ?? visibleGroups[0]
 
+  // Reachable: `admin/account` view opens the page, but each section is its own grant,
+  // so a caller can hold the page and none of its contents. Better to say so than to
+  // render an empty rail beside an empty pane and let them wonder what broke.
+  if (visibleGroups.length === 0) {
+    return (
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+        You can open Accounting, but none of its sections have been shared with you.
+        Ask an administrator for access to the areas you need — dues, donations, funds,
+        routing, milestones or payment settings are each granted separately.
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -168,8 +198,8 @@ export function AdminAccountShell({
         aria-label="Accounting areas"
         className="flex flex-wrap items-center gap-2 border-b pb-3"
       >
-        {SECTION_GROUPS.map(group => {
-          const active = group.label === activeGroup.label
+        {visibleGroups.map(group => {
+          const active = group.label === activeGroup?.label
           const target = group.items[0].id
           return (
             <a
@@ -210,10 +240,10 @@ export function AdminAccountShell({
             screen reader. */}
         <div className="flex flex-row flex-wrap items-start gap-2 xl:flex-col xl:gap-0">
           <nav
-            aria-label={`${activeGroup.label} pages`}
+            aria-label={`${activeGroup?.label ?? 'Accounting'} pages`}
             className="flex flex-row flex-wrap gap-2 xl:w-full xl:flex-col xl:gap-0.5"
           >
-            {activeGroup.items.map(item => (
+            {(activeGroup?.items ?? []).map(item => (
               <SectionLink
                 key={item.id}
                 id={item.id}
@@ -223,7 +253,7 @@ export function AdminAccountShell({
               />
             ))}
           </nav>
-          {CREATE_ACTIONS[section] && (
+          {CREATE_ACTIONS[section] && rights[section].create && (
             // Right-aligned, ruled off from the links at xl, and green: the navy of
             // the default button is exactly what the ACTIVE link looks like, so a
             // solid navy trigger read as a further page that was selected.
@@ -253,6 +283,7 @@ export function AdminAccountShell({
             creating={creating}
             onCloseCreate={() => setCreating(null)}
             initialSchedules={initialSchedules}
+            rights={rights}
           />
           <AdminFundsClient
             section={section}
@@ -261,6 +292,7 @@ export function AdminAccountShell({
             initialFunds={initialFunds}
             allMilestones={allMilestones}
             initialAllocations={initialAllocations}
+            rights={rights}
           />
           {section === 'processing' && <ProcessingPanel />}
           {section === 'bank' && <BankInfoPanel />}

@@ -16,7 +16,9 @@ import {
   saveFundAllocations,
   type FundWithStats, type FundMilestone, type FundAllocationRow,
 } from '@/app/actions/funds'
-import { isFundsSection, type AccountSection } from '@/components/admin/account-sections'
+import {
+  isFundsSection, type AccountSection, type AccountRights,
+} from '@/components/admin/account-sections'
 
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
@@ -34,6 +36,8 @@ interface Props {
   onCloseCreate: () => void
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
+  /** Per-section grants: Funds, Routing and Milestones are three separate resources. */
+  rights: AccountRights
   initialAllocations: FundAllocationRow[]
 }
 
@@ -41,7 +45,14 @@ export function AdminFundsClient({
   section,
   creating, onCloseCreate,
   initialFunds, allMilestones, initialAllocations,
+  rights,
 }: Props) {
+  // This one component renders three sections that are now three separate resources,
+  // so the grants are read per section rather than once for the panel.
+  const mayEditFunds       = rights.funds.edit
+  const mayDeleteFunds     = rights.funds.delete
+  const mayEditRouting     = rights.routing.edit
+  const mayDeleteMilestone = rights.milestones.delete
   const confirm = useConfirm()
   // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
   // below stays identical to the tab-strip version.
@@ -333,14 +344,16 @@ export function AdminFundsClient({
                       {f.minimum_cents > 0 ? ` · Minimum Balance ${fmt(f.minimum_cents)}` : ''}
                     </p>
                   </div>
-                  {SHOW_OPEN_CONTRIBUTIONS && (
+                  {SHOW_OPEN_CONTRIBUTIONS && mayEditFunds && (
                     <Button size="sm" variant={f.open_contributions ? 'outline' : 'ghost'} disabled={isPending} onClick={() => handleToggleOpen(f)}>
                       {f.open_contributions ? 'Open to members' : 'Make open'}
                     </Button>
                   )}
+                  {mayDeleteFunds && (
                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteFund(f.id)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -424,9 +437,11 @@ export function AdminFundsClient({
                       <p className="text-sm font-medium">{m.name}</p>
                       <p className="text-xs text-muted-foreground">{fund?.name} · {fmt(m.amount_cents)}</p>
                     </div>
+                    {mayDeleteMilestone && (
                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteMilestone(m.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
+                    )}
                   </li>
                 )
               })}
@@ -449,7 +464,7 @@ export function AdminFundsClient({
                   a fund below its minimum is topped up before lower ones receive anything.
                 </p>
               </div>
-              {alloc.length > 0 && !editingRouting && (
+              {alloc.length > 0 && !editingRouting && mayEditRouting && (
                 <Button size="sm" variant="outline" onClick={startEditRouting}>
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </Button>

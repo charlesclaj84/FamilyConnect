@@ -187,7 +187,7 @@ export async function setRoleEnabled(
     )
     if (error) return { success: false, error: error.message }
   }
-  revalidatePath('/admin/user-roles')
+  revalidatePath('/admin/boardpositions')
   revalidatePath('/admin/elections')
   revalidatePath('/admin/users')
   return { success: true }
@@ -223,7 +223,7 @@ export async function createCustomRole(input: {
     })
 
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/user-roles')
+  revalidatePath('/admin/boardpositions')
   return { success: true }
 }
 
@@ -237,6 +237,6 @@ export async function deleteCustomRole(id: string): Promise<{ success: boolean; 
 
   const { error } = await admin.from('family_roles').delete().eq('id', id).eq('is_global', false)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/user-roles')
+  revalidatePath('/admin/boardpositions')
   return { success: true }
 }

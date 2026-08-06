@@ -42,6 +42,12 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Your contact details, address, birthday, and t-shirt size.',
   },
   {
+    href: '/my-families',
+    label: 'My Families',
+    status: 'live',
+    blurb: 'Every family this account belongs to, and which one opens when you log in.',
+  },
+  {
     href: '/chat',
     label: 'Chat',
     status: 'live',
@@ -103,15 +109,11 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
-  // Dues are LIVE. The `/dues` route itself only redirects to My Summary,
-  // but this entry also un-hides the `dues` resource row in Groups & Permissions
-  // so a treasurer can be granted `dues:edit` without being made an administrator.
-  {
-    href: '/dues',
-    label: 'Dues',
-    status: 'live',
-    blurb: 'Dues schedules at any cadence, with a payment plan that fits your budget.',
-  },
+  // There is no `/dues` route. The member-facing dues view is My Summary, and the
+  // admin-facing one is Accounting. The `dues` PERMISSION RESOURCE still exists and
+  // is load-bearing — it gates `dues:edit` (recording a payment for someone other
+  // than yourself) and the RLS on dues_member_plans / dues_payments — it simply has
+  // no page of its own, so it needs no entry here.
   {
     href: '/family-finances',
     label: 'Family Finances',
@@ -171,8 +173,15 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'Organize a large family into regional chapters with scoped leadership.',
   },
+  // The route is `/admin/boardpositions`, renamed from the old `/admin/user-roles`.
+  // The permission resource key was renamed to match in 20260805000006 — requireView()
+  // looks the page up by that key, so the path and the key have to stay in step. The
+  // `user_roles` TABLE keeps its name; only the route and the resource key moved.
+  //
+  // Back on the roadmap. The page and its permission resource both still exist and are
+  // wired correctly — only the status moved — so shipping it again is this one word.
   {
-    href: '/admin/user-roles',
+    href: '/admin/boardpositions',
     label: 'Board Positions',
     status: 'future',
     blurb: 'Assign officer roles and track who holds each seat.',
@@ -208,19 +217,12 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Reusable event blueprints that auto-assign the planning checklist.',
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded
-  // payments, and the funds those payments route into. `/admin/dues` is the legacy
-  // URL for the same tool and only redirects here, so it ships alongside it.
-  // The route stays `/admin/account` because that string is also the permission
-  // resource key, wired into RLS via permission_table_map. Only the name changed.
+  // payments, and the funds those payments route into. The route stays
+  // `/admin/account` because that string is also the permission resource key, wired
+  // into RLS via permission_table_map. Only the display name changed.
   {
     href: '/admin/account',
     label: 'Accounting',
-    status: 'live',
-    blurb: 'Dues schedules, funds, and payment routing for the whole family.',
-  },
-  {
-    href: '/admin/dues',
-    label: 'Dues Management',
     status: 'live',
     blurb: 'Dues schedules, funds, and payment routing for the whole family.',
   },

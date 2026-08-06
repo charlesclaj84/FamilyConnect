@@ -1,12 +1,14 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
-import { canAny, scopeFor, requireView } from '@/lib/auth/permissions'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { canAny, requireView } from '@/lib/auth/permissions'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundContributions } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
-import { resolveLedger } from '@/components/transactions/ledgers'
+import {
+  resolveLedger, LEDGER_RESOURCE, DISBURSEMENT_RESOURCE, REVERSAL_RESOURCE,
+} from '@/components/transactions/ledgers'
 
 export const metadata = { title: 'Transactions — Family Connect' }
 
@@ -21,15 +23,15 @@ export const metadata = { title: 'Transactions — Family Connect' }
  *   1. requireView('transactions') — 404s anyone the family has restricted.
  *   2. RLS on every read below, so a member whose `dues` view is scoped to 'own' sees
  *      their own payments and not the family's.
- *   3. The record permissions, resolved here so the buttons and the server actions
- *      can never disagree:
- *        dues edit            → may record a dues or donation payment (scope 'own'
- *                               means only their own, which the form honours)
- *        family-finances edit → may record money into or out of a fund. canAny: a
- *                               disbursement a member would "own" is one paying
- *                               themselves.
+ *   3. One RECORDING grant per add button, from LEDGER_RESOURCE, resolved here so the
+ *      buttons and the server actions can never disagree. All canAny: none of these
+ *      records has a coherent "own" version, and the row a member would own — a
+ *      payment they record for themselves, a disbursement paying themselves — is
+ *      exactly the abuse case.
  *
- * A member with neither edit grant sees four read-only ledgers.
+ * A member with no recording grant sees four read-only ledgers, which is the normal
+ * case: recording a payment asserts money changed hands, and the person who owes it
+ * does not get to make that assertion.
  */
 export default async function TransactionsPage({
   searchParams,
@@ -50,30 +52,39 @@ export default async function TransactionsPage({
   // this free of hydration mismatch. searchParams is a Promise in Next 16.
   const initialLedger = resolveLedger((await searchParams).ledger)
 
+  // One grant per add button. Every one is canAny: none of these four records has a
+  // coherent "own" version — a payment you record for YOURSELF and a disbursement
+  // paying YOURSELF are the abuse cases, not the safe subset. See AGENTS.md on canAny.
   const [
     schedules, payments, fundsData, disbursements, contributions,
-    paymentScope, canRecordFunds, myPersonId,
+    canRecordDues, canRecordDonations, canRecordContributions,
+    canRecordDisbursements, canDeleteDisbursements, canReverse,
   ] = await Promise.all([
     getDuesSchedules(),
     getAllDuesPayments(),
     getFunds(),
     getAllDisbursements(),
     getFundContributions(),
-    scopeFor(user.id, 'dues', 'edit'),
-    canAny(user.id, 'family-finances', 'edit'),
-    getMyPersonId(user.id),
+    canAny(user.id, LEDGER_RESOURCE.dues, 'create'),
+    canAny(user.id, LEDGER_RESOURCE.donations, 'create'),
+    canAny(user.id, LEDGER_RESOURCE.contributions, 'create'),
+    canAny(user.id, LEDGER_RESOURCE.disbursements, 'create'),
+    canAny(user.id, DISBURSEMENT_RESOURCE, 'delete'),
+    canAny(user.id, REVERSAL_RESOURCE, 'create'),
   ])
-  const canRecordPayments = paymentScope !== 'none'
 
   // How much of the roster this caller is entitled to see, which is NOT the same as
   // whether a button renders. Props reach the browser whether or not the component
   // renders them, so gating only the affordance would hand every viewer the family's
-  // roster in the RSC payload — and a member whose dues-edit grant is scoped to 'own'
-  // may record only for themselves, so one row is all they can use.
-  const roster: 'all' | 'self' | 'none' =
-    canRecordFunds || paymentScope === 'any' ? 'all'
-      : paymentScope === 'own' ? 'self'
-        : 'none'
+  // roster in the RSC payload.
+  //
+  // There is no 'self' tier any more. It existed because dues:edit='own' let a member
+  // record their own payment — which is precisely what basic accounting forbids, since
+  // it lets the person who owes the money attest that they paid it. Recording is now a
+  // treasurer act, so the roster is all-or-nothing.
+  const roster: 'all' | 'none' =
+    canRecordDues || canRecordDonations || canRecordContributions || canRecordDisbursements
+      ? 'all' : 'none'
 
   // Adults only, matching every other member picker. Family-scoped explicitly: the
   // service-role client does not apply RLS.
@@ -86,14 +97,16 @@ export default async function TransactionsPage({
     .order('last_name')
 
   const [membersResult, milestonesResult] = await Promise.all([
-    roster === 'all' ? membersQuery
-      : roster === 'self' && myPersonId ? membersQuery.eq('id', myPersonId)
-        : Promise.resolve({ data: [] }),
-    // Only the disbursement form uses these.
-    canRecordFunds
+    roster === 'all' ? membersQuery : Promise.resolve({ data: [] }),
+    // Only the disbursement form uses these — gate the FETCH, not just the field.
+    canRecordDisbursements
       ? admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order')
       : Promise.resolve({ data: [] }),
   ])
+
+  // Schedules drive the payment form's picker; a caller who can record neither kind
+  // has no use for them, and they are family configuration.
+  const visibleSchedules = canRecordDues || canRecordDonations ? schedules : []
 
   const members = (membersResult.data ?? []).map(m => ({
     id: m.id,
@@ -112,12 +125,16 @@ export default async function TransactionsPage({
         initialPayments={payments}
         initialContributions={contributions}
         initialDisbursements={disbursements}
-        schedules={schedules}
+        schedules={visibleSchedules}
         funds={fundsData.map(f => ({ id: f.id, name: f.name }))}
         milestones={milestonesResult.data ?? []}
         members={members}
-        canRecordPayments={canRecordPayments}
-        canRecordFunds={canRecordFunds}
+        canRecordDues={canRecordDues}
+        canRecordDonations={canRecordDonations}
+        canRecordContributions={canRecordContributions}
+        canRecordDisbursements={canRecordDisbursements}
+        canDeleteDisbursements={canDeleteDisbursements}
+        canReverse={canReverse}
       />
     </div>
   )

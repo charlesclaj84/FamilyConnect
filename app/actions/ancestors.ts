@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
+import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ANCESTOR_TYPES, SPOUSE_TYPES, type AncestorType } from '@/lib/family-constants'
@@ -347,6 +348,13 @@ export async function upsertAncestor(
     // ── Path A: link an existing people record ──────────────────────────────
     personId = input.existing_person_id
 
+    // Same trap as upsertSpouse: the row being inserted belongs to the caller's
+    // family and passes RLS on its own merits, while the id it references need
+    // not. Verify before linking.
+    if (!(await belongsToFamily('people', personId, familyCode))) {
+      return { success: false, message: 'Person not found' }
+    }
+
     if (existingRel) {
       await supabase
         .from('person_relationships')
@@ -512,13 +520,24 @@ type RelRecord = {
 
 // ── getAncestorRows ────────────────────────────────────────────────────────────
 
+/**
+ * The ancestor grid for one person.
+ *
+ * `viewerPersonId` used to be a PARAMETER, which meant the caller declared who they
+ * were — and `isOwnTree` below unlocks editing affordances off that claim. It is now
+ * derived from the session. The subject is confirmed into the caller's family for the
+ * usual reason: this reads through the service role, so RLS never narrows it.
+ */
 export async function getAncestorRows(
   subjectPersonId: string,
-  viewerPersonId: string
 ): Promise<AncestorRow[]> {
   if (!subjectPersonId) return []
+  const g = await requireRead('family-tree')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('people', subjectPersonId, g.familyCode))) return []
+
   const admin = createAdminClient()
-  const isOwnTree = subjectPersonId === viewerPersonId
+  const isOwnTree = subjectPersonId === g.personId
   const result: AncestorRow[] = []
 
   // Fetch all relationship type IDs we need
@@ -828,6 +847,10 @@ export async function getAncestorRows(
 
 export async function getDescendantTree(subjectPersonId: string): Promise<DescendantNode[]> {
   if (!subjectPersonId) return []
+  const g = await requireRead('family-tree')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('people', subjectPersonId, g.familyCode))) return []
+
   const admin = createAdminClient()
 
   const { data: childTypes } = await admin
@@ -920,6 +943,10 @@ export async function buildPartnerGroups(
   topLevelDescendants: DescendantNode[]
 ): Promise<PartnerGroup[]> {
   if (!partners.length && !topLevelDescendants.length) return []
+
+  const g = await requireRead('family-tree')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('people', subjectPersonId, g.familyCode))) return []
 
   const admin = createAdminClient()
 

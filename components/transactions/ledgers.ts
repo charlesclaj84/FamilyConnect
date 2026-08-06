@@ -27,6 +27,38 @@ export const LEDGER_LABELS: Record<Ledger, string> = {
 export const DEFAULT_LEDGER: Ledger = 'dues'
 
 /**
+ * Which permission resource governs the "add" button on each ledger.
+ *
+ * The single binding that the page, the client and the server actions all read, so
+ * the button and the action can never disagree about which grant they need. Before
+ * this, four buttons were driven by two grants — dues:edit covered dues AND
+ * donations, family-finances:edit covered contributions AND disbursements — so a
+ * treasurer who could record dues could also record donations, and there was no way
+ * to let someone log a contribution without also letting them pay money out.
+ *
+ * Registered in permission_resources by 20260806000000, under the Accounting
+ * category with subsection 'Transactions'.
+ *
+ * The `transactions/` prefix is load-bearing: getResources() drops any row where
+ * isFeatureFuture('/' + key) is true, and getFeature() longest-prefix-matches, so
+ * `transactions/*` resolves to the live /transactions entry. A key prefixed
+ * `family-finances/` would inherit that feature's 'future' status and disappear from
+ * both admin grids with no error.
+ */
+export const LEDGER_RESOURCE: Record<Ledger, string> = {
+  dues:           'transactions/dues-payments',
+  donations:      'transactions/donation-payments',
+  contributions:  'transactions/fund-contributions',
+  disbursements:  'transactions/fund-disbursements',
+}
+
+/** Deleting a disbursement is separable from creating one — its own action. */
+export const DISBURSEMENT_RESOURCE = LEDGER_RESOURCE.disbursements
+
+/** Posting a correcting entry against an existing payment. */
+export const REVERSAL_RESOURCE = 'transactions/reversals'
+
+/**
  * Forgiving forms for hand-typed URLs, and for the ids these ledgers had while they
  * lived on the Accounting admin page — `?section=payments` was the combined dues +
  * donations list, so it lands on Dues.

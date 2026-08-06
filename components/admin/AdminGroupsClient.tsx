@@ -18,31 +18,9 @@ import {
   type GroupSummary, type ResourceSummary, type PolicyMap, type MemberSummary,
 } from '@/app/actions/admin/permissions'
 import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
-import type { PermissionAction, PermissionScope } from '@/lib/auth/permissions'
-
-const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
-
-// 'create' has no own/any distinction — you cannot own a record you are about to
-// make — so it offers a plain allow/deny.
-const SCOPES_FOR: Record<PermissionAction, PermissionScope[]> = {
-  view:   ['none', 'own', 'any'],
-  create: ['none', 'any'],
-  edit:   ['none', 'own', 'any'],
-  delete: ['none', 'own', 'any'],
-}
-const SCOPE_LABEL: Record<PermissionScope, string> = { none: '—', own: 'Own', any: 'All' }
-const SCOPE_STYLE: Record<PermissionScope, string> = {
-  none: 'bg-muted text-muted-foreground',
-  own:  'bg-amber-100 text-amber-800',
-  any:  'bg-green-100 text-green-800',
-}
-
-// Presentation order for the visibility list; anything unlisted falls to the end.
-const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'accounting', 'resources', 'admin']
-const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', events: 'Events',
-  accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
-}
+import {
+  ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
+} from '@/components/admin/resource-groups'
 
 interface Rights { view: boolean; create: boolean; edit: boolean; remove: boolean }
 
@@ -55,20 +33,9 @@ interface Props {
   legacy: boolean
 }
 
-function byCategory(resources: ResourceSummary[]) {
-  const groups = new Map<string, ResourceSummary[]>()
-  for (const r of resources) groups.set(r.category, [...(groups.get(r.category) ?? []), r])
-  return [...groups.entries()]
-    .sort((a, b) => {
-      const ai = CATEGORY_ORDER.indexOf(a[0]); const bi = CATEGORY_ORDER.indexOf(b[0])
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-    })
-    .map(([category, list]) => ({
-      category,
-      label: CATEGORY_LABEL[category] ?? category,
-      list: [...list].sort((a, b) => a.label.localeCompare(b.label)),
-    }))
-}
+// Grouping, ordering and the sub-section level all live in resource-groups.ts, shared
+// with AdminUserAccessClient so the two grids cannot disagree about the same catalog.
+const byCategory = groupResources
 
 export function AdminGroupsClient({ groups, resources, selectedGroupId, policy, rights, legacy }: Props) {
   const router = useRouter()
@@ -231,36 +198,48 @@ export function AdminGroupsClient({ groups, resources, selectedGroupId, policy, 
               <CardHeader>
                 <CardTitle className="text-base">{selected.name}</CardTitle>
                 <CardDescription>
-                  {selected.description || 'What members of this group may do on each page.'}
-                  {' '}A group&apos;s policy overrides any individual override on the same page and action.
-                  {' '}Only pages that have shipped are listed.
+                  {selected.description || 'What members of this group may do.'}
+                  {' '}A group&apos;s policy overrides any individual override on the same row and action.
+                  {' '}Only features that have shipped are listed, and each row shows only the
+                  {' '}actions that mean something for it.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[34rem] text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Page</th>
+                      {/* Not "Page": the rows under Accounting > Transactions are
+                          capabilities — the add buttons on the Transactions page — and
+                          have no route of their own. */}
+                      <th className="py-2 pr-4 font-medium">Feature</th>
                       {ACTIONS.map(a => <th key={a} className="py-2 pr-3 font-medium capitalize">{a}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {sections.map(({ category, label, list }) => (
+                    {sections.map(({ category, label, rows }) => (
                       <Fragment key={category}>
                         <tr>
                           <td colSpan={5} className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {label}
                           </td>
                         </tr>
-                        {list.map(r => (
-                          <tr key={r.key} className="border-b last:border-0">
-                            <td className="py-1.5 pr-4">{r.label}</td>
+                        {rows.map(({ resource: r, header, nested }) => (
+                          <Fragment key={r.key}>
+                            {header && (
+                              <tr>
+                                <td colSpan={5} className="pt-3 pb-1 pl-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  └ {header}
+                                </td>
+                              </tr>
+                            )}
+                          <tr className="border-b last:border-0">
+                            <td className={cn('py-1.5 pr-4', nested && 'pl-8')}>{r.label}</td>
                             {ACTIONS.map(action => {
                               const current = policy[`${r.key}:${action}`] ?? 'none'
                               return (
                                 <td key={action} className="py-1.5 pr-3">
                                   <div className="flex gap-0.5">
-                                    {SCOPES_FOR[action].map(scope => (
+                                    {scopesFor(r, action).map(scope => (
                                       <button key={scope} type="button" disabled={!rights.edit || isPending}
                                         onClick={() => run({
                                           title: 'Change group permission',
@@ -279,6 +258,7 @@ export function AdminGroupsClient({ groups, resources, selectedGroupId, policy, 
                               )
                             })}
                           </tr>
+                          </Fragment>
                         ))}
                       </Fragment>
                     ))}
@@ -305,16 +285,24 @@ export function AdminGroupsClient({ groups, resources, selectedGroupId, policy, 
                   <span className="font-medium">Everyone</span> — any member of the family can open the page.
                   {' '}<span className="font-medium">Selected groups</span> — only those granted view access by a
                   group policy or an individual override.
+                  {' '}Rows that govern no readable page of their own — the add-button
+                  {' '}permissions under Accounting — are set on the Policy tab instead.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                {sections.map(({ category, label, list }) => (
+                {sections.map(({ category, label, rows }) => {
+                  // Only resources that actually consult a 'view' scope belong here.
+                  // A capability row like Dues Payments has no page to make visible,
+                  // and a toggle for one would decide nothing.
+                  const viewable = rows.filter(({ resource }) => resource.actions.includes('view'))
+                  if (viewable.length === 0) return null
+                  return (
                   <div key={category}>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
                     <ul className="divide-y rounded-xl border">
-                      {list.map(r => (
+                      {viewable.map(({ resource: r, nested }) => (
                         <li key={r.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                          <span className="min-w-0 flex-1 truncate text-sm">{r.label}</span>
+                          <span className={cn('min-w-0 flex-1 truncate text-sm', nested && 'pl-4')}>{r.label}</span>
                           <span className="flex shrink-0 gap-1">
                             {(['everyone', 'restricted'] as const).map(v => (
                               <button key={v} type="button" disabled={!rights.edit || isPending}
@@ -339,7 +327,8 @@ export function AdminGroupsClient({ groups, resources, selectedGroupId, policy, 
                       ))}
                     </ul>
                   </div>
-                ))}
+                  )
+                })}
               </CardContent>
             </Card>
           )}

@@ -118,12 +118,28 @@ export async function getUpcomingEvents(): Promise<PublicEvent[]> {
   }))
 }
 
+/**
+ * One event, for the member-facing event page.
+ *
+ * `eventId` arrives from the client and the read runs on the service role, so the
+ * status filter is not a boundary — it decides which of a family's events are
+ * public *within* that family, not which family may see them. Without the
+ * family_code term below this returns any other family's published event: name,
+ * description, dates and location, to anyone who can reach the endpoint.
+ */
 export async function getEventDetail(eventId: string): Promise<PublicEvent | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return null
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('events')
     .select('id, name, description, official_description, event_date, start_date, end_date, location, city, state, rsvp_deadline, status, event_types(name)')
     .eq('id', eventId)
+    .eq('family_code', familyCode)
     .in('status', ['published', 'approved'])
     .single()
 
@@ -394,8 +410,30 @@ export interface PublicHotel {
   details: { id: string; key: string; value: string }[]
 }
 
+/**
+ * Hotel blocks for one event: names, addresses and booking codes.
+ *
+ * Same shape as getEventDetail above — a client-supplied event id read through the
+ * service role. The event is confirmed into the caller's family FIRST, because
+ * event_hotel_bookings is keyed on event_id, which carries no family of its own;
+ * filtering only on it would publish another family's negotiated rates and codes.
+ */
 export async function getEventHotels(eventId: string): Promise<PublicHotel[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return []
+
   const admin = createAdminClient()
+  const { data: event } = await admin
+    .from('events')
+    .select('id')
+    .eq('id', eventId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  if (!event) return []
+
   const { data: bookings } = await admin
     .from('event_hotel_bookings')
     .select('*')

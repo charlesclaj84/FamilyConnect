@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyActiveMembership } from '@/lib/auth/family'
+import { getMyActiveMembership, belongsToFamily } from '@/lib/auth/family'
 import { isFeatureFuture } from '@/lib/features'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import {
@@ -52,6 +52,20 @@ export interface ResourceSummary {
   key: string
   label: string
   category: string
+  /**
+   * Third display level inside a category, e.g. Accounting > Transactions. Null for
+   * an ordinary row, which renders directly under its category heading.
+   */
+  subsection: string | null
+  /** Ordering within the category. Sub-section rows are contiguous by construction. */
+  sortOrder: number
+  /**
+   * Which actions are MEANINGFUL for this resource. A capability row like
+   * "Dues Payments" only has `create`; rendering the other three would be four
+   * switches wired to nothing, and `view` in particular would read as a privacy
+   * control being honoured when nothing consults it.
+   */
+  actions: PermissionAction[]
   /** 'everyone' or 'restricted' for the caller's family. */
   visibility: 'everyone' | 'restricted'
 }
@@ -197,6 +211,14 @@ export async function searchMembers(opts: {
   const { familyCode } = await getMyActiveMembership(user.id)
   if (!familyCode) return { rows: [], total: 0 }
 
+  // This returns every member's name AND primary_email, and it runs on the service
+  // role, so RLS on people never narrows it. Family scoping alone is not the whole
+  // answer: a family that has restricted its Member Directory has said this roster
+  // is not for everyone, and without this check the endpoint hands it over anyway.
+  // Gated on 'members' rather than 'admin/groups' — the group screens are just one
+  // caller, but the roster itself is the directory's to govern.
+  if (!(await can(user.id, 'members', 'view'))) return { rows: [], total: 0 }
+
   const limit = opts.limit ?? MEMBER_PAGE_SIZE
   const offset = opts.offset ?? 0
   const q = safeQuery(opts.query ?? '')
@@ -320,7 +342,9 @@ export async function getResources(): Promise<ResourceSummary[]> {
 
   const admin = createAdminClient()
   const [{ data: resources }, { data: visibility }] = await Promise.all([
-    admin.from('permission_resources').select('key, label, category, sort_order').order('sort_order'),
+    admin.from('permission_resources')
+      .select('key, label, category, subsection, sort_order, actions')
+      .order('sort_order'),
     admin.from('resource_visibility').select('resource_key, visibility').eq('family_code', familyCode),
   ])
 
@@ -330,22 +354,57 @@ export async function getResources(): Promise<ResourceSummary[]> {
       .map(v => v.resource_key),
   )
 
-  return ((resources ?? []) as { key: string; label: string; category: string }[])
+  type Row = {
+    key: string; label: string; category: string
+    subsection: string | null; sort_order: number; actions: string[] | null
+  }
+
+  return ((resources ?? []) as Row[])
     // A page that hasn't shipped has nothing to permission yet — showing its row
     // would invite configuring access to something nobody can reach. Flip the
     // feature to 'live' in lib/features.ts and it appears here automatically.
-    // Keys with no feature entry (e.g. notifications) are not roadmap-gated.
+    // Keys with no feature entry are not roadmap-gated: that covers the capability
+    // rows under Accounting > Transactions, which have no route of their own. Their
+    // `transactions/` prefix matters — getFeature() longest-prefix-matches, so
+    // `transactions/*` resolves to the live /transactions entry. A key prefixed
+    // `family-finances/` or `admin/` would inherit a 'future' entry and vanish from
+    // both grids with no error.
     .filter(r => !isFeatureFuture(`/${r.key}`))
     .map(r => ({
       key: r.key,
       label: r.label,
       category: r.category,
+      subsection: r.subsection,
+      sortOrder: r.sort_order,
+      // Older rows predate the column; treat a missing value as "all four".
+      actions: (r.actions?.length ? r.actions : ['view', 'create', 'edit', 'delete']) as PermissionAction[],
       visibility: restricted.has(r.key) ? 'restricted' : 'everyone',
     }))
 }
 
+/**
+ * One group's policy. Reading a family's permission configuration is itself
+ * privileged — it is the map of who may do what — so this gates on view over
+ * 'admin/groups' rather than being treated as harmless lookup data.
+ *
+ * `groupId` arrives from the client and the read runs on the service role, so the
+ * group is confirmed to belong to the caller's family before anything is returned.
+ * Without that, `.eq('group_id', id)` alone hands any signed-in user any family's
+ * policy — the query is keyed on a column that carries no family of its own.
+ */
 export async function getGroupPolicy(groupId: string): Promise<PolicyMap> {
+  const g = await requireGroupAdmin('view')
+  if (!g.ok) return {}
+
   const admin = createAdminClient()
+  const { data: group } = await admin
+    .from('user_groups')
+    .select('id')
+    .eq('id', groupId)
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (!group) return {}
+
   const { data } = await admin
     .from('group_permissions')
     .select('resource_key, action, scope')
@@ -358,7 +417,17 @@ export async function getGroupPolicy(groupId: string): Promise<PolicyMap> {
   return out
 }
 
+/**
+ * One member's individual overrides. Same reasoning as getGroupPolicy above:
+ * privileged to read, and `personId` is a client-supplied id used against the
+ * service role, so it is checked into the caller's family first.
+ */
 export async function getPersonPolicy(personId: string): Promise<PolicyMap> {
+  const g = await requireGroupAdmin('view')
+  if (!g.ok) return {}
+
+  if (!(await belongsToFamily('people', personId, g.familyCode))) return {}
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('person_permissions')

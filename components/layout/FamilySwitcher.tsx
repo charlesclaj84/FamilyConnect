@@ -50,7 +50,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
         disabled={isPending}
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="menu"
-        className="flex max-w-[11rem] items-center gap-1.5 rounded-lg bg-white/70 px-2.5 py-1.5 text-sm text-[#0f2540] transition-colors hover:bg-white disabled:opacity-60 sm:max-w-[14rem]"
+        className="flex max-w-[8rem] items-center gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-sm text-[#0f2540] transition-colors hover:bg-white disabled:opacity-60 sm:max-w-[14rem] sm:px-2.5"
         title={`Viewing ${active.familyName} — click to switch family`}
       >
         <Home className="h-4 w-4 shrink-0" />
@@ -67,14 +67,18 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
+          {/* Width is capped by the viewport, not fixed: a flat w-64 is wider than the
+              space left of the trigger on a small phone, so the panel ran off the edge.
+              Height is capped too — an account in several families produced a menu
+              taller than the screen with no way to reach the bottom of it. */}
           <div
             role="menu"
-            className="absolute right-0 z-30 mt-1 w-64 overflow-hidden rounded-xl border bg-card shadow-lg"
+            className="absolute right-0 z-30 mt-1 flex max-h-[60vh] w-[min(16rem,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-xl border bg-card shadow-lg"
           >
-            <p className="border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Your families
             </p>
-            <ul className="py-1">
+            <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
               {families.map(family => (
                 <li key={family.familyCode}>
                   <button
@@ -104,7 +108,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
               ))}
             </ul>
             {error && (
-              <p className="border-t bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+              <p className="shrink-0 border-t bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
             )}
           </div>
         </>

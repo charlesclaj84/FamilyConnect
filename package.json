@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireRead } from '@/lib/auth/guard'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface AdminEvent {
@@ -281,11 +282,25 @@ export async function createSubEvent(
   return { success: true, id: data?.id }
 }
 
+/**
+ * Sub-events of one event. Reachable from BOTH the admin detail screen and the
+ * member-facing /events/[id], so it accepts either view grant.
+ *
+ * `parent_event_id` carries no family of its own, so filtering on it alone returns
+ * another family's itinerary to anyone who posts their event id here. The parent is
+ * confirmed into the caller's family first, and the query is family-scoped anyway —
+ * this runs on the service role, where RLS does nothing.
+ */
 export async function getSubEvents(parentId: string): Promise<AdminEvent[]> {
+  const g = await requireRead('admin/events', 'events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', parentId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('events')
     .select('*')
+    .eq('family_code', g.familyCode)
     .eq('parent_event_id', parentId)
     .order('sort_order', { ascending: true })
     .order('event_date', { ascending: true, nullsFirst: false })
@@ -518,13 +533,22 @@ export async function approveAssignmentResponse(
   return error ? { success: false, error: error.message } : { success: true }
 }
 
+/**
+ * The planning checklist for one event, including the real names of the members
+ * each item is assigned to — which is why this needs a grant and not just a login.
+ */
 export async function getEventAssignments(eventId: string): Promise<EventAssignment[]> {
+  const g = await requireRead('admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', eventId, g.familyCode))) return []
+
   const admin = createAdminClient()
   // Reflect lapsed tasks: cancel any still-open item whose event has ended.
   await admin.rpc('cancel_overdue_event_assignments')
   const { data } = await admin
     .from('event_assignments')
     .select('*, event_blueprint_items(title)')
+    .eq('family_code', g.familyCode)
     .eq('event_id', eventId)
     .order('blueprint_item_id')
 
@@ -627,7 +651,12 @@ export async function getEventReport(eventId: string): Promise<EventReport | nul
 
 // ── Hotel bookings ─────────────────────────────────────────────────────────────
 
+/** Hotel blocks with rates and booking codes — the admin-side twin of getEventHotels. */
 export async function getHotelBookings(eventId: string): Promise<HotelBooking[]> {
+  const g = await requireRead('admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', eventId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const { data: bookings } = await admin
     .from('event_hotel_bookings')
@@ -817,11 +846,16 @@ async function adminPersonId(admin: ReturnType<typeof createAdminClient>, userId
   return data?.id ?? null
 }
 
+/** Budget lines and spend-to-date for one event. Money — grant required. */
 export async function getEventBudgetItems(eventId: string): Promise<EventBudgetItem[]> {
+  const g = await requireRead('admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', eventId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const [itemsRes, expRes] = await Promise.all([
-    admin.from('event_budget_items').select('*').eq('event_id', eventId).order('sort_order').order('created_at'),
-    admin.from('event_expenses').select('budget_item_id, amount_cents').eq('event_id', eventId),
+    admin.from('event_budget_items').select('*').eq('family_code', g.familyCode).eq('event_id', eventId).order('sort_order').order('created_at'),
+    admin.from('event_expenses').select('budget_item_id, amount_cents').eq('family_code', g.familyCode).eq('event_id', eventId),
   ])
   const spentByItem = new Map<string, number>()
   for (const e of expRes.data ?? []) {
@@ -896,11 +930,17 @@ export async function deleteEventBudgetItem(id: string): Promise<{ success: bool
   return { success: true }
 }
 
+/** Recorded spend for one event, with the fund each expense came out of. */
 export async function getEventExpenses(eventId: string): Promise<EventExpense[]> {
+  const g = await requireRead('admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('events', eventId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('event_expenses')
     .select('*, event_budget_items(title), funds(name)')
+    .eq('family_code', g.familyCode)
     .eq('event_id', eventId)
     .order('spent_date', { ascending: false })
 

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
+import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SPOUSE_TYPES, type SpouseRelType } from '@/lib/family-constants'
 
@@ -103,6 +104,10 @@ export async function getMyPartners(): Promise<SpouseEntry[]> {
 }
 
 export async function getPersonPartners(personId: string): Promise<SpouseEntry[]> {
+  const g = await requireRead('family-tree')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('people', personId, g.familyCode))) return []
+
   const admin = createAdminClient()
 
   const { data: types } = await admin
@@ -153,6 +158,15 @@ export async function upsertSpouse(
   if (input.existing_person_id) {
     // ── Path A: link existing person ──────────────────────────────────────
     const personId = input.existing_person_id
+
+    // The relationship rows written below are stamped with the caller's own
+    // family_code, which satisfies RLS regardless of where personId actually
+    // lives. Without this, naming another family's people.id links a stranger
+    // into the caller's family tree — and, through the reverse relationship,
+    // writes a row hanging off that stranger.
+    if (!(await belongsToFamily('people', personId, familyCode))) {
+      return { success: false, message: 'Person not found' }
+    }
 
     if (input.relationship_id) {
       // Edit existing relationship row

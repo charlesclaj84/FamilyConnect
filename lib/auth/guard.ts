@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
-import { canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
+import { can, canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
 
 /**
  * The preamble every mutating server action needs, in one call.
@@ -101,6 +101,32 @@ export async function requireOwn(
   if (!(await canOn(who.userId, resource, action, ownerPersonId))) {
     return { ok: false, message: 'Not authorized' }
   }
+  return resolve(who.userId)
+}
+
+/**
+ * Require a VIEW grant, for reads that run on the service role.
+ *
+ * Reading needs its own guard because the write guards are the wrong shape for it.
+ * `requireScope(resource, 'view')` goes through canAny and so refuses scope 'own',
+ * which is a legitimate way to hold view — and `requireMember()` demands nothing at
+ * all. Neither fits a query that bypasses RLS to read a family's data.
+ *
+ * This uses `can()`, so 'own' passes: the caller may see *something* here, and the
+ * query itself is then responsible for narrowing to what. Since the service role
+ * ignores RLS, callers must still family-scope every query with `g.familyCode` and
+ * validate any client-supplied id with `belongsToFamily` — this answers "may they
+ * read this kind of thing at all", not "may they read this row".
+ *
+ * Several resources may be passed for data reachable from more than one screen
+ * (event blueprint items appear under both Event Templates and Event Management);
+ * holding view on any one of them is enough.
+ */
+export async function requireRead(...resources: string[]): Promise<GuardResult> {
+  const who = await caller()
+  if ('ok' in who) return who
+  const granted = await Promise.all(resources.map(r => can(who.userId, r, 'view')))
+  if (!granted.some(Boolean)) return { ok: false, message: 'Not authorized' }
   return resolve(who.userId)
 }
 

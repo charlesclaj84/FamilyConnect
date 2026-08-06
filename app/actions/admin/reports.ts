@@ -58,7 +58,9 @@ export async function getOrgStats(): Promise<OrgStats> {
     admin.from('event_rsvp').select('event_id').eq('family_code', familyCode),
     admin.from('dues_payments').select('id, amount_cents, status, payment_date, recorded_by').eq('family_code', familyCode),
     admin.from('event_rsvp_attendees')
-      .select('people(tshirt_category, tshirt_size)')
+      // person_id, not checked_in_by — a bare `people(...)` is ambiguous here and
+      // PostgREST refuses the whole query (PGRST201), zeroing the t-shirt counts.
+      .select('people!event_rsvp_attendees_person_id_fkey(tshirt_category, tshirt_size)')
       .eq('is_attending', true)
       .not('people', 'is', null),
     admin.from('people').select('id, first_name, last_name').eq('family_code', familyCode),

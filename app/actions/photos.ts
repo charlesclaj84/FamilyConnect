@@ -40,7 +40,11 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('photo_collections')
-    .select('*, events(name), photos(id, file_path)')
+    // photos!photos_collection_id_fkey, not photos: there are two relationships
+    // between these tables — the collection's photos, and its cover_photo_id
+    // pointing back at one. An ambiguous embed fails the query with PGRST201,
+    // and since the error is discarded the page just shows no albums at all.
+    .select('*, events(name), photos!photos_collection_id_fkey(id, file_path)')
     .order('created_at', { ascending: false })
 
   return (data ?? []).map(c => {

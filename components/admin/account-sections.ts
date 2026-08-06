@@ -107,6 +107,44 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
   'bank-account': 'bank',
 }
 
+/**
+ * The permission resource governing each section.
+ *
+ * One grant per section rather than one for the whole page: maintaining the dues
+ * schedule, redrawing the routing split, creating funds and pricing a milestone are
+ * four different jobs, and `admin/account:edit` used to be a single switch for all of
+ * them. Registered by 20260806000007 under the Admin category, subsection 'Accounting'.
+ *
+ * Both Settings panes share one key — they are two views of the same "how money is
+ * processed" question, and neither is implemented yet.
+ *
+ * The `admin/account/` prefix is load-bearing: getFeature() longest-prefix-matches, so
+ * these resolve to the live /admin/account entry rather than the 'future' /admin one.
+ * A key under a future-status prefix disappears from both admin grids silently.
+ */
+export const SECTION_RESOURCE: Record<AccountSection, string> = {
+  dues:       'admin/account/dues',
+  donations:  'admin/account/donations',
+  funds:      'admin/account/funds',
+  routing:    'admin/account/routing',
+  milestones: 'admin/account/milestones',
+  processing: 'admin/account/settings',
+  bank:       'admin/account/settings',
+}
+
+/** What the caller may do in one section. Resolved server-side, passed down as props. */
+export interface SectionRights {
+  view: boolean
+  create: boolean
+  edit: boolean
+  delete: boolean
+}
+
+export type AccountRights = Record<AccountSection, SectionRights>
+
+/** Every section denied — the shape a page uses before it resolves anything. */
+export const NO_RIGHTS: SectionRights = { view: false, create: false, edit: false, delete: false }
+
 export function isIncomeSection(value: string): value is IncomeSection {
   return (INCOME_SECTIONS as readonly string[]).includes(value)
 }

@@ -17,7 +17,9 @@ import {
   createDuesSchedule, updateDuesSchedule, deleteDuesSchedule,
   type DuesSchedule,
 } from '@/app/actions/dues'
-import { isIncomeSection, type AccountSection } from '@/components/admin/account-sections'
+import {
+  isIncomeSection, type AccountSection, type AccountRights,
+} from '@/components/admin/account-sections'
 
 interface Props {
   /** Which section the shell is showing. This component renders only its own. */
@@ -30,6 +32,12 @@ interface Props {
   creating: AccountSection | null
   onCloseCreate: () => void
   initialSchedules: DuesSchedule[]
+  /**
+   * Per-section grants. Dues and Donations are separate resources even though both
+   * are dues_schedules rows, so someone can maintain what members owe without also
+   * being able to open a donation drive.
+   */
+  rights: AccountRights
 }
 
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
@@ -66,8 +74,12 @@ const KIND_COPY: Record<ScheduleKind, {
 }
 
 export function AdminIncomeClient({
-  section, creating, onCloseCreate, initialSchedules,
+  section, creating, onCloseCreate, initialSchedules, rights,
 }: Props) {
+  // The section on screen decides which grant applies: a Dues row is governed by
+  // admin/account/dues, a Donation row by admin/account/donations.
+  const mayEdit = rights[section]?.edit ?? false
+  const mayDelete = rights[section]?.delete ?? false
   // Dues and Donations share one schedule form; which rail button was pressed is the
   // only thing that tells them apart.
   const creatingKind: ScheduleKind | null =
@@ -405,12 +417,16 @@ export function AdminIncomeClient({
                           {s.end_date && ` to ${formatDate(s.end_date)}`}
                         </p>
                       </div>
+                      {mayEdit && (
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(s)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
+                      )}
+                      {mayDelete && (
                       <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteSchedule(s.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
+                      )}
                     </div>
                   )}
                 </li>

@@ -38,10 +38,8 @@ export default async function AdminUsersPage({ searchParams }: Props) {
       <div className="mb-8">
         <h1 className="mb-1 text-3xl font-bold">User Management</h1>
         <p className="text-muted-foreground">
-          Who is in which group, and any per-person exceptions. Group policies are set on
-          {' '}<Link href="/admin/groups" className="text-primary hover:underline">Groups &amp; Permissions</Link>;
-          board positions live on{' '}
-          <Link href="/admin/user-roles" className="text-primary hover:underline">Board Positions</Link>.
+          Group policies are set on
+          {' '}<Link href="/admin/groups" className="text-primary hover:underline">Groups &amp; Permissions</Link>.
         </p>
       </div>
 

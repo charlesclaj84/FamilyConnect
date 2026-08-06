@@ -27,6 +27,7 @@ import {
   ChevronDown,
   KeyRound,
   ArrowRightLeft,
+  Home,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -48,16 +49,19 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// Accounting leads: it is the page administrators open most often, so it sits at
-// the top of the section rather than after the membership and election tools.
+// Hand-ordered, not alphabetical: structure first (who the family's officers are,
+// then where its chapters are), then Accounting, then the people and their access.
+// Elections and Reports are periodic tasks rather than setup, so they trail.
+// This order is independent of the Groups & Permissions grid, which sorts by
+// permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
-  { href: '/admin/account',    label: 'Accounting',           icon: Wallet },
-  { href: '/admin/users',      label: 'User Management',      icon: UsersRound },
-  { href: '/admin/groups',     label: 'Groups & Permissions', icon: KeyRound },
-  { href: '/admin/chapters',   label: 'Regions & Chapters',   icon: ShieldCheck },
-  { href: '/admin/user-roles', label: 'Board Positions',      icon: ShieldCheck },
-  { href: '/admin/elections',  label: 'Election Management',  icon: Vote },
-  { href: '/admin/reports',    label: 'Reports',              icon: BarChart3 },
+  { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
+  { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
+  { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
+  { href: '/admin/users',          label: 'User Management',      icon: UsersRound },
+  { href: '/admin/groups',         label: 'Groups & Permissions', icon: KeyRound },
+  { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
+  { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
 ]
 
 // Build the nav groups for the current user. Every item is listed unconditionally
@@ -81,6 +85,9 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       section: { label: 'Personal', icon: UserCircle },
       items: [
         { href: '/personal-info',   label: 'My Profile',   icon: UserCircle },
+        // Always shown, including for single-family accounts: this is where you join
+        // another family by code, so it has to be reachable before you have a second one.
+        { href: '/my-families',     label: 'My Families',  icon: Home },
         { href: '/direct-lineage',  label: 'My Children',  icon: Users },
         { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
       ],
@@ -291,14 +298,20 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
   return (
     <>
       {/* ── Desktop: sticky left panel ─────────────────────────────── */}
+      {/* The nav pins below the navbar (h-16 + its 1px border) and is capped to
+          the space left underneath it. The cap is what makes overflow-y-auto
+          mean anything: without a max-height the nav simply grows to its content
+          and scrolls away with the page instead of scrolling within itself. */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r bg-background">
-        <nav className="sticky top-0 flex flex-col p-3 pt-6 overflow-y-auto">
+        <nav className="sticky top-[calc(4rem_+_1px)] max-h-[calc(100vh_-_4rem_-_1px)] flex flex-col p-3 pt-6 overflow-y-auto overscroll-contain">
           <NavTree groups={navGroups} pathname={pathname} />
         </nav>
       </aside>
 
       {/* ── Mobile: hamburger button ────────────────────────────────── */}
-      <div className="md:hidden border-b bg-background shrink-0 flex items-center px-3 py-2">
+      {/* Pinned directly under the navbar for the same reason as the desktop
+          panel — the nav should stay reachable however far the page has scrolled. */}
+      <div className="md:hidden sticky top-[calc(4rem_+_1px)] z-10 border-b bg-background shrink-0 flex items-center px-3 py-2">
         <button
           onClick={() => setMobileOpen(true)}
           className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm bg-[#e6ecfa] text-[#0f2540] hover:opacity-90 transition-colors"

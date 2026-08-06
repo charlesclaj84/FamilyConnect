@@ -6,7 +6,11 @@ import { getMyFamilyCode } from '@/lib/auth/family'
 import { getDuesSchedules } from '@/app/actions/dues'
 import { getFunds, getFundAllocations } from '@/app/actions/funds'
 import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
-import { resolveSection } from '@/components/admin/account-sections'
+import {
+  resolveSection, SECTION_RESOURCE,
+  type AccountSection, type AccountRights, type SectionRights,
+} from '@/components/admin/account-sections'
+import { can, canAny } from '@/lib/auth/permissions'
 
 export const metadata = { title: 'Accounting — Admin — Family Connect' }
 
@@ -36,12 +40,41 @@ export default async function AdminAccountPage({
   // this free of hydration mismatch. searchParams is a Promise in Next 16.
   const initialSection = resolveSection((await searchParams).section)
 
+  // One set of rights per section. requireView('admin/account') above only says the
+  // caller may open the page at all; each rail, each section and each new/edit/delete
+  // inside it is its own grant, so someone can maintain the dues schedule without also
+  // being able to redraw the routing split or price a milestone.
+  //
+  // view uses can() — 'own' is a real way to hold view. Everything that WRITES uses
+  // canAny(): this is family-wide configuration with no coherent "own" version, which
+  // is exactly the case AGENTS.md reserves canAny for.
+  const SECTIONS: AccountSection[] = ['dues', 'donations', 'funds', 'routing', 'milestones', 'processing', 'bank']
+  const rightsList = await Promise.all(
+    SECTIONS.map(async (s): Promise<[AccountSection, SectionRights]> => {
+      const resource = SECTION_RESOURCE[s]
+      const [view, create, edit, del] = await Promise.all([
+        can(user.id, resource, 'view'),
+        canAny(user.id, resource, 'create'),
+        canAny(user.id, resource, 'edit'),
+        canAny(user.id, resource, 'delete'),
+      ])
+      return [s, { view, create, edit, delete: del }]
+    }),
+  )
+  const rights = Object.fromEntries(rightsList) as AccountRights
+
+  // Gate the FETCH, not just the pane. Props are serialized into the RSC payload and
+  // reach the browser whether or not a component renders them, so loading the funds or
+  // the dues schedules for someone who may not see that section would publish them
+  // regardless of which pane is showing (AGENTS.md §4).
   const [schedules, fundsData, allocations, milestonesResult] = await Promise.all([
-    getDuesSchedules(),
-    getFunds(),
-    getFundAllocations(),
+    rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
+    rights.funds.view || rights.routing.view || rights.milestones.view ? getFunds() : Promise.resolve([]),
+    rights.routing.view ? getFundAllocations() : Promise.resolve([]),
     // Family-scoped explicitly: the service-role client does not apply RLS.
-    admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order'),
+    rights.milestones.view
+      ? admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order')
+      : Promise.resolve({ data: [] }),
   ])
 
   // Widened only at xl, where the rail appears: every narrower width keeps the
@@ -56,6 +89,7 @@ export default async function AdminAccountPage({
         initialFunds={fundsData}
         allMilestones={milestonesResult.data ?? []}
         initialAllocations={allocations}
+        rights={rights}
       />
     </div>
   )

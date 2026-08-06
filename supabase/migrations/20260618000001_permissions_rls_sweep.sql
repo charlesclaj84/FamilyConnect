@@ -39,11 +39,13 @@
 
 BEGIN;
 
--- 'notifications' is a permissionable surface (the navbar bell) that has no page
--- of its own in lib/features.ts.
-INSERT INTO public.permission_resources (key, label, category, sort_order)
-VALUES ('notifications', 'Notifications', 'community', 75)
-ON CONFLICT (key) DO NOTHING;
+-- NOTE: this migration used to register 'notifications' as a permission resource
+-- (for the navbar bell) and map the notifications table onto it. Both were removed
+-- by 20260805000007 — the resource could not affect access in either direction,
+-- because the table's base RLS already restricts every row to its recipient and the
+-- permission layer is only ever AND-ed on top. See that migration for the full
+-- argument. The insert and the table-map row are deleted here rather than left in
+-- place so replaying this migration cannot resurrect the resource.
 
 -- ── Table → resource mapping ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.permission_table_map (
@@ -68,16 +70,20 @@ INSERT INTO public.permission_table_map (table_name, resource_key, own_expr, sel
   -- org structure
   ('chapters',                    'admin/chapters',     'false',                                 'false'),
   ('regions',                     'admin/chapters',     'false',                                 'false'),
-  ('family_roles',                'admin/user-roles',   'false',                                 'false'),
-  ('family_role_exclusions',      'admin/user-roles',   'false',                                 'false'),
-  ('user_roles',                  'admin/user-roles',   'user_id = (SELECT auth.uid())',         'user_id = (SELECT auth.uid())'),
+  -- Resource key renamed from 'admin/user-roles' by 20260805000006, in step with the
+  -- route move to /admin/boardpositions. The `user_roles` TABLE name is unchanged.
+  ('family_roles',                'admin/boardpositions','false',                                'false'),
+  ('family_role_exclusions',      'admin/boardpositions','false',                                'false'),
+  ('user_roles',                  'admin/boardpositions','user_id = (SELECT auth.uid())',        'user_id = (SELECT auth.uid())'),
   -- chat
   ('chat_rooms',                  'chat',               'created_by = (SELECT auth.uid())',      'false'),
   ('chat_participants',           'chat',               'user_id = (SELECT auth.uid())',         'user_id = (SELECT auth.uid())'),
   ('chat_messages',               'chat',               'sender_id = (SELECT auth.uid())',       'false'),
   -- community
   ('announcements',               'announcements',      'author_id = public.auth_person_id()',   'false'),
-  ('notifications',               'notifications',      'recipient_id = public.auth_person_id()','recipient_id = public.auth_person_id()'),
+  -- notifications is deliberately absent — see the note at the top of this file.
+  -- Its base RLS restricts every row to its recipient on its own, so wrapping it in
+  -- a permission check added a resource nobody could meaningfully grant or revoke.
   ('documents',                   'documents',          'uploaded_by = public.auth_person_id()', 'false'),
   -- photos
   ('photos',                      'photos',             'uploader_id = public.auth_person_id()', 'false'),

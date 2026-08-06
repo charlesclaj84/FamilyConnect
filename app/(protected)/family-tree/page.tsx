@@ -67,7 +67,7 @@ export default async function FamilyTreePage({
   }
 
   const [ancestorRows, descendants, partners, familyMembers, myRoles, memberRoles] = await Promise.all([
-    getAncestorRows(subjectPersonId, myPerson?.id ?? ''),
+    getAncestorRows(subjectPersonId),
     getDescendantTree(subjectPersonId),
     getPersonPartners(subjectPersonId),
     getFamilyMembers(),

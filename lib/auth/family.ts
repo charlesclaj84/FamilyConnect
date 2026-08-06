@@ -162,3 +162,35 @@ export async function getMyActiveMembership(
 export async function hasMultipleFamilies(userId: string): Promise<boolean> {
   return (await getMyFamilies(userId)).length > 1
 }
+
+/**
+ * True when `id` names a row of `table` that lives in `familyCode`.
+ *
+ * For the one case RLS structurally cannot cover: an id that arrives from the
+ * client and is then written ONTO a row of the caller's own family. A partner's
+ * people.id, a dues schedule id, a child's people.id. The inserted row is
+ * legitimately the caller's, so its family_code satisfies every policy — while
+ * the id it carries points into somebody else's family. The policy examines the
+ * row, not the rows the row references, so nothing in the database objects.
+ *
+ * That makes this an action's responsibility, not RLS's, even on the user
+ * client. tests/rls covers each caller.
+ *
+ * Deliberately the service-role client: the answer must not depend on whether
+ * the caller happens to hold view permission on the referenced table, or a
+ * family that restricts its Member Directory would break its own family tree.
+ */
+export async function belongsToFamily(
+  table: string,
+  id: string | null | undefined,
+  familyCode: string,
+): Promise<boolean> {
+  if (!id || !familyCode) return false
+  const { data } = await createAdminClient()
+    .from(table)
+    .select('id')
+    .eq('id', id)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  return Boolean(data)
+}

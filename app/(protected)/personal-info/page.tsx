@@ -6,8 +6,6 @@ import { getMyRoles } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
-import { MyFamiliesSection } from '@/components/personal-info/MyFamiliesSection'
-import { getMyFamilies } from '@/lib/auth/family'
 
 export const metadata = { title: 'My Profile — Family Connect' }
 
@@ -18,11 +16,11 @@ export default async function PersonalInfoPage() {
 
   await requireView(user.id, 'personal-info')
 
-  const [existing, myRoles, chapters, families] = await Promise.all([
+  // My Families moved to its own page (/my-families) — it is no longer fetched here.
+  const [existing, myRoles, chapters] = await Promise.all([
     getPersonalInfo(),
     getMyRoles(),
     getChapters(),
-    getMyFamilies(user.id),
   ])
 
   return (
@@ -39,8 +37,6 @@ export default async function PersonalInfoPage() {
           </div>
         )}
       </div>
-
-      <MyFamiliesSection families={families} />
 
       <PersonalInfoForm existing={existing} chapters={chapters} />
     </div>

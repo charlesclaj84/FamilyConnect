@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireRead } from '@/lib/auth/guard'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface EventType {
@@ -151,7 +152,16 @@ export interface SubTemplate {
   sort_order: number
 }
 
+/**
+ * Templates nested inside one template. The parent id comes from the client and the
+ * link table is keyed only on it, so the parent is confirmed into the caller's family
+ * before anything is read, and the child lookup is family-scoped too.
+ */
 export async function getSubTemplates(eventTypeId: string): Promise<SubTemplate[]> {
+  const g = await requireRead('admin/event-types')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('event_types', eventTypeId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const { data: links } = await admin
     .from('event_type_sub_templates')
@@ -162,7 +172,8 @@ export async function getSubTemplates(eventTypeId: string): Promise<SubTemplate[
   if (!links?.length) return []
 
   const childIds = links.map(l => l.child_event_type_id)
-  const { data: types } = await admin.from('event_types').select('id, name').in('id', childIds)
+  const { data: types } = await admin.from('event_types').select('id, name')
+    .eq('family_code', g.familyCode).in('id', childIds)
   const nameById = Object.fromEntries((types ?? []).map(t => [t.id, t.name]))
 
   return links.map(l => ({
@@ -211,11 +222,20 @@ export async function removeSubTemplate(linkId: string): Promise<{ success: bool
 
 // ── Blueprint Items ────────────────────────────────────────────────────────────
 
+/**
+ * The checklist attached to one template. Rendered on both Event Templates and the
+ * Event Management detail screen, so either view grant admits.
+ */
 export async function getBlueprintItems(eventTypeId: string): Promise<BlueprintItem[]> {
+  const g = await requireRead('admin/event-types', 'admin/events')
+  if (!g.ok) return []
+  if (!(await belongsToFamily('event_types', eventTypeId, g.familyCode))) return []
+
   const admin = createAdminClient()
   const { data } = await admin
     .from('event_blueprint_items')
     .select('*')
+    .eq('family_code', g.familyCode)
     .eq('event_type_id', eventTypeId)
     .order('sort_order')
     .order('created_at')
