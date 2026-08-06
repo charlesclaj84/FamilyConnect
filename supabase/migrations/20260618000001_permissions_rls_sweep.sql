@@ -58,9 +58,24 @@ CREATE TABLE IF NOT EXISTS public.permission_table_map (
   self_expr    TEXT NOT NULL DEFAULT 'false'
 );
 
-INSERT INTO public.permission_table_map (table_name, resource_key, own_expr, self_expr) VALUES
+-- Rows whose resource_key is not registered are SKIPPED rather than inserted, because
+-- resource_key is a foreign key and this migration must apply to an empty database.
+-- 20260806000006 removed five resources — dashboard, personal-info, my-families,
+-- direct-lineage, family-tree — and, so a replay could not resurrect them, also deleted
+-- them from 20260618000000's seed. Three of them are named below. On a fresh database
+-- they therefore do not exist by the time this runs, and the unguarded VALUES list
+-- aborted the whole chain here with 23503.
+--
+-- Skipping is the correct end state, not a workaround: on a database where those rows
+-- did get created, 20260806000006's DELETE removes them again by ON DELETE CASCADE. The
+-- affected tables (families, kids, person_relationships, family_ancestors,
+-- relationship_types) end up unmapped either way, so the sweep leaves their base
+-- policies alone — which is what "always viewable, self-service writes" means for them.
+INSERT INTO public.permission_table_map (table_name, resource_key, own_expr, self_expr)
+SELECT t.table_name, t.resource_key, t.own_expr, t.self_expr
+  FROM (VALUES
   -- identity / directory
-  ('people',                      'members',            'user_id = (SELECT auth.uid())',        'user_id = (SELECT auth.uid())'),
+  ('people'::text,                'members'::text,      'user_id = (SELECT auth.uid())'::text,  'user_id = (SELECT auth.uid())'::text),
   ('adults',                      'members',            'user_id = (SELECT auth.uid())',        'user_id = (SELECT auth.uid())'),
   ('kids',                        'direct-lineage',     'parent_user_id = (SELECT auth.uid())', 'parent_user_id = (SELECT auth.uid())'),
   ('families',                    'dashboard',          'false',                                 'false'),
@@ -117,6 +132,8 @@ INSERT INTO public.permission_table_map (table_name, resource_key, own_expr, sel
   ('election_positions',          'elections',          'false',                                 'false'),
   ('election_nominations',        'elections',          'nominated_by = public.auth_person_id()','nominee_id = public.auth_person_id()'),
   ('election_votes',              'elections',          'voter_id = public.auth_person_id()',    'voter_id = public.auth_person_id()')
+  ) AS t(table_name, resource_key, own_expr, self_expr)
+ WHERE EXISTS (SELECT 1 FROM public.permission_resources pr WHERE pr.key = t.resource_key)
 ON CONFLICT (table_name) DO UPDATE
   SET resource_key = EXCLUDED.resource_key,
       own_expr     = EXCLUDED.own_expr,
