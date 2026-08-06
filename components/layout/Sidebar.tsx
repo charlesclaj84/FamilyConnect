@@ -31,6 +31,12 @@ import {
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
 
+// Should a section close on its own when the user clicks away from it — either by
+// opening a different section (accordion) or by landing on the Dashboard? When
+// false, a section stays open until the user collapses it themselves and any
+// number of sections may be open at once.
+const AUTO_COLLAPSE_SECTIONS = true
+
 interface NavItem {
   href: string
   label: string
@@ -171,7 +177,8 @@ function SectionDivider({ label, icon: Icon }: {
 
 // A nav group. Sections with more than one item become collapsible sliders;
 // single-item sections (and the top-level Dashboard group) render statically.
-// `open`/`onToggle` are owned by NavTree so only one section stays open at a time.
+// `open`/`onToggle` are owned by NavTree, which decides how sections interact
+// with one another (see AUTO_COLLAPSE_SECTIONS).
 function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   group: NavGroup
   pathname: string
@@ -229,15 +236,28 @@ function NavTree({ groups, pathname, onNavClick }: {
   pathname: string
   onNavClick?: () => void
 }) {
-  // Accordion: only one collapsible section open at a time. Default to the
-  // section that contains the active route so the current page stays visible.
+  // Default to the section that contains the active route so the current page
+  // stays visible. With AUTO_COLLAPSE_SECTIONS on this behaves as an accordion —
+  // only one section open at a time; with it off, sections open independently.
   const collapsible = (g: NavGroup) => Boolean(g.section) && g.items.length > 1
   const activeSection = groups.find(g => collapsible(g) && g.items.some(it => isActive(pathname, it.href)))
-  const [openSection, setOpenSection] = useState<string | null>(activeSection?.section?.label ?? null)
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () => new Set(activeSection?.section?.label ? [activeSection.section.label] : []),
+  )
+
+  const toggleSection = (label: string) =>
+    setOpenSections(curr => {
+      if (curr.has(label)) {
+        const next = new Set(curr)
+        next.delete(label)
+        return next
+      }
+      return AUTO_COLLAPSE_SECTIONS ? new Set([label]) : new Set(curr).add(label)
+    })
 
   // Collapse every section when the user lands on the Dashboard.
   useEffect(() => {
-    if (pathname === '/dashboard') setOpenSection(null)
+    if (AUTO_COLLAPSE_SECTIONS && pathname === '/dashboard') setOpenSections(new Set())
   }, [pathname])
 
   return (
@@ -249,8 +269,8 @@ function NavTree({ groups, pathname, onNavClick }: {
             key={label}
             group={group}
             pathname={pathname}
-            open={openSection === label}
-            onToggle={() => setOpenSection(curr => (curr === label ? null : label))}
+            open={openSections.has(label)}
+            onToggle={() => toggleSection(label)}
             onNavClick={onNavClick}
           />
         )
