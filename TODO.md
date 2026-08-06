@@ -66,7 +66,7 @@ which phases 1–2 have since used.
 
 | # | Where | What |
 |---|---|---|
-| 1 | migration | System-groups backfill. `20260618000000`'s group seeding is a one-shot DO block over families that existed then; new families have no Administrators group, so there would be nobody to approve anyone. |
+| 1 | ~~migration~~ | **DONE — `20260806000008_system_groups_for_new_families`.** `seed_family_system_groups()` plus an AFTER INSERT trigger on `families`; a second pair of triggers on `people` (INSERT, and UPDATE OF user_id, for the claim-by-email and link-person paths) puts each member in General and the founder — `families.created_by` — in Administrators. Backfills the families that had none. Also seeds `resource_visibility`, which is most of blocker 4. |
 | 2 | migration + `20260618000000` seed | Register `admin/approvals` ("Member Approvals", admin, 165) **before** the enforcement migration — the rewritten `people` SELECT policy calls it, and an unregistered key defaults `view` to `any`. |
 | 3 | migration | Enforcement: columns + CHECK + partial index, the two triggers, `set_membership_status()`, the `auth_person_id()` conjunct, `auth_membership_approved()`, the `people` SELECT rewrite, the sweep over the seven `auth.uid()` tables. |
 | 4 | `tests/rls/seed.mjs`, `cases.mjs` | Must land in the same commit. The stamp trigger makes the first seeded person approved and every one after PENDING, so the isolation assertions would otherwise go green for the wrong reason. |
@@ -99,7 +99,23 @@ which phases 1–2 have since used.
 4. **`admin/approvals` would default to `view='everyone'` in families created after the
    migration** — the visibility backfill is one-shot, and nothing writes
    `resource_visibility` for a new family. That key unlocks every applicant's PII.
-   Either seed it in `register.ts` create-mode or make the default fail closed.
+   ~~Either seed it in `register.ts` create-mode or make the default fail closed.~~
+   *Half-closed by `20260806000008`*, which seeds a `'restricted'` row for every
+   `category='admin'` resource on family creation, and backfilled the pairs that were
+   already missing. It was not hypothetical: **every** family created since
+   `20260618000000` had no `resource_visibility` rows at all, so all sixteen admin
+   surfaces — User Management, Groups & Permissions, Accounting, Reports — were
+   viewable by every member of that family, while nobody could administer anything
+   because create/edit/delete fail closed with no group to grant them.
+
+   **What is still owed for step 2:** that trigger fires per *family*, not per
+   *resource*. Registering `admin/approvals` in a later migration gives existing
+   families no visibility row for it, exactly as before. That migration must carry its
+   own per-family backfill, the way `20260806000007` does — the pattern is now also in
+   §5 of `20260806000008`. The fail-closed default (deny `view` on an unregistered or
+   unset `category='admin'` key, rather than allow) is still the stronger fix and is
+   still unbuilt; it needs `auth_permission()` and `resolveScope()` changed together,
+   which is why it was not folded in here.
 
 ### Decisions already taken
 
@@ -111,7 +127,11 @@ which phases 1–2 have since used.
   `ON DELETE CASCADE` from four tables, and a delete strands the auth account with
   `app_metadata.family_code` still naming the family.
 - Approving also adds the member to the seeded General group; otherwise they fall to
-  bare defaults rather than the policy the family configured.
+  bare defaults rather than the policy the family configured. *Since `20260806000008`
+  the `people` triggers already do this the moment a user is linked, so the approval
+  step is now a belt-and-braces `ON CONFLICT DO NOTHING` rather than the only path. It
+  is not redundant to keep: a pending member is denied by the `auth_person_id()`
+  conjunct regardless of what groups they are in, so nothing leaks in the meantime.*
 - Replace `generateCode()` — *already done in phase 1*.
 
 ### Open, and worth deciding before step 8
@@ -122,8 +142,43 @@ lookup anyway.
 
 ## Authorization
 
-Both entries below came out of building `tests/rls` (see AGENTS.md §7). The suite is
-green: neither of these is an isolation failure, and neither blocks anything today.
+### Members cannot read the dues table, so "what do I owe" is empty for everyone
+
+**Action:** decide which resource governs *reading* `dues_schedules`, then re-point it.
+This one is live on every family, not a latent risk.
+
+`permission_table_map` maps `dues_schedules` to `admin/account`, with `own_expr` and
+`self_expr` both `'false'`. The composed SELECT policy therefore reduces to
+
+```
+base_qual AND auth_permission('admin/account', 'view') = 'any'
+```
+
+and `20260618000000` restricts every `category='admin'` resource per family. So a
+member with no Accounting grant reads **zero** dues schedules — and
+[`getMyDuesSummary`](app/actions/dues.ts) is the member-facing call behind My Summary
+and the dashboard's "you owe" card. It reads `dues_schedules` through the user client
+and returns `[]`. `dues_payments` and `dues_member_plans` are unaffected: both map to
+`dues`, which is `category='accounting'` and not restricted.
+
+Found because `20260806000008` made the RLS fixture seed `resource_visibility`. Before
+that the fixture wrote no visibility rows at all, so `admin/account` fell through to
+`'any'` and `dues.getDuesSchedules` / `dues.getMyDuesSummary` passed their positive
+controls against a permission configuration **no real family has** — the fixture
+failure mode AGENTS.md §7 warns about, in its most literal form. Both cases now pin
+`positiveActor: 'alphaAdmin'` with a comment pointing here; that keeps the isolation
+assertion meaningful and does nothing about the bug.
+
+The fix is not a one-liner, which is why it is parked: the sweep bakes the resource key
+into each policy as a literal, so re-pointing the table needs the policy surgery of
+`20260806000000` §6. And it is a product call first — *who may see the family's dues
+and donation schedules?* Reading what you owe and editing what everyone owes are
+plainly different rights, and one key currently governs both.
+
+### Everything below came out of building `tests/rls`
+
+(see AGENTS.md §7). The suite is green: neither of these is an isolation failure, and
+neither blocks anything today.
 
 ### Members without a grant are told their write succeeded when it did not
 
@@ -159,6 +214,27 @@ Two separable questions, and they have different answers:
 stays green either way. If (1) changes, switch those cases back to `alphaMember` —
 that is the assertion that would then be meaningful.
 
+### `npm run test:rls` cannot run twice without a `db reset`
+
+**Action:** teach `teardown()` to get past the append-only ledger, or say in AGENTS.md
+that a reset is part of the loop.
+
+`20260806000002_dues_ledger_immutability` installs a `dues_payments_immutable` trigger
+that raises on DELETE. `teardown()` in `tests/rls/seed.mjs` deletes `dues_payments`, so
+the second run of the suite dies before it seeds:
+
+```
+Error: teardown dues_payments: dues_payments is append-only:
+payment … cannot be deleted
+```
+
+The first run after `npx supabase db reset` is fine, which is why this has not bitten
+anyone — AGENTS.md §7 gives the two commands in that order. But the file's own comment
+says teardown exists "so the suite is re-runnable", and it is not. A reversal row is
+the product-level answer to an unwanted payment; the harness wants a genuine delete, so
+this probably means dropping the trigger for the fixture's rows rather than working
+around it.
+
 ### `tests/rls` does not cover the Storage-backed uploads
 
 **Action:** extend the harness, or decide the risk is acceptable and say so.
@@ -173,6 +249,47 @@ overwrite another's objects. Doing it properly means seeding buckets and asserti
 object paths, which is a different harness rather than three more cases.
 
 ## Review
+
+### Replaying an early migration can resurrect a policy a later one replaced
+
+**Action:** decide how migrations reach the hosted project, and stop applying them by
+hand out of order. Guarding all ~30 files individually is not the answer.
+
+This already happened once, in production. `20260602000000_families.sql` was replayed
+against hosted after `20260618000001` had renamed its policy to `perm:…`, so its bare
+`CREATE POLICY` — no `DROP`, no `IF NOT EXISTS` — recreated the original
+`user_metadata` policy *alongside* the secure one. Permissive policies are OR-ed, so
+the spoofable one decided every read. Supabase's advisor caught it;
+`20260806000009` removed it and that one file now guards on `auth_family_code()`
+existing.
+
+The shape is general, and only that one file is guarded. Every migration up to
+`20260610000007` creates policies with a bare `CREATE POLICY`, and the three sweeps
+(`20260615000004`, `20260618000001`, `20260618000003`) renamed or rewrote most of them
+— so replaying any of those files re-adds a legacy policy under a name nothing holds
+any more. `20260806000009` cleans up the `user_metadata` variety on sight and is
+re-runnable, which makes it a good thing to apply after any manual intervention, but it
+says nothing about the `is_admin` variety or about plain duplicates that widen access.
+
+Two things worth knowing before choosing a fix:
+
+- Every migration header says `USAGE: psql "$DATABASE_URL" -f <file>`, which invites
+  exactly this. `supabase db push` applies pending migrations in order and records them
+  in `supabase_migrations.schema_migrations`; hand-running `psql -f` records nothing, so
+  nothing can tell you afterwards what a database actually has.
+- The audit query that finds the damage is cheap and worth keeping:
+
+  ```sql
+  SELECT a.tablename, a.policyname
+    FROM pg_policies a
+   WHERE a.schemaname='public' AND a.policyname NOT LIKE 'perm:%'
+     AND EXISTS (SELECT 1 FROM pg_policies b
+                  WHERE b.schemaname='public' AND b.tablename=a.tablename
+                    AND b.policyname='perm:'||a.policyname);
+  ```
+
+  It returned exactly one row on hosted — `families` — which is how the blast radius
+  was bounded. On a correct database it returns none.
 
 ### Dead code: `components/admin/AdminChaptersClient.tsx`
 
