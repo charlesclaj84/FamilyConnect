@@ -1,23 +1,17 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   Receipt,
   Landmark,
   Award,
-  PenLine,
   Settings,
   CalendarClock,
-  History,
   PiggyBank,
   Split,
-  ArrowUpRight,
-  DollarSign,
-  HandCoins,
   CreditCard,
   Banknote,
   HeartHandshake,
-  Plus,
   CirclePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,29 +19,24 @@ import { Button } from '@/components/ui/button'
 import { AdminIncomeClient } from '@/components/admin/AdminIncomeClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 import { SECTION_LABELS, type AccountSection } from '@/components/admin/account-sections'
-import type { DuesSchedule, DuesPayment } from '@/app/actions/dues'
-import type {
-  FundWithStats,
-  FundMilestone,
-  FundDisbursement,
-  FundAllocationRow,
-} from '@/app/actions/funds'
-
-interface Person {
-  id: string
-  first_name: string
-  last_name: string
-  nick_name?: string | null
-  date_of_birth?: string | null
-}
+import type { DuesSchedule } from '@/app/actions/dues'
+import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
 
 type IconComponent = React.ComponentType<{ className?: string }>
 
 /**
- * The rail, grouped by what an admin is trying to DO rather than by which table
- * the data lives in. That is why the two "record" forms sit together under Manual
- * Recording even though separate components own them, and why Milestones is a peer
- * of Dues and Funds rather than buried inside Funds.
+ * The rail, grouped by what an admin is trying to DO rather than by which table the
+ * data lives in.
+ *
+ * Everything here is CONFIGURATION: what members owe, what they can give to, the pots
+ * money lands in, how it splits, what an award is worth, how payments are processed.
+ * An admin visits when something changes, which is rarely.
+ *
+ * The ledgers used to live here too, under a Transactions group. They are the day's
+ * work rather than administration, so they moved to /transactions in the main nav
+ * along with the three forms that append to them — which also took them out from
+ * behind the `admin/account` permission, where a treasurer who only records money had
+ * no business needing full Accounting rights.
  */
 const SECTION_GROUPS: {
   label: string
@@ -56,39 +45,28 @@ const SECTION_GROUPS: {
 }[] = [
   {
     // "Income", not "Dues": the group holds both what members owe and what they
-    // choose to give, and both land in the same payment history underneath it.
+    // choose to give.
     label: 'Income',
     icon: Receipt,
     items: [
       { id: 'dues', icon: CalendarClock },
       { id: 'donations', icon: HeartHandshake },
-      { id: 'payments', icon: History },
     ],
   },
   {
-    // "Expenses": the group is where money leaves — the funds it leaves from, the
-    // share of income that tops them up, and the record of what went out.
+    // "Expenses": where money leaves from — the funds themselves, and the share of
+    // income that tops them up.
     label: 'Expenses',
     icon: Landmark,
     items: [
       { id: 'funds', icon: PiggyBank },
       { id: 'routing', icon: Split },
-      { id: 'disbursements', icon: ArrowUpRight },
     ],
   },
   {
     label: 'Milestones',
     icon: Award,
     items: [{ id: 'milestones', icon: Award }],
-  },
-  {
-    label: 'Manual Recording',
-    icon: PenLine,
-    items: [
-      { id: 'record-payment', icon: DollarSign },
-      { id: 'record-disbursement', icon: HandCoins },
-      { id: 'record-contribution', icon: Plus },
-    ],
   },
   {
     label: 'Settings',
@@ -124,12 +102,9 @@ const CREATE_ACTIONS: Partial<Record<AccountSection, string>> = {
 interface Props {
   initialSection: AccountSection
   initialSchedules: DuesSchedule[]
-  initialPayments: DuesPayment[]
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
-  allDisbursements: FundDisbursement[]
   initialAllocations: FundAllocationRow[]
-  members: Person[]
 }
 
 /**
@@ -156,12 +131,9 @@ interface Props {
 export function AdminAccountShell({
   initialSection,
   initialSchedules,
-  initialPayments,
   initialFunds,
   allMilestones,
-  allDisbursements,
   initialAllocations,
-  members,
 }: Props) {
   const [section, setSection] = useState<AccountSection>(initialSection)
 
@@ -169,13 +141,8 @@ export function AdminAccountShell({
   // boolean per form so the rail's single trigger needs no per-section wiring.
   const [creating, setCreating] = useState<AccountSection | null>(null)
 
-  // Handlers that jump sections after an await need the CURRENT section, not the
-  // one captured when the click happened. See AdminIncomeClient's post-save jump.
-  const sectionRef = useRef(section)
-
   function selectSection(next: AccountSection) {
     setSection(next)
-    sectionRef.current = next
     // A dialog belonging to the section being left must not survive the switch.
     setCreating(null)
     // Rebuilt from the live search string rather than assembled from scratch, so a
@@ -279,29 +246,21 @@ export function AdminAccountShell({
             already name the page, and a third copy of the same word was the first
             line of every section. */}
         <div className="min-w-0 space-y-4">
+          {/* `creating` goes down raw rather than as a boolean per dialog: each panel
+              owns several, and it already reads `section` the same way. */}
           <AdminIncomeClient
             section={section}
-            sectionRef={sectionRef}
-            onNavigate={selectSection}
-            // Dues and Donations share one dialog; which rail button was pressed is
-            // the only thing that tells it apart.
-            creatingKind={creating === 'dues' ? 'dues' : creating === 'donations' ? 'donation' : null}
+            creating={creating}
             onCloseCreate={() => setCreating(null)}
             initialSchedules={initialSchedules}
-            initialPayments={initialPayments}
-            members={members}
           />
           <AdminFundsClient
             section={section}
-            creatingFund={creating === 'funds'}
-            onCloseCreateFund={() => setCreating(null)}
-            creatingMilestone={creating === 'milestones'}
-            onCloseCreateMilestone={() => setCreating(null)}
+            creating={creating}
+            onCloseCreate={() => setCreating(null)}
             initialFunds={initialFunds}
             allMilestones={allMilestones}
-            allDisbursements={allDisbursements}
             initialAllocations={initialAllocations}
-            members={members}
           />
           {section === 'processing' && <ProcessingPanel />}
           {section === 'bank' && <BankInfoPanel />}
@@ -363,7 +322,7 @@ function ProcessingPanel() {
       <CreditCard className="h-8 w-8 mx-auto text-muted-foreground" />
       <p className="text-sm font-medium">No payment processor connected</p>
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        Dues and disbursements are recorded by hand today, under Manual Recording.
+        Dues and disbursements are recorded by hand today, from the Transactions ledgers.
         Connecting a processor will let members pay their dues online and have those
         payments post — and route into funds — on their own.
       </p>

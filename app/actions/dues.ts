@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
-import { can } from '@/lib/auth/permissions'
+import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
@@ -283,6 +283,10 @@ export async function createDuesSchedule(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
+  // The insert below goes through the user's client, so RLS would refuse it anyway —
+  // but the check is stated here too, so that swapping in the admin client one day
+  // cannot silently open this up. dues_schedules maps to 'admin/account'.
+  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
 
   // Never taken on trust: an unrecognized kind would be a schedule nobody owes and
   // nobody can donate to, invisible on both pages.
@@ -319,6 +323,8 @@ export async function updateDuesSchedule(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+  // A dues schedule is family-wide configuration — there is no personal copy to own.
+  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // The row's own kind decides which fields are legal, so it is read rather than
@@ -356,7 +362,9 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   // Family-scoped for the same reason as the update above: the service-role client
-  // does not apply RLS, so the id alone must not be enough.
+  // does not apply RLS, so the id alone must not be enough. Deleting a schedule takes
+  // every member's obligation with it, so it needs the unrestricted grant.
+  if (!(await canAny(user.id, 'admin/account', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
   const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }

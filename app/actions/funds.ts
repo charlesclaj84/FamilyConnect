@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { can } from '@/lib/auth/permissions'
+import { canAny } from '@/lib/auth/permissions'
 import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
@@ -49,6 +49,31 @@ export interface FundDisbursement {
   disbursed_date: string
   /** Check number or transfer confirmation the money went out on. */
   payment_reference: string | null
+  notes: string | null
+  created_at: string
+}
+
+/**
+ * One row of the contributions ledger — money INTO a fund, however it got there.
+ *
+ * `source` is what separates the two ways that happens: 'dues_routing' rows are
+ * created automatically when a paid dues or donation payment is split across funds,
+ * while 'admin_manual' and 'member_contribution' rows are money someone handed over
+ * and someone recorded. Only the latter have a giver, a method or a reference — a
+ * routed row's payer is reachable through `dues_payment_id` instead, which is why it
+ * is not duplicated onto the row.
+ */
+export interface FundContribution {
+  id: string
+  fund_id: string
+  fund_name: string | null
+  amount_cents: number
+  source: string
+  /** Who gave it: a member's name, or the free-text source for a non-member. */
+  contributor_name: string | null
+  payment_method: string | null
+  payment_reference: string | null
+  contributed_date: string
   notes: string | null
   created_at: string
 }
@@ -142,6 +167,45 @@ export async function getAllDisbursements(): Promise<FundDisbursement[]> {
   }))
 }
 
+/**
+ * The contributions ledger, newest first.
+ *
+ * Read through the user's client, not the admin one, so RLS does the family scoping
+ * and the permission model decides who may see it — this is a page, not a background
+ * job, and 'family-finances' is exactly the right gate.
+ *
+ * The people embed MUST be disambiguated to contributor_person_id: fund_contributions
+ * has TWO foreign keys to people (the giver and whoever recorded it), and an
+ * ambiguous embed makes PostgREST error out into a silently empty list. The same trap
+ * is documented on dues_payments in getFamilyPnL.
+ */
+export async function getFundContributions(): Promise<FundContribution[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('fund_contributions')
+    .select('*, funds(name), people!contributor_person_id(first_name, last_name)')
+    .order('contributed_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  return (data ?? []).map(c => {
+    const person = c.people as { first_name: string; last_name: string } | null
+    return {
+      id: c.id,
+      fund_id: c.fund_id,
+      fund_name: (c.funds as { name: string } | null)?.name ?? null,
+      amount_cents: c.amount_cents,
+      source: c.source,
+      // A member giver wins over the free-text one; a routed row has neither.
+      contributor_name: person ? `${person.first_name} ${person.last_name}` : (c.contributor_name ?? null),
+      payment_method: c.payment_method ?? null,
+      payment_reference: c.payment_reference ?? null,
+      contributed_date: c.contributed_date,
+      notes: c.notes,
+      created_at: c.created_at,
+    }
+  })
+}
+
 export async function getDisbursementsForFund(fundId: string): Promise<FundDisbursement[]> {
   const supabase = await createClient()
   const { data } = await supabase
@@ -184,6 +248,10 @@ export async function createFund(input: {
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
+  // A fund is family-wide configuration with no personal copy, so scope 'own' is not
+  // a grant that means anything here — see canAny. Checked in the action because a
+  // server action is reachable directly, whatever gates the page that renders it.
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   // New funds go to the end of the priority order (lowest precedence).
@@ -212,8 +280,14 @@ export async function updateFund(
   id: string,
   input: { name?: string; description?: string; goal_cents?: number | null; active?: boolean; priority?: number; open_contributions?: boolean }
 ): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('funds').update(input).eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  const { error } = await admin.from('funds').update(input).eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
@@ -221,8 +295,16 @@ export async function updateFund(
 }
 
 export async function deleteFund(id: string): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('funds').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  // Family-scoped: this deletes a balance and every milestone hanging off it, and the
+  // service-role client would otherwise let an id alone reach another family.
+  const { error } = await admin.from('funds').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
@@ -244,6 +326,13 @@ export async function createMilestone(
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+
+  // The fund must be this family's — the insert below bypasses RLS.
+  const { data: fund } = await admin
+    .from('funds').select('id').eq('id', fundId).eq('family_code', familyCode).maybeSingle()
+  if (!fund) return { success: false, message: 'Fund not found' }
+
   const { data, error } = await admin.from('fund_milestones').insert({
     fund_id: fundId,
     family_code: familyCode,
@@ -262,16 +351,28 @@ export async function updateMilestone(
   id: string,
   input: { name?: string; description?: string; amount_cents?: number; sort_order?: number }
 ): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('fund_milestones').update(input).eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  const { error } = await admin.from('fund_milestones').update(input).eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
   return { success: true }
 }
 
 export async function deleteMilestone(id: string): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('fund_milestones').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  const { error } = await admin.from('fund_milestones').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
   return { success: true }
@@ -296,7 +397,24 @@ export async function recordDisbursement(input: {
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
+  // Paying money out is an edit of the family's finances, and this action is now
+  // reachable from a member-facing page — so it checks the permission itself rather
+  // than inheriting one from whichever page happened to render the form.
+  //
+  // canAny, not can: the row a member would "own" here is a disbursement paying money
+  // to THEMSELVES, so honouring scope 'own' would authorize precisely the payout a
+  // restricted grant exists to prevent.
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
+
+  // Fund and recipient are re-scoped to this family: the insert below runs on the
+  // service-role client, which bypasses RLS, so ids alone must not be enough.
+  const [{ data: fund }, { data: recipient }] = await Promise.all([
+    admin.from('funds').select('id').eq('id', input.fund_id).eq('family_code', familyCode).maybeSingle(),
+    admin.from('people').select('id').eq('id', input.person_id).eq('family_code', familyCode).maybeSingle(),
+  ])
+  if (!fund) return { success: false, message: 'Fund not found' }
+  if (!recipient) return { success: false, message: 'Recipient not found in this family' }
 
   const { error } = await admin.from('fund_disbursements').insert({
     fund_id: input.fund_id,
@@ -313,15 +431,27 @@ export async function recordDisbursement(input: {
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
+  revalidatePath('/transactions')
+  revalidatePath('/family-finances')
   return { success: true }
 }
 
 export async function deleteDisbursement(id: string): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('fund_disbursements').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  // Same reasoning as recordDisbursement, canAny included: deleting your own payout is
+  // how you would cover up having recorded it.
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  const { error } = await admin.from('fund_disbursements').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
+  revalidatePath('/transactions')
+  revalidatePath('/family-finances')
   return { success: true }
 }
 
@@ -355,7 +485,7 @@ export async function saveFundAllocations(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await can(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
   // Allocations must total exactly 100% (or all zero to disable routing).
@@ -364,12 +494,23 @@ export async function saveFundAllocations(
     return { success: false, message: `Allocations must total 100% (currently ${(totalBps / 100).toFixed(2)}%)` }
   }
 
+  // Every fund_id is checked against this family BEFORE anything is written. The
+  // writes below go through the service-role client, so without this a caller could
+  // reorder another family's funds by id, and the upsert would stamp this family's
+  // code onto an allocation row pointing at a foreign fund.
+  const { data: ownFunds } = await admin.from('funds').select('id').eq('family_code', familyCode)
+  const ownIds = new Set((ownFunds ?? []).map(f => f.id as string))
+  if (rows.some(r => !ownIds.has(r.fund_id))) {
+    return { success: false, message: 'Fund not found' }
+  }
+
   // Persist priority/minimum onto the funds themselves.
   for (const r of rows) {
     const { error } = await admin
       .from('funds')
       .update({ priority: Math.round(r.priority), minimum_cents: Math.round(r.minimum_cents) })
       .eq('id', r.fund_id)
+      .eq('family_code', familyCode)
     if (error) return { success: false, message: error.message }
   }
 
@@ -414,7 +555,7 @@ export async function recordFundContribution(input: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await can(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
   const contributorName = input.contributor_name?.trim() || null
@@ -452,6 +593,7 @@ export async function recordFundContribution(input: {
   })
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
+  revalidatePath('/transactions')
   revalidatePath('/family-finances')
   return { success: true }
 }

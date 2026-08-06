@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireEdit, requireDelete } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
 
@@ -256,8 +257,15 @@ export async function updateElectionStatus(
   id: string,
   status: Election['status']
 ): Promise<{ success: boolean; message?: string }> {
+  // Opening and closing a ballot is a family-wide act, so it needs the unrestricted
+  // grant — and the family filter below, because the service-role client applies no
+  // RLS and an id alone would otherwise reach another family's election.
+  const g = await requireEdit('elections')
+  if (!g.ok) return { success: false, message: g.message }
+
   const admin = createAdminClient()
-  const { error } = await admin.from('elections').update({ status }).eq('id', id)
+  const { error } = await admin
+    .from('elections').update({ status }).eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/elections')
   revalidatePath('/admin/elections')
@@ -265,8 +273,14 @@ export async function updateElectionStatus(
 }
 
 export async function deleteElection(id: string): Promise<{ success: boolean; message?: string }> {
+  // Deleting takes every nomination and vote with it, so it is gated on the delete
+  // grant rather than edit.
+  const g = await requireDelete('elections')
+  if (!g.ok) return { success: false, message: g.message }
+
   const admin = createAdminClient()
-  const { error } = await admin.from('elections').delete().eq('id', id)
+  const { error } = await admin
+    .from('elections').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/elections')
   revalidatePath('/admin/elections')

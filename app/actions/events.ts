@@ -271,7 +271,22 @@ export async function submitRsvp(
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
-  const anyAttending = personStatuses.some(p => p.is_attending)
+  const familyCode = await getMyFamilyCode(user.id)
+
+  // Self-service — any member may RSVP — but only to their OWN family's event, and
+  // only for people in it. Both ids arrive from the client, and the writes below use
+  // the service-role client, so neither is taken on trust.
+  const { data: event } = await admin
+    .from('events').select('id').eq('id', eventId).eq('family_code', familyCode).maybeSingle()
+  if (!event) return { success: false, error: 'Event not found' }
+
+  const { data: familyPeople } = await admin
+    .from('people').select('id').eq('family_code', familyCode)
+    .in('id', personStatuses.map(p => p.person_id))
+  const allowed = new Set((familyPeople ?? []).map(p => p.id as string))
+  const statuses = personStatuses.filter(p => allowed.has(p.person_id))
+
+  const anyAttending = statuses.some(p => p.is_attending)
 
   // Upsert RSVP row (is_attending = true if any person is attending)
   const { data: rsvp, error: rsvpError } = await admin
@@ -286,10 +301,10 @@ export async function submitRsvp(
   // Replace all per-person attendee rows
   await admin.from('event_rsvp_attendees').delete().eq('rsvp_id', rsvp.id)
 
-  if (personStatuses.length) {
+  if (statuses.length) {
     const { error: attendeeError } = await admin
       .from('event_rsvp_attendees')
-      .insert(personStatuses.map(p => ({ rsvp_id: rsvp.id, person_id: p.person_id, is_attending: p.is_attending })))
+      .insert(statuses.map(p => ({ rsvp_id: rsvp.id, person_id: p.person_id, is_attending: p.is_attending })))
 
     if (attendeeError) return { success: false, error: attendeeError.message }
   }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface EventPhoto {
@@ -83,15 +84,29 @@ export async function uploadEventPhoto(
   return { success: true }
 }
 
+/**
+ * `filePath` is accepted for call-site compatibility and deliberately IGNORED — see
+ * deleteDocument for why taking a storage path from the caller was the bug.
+ */
 export async function deleteEventPhoto(
   id: string,
-  filePath: string,
+  filePath: string | undefined,
   eventId: string
 ): Promise<{ success: boolean; message?: string }> {
+  void filePath
   const admin = createAdminClient()
-  await admin.storage.from('event-photos').remove([filePath])
-  const { error } = await admin.from('event_photos').delete().eq('id', id)
+
+  const { data: row } = await admin
+    .from('event_photos').select('file_path, uploader_id, family_code').eq('id', id).maybeSingle()
+  if (!row) return { success: false, message: 'Photo not found' }
+
+  const g = await requireOwn('photos', 'delete', row.uploader_id)
+  if (!g.ok) return { success: false, message: g.message }
+  if (row.family_code !== g.familyCode) return { success: false, message: 'Photo not found' }
+
+  const { error } = await admin.from('event_photos').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
+  await admin.storage.from('event-photos').remove([row.file_path])
   revalidatePath(`/events/${eventId}`)
   return { success: true }
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface DocumentRecord {
@@ -103,11 +104,32 @@ export async function uploadDocument(
   return { success: true }
 }
 
-export async function deleteDocument(id: string, filePath: string): Promise<{ success: boolean; message?: string }> {
+/**
+ * `filePath` is accepted for call-site compatibility and deliberately IGNORED.
+ *
+ * It used to be passed straight to storage.remove(), which — with no auth on this
+ * action — was an arbitrary-file-delete: any signed-in caller could name any path in
+ * the documents bucket and it would go. The path now comes from the row, and the row
+ * is found family-scoped.
+ */
+export async function deleteDocument(id: string, filePath?: string): Promise<{ success: boolean; message?: string }> {
+  void filePath
   const admin = createAdminClient()
-  await admin.storage.from('documents').remove([filePath])
-  const { error } = await admin.from('documents').delete().eq('id', id)
+
+  const { data: row } = await admin
+    .from('documents').select('file_path, uploaded_by, family_code').eq('id', id).maybeSingle()
+  if (!row) return { success: false, message: 'Document not found' }
+
+  // An uploader may delete their own document; deleting someone else's needs 'any'.
+  const g = await requireOwn('documents', 'delete', row.uploaded_by)
+  if (!g.ok) return { success: false, message: g.message }
+  if (row.family_code !== g.familyCode) return { success: false, message: 'Document not found' }
+
+  const { error } = await admin.from('documents').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
+  // Storage after the row: a failed delete then leaves a reachable file rather than
+  // a row pointing at nothing.
+  await admin.storage.from('documents').remove([row.file_path])
   revalidatePath('/documents')
   revalidatePath('/admin/documents')
   return { success: true }

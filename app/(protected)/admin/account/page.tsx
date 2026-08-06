@@ -3,13 +3,20 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
-import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
-import { getFunds, getAllDisbursements, getFundAllocations } from '@/app/actions/funds'
+import { getDuesSchedules } from '@/app/actions/dues'
+import { getFunds, getFundAllocations } from '@/app/actions/funds'
 import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
 import { resolveSection } from '@/components/admin/account-sections'
 
 export const metadata = { title: 'Accounting — Admin — Family Connect' }
 
+/**
+ * Accounting CONFIGURATION: dues, donations, funds, routing, milestones, settings.
+ *
+ * The ledgers and the forms that write to them used to load here too — that is why
+ * this page once fetched payments, disbursements, contributions and the member list.
+ * They live on /transactions now, so none of it is read twice.
+ */
 export default async function AdminAccountPage({
   searchParams,
 }: {
@@ -29,35 +36,13 @@ export default async function AdminAccountPage({
   // this free of hydration mismatch. searchParams is a Promise in Next 16.
   const initialSection = resolveSection((await searchParams).section)
 
-  const [schedules, payments, fundsData, allDisbursements, allocations, membersResult] = await Promise.all([
+  const [schedules, fundsData, allocations, milestonesResult] = await Promise.all([
     getDuesSchedules(),
-    getAllDuesPayments(),
     getFunds(),
-    getAllDisbursements(),
     getFundAllocations(),
-    admin
-      .from('people')
-      .select('id, first_name, last_name, nick_name, date_of_birth')
-      .eq('family_code', familyCode)
-      .eq('is_minor', false)
-      .not('user_id', 'is', null)
-      .order('last_name'),
+    // Family-scoped explicitly: the service-role client does not apply RLS.
+    admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order'),
   ])
-
-  const members = (membersResult.data ?? []).map(m => ({
-    id: m.id,
-    first_name: m.first_name,
-    last_name: m.last_name,
-    nick_name: m.nick_name ?? null,
-    date_of_birth: m.date_of_birth ?? null,
-  }))
-
-  // Collect all milestones for all funds in one go
-  const fundIds = fundsData.map(f => f.id)
-  const milestonesResult = fundIds.length
-    ? await admin.from('fund_milestones').select('*').in('fund_id', fundIds).order('sort_order')
-    : { data: [] }
-  const allMilestones = milestonesResult.data ?? []
 
   // Widened only at xl, where the rail appears: every narrower width keeps the
   // measure the rest of the admin pages use.
@@ -68,12 +53,9 @@ export default async function AdminAccountPage({
       <AdminAccountShell
         initialSection={initialSection}
         initialSchedules={schedules}
-        initialPayments={payments}
         initialFunds={fundsData}
-        allMilestones={allMilestones}
-        allDisbursements={allDisbursements}
+        allMilestones={milestonesResult.data ?? []}
         initialAllocations={allocations}
-        members={members}
       />
     </div>
   )

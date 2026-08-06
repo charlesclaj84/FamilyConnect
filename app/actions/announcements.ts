@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireEdit, requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface Announcement {
@@ -205,7 +206,19 @@ export async function deleteAnnouncement(
   id: string
 ): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
-  const { error } = await admin.from('announcements').delete().eq('id', id)
+
+  // The row is read first, family-scoped, so the ownership decision is made against
+  // what the database holds rather than anything the caller sent. An author may
+  // delete their own announcement (scope 'own'); deleting someone else's needs 'any'.
+  const { data: row } = await admin
+    .from('announcements').select('author_id, family_code').eq('id', id).maybeSingle()
+  if (!row) return { success: false, message: 'Announcement not found' }
+
+  const g = await requireOwn('announcements', 'delete', row.author_id)
+  if (!g.ok) return { success: false, message: g.message }
+  if (row.family_code !== g.familyCode) return { success: false, message: 'Announcement not found' }
+
+  const { error } = await admin.from('announcements').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/announcements')
   revalidatePath('/dashboard')
@@ -217,8 +230,14 @@ export async function togglePinAnnouncement(
   id: string,
   pinned: boolean
 ): Promise<{ success: boolean; message?: string }> {
+  // Not an ownership call like delete: pinning puts an announcement on every
+  // member's dashboard, so it takes the unrestricted grant even over your own.
+  const g = await requireEdit('announcements')
+  if (!g.ok) return { success: false, message: g.message }
+
   const admin = createAdminClient()
-  const { error } = await admin.from('announcements').update({ pinned }).eq('id', id)
+  const { error } = await admin
+    .from('announcements').update({ pinned }).eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/announcements')
   revalidatePath('/dashboard')

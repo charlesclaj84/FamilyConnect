@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface PhotoCollection {
@@ -294,13 +295,23 @@ export async function deleteCollection(id: string): Promise<{ success: boolean; 
   const supabase = await createClient()
   const admin = createAdminClient()
 
+  const { data: row } = await admin
+    .from('photo_collections').select('created_by, family_code').eq('id', id).maybeSingle()
+  if (!row) return { success: false, message: 'Collection not found' }
+
+  // Deleting a collection cascades to every photo in it, so the creator may remove
+  // their own and anyone else needs the unrestricted delete grant.
+  const g = await requireOwn('photos', 'delete', row.created_by)
+  if (!g.ok) return { success: false, message: g.message }
+  if (row.family_code !== g.familyCode) return { success: false, message: 'Collection not found' }
+
   // Get all photo paths before cascading delete
   const { data: photosInCollection } = await supabase
     .from('photos')
     .select('file_path')
     .eq('collection_id', id)
 
-  const { error } = await admin.from('photo_collections').delete().eq('id', id)
+  const { error } = await admin.from('photo_collections').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
 
   if ((photosInCollection ?? []).length > 0) {

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Trash2, Pencil, X, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -10,37 +9,27 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { cn } from '@/lib/utils'
-import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
-import { PAYMENT_METHODS } from '@/lib/payment-methods'
-import { SCHEDULE_KINDS, type ScheduleKind } from '@/lib/dues-utils'
+import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 import {
-  createDuesSchedule, updateDuesSchedule, recordPayment, deleteDuesSchedule,
-  type DuesSchedule, type DuesPayment,
+  createDuesSchedule, updateDuesSchedule, deleteDuesSchedule,
+  type DuesSchedule,
 } from '@/app/actions/dues'
 import { isIncomeSection, type AccountSection } from '@/components/admin/account-sections'
-
-interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 
 interface Props {
   /** Which section the shell is showing. This component renders only its own. */
   section: AccountSection
-  /** The live section, for handlers that jump after an await. See handleRecordPayment. */
-  sectionRef: React.RefObject<AccountSection>
-  onNavigate: (next: AccountSection) => void
   /**
-   * Which kind of schedule the create dialog is open for, or null for closed. One
-   * prop rather than two booleans because there is one form: the Dues and Donations
-   * pages differ in the wording around it and in the `kind` it writes, nothing else.
-   * Owned by the shell, which renders both triggers in the sub-nav.
+   * Which section's create dialog the shell has open, or null for none. Passed raw
+   * rather than as a boolean per dialog: this panel owns two of them (new dues, new
+   * donation) and already reads `section` the same way.
    */
-  creatingKind: ScheduleKind | null
+  creating: AccountSection | null
   onCloseCreate: () => void
   initialSchedules: DuesSchedule[]
-  initialPayments: DuesPayment[]
-  members: Person[]
 }
 
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
@@ -77,17 +66,18 @@ const KIND_COPY: Record<ScheduleKind, {
 }
 
 export function AdminIncomeClient({
-  section, sectionRef, onNavigate, creatingKind, onCloseCreate,
-  initialSchedules, initialPayments, members,
+  section, creating, onCloseCreate, initialSchedules,
 }: Props) {
-  const router = useRouter()
+  // Dues and Donations share one schedule form; which rail button was pressed is the
+  // only thing that tells them apart.
+  const creatingKind: ScheduleKind | null =
+    creating === 'dues' ? 'dues' : creating === 'donations' ? 'donation' : null
   const confirm = useConfirm()
   // `useServerState`, not `useState`: the shell keeps this panel mounted across
   // section switches, so a plain initializer would be read exactly once per visit and
   // every later server render ignored — which is why a freshly added schedule used to
   // show up only after leaving the page.
   const [schedules, setSchedules] = useServerState(initialSchedules)
-  const [payments, setPayments] = useServerState(initialPayments)
   // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
   // below stays identical to the tab-strip version.
   const tab: AccountSection = section
@@ -119,15 +109,6 @@ export function AdminIncomeClient({
   const [editEndDate, setEditEndDate] = useState('')
   const [editDescription, setEditDescription] = useState('')
 
-  // ── Record payment form ──
-  const [rpPersonId, setRpPersonId] = useState('')
-  const [rpScheduleId, setRpScheduleId] = useState('')
-  const [rpAmount, setRpAmount] = useState('')
-  const [rpDate, setRpDate] = useState(new Date().toISOString().split('T')[0])
-  const [rpMethod, setRpMethod] = useState('')
-  const [rpStatus, setRpStatus] = useState<'paid' | 'pending' | 'waived'>('paid')
-  const [rpNotes, setRpNotes] = useState('')
-
   // The deleted tab strip cleared `error` on every tab click; this preserves that.
   // Adjusted during render rather than in an effect on purpose — an effect runs
   // after paint, which would flash a Record Payment validation message inside the
@@ -139,11 +120,11 @@ export function AdminIncomeClient({
     setError('')
   }
 
-  // Same trick for the dialog: its trigger belongs to the shell, so this component
-  // never sees the click that opens it and cannot clear a stale message there.
-  const [prevCreating, setPrevCreating] = useState(creatingKind)
-  if (prevCreating !== creatingKind) {
-    setPrevCreating(creatingKind)
+  // Same trick for the dialogs: their triggers belong to the shell, so this component
+  // never sees the click that opens one and cannot clear a stale message there.
+  const [prevCreating, setPrevCreating] = useState(creating)
+  if (prevCreating !== creating) {
+    setPrevCreating(creating)
     setError('')
   }
 
@@ -266,52 +247,6 @@ export function AdminIncomeClient({
     })
     if (!ok) return
     startTransition(async () => { await deleteDuesSchedule(id); setSchedules(prev => prev.filter(s => s.id !== id)) })
-  }
-
-  function handleRecordPayment() {
-    // Schedule is required: an unattached payment never reaches a member's dues
-    // summary (getMyDuesSummary buckets by schedule_id), so it would look recorded
-    // to the admin and missing to the member.
-    if (!rpPersonId || !rpScheduleId || !rpAmount) { setError('Member, schedule and amount required'); return }
-    setError('')
-    startTransition(async () => {
-      const result = await recordPayment({
-        person_id: rpPersonId,
-        schedule_id: rpScheduleId,
-        amount_cents: Math.round(parseFloat(rpAmount) * 100),
-        status: rpStatus,
-        payment_date: rpDate,
-        payment_method: rpMethod || null,
-        notes: rpNotes || null,
-      })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
-      // Optimistically add to the payment history list.
-      const cents = Math.round(parseFloat(rpAmount) * 100)
-      const member = members.find(m => m.id === rpPersonId)
-      const schedule = schedules.find(s => s.id === rpScheduleId)
-      setPayments(prev => [{
-        id: `temp-${Date.now()}`,
-        person_id: rpPersonId,
-        person_name: member ? `${member.first_name} ${member.last_name}` : null,
-        schedule_id: rpScheduleId,
-        schedule_label: schedule?.label ?? null,
-        schedule_kind: schedule?.kind ?? null,
-        amount_cents: cents,
-        status: rpStatus,
-        payment_date: rpDate,
-        payment_method: rpMethod || null,
-        notes: rpNotes || null,
-        created_at: new Date().toISOString(),
-      }, ...prev])
-      setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpNotes('')
-      // Jump to the history so the new row is visible — but only if the admin is
-      // still somewhere in Income. The save is awaited, so by now they may have moved
-      // to Funds or Settings, and yanking the whole page there would be new
-      // behavior the two independent tab strips could not produce.
-      if (isIncomeSection(sectionRef.current)) onNavigate('payments')
-      // Refresh server data so fund balances (routed payments) update too.
-      router.refresh()
-    })
   }
 
   if (!isIncomeSection(section)) return null
@@ -485,107 +420,6 @@ export function AdminIncomeClient({
         </div>
       )}
 
-      {tab === 'payments' && (
-        <div>
-          {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
-          ) : (
-            <ul className="divide-y rounded-xl border overflow-hidden">
-              {payments.map(p => (
-                <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{p.person_name ?? 'Unknown'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.schedule_label ?? 'No schedule'}
-                      {/* One ledger for both kinds, so each row says which it was. */}
-                      {p.schedule_kind && ` (${p.schedule_kind === 'donation' ? 'Donation' : 'Dues'})`}
-                      {' · '}{formatDate(p.payment_date)}
-                      {p.payment_method && ` · ${p.payment_method}`}
-                    </p>
-                  </div>
-                  <span className={`text-sm font-medium ${p.status === 'paid' ? 'text-green-600' : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600'}`}>
-                    {p.status === 'waived' ? 'Waived' : formatDollars(p.amount_cents)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {tab === 'record-payment' && (
-        <div className="rounded-xl border bg-card p-4 space-y-4 max-w-md">
-          <div className="space-y-1.5">
-            <Label>Member <span className="text-destructive">*</span></Label>
-            <Select value={rpPersonId} onChange={e => setRpPersonId(e.target.value)}>
-              <option value="">— Select member —</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>
-                  {disambiguatedName(m, members)}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Schedule <span className="text-destructive">*</span></Label>
-            {/* Grouped, not merged: the two kinds are indistinguishable by label
-                alone, and posting a member's dues against a donation (or the other
-                way round) is invisible afterwards. */}
-            <Select value={rpScheduleId} onChange={e => setRpScheduleId(e.target.value)}>
-              <option value="">— Select schedule —</option>
-              {SCHEDULE_KINDS.map(k => {
-                const forKind = schedules.filter(s => s.kind === k)
-                if (forKind.length === 0) return null
-                return (
-                  <optgroup key={k} label={k === 'dues' ? 'Dues' : 'Donations'}>
-                    {forKind.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  </optgroup>
-                )
-              })}
-            </Select>
-            {schedules.length === 0 && (
-              <p className="text-xs text-muted-foreground">Add a dues schedule or a donation first — a payment has to post against one.</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Amount ($) <span className="text-destructive">*</span></Label>
-              <Input type="number" min="0" step="0.01" value={rpAmount} onChange={e => setRpAmount(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={rpStatus} onChange={e => setRpStatus(e.target.value as typeof rpStatus)}>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="waived">Waived</option>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <Input type="date" value={rpDate} onChange={e => setRpDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Payment Method</Label>
-              {/* Same fixed list as a fund contribution's. Still optional — a waived
-                  payment never had a method. */}
-              <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
-                <option value="">— Select method —</option>
-                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Notes</Label>
-            <Input value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder="Optional notes" />
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button size="sm" onClick={handleRecordPayment} disabled={isPending}>
-            {isPending ? 'Recording…' : 'Record Payment'}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

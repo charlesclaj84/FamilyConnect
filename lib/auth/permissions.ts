@@ -188,6 +188,30 @@ export async function can(
 }
 
 /**
+ * True ONLY for the unrestricted scope.
+ *
+ * `can()` answers "may they touch this at all", which is true for scope 'own' — and
+ * for most records that is right, because RLS or the action then narrows the write to
+ * rows they own. But some records have no coherent "own" version, and treating 'own'
+ * as permission there inverts the intent of the grant:
+ *
+ *   * A fund, a milestone, a dues schedule, a routing table — family-wide
+ *     configuration. There is no personal copy to own.
+ *   * A disbursement. The row a member would "own" is one paying money to
+ *     themselves, so honouring 'own' would let a restricted grant authorize exactly
+ *     the payout it was meant to prevent.
+ *
+ * Use this for those. Use `can()` or `canOn()` where 'own' genuinely means something.
+ */
+export async function canAny(
+  userId: string,
+  resource: string,
+  action: PermissionAction,
+): Promise<boolean> {
+  return (await scopeFor(userId, resource, action)) === 'any'
+}
+
+/**
  * Row-level check honouring own-vs-any. `ownerPersonId` is the people.id that
  * owns the record (author_id, recorded_by, person_id, …).
  */

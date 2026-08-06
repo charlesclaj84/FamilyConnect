@@ -9,32 +9,32 @@
  *
  * Two axes are tracked separately on purpose, because they do NOT line up:
  *
- *   * OWNERSHIP  — which client component renders a section. `record-payment` is
- *     rendered by AdminIncomeClient (it needs that component's form state and its
- *     recordPayment handler), and the *_SECTIONS tuples below drive the guards
+ *   * OWNERSHIP  — which client component renders a section. `milestones` is
+ *     rendered by AdminFundsClient (it needs that component's fund list, since a
+ *     milestone is paid out of one), and the *_SECTIONS tuples below drive the guards
  *     each component uses to decide whether to render at all.
  *
- *   * PRESENTATION — how the nav groups sections for the reader. `record-payment`
- *     files under "Manual Recording" next to `record-disbursement`, which a
- *     different component owns. That axis lives entirely in SECTION_GROUPS in the
- *     shell, deliberately kept out of here so grouping has exactly one home.
+ *   * PRESENTATION — how the nav groups sections for the reader. `milestones` is its
+ *     own top-level group rather than a page inside Expenses, because an admin
+ *     setting up what a graduation is worth is not thinking about fund plumbing.
+ *     That axis lives entirely in SECTION_GROUPS in the shell, deliberately kept out
+ *     of here so grouping has exactly one home.
  *
  * Conflating the two is what makes tab-style layouts calcify around whichever
  * component happens to hold the state.
+ *
+ * WHAT IS NOT HERE: the ledgers. Payments, contributions and disbursements — and the
+ * three forms that append to them — are not administration, they are the day's work,
+ * and they live on /transactions in the main nav. What is left is configuration: what
+ * members owe, what they can give to, the pots money lands in, how it splits, and
+ * what a milestone is worth.
  */
 
 /** Sections rendered by AdminIncomeClient. */
-export const INCOME_SECTIONS = ['dues', 'donations', 'payments', 'record-payment'] as const
+export const INCOME_SECTIONS = ['dues', 'donations'] as const
 
 /** Sections rendered by AdminFundsClient. */
-export const FUNDS_SECTIONS = [
-  'funds',
-  'routing',
-  'milestones',
-  'disbursements',
-  'record-disbursement',
-  'record-contribution',
-] as const
+export const FUNDS_SECTIONS = ['funds', 'routing', 'milestones'] as const
 
 /** Sections rendered by the shell itself. Both are inert placeholders for now. */
 export const SETTINGS_SECTIONS = ['processing', 'bank'] as const
@@ -59,20 +59,16 @@ export const DEFAULT_SECTION: AccountSection = 'dues'
  * tell the reader nothing about where they actually are. Every page name below is
  * therefore distinct from its group: `funds` is "Funds" under "Expenses", `dues` and
  * `donations` sit under "Income".
+ *
+ * The three under Transactions dropped their "History" suffix: the group says what
+ * they are, and "Payment History" under "Transactions" said history twice.
  */
 export const SECTION_LABELS: Record<AccountSection, string> = {
   dues: 'Dues',
   donations: 'Donations',
-  payments: 'Payment History',
   funds: 'Funds',
   routing: 'Routing',
-  disbursements: 'Disbursements History',
   milestones: 'Milestones',
-  // Names both kinds: the one form records a payment against a dues schedule or a
-  // donation, since they are the same table and the same money coming in.
-  'record-payment': 'Dues & Donations',
-  'record-disbursement': 'Fund Disbursement',
-  'record-contribution': 'Fund Contribution',
   processing: 'Processing',
   bank: 'Bank Information',
 }
@@ -80,8 +76,13 @@ export const SECTION_LABELS: Record<AccountSection, string> = {
 /**
  * Forgiving forms for hand-typed and legacy URLs. `schedules` matters most: it was
  * the canonical id for the Dues page until the Income redesign, so it is in every
- * link anyone has shared. The pre-redesign tab ids (`record`) appear in anything
- * bookmarked while the tab strips were live.
+ * link anyone has shared.
+ *
+ * The ledger ids (`payments`, `contributions`, `disbursements`) and the `record-*`
+ * ids are NOT aliased here, deliberately: those pages moved to /transactions, and
+ * silently landing someone on Dues configuration when they asked for the payment
+ * ledger would be worse than the default. matchSection returns null for them, and
+ * resolveSection falls through to Dues — the same as any other unreadable value.
  */
 const SECTION_ALIASES: Record<string, AccountSection> = {
   schedules: 'dues',
@@ -90,9 +91,6 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
   donation: 'donations',
   gift: 'donations',
   gifts: 'donations',
-  payment: 'payments',
-  'payment-history': 'payments',
-  history: 'payments',
   fund: 'funds',
   'all-funds': 'funds',
   balance: 'funds',
@@ -100,15 +98,6 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
   allocation: 'routing',
   allocations: 'routing',
   milestone: 'milestones',
-  disbursement: 'disbursements',
-  'disbursements-history': 'disbursements',
-  // Legacy tab ids: both clients used a bare `record` for their own record form.
-  // Dues wins the ambiguity because it was the first strip on the page.
-  record: 'record-payment',
-  'record-dues': 'record-payment',
-  'record-donation': 'record-payment',
-  contribution: 'record-contribution',
-  contributions: 'record-contribution',
   settings: 'processing',
   processor: 'processing',
   payments_processing: 'processing',

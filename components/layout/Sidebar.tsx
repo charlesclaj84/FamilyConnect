@@ -26,6 +26,7 @@ import {
   Camera,
   ChevronDown,
   KeyRound,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -94,6 +95,7 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
     section: { label: 'Accounting', icon: Wallet },
     items: [
       { href: '/account-summary', label: 'My Summary',        icon: Wallet },
+      { href: '/transactions',    label: 'Transactions',      icon: ArrowRightLeft },
       { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
     ],
   })

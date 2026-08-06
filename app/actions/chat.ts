@@ -228,6 +228,17 @@ export async function deleteDm(
 
   const admin = createAdminClient()
 
+  // The caller must actually be in this room. The second update below reaches rows
+  // belonging to OTHER people, and without this a stranger could post any room id and
+  // revoke reply rights in a conversation they were never part of.
+  const { data: mine } = await admin
+    .from('chat_participants')
+    .select('room_id')
+    .eq('room_id', roomId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!mine) return { success: false, error: 'Conversation not found' }
+
   // Hide the room for the deleter
   await admin
     .from('chat_participants')
@@ -243,6 +254,27 @@ export async function deleteDm(
     .neq('user_id', user.id)
 
   return { success: true }
+}
+
+/**
+ * Keep the user ids that belong to `familyCode`.
+ *
+ * Chat participants are keyed by auth user id, and nothing about an id says which
+ * family it is in — so a crafted call could otherwise pull someone from another
+ * family into a room and show them its messages.
+ */
+async function membersOfFamily(
+  admin: ReturnType<typeof createAdminClient>,
+  familyCode: string,
+  userIds: string[],
+): Promise<string[]> {
+  if (userIds.length === 0) return []
+  const { data } = await admin
+    .from('people')
+    .select('user_id')
+    .eq('family_code', familyCode)
+    .in('user_id', userIds)
+  return (data ?? []).map(p => p.user_id as string).filter(Boolean)
 }
 
 // ── Group room ─────────────────────────────────────────────────────────────────
@@ -269,7 +301,9 @@ export async function createGroupRoom(
 
   if (roomError || !newRoom) return { room: null, error: roomError?.message ?? 'Failed to create group' }
 
-  const uniqueIds = Array.from(new Set([user.id, ...memberUserIds]))
+  // Only people in the caller's family are added, whatever ids were posted.
+  const invited = await membersOfFamily(admin, familyCode, memberUserIds)
+  const uniqueIds = Array.from(new Set([user.id, ...invited]))
   await admin.from('chat_participants').insert(
     uniqueIds.map(uid => ({ room_id: newRoom.id, user_id: uid }))
   )
@@ -297,6 +331,11 @@ export async function addGroupMember(
 
   if (!room) return { success: false, error: 'Group not found' }
   if (room.created_by !== user.id) return { success: false, error: 'Only the group creator can add members' }
+
+  // Being the creator authorizes adding people — but only people from your family.
+  const familyCode = await getMyFamilyCode(user.id)
+  const [allowed] = await membersOfFamily(admin, familyCode, [userId])
+  if (!allowed) return { success: false, error: 'That member is not in your family' }
 
   const { error } = await admin
     .from('chat_participants')

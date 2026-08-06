@@ -59,6 +59,12 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     blurb: 'What you owe, what you have paid, and your full payment history.',
   },
+  {
+    href: '/transactions',
+    label: 'Transactions',
+    status: 'live',
+    blurb: 'Every payment, donation, contribution and disbursement the family has recorded.',
+  },
 
   // ── On the roadmap: personal ────────────────────────────────────────────────
   {

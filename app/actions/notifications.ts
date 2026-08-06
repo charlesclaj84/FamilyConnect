@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyPersonId } from '@/lib/auth/family'
 
 export interface Notification {
@@ -74,57 +73,4 @@ export async function markAllNotificationsRead(): Promise<void> {
     .update({ read_at: new Date().toISOString() })
     .eq('recipient_id', personId)
     .is('read_at', null)
-}
-
-// Internal helper — called from other server actions (uses admin client to bypass RLS for inserts)
-export async function createNotification(opts: {
-  familyCode: string
-  recipientPersonId: string
-  type: string
-  title: string
-  body?: string
-  link?: string
-}): Promise<void> {
-  const admin = createAdminClient()
-  await admin.from('notifications').insert({
-    family_code: opts.familyCode,
-    recipient_id: opts.recipientPersonId,
-    type: opts.type,
-    title: opts.title,
-    body: opts.body ?? null,
-    link: opts.link ?? null,
-  })
-}
-
-// Notify all family members (excluding sender) — used for event publish, announcements, etc.
-export async function notifyAllMembers(opts: {
-  familyCode: string
-  excludePersonId?: string
-  type: string
-  title: string
-  body?: string
-  link?: string
-}): Promise<void> {
-  const admin = createAdminClient()
-
-  const { data: members } = await admin
-    .from('people')
-    .select('id')
-    .eq('family_code', opts.familyCode)
-    .not('user_id', 'is', null)
-
-  if (!members?.length) return
-
-  const rows = members
-    .filter(m => m.id !== opts.excludePersonId)
-    .map(m => ({
-      family_code: opts.familyCode,
-      recipient_id: m.id,
-      type: opts.type,
-      title: opts.title,
-      body: opts.body ?? null,
-      link: opts.link ?? null,
-    }))
-
-  if (rows.length) await admin.from('notifications').insert(rows)
 }
