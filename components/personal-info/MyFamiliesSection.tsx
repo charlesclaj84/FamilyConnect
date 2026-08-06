@@ -77,7 +77,9 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                     </span>
                   )}
                 </p>
-                <p className="mt-0.5 font-mono text-xs text-muted-foreground">{family.familyCode}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Family Code: <span className="font-mono">{family.familyCode}</span>
+                </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">

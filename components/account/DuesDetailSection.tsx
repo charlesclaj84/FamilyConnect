@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, DollarSign, AlertCircle, History, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { CheckCircle2, Clock, DollarSign, CalendarClock, History, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { installmentCents, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
@@ -40,9 +41,11 @@ function SortTh({
 interface Props {
   summary: DuesSummary[]
   history: DuesPayment[]
+  /** Rendered between Upcoming Dues and Payment History. See the call site. */
+  donationsSlot?: React.ReactNode
 }
 
-export function DuesDetailSection({ summary, history }: Props) {
+export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
@@ -106,25 +109,22 @@ export function DuesDetailSection({ summary, history }: Props) {
     })
   }, [history, histSearch, histSort])
 
-  // ── Sorting / filtering (outstanding dues) ──
-  const [duesSearch, setDuesSearch] = useState('')
+  // ── Sorting (outstanding dues) ──
+  // No search box here: a member has a handful of dues, and the column headers already
+  // sort them. Payment History keeps its filter because that list grows without limit.
   const [duesSort, setDuesSort] = useState<{ col: DuesCol; dir: SortDir }>({ col: 'due_date', dir: 'asc' })
   function sortDues(col: DuesCol) {
     setDuesSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
   }
-  const filteredDues = useMemo(() => {
-    const q = duesSearch.toLowerCase()
-    const list = q
-      ? unpaid.filter(s => s.schedule.label.toLowerCase().includes(q) || s.cadence.toLowerCase().includes(q))
-      : [...unpaid]
-    return list.sort((a, b) => {
+  const sortedDues = useMemo(() => {
+    return [...unpaid].sort((a, b) => {
       let cmp = 0
       if (duesSort.col === 'amount') cmp = a.installmentCents - b.installmentCents
       else if (duesSort.col === 'due_date') cmp = (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? '')
       else cmp = a.schedule.label.localeCompare(b.schedule.label)
       return duesSort.dir === 'asc' ? cmp : -cmp
     })
-  }, [unpaid, duesSearch, duesSort])
+  }, [unpaid, duesSort])
 
   return (
     <div className="space-y-5">
@@ -170,29 +170,21 @@ export function DuesDetailSection({ summary, history }: Props) {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* ── Outstanding Dues ── */}
+      {/* ── Upcoming Dues ──
+          Titled for what is coming rather than what is owed: "Outstanding Dues"
+          under a warning icon read as a debt notice, and this card is really the
+          member's payment plan. */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertCircle className="h-4 w-4 text-primary" /> Outstanding Dues
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Choose how you want to pay each due — your installment updates automatically.</p>
-            </div>
-            {unpaid.length > 0 && (
-              <div className="relative w-full sm:w-44">
-                <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input placeholder="Filter..." value={duesSearch} onChange={e => setDuesSearch(e.target.value)} className="pl-7 h-8 text-xs" />
-              </div>
-            )}
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarClock className="h-4 w-4 text-primary" /> Upcoming Dues
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {unpaid.length === 0 ? (
             <div className="flex flex-col items-center py-10 gap-2">
-              <Clock className="h-10 w-10 text-muted-foreground/20" />
-              <p className="text-sm text-muted-foreground">No outstanding dues.</p>
+              <CheckCircle2 className="h-10 w-10 text-muted-foreground/20" />
+              <p className="text-sm text-muted-foreground">You&apos;re all caught up — nothing due right now.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -208,9 +200,7 @@ export function DuesDetailSection({ summary, history }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDues.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center text-xs text-muted-foreground py-6">No matching dues.</td></tr>
-                  ) : filteredDues.map(s => (
+                  {sortedDues.map(s => (
                     <DuesRow
                       key={s.schedule.id}
                       row={s}
@@ -224,6 +214,12 @@ export function DuesDetailSection({ summary, history }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Donations sit between what you owe and what you have paid: closer to the
+          dues they sit alongside than to the ledger. Passed in as a slot because
+          DonationsSection is a server component and this file is a client one — the
+          page renders it and hands the result down. */}
+      {donationsSlot}
 
       {/* ── Payment History ── */}
       <Card>
@@ -269,7 +265,19 @@ export function DuesDetailSection({ summary, history }: Props) {
                   ) : filteredHistory.map(p => (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="py-2.5 pr-3">
-                        <p className="font-medium">{p.schedule_label ?? 'General Payment'}</p>
+                        <p className="flex flex-wrap items-center gap-2 font-medium">
+                          {p.schedule_label ?? 'General Payment'}
+                          {/* Dues and donations land in the same ledger, so each row
+                              says which it was. Both are tagged, not just donations:
+                              identifying dues by the ABSENCE of a tag only works if
+                              you already know the rule. Muted on purpose — the
+                              coloured pill in this row is the payment's status. */}
+                          {p.schedule_kind && (
+                            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {p.schedule_kind === 'donation' ? 'Donation' : 'Dues'}
+                            </span>
+                          )}
+                        </p>
                         {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
                       </td>
                       <td className="py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs">{fmtDate(p.payment_date)}</td>
@@ -306,8 +314,16 @@ function DuesRow({ row, isPending, onCadence }: {
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="py-2.5 pr-3">
-        <p className="font-medium">{row.schedule.label}</p>
-        {row.schedule.description && <p className="text-xs text-muted-foreground">{row.schedule.description}</p>}
+        {/* The description is a tooltip on the title rather than its own line: it is
+            reference text, and a paragraph of it under every row pushed the amounts
+            apart. The dotted underline is the only hint that there is more to read,
+            so it appears exactly when there is. */}
+        <p
+          className={cn('font-medium', row.schedule.description && 'w-fit cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
+          title={row.schedule.description ?? undefined}
+        >
+          {row.schedule.label}
+        </p>
         <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
       </td>
       <td className="py-2.5 pr-3">

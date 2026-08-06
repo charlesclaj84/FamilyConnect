@@ -63,10 +63,7 @@ export default async function AdminAccountPage({
   // measure the rest of the admin pages use.
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8 xl:max-w-6xl">
-      <div>
-        <h1 className="text-3xl font-bold mb-1">Accounting</h1>
-        <p className="text-muted-foreground">Manage dues schedules, record payments, and administer family funds.</p>
-      </div>
+      <h1 className="text-3xl font-bold">Accounting</h1>
 
       <AdminAccountShell
         initialSection={initialSection}

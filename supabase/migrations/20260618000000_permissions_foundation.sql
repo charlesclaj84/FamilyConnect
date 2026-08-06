@@ -66,7 +66,7 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('members',             'Member Directory',       'community',  70),
   ('events',              'Events',                 'events',     80),
   ('event-planning',      'Event Planning',         'events',     90),
-  ('account-summary',     'Account Summary',        'accounting', 100),
+  ('account-summary',     'My Summary',             'accounting', 100),
   ('dues',                'Dues',                   'accounting', 110),
   ('family-finances',     'Family Finances',        'accounting', 120),
   ('photos',              'Photos',                 'resources',  130),

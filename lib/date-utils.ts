@@ -1,4 +1,3 @@
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 function ordinal(n: number): string {
@@ -14,14 +13,17 @@ function ordinal(n: number): string {
 
 /**
  * Format a date — either a date-only string (YYYY-MM-DD) or an ISO timestamp —
- * as "Monday June 12th, 2026". Used site-wide (reports use formatDateNumeric instead).
+ * as "June 12th, 2026". Used site-wide (reports use formatDateNumeric instead).
+ *
+ * No weekday. It used to lead with one ("Monday June 12th, 2026"), which stretched
+ * every date in the app to carry a fact almost none of them needed — a payment date,
+ * a schedule start, a booking deadline are not read by day of the week.
  */
 export function formatDate(date: string | null | undefined): string | null {
   if (!date) return null
   const [y, m, d] = date.slice(0, 10).split('-').map(Number)
   if (!y || !m || !d) return null
-  const dt = new Date(Date.UTC(y, m - 1, d))
-  return `${WEEKDAYS[dt.getUTCDay()]} ${MONTHS[m - 1]} ${d}${ordinal(d)}, ${y}`
+  return `${MONTHS[m - 1]} ${d}${ordinal(d)}, ${y}`
 }
 
 /** Format a date as MM/DD/YYYY — used on reports. */

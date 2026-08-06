@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Plus, Trash2, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
@@ -10,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
+import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createFund, updateFund, deleteFund,
@@ -23,11 +25,20 @@ import { isFundsSection, type AccountSection } from '@/components/admin/account-
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
 
+/** Sentinel for "the giver is not a member" — reveals the free-text name field. */
+const NON_MEMBER = 'non-member'
+
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 
 interface Props {
   /** Which section the shell is showing. This component renders only its own. */
   section: AccountSection
+  /** Create-dialog visibility. Owned by the shell, which renders both triggers in
+   *  the sub-nav; the forms themselves stay here with the data they write. */
+  creatingFund: boolean
+  onCloseCreateFund: () => void
+  creatingMilestone: boolean
+  onCloseCreateMilestone: () => void
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
   allDisbursements: FundDisbursement[]
@@ -35,7 +46,12 @@ interface Props {
   members: Person[]
 }
 
-export function AdminFundsClient({ section, initialFunds, allMilestones, allDisbursements, initialAllocations, members }: Props) {
+export function AdminFundsClient({
+  section,
+  creatingFund, onCloseCreateFund,
+  creatingMilestone, onCloseCreateMilestone,
+  initialFunds, allMilestones, allDisbursements, initialAllocations, members,
+}: Props) {
   const confirm = useConfirm()
   // Section lives in AdminAccountShell now. Aliased to `tab` so every panel guard
   // below stays identical to the tab-strip version.
@@ -50,6 +66,9 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
   const [isPending, startTransition] = useTransition()
 
   // ── New fund form ──
+  // Both "new" forms live in dialogs opened from the sub-nav. Their fields stay on
+  // the component so closing one keeps what was typed, exactly as the inline cards
+  // did; only a successful create clears them.
   const [nfName, setNfName] = useState('')
   const [nfDesc, setNfDesc] = useState('')
   const [nfGoal, setNfGoal] = useState('')
@@ -67,6 +86,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
   const [rdPersonId, setRdPersonId] = useState('')
   const [rdAmount, setRdAmount] = useState('')
   const [rdDate, setRdDate] = useState(new Date().toISOString().split('T')[0])
+  const [rdReference, setRdReference] = useState('')
   const [rdNotes, setRdNotes] = useState('')
 
   // ── Routing config (rows ordered by priority; order = priority) ──
@@ -122,7 +142,13 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
   }
 
   // ── Manual contribution form ──
+  // `fcGiver` is either a person id or NON_MEMBER, in which case fcGiverName holds
+  // the giver as typed.
   const [fcFundId, setFcFundId] = useState('')
+  const [fcGiver, setFcGiver] = useState('')
+  const [fcGiverName, setFcGiverName] = useState('')
+  const [fcMethod, setFcMethod] = useState('')
+  const [fcReference, setFcReference] = useState('')
   const [fcAmount, setFcAmount] = useState('')
   const [fcDate, setFcDate] = useState(new Date().toISOString().split('T')[0])
   const [fcNotes, setFcNotes] = useState('')
@@ -138,23 +164,46 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
     setError('')
   }
 
+  // Same trick for the create dialogs: their triggers belong to the shell, so this
+  // component never sees the click that opens one and cannot clear a stale message
+  // there. One flag for both, since the shell only ever has one open.
+  const creatingAny = creatingFund || creatingMilestone
+  const [prevCreating, setPrevCreating] = useState(creatingAny)
+  if (prevCreating !== creatingAny) {
+    setPrevCreating(creatingAny)
+    setError('')
+  }
+
   function handleRecordContribution() {
     if (!fcFundId || !fcAmount) { setError('Fund and amount required'); return }
+    if (!fcGiver) { setError('Choose who the contribution came from'); return }
+    if (fcGiver === NON_MEMBER && !fcGiverName.trim()) { setError('Name who the contribution came from'); return }
+    if (!fcMethod) { setError('Choose how the contribution was given'); return }
     setError('')
     const cents = dollarsToCents(fcAmount)
     const fundId = fcFundId
+    const isMember = fcGiver !== NON_MEMBER
     startTransition(async () => {
       const res = await recordFundContribution({
         fund_id: fundId,
         amount_cents: cents,
         contributed_date: fcDate,
+        contributor_person_id: isMember ? fcGiver : null,
+        contributor_name: isMember ? null : fcGiverName.trim(),
+        payment_method: fcMethod,
+        payment_reference: fcReference.trim() || null,
         notes: fcNotes || null,
       })
       if (!res.success) { setError(res.message ?? 'Failed'); return }
       setFunds(prev => prev.map(f => f.id === fundId
         ? { ...f, total_contributed_cents: f.total_contributed_cents + cents, balance_cents: f.balance_cents + cents }
         : f))
-      setFcAmount(''); setFcNotes(''); setRoutingMsg('Contribution recorded.')
+      // Fund, date and method survive — contributions get entered in batches, and
+      // a stack of cheques shares all three. The GIVER is always cleared: silently
+      // re-attributing the next amount to the last person is the one mistake this
+      // form must not make.
+      setFcGiver(''); setFcGiverName('')
+      setFcAmount(''); setFcReference(''); setFcNotes(''); setRoutingMsg('Contribution recorded.')
     })
   }
 
@@ -193,6 +242,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
       setFunds(prev => [...prev, newFund])
       setAlloc(prev => [...prev, { fund_id: newFund.id, fund_name: newFund.name, percent: funds.length === 0 ? '100' : '0', minimum: '0.00' }])
       setNfName(''); setNfDesc(''); setNfGoal(''); setNfOpen(false)
+      onCloseCreateFund()
     })
   }
 
@@ -251,6 +301,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
         ? { ...f, milestone_count: f.milestone_count + 1 }
         : f))
       setNmName(''); setNmDesc(''); setNmAmount('')
+      onCloseCreateMilestone()
     })
   }
 
@@ -282,6 +333,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
     setError('')
     const cents = Math.round(parseFloat(rdAmount) * 100)
     const fundId = rdFundId, personId = rdPersonId, milestoneId = rdMilestoneId || null, date = rdDate, notes = rdNotes || null
+    const reference = rdReference.trim() || null
     startTransition(async () => {
       const result = await recordDisbursement({
         fund_id: fundId,
@@ -289,6 +341,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
         person_id: personId,
         amount_cents: cents,
         disbursed_date: date,
+        payment_reference: reference,
         notes,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
@@ -309,10 +362,11 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
         person_name: person ? `${person.first_name} ${person.last_name}` : null,
         amount_cents: cents,
         disbursed_date: date,
+        payment_reference: reference,
         notes,
         created_at: new Date().toISOString(),
       }, ...prev])
-      setRdPersonId(''); setRdAmount(''); setRdMilestoneId(''); setRdNotes('')
+      setRdPersonId(''); setRdAmount(''); setRdMilestoneId(''); setRdReference(''); setRdNotes('')
     })
   }
 
@@ -339,12 +393,21 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
     <div className="space-y-6">
       {tab === 'funds' && (
         <div className="space-y-4">
-          <div className="rounded-xl border bg-card p-4 space-y-3">
-            <h3 className="text-sm font-semibold">New Fund</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {funds.length === 0 && (
+            <p className="text-sm text-muted-foreground">No funds yet.</p>
+          )}
+
+          <Dialog
+            open={creatingFund}
+            onClose={onCloseCreateFund}
+            title="New Fund"
+            description="A pot that dues route into and disbursements come out of."
+            className="max-h-[90vh] overflow-y-auto"
+          >
+            <div className="space-y-3 mt-2">
               <div className="space-y-1.5">
-                <Label>Name</Label>
-                <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder="College Fund" />
+                <Label>Name <span className="text-destructive">*</span></Label>
+                <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder="College Fund" autoFocus />
               </div>
               <div className="space-y-1.5">
                 <Label>Goal Amount ($, optional)</Label>
@@ -354,25 +417,31 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
                 <Label>Description</Label>
                 <Input value={nfDesc} onChange={e => setNfDesc(e.target.value)} placeholder="For graduates…" />
               </div>
+              {SHOW_OPEN_CONTRIBUTIONS && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={nfOpen}
+                    onChange={e => setNfOpen(e.target.checked)}
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  Open to member contributions
+                  <span className="text-xs text-muted-foreground">(any family member can contribute any amount)</span>
+                </label>
+              )}
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <div className="flex gap-2 pt-1">
+                <Button className="flex-1" onClick={handleCreateFund} disabled={isPending}>
+                  {isPending ? 'Adding…' : 'Add Fund'}
+                </Button>
+                <Button variant="outline" onClick={onCloseCreateFund} disabled={isPending}>
+                  Cancel
+                </Button>
+              </div>
             </div>
-            {SHOW_OPEN_CONTRIBUTIONS && (
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={nfOpen}
-                  onChange={e => setNfOpen(e.target.checked)}
-                  className="h-4 w-4 rounded border-input accent-primary"
-                />
-                Open to member contributions
-                <span className="text-xs text-muted-foreground">(any family member can contribute any amount)</span>
-              </label>
-            )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button size="sm" onClick={handleCreateFund} disabled={isPending}><Plus className="h-3.5 w-3.5 mr-1" /> Add Fund</Button>
-          </div>
-          {funds.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No funds yet.</p>
-          ) : (
+          </Dialog>
+
+          {funds.length > 0 && (
             <ul className="divide-y rounded-xl border overflow-hidden">
               {funds.map((f, i) => (
                 <li key={f.id} className="flex items-center gap-3 px-4 py-3">
@@ -401,40 +470,76 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
               ))}
             </ul>
           )}
+
+          {/* Failures from the list itself (delete, open/close) have nowhere else to
+              land now that the create form is a dialog. Suppressed while the dialog
+              is up, which renders the same message inline. */}
+          {!creatingFund && error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )}
 
       {tab === 'milestones' && (
         <div className="space-y-4">
-          <div className="rounded-xl border bg-card p-4 space-y-3">
-            <h3 className="text-sm font-semibold">New Milestone</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="space-y-1.5">
-                <Label>Fund</Label>
-                <Select value={nmFundId} onChange={e => setNmFundId(e.target.value)}>
-                  <option value="">— Select fund —</option>
-                  {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Milestone Name</Label>
-                <Input value={nmName} onChange={e => setNmName(e.target.value)} placeholder="Graduate high school" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Award Amount ($)</Label>
-                <Input type="number" min="0" step="0.01" value={nmAmount} onChange={e => setNmAmount(e.target.value)} placeholder="250.00" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Description</Label>
-                <Input value={nmDesc} onChange={e => setNmDesc(e.target.value)} placeholder="High school diploma or GED" />
-              </div>
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button size="sm" onClick={handleCreateMilestone} disabled={isPending}><Plus className="h-3.5 w-3.5 mr-1" /> Add Milestone</Button>
-          </div>
-          {milestones.length === 0 ? (
+          {funds.length === 0 && (
+            <p className="text-sm text-muted-foreground">Create a fund first — a milestone is awarded out of one.</p>
+          )}
+          {funds.length > 0 && milestones.length === 0 && (
             <p className="text-sm text-muted-foreground">No milestones yet.</p>
-          ) : (
+          )}
+
+          <Dialog
+            open={creatingMilestone}
+            onClose={onCloseCreateMilestone}
+            title="New Milestone"
+            description="An award a member can be paid out of a fund when they reach it."
+            className="max-h-[90vh] overflow-y-auto"
+          >
+            {/* The rail's trigger is always live, so the "no fund yet" case has to be
+                answered in here — where the live fund list is — rather than by a
+                disabled button the admin cannot interrogate. */}
+            {funds.length === 0 ? (
+              <div className="space-y-3 mt-2">
+                <p className="text-sm text-muted-foreground">
+                  A milestone is awarded out of a fund, and there are none yet. Add a fund
+                  under Funds → Balances first.
+                </p>
+                <Button variant="outline" onClick={onCloseCreateMilestone}>Close</Button>
+              </div>
+            ) : (
+              <div className="space-y-3 mt-2">
+                <div className="space-y-1.5">
+                  <Label>Fund <span className="text-destructive">*</span></Label>
+                  <Select value={nmFundId} onChange={e => setNmFundId(e.target.value)}>
+                    <option value="">— Select fund —</option>
+                    {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Milestone Name <span className="text-destructive">*</span></Label>
+                  <Input value={nmName} onChange={e => setNmName(e.target.value)} placeholder="Graduate high school" autoFocus />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Award Amount ($) <span className="text-destructive">*</span></Label>
+                  <Input type="number" min="0" step="0.01" value={nmAmount} onChange={e => setNmAmount(e.target.value)} placeholder="250.00" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Description</Label>
+                  <Input value={nmDesc} onChange={e => setNmDesc(e.target.value)} placeholder="High school diploma or GED" />
+                </div>
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button className="flex-1" onClick={handleCreateMilestone} disabled={isPending}>
+                    {isPending ? 'Adding…' : 'Add Milestone'}
+                  </Button>
+                  <Button variant="outline" onClick={onCloseCreateMilestone} disabled={isPending}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog>
+
+          {milestones.length > 0 && (
             <ul className="divide-y rounded-xl border overflow-hidden">
               {milestones.map(m => {
                 const fund = funds.find(f => f.id === m.fund_id)
@@ -452,6 +557,9 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
               })}
             </ul>
           )}
+
+          {/* Delete failures, for the same reason as the funds list above. */}
+          {!creatingMilestone && error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )}
 
@@ -467,6 +575,7 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
                     <p className="text-sm font-medium">{d.person_name ?? 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground">
                       {d.fund_name} {d.milestone_name ? `· ${d.milestone_name}` : ''} · {formatDate(d.disbursed_date)}
+                      {d.payment_reference && ` · Ref: ${d.payment_reference}`}
                     </p>
                     {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
                   </div>
@@ -514,13 +623,17 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Amount ($)</Label>
+              <Label>Amount ($) <span className="text-destructive">*</span></Label>
               <Input type="number" min="0" step="0.01" value={rdAmount} onChange={e => setRdAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Date</Label>
+              <Label>Date <span className="text-destructive">*</span></Label>
               <Input type="date" value={rdDate} onChange={e => setRdDate(e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Check # / Reference</Label>
+            <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder="Check #1043" />
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>
@@ -660,19 +773,50 @@ export function AdminFundsClient({ section, initialFunds, allMilestones, allDisb
           <div className="rounded-xl border bg-card p-4 space-y-3 max-w-md">
             <p className="text-xs text-muted-foreground">Record money added to a fund directly by an admin (outside of dues routing).</p>
             <div className="space-y-1.5">
-              <Label>Fund</Label>
+              <Label>Fund <span className="text-destructive">*</span></Label>
               <Select value={fcFundId} onChange={e => setFcFundId(e.target.value)}>
                 <option value="">— Select fund —</option>
                 {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label>Who gave it <span className="text-destructive">*</span></Label>
+              <Select value={fcGiver} onChange={e => setFcGiver(e.target.value)}>
+                <option value="">— Select —</option>
+                {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
+                <option value={NON_MEMBER}>Someone or something else…</option>
+              </Select>
+            </div>
+            {fcGiver === NON_MEMBER && (
+              <div className="space-y-1.5">
+                <Label>Name or source <span className="text-destructive">*</span></Label>
+                <Input
+                  value={fcGiverName}
+                  onChange={e => setFcGiverName(e.target.value)}
+                  placeholder="Aunt Ruby's estate, 2026 reunion surplus…"
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Amount ($)</Label>
+                <Label>Payment Method <span className="text-destructive">*</span></Label>
+                <Select value={fcMethod} onChange={e => setFcMethod(e.target.value)}>
+                  <option value="">— Select method —</option>
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Check # / Reference</Label>
+                <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder="Check #1043" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount ($) <span className="text-destructive">*</span></Label>
                 <Input type="number" min="0" step="0.01" value={fcAmount} onChange={e => setFcAmount(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Date</Label>
+                <Label>Date <span className="text-destructive">*</span></Label>
                 <Input type="date" value={fcDate} onChange={e => setFcDate(e.target.value)} />
               </div>
             </div>

@@ -41,14 +41,16 @@ interface NavGroup {
   items: NavItem[]
 }
 
+// Accounting leads: it is the page administrators open most often, so it sits at
+// the top of the section rather than after the membership and election tools.
 const adminItems: NavItem[] = [
+  { href: '/admin/account',    label: 'Accounting',           icon: Wallet },
   { href: '/admin/users',      label: 'User Management',      icon: UsersRound },
   { href: '/admin/groups',     label: 'Groups & Permissions', icon: KeyRound },
   { href: '/admin/chapters',   label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/user-roles', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/elections',  label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',    label: 'Reports',              icon: BarChart3 },
-  { href: '/admin/account',    label: 'Accounting',           icon: Wallet },
 ]
 
 // Build the nav groups for the current user. Every item is listed unconditionally
@@ -91,7 +93,7 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
   groups.push({
     section: { label: 'Accounting', icon: Wallet },
     items: [
-      { href: '/account-summary', label: 'Account Summary',   icon: Wallet },
+      { href: '/account-summary', label: 'My Summary',        icon: Wallet },
       { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
     ],
   })

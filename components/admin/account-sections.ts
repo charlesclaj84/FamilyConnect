@@ -10,7 +10,7 @@
  * Two axes are tracked separately on purpose, because they do NOT line up:
  *
  *   * OWNERSHIP  — which client component renders a section. `record-payment` is
- *     rendered by AdminDuesClient (it needs that component's form state and its
+ *     rendered by AdminIncomeClient (it needs that component's form state and its
  *     recordPayment handler), and the *_SECTIONS tuples below drive the guards
  *     each component uses to decide whether to render at all.
  *
@@ -23,8 +23,8 @@
  * component happens to hold the state.
  */
 
-/** Sections rendered by AdminDuesClient. */
-export const DUES_SECTIONS = ['schedules', 'payments', 'record-payment'] as const
+/** Sections rendered by AdminIncomeClient. */
+export const INCOME_SECTIONS = ['dues', 'donations', 'payments', 'record-payment'] as const
 
 /** Sections rendered by AdminFundsClient. */
 export const FUNDS_SECTIONS = [
@@ -36,50 +36,60 @@ export const FUNDS_SECTIONS = [
   'record-contribution',
 ] as const
 
-/** Sections rendered by the shell itself. */
-export const SETTINGS_SECTIONS = ['processing'] as const
+/** Sections rendered by the shell itself. Both are inert placeholders for now. */
+export const SETTINGS_SECTIONS = ['processing', 'bank'] as const
 
-export type DuesSection = (typeof DUES_SECTIONS)[number]
+export type IncomeSection = (typeof INCOME_SECTIONS)[number]
 export type FundsSection = (typeof FUNDS_SECTIONS)[number]
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
-export type AccountSection = DuesSection | FundsSection | SettingsSection
+export type AccountSection = IncomeSection | FundsSection | SettingsSection
 
 /**
  * Landing section when no `?section=` is given, or when it is unreadable. Dues is
  * the page's reason for existing, so an admin who follows a truncated link still
  * arrives somewhere useful.
  */
-export const DEFAULT_SECTION: AccountSection = 'schedules'
+export const DEFAULT_SECTION: AccountSection = 'dues'
 
 /**
  * Nav label and pane title for each section.
  *
  * These name the PAGE, not its domain — the group pill above it already says
- * "Dues" or "Funds", so repeating that here would label both levels the same and
- * tell the reader nothing about where they actually are. Hence `schedules` is
- * "Schedules" rather than "Dues", and `funds` is "Balances" rather than "Funds".
+ * "Income" or "Expenses", so repeating that here would label both levels the same and
+ * tell the reader nothing about where they actually are. Every page name below is
+ * therefore distinct from its group: `funds` is "Funds" under "Expenses", `dues` and
+ * `donations` sit under "Income".
  */
 export const SECTION_LABELS: Record<AccountSection, string> = {
-  schedules: 'Schedules',
+  dues: 'Dues',
+  donations: 'Donations',
   payments: 'Payment History',
-  funds: 'Balances',
+  funds: 'Funds',
   routing: 'Routing',
   disbursements: 'Disbursements History',
   milestones: 'Milestones',
-  'record-payment': 'Dues Payment',
+  // Names both kinds: the one form records a payment against a dues schedule or a
+  // donation, since they are the same table and the same money coming in.
+  'record-payment': 'Dues & Donations',
   'record-disbursement': 'Fund Disbursement',
   'record-contribution': 'Fund Contribution',
   processing: 'Processing',
+  bank: 'Bank Information',
 }
 
 /**
- * Forgiving forms for hand-typed and legacy URLs. `dues` and `funds-*` matter most:
- * `dues` is what someone types when guessing, and the pre-redesign tab ids (`record`)
- * appear in anything anyone bookmarked while the tab strips were live.
+ * Forgiving forms for hand-typed and legacy URLs. `schedules` matters most: it was
+ * the canonical id for the Dues page until the Income redesign, so it is in every
+ * link anyone has shared. The pre-redesign tab ids (`record`) appear in anything
+ * bookmarked while the tab strips were live.
  */
 const SECTION_ALIASES: Record<string, AccountSection> = {
-  dues: 'schedules',
-  schedule: 'schedules',
+  schedules: 'dues',
+  schedule: 'dues',
+  'dues-schedules': 'dues',
+  donation: 'donations',
+  gift: 'donations',
+  gifts: 'donations',
   payment: 'payments',
   'payment-history': 'payments',
   history: 'payments',
@@ -96,15 +106,20 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
   // Dues wins the ambiguity because it was the first strip on the page.
   record: 'record-payment',
   'record-dues': 'record-payment',
+  'record-donation': 'record-payment',
   contribution: 'record-contribution',
   contributions: 'record-contribution',
   settings: 'processing',
   processor: 'processing',
   payments_processing: 'processing',
+  banking: 'bank',
+  'bank-info': 'bank',
+  'bank-information': 'bank',
+  'bank-account': 'bank',
 }
 
-export function isDuesSection(value: string): value is DuesSection {
-  return (DUES_SECTIONS as readonly string[]).includes(value)
+export function isIncomeSection(value: string): value is IncomeSection {
+  return (INCOME_SECTIONS as readonly string[]).includes(value)
 }
 
 export function isFundsSection(value: string): value is FundsSection {
@@ -116,7 +131,7 @@ export function isSettingsSection(value: string): value is SettingsSection {
 }
 
 export function isAccountSection(value: string): value is AccountSection {
-  return isDuesSection(value) || isFundsSection(value) || isSettingsSection(value)
+  return isIncomeSection(value) || isFundsSection(value) || isSettingsSection(value)
 }
 
 /**

@@ -55,7 +55,7 @@ export const FEATURES: readonly Feature[] = [
   },
   {
     href: '/account-summary',
-    label: 'Account Summary',
+    label: 'My Summary',
     status: 'live',
     blurb: 'What you owe, what you have paid, and your full payment history.',
   },
@@ -97,7 +97,7 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
-  // Dues are LIVE. The `/dues` route itself only redirects to Account Summary,
+  // Dues are LIVE. The `/dues` route itself only redirects to My Summary,
   // but this entry also un-hides the `dues` resource row in Groups & Permissions
   // so a treasurer can be granted `dues:edit` without being made an administrator.
   {

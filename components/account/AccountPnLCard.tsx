@@ -22,7 +22,9 @@ export function AccountPnLCard({ data }: Props) {
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalCollectedCents)}</p>
           <div className="text-xs text-muted-foreground space-y-0.5">
-            <p className="flex items-center justify-between gap-2"><span>Dues</span><span className="font-medium text-foreground">{formatCurrency(data.totalIncomeCents)}</span></p>
+            {/* Dues AND donations: both are dues_payments rows, so both are in this
+                total. Labelling it "Dues" alone understated what came in. */}
+            <p className="flex items-center justify-between gap-2"><span>Dues &amp; donations</span><span className="font-medium text-foreground">{formatCurrency(data.totalIncomeCents)}</span></p>
             <p className="flex items-center justify-between gap-2"><span>Contributions</span><span className="font-medium text-foreground">{formatCurrency(data.totalContributionsCents)}</span></p>
           </div>
         </div>
@@ -56,12 +58,12 @@ export function AccountPnLCard({ data }: Props) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <ArrowRightLeft className="h-4 w-4 text-primary" /> Dues Routed to Funds
+            <ArrowRightLeft className="h-4 w-4 text-primary" /> Income Routed to Funds
           </CardTitle>
         </CardHeader>
         <CardContent>
           {data.routing.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No dues have been routed to funds yet.</p>
+            <p className="text-sm text-muted-foreground">Nothing has been routed to funds yet.</p>
           ) : (
             <div className="divide-y rounded-xl border">
               {data.routing.map(r => (

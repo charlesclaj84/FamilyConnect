@@ -47,6 +47,8 @@ export interface FundDisbursement {
   person_name: string | null
   amount_cents: number
   disbursed_date: string
+  /** Check number or transfer confirmation the money went out on. */
+  payment_reference: string | null
   notes: string | null
   created_at: string
 }
@@ -134,6 +136,7 @@ export async function getAllDisbursements(): Promise<FundDisbursement[]> {
       : null,
     amount_cents: d.amount_cents,
     disbursed_date: d.disbursed_date,
+    payment_reference: d.payment_reference ?? null,
     notes: d.notes,
     created_at: d.created_at,
   }))
@@ -159,6 +162,7 @@ export async function getDisbursementsForFund(fundId: string): Promise<FundDisbu
       : null,
     amount_cents: d.amount_cents,
     disbursed_date: d.disbursed_date,
+    payment_reference: d.payment_reference ?? null,
     notes: d.notes,
     created_at: d.created_at,
   }))
@@ -283,6 +287,7 @@ export async function recordDisbursement(input: {
   person_id: string
   amount_cents: number
   disbursed_date: string
+  payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
@@ -300,6 +305,7 @@ export async function recordDisbursement(input: {
     person_id: input.person_id,
     amount_cents: input.amount_cents,
     disbursed_date: input.disbursed_date,
+    payment_reference: input.payment_reference?.trim() || null,
     notes: input.notes,
     recorded_by: myPerson?.id ?? null,
   })
@@ -385,10 +391,22 @@ export async function saveFundAllocations(
   return { success: true }
 }
 
+/**
+ * Money an admin adds to a fund by hand.
+ *
+ * The giver and the method are required, because this row is the only record that
+ * a cheque or a cash handover ever existed — unlike a dues-routed contribution,
+ * there is no payment behind it to look the payer up from. A giver who is not a
+ * member is carried as free text in `contributor_name` instead.
+ */
 export async function recordFundContribution(input: {
   fund_id: string
   amount_cents: number
   contributed_date: string
+  contributor_person_id: string | null
+  contributor_name: string | null
+  payment_method: string | null
+  payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
@@ -399,12 +417,36 @@ export async function recordFundContribution(input: {
   if (!(await can(user.id, 'family-finances', 'edit'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
+  const contributorName = input.contributor_name?.trim() || null
+  if (!input.contributor_person_id && !contributorName) {
+    return { success: false, message: 'Record who the contribution came from' }
+  }
+  if (!input.payment_method) return { success: false, message: 'Record how the contribution was given' }
+
+  // Both ids are re-scoped to this family: the insert below uses the admin client,
+  // which bypasses RLS, so nothing else stops another family's fund or person from
+  // being written onto this family's ledger.
+  const { data: fund } = await admin
+    .from('funds').select('id').eq('id', input.fund_id).eq('family_code', familyCode).maybeSingle()
+  if (!fund) return { success: false, message: 'Fund not found' }
+
+  if (input.contributor_person_id) {
+    const { data: contributor } = await admin
+      .from('people').select('id').eq('id', input.contributor_person_id).eq('family_code', familyCode).maybeSingle()
+    if (!contributor) return { success: false, message: 'Contributor not found in this family' }
+  }
+
   const { error } = await admin.from('fund_contributions').insert({
     fund_id: input.fund_id,
     family_code: familyCode,
     amount_cents: input.amount_cents,
     source: 'admin_manual',
     contributed_date: input.contributed_date,
+    // A member giver is stored by id; only a non-member falls back to the name.
+    contributor_person_id: input.contributor_person_id,
+    contributor_name: input.contributor_person_id ? null : contributorName,
+    payment_method: input.payment_method,
+    payment_reference: input.payment_reference?.trim() || null,
     notes: input.notes,
     recorded_by: myPersonId,
   })
@@ -442,6 +484,8 @@ export async function contributeToFund(input: {
     amount_cents: input.amount_cents,
     source: 'member_contribution',
     contributed_date: new Date().toISOString().slice(0, 10),
+    // Giver and recorder are the same person here, by definition of this path.
+    contributor_person_id: myPersonId,
     notes: input.notes,
     recorded_by: myPersonId,
   })

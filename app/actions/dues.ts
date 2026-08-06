@@ -12,9 +12,22 @@ import {
   currentPeriodStart,
   defaultCadence,
   type PayCadence,
+  type ScheduleKind,
 } from '@/lib/dues-utils'
 import { routeContribution, type RoutingFund } from '@/lib/fund-routing'
 
+/**
+ * A dues schedule or a donation drive — see `kind`.
+ *
+ * Three fields are kind-specific, and the create/update actions keep them that way
+ * rather than trusting a caller:
+ *
+ *   dues     — amount_cents + frequency say what is owed and how often.
+ *              goal_cents is null.
+ *   donation — goal_cents is the target being advised. amount_cents is 0 and
+ *              frequency is 'one-time' because a drive does not recur: its
+ *              start_date/end_date are its whole timing story.
+ */
 export interface DuesSchedule {
   id: string
   label: string
@@ -26,6 +39,8 @@ export interface DuesSchedule {
   start_date: string | null
   end_date: string | null
   description: string | null
+  kind: ScheduleKind
+  goal_cents: number | null
 }
 
 export interface DuesPayment {
@@ -34,6 +49,8 @@ export interface DuesPayment {
   person_name: string | null
   schedule_id: string | null
   schedule_label: string | null
+  /** Whether this paid for dues or a donation. Null only for legacy schedule-less rows. */
+  schedule_kind: ScheduleKind | null
   amount_cents: number
   status: string
   payment_date: string
@@ -54,6 +71,37 @@ export interface DuesSummary {
   nextInstallmentDate: string | null
   paid: boolean
   lastPayment: DuesPayment | null
+}
+
+/**
+ * One donation drive: how far the FAMILY has got toward its goal, plus this member's
+ * own share of it.
+ *
+ * Deliberately NOT a DuesSummary: that shape is built out of obligation —
+ * `remainingBalanceCents`, `nextInstallmentDate`, `paid` — and none of those mean
+ * anything for a gift.
+ *
+ * PRIVACY: `raisedCents` is a single number for the whole family. Nothing in this
+ * shape can be attributed to another member — no per-person rows, no names, no giver
+ * count, no dates that would let one gift be pinned to one person. The only
+ * individual figure here is the reader's own.
+ */
+export interface DonationSummary {
+  schedule: DuesSchedule
+  /** The advised target, or null if the family did not set one. Not a cap. */
+  goalCents: number | null
+  /** Everything the family has given to this drive, added together. */
+  raisedCents: number
+  /** The reader's own share of that total. Their own data, nobody else's. */
+  myGivenCents: number
+  /**
+   * Progress toward the goal as a percentage. NOT clamped: a drive that raised twice
+   * its goal reports 200, and the bar is drawn to match.
+   */
+  progressPercent: number
+  goalMet: boolean
+  /** end_date is in the past: the drive is over, so the bar is history not an ask. */
+  closed: boolean
 }
 
 // ── P&L (Family Finances) ledger shape ──────────────────────────────────────
@@ -86,7 +134,7 @@ export interface PnLEvent {
 }
 
 export interface PnLData {
-  totalIncomeCents: number        // paid dues only
+  totalIncomeCents: number        // paid dues + donations (both are dues_payments)
   totalContributionsCents: number // manual + member fund contributions
   totalCollectedCents: number     // dues + contributions
   totalExpenseCents: number       // actual spend (event_expenses), not budgets
@@ -101,7 +149,34 @@ export interface PnLData {
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
+/**
+ * Normalize a dues_schedules row's `kind`.
+ *
+ * Anything that is not exactly 'donation' is dues — which covers the column being
+ * absent (a database that has not run 20260805000002 yet) as well as NULL. Reads
+ * therefore never lose a schedule to an unapplied migration; the worst case is that
+ * donations do not exist yet, which is true.
+ */
+function mapSchedule(s: DuesSchedule & { kind?: string | null }): DuesSchedule {
+  return { ...s, kind: s.kind === 'donation' ? 'donation' : 'dues', goal_cents: s.goal_cents ?? null }
+}
+
+/**
+ * Force the kind's invariants onto a write, whatever the caller sent.
+ *
+ * A donation with an amount would start showing up as an obligation; a dues schedule
+ * with a goal would render a progress bar against a bill. Both are one stale client
+ * away, so the shape is settled here rather than trusted. Returns only the keys it
+ * owns, so it can be spread over a partial update.
+ */
+function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined) {
+  return kind === 'donation'
+    ? { amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null }
+    : { goal_cents: null }
+}
+
 function mapPayment(p: any): DuesPayment {
+  const schedule = p.dues_schedules as { label: string; kind?: string | null } | null
   return {
     id: p.id,
     person_id: p.person_id,
@@ -109,7 +184,8 @@ function mapPayment(p: any): DuesPayment {
       ? `${(p.people as { first_name: string; last_name: string }).first_name} ${(p.people as { first_name: string; last_name: string }).last_name}`
       : null,
     schedule_id: p.schedule_id,
-    schedule_label: (p.dues_schedules as { label: string } | null)?.label ?? null,
+    schedule_label: schedule?.label ?? null,
+    schedule_kind: schedule ? (schedule.kind === 'donation' ? 'donation' : 'dues') : null,
     amount_cents: p.amount_cents,
     status: p.status,
     payment_date: p.payment_date,
@@ -180,6 +256,11 @@ async function routePaidPayment(
 
 // ── Schedule actions (unchanged) ─────────────────────────────────────────────
 
+/**
+ * Every active schedule, dues AND donations. The Accounting admin page shows both
+ * (on separate pages) and records payments against both, so it wants the lot;
+ * callers that care about one kind filter on `kind`.
+ */
 export async function getDuesSchedules(): Promise<DuesSchedule[]> {
   const supabase = await createClient()
   const { data } = await supabase
@@ -187,7 +268,7 @@ export async function getDuesSchedules(): Promise<DuesSchedule[]> {
     .select('*')
     .eq('active', true)
     .order('label')
-  return data ?? []
+  return (data ?? []).map(mapSchedule)
 }
 
 /**
@@ -202,23 +283,67 @@ export async function createDuesSchedule(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
+
+  // Never taken on trust: an unrecognized kind would be a schedule nobody owes and
+  // nobody can donate to, invisible on both pages.
+  const kind: ScheduleKind = input.kind === 'donation' ? 'donation' : 'dues'
+  if (kind === 'donation' && !input.goal_cents) {
+    return { success: false, message: 'A donation needs a goal to work toward' }
+  }
+  if (kind === 'dues' && !input.amount_cents) {
+    return { success: false, message: 'Dues need an amount' }
+  }
+
   const { data, error } = await supabase
     .from('dues_schedules')
-    .insert({ ...input, family_code: familyCode, active: true })
+    .insert({
+      ...input,
+      kind,
+      ...kindInvariants(kind, input.goal_cents),
+      family_code: familyCode,
+      active: true,
+    })
     .select('*')
     .single()
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
-  return { success: true, schedule: data }
+  return { success: true, schedule: mapSchedule(data) }
 }
 
 export async function updateDuesSchedule(
   id: string,
   input: Partial<Omit<DuesSchedule, 'id'>>
 ): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('dues_schedules').update(input).eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  const familyCode = await getMyFamilyCode(user.id)
+
+  // The row's own kind decides which fields are legal, so it is read rather than
+  // taken from the caller — `kind` itself is not editable here. Without this an edit
+  // posted from a stale form could give a donation an amount, and a donation with an
+  // amount is a bill.
+  //
+  // Both statements are scoped to the caller's family: `admin` is the service-role
+  // client and bypasses RLS, so an id is otherwise enough to edit another family's
+  // schedule. The UI only ever sends ids it read from this family, but the action is
+  // reachable on its own.
+  const { data: existing } = await admin
+    .from('dues_schedules').select('kind, goal_cents').eq('id', id).eq('family_code', familyCode).maybeSingle()
+  if (!existing) return { success: false, message: 'Schedule not found' }
+  const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
+  const goalCents = input.goal_cents === undefined ? existing.goal_cents : input.goal_cents
+  if (kind === 'donation' && !goalCents) {
+    return { success: false, message: 'A donation needs a goal to work toward' }
+  }
+
+  const { error } = await admin
+    .from('dues_schedules')
+    .update({ ...input, kind, ...kindInvariants(kind, goalCents) })
+    .eq('id', id)
+    .eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
@@ -226,8 +351,14 @@ export async function updateDuesSchedule(
 }
 
 export async function deleteDuesSchedule(id: string): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
   const admin = createAdminClient()
-  const { error } = await admin.from('dues_schedules').delete().eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  // Family-scoped for the same reason as the update above: the service-role client
+  // does not apply RLS, so the id alone must not be enough.
+  const familyCode = await getMyFamilyCode(user.id)
+  const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
   revalidatePath('/account-summary')
@@ -252,8 +383,15 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     supabase.from('dues_member_plans').select('schedule_id, cadence').eq('person_id', myPerson.id),
   ])
 
-  const schedules: DuesSchedule[] = schedulesResult.data ?? []
-  const payments: DuesPayment[] = (paymentsResult.data ?? []).map(p => ({ ...p, person_name: null, schedule_label: null }))
+  // Dues only. A donation is optional, so it must never reach a remaining balance, a
+  // next-installment date or the dashboard's "you owe" card — every one of which is
+  // computed from this list. Filtered here rather than in the query so a database
+  // that has not run 20260805000002 yet still returns the member's real dues.
+  const schedules: DuesSchedule[] = (schedulesResult.data ?? [])
+    .map(mapSchedule)
+    .filter(s => s.kind === 'dues')
+  const payments: DuesPayment[] = (paymentsResult.data ?? [])
+    .map(p => ({ ...p, person_name: null, schedule_label: null, schedule_kind: null }))
   const planBySchedule = new Map<string, PayCadence>(
     (plansResult.data ?? []).map(p => [p.schedule_id, p.cadence as PayCadence]),
   )
@@ -284,6 +422,78 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
       nextInstallmentDate: paid ? null : nextInstallmentDate(schedule, cadence, paidThisPeriod.length),
       paid,
       lastPayment: payments.find(p => p.schedule_id === schedule.id) ?? null,
+    }
+  })
+}
+
+/**
+ * The FAMILY's progress against each active donation drive, plus the reader's share.
+ *
+ * Same schedules table and same payments table as dues; none of the obligation maths.
+ * There is no period to bucket by either — a drive runs from start_date to end_date
+ * once, so "raised" is simply everything anyone has put in.
+ *
+ * WHY THE ADMIN CLIENT: dues_payments RLS shows a member only their own rows, so a
+ * family-wide total is unreachable through the user's client. The service-role client
+ * bypasses RLS entirely, which means the family scoping RLS would have done has to be
+ * done HERE, explicitly — hence `.eq('family_code', familyCode)` on the payments read.
+ *
+ * WHAT COMES BACK: totals. The rows are summed inside this function and only the sums
+ * cross the boundary, so a member sees how far the family has got without seeing who
+ * gave what. `person_id` is selected solely to split the reader's own share back out
+ * and never leaves here.
+ *
+ * Returns [] for a family with no donations configured, which is what lets the
+ * My Summary section disappear entirely rather than sit there empty.
+ */
+export async function getDonationProgress(): Promise<DonationSummary[]> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const familyCode = await getMyFamilyCode(user.id)
+  const myPersonId = await getMyPersonId(user.id)
+
+  const { data: scheduleRows } = await supabase
+    .from('dues_schedules').select('*').eq('active', true).order('label')
+  const donations = (scheduleRows ?? []).map(mapSchedule).filter(s => s.kind === 'donation')
+  if (donations.length === 0) return []
+
+  // 'waived' has no meaning for a gift, so only real money counts toward a goal.
+  const { data: paymentRows } = await admin
+    .from('dues_payments')
+    .select('schedule_id, person_id, amount_cents')
+    .eq('family_code', familyCode)
+    .eq('status', 'paid')
+    .in('schedule_id', donations.map(d => d.id))
+
+  const raisedBySchedule = new Map<string, number>()
+  const mineBySchedule = new Map<string, number>()
+  for (const p of paymentRows ?? []) {
+    if (!p.schedule_id) continue
+    raisedBySchedule.set(p.schedule_id, (raisedBySchedule.get(p.schedule_id) ?? 0) + p.amount_cents)
+    if (myPersonId && p.person_id === myPersonId) {
+      mineBySchedule.set(p.schedule_id, (mineBySchedule.get(p.schedule_id) ?? 0) + p.amount_cents)
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  return donations.map(schedule => {
+    const raisedCents = raisedBySchedule.get(schedule.id) ?? 0
+    const goalCents = schedule.goal_cents
+    return {
+      schedule,
+      goalCents,
+      raisedCents,
+      myGivenCents: mineBySchedule.get(schedule.id) ?? 0,
+      // Unclamped on purpose: a drive that doubled its goal reports 200, and the bar
+      // is drawn past the goal mark to match. Capping it here would hide the best
+      // thing that can happen to a fundraiser.
+      progressPercent: goalCents && goalCents > 0 ? Math.round((raisedCents / goalCents) * 100) : 0,
+      goalMet: goalCents != null && goalCents > 0 && raisedCents >= goalCents,
+      closed: schedule.end_date != null && schedule.end_date < today,
     }
   })
 }
@@ -337,7 +547,7 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('dues_payments')
-    .select('*, people!person_id(first_name, last_name), dues_schedules(label)')
+    .select('*, people!person_id(first_name, last_name), dues_schedules(label, kind)')
     .order('payment_date', { ascending: false })
   return (data ?? []).map(mapPayment)
 }
@@ -353,28 +563,24 @@ export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
 
   const { data } = await supabase
     .from('dues_payments')
-    .select('*, dues_schedules(label)')
+    .select('*, dues_schedules(label, kind)')
     .eq('person_id', myPerson.id)
     .order('payment_date', { ascending: false })
 
-  return (data ?? []).map(p => ({
-    id: p.id,
-    person_id: p.person_id,
-    person_name: null,
-    schedule_id: p.schedule_id,
-    schedule_label: (p.dues_schedules as { label: string } | null)?.label ?? null,
-    amount_cents: p.amount_cents,
-    status: p.status,
-    payment_date: p.payment_date,
-    payment_method: p.payment_method,
-    notes: p.notes,
-    created_at: p.created_at,
-  }))
+  // Dues and donations both live here, tagged by schedule_kind so the member's
+  // history can say which each row was.
+  return (data ?? []).map(p => ({ ...mapPayment(p), person_name: null }))
 }
 
+/**
+ * `schedule_id` is required. A payment with no schedule never shows up in
+ * getMyDuesSummary (which buckets strictly by schedule_id) or in a member's
+ * remaining balance, so recording one is silently useless — the admin sees it in
+ * Payment History and the member's dues never move.
+ */
 export async function recordPayment(input: {
   person_id: string
-  schedule_id: string | null
+  schedule_id: string
   amount_cents: number
   status: 'paid' | 'pending' | 'waived'
   payment_date: string
@@ -397,6 +603,18 @@ export async function recordPayment(input: {
   if (!(await can(user.id, 'dues', 'edit')) && input.person_id !== myPerson.id) {
     return { success: false, message: 'You can only record your own payments.' }
   }
+
+  // Required, and re-scoped to this family here: the insert below runs on the admin
+  // client, which bypasses RLS, so nothing else would stop a schedule id belonging
+  // to another family from being written onto this family's payment.
+  if (!input.schedule_id) return { success: false, message: 'A dues schedule is required' }
+  const { data: schedule } = await admin
+    .from('dues_schedules')
+    .select('id')
+    .eq('id', input.schedule_id)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  if (!schedule) return { success: false, message: 'Dues schedule not found' }
 
   const { data: payment, error } = await admin.from('dues_payments').insert({
     family_code: familyCode,
@@ -446,10 +664,11 @@ export async function getFamilyPnL(): Promise<PnLData> {
     admin.from('events').select('id, name').eq('family_code', familyCode).is('parent_event_id', null),
   ])
 
-  // Paid dues for the family. dues_payments has TWO foreign keys to people
+  // Paid dues AND donations for the family — both are rows in dues_payments, and
+  // both are money the family actually collected. dues_payments has TWO foreign keys to people
   // (person_id and recorded_by), so the people embed MUST be disambiguated to
   // person_id — otherwise PostgREST errors and the result is silently empty.
-  const PAYMENT_SELECT = '*, people!person_id(first_name, last_name), dues_schedules(label)'
+  const PAYMENT_SELECT = '*, people!person_id(first_name, last_name), dues_schedules(label, kind)'
   const routedPaymentIds = [...new Set(
     (contribRes.data ?? [])
       .filter(c => c.source === 'dues_routing' && c.dues_payment_id)
