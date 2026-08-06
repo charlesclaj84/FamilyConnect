@@ -94,8 +94,25 @@ export const CASES = [
   }),
 
   // ── money ─────────────────────────────────────────────────────────────────
-  read('dues.getDuesSchedules', 'app/actions/dues.ts', 'getDuesSchedules'),
-  read('dues.getMyDuesSummary', 'app/actions/dues.ts', 'getMyDuesSummary'),
+  // These two run their control as the ADMIN, and the reason is a live bug rather
+  // than the usual "this policy wants a grant" — read TODO before copying the
+  // pattern. permission_table_map points dues_schedules at 'admin/account' with both
+  // own_expr and self_expr 'false', so its composed SELECT reduces to
+  // admin/account:view = 'any'. 20260618000000 restricts every admin resource per
+  // family, so a plain member cannot read the dues table at all — and
+  // getMyDuesSummary is the member-facing "what do I owe" call behind My Summary and
+  // the dashboard card. Both return [] for every member of every real family.
+  //
+  // Until 20260806000008 the fixture wrote no resource_visibility rows, so
+  // admin/account fell through to 'any' and these controls passed against a
+  // permission configuration no family has. Holding permissions constant at 'any'
+  // keeps the attack assertion meaningful; it does not make the bug go away.
+  read('dues.getDuesSchedules', 'app/actions/dues.ts', 'getDuesSchedules', {
+    positiveActor: 'alphaAdmin',
+  }),
+  read('dues.getMyDuesSummary', 'app/actions/dues.ts', 'getMyDuesSummary', {
+    positiveActor: 'alphaAdmin',
+  }),
   read('dues.getAllDuesPayments', 'app/actions/dues.ts', 'getAllDuesPayments'),
   read('dues.getMyPaymentHistory', 'app/actions/dues.ts', 'getMyPaymentHistory'),
   read('funds.getFunds', 'app/actions/funds.ts', 'getFunds'),

@@ -15,6 +15,25 @@
  * ALPHA also has a second member, so ownership can be tested inside one family:
  * "may a member touch a row belonging to a different member of the same family?"
  * is a different question from cross-family, and own_expr is what answers it.
+ *
+ * TWO THINGS THE DATABASE NOW DOES TO THIS FIXTURE (20260806000008)
+ *
+ * 1. Inserting a family seeds Administrators / Board Users / General with their
+ *    policy, and 'restricted' visibility for every admin resource. So the
+ *    Administrators group below already exists by the time this asks for it — hence
+ *    the upserts — and a plain member no longer sees admin pages by default, which
+ *    previously happened only because no resource_visibility row existed at all.
+ *
+ * 2. Inserting a user-linked person puts them in General. Every member here
+ *    therefore holds General's policy (view on the community pages, chat and
+ *    photos scoped to 'own') where before they held nothing. That is the shape a
+ *    real member has, so the controls that run as alphaMember are now testing the
+ *    real thing rather than a permission vacuum.
+ *
+ * What the trigger deliberately does NOT do is promote anyone to Administrators:
+ * it recognises the founder as `families.created_by`, and the two families below
+ * are inserted without one. A "first member wins" rule would have made
+ * `alphaMember` an administrator and quietly deleted the ownership axis above.
  */
 import { createClient } from '@supabase/supabase-js'
 import { API_URL, SERVICE_ROLE_KEY } from './env.mjs'
@@ -86,6 +105,10 @@ async function teardown(db) {
     'dues_payments', 'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'user_groups',
+    // Written by 20260806000008's families trigger, and keyed on family_code with no
+    // FK to families — so nothing else here removes it, and a stale 'restricted' row
+    // would outlive the family it was created for.
+    'resource_visibility',
     'people', 'families',
   ]
   for (const table of scoped) {
@@ -147,20 +170,30 @@ export async function seed() {
   // ── an administrator in each family: scope 'any' on everything ────────────
   const resources = must('resources', await db.from('permission_resources').select('key'))
   for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin']]) {
-    const group = must(`${who} group`, await db.from('user_groups').insert({
+    // Upsert, not insert: 20260806000008's families trigger created this group when
+    // the family row went in. Claiming it here rather than reading it keeps the
+    // harness's description on the row, so it is obvious which one this is.
+    const group = must(`${who} group`, await db.from('user_groups').upsert({
       family_code: code, name: 'Administrators', description: 'seeded by the RLS harness',
-    }).select().single())
+    }, { onConflict: 'family_code,name' }).select().single())
 
+    // Still every resource × every action at 'any', stated here and not inherited.
+    // The trigger seeds Administrators from permission_resources.actions, which omits
+    // create/delete on the two Accounting sections that declare only view+edit — and
+    // the attacker of record has to hold everything their own family can confer, or
+    // an attack that fails proves the permission layer refused it rather than family
+    // isolation. Upsert so the rows the trigger already wrote are not a conflict.
     const grants = []
     for (const { key } of resources) {
       for (const action of ['view', 'create', 'edit', 'delete']) {
         grants.push({ group_id: group.id, resource_key: key, action, scope: 'any' })
       }
     }
-    must(`${who} grants`, await db.from('group_permissions').insert(grants))
-    must(`${who} membership`, await db.from('user_group_members').insert({
-      group_id: group.id, person_id: fx.users[who].personId,
-    }))
+    must(`${who} grants`, await db.from('group_permissions')
+      .upsert(grants, { onConflict: 'group_id,resource_key,action' }))
+    must(`${who} membership`, await db.from('user_group_members')
+      .upsert({ group_id: group.id, person_id: fx.users[who].personId },
+              { onConflict: 'group_id,person_id' }))
   }
 
   const typeRows = must('relationship types', await db.from('relationship_types').select('id, name'))
