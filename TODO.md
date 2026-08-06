@@ -140,6 +140,31 @@ Returning the family name for any valid code is an enumeration oracle by constru
 Accepted: codes are meant to be shared and the payoff is only a name. Rate-limit the
 lookup anyway.
 
+## Expires 2026-10-01: Claude may write to the hosted database unprompted
+
+**Action on 2026-10-01:** delete the `npx supabase` rules from
+`.claude/settings.local.json`, and confirm the `claude_probe` role has expired.
+
+Granted 2026-08-06 for the pre-launch window. `.claude/settings.local.json`
+auto-approves `db push`, `migration repair`, `db dump`, `db diff` and `db pull`
+against the linked project, so migrations get applied to production without a
+prompt. **Permission rules have no expiry field — nothing removes this on the date.**
+The file is gitignored, so it affects only this machine.
+
+`db reset` is deliberately NOT wildcarded: `--linked` and `--db-url` reset the
+*remote* database, so only the bare and `--local` forms are allowed, and both
+dangerous forms are in `deny` (which takes precedence) as a second layer.
+
+Also expiring: the `claude_probe` Postgres role, `VALID UNTIL 2026-10-01`. It holds
+`LOGIN` and no grants — enough to read `pg_policies` and `pg_catalog`, not enough to
+read a single row of family data. Its password sits in plaintext in
+`supabase/.env.probe` (gitignored). Nothing needs doing when it lapses; verifying it
+lapsed is worth thirty seconds.
+
+The durable replacement for both is `db push` from a GitHub Action on merge to
+`master` — reviewed, ordered, recorded, and nobody holding write credentials. Not
+built.
+
 ## Authorization
 
 ### Members cannot read the dues table, so "what do I owe" is empty for everyone
