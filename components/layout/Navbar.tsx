@@ -11,10 +11,6 @@ export default async function Navbar() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const firstName = user?.user_metadata?.first_name
-    || user?.email?.split('@')[0]
-    || 'Member'
-
   // Fetch notifications + memberships (non-fatal if user not fully set up).
   // personId must come from the ACTIVE family's people row — a multi-family user
   // has one row per family, and the real-time notification filter is per row.
@@ -59,9 +55,6 @@ export default async function Navbar() {
         </Link>
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
           <FamilySwitcher families={families} />
-          <span className="hidden sm:block text-sm text-muted-foreground">
-            {firstName}
-          </span>
           {personId && (
             <NotificationBell initialNotifications={notifications} personId={personId} />
           )}

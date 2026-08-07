@@ -163,7 +163,7 @@ export function AdminIncomeClient({
   function cancelEdit() { setEditId(null); setError('') }
 
   async function handleSaveEdit() {
-    if (!editId || !editLabel) { setError('Label required'); return }
+    if (!editId || !editLabel) { setError('Name required'); return }
     // Keyed off the ROW's kind, not the pane's: the row is what is being saved.
     const isDonation = editKind === 'donation'
     if (isDonation && !editGoal) { setError('A donation needs a goal'); return }
@@ -215,7 +215,7 @@ export function AdminIncomeClient({
     // runs after the await cannot see a different one.
     const newKind = creatingKind ?? 'dues'
     const isDonation = newKind === 'donation'
-    if (!nsLabel) { setError('Label required'); return }
+    if (!nsLabel) { setError('Name required'); return }
     if (isDonation && !nsGoal) { setError('A donation needs a goal'); return }
     if (!isDonation && !nsAmount) { setError('Amount required'); return }
     setError('')
@@ -284,7 +284,7 @@ export function AdminIncomeClient({
           >
             <div className="space-y-3 mt-2">
               <div className="space-y-1.5">
-                <Label>Label <span className="text-destructive">*</span></Label>
+                <Label>Name <span className="text-destructive">*</span></Label>
                 <Input value={nsLabel} onChange={e => setNsLabel(e.target.value)} placeholder={copy.labelPlaceholder} autoFocus />
               </div>
               {/* The one place the two kinds really differ. Dues state what is owed
@@ -292,7 +292,7 @@ export function AdminIncomeClient({
                   it asks for no particular amount and does not recur. */}
               {creatingKind === 'donation' ? (
                 <div className="space-y-1.5">
-                  <Label>Goal ($) <span className="text-destructive">*</span></Label>
+                  <Label>Goal Amount <span className="text-destructive">*</span></Label>
                   <Input type="number" min="0" step="0.01" value={nsGoal} onChange={e => setNsGoal(e.target.value)} placeholder={copy.amountPlaceholder} />
                   <p className="text-xs text-muted-foreground">
                     What each member is encouraged to reach. Advisory — members give what they
@@ -302,7 +302,7 @@ export function AdminIncomeClient({
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>Amount ($) <span className="text-destructive">*</span></Label>
+                    <Label>Due Amount <span className="text-destructive">*</span></Label>
                     <Input type="number" min="0" step="0.01" value={nsAmount} onChange={e => setNsAmount(e.target.value)} placeholder={copy.amountPlaceholder} />
                   </div>
                   <div className="space-y-1.5">
@@ -315,11 +315,13 @@ export function AdminIncomeClient({
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label>{creatingKind === 'donation' ? 'Opens' : 'Start Date (optional)'}</Label>
+                  {/* Both kinds name these the same now. Only dues carry the
+                      "(optional)" hint, which is where the wording already was. */}
+                  <Label>Start Date{creatingKind !== 'donation' && ' (optional)'}</Label>
                   <Input type="date" value={nsStartDate} onChange={e => setNsStartDate(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>{creatingKind === 'donation' ? 'Closes' : 'End Date (optional)'}</Label>
+                  <Label>End Date{creatingKind !== 'donation' && ' (optional)'}</Label>
                   <Input type="date" value={nsEndDate} onChange={e => setNsEndDate(e.target.value)} />
                 </div>
               </div>
@@ -350,22 +352,22 @@ export function AdminIncomeClient({
                       {editKind === 'donation' ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1.5">
-                            <Label>Label</Label>
+                            <Label>Name</Label>
                             <Input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Goal ($)</Label>
+                            <Label>Goal Amount</Label>
                             <Input type="number" min="0" step="0.01" value={editGoal} onChange={e => setEditGoal(e.target.value)} />
                           </div>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="space-y-1.5">
-                            <Label>Label</Label>
+                            <Label>Name</Label>
                             <Input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Amount ($)</Label>
+                            <Label>Due Amount</Label>
                             <Input type="number" min="0" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} />
                           </div>
                           <div className="space-y-1.5">
@@ -378,11 +380,11 @@ export function AdminIncomeClient({
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label>{editKind === 'donation' ? 'Opens' : 'Start Date'}</Label>
+                          <Label>Start Date</Label>
                           <Input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label>{editKind === 'donation' ? 'Closes' : 'End Date'}</Label>
+                          <Label>End Date</Label>
                           <Input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
                         </div>
                       </div>

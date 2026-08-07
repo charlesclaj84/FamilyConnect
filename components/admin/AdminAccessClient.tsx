@@ -103,23 +103,25 @@ export function AdminAccessClient({
   }
 
   // Built from what the caller may actually see, so a visible tab always leads
-  // somewhere they can go. Both halves are conditional: an approvals-only caller gets
-  // one tab, and so does someone with no approvals grant.
+  // somewhere they can go. Every entry is conditional: an approvals-only caller gets
+  // one tab, and so does someone with no approvals grant. Order is Members → Pending
+  // Approval → Permission Templates regardless of which of them survive, so the two
+  // people-shaped tabs stay adjacent.
   const tabs: MainRailItem<AccessTab>[] = [
     ...(canViewAccess ? [
       { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
-      {
-        id: 'templates' as const,
-        label: 'Permission templates',
-        icon: KeyRound,
-        href: '/admin/users?tab=templates',
-      },
     ] : []),
     ...(canViewApprovals ? [{
       id: 'approvals' as const,
       label: 'Pending Approval',
       icon: Clock,
       href: '/admin/users?tab=approvals',
+    }] : []),
+    ...(canViewAccess ? [{
+      id: 'templates' as const,
+      label: 'Permission Templates',
+      icon: KeyRound,
+      href: '/admin/users?tab=templates',
     }] : []),
   ]
 
