@@ -21,6 +21,7 @@ import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 import {
   SECTION_LABELS, type AccountSection, type AccountRights,
 } from '@/components/admin/account-sections'
+import { MainRail } from '@/components/layout/MainRail'
 import type { DuesSchedule } from '@/app/actions/dues'
 import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
 
@@ -193,39 +194,27 @@ export function AdminAccountShell({
 
   return (
     <div className="space-y-6">
-      {/* Level one: the groups. Clicking one opens its first page. */}
-      <nav
-        aria-label="Accounting areas"
-        className="flex flex-wrap items-center gap-2 border-b pb-3"
-      >
-        {visibleGroups.map(group => {
-          const active = group.label === activeGroup?.label
-          const target = group.items[0].id
-          return (
-            <a
-              key={group.label}
-              href={`/admin/account?section=${target}`}
-              aria-current={active ? 'page' : undefined}
-              onClick={e => {
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-                e.preventDefault()
-                // Land on the group's first page. Re-clicking the group you are
-                // already in would otherwise throw away where you were inside it.
-                if (!active) selectSection(target)
-              }}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                active
-                  ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
-                  : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
-              )}
-            >
-              <group.icon className="h-4 w-4 shrink-0" />
-              {group.label}
-            </a>
-          )
-        })}
-      </nav>
+      {/* Level one: the groups, on the standard main rail. Clicking one opens its
+          first page.
+          The rail is keyed by GROUP LABEL rather than by section, because a group is
+          not itself a destination — `active` is the group containing the visible
+          section, and selecting one lands on its first page. */}
+      <MainRail
+        label="Accounting areas"
+        items={visibleGroups.map(group => ({
+          id: group.label,
+          label: group.label,
+          icon: group.icon,
+          href: `/admin/account?section=${group.items[0].id}`,
+        }))}
+        active={activeGroup?.label ?? ''}
+        onSelect={label => {
+          const group = visibleGroups.find(g => g.label === label)
+          // Re-selecting the group you are already in would throw away where you were
+          // inside it, so only a real change moves.
+          if (group && group.label !== activeGroup?.label) selectSection(group.items[0].id)
+        }}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[16rem_1fr]">
         {/* Level two: the pages inside the active group. Two or three short links,

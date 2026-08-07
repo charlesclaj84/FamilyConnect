@@ -30,6 +30,7 @@ import {
   type FundMilestone, type FundDisbursement, type FundContribution,
 } from '@/app/actions/funds'
 import { LEDGERS, LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
+import { MainRail } from '@/components/layout/MainRail'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 interface FundOption { id: string; name: string }
@@ -383,56 +384,34 @@ export function TransactionsClient({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[16rem_1fr]">
-      {/* The rail, and the record trigger beneath it — same shape as the Accounting
-          admin page, so moving between the two does not move the furniture. */}
-      <div className="flex flex-row flex-wrap items-start gap-2 xl:flex-col xl:gap-0">
-        <nav
-          aria-label="Transaction ledgers"
-          className="flex flex-row flex-wrap gap-2 xl:w-full xl:flex-col xl:gap-0.5"
-        >
-          {LEDGERS.map(id => {
-            const Icon = LEDGER_ICONS[id]
-            const active = ledger === id
-            return (
-              <a
-                key={id}
-                href={`/transactions?ledger=${id}`}
-                aria-current={active ? 'page' : undefined}
-                onClick={e => {
-                  // Leave modified and non-primary clicks to the browser.
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-                  e.preventDefault()
-                  selectLedger(id)
-                }}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                  active
-                    // Explicit colours are required: globals.css has an unscoped
-                    // `a { color: #1aa88a }` that would otherwise paint every item teal.
-                    ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
-                    : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {LEDGER_LABELS[id]}
-              </a>
-            )
-          })}
-        </nav>
-        {canRecord && (
-          <div className="ml-auto flex justify-end xl:ml-0 xl:mt-3 xl:w-full xl:border-t xl:pt-3">
-            <Button
-              className="bg-[#6bbe6b] text-[#0f2540] hover:opacity-90"
-              onClick={() => { setError(''); setRecording(ledger) }}
-            >
-              <CirclePlus className="h-4 w-4 mr-1" /> {RECORD_LABELS[ledger]}
-            </Button>
-          </div>
+    <div>
+      {/* The main rail, with the record trigger on its right — same shape as the
+          Accounting admin page, so moving between the two does not move the furniture.
+          It replaced a 16rem left column, which is why the pane below is now full
+          width. */}
+      <MainRail
+        label="Transaction ledgers"
+        items={LEDGERS.map(id => ({
+          id,
+          label: LEDGER_LABELS[id],
+          icon: LEDGER_ICONS[id],
+          href: `/transactions?ledger=${id}`,
+        }))}
+        active={ledger}
+        onSelect={selectLedger}
+        action={canRecord && (
+          // Green rather than the default navy: navy is exactly what the ACTIVE rail
+          // item looks like, so a navy trigger here read as another ledger.
+          <Button
+            className="bg-[#6bbe6b] text-[#0f2540] hover:opacity-90"
+            onClick={() => { setError(''); setRecording(ledger) }}
+          >
+            <CirclePlus className="h-4 w-4 mr-1" /> {RECORD_LABELS[ledger]}
+          </Button>
         )}
-      </div>
+      />
 
-      <div className="min-w-0 space-y-4">
+      <div className="mt-5 min-w-0 space-y-4">
         {/* ── Dues and Donations: two views of dues_payments, split by kind ── */}
         {(ledger === 'dues' || ledger === 'donations') && (
           <PaymentLedger

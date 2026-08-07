@@ -174,7 +174,9 @@ async function decide(
     }
   }
 
-  revalidatePath('/admin/approvals')
+  // The queue renders on Members & Access now (its Pending Approval tab). Revalidating
+  // the old /admin/approvals route would refresh a redirect that holds no data.
+  revalidatePath('/admin/users')
   revalidatePath('/dashboard')
   return { success: true }
 }

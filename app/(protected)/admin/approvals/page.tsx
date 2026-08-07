@@ -1,51 +1,25 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { requireView } from '@/lib/auth/permissions'
-import { getApplicants } from '@/app/actions/admin/approvals'
-import { getInvitations } from '@/app/actions/invitations'
-import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
-
-export const metadata = { title: 'Member Approvals — Family Connect' }
 
 /**
- * The queue of people who have asked to join, and the decisions already taken.
+ * Member Approvals moved into Members & Access as its "Pending Approval" tab.
  *
- * Gated on `admin/approvals` — registered in 20260806000010 and restricted per family
- * by the same migration, so it is administrators-only unless a family grants it
- * elsewhere. The gate is not cosmetic here even by the usual standard: the rows on this
- * page are the only place an applicant's name, email, phone and date of birth are
- * visible to anyone but themselves, because the `people` SELECT policy hides a
- * non-approved row from every caller who cannot view THIS resource key.
+ * The route stays as a redirect rather than being deleted, because the queue is
+ * linked to from outside this codebase's control: the notification a pending member
+ * receives, invitation emails, and whatever an administrator has bookmarked. A 404
+ * would strand all of them.
+ *
+ * NOT gated, and it does not need to be. It reads nothing and renders nothing — it
+ * only rewrites a URL, and the destination gates itself on the same two resource keys
+ * it always did. Checking a grant here would be checking it twice and getting the
+ * worse error: a 404 from this route tells a caller the page does not exist, when
+ * what is true is that the page moved.
+ *
+ * The resource key `admin/approvals` is unaffected and still governs the tab, the
+ * server actions and the RLS on the rows behind them. It is registered in
+ * `lib/features.ts` and `permission_resources`, and both entries stay — the key is
+ * what administrators grant on Members & Access, and removing either would drop it
+ * out of `viewableResources()` and out of the permission grid.
  */
 export default async function AdminApprovalsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  await requireView(user.id, 'admin/approvals')
-
-  const [{ pending, decided, canDecide }, invitations] = await Promise.all([
-    getApplicants(),
-    getInvitations(),
-  ])
-
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Member Approvals</h1>
-        <p className="text-muted-foreground">
-          People who have asked to join with your family code. They cannot see anything
-          in the family until you admit them — unless you invite them from here, which
-          admits them on acceptance.
-        </p>
-      </div>
-
-      <AdminApprovalsClient
-        pending={pending}
-        decided={decided}
-        canDecide={canDecide}
-        invitations={invitations}
-      />
-    </div>
-  )
+  redirect('/admin/users?tab=approvals')
 }

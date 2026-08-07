@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   MoreVertical, Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
-  Users, KeyRound,
+  Users, KeyRound, Clock,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,38 +22,77 @@ import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/Memb
 import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
+import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
+import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import type { Applicant } from '@/app/actions/admin/approvals'
+import type { FamilyInvitation } from '@/app/actions/invitations'
 
 /**
- * Members & Access — one screen for what used to be two.
+ * Members & Access — one screen for what used to be three.
  *
  * The old pair could not be merged while a member's access was the union of N group
  * policies layered over a per-person override grid, because no single view could
  * state the answer. One template per member makes the answer a single word on the
  * member's row, and the template's grid the only place it is decided.
  *
- * So: MEMBERS is a filterable list with a row menu, and TEMPLATES is the grid. There
- * is no third thing.
+ * So: MEMBERS is a filterable list with a row menu, TEMPLATES is the grid, and
+ * PENDING APPROVAL is the join queue that used to live at /admin/approvals — the
+ * three questions you can ask about who is in this family and what they may do.
+ *
+ * THE APPROVALS TAB IS GATED SEPARATELY, and that is load-bearing rather than tidy.
+ * It reads a different resource key (`admin/approvals`) from the rest of this screen
+ * (`admin/users`), and the rows behind it are the only place an applicant's name,
+ * email, phone and date of birth are visible to anyone but themselves. So the tab is
+ * absent, and its data unfetched, for a caller who holds Members & Access without
+ * Member Approvals — see the page, which decides both.
  */
 
+export type AccessTab = 'members' | 'templates' | 'approvals'
+
 interface Rights { view: boolean; create: boolean; edit: boolean; remove: boolean }
+
+/** The join queue. Supplied only for the tab that shows it — null otherwise. */
+export interface ApprovalsData {
+  pending: Applicant[]
+  decided: Applicant[]
+  canDecide: boolean
+  invitations: FamilyInvitation[]
+}
 
 interface Props {
   templates: TemplateSummary[]
   resources: ResourceSummary[]
-  tab: 'members' | 'templates'
+  tab: AccessTab
   selectedTemplateId: string | null
   policy: PolicyMap
   rights: Rights
   legacy: boolean
+  /**
+   * The queue, and ONLY when `tab` is 'approvals'. Whether the tab exists is
+   * `canViewApprovals`, deliberately a separate prop: tying the tab's presence to the
+   * data would make it disappear whenever another tab was open, and sending the data
+   * on every tab would publish the queue to the browser for someone who never opened
+   * it (AGENTS.md §5).
+   */
+  approvals: ApprovalsData | null
+  /** Whether the caller may view `admin/approvals` — drives the tab. */
+  canViewApprovals: boolean
+  /**
+   * Whether the caller may view `admin/users` itself. False for someone who reached
+   * this page on their Member Approvals grant alone, who gets the approvals tab and
+   * nothing else.
+   */
+  canViewAccess: boolean
 }
 
 export function AdminAccessClient({
   templates, resources, tab, selectedTemplateId, policy, rights, legacy,
+  approvals, canViewApprovals, canViewAccess,
 }: Props) {
   const router = useRouter()
   const [error, setError] = useState('')
 
-  function go(next: { tab?: 'members' | 'templates'; template?: string | null }) {
+  function go(next: { tab?: AccessTab; template?: string | null }) {
     const t = next.tab ?? tab
     const template = next.template === undefined ? selectedTemplateId : next.template
     const params = new URLSearchParams()
@@ -62,6 +101,27 @@ export function AdminAccessClient({
     const qs = params.toString()
     router.push(qs ? `/admin/users?${qs}` : '/admin/users')
   }
+
+  // Built from what the caller may actually see, so a visible tab always leads
+  // somewhere they can go. Both halves are conditional: an approvals-only caller gets
+  // one tab, and so does someone with no approvals grant.
+  const tabs: MainRailItem<AccessTab>[] = [
+    ...(canViewAccess ? [
+      { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
+      {
+        id: 'templates' as const,
+        label: 'Permission templates',
+        icon: KeyRound,
+        href: '/admin/users?tab=templates',
+      },
+    ] : []),
+    ...(canViewApprovals ? [{
+      id: 'approvals' as const,
+      label: 'Pending Approval',
+      icon: Clock,
+      href: '/admin/users?tab=approvals',
+    }] : []),
+  ]
 
   return (
     <div className="space-y-5">
@@ -73,7 +133,9 @@ export function AdminAccessClient({
         </div>
       )}
 
-      {!rights.edit && (
+      {/* Suppressed for an approvals-only caller: they are not looking at access
+          settings, so telling them they cannot change any is a non sequitur. */}
+      {canViewAccess && !rights.edit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           You can view access settings but not change them.
         </div>
@@ -83,32 +145,37 @@ export function AdminAccessClient({
         <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
       )}
 
-      <div className="flex flex-wrap gap-1 border-b">
-        {([
-          ['members', 'Members', Users],
-          ['templates', 'Permission templates', KeyRound],
-        ] as const).map(([t, label, Icon]) => (
-          <button key={t} type="button" onClick={() => go({ tab: t })}
-            className={cn('flex items-center gap-1.5 px-3 py-2 text-sm transition-colors',
-              tab === t
-                ? 'border-b-2 border-[#0f2540] font-medium text-[#0f2540]'
-                : 'text-muted-foreground hover:text-foreground')}>
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
-      </div>
+      <MainRail
+        label="Members and access"
+        items={tabs}
+        active={tab}
+        onSelect={t => go({ tab: t })}
+      />
 
-      {tab === 'members'
-        ? <MembersTab templates={templates} rights={rights} onError={setError} />
-        : <TemplatesTab
-            templates={templates}
-            resources={resources}
-            selectedTemplateId={selectedTemplateId}
-            policy={policy}
-            rights={rights}
-            onError={setError}
-            onSelect={id => go({ tab: 'templates', template: id })}
-          />}
+      {tab === 'approvals' && approvals && (
+        <AdminApprovalsClient
+          pending={approvals.pending}
+          decided={approvals.decided}
+          canDecide={approvals.canDecide}
+          invitations={approvals.invitations}
+        />
+      )}
+
+      {tab === 'members' && (
+        <MembersTab templates={templates} rights={rights} onError={setError} />
+      )}
+
+      {tab === 'templates' && (
+        <TemplatesTab
+          templates={templates}
+          resources={resources}
+          selectedTemplateId={selectedTemplateId}
+          policy={policy}
+          rights={rights}
+          onError={setError}
+          onSelect={id => go({ tab: 'templates', template: id })}
+        />
+      )}
     </div>
   )
 }
@@ -234,10 +301,10 @@ function MemberRow({ member, templates, rights, busy, run }: {
             <div className="my-1 border-t" />
 
             {member.status === 'pending' ? (
-              <Link href="/admin/approvals" onClick={close}
+              <Link href="/admin/users?tab=approvals" onClick={close}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[#e6ecfa]">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                Review in Member Approvals
+                Review in Pending Approval
               </Link>
             ) : member.isSelf ? (
               <p className="px-3 py-1.5 text-xs text-muted-foreground">

@@ -62,6 +62,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // Member Approvals moved into Members & Access as its Pending Approval tab. The
+  // redirect lives HERE rather than in the page it vacated because this is the only
+  // place it can be a real 307: `redirect()` thrown from a page inside the (protected)
+  // layout arrives after the shell has already streamed, so Next falls back to a
+  // one-second `<meta http-equiv="refresh">` — which is what a bookmark and the link
+  // in a pending member's notification would both have landed on.
+  //
+  // The page keeps its own redirect() as the fallback for any path that does not run
+  // through this matcher. Cookies are copied across for the same reason the roadmap
+  // gate copies them: a response built from scratch drops any rotated by the session
+  // refresh above.
+  if (pathname === '/admin/approvals') {
+    const moved = NextResponse.redirect(new URL('/admin/users?tab=approvals', request.url))
+    supabaseResponse.cookies.getAll().forEach((cookie) => moved.cookies.set(cookie))
+    return moved
+  }
+
   // Roadmap gate — see lib/features.ts for what is shipped. Kept after the
   // session refresh above so the rewrite still carries any rotated auth cookies.
   if (isGatedPath(pathname)) {

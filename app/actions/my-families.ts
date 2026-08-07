@@ -152,7 +152,7 @@ export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> 
       type: 'membership_request',
       title: 'A new member is waiting for approval',
       body: `${user.email ?? 'Someone'} has asked to join ${familyName}.`,
-      link: '/admin/approvals',
+      link: '/admin/users?tab=approvals',
     })
   } catch {
     // Deliberately swallowed. See above.

@@ -363,3 +363,57 @@ run never called it. Two things follow:
 `npx supabase db push --linked` **does nothing from a non-TTY** — exit 0, no output, no
 migrations applied — because it is waiting on a confirmation prompt. Redirect stdin:
 `npx supabase db push --linked < /dev/null`.
+
+# The main rail is a standard component
+
+`components/layout/MainRail.tsx` is **the default primary in-page navigation**. A page
+that switches between panes uses it and decides nothing: a horizontal strip of
+underlined tabs sitting on a rule the width of the content, with an optional
+right-aligned slot for the active pane's one action.
+
+```tsx
+<MainRail
+  label="Transaction ledgers"                 // names the nav landmark
+  items={LEDGERS.map(id => ({
+    id, label: LEDGER_LABELS[id], icon: LEDGER_ICONS[id],
+    href: `/transactions?ledger=${id}`,       // optional — see below
+  }))}
+  active={ledger}
+  onSelect={selectLedger}
+  action={canRecord && <Button …>New Dues Payment</Button>}
+/>
+```
+
+It replaced a filled-pill rail down a `xl:grid-cols-[16rem_1fr]` left column, which is
+why the rule is worth keeping rather than a preference to relitigate: that column was
+charged to every page carrying it, and the routing table on Accounting
+(`min-w-[560px]`) could not spare it much below 1280px. Members & Access, Transactions
+and Accounting all use it; there is no second main-rail style in the codebase, and a
+new one should not appear.
+
+Four things about it are load-bearing:
+
+* **Supply `href` when the pane has a URL.** The item then renders a real `<a>`, so
+  cmd-click, middle-click and copy-link-address work, while a plain left click is
+  intercepted and handled locally. That interception is the point on these pages — a
+  real navigation refetches the RSC payload and remounts the pane, discarding
+  optimistic rows, half-filled forms and `useTransition` state. Omit `href` only where
+  the pane genuinely has no address.
+
+* **Never drop the explicit text colours** if you fork or extend it. `app/globals.css`
+  line 136 carries an unscoped `a { color: #1aa88a }`, and every link in the rail comes
+  out teal without them. The same trap is commented at each of the older rails.
+
+* **It is not a `role="tablist"`,** deliberately. That role promises arrow-key roving
+  focus, Home/End, and `aria-controls` wiring, and a screen reader changes its own key
+  handling to match. None of that is implemented, so claiming it would strand those
+  users. As a nav landmark holding links, Tab works — which is what is true. Same
+  reasoning as `RowMenu` in `AdminAccessClient`.
+
+* **It carries no margin of its own.** Space it from the parent — a `space-y-*` wrapper
+  (Members & Access, Accounting) or an explicit `mt-*` on the pane (Transactions).
+
+**Second-level rails are untouched by this.** Accounting has two levels — groups on the
+main rail, then the pages inside the active group — and the inner one keeps the filled
+pills in its 16rem column, along with the create trigger that sits under it. The rule is
+about the page's *primary* nav, not about every list of links on it.

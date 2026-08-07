@@ -168,13 +168,20 @@ export const FEATURES: readonly Feature[] = [
   },
   // Member Approvals is LIVE, and must be: it is the only surface that can admit
   // someone who has joined by family code, and a family with an unreachable approvals
-  // page would collect applicants it could never let in. Who sees it is decided by the
+  // queue would collect applicants it could never let in. Who sees it is decided by the
   // permission model — 20260806000010 registers it 'restricted' per family, so it is
   // administrators-only until a family says otherwise.
   //
-  // Registering it here is not optional decoration. viewableResources() walks THIS
-  // list to build the set of keys a caller may view, so an unlisted route never enters
-  // `viewable` and requireView() 404s the page for everybody, administrators included.
+  // THE ROUTE IS NOW A REDIRECT. The queue moved into Members & Access as its Pending
+  // Approval tab; /admin/approvals only forwards to it, so that the link in a pending
+  // member's notification and anything an administrator bookmarked keep working.
+  //
+  // The entry stays, and removing it would break the move rather than tidy up after it.
+  // viewableResources() walks THIS list to build the set of keys a caller may view, and
+  // `admin/approvals` is the key that governs the tab, its server actions and the RLS on
+  // the rows behind them — drop the entry and the tab disappears for everybody,
+  // administrators included. It is a resource key that happens to have a redirect at the
+  // matching path, not a page awaiting launch.
   {
     href: '/admin/approvals',
     label: 'Member Approvals',

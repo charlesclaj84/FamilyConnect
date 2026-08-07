@@ -94,7 +94,8 @@ export async function inviteMember(
     return { success: false, message: data?.message ?? 'Could not create that invitation.' }
   }
 
-  revalidatePath('/admin/approvals')
+  // Invitations are listed on the Pending Approval tab of Members & Access.
+  revalidatePath('/admin/users')
   revalidatePath('/my-families')
   return {
     success: true,
@@ -158,7 +159,7 @@ export async function revokeInvitation(invitationId: string): Promise<Invitation
   if (error) return { success: false, message: 'Could not cancel that invitation.' }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
-  revalidatePath('/admin/approvals')
+  revalidatePath('/admin/users')
   return { success: true }
 }
 

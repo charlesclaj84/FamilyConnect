@@ -14,7 +14,6 @@ import {
   ClipboardList,
   ShieldCheck,
   UsersRound,
-  UserCheck,
   ListChecks,
   CalendarClock,
   Menu,
@@ -42,6 +41,15 @@ interface NavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
+  /**
+   * Resource keys, ANY of which makes this item visible. Defaults to the one derived
+   * from `href`, which is right for every page whose route and permission key match.
+   *
+   * Members & Access is the exception: it hosts two independently granted surfaces —
+   * its own screens under `admin/users`, and the Pending Approval tab under
+   * `admin/approvals` — so someone holding only the second still needs the link.
+   */
+  viewKeys?: string[]
 }
 
 interface NavGroup {
@@ -55,14 +63,19 @@ interface NavGroup {
 // This order is independent of the permission grid on Members & Access, which sorts
 // by permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
-  // Member Approvals leads. It is the only admin surface with a QUEUE behind it —
-  // people waiting, who can see nothing until somebody acts — so it is the one an
-  // administrator should be prompted to look at, rather than the one they scroll to.
-  { href: '/admin/approvals',      label: 'Member Approvals',     icon: UserCheck },
+  // Members & Access leads, having absorbed Member Approvals as its Pending Approval
+  // tab. The queue is the reason for the position: it is the only admin surface with
+  // PEOPLE waiting behind it, who can see nothing until somebody acts, so it is the
+  // one an administrator should be prompted to look at rather than scroll to.
+  {
+    href: '/admin/users',
+    label: 'Members & Access',
+    icon: UsersRound,
+    viewKeys: ['admin/users', 'admin/approvals'],
+  },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
-  { href: '/admin/users',          label: 'Members & Access',     icon: UsersRound },
   { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
 ]
@@ -136,7 +149,8 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
     .map(group => ({
       ...group,
       items: group.items.filter(item =>
-        !isFeatureFuture(item.href) && viewable.has(item.href.replace(/^\//, '')),
+        !isFeatureFuture(item.href)
+        && (item.viewKeys ?? [item.href.replace(/^\//, '')]).some(key => viewable.has(key)),
       ),
     }))
     .filter(group => group.items.length > 0)
