@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { getMyFamilies } from '@/lib/auth/family'
 import { MyFamiliesSection } from '@/components/my-families/MyFamiliesSection'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'My Families — Family Connect' }
 
@@ -27,7 +28,7 @@ export default async function MyFamiliesPage() {
   const families = await getMyFamilies(user.id)
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">My Families</h1>
         <p className="text-muted-foreground">
@@ -36,6 +37,6 @@ export default async function MyFamiliesPage() {
       </div>
 
       <MyFamiliesSection families={families} />
-    </div>
+    </PageShell>
   )
 }

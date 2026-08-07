@@ -26,7 +26,7 @@ import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
-  recordDisbursement, deleteDisbursement, recordFundContribution,
+  recordDisbursement, recordFundContribution,
   type FundMilestone, type FundDisbursement, type FundContribution,
 } from '@/app/actions/funds'
 import { LEDGERS, LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
@@ -54,10 +54,18 @@ interface Props {
   canRecordDonations: boolean
   canRecordContributions: boolean
   canRecordDisbursements: boolean
-  /** Erasing the record of money paid out is separable from paying it out. */
-  canDeleteDisbursements: boolean
   /** May post a correcting entry against an existing payment. */
   canReverse: boolean
+  /**
+   * The caller's own name, for the optimistic row a recording form inserts.
+   *
+   * Every money row now carries who entered it, and the row this component adds before
+   * the server answers is entered by the person using it. Without this the optimistic
+   * row would read "No longer in the family" for the second between the insert and
+   * `router.refresh()` — a alarming thing to flash at a treasurer about a payment they
+   * are watching themselves record.
+   */
+  myName: string
 }
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -90,6 +98,182 @@ const SOURCE_LABELS: Record<string, string> = {
   admin_manual: 'Recorded',
   member_contribution: 'From a member',
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  paid: 'Paid',
+  waived: 'Waived',
+  // Not offered by any form here, and kept because the TABLE still allows it: the
+  // pending -> paid settlement 20260806000002 leaves open is how an online payment will
+  // land, and a row in that state must read as something rather than as a raw column.
+  pending: 'Pending',
+}
+
+/**
+ * One transaction rendered as a title and a flat list of labelled fields.
+ *
+ * A single shape for all four ledgers, so there is one dialog rather than four that
+ * drift. Every value is pre-formatted to a string here — the dialog does no formatting
+ * of its own, which is what keeps a date or an amount from being displayed one way in
+ * the list and another in the detail.
+ */
+interface TransactionView {
+  title: string
+  subtitle: string
+  fields: { label: string; value: string | null }[]
+}
+
+/**
+ * WHO ENTERED IT is on all three of these, and it is the reason this dialog exists at
+ * all: `recorded_by` has been on every money table for months with nowhere in the UI
+ * that showed it. A null reads as "no longer in the family" rather than as a blank,
+ * because that is what it means — recorded_by is ON DELETE SET NULL, and since
+ * 20260807000002 a row cannot be inserted without it.
+ */
+const recorderField = (name: string | null) => ({
+  label: 'Recorded by',
+  value: name ?? 'No longer in the family',
+})
+
+function viewOfPayment(p: DuesPayment | undefined): TransactionView | null {
+  if (!p) return null
+  const isReversal = Boolean(p.reverses_id)
+  const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
+  return {
+    title: p.person_name ?? 'Unknown member',
+    subtitle: isReversal ? `${kindWord} — correcting entry` : kindWord,
+    fields: [
+      { label: 'Amount', value: fmt(p.amount_cents) },
+      { label: 'Status', value: STATUS_LABELS[p.status] ?? p.status },
+      { label: p.schedule_kind === 'donation' ? 'Donation' : 'Schedule', value: p.schedule_label ?? 'No schedule' },
+      { label: 'Date', value: formatDate(p.payment_date) },
+      // Absent on a waived row by design — no money moved, so there was no method and
+      // no cheque to number.
+      { label: 'Payment method', value: p.payment_method },
+      { label: 'Check # / Reference', value: p.payment_reference },
+      { label: 'Notes', value: p.notes },
+      recorderField(p.recorded_by_name),
+      { label: 'Entered', value: formatDate(p.created_at) },
+      ...(p.reversed_by_id ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }] : []),
+      ...(isReversal ? [{ label: 'Corrects', value: 'An earlier payment on this ledger' }] : []),
+    ],
+  }
+}
+
+function viewOfContribution(c: FundContribution | undefined): TransactionView | null {
+  if (!c) return null
+  return {
+    title: c.contributor_name ?? 'Routed from a payment',
+    subtitle: `Fund contribution — ${SOURCE_LABELS[c.source] ?? c.source}`,
+    fields: [
+      { label: 'Amount', value: fmt(c.amount_cents) },
+      { label: 'Fund', value: c.fund_name ?? 'Unknown fund' },
+      { label: 'Date', value: formatDate(c.contributed_date) },
+      { label: 'Payment method', value: c.payment_method },
+      { label: 'Check # / Reference', value: c.payment_reference },
+      { label: 'Notes', value: c.notes },
+      recorderField(c.recorded_by_name),
+      { label: 'Entered', value: formatDate(c.created_at) },
+    ],
+  }
+}
+
+function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | null {
+  if (!d) return null
+  return {
+    title: d.person_name ?? 'Unknown member',
+    subtitle: 'Fund disbursement',
+    fields: [
+      { label: 'Amount', value: fmt(d.amount_cents) },
+      { label: 'Fund', value: d.fund_name ?? 'Unknown fund' },
+      { label: 'Milestone', value: d.milestone_name },
+      { label: 'Date', value: formatDate(d.disbursed_date) },
+      { label: 'Check # / Reference', value: d.payment_reference },
+      { label: 'Notes', value: d.notes },
+      recorderField(d.recorded_by_name),
+      { label: 'Entered', value: formatDate(d.created_at) },
+    ],
+  }
+}
+
+/**
+ * The chrome every ledger table shares: the scroll container, the header row, and the
+ * classes that keep four tables looking like one.
+ *
+ * Scrolls inside its own `overflow-x-auto` rather than widening the page — the same rule
+ * Member Directory and the Accounting panes follow, and the same reason: six or seven
+ * columns do not fit a phone, and maintaining a second stacked rendering of every row is
+ * worse than a horizontal scroll.
+ */
+function LedgerTable({ minWidth, columns, children }: {
+  minWidth: string
+  /** `right: true` for a figures column, so the heading sits over its own numbers. */
+  columns: { label: string; right?: boolean; srOnly?: boolean }[]
+  children: React.ReactNode
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border">
+      <table className={cn('w-full border-collapse text-sm', minWidth)}>
+        <thead>
+          <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {columns.map(c => (
+              <th key={c.label} scope="col"
+                className={cn('px-3 py-2 font-semibold', c.right && 'text-right')}>
+                {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  )
+}
+
+/**
+ * A ledger row that opens its detail dialog.
+ *
+ * TWO WAYS IN, and both are deliberate. The `<tr>` carries the click for the mouse,
+ * because a whole row is the target people aim at; the FIRST CELL carries a real
+ * `<button>`, because that is the only part of this a keyboard reaches and a screen
+ * reader announces. A `<tr>` cannot be given the click alone — it is not focusable and
+ * `role="button"` on it would be a promise about Enter and Space that nothing here keeps
+ * (same reasoning as MainRail and RowMenu).
+ *
+ * `stopPropagation` on any OTHER control in the row is therefore required, or a Reverse
+ * click opens the dialog on its way up.
+ */
+function LedgerRow({ onOpen, className, children }: {
+  onOpen: () => void
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <tr
+      onClick={onOpen}
+      className={cn('cursor-pointer border-b align-middle transition-colors last:border-0 hover:bg-muted/50', className)}
+    >
+      {children}
+    </tr>
+  )
+}
+
+/** The keyboard-reachable trigger, in a row's primary cell. See LedgerRow. */
+function LedgerRowTrigger({ onOpen, children }: { onOpen: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onOpen() }}
+      className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  )
+}
+
+// LedgerRowButton was here — a full-width <button> that WAS the row, back when each
+// ledger was a <ul>. It cannot survive a table: a <button> may not wrap a set of <td>s,
+// and the moment the row became a <tr> the trigger had to split into the row's own click
+// (mouse) and a button in the primary cell (keyboard). See LedgerRow above.
 
 /**
  * Every transaction the family has recorded, and the forms that add to them.
@@ -124,13 +308,17 @@ export function TransactionsClient({
   canRecordDonations,
   canRecordContributions,
   canRecordDisbursements,
-  canDeleteDisbursements,
   canReverse,
+  myName,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [ledger, setLedger] = useState<Ledger>(initialLedger)
   const [recording, setRecording] = useState<Ledger | null>(null)
+  // Which row's detail dialog is open. Held as {ledger, id} rather than as the row
+  // itself, so the dialog re-derives from live state — a reversal posted while it is
+  // open updates the entry being read instead of showing a stale snapshot of it.
+  const [viewing, setViewing] = useState<{ ledger: Ledger; id: string } | null>(null)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -303,6 +491,7 @@ export function TransactionsClient({
         payment_reference: reference,
         notes: rpNotes || null,
         created_at: new Date().toISOString(),
+        recorded_by_name: myName,
         reverses_id: null,
         reversed_by_id: null,
       }, ...prev])
@@ -351,6 +540,7 @@ export function TransactionsClient({
         contributed_date: fcDate,
         notes: fcNotes || null,
         created_at: new Date().toISOString(),
+        recorded_by_name: myName,
       }, ...prev])
       // Fund and method survive — contributions get entered in batches, and a stack of
       // cheques shares both. The date used to survive with them; it now re-opens on
@@ -398,6 +588,7 @@ export function TransactionsClient({
         payment_reference: reference,
         notes,
         created_at: new Date().toISOString(),
+        recorded_by_name: myName,
       }, ...prev])
       setRdPersonId(''); setRdAmount(''); setRdMilestoneId(''); setRdReference(''); setRdNotes('')
       setRecording(null)
@@ -405,24 +596,20 @@ export function TransactionsClient({
     })
   }
 
-  async function handleDeleteDisbursement(id: string) {
-    const d = disbursements.find(x => x.id === id)
-    const ok = await confirm({
-      title: 'Delete disbursement',
-      description: d
-        ? `Delete the ${fmt(d.amount_cents)} disbursement to ${d.person_name ?? 'this member'} from ${d.fund_name ?? 'the fund'}? The amount returns to the fund balance. This cannot be undone.`
-        : 'Delete this disbursement? The amount returns to the fund balance. This cannot be undone.',
-      confirmLabel: 'Delete disbursement',
-      destructive: true,
-    })
-    if (!ok) return
-    startTransition(async () => {
-      const res = await deleteDisbursement(id)
-      if (!res.success) { setError(res.message ?? 'Failed'); return }
-      setDisbursements(prev => prev.filter(x => x.id !== id))
-      router.refresh()
-    })
-  }
+  // handleDeleteDisbursement was removed with the action behind it. fund_disbursements is
+  // append-only as of 20260807000002 — trigger, no DELETE policy, and the resource no
+  // longer declares a delete action — so there is nothing for a button to call.
+
+  // Resolved at render time from the live arrays, which is why `viewing` stores an id.
+  // Returns null when the row has gone (a refresh dropped it), and the dialog closes
+  // itself rather than rendering an empty shell.
+  const viewed: TransactionView | null = !viewing
+    ? null
+    : viewing.ledger === 'contributions'
+      ? viewOfContribution(contributions.find(c => c.id === viewing.id))
+      : viewing.ledger === 'disbursements'
+        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id))
+        : viewOfPayment(payments.find(p => p.id === viewing.id))
 
   return (
     <div>
@@ -460,6 +647,7 @@ export function TransactionsClient({
             kind={ledger}
             canReverse={canReverse}
             onReverse={handleReverse}
+            onOpen={id => setViewing({ ledger, id })}
             pending={isPending}
           />
         )}
@@ -468,32 +656,40 @@ export function TransactionsClient({
           contributions.length === 0
             ? <p className="text-sm text-muted-foreground">No contributions yet.</p>
             : (
-              <ul className="divide-y rounded-xl border overflow-hidden">
+              <LedgerTable
+                minWidth="min-w-[56rem]"
+                columns={[
+                  { label: 'From' }, { label: 'Fund' }, { label: 'Date' },
+                  { label: 'Method' }, { label: 'Check # / Reference' },
+                  { label: 'Source' }, { label: 'Amount', right: true },
+                ]}
+              >
                 {contributions.map(c => (
-                  <li key={c.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                        {/* A routed row has no giver — the money came from a payment,
-                            not from someone handing it over. */}
+                  <LedgerRow key={c.id} onOpen={() => setViewing({ ledger: 'contributions', id: c.id })}>
+                    <td className="px-3 py-2.5">
+                      <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'contributions', id: c.id })}>
+                        {/* A routed row has no giver — the money came from a payment, not
+                            from someone handing it over. */}
                         {c.contributor_name ?? 'Routed from a payment'}
-                        <span className={cn(
-                          'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                          c.source === 'dues_routing' ? 'bg-muted text-muted-foreground' : 'bg-emerald-100 text-emerald-700',
-                        )}>
-                          {SOURCE_LABELS[c.source] ?? c.source}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.fund_name ?? 'Unknown fund'} · {formatDate(c.contributed_date)}
-                        {c.payment_method && ` · ${c.payment_method}`}
-                        {c.payment_reference && ` · Ref: ${c.payment_reference}`}
-                      </p>
+                      </LedgerRowTrigger>
                       {c.notes && <p className="text-xs text-muted-foreground">{c.notes}</p>}
-                    </div>
-                    <span className="text-sm font-medium text-green-600 whitespace-nowrap">{fmt(c.amount_cents)}</span>
-                  </li>
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{c.fund_name ?? 'Unknown fund'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(c.contributed_date)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{c.payment_method ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{c.payment_reference ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn(
+                        'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        c.source === 'dues_routing' ? 'bg-muted text-muted-foreground' : 'bg-emerald-100 text-emerald-700',
+                      )}>
+                        {SOURCE_LABELS[c.source] ?? c.source}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(c.amount_cents)}</td>
+                  </LedgerRow>
                 ))}
-              </ul>
+              </LedgerTable>
             )
         )}
 
@@ -501,33 +697,64 @@ export function TransactionsClient({
           disbursements.length === 0
             ? <p className="text-sm text-muted-foreground">No disbursements recorded.</p>
             : (
-              <ul className="divide-y rounded-xl border overflow-hidden">
+              /* No delete column, and no permission that would bring one back:
+                 fund_disbursements is append-only as of 20260807000002. */
+              <LedgerTable
+                minWidth="min-w-[52rem]"
+                columns={[
+                  { label: 'Paid to' }, { label: 'Fund' }, { label: 'Milestone' },
+                  { label: 'Date' }, { label: 'Check # / Reference' },
+                  { label: 'Amount', right: true },
+                ]}
+              >
                 {disbursements.map(d => (
-                  <li key={d.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{d.person_name ?? 'Unknown'}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {d.fund_name} {d.milestone_name ? `· ${d.milestone_name}` : ''} · {formatDate(d.disbursed_date)}
-                        {d.payment_reference && ` · Ref: ${d.payment_reference}`}
-                      </p>
+                  <LedgerRow key={d.id} onOpen={() => setViewing({ ledger: 'disbursements', id: d.id })}>
+                    <td className="px-3 py-2.5">
+                      <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'disbursements', id: d.id })}>
+                        {d.person_name ?? 'Unknown'}
+                      </LedgerRowTrigger>
                       {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
-                    </div>
-                    <span className="text-sm font-medium text-green-600 whitespace-nowrap">{fmt(d.amount_cents)}</span>
-                    {canDeleteDisbursements && (
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteDisbursement(d.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </li>
+                    </td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{d.fund_name ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{d.milestone_name ?? '—'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(d.disbursed_date)}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{d.payment_reference ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(d.amount_cents)}</td>
+                  </LedgerRow>
                 ))}
-              </ul>
+              </LedgerTable>
             )
         )}
 
-        {/* Errors from the pane itself (a failed delete) — suppressed while a dialog
-            is up, which renders the same message inline. */}
+        {/* Errors from the pane itself — suppressed while a dialog is up, which renders
+            the same message inline. */}
         {!recording && error && <p className="text-sm text-destructive">{error}</p>}
       </div>
+
+      {/* ── One transaction, in full ── */}
+      <Dialog
+        open={viewed !== null}
+        onClose={() => setViewing(null)}
+        title={viewed?.title ?? ''}
+        description={viewed?.subtitle}
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+      >
+        {viewed && (
+          <div className="mt-2">
+            <dl className="divide-y text-sm">
+              {viewed.fields.map(f => (
+                <div key={f.label} className="flex gap-4 py-2">
+                  <dt className="w-40 shrink-0 text-muted-foreground">{f.label}</dt>
+                  <dd className="min-w-0 flex-1 break-words">{f.value ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="pt-4">
+              <Button variant="outline" className="w-full" onClick={() => setViewing(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
 
       {/* ── Record a payment (dues or donation) ── */}
       <Dialog
@@ -770,11 +997,12 @@ export function TransactionsClient({
  * error. Reversed originals are struck through and their reversal is marked, rather
  * than leaving two rows that merely happen to sum to zero.
  */
-function PaymentLedger({ rows, kind, canReverse, onReverse, pending }: {
+function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   rows: DuesPayment[]
   kind: Ledger
   canReverse: boolean
   onReverse: (payment: DuesPayment) => void
+  onOpen: (id: string) => void
   pending: boolean
 }) {
   if (rows.length === 0) {
@@ -785,7 +1013,16 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, pending }: {
     )
   }
   return (
-    <ul className="divide-y rounded-xl border overflow-hidden">
+    <LedgerTable
+      minWidth="min-w-[56rem]"
+      columns={[
+        { label: 'Member' },
+        { label: kind === 'donations' ? 'Donation' : 'Schedule' },
+        { label: 'Date' }, { label: 'Method' }, { label: 'Check # / Reference' },
+        { label: 'Status' }, { label: 'Amount', right: true },
+        { label: 'Actions', srOnly: true },
+      ]}
+    >
       {rows.map(p => {
         const isReversal = Boolean(p.reverses_id)
         const isReversed = Boolean(p.reversed_by_id)
@@ -793,42 +1030,61 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, pending }: {
         // nothing to undo, and a reversal is not itself reversible.
         const reversible = canReverse && !isReversal && !isReversed && p.status !== 'pending'
         return (
-          <li key={p.id} className={cn('flex items-center gap-3 px-4 py-3', isReversed && 'bg-muted/40')}>
-            <div className="min-w-0 flex-1">
-              <p className={cn('text-sm font-medium', isReversed && 'line-through text-muted-foreground')}>
-                {p.person_name ?? 'Unknown'}
-              </p>
-              {/* The reference is shown here for the same reason the other two ledgers
-                  show theirs: it is now required on the way in, and a mandatory field
-                  that never appears again is a field nobody can reconcile against. */}
-              <p className="text-xs text-muted-foreground">
-                {p.schedule_label ?? 'No schedule'} · {formatDate(p.payment_date)}
-                {p.payment_method && ` · ${p.payment_method}`}
-                {p.payment_reference && ` · Ref: ${p.payment_reference}`}
-              </p>
+          <LedgerRow key={p.id} onOpen={() => onOpen(p.id)} className={cn(isReversed && 'bg-muted/40')}>
+            <td className="px-3 py-2.5">
+              <span className={cn(isReversed && 'text-muted-foreground line-through')}>
+                <LedgerRowTrigger onOpen={() => onOpen(p.id)}>
+                  {p.person_name ?? 'Unknown'}
+                </LedgerRowTrigger>
+              </span>
               {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
-              {isReversed && <p className="text-xs font-medium text-amber-700">Reversed</p>}
-              {isReversal && <p className="text-xs font-medium text-amber-700">Correcting entry</p>}
-            </div>
-            <span className={cn(
-              'text-sm font-medium whitespace-nowrap',
+            </td>
+            <td className="px-3 py-2.5 text-muted-foreground">{p.schedule_label ?? 'No schedule'}</td>
+            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(p.payment_date)}</td>
+            {/* Both empty on a waived row by design: no money moved, so there was no
+                method and no cheque to number. */}
+            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{p.payment_method ?? '—'}</td>
+            <td className="px-3 py-2.5 text-muted-foreground">{p.payment_reference ?? '—'}</td>
+            <td className="px-3 py-2.5">
+              {/* Reversed and Correcting entry live in this column rather than under the
+                  name: they ARE the row's status, and putting them anywhere else meant a
+                  row could show two different answers to the same question. */}
+              <span className={cn(
+                'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                isReversed ? 'bg-amber-100 text-amber-800'
+                  : isReversal ? 'bg-amber-100 text-amber-800'
+                    : p.status === 'paid' ? 'bg-green-100 text-green-700'
+                      : p.status === 'waived' ? 'bg-muted text-muted-foreground'
+                        : 'bg-amber-100 text-amber-800',
+              )}>
+                {isReversed ? 'Reversed'
+                  : isReversal ? 'Correcting entry'
+                    : STATUS_LABELS[p.status] ?? p.status}
+              </span>
+            </td>
+            <td className={cn(
+              'px-3 py-2.5 text-right font-medium whitespace-nowrap',
               isReversed ? 'text-muted-foreground line-through'
                 : isReversal ? 'text-amber-700'
                   : p.status === 'paid' ? 'text-green-600'
                     : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600',
             )}>
               {p.status === 'waived' ? 'Waived' : fmt(p.amount_cents)}
-            </span>
-            {reversible && (
-              <Button size="sm" variant="ghost" disabled={pending}
-                className="h-7 shrink-0 px-2 text-xs text-amber-700 hover:text-amber-800"
-                onClick={() => onReverse(p)}>
-                <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
-              </Button>
-            )}
-          </li>
+            </td>
+            <td className="w-px px-3 py-2.5 text-right">
+              {reversible && (
+                // stopPropagation, or this click opens the detail dialog on its way up
+                // through the row. See LedgerRow.
+                <Button size="sm" variant="ghost" disabled={pending}
+                  className="h-7 shrink-0 px-2 text-xs text-amber-700 hover:text-amber-800"
+                  onClick={e => { e.stopPropagation(); onReverse(p) }}>
+                  <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
+                </Button>
+              )}
+            </td>
+          </LedgerRow>
         )
       })}
-    </ul>
+    </LedgerTable>
   )
 }

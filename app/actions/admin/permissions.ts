@@ -63,6 +63,13 @@ export interface MemberSummary {
   personId: string
   name: string
   email: string | null
+  phone: string | null
+  /**
+   * "City, State" — pre-joined here rather than as two fields, because the Members
+   * table renders it as one cell and every caller would otherwise repeat the same
+   * comma-and-fallback logic. Null when the member has recorded neither.
+   */
+  location: string | null
   templateId: string | null
   templateName: string | null
   status: MembershipStatus
@@ -192,9 +199,16 @@ interface PersonRow {
   first_name: string
   last_name: string
   primary_email: string | null
+  primary_phone: string | null
+  city: string | null
+  state: string | null
   membership_status: MembershipStatus | null
   permission_template_id: string | null
 }
+
+/** "City, State", either half on its own, or null when neither is recorded. */
+const location = (p: PersonRow) =>
+  [p.city, p.state].filter(Boolean).join(', ') || null
 
 const displayName = (p: PersonRow) =>
   [p.first_name, p.last_name].filter(Boolean).join(' ') || '(no name)'
@@ -237,7 +251,14 @@ export async function searchMembers(opts: {
   let builder = admin
     .from('people')
     .select(
-      'id, first_name, last_name, primary_email, membership_status, permission_template_id',
+      // phone, city and state are for the Members table's columns. They are roster PII
+      // and this action is gated on 'admin/users' rather than 'members' — see the doc
+      // comment — so widening the projection does not widen who can read it.
+      //
+      // Kept as ONE literal rather than split across lines: supabase-js parses the select
+      // at the type level, and a concatenated string is just `string` to it, which
+      // collapses the result to GenericStringError and takes the PersonRow cast with it.
+      'id, first_name, last_name, primary_email, primary_phone, city, state, membership_status, permission_template_id',
       { count: 'exact' },
     )
     .eq('family_code', auth.familyCode)
@@ -288,6 +309,8 @@ export async function searchMembers(opts: {
         personId: p.id,
         name: displayName(p),
         email: p.primary_email,
+        phone: p.primary_phone,
+        location: location(p),
         templateId,
         templateName: templateId ? names.get(templateId)! : null,
         status: (p.membership_status ?? 'approved') as MembershipStatus,

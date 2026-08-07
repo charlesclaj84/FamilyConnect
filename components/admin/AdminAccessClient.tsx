@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -225,15 +226,56 @@ function MembersTab({ templates, rights, onError }: {
           {query ? 'No members match that filter.' : 'No members with accounts in this family yet.'}
         </p>
       ) : (
-        <ul className="divide-y overflow-visible rounded-xl border">
-          {data.rows.map(member => (
-            <MemberRow key={member.personId} member={member} templates={templates}
-              rights={rights} busy={isPending} run={run} />
-          ))}
-        </ul>
+        <MemberTable rows={data.rows} templates={templates} rights={rights}
+          busy={isPending} run={run} />
       )}
 
       <Pager page={page} total={data.total} onPage={setPage} />
+    </div>
+  )
+}
+
+/**
+ * The members table.
+ *
+ * A real <table>, not a flex list dressed as one: these are six parallel facts about
+ * each member, and a table is the element that says so — a screen reader announces the
+ * column when it reads the cell, which is the whole difference between "512 555 0134"
+ * and "Phone: 512 555 0134".
+ *
+ * It scrolls INSIDE its own container rather than widening the page. Six columns do not
+ * fit a phone, and the alternative — collapsing to stacked cards below some breakpoint —
+ * would mean maintaining two renderings of the same row.
+ */
+function MemberTable({ rows, templates, rights, busy, run }: {
+  rows: MemberSummary[]
+  templates: TemplateSummary[]
+  rights: Rights
+  busy: boolean
+  run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border">
+      <table className="w-full min-w-[52rem] border-collapse text-sm">
+        <thead>
+          <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <th scope="col" className="px-3 py-2 font-semibold">Name</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Phone</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Email</th>
+            <th scope="col" className="px-3 py-2 font-semibold">City, State</th>
+            <th scope="col" className="px-3 py-2 font-semibold">Group</th>
+            {/* The menu column has no heading to give. An empty <th> would be announced
+                as a blank column header, so the label is present and hidden. */}
+            <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(member => (
+            <MemberRow key={member.personId} member={member} templates={templates}
+              rights={rights} busy={busy} run={run} />
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -249,24 +291,30 @@ function MemberRow({ member, templates, rights, busy, run }: {
   const disabled = member.status === 'disabled'
 
   return (
-    <li className="flex items-center gap-3 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className={cn('truncate text-sm font-medium', disabled && 'text-muted-foreground line-through')}>
-          {member.name}
-        </p>
-        {member.email && <p className="truncate text-xs text-muted-foreground">{member.email}</p>}
-      </div>
-
-      <span className="shrink-0 rounded-full bg-[#e6ecfa] px-2.5 py-1 text-xs font-medium text-[#0f2540]">
-        {member.templateName ?? 'No template'}
-      </span>
-
-      {badge && (
-        <span className={cn('hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline', badge.className)}>
-          {badge.label}
+    <tr className="border-b last:border-0 align-middle">
+      {/* Name carries the status, because that is what the badge qualifies — a
+          struck-through name with the badge in another column reads as two facts. */}
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className={cn('font-medium', disabled && 'text-muted-foreground line-through')}>
+            {member.name}
+          </span>
+          {badge && (
+            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium', badge.className)}>
+              {badge.label}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{member.phone ?? '—'}</td>
+      <td className="px-3 py-2.5 text-muted-foreground">{member.email ?? '—'}</td>
+      <td className="px-3 py-2.5 text-muted-foreground">{member.location ?? '—'}</td>
+      <td className="px-3 py-2.5">
+        <span className="inline-block whitespace-nowrap rounded-full bg-[#e6ecfa] px-2.5 py-1 text-xs font-medium text-[#0f2540]">
+          {member.templateName ?? 'No template'}
         </span>
-      )}
-
+      </td>
+      <td className="w-10 px-3 py-2.5 text-right">
       <RowMenu label={`Actions for ${member.name}`} disabled={!rights.edit || busy}>
         {close => (
           <>
@@ -341,7 +389,8 @@ function MemberRow({ member, templates, rights, busy, run }: {
           </>
         )}
       </RowMenu>
-    </li>
+      </td>
+    </tr>
   )
 }
 
@@ -360,6 +409,13 @@ function MemberRow({ member, templates, rights, busy, run }: {
  * role would leave those users pressing arrow keys at something that does not respond.
  * As a plain expanding panel of buttons and links, Tab works, which is true of what is
  * actually here.
+ *
+ * THE PANEL IS PORTALLED TO document.body, and that is not decoration. The members table
+ * scrolls horizontally inside its own container, and a container with `overflow-x: auto`
+ * has `overflow-y: visible` computed to `auto` — so an absolutely positioned panel inside
+ * it is clipped at the row, which is how this menu became unusable the moment the list
+ * became a table. Rendering into the body with `position: fixed`, anchored to the
+ * trigger's measured rect, takes it out of every ancestor's overflow.
  */
 function RowMenu({ label, disabled, children }: {
   label: string
@@ -367,6 +423,9 @@ function RowMenu({ label, disabled, children }: {
   children: (close: () => void) => React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  // Measured on open rather than tracked continuously: the panel closes on the first
+  // scroll or resize (below), so a stale rect can never be shown.
+  const [rect, setRect] = useState<{ top: number; right: number } | null>(null)
   const panelId = useId()
   const wrap = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -382,34 +441,62 @@ function RowMenu({ label, disabled, children }: {
 
   useEffect(() => {
     if (!open) return
+    // The panel lives outside `wrap` now, so an outside-click test against `wrap` alone
+    // would treat every click INSIDE the panel as outside and close it before the button
+    // fired. Both subtrees count as inside.
     function onPointer(e: MouseEvent) {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (wrap.current?.contains(target)) return
+      if (document.getElementById(panelId)?.contains(target)) return
+      setOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') { setOpen(false); trigger.current?.focus() }
     }
+    // A fixed panel does not travel with the page. Closing is the honest response to
+    // either — cheaper than re-measuring on every frame, and it is what a menu whose
+    // anchor has moved should do anyway. Capture, so a scroll inside the table's own
+    // overflow container counts and not just one on the window.
+    function onMove() { setOpen(false) }
     document.addEventListener('mousedown', onPointer)
     document.addEventListener('keydown', onKey)
+    document.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
     return () => {
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('keydown', onKey)
+      document.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
     }
-  }, [open])
+  }, [open, panelId])
+
+  function toggle() {
+    if (open) { setOpen(false); return }
+    const r = trigger.current?.getBoundingClientRect()
+    // Right-aligned to the trigger, which is what the absolute version did with
+    // `right-0`. Kept in viewport coordinates because the panel is position: fixed.
+    if (r) setRect({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    setOpen(true)
+  }
+
+  const expanded: 'true' | 'false' = open ? 'true' : 'false'
 
   return (
     <div ref={wrap} className="relative shrink-0">
       <button ref={trigger} type="button" disabled={disabled}
-        onClick={() => setOpen(o => !o)}
-        aria-expanded={open ? 'true' : 'false'} aria-controls={panelId} aria-label={label}
+        onClick={toggle}
+        aria-expanded={expanded} aria-controls={panelId} aria-label={label}
         className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40">
         <MoreVertical className="h-4 w-4" />
       </button>
 
-      {open && (
+      {open && rect && createPortal(
         <div id={panelId} aria-label={label}
-          className="absolute right-0 z-20 mt-1 w-64 overflow-hidden rounded-xl border bg-card py-1 shadow-lg">
+          style={{ top: rect.top, right: rect.right }}
+          className="fixed z-50 w-64 overflow-hidden rounded-xl border bg-card py-1 shadow-lg">
           {children(close)}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

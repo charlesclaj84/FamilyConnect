@@ -52,8 +52,10 @@ export const LEDGER_RESOURCE: Record<Ledger, string> = {
   disbursements:  'transactions/fund-disbursements',
 }
 
-/** Deleting a disbursement is separable from creating one — its own action. */
-export const DISBURSEMENT_RESOURCE = LEDGER_RESOURCE.disbursements
+// DISBURSEMENT_RESOURCE was here, aliasing LEDGER_RESOURCE.disbursements for the delete
+// grant. 20260807000002 made fund_disbursements append-only and narrowed the resource to
+// {view,create}, so there is no second action to name separately any more — a caller that
+// wants the create grant reads LEDGER_RESOURCE.disbursements like the other three.
 
 /** Posting a correcting entry against an existing payment. */
 export const REVERSAL_RESOURCE = 'transactions/reversals'

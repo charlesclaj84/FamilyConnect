@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Camera, Loader2 } from 'lucide-react'
+import { Pencil, Camera, Loader2, User, MapPin, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +18,10 @@ import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategor
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import {
+  PROFILE_SECTION_LABELS, type ProfileSection,
+} from '@/components/personal-info/profile-sections'
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -93,35 +97,33 @@ function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl
 
 // ── Section card shell ─────────────────────────────────────────────────────────
 
+/**
+ * One section's body.
+ *
+ * NO BOX, and NO EDIT BUTTON.
+ *
+ * The box was a `rounded-xl border bg-card` panel, which made sense when all three
+ * sections stacked down the page and the border was the only thing saying where one
+ * ended. The rail does that now, and a bordered card holding the only thing on screen is
+ * a frame around the whole page.
+ *
+ * The Edit trigger moved to the rail's `action` slot — the same place Transactions and
+ * Accounting put their one per-pane action. It is the active pane's single action, so it
+ * belongs with the rail rather than floating above the fields; see PersonalInfoForm for
+ * what that cost, which is that `editing` had to move up with it.
+ *
+ * What is left is a header row that exists only for the avatar, and only General has one.
+ */
 function SectionCard({
-  title,
   headerLeft,
-  editing,
-  onEditClick,
   children,
 }: {
-  title: string
   headerLeft?: React.ReactNode
-  editing: boolean
-  onEditClick: () => void
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-xl border bg-card px-5 py-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {headerLeft}
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            {title}
-          </h2>
-        </div>
-        {!editing && (
-          <Button size="sm" variant="ghost" onClick={onEditClick} className="shrink-0">
-            <Pencil className="h-3.5 w-3.5 mr-1" />
-            Edit
-          </Button>
-        )}
-      </div>
+    <div className="space-y-4">
+      {headerLeft && <div className="flex items-center gap-3">{headerLeft}</div>}
       {children}
     </div>
   )
@@ -173,13 +175,20 @@ function GeneralSection({
   existing,
   chapters,
   onSaved,
+  visible,
+  editing,
+  onEditDone,
 }: {
   existing: PersonalInfoRecord | null
   chapters: Chapter[]
   onSaved: () => void
+  visible: boolean
+  /** Owned by PersonalInfoForm now, because the Edit trigger lives in the rail. */
+  editing: boolean
+  /** Leave edit mode — saved or cancelled, the parent does not need to know which. */
+  onEditDone: () => void
 }) {
   const confirm = useConfirm()
-  const [editing, setEditing]       = useState(false)
   const [serverError, setServerError] = useState('')
   const existingChapterId = existing?.chapter_id
   const [chapterId, setChapterId]   = useState(existingChapterId ?? '')
@@ -199,7 +208,19 @@ function GeneralSection({
     },
   })
 
-  function handleEditClick() {
+  // NO EFFECT HERE, and no re-seed on entering edit mode.
+  //
+  // The form used to re-seed from `existing` in the Edit click handler. That handler is
+  // gone — the trigger lives in the rail now — and doing it in an effect on `editing`
+  // means calling setState inside an effect, which cascades a render for every field.
+  //
+  // Instead CANCEL resets to the CURRENT `existing` rather than to the values captured at
+  // mount, which is what the re-seed was really for and is strictly more correct: after a
+  // save the form already holds what was saved, so entering edit again finds the right
+  // values with nothing having to reset them. The old pairing (mount-time defaults +
+  // re-seed on entry) had a hole this closes — save B, edit again, cancel, and the form
+  // fell back to the values the page first loaded with rather than to B.
+  function handleCancel() {
     reset({
       prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
       middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
@@ -209,10 +230,8 @@ function GeneralSection({
     })
     setChapterId(existingChapterId ?? '')
     setServerError('')
-    setEditing(true)
+    onEditDone()
   }
-
-  function handleCancel() { reset(); setEditing(false); setServerError('') }
 
   async function onSubmit(data: GeneralData) {
     const chapterChanged = chapterId !== (existingChapterId ?? '')
@@ -230,17 +249,19 @@ function GeneralSection({
     if (chapterChanged) {
       await saveChapterAndPropagate(chapterId || null)
     }
-    setEditing(false)
+    onEditDone()
     onSaved()
   }
 
+  // Returned null AFTER every hook above, and never unmounted by the parent. That is
+  // what lets a half-finished edit survive a rail switch: `editing`, the react-hook-form
+  // state and the chapter selection all belong to this component, and unmounting it to
+  // hide it would throw them away silently. Same reason the Accounting panels stay
+  // mounted and return null for the sections they do not own.
+  if (!visible) return null
+
   return (
-    <SectionCard
-      title="General Information"
-      headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} />}
-      editing={editing}
-      onEditClick={handleEditClick}
-    >
+    <SectionCard headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} />}>
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
           <Field label="Prefix"         value={existing?.prefix} />
@@ -335,12 +356,17 @@ type AddressData = z.infer<typeof addressSchema>
 function AddressSection({
   existing,
   onSaved,
+  visible,
+  editing,
+  onEditDone,
 }: {
   existing: PersonalInfoRecord | null
   onSaved: () => void
+  visible: boolean
+  editing: boolean
+  onEditDone: () => void
 }) {
   const confirm = useConfirm()
-  const [editing, setEditing] = useState(false)
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<AddressData>({
@@ -359,16 +385,12 @@ function AddressSection({
     setValue('state', '')
   }
 
-  function handleEditClick() {
+  // Resets to the CURRENT `existing`, not to the mount-time defaults — see
+  // GeneralSection for why that replaced a re-seed on entering edit.
+  function handleCancel() {
     reset({ country: tv(existing?.country), street_address: tv(existing?.street_address), apartment: tv(existing?.apartment), city: tv(existing?.city), state: tv(existing?.state), zip_code: tv(existing?.zip_code) })
     setServerError('')
-    setEditing(true)
-  }
-
-  function handleCancel() {
-    reset()
-    setEditing(false)
-    setServerError('')
+    onEditDone()
   }
 
   async function onSubmit(data: AddressData) {
@@ -380,7 +402,7 @@ function AddressSection({
     if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
-    if (result.success) { setEditing(false); onSaved() }
+    if (result.success) { onEditDone(); onSaved() }
     else setServerError(result.message ?? 'Something went wrong')
   }
 
@@ -391,8 +413,11 @@ function AddressSection({
     existing?.country,
   ].filter(Boolean).join('\n')
 
+  // After the hooks — see GeneralSection.
+  if (!visible) return null
+
   return (
-    <SectionCard title="Address" editing={editing} onEditClick={handleEditClick}>
+    <SectionCard>
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
           <Field label="Country"          value={existing?.country} />
@@ -466,9 +491,14 @@ const additionalSchema = z.object({
 })
 type AdditionalData = z.infer<typeof additionalSchema>
 
-function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRecord | null; onSaved: () => void }) {
+function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone }: {
+  existing: PersonalInfoRecord | null
+  onSaved: () => void
+  visible: boolean
+  editing: boolean
+  onEditDone: () => void
+}) {
   const confirm = useConfirm()
-  const [editing, setEditing]     = useState(false)
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<AdditionalData>({
@@ -483,17 +513,16 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
   const selectedCategory = watch('tshirt_category') as TshirtCategory | ''
   const availableSizes   = selectedCategory && selectedCategory in TSHIRT_SIZES ? TSHIRT_SIZES[selectedCategory as TshirtCategory] : []
 
-  function handleEditClick() {
+  // Resets to the CURRENT `existing` — see GeneralSection.
+  function handleCancel() {
     reset({
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
       tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
       time_zone: tv(existing?.time_zone),
     })
     setServerError('')
-    setEditing(true)
+    onEditDone()
   }
-
-  function handleCancel() { reset(); setEditing(false); setServerError('') }
 
   async function onSubmit(data: AdditionalData) {
     const ok = await confirm({
@@ -504,15 +533,18 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
     if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
-    if (result.success) { setEditing(false); onSaved() }
+    if (result.success) { onEditDone(); onSaved() }
     else setServerError(result.message ?? 'Something went wrong')
   }
 
   const shirtDisplay = existing?.tshirt_category && existing?.tshirt_size
     ? `${existing.tshirt_category} — ${existing.tshirt_size}` : null
 
+  // After the hooks — see GeneralSection.
+  if (!visible) return null
+
   return (
-    <SectionCard title="Additional Information" editing={editing} onEditClick={handleEditClick}>
+    <SectionCard>
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
           <Field label="Date of Birth" value={formatDate(existing?.date_of_birth)} />
@@ -573,15 +605,87 @@ function AdditionalInfoSection({ existing, onSaved }: { existing: PersonalInfoRe
 // Root export — composes all sections
 // ══════════════════════════════════════════════════════════════════════════════
 
-export function PersonalInfoForm({ existing, chapters = [] }: { existing: PersonalInfoRecord | null; chapters?: Chapter[] }) {
+/**
+ * The rail's items. No `href`: these sections have no server-rendered address of their
+ * own — `?section=` is written by replaceState and read on the next full load — so a real
+ * link would promise a round trip that discards whatever is half-typed in a section.
+ */
+const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
+  { id: 'general', label: PROFILE_SECTION_LABELS.general, icon: User },
+  { id: 'address', label: PROFILE_SECTION_LABELS.address, icon: MapPin },
+  { id: 'additional', label: PROFILE_SECTION_LABELS.additional, icon: Info },
+]
+
+export function PersonalInfoForm({ existing, chapters = [], initialSection }: {
+  existing: PersonalInfoRecord | null
+  chapters?: Chapter[]
+  /** Resolved from `?section=` on the server, so the first paint is already right. */
+  initialSection: ProfileSection
+}) {
   const router = useRouter()
+  const [section, setSection] = useState<ProfileSection>(initialSection)
+
+  // WHICH section is being edited, held here rather than in each section, because the
+  // Edit trigger now lives in the rail and the rail belongs to this component.
+  //
+  // One value, not one flag per section: only the active section is on screen, so two
+  // cannot be edited at once in any way a member could see. Switching the rail does NOT
+  // clear it — the sections stay mounted, so coming back finds the edit still open with
+  // whatever was typed still in it.
+  const [editingSection, setEditingSection] = useState<ProfileSection | null>(null)
+
   function handleSaved() { router.refresh() }
+
+  function selectSection(next: ProfileSection) {
+    setSection(next)
+    // Rebuilt from the live search string so a switch never drops another param, and
+    // replaceState rather than a router push: a navigation would remount all three
+    // sections and discard any edit in progress.
+    const params = new URLSearchParams(window.location.search)
+    params.set('section', next)
+    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
+  }
+
+  const editing = editingSection === section
 
   return (
     <div className="space-y-5">
-      <GeneralSection      existing={existing} chapters={chapters} onSaved={handleSaved} />
-      <AddressSection      existing={existing} onSaved={handleSaved} />
-      <AdditionalInfoSection existing={existing} onSaved={handleSaved} />
+      <MainRail
+        label="My Profile sections"
+        items={RAIL_ITEMS}
+        active={section}
+        onSelect={selectSection}
+        // The active pane's one action, in the slot Transactions and Accounting use for
+        // theirs. Hidden while that section is already in edit mode, where Save and
+        // Cancel at the foot of the form are the actions that apply.
+        action={!editing && (
+          <Button size="sm" variant="ghost"
+            onClick={() => setEditingSection(section)}
+            aria-label={`Edit ${PROFILE_SECTION_LABELS[section]}`}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            Edit
+          </Button>
+        )}
+      />
+      {/* All three stay MOUNTED and hide themselves — see GeneralSection on why. */}
+      <GeneralSection
+        existing={existing} chapters={chapters} onSaved={handleSaved}
+        visible={section === 'general'}
+        editing={editingSection === 'general'}
+        onEditDone={() => setEditingSection(null)}
+      />
+      <AddressSection
+        existing={existing} onSaved={handleSaved}
+        visible={section === 'address'}
+        editing={editingSection === 'address'}
+        onEditDone={() => setEditingSection(null)}
+      />
+      <AdditionalInfoSection
+        existing={existing} onSaved={handleSaved}
+        visible={section === 'additional'}
+        editing={editingSection === 'additional'}
+        onEditDone={() => setEditingSection(null)}
+      />
     </div>
   )
 }

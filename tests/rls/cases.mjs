@@ -29,7 +29,7 @@ export function alphaMarkers(fx) {
   return [
     a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
-    a.schedule.id, a.payment.id, a.fund.id, a.milestone.id,
+    a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
     a.contribution.id, a.disbursement.id, a.allocation.id, a.election.id,
     a.notification.id, a.otherNotification.id,
     a.child.id, a.ancestor.id, a.ownerPersonId, a.otherPersonId,
@@ -367,6 +367,22 @@ export const MORE_CASES = [
     positiveActor: 'alphaMember',
     positive: 'not-applicable',
     why: 'the owner clearing their own plan is exercised by setMyDuesPlan; here only ALPHA\'s row surviving matters',
+  },
+  {
+    kind: 'write',
+    id: 'dues.setMyDuesOptOut',
+    mod: 'app/actions/dues.ts', fn: 'setMyDuesOptOut',
+    // Pointed at ALPHA's OPTIONAL schedule, not the required one: opting out of a
+    // required due is refused outright, so the attack would be turned away by that rule
+    // and prove nothing about family isolation.
+    //
+    // The attacker declines a due in a family they are not in. The plan row this writes
+    // is stamped with their OWN family_code, which satisfies every policy — so
+    // belongsToFamily() is the only thing standing between BRAVO's admin and a row bound
+    // to ALPHA's schedule (AGENTS.md §4).
+    args: fx => [fx.alpha.optionalSchedule.id, true],
+    probe: (db, fx) => snapshot('dues_member_plans', 'id, person_id, schedule_id, family_code, opted_out',
+      { schedule_id: fx.alpha.optionalSchedule.id })(db),
   },
   {
     kind: 'write',

@@ -417,3 +417,57 @@ Four things about it are load-bearing:
 main rail, then the pages inside the active group — and the inner one keeps the filled
 pills in its 16rem column, along with the create trigger that sits under it. The rule is
 about the page's *primary* nav, not about every list of links on it.
+
+# Page width is a component, not a per-page guess
+
+`components/layout/PageShell.tsx` is **the page container**. Every page under
+`app/(protected)` used to hand-roll `max-w-* mx-auto px-4 sm:px-6 py-10`, and the
+`max-w` drifted to whatever its author last had on screen — 2xl, 3xl, 4xl, 5xl and 6xl
+are all still in the tree. The visible cost was that My Summary, My Families and My
+Profile sat in a 3xl column with a lake of dead space either side while Members & Access
+next door used the full 6xl: same app, same window, different width for no reason a
+reader could infer.
+
+```tsx
+<PageShell className="space-y-8">…</PageShell>   // wide, the default
+<PageShell width="reading">…</PageShell>         // a column of prose
+```
+
+**The rule is about content, not about pages.**
+
+* `wide` (6xl, default) — content that is horizontal: tables, card grids, a `MainRail`
+  with panes under it, side-by-side panels, multi-column forms. When in doubt, this one.
+* `reading` (3xl) — a single column of prose read start to finish: an announcement, an
+  event description, a document. This is not "a smaller wide": a 6xl line of body text is
+  measurably harder to read, because the eye loses its place on the return sweep.
+
+Do not reach past it for a bespoke `max-w`. A page needing a third measure needs a third
+named option **on the component**, so the next page facing that choice finds it instead
+of inventing a sixth width.
+
+**Not yet applied everywhere,** and that is deliberate rather than half-finished. My
+Summary, My Families, My Profile, Members & Access and Member Directory use it. The rest
+still carry their own container, and converting them is mechanical but not a no-op: each
+has to be read to decide `wide` or `reading`, and widening a page that wanted to be
+narrow is the one way this change makes things worse. New pages use `PageShell` from the
+start.
+
+# A table is a table
+
+Members & Access and Member Directory list the same people and answer the same question,
+so they render the same six columns in the same order — Name, Phone, Email, City/State,
+Group, and (where it applies) a row menu. Two facts about that, both learned the hard way:
+
+* **Use a real `<table>` with `<th scope="col">`,** not a flex row dressed as one. A
+  screen reader announces the column when it reads the cell, which is the whole
+  difference between "512 555 0134" and "Phone: 512 555 0134". A column with no heading
+  to give still needs one — see the `sr-only` "Actions" header.
+
+* **A scrolling table clips an absolutely positioned menu.** Six columns do not fit a
+  phone, so the table scrolls inside its own `overflow-x-auto` container — and a
+  container with `overflow-x: auto` has its `overflow-y: visible` computed to `auto`,
+  which clipped `RowMenu`'s dropdown at the row and made it unusable. `RowMenu` now
+  portals its panel to `document.body` and positions it `fixed` against the trigger's
+  measured rect. If you add another row-level popover to a scrolling table, it needs the
+  same treatment; do not solve it by removing the scroll and letting the page overflow
+  sideways.

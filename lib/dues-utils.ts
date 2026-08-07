@@ -159,3 +159,22 @@ export function nextInstallmentDate(
   }
   return toISO(next)
 }
+
+/**
+ * Whether a dues schedule is money this member still has to find.
+ *
+ * One predicate, because three surfaces ask it — the dashboard KPI, My Summary's Upcoming
+ * Dues, and its remaining-balance total — and "unpaid" stopped being the whole answer the
+ * moment opting out existed (20260807000003). An opted-out due is not paid and never will
+ * be; counting it as outstanding would show a member a balance they have already declined.
+ *
+ * IT LIVES HERE, not beside DuesSummary in app/actions/dues.ts, and the reason is a hard
+ * constraint rather than taste: that file is `'use server'`, where every export has to be
+ * an async server action. A synchronous helper exported from it fails the build.
+ *
+ * Typed structurally rather than as DuesSummary so this module needs no import from the
+ * actions file at all — DuesSummary satisfies it by shape.
+ */
+export function isOutstanding(s: { optedOut: boolean; paid: boolean }): boolean {
+  return !s.optedOut && !s.paid
+}

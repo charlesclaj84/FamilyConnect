@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserCheck, UserX, Clock, Mail, Phone, ShieldCheck } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
@@ -90,37 +89,44 @@ export function AdminApprovalsClient({
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Clock className="h-4 w-4" /> Waiting for approval
-                {pending.length > 0 && (
-                  <span className="rounded-full bg-[#0f2540] px-2 py-0.5 text-xs font-semibold text-[#e6ecfa]">
-                    {pending.length}
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                {pending.length === 0
-                  ? 'Nobody is waiting. Requests appear here when someone joins with your family code.'
-                  : 'Check that you recognise the person before admitting them.'}
-              </CardDescription>
-            </div>
-
-            {/* preApproved — the distinguishing thing about inviting from THIS page. The
-                person clicking it is the person who would otherwise approve the
-                applicant, so routing them through the queue would be asking them to
-                confirm their own decision. Only rendered for someone who can actually
-                decide; the server grants it independently of this prop. */}
-            {canDecide && <InviteMemberDialog preApproved />}
+    /*
+     * NO CARD BOXES. The rail above names this pane, and the three lists below used to
+     * sit in three bordered cards inside it — a box for the pane inside a box for the
+     * page. The HEADINGS stay, and that is the difference from the other panes that lost
+     * theirs: "Waiting for approval", "Invitations sent" and "Declined" are three
+     * different lists in one pane, so the rail's single word cannot name them. Only the
+     * borders and fills went; each ROW keeps its own, which separates one applicant from
+     * the next.
+     */
+    <div className="space-y-8">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Clock className="h-4 w-4" /> Waiting for approval
+              {pending.length > 0 && (
+                <span className="rounded-full bg-[#0f2540] px-2 py-0.5 text-xs font-semibold text-[#e6ecfa]">
+                  {pending.length}
+                </span>
+              )}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {pending.length === 0
+                ? 'Nobody is waiting. Requests appear here when someone joins with your family code.'
+                : 'Check that you recognise the person before admitting them.'}
+            </p>
           </div>
-        </CardHeader>
+
+          {/* preApproved — the distinguishing thing about inviting from THIS page. The
+              person clicking it is the person who would otherwise approve the
+              applicant, so routing them through the queue would be asking them to
+              confirm their own decision. Only rendered for someone who can actually
+              decide; the server grants it independently of this prop. */}
+          {canDecide && <InviteMemberDialog preApproved />}
+        </div>
 
         {pending.length > 0 && (
-          <CardContent className="space-y-2">
+          <div className="space-y-2">
             {pending.map(applicant => {
               const busy = isPending && busyId === applicant.personId
               return (
@@ -171,22 +177,22 @@ export function AdminApprovalsClient({
                 </div>
               )
             })}
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </section>
 
       {openInvitations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+        <section className="space-y-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Mail className="h-4 w-4" /> Invitations sent
-            </CardTitle>
-            <CardDescription>
+            </h2>
+            <p className="text-sm text-muted-foreground">
               Not yet accepted. Cancelling one stops the link working — worth doing if it
               went to the wrong address, since only that address can use it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            </p>
+          </div>
+          <div className="space-y-2">
             {openInvitations.map(invitation => {
               const busy = isPending && busyId === invitation.id
               return (
@@ -230,20 +236,20 @@ export function AdminApprovalsClient({
                 </div>
               )
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {decided.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Declined</CardTitle>
-            <CardDescription>
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Declined</h2>
+            <p className="text-sm text-muted-foreground">
               Kept rather than deleted, so a request cannot be silently re-submitted and
               so the record of the decision survives.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            </p>
+          </div>
+          <div className="space-y-2">
             {decided.map(applicant => (
               <div
                 key={applicant.personId}
@@ -257,8 +263,8 @@ export function AdminApprovalsClient({
                 </p>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {error && (

@@ -9,6 +9,7 @@ import { getInvitations } from '@/app/actions/invitations'
 import {
   AdminAccessClient, type AccessTab, type ApprovalsData,
 } from '@/components/admin/AdminAccessClient'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Members & Access — Family Connect' }
 
@@ -97,7 +98,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <PageShell>
       <div className="mb-8">
         <h1 className="mb-1 text-3xl font-bold">Members &amp; Access</h1>
         <p className="text-muted-foreground">
@@ -117,6 +118,6 @@ export default async function AdminAccessPage({ searchParams }: Props) {
         canViewApprovals={canViewApprovals}
         canViewAccess={canViewAccess}
       />
-    </div>
+    </PageShell>
   )
 }

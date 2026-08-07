@@ -841,8 +841,29 @@ export interface EventExpense {
   created_at: string
 }
 
-async function adminPersonId(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
-  const { data } = await admin.from('people').select('id').eq('user_id', userId).maybeSingle()
+/**
+ * The caller's `people` row in the family they are acting in.
+ *
+ * FAMILY-SCOPED, and it has to be. This runs on the admin client, so there is no RLS to
+ * narrow it: keyed on user_id alone it matched EVERY family a person belongs to, and
+ * maybeSingle() fails on more than one row — so a member of two families resolved to
+ * null, and the `?? null` at each call site wrote an unattributed money row. Both call
+ * sites feed an attribution column, which is exactly where a silent null costs the most.
+ *
+ * Still returns null (rather than throwing) because the two callers want to say
+ * different things about it: recordEventExpense refuses, createEventBudgetItem does not
+ * need to, since `created_by` on a budget line is provenance rather than a money trail.
+ */
+async function adminPersonId(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  familyCode: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from('people').select('id')
+    .eq('user_id', userId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
   return data?.id ?? null
 }
 
@@ -891,7 +912,7 @@ export async function addEventBudgetItem(
     description: input.description?.trim() || null,
     budget_cents: input.budget_cents,
     sort_order: (last?.sort_order ?? 0) + 1,
-    created_by: await adminPersonId(admin, user.id),
+    created_by: await adminPersonId(admin, user.id, familyCode),
   }).select('id').single()
 
   if (error) return { success: false, error: error.message }
@@ -972,6 +993,12 @@ export async function recordEventExpense(
   if (!admin || !user) return { success: false, error: 'Not authorized' }
   if (await isBudgetClosed(admin, eventId)) return { success: false, error: 'The budget is closed and can no longer be edited.' }
 
+  // WHO SPENT IT. Resolved before the insert and refused if absent: an expense is money
+  // out, and 20260807000002's trigger rejects an unattributed one anyway — better a
+  // sentence here than a raised constraint surfaced as an error message.
+  const recordedBy = await adminPersonId(admin, user.id, familyCode)
+  if (!recordedBy) return { success: false, error: 'Profile not found' }
+
   // Default to the event's backing fund when none is chosen.
   let fundId = input.fund_id
   if (fundId === null) {
@@ -987,7 +1014,7 @@ export async function recordEventExpense(
     amount_cents: input.amount_cents,
     spent_date: input.spent_date,
     description: input.description.trim() || null,
-    recorded_by: await adminPersonId(admin, user.id),
+    recorded_by: recordedBy,
   }).select('id').single()
 
   if (error) return { success: false, error: error.message }

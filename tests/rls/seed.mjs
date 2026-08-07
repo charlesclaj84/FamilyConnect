@@ -169,8 +169,25 @@ async function teardown(db) {
 
   // Family-scoped tables, children before parents.
   const scoped = [
+    // FIRST, and it has to be. The Donations fund cannot be deleted while its family
+    // still exists (funds_protect_system, 20260807000003) — the one path that trigger
+    // permits is the family_code no longer being there, since `funds` has no foreign key
+    // to `families` and so nothing cascades it. Nothing depends on `families` by key, so
+    // removing it up front costs nothing and is what lets `funds` go below.
+    'families',
     'chat_rooms', 'elections', 'photos', 'photo_collections', 'event_photos',
-    'fund_disbursements', 'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
+    'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
+    // AFTER `funds`. Second table in this list to go append-only (20260807000002, after
+    // dues_payments below), and the rule is the same: a direct DELETE is refused, and the
+    // ONE path the trigger permits is the cascade from a parent that is already gone —
+    // here the fund the money came out of. Deleting funds first makes the cascade do the
+    // work and leaves this sweep as a no-op that documents the ordering.
+    //
+    // GENERAL RULE for anything added here: if a table is append-only, it belongs after
+    // whichever parent cascades it away, never before. Getting it wrong does not fail
+    // loudly on a fresh database — the sweep matches zero rows and passes — it fails on
+    // the SECOND run, in teardown, before a single case executes.
+    'fund_disbursements',
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
@@ -191,7 +208,7 @@ async function teardown(db) {
     // AFTER `people` for a different reason: permission_template_id is ON DELETE
     // RESTRICT, and the null-out above only covers rows in these families. Deleting the
     // people first means there is provably nothing left pointing here.
-    'permission_templates', 'families',
+    'permission_templates',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)
@@ -407,9 +424,22 @@ export async function seed() {
       family_code: code, label: `${code} dues`, amount_cents: 5000, active: true,
     }).select().single())
 
+    // recorded_by is REQUIRED on insert since 20260807000002 — a manually recorded
+    // payment must name who recorded it, and the trigger enforces that against the
+    // service role this fixture writes through. Without it the whole suite dies here.
+    // An OPTIONAL due, so setMyDuesOptOut has something it is actually allowed to
+    // decline. The schedule above is required (the column defaults to true), and opting
+    // out of a required due is refused by 20260807000003 — so a case pointed at it would
+    // pass its isolation assertion for the wrong reason.
+    f.optionalSchedule = must('optional dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} optional dues`, amount_cents: 1500,
+      required: false, active: true,
+    }).select().single())
+
     f.payment = must('dues payment', await db.from('dues_payments').insert({
       family_code: code, person_id: owner.personId, schedule_id: f.schedule.id,
       amount_cents: 5000, status: 'paid', payment_date: '2026-07-01',
+      recorded_by: owner.personId,
     }).select().single())
 
     // The owner's own enrolment — what clearMyDuesPlan must not be able to destroy

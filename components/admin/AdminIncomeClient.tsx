@@ -84,6 +84,42 @@ const KIND_COPY: Record<ScheduleKind, {
   },
 }
 
+/**
+ * Required vs optional, for a dues schedule.
+ *
+ * A checkbox rather than a select, and phrased as the AFFIRMATIVE ("Required") rather
+ * than as an opt-out ("Optional"), because required is the default and the safer reading:
+ * an admin who never touches this control has created something every member owes, which
+ * is what a dues schedule has always been.
+ *
+ * The hint spells out the consequence rather than restating the label. "Optional" on its
+ * own does not tell an admin that members will be able to decline it, and that is the
+ * whole difference the flag makes.
+ */
+function RequiredToggle({ checked, onChange }: {
+  checked: boolean
+  onChange: (next: boolean) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="flex cursor-pointer items-center gap-2 select-none">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={e => onChange(e.target.checked)}
+          className="h-4 w-4 rounded border-input accent-primary"
+        />
+        <span className="text-sm font-medium">Required</span>
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {checked
+          ? 'Every member owes this and cannot decline it.'
+          : 'Members can opt out of this from My Summary, and it will not count toward what they owe.'}
+      </p>
+    </div>
+  )
+}
+
 /** What is frozen once a schedule has been transacted against, in the editor's words. */
 const LOCK_NOTE: Record<ScheduleKind, string> = {
   dues: 'Payments have been recorded against this due, so its start date, amount and frequency are fixed — every one of those payments was made against these terms. The end date can still change.',
@@ -124,6 +160,9 @@ export function AdminIncomeClient({
   const [nsStartDate, setNsStartDate] = useState('')
   const [nsEndDate, setNsEndDate] = useState('')
   const [nsDescription, setNsDescription] = useState('')
+  // Dues only. Defaults to required, which is what every schedule in the table meant
+  // before the flag existed.
+  const [nsRequired, setNsRequired] = useState(true)
 
   // ── Edit schedule ──
   // `editKind` fixes which fields the open editor shows to the row being edited, not
@@ -140,6 +179,7 @@ export function AdminIncomeClient({
   const [editStartDate, setEditStartDate] = useState('')
   const [editEndDate, setEditEndDate] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editRequired, setEditRequired] = useState(true)
 
   // The deleted tab strip cleared `error` on every tab click; this preserves that.
   // Adjusted during render rather than in an effect on purpose — an effect runs
@@ -161,7 +201,7 @@ export function AdminIncomeClient({
     // The calendar opens on today. Only the start date: an end date of today would
     // retire a brand-new schedule the day it was created, and the field says
     // "(optional)" for dues because leaving it open is the normal case.
-    if (creating) setNsStartDate(todayLocal())
+    if (creating) { setNsStartDate(todayLocal()); setNsRequired(true) }
   }
 
   // Which kind this pane is showing. The Dues and Donations pages are the same list
@@ -185,6 +225,7 @@ export function AdminIncomeClient({
     setEditStartDate(s.start_date ?? '')
     setEditEndDate(s.end_date ?? '')
     setEditDescription(s.description ?? '')
+    setEditRequired(s.required)
     setError('')
   }
 
@@ -224,9 +265,12 @@ export function AdminIncomeClient({
       // Only the fields this kind owns go over the wire. The action pins the rest
       // regardless, but sending an amount for a donation would be asking it to
       // ignore us.
+      // `required` travels with amount and frequency because it is the same kind of
+      // fact — what the member owes. A donation never carries it; the action forces it
+      // false and a CHECK holds it there.
       const changes = isDonation
         ? { goal_cents: goalCents }
-        : { amount_cents: amountCents, frequency: editFreq }
+        : { amount_cents: amountCents, frequency: editFreq, required: editRequired }
       const result = await updateDuesSchedule(editId, {
         label: editLabel,
         start_date: editStartDate || null,
@@ -267,6 +311,9 @@ export function AdminIncomeClient({
         amount_cents: isDonation ? 0 : Math.round(parseFloat(nsAmount) * 100),
         frequency: isDonation ? 'one-time' : nsFreq,
         goal_cents: isDonation ? Math.round(parseFloat(nsGoal) * 100) : null,
+        // Forced false for a donation rather than sent as-is: nobody owes a gift, and
+        // the CHECK in 20260807000003 would refuse the row anyway.
+        required: isDonation ? false : nsRequired,
         due_month: null,
         due_day: null,
         start_date: nsStartDate || null,
@@ -280,6 +327,7 @@ export function AdminIncomeClient({
       const created = result.schedule
       setSchedules(prev => [...prev, created].sort((a, b) => a.label.localeCompare(b.label)))
       setNsLabel(''); setNsAmount(''); setNsGoal(''); setNsStartDate(''); setNsEndDate(''); setNsDescription('')
+      setNsRequired(true)
       onCloseCreate()
     })
   }
@@ -365,6 +413,11 @@ export function AdminIncomeClient({
                   <Input type="date" value={nsEndDate} onChange={e => setNsEndDate(e.target.value)} />
                 </div>
               </div>
+              {/* Dues only. A donation is optional by definition — the field would be a
+                  checkbox that cannot be unticked. */}
+              {creatingKind !== 'donation' && (
+                <RequiredToggle checked={nsRequired} onChange={setNsRequired} />
+              )}
               <div className="space-y-1.5">
                 <Label>Description (optional)</Label>
                 <Input value={nsDescription} onChange={e => setNsDescription(e.target.value)} placeholder={`What this ${copy.noun} is for…`} />
@@ -381,12 +434,36 @@ export function AdminIncomeClient({
             </div>
           </Dialog>
 
+          {/* A table, matching Member Directory and the Funds pane. The columns differ by
+              kind because the two kinds ARE different facts: dues state what is owed, how
+              often, and whether it can be declined; a donation states a target. The
+              inline editor takes over the whole row as a full-width cell rather than
+              trying to edit in place, because the fields it shows outnumber the columns. */}
           {visibleSchedules.length > 0 && (
-            <ul className="divide-y rounded-xl border overflow-hidden">
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[44rem] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-semibold">Name</th>
+                    {kind === 'donation' ? (
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">Goal</th>
+                    ) : (
+                      <>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">Due Amount</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Frequency</th>
+                        <th scope="col" className="px-3 py-2 font-semibold">Payment</th>
+                      </>
+                    )}
+                    <th scope="col" className="px-3 py-2 font-semibold">Start Date</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">End Date</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
               {visibleSchedules.map(s => (
-                <li key={s.id}>
+                <tr key={s.id} className="border-b last:border-0 align-middle">
                   {editId === s.id ? (
-                    <div className="px-4 py-3 space-y-3 bg-muted/30">
+                    <td colSpan={kind === 'donation' ? 5 : 7} className="space-y-3 bg-muted/30 px-4 py-3">
                       {/* Said once, above the fields it explains, rather than as a
                           tooltip on each disabled input: a greyed-out box with no
                           reason beside it reads as a bug. */}
@@ -448,6 +525,9 @@ export function AdminIncomeClient({
                           />
                         </div>
                       </div>
+                      {editKind !== 'donation' && (
+                        <RequiredToggle checked={editRequired} onChange={setEditRequired} />
+                      )}
                       <div className="space-y-1.5">
                         <Label>Description</Label>
                         <Input value={editDescription} onChange={e => setEditDescription(e.target.value)} />
@@ -457,43 +537,72 @@ export function AdminIncomeClient({
                         <Button size="sm" onClick={handleSaveEdit} disabled={isPending}>Save</Button>
                         <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="h-3.5 w-3.5" /></Button>
                       </div>
-                    </div>
+                    </td>
                   ) : (
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1">
+                    <>
+                      <td className="px-3 py-2.5">
                         {/* Description on hover, matching how a member sees the same
                             field in My Summary. Underlined only when there is
                             one, so the hint never promises an empty tooltip. */}
-                        <p
-                          className={cn('text-sm font-medium', s.description && 'w-fit cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
+                        <span
+                          className={cn('font-medium', s.description && 'cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
                           title={s.description ?? undefined}
                         >
                           {s.label}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {s.kind === 'donation'
-                            ? `Goal ${formatDollars(s.goal_cents ?? 0)}`
-                            : `${formatDollars(s.amount_cents)} — ${s.frequency}`}
-                          {s.start_date && ` · from ${formatDate(s.start_date)}`}
-                          {s.end_date && ` to ${formatDate(s.end_date)}`}
-                        </p>
-                      </div>
-                      {mayEdit && (
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(s)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                        </span>
+                      </td>
+                      {s.kind === 'donation' ? (
+                        <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
+                          {formatDollars(s.goal_cents ?? 0)}
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
+                            {formatDollars(s.amount_cents)}
+                          </td>
+                          <td className="px-3 py-2.5 capitalize text-muted-foreground">{s.frequency}</td>
+                          <td className="px-3 py-2.5">
+                            {/* Required is the plain badge and Optional the coloured one,
+                                because optional is the exception worth spotting — it is
+                                the row a member can decline. */}
+                            <span className={cn(
+                              'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                              s.required
+                                ? 'bg-[#e6ecfa] text-[#0f2540]'
+                                : 'bg-amber-100 text-amber-800',
+                            )}>
+                              {s.required ? 'Required' : 'Optional'}
+                            </span>
+                          </td>
+                        </>
                       )}
-                      {mayDelete && (
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteSchedule(s.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                      )}
-                    </div>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
+                        {formatDate(s.start_date) ?? '—'}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
+                        {formatDate(s.end_date) ?? '—'}
+                      </td>
+                      <td className="w-px px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {mayEdit && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(s)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {mayDelete && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteSchedule(s.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </>
                   )}
-                </li>
+                </tr>
               ))}
-            </ul>
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

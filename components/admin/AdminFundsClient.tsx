@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
+import { cn } from '@/lib/utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { useServerState } from '@/lib/use-server-state'
 import {
@@ -178,6 +179,9 @@ export function AdminFundsClient({
         minimum_cents: 0,
         event_id: null,
         open_contributions: nfOpen,
+        // A fund created from this form is never a system fund; only the migration and
+        // the families trigger make those.
+        system_key: null,
         total_disbursed_cents: 0,
         total_contributed_cents: 0,
         balance_cents: 0,
@@ -327,36 +331,81 @@ export function AdminFundsClient({
             </div>
           </Dialog>
 
+          {/* A table, matching Member Directory: these are seven parallel figures per
+              fund, and reading "Balance: X · Collected Y · Disbursed Z" as prose meant
+              re-finding the same word on every row to compare two funds. */}
           {funds.length > 0 && (
-            <ul className="divide-y rounded-xl border overflow-hidden">
-              {funds.map((f, i) => (
-                <li key={f.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="text-xs text-muted-foreground w-4 text-center shrink-0">{i + 1}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium">{f.name}</p>
-                      <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}% of dues</span>
-                      {SHOW_OPEN_CONTRIBUTIONS && f.open_contributions && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Open</span>}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Balance: <span className={f.balance_cents >= 0 ? 'text-green-600 font-medium' : 'text-destructive font-medium'}>{fmt(f.balance_cents)}</span>
-                      {` · Collected ${fmt(f.total_contributed_cents)} · Disbursed ${fmt(f.total_disbursed_cents)}`}
-                      {f.minimum_cents > 0 ? ` · Minimum Balance ${fmt(f.minimum_cents)}` : ''}
-                    </p>
-                  </div>
-                  {SHOW_OPEN_CONTRIBUTIONS && mayEditFunds && (
-                    <Button size="sm" variant={f.open_contributions ? 'outline' : 'ghost'} disabled={isPending} onClick={() => handleToggleOpen(f)}>
-                      {f.open_contributions ? 'Open to members' : 'Make open'}
-                    </Button>
-                  )}
-                  {mayDeleteFunds && (
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteFund(f.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[52rem] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-semibold">Fund</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">% of dues</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">Balance</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">Collected</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">Disbursed</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">Minimum</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {funds.map(f => (
+                    <tr key={f.id} className="border-b last:border-0 align-middle">
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{f.name}</span>
+                          {/* Says WHY there is no delete control on this row. A greyed-out
+                              or absent button with no explanation reads as a bug. */}
+                          {f.system_key && (
+                            <span className="shrink-0 rounded-full bg-[#e6ecfa] px-2 py-0.5 text-[11px] font-medium text-[#0f2540]"
+                              title="Created automatically. Holds every donation the family receives, and cannot be deleted or switched off.">
+                              Built in
+                            </span>
+                          )}
+                          {SHOW_OPEN_CONTRIBUTIONS && f.open_contributions && (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Open</span>
+                          )}
+                        </div>
+                        {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">
+                        {/* The Donations fund takes no share of dues — it takes donations,
+                            whole — so a percentage here would be a number nothing reads. */}
+                        {f.system_key
+                          ? '—'
+                          : `${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
+                      </td>
+                      <td className={cn('px-3 py-2.5 text-right font-medium whitespace-nowrap',
+                        f.balance_cents >= 0 ? 'text-green-600' : 'text-destructive')}>
+                        {fmt(f.balance_cents)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{fmt(f.total_contributed_cents)}</td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{fmt(f.total_disbursed_cents)}</td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">
+                        {f.minimum_cents > 0 ? fmt(f.minimum_cents) : '—'}
+                      </td>
+                      <td className="w-px px-3 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          {SHOW_OPEN_CONTRIBUTIONS && mayEditFunds && (
+                            <Button size="sm" variant={f.open_contributions ? 'outline' : 'ghost'} disabled={isPending} onClick={() => handleToggleOpen(f)}>
+                              {f.open_contributions ? 'Open to members' : 'Make open'}
+                            </Button>
+                          )}
+                          {/* No delete for a system fund, and not merely disabled: the
+                              action refuses it and 20260807000003's trigger refuses it
+                              again, so a button here could only ever fail. */}
+                          {mayDeleteFunds && !f.system_key && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteFund(f.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Failures from the list itself (delete, open/close) have nowhere else to
@@ -428,24 +477,40 @@ export function AdminFundsClient({
           </Dialog>
 
           {milestones.length > 0 && (
-            <ul className="divide-y rounded-xl border overflow-hidden">
-              {milestones.map(m => {
-                const fund = funds.find(f => f.id === m.fund_id)
-                return (
-                  <li key={m.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{m.name}</p>
-                      <p className="text-xs text-muted-foreground">{fund?.name} · {fmt(m.amount_cents)}</p>
-                    </div>
-                    {mayDeleteMilestone && (
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7 p-0" onClick={() => handleDeleteMilestone(m.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[36rem] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <th scope="col" className="px-3 py-2 font-semibold">Milestone</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Fund</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">Award</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {milestones.map(m => {
+                    const fund = funds.find(f => f.id === m.fund_id)
+                    return (
+                      <tr key={m.id} className="border-b last:border-0 align-middle">
+                        <td className="px-3 py-2.5">
+                          <span className="font-medium">{m.name}</span>
+                          {m.description && <p className="text-xs text-muted-foreground">{m.description}</p>}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">{fund?.name ?? '—'}</td>
+                        <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">{fmt(m.amount_cents)}</td>
+                        <td className="w-px px-3 py-2.5 text-right">
+                          {mayDeleteMilestone && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteMilestone(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Delete failures, for the same reason as the funds list above. */}

@@ -41,6 +41,14 @@ export interface DuesSchedule {
   description: string | null
   kind: ScheduleKind
   goal_cents: number | null
+  /**
+   * TRUE: every member owes this and cannot decline it.
+   * FALSE: optional — a member may opt out (see DuesSummary.optedOut).
+   *
+   * Always false for a donation, held there by a CHECK (20260807000003): a gift nobody
+   * may decline is not a gift.
+   */
+  required: boolean
 }
 
 export interface DuesPayment {
@@ -59,6 +67,11 @@ export interface DuesPayment {
   payment_reference: string | null
   notes: string | null
   created_at: string
+  /**
+   * Who entered it. Null only where the recorder's `people` row has since been deleted
+   * — recorded_by is ON DELETE SET NULL, and 20260807000002 requires it on insert.
+   */
+  recorded_by_name: string | null
   /** Set when THIS row is a reversal of another payment. */
   reverses_id: string | null
   /** Set when another row reverses THIS one — so the ledger can say so. */
@@ -94,6 +107,10 @@ export interface DuesSummary {
   nextInstallmentDate: string | null
   paid: boolean
   lastPayment: DuesPayment | null
+  /** Mirrors schedule.required, lifted so consumers do not have to reach through. */
+  required: boolean
+  /** This member has declined this optional due. Always false for a required one. */
+  optedOut: boolean
 }
 
 /**
@@ -194,8 +211,17 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
  * therefore never lose a schedule to an unapplied migration; the worst case is that
  * donations do not exist yet, which is true.
  */
-function mapSchedule(s: DuesSchedule & { kind?: string | null }): DuesSchedule {
-  return { ...s, kind: s.kind === 'donation' ? 'donation' : 'dues', goal_cents: s.goal_cents ?? null }
+function mapSchedule(s: DuesSchedule & { kind?: string | null; required?: boolean | null }): DuesSchedule {
+  const kind: ScheduleKind = s.kind === 'donation' ? 'donation' : 'dues'
+  return {
+    ...s,
+    kind,
+    goal_cents: s.goal_cents ?? null,
+    // A donation is never required. Defaulted rather than trusted so a database that has
+    // not run 20260807000003 yet reads as "required dues, optional donations", which is
+    // what every row in it means.
+    required: kind === 'donation' ? false : (s.required ?? true),
+  }
 }
 
 /**
@@ -208,12 +234,16 @@ function mapSchedule(s: DuesSchedule & { kind?: string | null }): DuesSchedule {
  */
 function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined) {
   return kind === 'donation'
-    ? { amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null }
+    // `required: false` is forced here as well as CHECKed in the database, so a stale
+    // form cannot post a donation nobody may decline and get a constraint violation
+    // instead of a sensible row.
+    ? { amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null, required: false }
     : { goal_cents: null }
 }
 
 function mapPayment(p: any): DuesPayment {
   const schedule = p.dues_schedules as { label: string; kind?: string | null } | null
+  const recorder = p.recorder as { first_name: string; last_name: string } | null
   return {
     id: p.id,
     person_id: p.person_id,
@@ -230,6 +260,7 @@ function mapPayment(p: any): DuesPayment {
     payment_reference: p.payment_reference ?? null,
     notes: p.notes,
     created_at: p.created_at,
+    recorded_by_name: recorder ? `${recorder.first_name} ${recorder.last_name}`.trim() : null,
     reverses_id: p.reverses_id ?? null,
     reversed_by_id: null,
   }
@@ -268,10 +299,20 @@ async function loadScheduleUsage(
   return usage
 }
 
-/** Load active funds with allocation % and current balance, ordered for routing. */
+/**
+ * Load active funds with allocation % and current balance, ordered for routing.
+ *
+ * SYSTEM FUNDS ARE EXCLUDED, and the exclusion is load-bearing rather than tidy. The
+ * Donations fund (20260807000003) is a dedicated pot for gifts; leaving it in this pool
+ * would let it collect dues, and `effectiveAllocations()` makes that the DEFAULT
+ * outcome — with nothing configured it hands 100% to the highest-priority fund, so a
+ * family that never touched the routing screen could have had every dues payment land
+ * in Donations.
+ */
 async function getActiveFundsForRouting(admin: AdminClient, familyCode: string): Promise<RoutingFund[]> {
   const [fundsRes, allocRes, contribRes, disbRes, expRes] = await Promise.all([
-    admin.from('funds').select('id, priority, minimum_cents, created_at').eq('family_code', familyCode).eq('active', true),
+    admin.from('funds').select('id, priority, minimum_cents, created_at')
+      .eq('family_code', familyCode).eq('active', true).is('system_key', null),
     admin.from('fund_allocations').select('fund_id, basis_points').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
@@ -299,15 +340,52 @@ async function getActiveFundsForRouting(admin: AdminClient, familyCode: string):
     }))
 }
 
-/** Split a paid payment into fund_contributions and stamp routed_at. Idempotent on routed_at. */
+/**
+ * Split a paid payment into fund_contributions and stamp routed_at. Idempotent on
+ * routed_at.
+ *
+ * A DONATION DOES NOT GET SPLIT. It goes whole into the family's Donations fund — the
+ * one 20260807000003 guarantees exists and refuses to let anyone delete. Before that
+ * fund existed a gift went through the dues waterfall, so money given to the
+ * Scholarship Drive was divided between the Reunion fund and whatever else the routing
+ * table happened to say, and there was no pot whose balance answered "what have we been
+ * given?".
+ *
+ * The kind comes from the caller, which read it off the schedule ROW — never from a
+ * client — for the same reason the permission check does.
+ */
 async function routePaidPayment(
   admin: AdminClient,
   familyCode: string,
   payment: { id: string; amount_cents: number; payment_date: string; routed_at?: string | null },
   recordedBy: string | null,
+  kind: ScheduleKind,
 ): Promise<void> {
   if (payment.routed_at) return
   if (!payment.amount_cents || payment.amount_cents <= 0) return
+
+  if (kind === 'donation') {
+    const { data: fund } = await admin
+      .from('funds').select('id')
+      .eq('family_code', familyCode).eq('system_key', 'donations')
+      .maybeSingle()
+    // Unreachable in a migrated database, and deliberately not fatal if it happens: the
+    // payment is already posted and the member is already credited. Leaving routed_at
+    // unstamped means a later call can still route it once the fund is there, which is
+    // the better failure than losing the row.
+    if (!fund) return
+    await admin.from('fund_contributions').insert({
+      fund_id: fund.id,
+      family_code: familyCode,
+      amount_cents: payment.amount_cents,
+      source: 'dues_routing',
+      dues_payment_id: payment.id,
+      contributed_date: payment.payment_date,
+      recorded_by: recordedBy,
+    })
+    await admin.from('dues_payments').update({ routed_at: new Date().toISOString() }).eq('id', payment.id)
+    return
+  }
 
   const funds = await getActiveFundsForRouting(admin, familyCode)
   const allocations = routeContribution(payment.amount_cents, funds)
@@ -554,7 +632,7 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const [schedulesResult, paymentsResult, plansResult] = await Promise.all([
     supabase.from('dues_schedules').select('*').eq('active', true).order('label'),
     supabase.from('dues_payments').select('*').eq('person_id', myPerson.id).order('payment_date', { ascending: false }),
-    supabase.from('dues_member_plans').select('schedule_id, cadence').eq('person_id', myPerson.id),
+    supabase.from('dues_member_plans').select('schedule_id, cadence, opted_out').eq('person_id', myPerson.id),
   ])
 
   // Dues only. A donation is optional, so it must never reach a remaining balance, a
@@ -569,10 +647,20 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const planBySchedule = new Map<string, PayCadence>(
     (plansResult.data ?? []).map(p => [p.schedule_id, p.cadence as PayCadence]),
   )
+  // Which of the OPTIONAL dues this member has declined. `?? false` rather than a
+  // required column read, so a database that has not run 20260807000003 reports nobody
+  // opted out — which is true of it.
+  const optedOutSchedules = new Set<string>(
+    (plansResult.data ?? []).filter(p => p.opted_out).map(p => p.schedule_id as string),
+  )
 
   return schedules.map(schedule => {
     const explicit = planBySchedule.get(schedule.id)
     const cadence = explicit ?? defaultCadence(schedule.frequency)
+    // A required due cannot be opted out of, and the check is HERE as well as in the
+    // trigger: a row that predates 20260807000003's guard, or one whose schedule was
+    // made required after the member opted out, must read as owed rather than declined.
+    const optedOut = !schedule.required && optedOutSchedules.has(schedule.id)
     const annual = annualTotalCents(schedule)
     const installment = installmentCents(annual, cadence)
 
@@ -581,7 +669,9 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     const paidThisPeriod = schedulePaid.filter(p => p.payment_date >= periodStart)
     const amountPaidThisPeriodCents = paidThisPeriod.reduce((s, p) => s + p.amount_cents, 0)
     const amountPaidTotalCents = schedulePaid.reduce((s, p) => s + p.amount_cents, 0)
-    const remainingBalanceCents = Math.max(0, annual - amountPaidThisPeriodCents)
+    // Zeroed for a declined due: they owe nothing on it, and every total on the
+    // dashboard and My Summary is built by summing this field.
+    const remainingBalanceCents = optedOut ? 0 : Math.max(0, annual - amountPaidThisPeriodCents)
     const paid = remainingBalanceCents <= 0
 
     return {
@@ -593,9 +683,12 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
       amountPaidThisPeriodCents,
       amountPaidTotalCents,
       remainingBalanceCents,
-      nextInstallmentDate: paid ? null : nextInstallmentDate(schedule, cadence, paidThisPeriod.length),
+      // Nothing is coming due on something they have declined.
+      nextInstallmentDate: paid || optedOut ? null : nextInstallmentDate(schedule, cadence, paidThisPeriod.length),
       paid,
       lastPayment: payments.find(p => p.schedule_id === schedule.id) ?? null,
+      required: schedule.required,
+      optedOut,
     }
   })
 }
@@ -709,7 +802,7 @@ export async function setMyDuesPlan(
  *
  * Self-service under requireMember() semantics: choosing monthly versus annual is a
  * display preference, not an adjustment to a due. It changes no ledger row and no
- * annual obligation — only the instalment size and next-due date shown back to the
+ * annual obligation — only the installment size and next-due date shown back to the
  * member — so it needs no grant. It still owes the two checks a self-service action
  * always owes: the row is genuinely the caller's, and the id from the client belongs
  * to their family.
@@ -719,6 +812,76 @@ export async function setMyDuesPlan(
  * would silently match nothing and report success — and the moment this action grows
  * an upsert it becomes a real hole. Checked here rather than trusted.
  */
+/**
+ * Decline an OPTIONAL due, or take it back on.
+ *
+ * Self-service under requireMember() semantics, like setMyDuesPlan beside it: `create`
+ * and `edit` default to scope 'none', so demanding a grant would mean no member could
+ * ever exercise a choice the family has explicitly offered them. It still owes the two
+ * checks every self-service action owes, and both are here:
+ *
+ *   * the row is genuinely the caller's — person_id is their own, never a parameter;
+ *   * the id from the client belongs to their family — belongsToFamily, because the
+ *     upsert below stamps the caller's OWN family_code, which satisfies RLS whichever
+ *     family the schedule actually lives in (AGENTS.md §4).
+ *
+ * And one more that is specific to this action: a REQUIRED due cannot be declined. The
+ * database refuses it too (dues_member_plans_optout_allowed), which is the layer that
+ * actually holds — this check exists so the member is told why rather than watching a
+ * raised exception. Read from the schedule ROW, never taken from the caller.
+ */
+export async function setMyDuesOptOut(
+  scheduleId: string,
+  optedOut: boolean,
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+  const familyCode = await getMyFamilyCode(user.id)
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
+
+  if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
+    return { success: false, message: 'Schedule not found' }
+  }
+
+  // Family-scoped on the admin client for the same reason every other read of a
+  // client-supplied id is: the service role applies no RLS. belongsToFamily above has
+  // already established the family; this reads what the row SAYS.
+  const admin = createAdminClient()
+  const { data: schedule } = await admin
+    .from('dues_schedules').select('kind, required, label')
+    .eq('id', scheduleId).eq('family_code', familyCode).maybeSingle()
+  if (!schedule) return { success: false, message: 'Schedule not found' }
+  if (schedule.kind === 'donation') {
+    // Nothing to decline: nobody owes a donation in the first place.
+    return { success: false, message: 'Donations are already optional — there is nothing to opt out of.' }
+  }
+  if (optedOut && schedule.required !== false) {
+    return {
+      success: false,
+      message: `${schedule.label} is a required due, so it cannot be opted out of.`,
+    }
+  }
+
+  const { error } = await supabase
+    .from('dues_member_plans')
+    .upsert(
+      {
+        person_id: myPersonId,
+        schedule_id: scheduleId,
+        opted_out: optedOut,
+        family_code: familyCode,
+        created_by: myPersonId,
+      },
+      { onConflict: 'person_id,schedule_id' },
+    )
+  if (error) return { success: false, message: error.message }
+  revalidatePath('/account-summary')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
 export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -748,9 +911,18 @@ export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: bo
 
 export async function getAllDuesPayments(): Promise<DuesPayment[]> {
   const supabase = await createClient()
+  // Three embeds, and the two into `people` are BOTH constraint-qualified: dues_payments
+  // has two foreign keys there (person_id, recorded_by), so a bare `people(...)` is
+  // PGRST201 and PostgREST refuses the whole query — which reads as an empty ledger
+  // rather than an error (AGENTS.md §8). `recorder:` aliases the second so they do not
+  // collide on one key.
   const { data } = await supabase
     .from('dues_payments')
-    .select('*, people!person_id(first_name, last_name), dues_schedules(label, kind)')
+    .select(
+      '*, people!dues_payments_person_id_fkey(first_name, last_name)'
+      + ', recorder:people!dues_payments_recorded_by_fkey(first_name, last_name)'
+      + ', dues_schedules(label, kind)',
+    )
     .order('payment_date', { ascending: false })
 
   const rows = (data ?? []).map(mapPayment)
@@ -769,6 +941,12 @@ export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
   if (!myPersonId) return []
   const myPerson = { id: myPersonId }
 
+  // No recorder embed, deliberately. This is the member's own history behind My Summary,
+  // and who keyed the payment in is treasurer bookkeeping the member has no use for.
+  // Not fetching it is the point rather than not rendering it: props are serialized into
+  // the RSC payload and reach the browser whether a component reads them or not
+  // (AGENTS.md §5), so leaving the embed out is what actually keeps it off the page.
+  // mapPayment then resolves recorded_by_name to null on its own.
   const { data } = await supabase
     .from('dues_payments')
     .select('*, dues_schedules(label, kind)')
@@ -912,9 +1090,10 @@ export async function recordPayment(input: {
   }).select('id, amount_cents, payment_date, routed_at').single()
   if (error || !payment) return { success: false, message: error?.message ?? 'Failed to record payment' }
 
-  // Route paid dues into funds (waterfall split). Only paid payments contribute.
+  // Route the money. Only paid payments contribute — dues split across the funds by the
+  // routing table, a donation goes whole into the Donations fund.
   if (input.status === 'paid') {
-    await routePaidPayment(admin, familyCode, payment, myPerson.id)
+    await routePaidPayment(admin, familyCode, payment, myPerson.id, kind)
   }
 
   revalidatePath('/account-summary')

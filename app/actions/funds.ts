@@ -18,6 +18,14 @@ export interface Fund {
   minimum_cents: number
   event_id: string | null
   open_contributions: boolean
+  /**
+   * Set when the application depends on this fund existing. 'donations' holds every
+   * donation the family receives (20260807000003).
+   *
+   * A fund with a system_key cannot be deleted or switched off, and takes no share of
+   * dues — so the UI hides its delete control and the routing screen omits it.
+   */
+  system_key: string | null
 }
 
 export interface FundAllocationRow {
@@ -51,6 +59,11 @@ export interface FundDisbursement {
   payment_reference: string | null
   notes: string | null
   created_at: string
+  /**
+   * Who entered it. Null only where the recorder's `people` row has since been deleted
+   * — recorded_by is ON DELETE SET NULL, and 20260807000002 requires it on insert.
+   */
+  recorded_by_name: string | null
 }
 
 /**
@@ -76,6 +89,8 @@ export interface FundContribution {
   contributed_date: string
   notes: string | null
   created_at: string
+  /** Who entered it. Null for a routed row whose recorder has since been deleted. */
+  recorded_by_name: string | null
 }
 
 export interface FundWithStats extends Fund {
@@ -103,7 +118,15 @@ export async function getFunds(): Promise<FundWithStats[]> {
   const storedBps = new Map<string, number>(
     rows.map(f => [f.id, (f.fund_allocations as { basis_points: number }[] | null)?.[0]?.basis_points ?? 0]),
   )
-  const effective = effectiveAllocations(rows.map(f => ({ id: f.id })), storedBps)
+  // System funds are left OUT of the allocation maths, matching getFundAllocations and
+  // getActiveFundsForRouting. Including them would be worse than cosmetic:
+  // effectiveAllocations hands 100% to the first fund when nothing is configured, so an
+  // unconfigured family would see "100% of dues" on the Donations fund — a share it does
+  // not receive and cannot be given.
+  const effective = effectiveAllocations(
+    rows.filter(f => !f.system_key).map(f => ({ id: f.id })),
+    storedBps,
+  )
   const sum = (arr: any[] | null | undefined) => (arr ?? []).reduce((s: number, x: any) => s + (x.amount_cents ?? 0), 0)
 
   return rows.map(f => {
@@ -121,6 +144,7 @@ export async function getFunds(): Promise<FundWithStats[]> {
       minimum_cents: f.minimum_cents ?? 0,
       event_id: f.event_id ?? null,
       open_contributions: f.open_contributions ?? false,
+      system_key: f.system_key ?? null,
       total_disbursed_cents: disbursed,
       total_contributed_cents: contributed,
       balance_cents: contributed - disbursed - expensed,
@@ -143,38 +167,112 @@ export async function getFundWithMilestones(fundId: string): Promise<{
 }
 
 /**
- * Every disbursement, newest first.
+ * The disbursement embed, named once because three readers use it and a fourth would
+ * otherwise get it subtly wrong.
  *
- * The people embed MUST name fund_disbursements_person_id_fkey. The table has TWO
- * foreign keys to people — person_id (who was paid) and recorded_by (who entered
- * it) — and an ambiguous `people(...)` makes PostgREST refuse the whole query with
- * PGRST201. Because the error is dropped on the floor here, that surfaces as an
- * empty ledger rather than a failure. Same trap as getFundContributions below.
+ * BOTH people embeds are constraint-qualified, and both have to be. fund_disbursements
+ * has two foreign keys to `people` — person_id (who was paid) and recorded_by (who
+ * entered it) — so a bare `people(...)` is PGRST201 and PostgREST refuses the WHOLE
+ * query, which this codebase surfaces as an empty ledger rather than an error
+ * (AGENTS.md §8). The second embed is aliased `recorder:` so the two arrive under
+ * different keys instead of one overwriting the other.
  */
-export async function getAllDisbursements(): Promise<FundDisbursement[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('fund_disbursements')
-    .select('*, funds(name), fund_milestones(name), people!fund_disbursements_person_id_fkey(first_name, last_name)')
-    .order('disbursed_date', { ascending: false })
+const DISBURSEMENT_SELECT =
+  '*, funds(name), fund_milestones(name)'
+  + ', people!fund_disbursements_person_id_fkey(first_name, last_name)'
+  + ', recorder:people!fund_disbursements_recorded_by_fkey(first_name, last_name)'
 
-  return (data ?? []).map(d => ({
+/**
+ * A `people` embed as it arrives — the two columns every one of these selects asks for.
+ */
+interface EmbeddedPerson { first_name: string; last_name: string }
+
+const fullName = (p: EmbeddedPerson | null) =>
+  p ? `${p.first_name} ${p.last_name}`.trim() : null
+
+/**
+ * The row shapes the two selects above return.
+ *
+ * Declared rather than left to inference, and rather than typed `any`, because
+ * supabase-js's type-LEVEL select parser does not understand the `alias:table!fk(...)`
+ * form and collapses the whole result to `GenericStringError` when it meets one — so
+ * every field access on the row becomes an error. A cast is unavoidable; a cast to a
+ * named shape at least says what is expected to come back.
+ */
+interface DisbursementRow {
+  id: string
+  fund_id: string
+  milestone_id: string | null
+  person_id: string
+  amount_cents: number
+  disbursed_date: string
+  payment_reference: string | null
+  notes: string | null
+  created_at: string
+  funds: { name: string } | null
+  fund_milestones: { name: string } | null
+  people: EmbeddedPerson | null
+  recorder: EmbeddedPerson | null
+}
+
+interface ContributionRow {
+  id: string
+  fund_id: string
+  amount_cents: number
+  source: string
+  contributor_name: string | null
+  payment_method: string | null
+  payment_reference: string | null
+  contributed_date: string
+  notes: string | null
+  created_at: string
+  funds: { name: string } | null
+  people: EmbeddedPerson | null
+  recorder: EmbeddedPerson | null
+}
+
+function mapDisbursement(d: DisbursementRow): FundDisbursement {
+  return {
     id: d.id,
     fund_id: d.fund_id,
-    fund_name: (d.funds as any)?.name ?? null,
+    fund_name: d.funds?.name ?? null,
     milestone_id: d.milestone_id,
-    milestone_name: (d.fund_milestones as any)?.name ?? null,
+    milestone_name: d.fund_milestones?.name ?? null,
     person_id: d.person_id,
-    person_name: d.people
-      ? `${(d.people as any).first_name} ${(d.people as any).last_name}`
-      : null,
+    person_name: fullName(d.people),
     amount_cents: d.amount_cents,
     disbursed_date: d.disbursed_date,
     payment_reference: d.payment_reference ?? null,
     notes: d.notes,
     created_at: d.created_at,
-  }))
+    recorded_by_name: fullName(d.recorder),
+  }
 }
+
+export async function getAllDisbursements(): Promise<FundDisbursement[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('fund_disbursements')
+    .select(DISBURSEMENT_SELECT)
+    .order('disbursed_date', { ascending: false })
+
+  return ((data ?? []) as unknown as DisbursementRow[]).map(mapDisbursement)
+}
+
+/**
+ * BOTH people embeds are constraint-qualified: fund_contributions has TWO foreign keys
+ * to people — the giver and whoever recorded it — and an ambiguous embed is PGRST201,
+ * which refuses the whole query and reads as an empty ledger (AGENTS.md §8). The
+ * recorder is aliased `recorder:` so the two land under different keys.
+ *
+ * A named const, not an inline literal, for the same reason DISBURSEMENT_SELECT is: the
+ * supabase-js type-LEVEL select parser does not understand `alias:table!fk(...)` and
+ * degrades the entire result to GenericStringError when it sees one inline.
+ */
+const CONTRIBUTION_SELECT =
+  '*, funds(name)'
+  + ', people!fund_contributions_contributor_person_id_fkey(first_name, last_name)'
+  + ', recorder:people!fund_contributions_recorded_by_fkey(first_name, last_name)'
 
 /**
  * The contributions ledger, newest first.
@@ -182,64 +280,42 @@ export async function getAllDisbursements(): Promise<FundDisbursement[]> {
  * Read through the user's client, not the admin one, so RLS does the family scoping
  * and the permission model decides who may see it — this is a page, not a background
  * job, and 'family-finances' is exactly the right gate.
- *
- * The people embed MUST be disambiguated to contributor_person_id: fund_contributions
- * has TWO foreign keys to people (the giver and whoever recorded it), and an
- * ambiguous embed makes PostgREST error out into a silently empty list. The same trap
- * is documented on dues_payments in getFamilyPnL.
  */
 export async function getFundContributions(): Promise<FundContribution[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('fund_contributions')
-    .select('*, funds(name), people!contributor_person_id(first_name, last_name)')
+    .select(CONTRIBUTION_SELECT)
     .order('contributed_date', { ascending: false })
     .order('created_at', { ascending: false })
 
-  return (data ?? []).map(c => {
-    const person = c.people as { first_name: string; last_name: string } | null
-    return {
-      id: c.id,
-      fund_id: c.fund_id,
-      fund_name: (c.funds as { name: string } | null)?.name ?? null,
-      amount_cents: c.amount_cents,
-      source: c.source,
-      // A member giver wins over the free-text one; a routed row has neither.
-      contributor_name: person ? `${person.first_name} ${person.last_name}` : (c.contributor_name ?? null),
-      payment_method: c.payment_method ?? null,
-      payment_reference: c.payment_reference ?? null,
-      contributed_date: c.contributed_date,
-      notes: c.notes,
-      created_at: c.created_at,
-    }
-  })
+  return ((data ?? []) as unknown as ContributionRow[]).map(c => ({
+    id: c.id,
+    fund_id: c.fund_id,
+    fund_name: c.funds?.name ?? null,
+    amount_cents: c.amount_cents,
+    source: c.source,
+    // A member giver wins over the free-text one; a routed row has neither.
+    contributor_name: fullName(c.people) ?? c.contributor_name ?? null,
+    payment_method: c.payment_method ?? null,
+    payment_reference: c.payment_reference ?? null,
+    contributed_date: c.contributed_date,
+    notes: c.notes,
+    created_at: c.created_at,
+    recorded_by_name: fullName(c.recorder),
+  }))
 }
 
-/** As getAllDisbursements, narrowed to one fund — and with the same embed trap. */
+/** As getAllDisbursements, narrowed to one fund — same select, same embed trap. */
 export async function getDisbursementsForFund(fundId: string): Promise<FundDisbursement[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('fund_disbursements')
-    .select('*, funds(name), fund_milestones(name), people!fund_disbursements_person_id_fkey(first_name, last_name)')
+    .select(DISBURSEMENT_SELECT)
     .eq('fund_id', fundId)
     .order('disbursed_date', { ascending: false })
 
-  return (data ?? []).map(d => ({
-    id: d.id,
-    fund_id: d.fund_id,
-    fund_name: (d.funds as any)?.name ?? null,
-    milestone_id: d.milestone_id,
-    milestone_name: (d.fund_milestones as any)?.name ?? null,
-    person_id: d.person_id,
-    person_name: d.people
-      ? `${(d.people as any).first_name} ${(d.people as any).last_name}`
-      : null,
-    amount_cents: d.amount_cents,
-    disbursed_date: d.disbursed_date,
-    payment_reference: d.payment_reference ?? null,
-    notes: d.notes,
-    created_at: d.created_at,
-  }))
+  return ((data ?? []) as unknown as DisbursementRow[]).map(mapDisbursement)
 }
 
 // -------------------------------------------------------
@@ -298,6 +374,18 @@ export async function updateFund(
   if (!(await canAny(user.id, 'admin/account/funds', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
+  // Deactivating a system fund is deleting it by another name — an inactive fund drops
+  // out of every read — so it is refused here and by the trigger. RENAMING is allowed on
+  // purpose: a family that calls them Gifts should be able to say so, and nothing looks
+  // the fund up by name.
+  if (input.active === false) {
+    const { data: existing } = await admin
+      .from('funds').select('name, system_key').eq('id', id).eq('family_code', familyCode).maybeSingle()
+    if (existing?.system_key) {
+      return { success: false, message: `${existing.name} is built in and cannot be switched off.` }
+    }
+  }
+
   const { error } = await admin.from('funds').update(input).eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/account-summary')
@@ -312,6 +400,19 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/account/funds', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
+
+  // A system fund is permanent. 20260807000003's trigger is what actually refuses this —
+  // it binds the service-role client the delete below runs on — and this check exists so
+  // an administrator gets a sentence naming the fund rather than a raised exception.
+  const { data: existing } = await admin
+    .from('funds').select('name, system_key').eq('id', id).eq('family_code', familyCode).maybeSingle()
+  if (!existing) return { success: false, message: 'Fund not found' }
+  if (existing.system_key) {
+    return {
+      success: false,
+      message: `${existing.name} is built in and cannot be deleted. Every donation the family receives is held here.`,
+    }
+  }
 
   // Family-scoped: this deletes a balance and every milestone hanging off it, and the
   // service-role client would otherwise let an id alone reach another family.
@@ -420,7 +521,19 @@ export async function recordDisbursement(input: {
   // 'transactions/fund-disbursements' create. canAny throughout — the disbursement
   // paying the caller THEMSELVES is the abuse case, so scope 'own' must never admit.
   if (!(await canAny(user.id, 'transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
+
+  // WHO PAID IT OUT. Required, not best-effort — this is money leaving the family, and
+  // an unattributed payout is the one row in the ledger that cannot be asked about.
+  //
+  // What this replaces was `myPerson?.id ?? null` over a `people` lookup keyed on
+  // user_id ALONE. Two faults, and they compounded: the query was not family-scoped, so
+  // a member of two families matched two rows and maybeSingle() failed outright; and the
+  // `?? null` then swallowed that failure and wrote the disbursement anyway. The result
+  // was that a multi-family treasurer's payouts were the ones with no name on them.
+  // getMyPersonId resolves the ACTIVE family's row, which is the same family the row
+  // below is stamped with. 20260807000002 refuses the insert if this is ever null again.
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
 
   // Required, which is what 20260805000001 added the column for and stopped one step
   // short of: money going OUT with no identifier cannot be matched to a bank statement,
@@ -460,7 +573,7 @@ export async function recordDisbursement(input: {
     disbursed_date: input.disbursed_date,
     payment_reference: reference,
     notes: input.notes,
-    recorded_by: myPerson?.id ?? null,
+    recorded_by: myPersonId,
   })
 
   if (error) return { success: false, message: error.message }
@@ -471,34 +584,35 @@ export async function recordDisbursement(input: {
   return { success: true }
 }
 
-export async function deleteDisbursement(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  // Same reasoning as recordDisbursement, canAny included: deleting your own payout is
-  // how you would cover up having recorded it.
-  // Erasing the record of a payout is a distinct authority from making one.
-  if (!(await canAny(user.id, 'transactions/fund-disbursements', 'delete'))) return { success: false, message: 'Not authorized' }
-  const familyCode = await getMyFamilyCode(user.id)
-
-  const { error } = await admin.from('fund_disbursements').delete().eq('id', id).eq('family_code', familyCode)
-  if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
-  revalidatePath('/transactions')
-  revalidatePath('/family-finances')
-  return { success: true }
-}
+// deleteDisbursement was removed here, and its removal is enforced rather than
+// declared: 20260807000002 makes fund_disbursements append-only with a trigger the
+// service role cannot bypass, drops the RLS DELETE policy, and narrows the
+// 'transactions/fund-disbursements' resource to {view,create} so Members & Access stops
+// offering a Delete column for it. Deleting the record of money that left the family is
+// not a capability this app has.
+//
+// KNOWN GAP, stated so it is a decision and not a surprise: there is no reversal path
+// for a disbursement either. dues_payments has one — reversePayment posts an equal and
+// opposite row — and this table does not, so a mis-keyed payout is permanent and the
+// only correction available is a compensating fund_contribution with a note explaining
+// it. The right fix is a reversal mirroring reversePayment, and it is not this change.
 
 // -------------------------------------------------------
 // Fund routing configuration (admin only)
 // -------------------------------------------------------
 
+/**
+ * The routing table: which share of a dues payment each fund receives.
+ *
+ * SYSTEM FUNDS ARE EXCLUDED, matching getActiveFundsForRouting in dues.ts. The Donations
+ * fund does not take a share of dues — it takes donations, whole — so offering it a
+ * percentage here would be offering a setting that nothing reads.
+ */
 export async function getFundAllocations(): Promise<FundAllocationRow[]> {
   const supabase = await createClient()
   const [fundsRes, allocRes] = await Promise.all([
-    supabase.from('funds').select('id, name, priority, minimum_cents').eq('active', true).order('priority').order('name'),
+    supabase.from('funds').select('id, name, priority, minimum_cents')
+      .eq('active', true).is('system_key', null).order('priority').order('name'),
     supabase.from('fund_allocations').select('fund_id, basis_points'),
   ])
   const funds = fundsRes.data ?? []
@@ -594,7 +708,13 @@ export async function recordFundContribution(input: {
   const familyCode = await getMyFamilyCode(user.id)
   // Logging money INTO a fund by hand.
   if (!(await canAny(user.id, 'transactions/fund-contributions', 'create'))) return { success: false, message: 'Not authorized' }
+
+  // WHO RECORDED IT. Checked rather than assumed: getMyPersonId returns '' when it
+  // cannot resolve a row, and an empty string is not a uuid — so the unchecked version
+  // failed at the database with `invalid input syntax for type uuid: ""` and surfaced
+  // that to a treasurer as the whole error message.
   const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
 
   const contributorName = input.contributor_name?.trim() || null
   if (!input.contributor_person_id && !contributorName) {

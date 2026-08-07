@@ -2,18 +2,27 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, DollarSign, CalendarClock, History, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  CheckCircle2, Clock, DollarSign, CalendarClock, HeartHandshake, History,
+  Search, ArrowUpDown, ChevronUp, ChevronDown,
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
-import { installmentCents, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
+import { installmentCents, isOutstanding, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
 import { useConfirm } from '@/components/ui/confirm'
 import { useServerState } from '@/lib/use-server-state'
-import { setMyDuesPlan, type DuesSummary, type DuesPayment } from '@/app/actions/dues'
+import {
+  setMyDuesPlan, setMyDuesOptOut,
+  type DuesSummary, type DuesPayment,
+} from '@/app/actions/dues'
+import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import {
+  SUMMARY_PANE_LABELS, type SummaryPane,
+} from '@/components/account/summary-panes'
 
 type SortDir = 'asc' | 'desc'
 type HistCol = 'schedule' | 'date' | 'amount'
@@ -28,6 +37,7 @@ function SortTh({
   return (
     <th className={`py-2 pr-3 text-xs font-medium text-muted-foreground ${align === 'right' ? 'text-right' : 'text-left'}`}>
       <button
+        type="button"
         onClick={onClick}
         className={`inline-flex items-center gap-0.5 hover:text-foreground select-none ${align === 'right' ? 'flex-row-reverse' : ''}`}
       >
@@ -41,11 +51,24 @@ function SortTh({
 interface Props {
   summary: DuesSummary[]
   history: DuesPayment[]
-  /** Rendered between Upcoming Dues and Payment History. See the call site. */
+  /** The Donations pane. See the call site for why it arrives as a slot. */
   donationsSlot?: React.ReactNode
+  /**
+   * Whether the family HAS any donations — which the slot cannot tell us, because
+   * DonationsSection renders null when there are none and a null child is
+   * indistinguishable from a child that draws nothing.
+   *
+   * The rail needs to know: an item is a promise that there is something behind it, and
+   * a Donations tab opening an empty panel is worse than no tab at all.
+   */
+  hasDonations: boolean
+  /** Pane resolved from `?pane=` on the server, so the first paint is already right. */
+  initialPane: SummaryPane
 }
 
-export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
+export function DuesDetailSection({
+  summary, history, donationsSlot, hasDonations, initialPane,
+}: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
@@ -56,10 +79,38 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
   const [rows, setRows] = useServerState<DuesSummary[]>(summary)
   const [error, setError] = useState('')
 
-  const unpaid = rows.filter(s => !s.paid)
+  // Which pane the rail is showing. A family with no donations cannot land on that pane
+  // even from a shared link — the item is not in the rail, so nothing would take them
+  // back off it.
+  const [pane, setPane] = useState<SummaryPane>(
+    initialPane === 'donations' && !hasDonations ? 'dues' : initialPane,
+  )
+
+  function selectPane(next: SummaryPane) {
+    setPane(next)
+    // Rebuilt from the live search string so a pane switch never drops another param,
+    // and replaceState rather than a router push: a real navigation refetches the RSC
+    // payload and remounts this component, discarding the sort state and filter text
+    // below. The URL stays shareable; only the round trip is skipped.
+    const params = new URLSearchParams(window.location.search)
+    params.set('pane', next)
+    window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
+  }
+
+  // `isOutstanding`, not `!paid`: a due the member has DECLINED is neither paid nor
+  // owed, and counting it here would put a balance on the card they have already said no
+  // to. Declined rows still appear in the table below, labelled, with the way back.
+  const unpaid = rows.filter(isOutstanding)
+  const declined = rows.filter(s => s.optedOut)
   const paidPayments = history.filter(p => p.status === 'paid')
   const totalPaidCents = paidPayments.reduce((sum, p) => sum + p.amount_cents, 0)
-  const totalRemainingCents = unpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
+  const totalRequiredCents = unpaid
+    .filter(s => s.required)
+    .reduce((sum, s) => sum + s.remainingBalanceCents, 0)
+  const totalOptionalCents = unpaid
+    .filter(s => !s.required)
+    .reduce((sum, s) => sum + s.remainingBalanceCents, 0)
+  const totalRemainingCents = totalRequiredCents + totalOptionalCents
   const nextDue = unpaid
     .filter(s => s.nextInstallmentDate)
     .sort((a, b) => (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? ''))[0] ?? null
@@ -69,7 +120,10 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
     const ok = await confirm({
       title: 'Change payment plan',
       description: row
-        ? `Pay "${row.schedule.label}" ${cadence} — ${formatCurrency(installmentCents(row.annualTotalCents, cadence))} per instalment?`
+        // "installment", not "instalment". The single-l spelling is British and the rest
+        // of this app is American — every other label says Installment, and the field it
+        // describes is installmentCents.
+        ? `Pay "${row.schedule.label}" ${cadence} — ${formatCurrency(installmentCents(row.annualTotalCents, cadence))} per installment?`
         : `Change this payment plan to ${cadence}?`,
       confirmLabel: 'Change plan',
     })
@@ -82,6 +136,40 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
     startTransition(async () => {
       const res = await setMyDuesPlan(scheduleId, cadence)
       if (!res.success) setError(res.message ?? 'Could not update cadence')
+      router.refresh()
+    })
+  }
+
+  /**
+   * Decline an optional due, or take it back on.
+   *
+   * Confirmed in both directions, and worded to say what actually changes. Opting out is
+   * not destructive — nothing is deleted and it can be undone from the same control — but
+   * it does change what the family expects from this member, which is worth a deliberate
+   * click rather than a stray one.
+   *
+   * Optimistic, then refreshed: the row's own state flips at once so the table does not
+   * appear to ignore the click, and router.refresh() then re-reads the totals above,
+   * which the server recomputes.
+   */
+  async function changeOptOut(row: DuesSummary, optOut: boolean) {
+    const ok = await confirm({
+      title: optOut ? `Opt out of ${row.schedule.label}?` : `Opt back in to ${row.schedule.label}?`,
+      description: optOut
+        ? 'This is an optional due, so you can decline it. It will stop counting toward what you owe, and you can opt back in at any time.'
+        : `${row.schedule.label} will count toward what you owe again, at ${formatCurrency(row.installmentCents)} per ${row.cadence} installment.`,
+      confirmLabel: optOut ? 'Opt out' : 'Opt back in',
+    })
+    if (!ok) return
+    setError('')
+    setRows(prev => prev.map(r =>
+      r.schedule.id === row.schedule.id
+        ? { ...r, optedOut: optOut, remainingBalanceCents: optOut ? 0 : r.remainingBalanceCents }
+        : r,
+    ))
+    startTransition(async () => {
+      const res = await setMyDuesOptOut(row.schedule.id, optOut)
+      if (!res.success) setError(res.message ?? 'Could not change that')
       router.refresh()
     })
   }
@@ -116,15 +204,19 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
   function sortDues(col: DuesCol) {
     setDuesSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
   }
+  // Declined rows go at the END, after everything still owed, and are sorted among
+  // themselves by the same column. They belong in this table — it is the only place a
+  // member can opt back in — but never above something they still have to pay.
   const sortedDues = useMemo(() => {
-    return [...unpaid].sort((a, b) => {
+    return [...unpaid, ...declined].sort((a, b) => {
+      if (a.optedOut !== b.optedOut) return a.optedOut ? 1 : -1
       let cmp = 0
       if (duesSort.col === 'amount') cmp = a.installmentCents - b.installmentCents
       else if (duesSort.col === 'due_date') cmp = (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? '')
       else cmp = a.schedule.label.localeCompare(b.schedule.label)
       return duesSort.dir === 'asc' ? cmp : -cmp
     })
-  }, [unpaid, duesSort])
+  }, [unpaid, declined, duesSort])
 
   return (
     <div className="space-y-5">
@@ -143,14 +235,23 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className={`p-1.5 rounded-full ${totalRemainingCents > 0 ? 'bg-amber-100' : 'bg-green-100'}`}>
-              <Clock className={`h-4 w-4 ${totalRemainingCents > 0 ? 'text-amber-600' : 'text-green-600'}`} />
+            {/* Amber for REQUIRED money only — an optional due left unpaid is not a
+                problem to flag. */}
+            <div className={`p-1.5 rounded-full ${totalRequiredCents > 0 ? 'bg-amber-100' : 'bg-green-100'}`}>
+              <Clock className={`h-4 w-4 ${totalRequiredCents > 0 ? 'text-amber-600' : 'text-green-600'}`} />
             </div>
             <span className="text-sm text-muted-foreground font-medium">Remaining Balance</span>
           </div>
-          <p className="text-3xl font-bold">{formatCurrency(totalRemainingCents)}</p>
+          {/* The headline is REQUIRED money. Optional sits under it as its own line, so
+              a member can never read one number that quietly mixes what they must pay with
+              what they may. Matches the dashboard card. */}
+          <p className="text-3xl font-bold">{formatCurrency(totalRequiredCents)}</p>
           <p className="text-xs text-muted-foreground">
-            {totalRemainingCents === 0 ? 'All dues settled' : `${unpaid.length} schedule${unpaid.length !== 1 ? 's' : ''} outstanding`}
+            {totalRemainingCents === 0
+              ? 'All dues settled'
+              : totalOptionalCents > 0
+                ? `required · ${formatCurrency(totalOptionalCents)} optional`
+                : `${unpaid.length} schedule${unpaid.length !== 1 ? 's' : ''} outstanding`}
           </p>
         </div>
 
@@ -168,30 +269,45 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* ── The rail, under the stat cards ──
+          The cards are a summary of ALL THREE panes at once — paid to date, what is
+          left, what is next — so they belong above the rail rather than inside any one
+          pane. Switching pane does not change them, which is the point. */}
+      <MainRail
+        label="My Summary sections"
+        items={RAIL_ITEMS.filter(i => i.id !== 'donations' || hasDonations)}
+        active={pane}
+        onSelect={selectPane}
+      />
 
       {/* ── Upcoming Dues ──
           Titled for what is coming rather than what is owed: "Outstanding Dues"
-          under a warning icon read as a debt notice, and this card is really the
-          member's payment plan. */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarClock className="h-4 w-4 text-primary" /> Upcoming Dues
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {unpaid.length === 0 ? (
+          under a warning icon read as a debt notice, and this pane is really the
+          member's payment plan.
+
+          No card header any more — the rail item above names it, and a second copy of
+          the same three words was the first line of the pane. Same reasoning as the
+          Accounting shell, which dropped its pane headings for the same duplication. */}
+      {/* No card box on any of the three panes. The border made sense when all three
+          stacked down the page and it was the only thing marking where one ended; the
+          rail does that now, and a bordered panel holding the only thing on screen is a
+          frame around the page. The per-ROW borders inside Donations stay — those
+          separate list items from each other, which is a different job. */}
+      {pane === 'dues' && (
+        <div>
+          {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+          {sortedDues.length === 0 ? (
             <div className="flex flex-col items-center py-10 gap-2">
               <CheckCircle2 className="h-10 w-10 text-muted-foreground/20" />
               <p className="text-sm text-muted-foreground">You&apos;re all caught up — nothing due right now.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[640px]">
+              <table className="w-full text-sm min-w-[760px]">
                 <thead>
                   <tr className="border-b">
                     <SortTh label="Schedule" active={duesSort.col === 'schedule'} dir={duesSort.dir} onClick={() => sortDues('schedule')} />
+                    <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-left">Payment</th>
                     <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-left">Pay&nbsp;cadence</th>
                     <SortTh label="Installment" active={duesSort.col === 'amount'} dir={duesSort.dir} onClick={() => sortDues('amount')} align="right" />
                     <SortTh label="Next Due" active={duesSort.col === 'due_date'} dir={duesSort.dir} onClick={() => sortDues('due_date')} />
@@ -206,42 +322,36 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
                       row={s}
                       isPending={isPending}
                       onCadence={cadence => changeCadence(s.schedule.id, cadence)}
+                      onOptOut={optOut => changeOptOut(s, optOut)}
                     />
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      {/* Donations sit between what you owe and what you have paid: closer to the
-          dues they sit alongside than to the ledger. Passed in as a slot because
-          DonationsSection is a server component and this file is a client one — the
-          page renders it and hands the result down. */}
-      {donationsSlot}
+      {/* Passed in as a slot because DonationsSection is a server component and this
+          file is a client one — the page renders it and hands the result down. */}
+      {pane === 'donations' && donationsSlot}
 
-      {/* ── Payment History ── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <History className="h-4 w-4 text-primary" /> Payment History
-              </CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {history.length === 0 ? 'No payments on record' : `${history.length} transaction${history.length !== 1 ? 's' : ''}`}
-              </p>
-            </div>
+      {/* ── Payment History ──
+          The count and the filter stay: they are not the pane's name repeated, they are
+          chrome the pane needs. Only the card box and the title line are gone. */}
+      {pane === 'history' && (
+        <div>
+          <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+            <p className="text-xs text-muted-foreground">
+              {history.length === 0 ? 'No payments on record' : `${history.length} transaction${history.length !== 1 ? 's' : ''}`}
+            </p>
             {history.length > 0 && (
               <div className="relative w-full sm:w-44">
                 <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input placeholder="Filter..." value={histSearch} onChange={e => setHistSearch(e.target.value)} className="pl-7 h-8 text-xs" />
+                <Input aria-label="Filter payment history" placeholder="Filter..." value={histSearch} onChange={e => setHistSearch(e.target.value)} className="pl-7 h-8 text-xs" />
               </div>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
           {history.length === 0 ? (
             <div className="flex flex-col items-center py-10 gap-2">
               <DollarSign className="h-10 w-10 text-muted-foreground/20" />
@@ -298,28 +408,46 @@ export function DuesDetailSection({ summary, history, donationsSlot }: Props) {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   )
 }
 
+/**
+ * The rail's items. Built once at module scope rather than per render: the icons are the
+ * same three the pane headings used to carry, which is what keeps the rail recognisable
+ * as the thing that replaced them.
+ *
+ * No `href`. These panes have no server-rendered address of their own — `?pane=` is
+ * written by replaceState and read on the next full load — so a real link would promise
+ * a round trip that discards the sort and filter state the panes hold.
+ */
+const RAIL_ITEMS: MainRailItem<SummaryPane>[] = [
+  { id: 'dues', label: SUMMARY_PANE_LABELS.dues, icon: CalendarClock },
+  { id: 'donations', label: SUMMARY_PANE_LABELS.donations, icon: HeartHandshake },
+  { id: 'history', label: SUMMARY_PANE_LABELS.history, icon: History },
+]
+
 // ── A single outstanding-dues row, with cadence picker ──
 
-function DuesRow({ row, isPending, onCadence }: {
+function DuesRow({ row, isPending, onCadence, onOptOut }: {
   row: DuesSummary
   isPending: boolean
   onCadence: (cadence: PayCadence) => void
+  onOptOut: (optOut: boolean) => void
 }) {
+  const declined = row.optedOut
   return (
-    <tr className="border-b last:border-0 hover:bg-muted/30">
+    <tr className={cn('border-b last:border-0 hover:bg-muted/30', declined && 'bg-muted/30')}>
       <td className="py-2.5 pr-3">
         {/* The description is a tooltip on the title rather than its own line: it is
             reference text, and a paragraph of it under every row pushed the amounts
             apart. The dotted underline is the only hint that there is more to read,
             so it appears exactly when there is. */}
         <p
-          className={cn('font-medium', row.schedule.description && 'w-fit cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
+          className={cn('font-medium', declined && 'text-muted-foreground',
+            row.schedule.description && 'w-fit cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
           title={row.schedule.description ?? undefined}
         >
           {row.schedule.label}
@@ -327,24 +455,63 @@ function DuesRow({ row, isPending, onCadence }: {
         <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
       </td>
       <td className="py-2.5 pr-3">
-        <Select
-          value={row.cadence}
-          disabled={isPending}
-          onChange={e => onCadence(e.target.value as PayCadence)}
-          className="h-7 text-xs capitalize w-32"
-        >
-          {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
-        </Select>
+        {/* Required / Optional / Declined, in one column. Declined replaces Optional
+            rather than sitting beside it: a row cannot be both, and showing both would
+            leave the member reading two answers to one question. */}
+        <span className={cn(
+          'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+          declined ? 'bg-muted text-muted-foreground'
+            : row.required ? 'bg-[#e6ecfa] text-[#0f2540]'
+              : 'bg-amber-100 text-amber-800',
+        )}>
+          {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}
+        </span>
       </td>
-      <td className="py-2.5 pr-3 text-right font-semibold whitespace-nowrap">{formatCurrency(row.installmentCents)}</td>
+      <td className="py-2.5 pr-3">
+        {/* No cadence to choose on a declined due — there is no installment to spread. */}
+        {declined ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <Select
+            value={row.cadence}
+            disabled={isPending}
+            onChange={e => onCadence(e.target.value as PayCadence)}
+            className="h-7 text-xs capitalize w-32"
+            aria-label={`Payment cadence for ${row.schedule.label}`}
+          >
+            {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        )}
+      </td>
+      <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap', declined && 'text-muted-foreground line-through')}>
+        {formatCurrency(row.installmentCents)}
+      </td>
       <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
         {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
       </td>
-      <td className="py-2.5 pr-3 text-right font-semibold text-amber-600 whitespace-nowrap">{formatCurrency(row.remainingBalanceCents)}</td>
+      <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
+        declined ? 'text-muted-foreground' : 'text-amber-600')}>
+        {declined ? '—' : formatCurrency(row.remainingBalanceCents)}
+      </td>
       <td className="py-2.5 text-right">
-        <Button size="sm" variant="outline" disabled title="Online payments are coming soon">
-          Pay Online (coming soon)
-        </Button>
+        {/* A REQUIRED due offers nothing here but the (future) payment button. An optional
+            one offers the choice, in both directions from the same cell — the way back has
+            to be in the same place as the way out, or opting out looks permanent. */}
+        {row.required ? (
+          <Button size="sm" variant="outline" disabled title="Online payments are coming soon">
+            Pay Online (coming soon)
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant={declined ? 'outline' : 'ghost'}
+            disabled={isPending}
+            onClick={() => onOptOut(!declined)}
+            className={cn(!declined && 'text-muted-foreground hover:text-foreground')}
+          >
+            {declined ? 'Opt back in' : 'Opt out'}
+          </Button>
+        )}
       </td>
     </tr>
   )

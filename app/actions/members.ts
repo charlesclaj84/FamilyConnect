@@ -19,6 +19,51 @@ export interface MemberRecord {
   primary_role_title: string | null
   is_active: boolean
   is_minor: boolean
+  /** "City, State", either half alone, or null when the member recorded neither. */
+  location: string | null
+  /**
+   * The member's permission template — the thing this app calls a Group.
+   *
+   * Readable through the user's client on purpose: `permission_templates` has a
+   * "readable in family" SELECT policy for approved members (20260807000000), so the
+   * directory needs no service-role query and no second family scoping to show it.
+   * Null when no template is assigned, or when the assignment points outside this
+   * family — a stale id resolves to nothing rather than naming another family's group.
+   */
+  group_name: string | null
+}
+
+/**
+ * The two rows this action reads, declared rather than cast field by field.
+ *
+ * The `as any` per property that used to be here was working around the same thing this
+ * says once: there are no generated database types in this project, so the client's own
+ * inference does not know these columns or embeds. One named shape per query is honest
+ * about what is expected back and lets the mapping below read as a mapping.
+ */
+interface PersonRow {
+  id: string
+  user_id: string | null
+  prefix: string | null
+  first_name: string
+  last_name: string
+  nick_name: string | null
+  avatar_url: string | null
+  primary_email: string | null
+  primary_phone: string | null
+  city: string | null
+  state: string | null
+  chapter_id: string | null
+  date_of_birth: string | null
+  chapters: { name: string } | null
+  permission_templates: { name: string } | null
+}
+
+interface RoleRow {
+  user_id: string | null
+  scope: string | null
+  family_roles: { name: string } | null
+  chapters: { name: string } | null
 }
 
 export async function getMembers(): Promise<MemberRecord[]> {
@@ -26,10 +71,15 @@ export async function getMembers(): Promise<MemberRecord[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  // Fetch all people in the family (adults and minors)
+  // Fetch all people in the family (adults and minors).
+  //
+  // `permission_templates(name)` is the Group column on the directory. It resolves
+  // through people.permission_template_id, and RLS on permission_templates carries its
+  // own `family_code = auth_family_code()` — so an assignment pointing at another
+  // family's template embeds as null rather than naming it.
   const { data: people } = await supabase
     .from('people')
-    .select('id, user_id, prefix, first_name, last_name, nick_name, avatar_url, primary_email, primary_phone, chapter_id, date_of_birth, chapters(name)')
+    .select('id, user_id, prefix, first_name, last_name, nick_name, avatar_url, primary_email, primary_phone, city, state, chapter_id, date_of_birth, chapters(name), permission_templates(name)')
     .order('last_name')
     .order('first_name')
 
@@ -42,32 +92,33 @@ export async function getMembers(): Promise<MemberRecord[]> {
     .select('user_id, scope, family_roles(name), chapters(name)')
 
   const primaryRoleByUserId = new Map<string, string>()
-  for (const ra of roleAssignments ?? []) {
-    const userId = (ra as any).user_id as string | undefined
-    const name = (ra.family_roles as any)?.name as string | undefined
-    if (name && userId && !primaryRoleByUserId.has(userId)) {
-      primaryRoleByUserId.set(userId, formatRoleTitle({
+  for (const ra of (roleAssignments ?? []) as unknown as RoleRow[]) {
+    const name = ra.family_roles?.name
+    if (name && ra.user_id && !primaryRoleByUserId.has(ra.user_id)) {
+      primaryRoleByUserId.set(ra.user_id, formatRoleTitle({
         role_name: name,
-        assignment_scope: (ra as any).scope ?? 'national',
-        chapter_name: (ra.chapters as any)?.name ?? null,
+        assignment_scope: ra.scope ?? 'national',
+        chapter_name: ra.chapters?.name ?? null,
       }))
     }
   }
 
-  return people.map(p => ({
+  return ((people ?? []) as unknown as PersonRow[]).map(p => ({
     id: p.id,
     user_id: p.user_id,
-    prefix: (p as any).prefix ?? null,
+    prefix: p.prefix ?? null,
     first_name: p.first_name,
     last_name: p.last_name,
     nick_name: p.nick_name ?? null,
     avatar_url: p.avatar_url ?? null,
     primary_email: p.primary_email ?? null,
     primary_phone: p.primary_phone ?? null,
+    location: [p.city, p.state].filter(Boolean).join(', ') || null,
+    group_name: p.permission_templates?.name ?? null,
     chapter_id: p.chapter_id ?? null,
-    chapter_name: (p.chapters as any)?.name ?? null,
+    chapter_name: p.chapters?.name ?? null,
     primary_role_title: p.user_id ? (primaryRoleByUserId.get(p.user_id) ?? null) : null,
     is_active: !!p.user_id,
-    is_minor: computeIsMinor((p as any).date_of_birth),
+    is_minor: computeIsMinor(p.date_of_birth),
   }))
 }

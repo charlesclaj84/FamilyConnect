@@ -7,7 +7,7 @@ import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundContributions } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
 import {
-  resolveLedger, LEDGER_RESOURCE, DISBURSEMENT_RESOURCE, REVERSAL_RESOURCE,
+  resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE,
 } from '@/components/transactions/ledgers'
 
 export const metadata = { title: 'Transactions — Family Connect' }
@@ -55,10 +55,13 @@ export default async function TransactionsPage({
   // One grant per add button. Every one is canAny: none of these four records has a
   // coherent "own" version — a payment you record for YOURSELF and a disbursement
   // paying YOURSELF are the abuse cases, not the safe subset. See AGENTS.md on canAny.
+  // There is no delete grant here any more. fund_disbursements is append-only as of
+  // 20260807000002 and the resource no longer declares a 'delete' action, so asking for
+  // one would resolve a permission nothing can act on.
   const [
     schedules, payments, fundsData, disbursements, contributions,
     canRecordDues, canRecordDonations, canRecordContributions,
-    canRecordDisbursements, canDeleteDisbursements, canReverse,
+    canRecordDisbursements, canReverse,
   ] = await Promise.all([
     getDuesSchedules(),
     getAllDuesPayments(),
@@ -69,7 +72,6 @@ export default async function TransactionsPage({
     canAny(user.id, LEDGER_RESOURCE.donations, 'create'),
     canAny(user.id, LEDGER_RESOURCE.contributions, 'create'),
     canAny(user.id, LEDGER_RESOURCE.disbursements, 'create'),
-    canAny(user.id, DISBURSEMENT_RESOURCE, 'delete'),
     canAny(user.id, REVERSAL_RESOURCE, 'create'),
   ])
 
@@ -96,12 +98,17 @@ export default async function TransactionsPage({
     .not('user_id', 'is', null)
     .order('last_name')
 
-  const [membersResult, milestonesResult] = await Promise.all([
+  const [membersResult, milestonesResult, meResult] = await Promise.all([
     roster === 'all' ? membersQuery : Promise.resolve({ data: [] }),
     // Only the disbursement form uses these — gate the FETCH, not just the field.
     canRecordDisbursements
       ? admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order')
       : Promise.resolve({ data: [] }),
+    // The caller's own name, so an optimistically inserted row can say who recorded it
+    // without waiting for the refresh. Family-scoped: the service-role client applies no
+    // RLS, and a member of two families has a `people` row in each.
+    admin.from('people').select('first_name, last_name')
+      .eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
   ])
 
   // Schedules drive the payment form's picker; a caller who can record neither kind
@@ -133,8 +140,8 @@ export default async function TransactionsPage({
         canRecordDonations={canRecordDonations}
         canRecordContributions={canRecordContributions}
         canRecordDisbursements={canRecordDisbursements}
-        canDeleteDisbursements={canDeleteDisbursements}
         canReverse={canReverse}
+        myName={[meResult.data?.first_name, meResult.data?.last_name].filter(Boolean).join(' ')}
       />
     </div>
   )

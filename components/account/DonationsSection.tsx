@@ -1,5 +1,4 @@
-import { HeartHandshake, Check } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
@@ -21,22 +20,22 @@ import type { DonationSummary } from '@/app/actions/dues'
  * identifies another member's giving.
  *
  * Renders nothing at all when the family has no donations configured, so families
- * that do not use them never see an empty shell.
+ * that do not use them never see an empty shell. My Summary's rail is built from the
+ * same fact — passed separately as `hasDonations`, because a null child and a child
+ * that draws nothing look identical from outside.
+ *
+ * No card header and no card: the rail item above the pane names it, and a bordered panel
+ * wrapping a list of already-bordered rows was a box inside a box. Each DRIVE keeps its
+ * own border — that separates one drive from the next, which is a different job from
+ * fencing off the pane.
  */
 export function DonationsSection({ donations }: { donations: DonationSummary[] }) {
   if (donations.length === 0) return null
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <HeartHandshake className="h-4 w-4 text-primary" /> Donations
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {donations.map(d => <DonationRow key={d.schedule.id} donation={d} />)}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {donations.map(d => <DonationRow key={d.schedule.id} donation={d} />)}
+    </div>
   )
 }
 

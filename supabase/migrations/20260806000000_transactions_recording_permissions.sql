@@ -91,8 +91,13 @@ INSERT INTO public.permission_resources (key, label, category, subsection, sort_
   ('transactions/donation-payments',  'Donation Payments',  'accounting', 'Transactions', 117, ARRAY['create']::TEXT[]),
   -- These two own their tables after section 5, so they must declare every action
   -- their policies consult — see the header note.
+  --
+  -- fund-disbursements listed 'delete' until 20260807000002 made the table append-only.
+  -- Narrowed HERE as well as there because this insert is ON CONFLICT DO UPDATE ... SET
+  -- actions = EXCLUDED.actions, so leaving it would put a dead Delete column back on the
+  -- Members & Access grid the next time this migration replays (AGENTS.md §6).
   ('transactions/fund-contributions', 'Fund Contributions', 'accounting', 'Transactions', 118, ARRAY['view','create']::TEXT[]),
-  ('transactions/fund-disbursements', 'Fund Disbursements', 'accounting', 'Transactions', 119, ARRAY['view','create','delete']::TEXT[])
+  ('transactions/fund-disbursements', 'Fund Disbursements', 'accounting', 'Transactions', 119, ARRAY['view','create']::TEXT[])
 ON CONFLICT (key) DO UPDATE
   SET label      = EXCLUDED.label,
       category   = EXCLUDED.category,

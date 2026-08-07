@@ -8,13 +8,24 @@ import { getMyRoles } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
+import { resolveProfileSection } from '@/components/personal-info/profile-sections'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'My Profile — Family Connect' }
 
-export default async function PersonalInfoPage() {
+export default async function PersonalInfoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // Resolved server-side so the first paint already shows the right section, and so the
+  // client's initial state matches the server HTML exactly — which is what keeps this
+  // free of hydration mismatch. searchParams is a Promise in Next 16.
+  const initialSection = resolveProfileSection((await searchParams).section)
 
   // The one page a pending member gets in FULL rather than as a waiting screen: filling
   // in their profile is the useful thing they can do while they wait, and it is what
@@ -37,7 +48,7 @@ export default async function PersonalInfoPage() {
   ])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">My Profile</h1>
         {myRoles.length > 0 && (
@@ -65,7 +76,7 @@ export default async function PersonalInfoPage() {
         </div>
       )}
 
-      <PersonalInfoForm existing={existing} chapters={chapters} />
-    </div>
+      <PersonalInfoForm existing={existing} chapters={chapters} initialSection={initialSection} />
+    </PageShell>
   )
 }
