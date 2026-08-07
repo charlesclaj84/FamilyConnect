@@ -413,6 +413,17 @@ Four things about it are load-bearing:
 * **It carries no margin of its own.** Space it from the parent — a `space-y-*` wrapper
   (Members & Access, Accounting) or an explicit `mt-*` on the pane (Transactions).
 
+* **Below `sm` it is a vertical stack, one item per line, and the active marker moves to
+  the left edge.** Four ledgers or six profile sections never fit 390px, and `flex-wrap`
+  broke them into ragged rows whose second row started under the middle of the first — so
+  the underline read as a rule under an arbitrary half of the rail rather than under one
+  item. A stack has one item per line by construction; there is nothing left to wrap. The
+  marker has to move with it, because a full-width `border-b-2` under a stacked item is
+  indistinguishable from a divider between two items. Inactive items carry the same border
+  widths in `transparent`, so selecting one changes a colour and never a size — which also
+  removed the 2px height jump the horizontal rail had. The `action` slot stacks underneath
+  and stretches to match; if you add a rail variant, keep all of this.
+
 **Second-level rails are untouched by this.** Accounting has two levels — groups on the
 main rail, then the pages inside the active group — and the inner one keeps the filled
 pills in its 16rem column, along with the create trigger that sits under it. The rule is

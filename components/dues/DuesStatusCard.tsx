@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { DollarSign, CheckCircle, AlertCircle, Clock } from 'lucide-react'
+import { DollarSign, CheckCircle, AlertCircle, Clock, HeartHandshake } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency-utils'
@@ -90,17 +90,24 @@ export function DuesStatusCard({ summary, showViewLink = true }: Props) {
           </>
         )}
 
-        {/* The optional half. Present only when there is something in it, and worded so
-            the member can tell at a glance that it is theirs to choose. */}
+        {/* The optional half. Present only when there is something in it.
+            The word "optional" carries it — the explanatory clause that used to follow
+            ("yours to give or decline") is gone. It restated the definition of the word
+            in front of it, and My Summary is where the choice is actually made.
+            Each line gets its own icon, exactly as the required lines above do: without
+            one the two lists were indented differently and read as different kinds of
+            thing. HeartHandshake rather than the required AlertCircle — same slot, same
+            size, and the app's established glyph for money given rather than owed. */}
         {optionalCents > 0 && (
           <div className="rounded-lg bg-muted/50 px-2.5 py-2 space-y-1">
             <p className="text-xs">
               <span className="font-medium">{formatCurrency(optionalCents)}</span>
-              <span className="text-muted-foreground"> optional — yours to give or decline</span>
+              <span className="text-muted-foreground"> optional</span>
             </p>
             <ul className="space-y-0.5">
               {optionalDue.map(s => (
-                <li key={s.schedule.id} className="text-xs text-muted-foreground">
+                <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <HeartHandshake className="h-3 w-3 shrink-0 text-muted-foreground" />
                   {s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}
                 </li>
               ))}

@@ -104,12 +104,13 @@ export function DuesDetailSection({
   const declined = rows.filter(s => s.optedOut)
   const paidPayments = history.filter(p => p.status === 'paid')
   const totalPaidCents = paidPayments.reduce((sum, p) => sum + p.amount_cents, 0)
-  const totalRequiredCents = unpaid
-    .filter(s => s.required)
-    .reduce((sum, s) => sum + s.remainingBalanceCents, 0)
-  const totalOptionalCents = unpaid
-    .filter(s => !s.required)
-    .reduce((sum, s) => sum + s.remainingBalanceCents, 0)
+  // Split out rather than summed inline, because the Remaining Balance card needs the
+  // COUNT of required schedules as well as their total — see the comment there for why
+  // it counts only the required ones.
+  const requiredUnpaid = unpaid.filter(s => s.required)
+  const optionalUnpaid = unpaid.filter(s => !s.required)
+  const totalRequiredCents = requiredUnpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
+  const totalOptionalCents = optionalUnpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
   const totalRemainingCents = totalRequiredCents + totalOptionalCents
   const nextDue = unpaid
     .filter(s => s.nextInstallmentDate)
@@ -242,17 +243,34 @@ export function DuesDetailSection({
             </div>
             <span className="text-sm text-muted-foreground font-medium">Remaining Balance</span>
           </div>
-          {/* The headline is REQUIRED money. Optional sits under it as its own line, so
-              a member can never read one number that quietly mixes what they must pay with
-              what they may. Matches the dashboard card. */}
-          <p className="text-3xl font-bold">{formatCurrency(totalRequiredCents)}</p>
+          {/* THE SAME KPI AS THE DASHBOARD'S, said the same way — same headline, same
+              qualifier, same optional line, same icon, same words. It used to differ in
+              the one place that mattered: the figure was bare and "required" appeared
+              only as the first word of the line beneath it, so with an optional due
+              present the card read "$50.00 / required · $200.00 optional" — one sentence
+              spanning two elements, in which the $50 and the $200 looked like the same
+              kind of number and the qualifier could be read as belonging to either.
+              `required` now sits ON the headline, and optional is its own line below. */}
+          <div className="flex items-end gap-2">
+            <p className="text-3xl font-bold">{formatCurrency(totalRequiredCents)}</p>
+            <span className="mb-1 text-sm text-muted-foreground">required</span>
+          </div>
           <p className="text-xs text-muted-foreground">
+            {/* Counts REQUIRED schedules only, because that is what the figure above is.
+                Counting all of them would have said "1 schedule outstanding" under a
+                headline of $0.00 whenever the only thing left was optional. */}
             {totalRemainingCents === 0
               ? 'All dues settled'
-              : totalOptionalCents > 0
-                ? `required · ${formatCurrency(totalOptionalCents)} optional`
-                : `${unpaid.length} schedule${unpaid.length !== 1 ? 's' : ''} outstanding`}
+              : totalRequiredCents === 0
+                ? 'Required dues all paid'
+                : `${requiredUnpaid.length} schedule${requiredUnpaid.length !== 1 ? 's' : ''} outstanding`}
           </p>
+          {totalOptionalCents > 0 && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <HeartHandshake className="h-3 w-3 shrink-0" />
+              <span><span className="font-medium text-foreground">{formatCurrency(totalOptionalCents)}</span> optional</span>
+            </p>
+          )}
         </div>
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">

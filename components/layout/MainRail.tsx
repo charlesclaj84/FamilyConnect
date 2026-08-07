@@ -42,6 +42,18 @@ interface Props<T extends string> {
  * used to carry: that one claimed a 16rem column from every page it appeared on,
  * which the routing table (min-w-[560px]) could not spare below about 1280px.
  *
+ * BELOW `sm` IT IS A STACK, one item per line — because it was wrapping. Four ledgers
+ * or six profile sections do not fit 390px, and `flex-wrap` broke them into ragged rows
+ * where the second row's items sat under the middle of the first: nothing lined up, and
+ * the active underline read as a rule under an arbitrary half of the rail. A vertical
+ * list has one item per line by construction, so there is nothing left to wrap.
+ *
+ * THE ACTIVE MARKER MOVES WITH IT — a left bar on mobile, the underline from `sm` up.
+ * A full-width `border-b-2` under a stacked item is indistinguishable from a divider
+ * between two items, which would make the one piece of state this component holds
+ * unreadable exactly where the stack applies. Inactive items carry the same border
+ * width in `transparent` so the label does not shift by 2px when it becomes active.
+ *
  * Deliberately NOT `role="tablist"`. That role is a promise about keyboard
  * behaviour — arrow keys move between tabs, Home/End jump to the ends, the panel is
  * wired by aria-controls — and a screen reader changes its own key handling to match.
@@ -58,15 +70,21 @@ export function MainRail<T extends string>({ label, items, active, onSelect, act
     // No margin of its own: the rail is spaced by whatever stacks it — a `space-y-*`
     // wrapper on Members & Access, an explicit `mt-*` on the pane elsewhere. Baking one
     // in here would double up against the first of those.
-    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b">
-      <nav aria-label={label} className="flex flex-wrap gap-1">
+    <div className="flex flex-col items-stretch gap-2 border-b sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-4 sm:gap-y-1">
+      <nav aria-label={label} className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-1">
         {items.map(item => {
           const isActive = item.id === active
           const className = cn(
-            'flex items-center gap-1.5 px-3 py-2 text-sm transition-colors',
+            // Full width while stacked, so the whole line is the target and the left
+            // bar has something to sit against; auto width once it is a row again.
+            'flex w-full items-center gap-1.5 px-3 py-2 text-sm transition-colors sm:w-auto',
+            // The marker: border-l while stacked, border-b from sm up. Both are declared
+            // on every item — transparent when inactive — so becoming active changes a
+            // colour and never a size.
+            'border-l-2 border-b-0 sm:border-l-0 sm:border-b-2',
             isActive
-              ? 'border-b-2 border-[#0f2540] font-medium text-[#0f2540]'
-              : 'text-muted-foreground hover:text-foreground',
+              ? 'border-[#0f2540] bg-[#0f2540]/[0.04] font-medium text-[#0f2540] sm:bg-transparent'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
           )
           const inner = (
             <>
@@ -106,7 +124,10 @@ export function MainRail<T extends string>({ label, items, active, onSelect, act
         })}
       </nav>
 
-      {action && <div className="pb-1.5">{action}</div>}
+      {/* Below sm the action sits under the stack rather than beside it, and stretches to
+          the same width as the items — there is no room for a row of tabs and a "New …"
+          button side by side, which is the crowding that made the rail wrap. */}
+      {action && <div className="pb-2 [&>*]:w-full sm:pb-1.5 sm:[&>*]:w-auto">{action}</div>}
     </div>
   )
 }

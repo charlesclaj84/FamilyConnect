@@ -8,7 +8,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CirclePlus,
-  Trash2,
   Undo2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -200,9 +199,17 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
  * classes that keep four tables looking like one.
  *
  * Scrolls inside its own `overflow-x-auto` rather than widening the page — the same rule
- * Member Directory and the Accounting panes follow, and the same reason: six or seven
- * columns do not fit a phone, and maintaining a second stacked rendering of every row is
- * worse than a horizontal scroll.
+ * Member Directory and the Accounting panes follow. The `minWidth` floors are now small
+ * enough that all four tables fit a phone without scrolling at all, which is the point of
+ * having trimmed them to four or five columns: the scroll container stays because a long
+ * fund name or a two-word surname can still overflow, not because it is expected to.
+ *
+ * WHAT EACH LEDGER SHOWS IS THE ANSWER TO ITS OWN QUESTION, and nothing else. Method,
+ * Check # / Reference and (for contributions) Source came off all four: they are what you
+ * read when you are looking INTO one transaction, not when you are scanning a page of
+ * them, and seven columns meant the four figures anyone actually scans — who, what, when,
+ * how much — were never on screen together on anything narrower than a laptop. Every one
+ * of them is still on the row's detail dialog, which is one click away.
  */
 function LedgerTable({ minWidth, columns, children }: {
   minWidth: string
@@ -656,12 +663,15 @@ export function TransactionsClient({
           contributions.length === 0
             ? <p className="text-sm text-muted-foreground">No contributions yet.</p>
             : (
+              /* Source came off with Method and Reference, and loses least of the three:
+                 the From cell already says "Routed from a payment" for exactly the rows
+                 that were tagged Routed, so the distinction survives in the column that
+                 was already carrying it. */
               <LedgerTable
-                minWidth="min-w-[56rem]"
+                minWidth="min-w-[22rem]"
                 columns={[
                   { label: 'From' }, { label: 'Fund' }, { label: 'Date' },
-                  { label: 'Method' }, { label: 'Check # / Reference' },
-                  { label: 'Source' }, { label: 'Amount', right: true },
+                  { label: 'Amount', right: true },
                 ]}
               >
                 {contributions.map(c => (
@@ -676,16 +686,6 @@ export function TransactionsClient({
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">{c.fund_name ?? 'Unknown fund'}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(c.contributed_date)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{c.payment_method ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{c.payment_reference ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn(
-                        'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        c.source === 'dues_routing' ? 'bg-muted text-muted-foreground' : 'bg-emerald-100 text-emerald-700',
-                      )}>
-                        {SOURCE_LABELS[c.source] ?? c.source}
-                      </span>
-                    </td>
                     <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(c.amount_cents)}</td>
                   </LedgerRow>
                 ))}
@@ -698,13 +698,17 @@ export function TransactionsClient({
             ? <p className="text-sm text-muted-foreground">No disbursements recorded.</p>
             : (
               /* No delete column, and no permission that would bring one back:
-                 fund_disbursements is append-only as of 20260807000002. */
+                 fund_disbursements is append-only as of 20260807000002.
+
+                 Fund and Milestone share ONE column. Most disbursements have no
+                 milestone, so a column of its own was mostly em-dashes, and the two
+                 belong together anyway: a milestone is always paid out of exactly one
+                 fund, so "Reunion Fund · Graduation" is one fact, not two. */
               <LedgerTable
-                minWidth="min-w-[52rem]"
+                minWidth="min-w-[24rem]"
                 columns={[
-                  { label: 'Paid to' }, { label: 'Fund' }, { label: 'Milestone' },
-                  { label: 'Date' }, { label: 'Check # / Reference' },
-                  { label: 'Amount', right: true },
+                  { label: 'Paid to' }, { label: 'Fund / Milestone' },
+                  { label: 'Date' }, { label: 'Amount', right: true },
                 ]}
               >
                 {disbursements.map(d => (
@@ -715,10 +719,14 @@ export function TransactionsClient({
                       </LedgerRowTrigger>
                       {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{d.fund_name ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{d.milestone_name ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      {d.fund_name ?? '—'}
+                      {/* The separator only appears when there is a milestone to separate,
+                          so a fund-only row reads as a plain fund name rather than as
+                          something with a missing half. */}
+                      {d.milestone_name && <span className="text-muted-foreground/60"> · {d.milestone_name}</span>}
+                    </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(d.disbursed_date)}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{d.payment_reference ?? '—'}</td>
                     <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(d.amount_cents)}</td>
                   </LedgerRow>
                 ))}
@@ -986,9 +994,37 @@ export function TransactionsClient({
   )
 }
 
-/** Dues and donation payments render identically; only the empty state differs. */
 /**
- * A payment ledger.
+ * The pill that says what happened to a payment.
+ *
+ * Pulled out of the row because the two payment ledgers now show it in different places.
+ * Dues has a Status column and it goes there; Donations does not, so a donation shows it
+ * beside the schedule name instead — see PaymentLedger.
+ *
+ * Reversed and Correcting entry outrank the status word itself: a reversed payment is
+ * still `paid` in the column, and reading "Paid" on a row that has been cancelled is the
+ * one thing this pill must never do.
+ */
+function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
+  const isReversal = Boolean(payment.reverses_id)
+  const isReversed = Boolean(payment.reversed_by_id)
+  return (
+    <span className={cn(
+      'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+      isReversed || isReversal ? 'bg-amber-100 text-amber-800'
+        : payment.status === 'paid' ? 'bg-green-100 text-green-700'
+          : payment.status === 'waived' ? 'bg-muted text-muted-foreground'
+            : 'bg-amber-100 text-amber-800',
+    )}>
+      {isReversed ? 'Reversed'
+        : isReversal ? 'Correcting entry'
+          : STATUS_LABELS[payment.status] ?? payment.status}
+    </span>
+  )
+}
+
+/**
+ * A payment ledger — Dues or Donations.
  *
  * There is no edit or delete here, and there never will be: dues_payments is
  * append-only, enforced by a database trigger the service role cannot bypass. A
@@ -996,6 +1032,17 @@ export function TransactionsClient({
  * entries stay visible and the ledger records what actually happened, including the
  * error. Reversed originals are struck through and their reversal is marked, rather
  * than leaving two rows that merely happen to sum to zero.
+ *
+ * THE TWO LEDGERS NO LONGER SHOW THE SAME COLUMNS. Donations has no Status column,
+ * because a donation has one status: the record form does not offer Waived (nobody owed
+ * the gift) and forces `paid`, so the column was a page of identical green pills.
+ *
+ * But `status` is not the only thing that pill was carrying — Reversed and Correcting
+ * entry rode in the same cell, and those DO happen to donations. Dropping the column
+ * without moving them would have left a cancelled donation identifiable by strikethrough
+ * alone, which is a styling difference and not a label. So on Donations the pill moves
+ * into the Donation cell and appears only when there is something to say. Dues keeps its
+ * column, where the ordinary statuses still differ row to row.
  */
 function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   rows: DuesPayment[]
@@ -1012,14 +1059,16 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
       </p>
     )
   }
+  const isDonations = kind === 'donations'
   return (
     <LedgerTable
-      minWidth="min-w-[56rem]"
+      minWidth={isDonations ? 'min-w-[24rem]' : 'min-w-[32rem]'}
       columns={[
         { label: 'Member' },
-        { label: kind === 'donations' ? 'Donation' : 'Schedule' },
-        { label: 'Date' }, { label: 'Method' }, { label: 'Check # / Reference' },
-        { label: 'Status' }, { label: 'Amount', right: true },
+        { label: isDonations ? 'Donation' : 'Schedule' },
+        { label: 'Date' },
+        ...(isDonations ? [] : [{ label: 'Status' }]),
+        { label: 'Amount', right: true },
         { label: 'Actions', srOnly: true },
       ]}
     >
@@ -1039,29 +1088,24 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
               </span>
               {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
             </td>
-            <td className="px-3 py-2.5 text-muted-foreground">{p.schedule_label ?? 'No schedule'}</td>
-            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(p.payment_date)}</td>
-            {/* Both empty on a waived row by design: no money moved, so there was no
-                method and no cheque to number. */}
-            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{p.payment_method ?? '—'}</td>
-            <td className="px-3 py-2.5 text-muted-foreground">{p.payment_reference ?? '—'}</td>
-            <td className="px-3 py-2.5">
-              {/* Reversed and Correcting entry live in this column rather than under the
-                  name: they ARE the row's status, and putting them anywhere else meant a
-                  row could show two different answers to the same question. */}
-              <span className={cn(
-                'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-                isReversed ? 'bg-amber-100 text-amber-800'
-                  : isReversal ? 'bg-amber-100 text-amber-800'
-                    : p.status === 'paid' ? 'bg-green-100 text-green-700'
-                      : p.status === 'waived' ? 'bg-muted text-muted-foreground'
-                        : 'bg-amber-100 text-amber-800',
-              )}>
-                {isReversed ? 'Reversed'
-                  : isReversal ? 'Correcting entry'
-                    : STATUS_LABELS[p.status] ?? p.status}
+            <td className="px-3 py-2.5 text-muted-foreground">
+              <span className="flex flex-wrap items-center gap-2">
+                {p.schedule_label ?? 'No schedule'}
+                {/* Donations only, and only when the row is not an ordinary one: this is
+                    where Reversed / Correcting entry lives once the Status column is
+                    gone. A plain donation says nothing here. */}
+                {isDonations && (isReversed || isReversal) && <PaymentStatusPill payment={p} />}
               </span>
             </td>
+            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(p.payment_date)}</td>
+            {!isDonations && (
+              <td className="px-3 py-2.5">
+                {/* Reversed and Correcting entry live in this column rather than under the
+                    name: they ARE the row's status, and putting them anywhere else meant a
+                    row could show two different answers to the same question. */}
+                <PaymentStatusPill payment={p} />
+              </td>
+            )}
             <td className={cn(
               'px-3 py-2.5 text-right font-medium whitespace-nowrap',
               isReversed ? 'text-muted-foreground line-through'
