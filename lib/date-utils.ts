@@ -1,5 +1,24 @@
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
+/**
+ * Today as YYYY-MM-DD, in the caller's OWN timezone — the value every `<input
+ * type="date">` in the app wants as its default.
+ *
+ * Deliberately not `new Date().toISOString().slice(0, 10)`, which every form here used
+ * to do. That string is UTC, and for anyone west of Greenwich it is TOMORROW's date
+ * for the last hours of each day: a treasurer in Pacific time opening a payment form
+ * at 6pm got a date the family had not reached yet, and dated the cheque accordingly.
+ * A date input holds a local calendar date, so its default has to be one too.
+ */
+export function todayLocal(): string {
+  const now = new Date()
+  return [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
 function ordinal(n: number): string {
   const v = n % 100
   if (v >= 11 && v <= 13) return 'th'

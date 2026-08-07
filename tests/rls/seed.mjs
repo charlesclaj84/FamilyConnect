@@ -171,17 +171,27 @@ async function teardown(db) {
   const scoped = [
     'chat_rooms', 'elections', 'photos', 'photo_collections', 'event_photos',
     'fund_disbursements', 'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
-    'dues_payments', 'dues_member_plans', 'dues_schedules',
+    'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
     'resource_visibility',
-    // AFTER `people`: permission_template_id is ON DELETE RESTRICT, and the null-out
-    // above only covers rows in these families. Deleting the people first means there
-    // is provably nothing left pointing here.
-    'people', 'permission_templates', 'families',
+    'people',
+    // AFTER `people`, and it has to be. dues_payments is append-only — 20260806000002
+    // refuses a DELETE even to the service role — with ONE exception: the ON DELETE
+    // CASCADE from a `people` row that is already gone. Deleting the payments directly
+    // hits the refusal, so this ran only against tables the previous reset had already
+    // emptied, and the suite was quietly single-use: the first run after
+    // `npx supabase db reset` passed, and every run after it died in teardown before a
+    // single case executed. Removing the people first makes the cascade do the work,
+    // and leaves this sweep as a no-op that says so.
+    'dues_payments',
+    // AFTER `people` for a different reason: permission_template_id is ON DELETE
+    // RESTRICT, and the null-out above only covers rows in these families. Deleting the
+    // people first means there is provably nothing left pointing here.
+    'permission_templates', 'families',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)

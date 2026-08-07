@@ -10,12 +10,12 @@ import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { cn } from '@/lib/utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createDuesSchedule, updateDuesSchedule, deleteDuesSchedule,
-  type DuesSchedule,
+  type DuesSchedule, type ScheduleUsage,
 } from '@/app/actions/dues'
 import {
   isIncomeSection, type AccountSection, type AccountRights,
@@ -32,6 +32,17 @@ interface Props {
   creating: AccountSection | null
   onCloseCreate: () => void
   initialSchedules: DuesSchedule[]
+  /**
+   * Which schedules the ledger has been posted against, keyed by schedule id, from
+   * `getScheduleUsage()`. A missing id means no payments.
+   *
+   * This decides what the edit row lets anyone touch — see LOCK_NOTE. It is advisory
+   * here in the strict sense: `updateDuesSchedule` re-derives it, and the trigger from
+   * 20260807000001 enforces it against the service-role client the action writes
+   * through. Disabling the input is so a treasurer is not offered an edit that is
+   * going to be refused, not the thing that refuses it.
+   */
+  scheduleUsage: Record<string, ScheduleUsage>
   /**
    * Per-section grants. Dues and Donations are separate resources even though both
    * are dues_schedules rows, so someone can maintain what members owe without also
@@ -73,8 +84,14 @@ const KIND_COPY: Record<ScheduleKind, {
   },
 }
 
+/** What is frozen once a schedule has been transacted against, in the editor's words. */
+const LOCK_NOTE: Record<ScheduleKind, string> = {
+  dues: 'Payments have been recorded against this due, so its start date, amount and frequency are fixed — every one of those payments was made against these terms. The end date can still change.',
+  donation: 'This donation has received funds, so its start date is fixed.',
+}
+
 export function AdminIncomeClient({
-  section, creating, onCloseCreate, initialSchedules, rights,
+  section, creating, onCloseCreate, initialSchedules, scheduleUsage, rights,
 }: Props) {
   // The section on screen decides which grant applies: a Dues row is governed by
   // admin/account/dues, a Donation row by admin/account/donations.
@@ -111,7 +128,10 @@ export function AdminIncomeClient({
   // ── Edit schedule ──
   // `editKind` fixes which fields the open editor shows to the row being edited, not
   // to the page — they are always the same page today, but the row is the truth.
+  // `editLocked` is fixed at the same moment and for the same reason: it is a fact
+  // about the row being edited, not about the pane.
   const [editId, setEditId] = useState<string | null>(null)
+  const [editLocked, setEditLocked] = useState(false)
   const [editKind, setEditKind] = useState<ScheduleKind>('dues')
   const [editLabel, setEditLabel] = useState('')
   const [editAmount, setEditAmount] = useState('')
@@ -138,6 +158,10 @@ export function AdminIncomeClient({
   if (prevCreating !== creating) {
     setPrevCreating(creating)
     setError('')
+    // The calendar opens on today. Only the start date: an end date of today would
+    // retire a brand-new schedule the day it was created, and the field says
+    // "(optional)" for dues because leaving it open is the normal case.
+    if (creating) setNsStartDate(todayLocal())
   }
 
   // Which kind this pane is showing. The Dues and Donations pages are the same list
@@ -150,6 +174,10 @@ export function AdminIncomeClient({
   function startEdit(s: DuesSchedule) {
     setEditId(s.id)
     setEditKind(s.kind)
+    // A due is locked by ANY payment against it, a donation only by money actually
+    // received — see ScheduleUsage for why the two differ.
+    const usage = scheduleUsage[s.id]
+    setEditLocked(s.kind === 'donation' ? (usage?.funded ?? false) : (usage?.used ?? false))
     setEditLabel(s.label)
     setEditAmount((s.amount_cents / 100).toFixed(2))
     setEditGoal(s.goal_cents ? (s.goal_cents / 100).toFixed(2) : '')
@@ -168,6 +196,18 @@ export function AdminIncomeClient({
     const isDonation = editKind === 'donation'
     if (isDonation && !editGoal) { setError('A donation needs a goal'); return }
     if (!isDonation && !editAmount) { setError('Amount required'); return }
+
+    // Only when the value MOVES. A due that ended last March can still have its name
+    // corrected, and rejecting the save over an end date nobody touched would make that
+    // impossible. `min` on the input already discourages it; this is the message.
+    const stored = schedules.find(s => s.id === editId)
+    if (!isDonation
+        && editEndDate
+        && editEndDate !== (stored?.end_date ?? '')
+        && editEndDate < todayLocal()) {
+      setError('The end date cannot be in the past.')
+      return
+    }
 
     const goalCents = editGoal ? Math.round(parseFloat(editGoal) * 100) : null
     const amountCents = Math.round(parseFloat(editAmount || '0') * 100)
@@ -347,6 +387,14 @@ export function AdminIncomeClient({
                 <li key={s.id}>
                   {editId === s.id ? (
                     <div className="px-4 py-3 space-y-3 bg-muted/30">
+                      {/* Said once, above the fields it explains, rather than as a
+                          tooltip on each disabled input: a greyed-out box with no
+                          reason beside it reads as a bug. */}
+                      {editLocked && (
+                        <p className="rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground">
+                          {LOCK_NOTE[editKind]}
+                        </p>
+                      )}
                       {/* Mirrors the create dialog: a donation edits its goal, dues
                           edit amount and frequency. */}
                       {editKind === 'donation' ? (
@@ -366,13 +414,16 @@ export function AdminIncomeClient({
                             <Label>Name</Label>
                             <Input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
                           </div>
+                          {/* Amount and frequency travel together: annualTotalCents is
+                              one multiplied by the other, so freezing the amount alone
+                              would leave the same restatement one field over. */}
                           <div className="space-y-1.5">
                             <Label>Due Amount</Label>
-                            <Input type="number" min="0" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} />
+                            <Input type="number" min="0" step="0.01" disabled={editLocked} value={editAmount} onChange={e => setEditAmount(e.target.value)} />
                           </div>
                           <div className="space-y-1.5">
                             <Label>Frequency</Label>
-                            <Select value={editFreq} onChange={e => setEditFreq(e.target.value)}>
+                            <Select value={editFreq} disabled={editLocked} onChange={e => setEditFreq(e.target.value)}>
                               {FREQ_OPTIONS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
                             </Select>
                           </div>
@@ -381,11 +432,20 @@ export function AdminIncomeClient({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label>Start Date</Label>
-                          <Input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
+                          <Input type="date" disabled={editLocked} value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
                         </div>
                         <div className="space-y-1.5">
                           <Label>End Date</Label>
-                          <Input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} />
+                          {/* Never in the past for a due. `min` is the browser's local
+                              today, which is the honest boundary to show; the action and
+                              the trigger allow a day of timezone slack so an evening in
+                              Pacific time is not refused its own date. */}
+                          <Input
+                            type="date"
+                            min={editKind === 'dues' ? todayLocal() : undefined}
+                            value={editEndDate}
+                            onChange={e => setEditEndDate(e.target.value)}
+                          />
                         </div>
                       </div>
                       <div className="space-y-1.5">

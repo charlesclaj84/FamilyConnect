@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
-import { canAny } from '@/lib/auth/permissions'
+import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
@@ -55,12 +55,31 @@ export interface DuesPayment {
   status: string
   payment_date: string
   payment_method: string | null
+  /** Cheque number or confirmation code the money arrived on. Null on waived rows. */
+  payment_reference: string | null
   notes: string | null
   created_at: string
   /** Set when THIS row is a reversal of another payment. */
   reverses_id: string | null
   /** Set when another row reverses THIS one — so the ledger can say so. */
   reversed_by_id: string | null
+}
+
+/**
+ * Whether a schedule has been transacted against — which is what decides how much of
+ * it is still editable (20260807000001).
+ *
+ * Two flags rather than one because the two kinds are at stake at different moments. A
+ * DUE is used the instant any row references it, waived and pending included: each was
+ * posted against these terms and each is read back through them, so repricing it
+ * restates history. A DONATION is only at stake once real money arrived — an unfunded
+ * drive is still just a plan, and its dates are still a plan's dates.
+ */
+export interface ScheduleUsage {
+  /** Any payment row references this schedule, whatever its status. */
+  used: boolean
+  /** A settled payment references it: money genuinely arrived. */
+  funded: boolean
 }
 
 export interface DuesSummary {
@@ -208,11 +227,45 @@ function mapPayment(p: any): DuesPayment {
     status: p.status,
     payment_date: p.payment_date,
     payment_method: p.payment_method,
+    payment_reference: p.payment_reference ?? null,
     notes: p.notes,
     created_at: p.created_at,
     reverses_id: p.reverses_id ?? null,
     reversed_by_id: null,
   }
+}
+
+/**
+ * Which of this family's schedules have ledger rows against them.
+ *
+ * THE ADMIN CLIENT IS REQUIRED, and so is the family scoping beside it. dues_payments
+ * RLS shows a member only their OWN rows, so through the user's client a treasurer
+ * looking at a schedule everyone else has paid would see "never used" and be offered an
+ * edit the database is about to refuse. The service role bypasses RLS entirely, which
+ * is exactly why `.eq('family_code', familyCode)` has to be here by hand — the ids are
+ * this family's, but nothing else would keep the aggregate to it.
+ *
+ * Only booleans come back. Who paid, when and how much stays inside this function.
+ */
+async function loadScheduleUsage(
+  admin: AdminClient,
+  familyCode: string,
+): Promise<Record<string, ScheduleUsage>> {
+  const { data } = await admin
+    .from('dues_payments')
+    .select('schedule_id, status')
+    .eq('family_code', familyCode)
+    .not('schedule_id', 'is', null)
+
+  const usage: Record<string, ScheduleUsage> = {}
+  for (const row of data ?? []) {
+    const id = row.schedule_id as string
+    const entry = usage[id] ?? { used: false, funded: false }
+    entry.used = true
+    if (row.status === 'paid') entry.funded = true
+    usage[id] = entry
+  }
+  return usage
 }
 
 /** Load active funds with allocation % and current balance, ordered for routing. */
@@ -292,6 +345,30 @@ export async function getDuesSchedules(): Promise<DuesSchedule[]> {
 }
 
 /**
+ * Which schedules have been transacted against, keyed by schedule id.
+ *
+ * Its own action rather than a field on DuesSchedule: the row shape is read on four
+ * pages and this costs a second query, which only the Accounting editor needs. A
+ * schedule missing from the map has no payments — the caller reads it as all-false.
+ *
+ * Gated on the same two grants that gate the schedules themselves, and for the same
+ * reason: this is derived from the schedule list, and a server action is reachable on
+ * its own whatever page renders it. Someone with neither grant gets nothing back.
+ */
+export async function getScheduleUsage(): Promise<Record<string, ScheduleUsage>> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return {}
+  const [mayDues, mayDonations] = await Promise.all([
+    can(user.id, 'admin/account/dues', 'view'),
+    can(user.id, 'admin/account/donations', 'view'),
+  ])
+  if (!mayDues && !mayDonations) return {}
+  const familyCode = await getMyFamilyCode(user.id)
+  return loadScheduleUsage(createAdminClient(), familyCode)
+}
+
+/**
  * Returns the inserted row, not just a success flag: the admin page keeps its
  * schedule list in client state, so it needs the real row (with its real id) to
  * show the new schedule without waiting for — or depending on — a refetch.
@@ -359,7 +436,9 @@ export async function updateDuesSchedule(
   // schedule. The UI only ever sends ids it read from this family, but the action is
   // reachable on its own.
   const { data: existing } = await admin
-    .from('dues_schedules').select('kind, goal_cents').eq('id', id).eq('family_code', familyCode).maybeSingle()
+    .from('dues_schedules')
+    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency')
+    .eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
 
@@ -372,6 +451,55 @@ export async function updateDuesSchedule(
   const goalCents = input.goal_cents === undefined ? existing.goal_cents : input.goal_cents
   if (kind === 'donation' && !goalCents) {
     return { success: false, message: 'A donation needs a goal to work toward' }
+  }
+
+  // ── Terms that stop being editable once the ledger has been posted against ──
+  //
+  // The trigger from 20260807000001 is what MAKES these rules true: this action writes
+  // through the service-role client, so it is the only guard, and "the only guard" is
+  // precisely what that migration exists not to rely on. Repeated here so a treasurer
+  // gets a sentence rather than a raised database exception, and because the form is
+  // built from the same facts via getScheduleUsage() — three statements of one rule,
+  // deliberately, with the database as the one that decides.
+  //
+  // `undefined` means "not sent", which is not the same as "cleared to null": a partial
+  // update that omits a field must not read as a change to it.
+  const moved = <T>(sent: T | undefined, stored: T) =>
+    sent !== undefined && (sent ?? null) !== (stored ?? null)
+  const movingStart = moved(input.start_date, existing.start_date)
+  const movingEnd = moved(input.end_date, existing.end_date)
+
+  if (kind === 'dues' && movingEnd && input.end_date) {
+    // Floor is yesterday, not today, and the day of slack is timezone skew rather than
+    // laziness — see 20260807000001's header. `min` on the date input is what holds the
+    // honest case to the browser's local today; this refuses a date that is past by
+    // more than any offset could explain.
+    const floor = new Date()
+    floor.setUTCDate(floor.getUTCDate() - 1)
+    if (input.end_date < floor.toISOString().slice(0, 10)) {
+      return { success: false, message: 'The end date cannot be in the past.' }
+    }
+  }
+
+  // Only looked up when something frozen is actually moving, so the ordinary edit —
+  // a renamed due, a new end date — never touches the payments table.
+  const movingTerms = movingStart
+    || moved(input.amount_cents, existing.amount_cents)
+    || moved(input.frequency, existing.frequency)
+  if (movingTerms) {
+    const usage = (await loadScheduleUsage(admin, familyCode))[id]
+    if (kind === 'dues' && usage?.used) {
+      return {
+        success: false,
+        message: 'Payments have been recorded against this due, so its start date, amount and frequency can no longer change. You can still change the end date.',
+      }
+    }
+    if (kind === 'donation' && usage?.funded && movingStart) {
+      return {
+        success: false,
+        message: 'This donation has received funds, so its start date can no longer change.',
+      }
+    }
   }
 
   const { error } = await admin
@@ -657,6 +785,19 @@ export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
  * getMyDuesSummary (which buckets strictly by schedule_id) or in a member's
  * remaining balance, so recording one is silently useless — the admin sees it in
  * Payment History and the member's dues never move.
+ *
+ * THIS IS THE MANUAL-ENTRY ENDPOINT, and the validation below is scoped to that. It
+ * demands a method and a reference for money it is told arrived, because this row is
+ * the only record that the cheque or the handover ever existed — the same argument
+ * `recordFundContribution` has always made, applied to the ledger that was missing it.
+ *
+ * It also refuses status 'pending'. Nothing manual is pending: a treasurer typing a
+ * payment in is recording something that already happened, and the two honest outcomes
+ * are that the money came ('paid') or that the family let it go ('waived'). 'pending'
+ * remains a legal state in the TABLE and the pending -> paid settlement remains open in
+ * 20260806000002's trigger, because that is the shape an online-payment webhook needs:
+ * insert at checkout, settle on confirmation. That path will have its own entry point,
+ * and it is not this one.
  */
 export async function recordPayment(input: {
   person_id: string
@@ -665,6 +806,7 @@ export async function recordPayment(input: {
   status: 'paid' | 'pending' | 'waived'
   payment_date: string
   payment_method: string | null
+  payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
@@ -727,6 +869,35 @@ export async function recordPayment(input: {
     return { success: false, message: 'Member not found' }
   }
 
+  // ── What a manual entry is allowed to say happened ──
+  //
+  // Which statuses are open depends on the kind, and the kind came from the schedule
+  // ROW above rather than the caller. Waiving a donation is meaningless — nobody owed
+  // it, so there is nothing to forgive — which leaves a gift with exactly one outcome
+  // worth recording. The form hides the field entirely for that reason; this is what
+  // makes the hidden field true rather than merely absent.
+  const allowed: readonly string[] = kind === 'donation' ? ['paid'] : ['paid', 'waived']
+  if (!allowed.includes(input.status)) {
+    return {
+      success: false,
+      message: kind === 'donation'
+        ? 'A donation payment can only be recorded as paid.'
+        : 'A dues payment can only be recorded as paid or waived.',
+    }
+  }
+
+  // Method and reference are required for money that ARRIVED, and forced empty for
+  // money that did not. A waived due has no cheque to number: carrying "Cash" and a
+  // reference on it would put a payment that never happened into the evidence trail,
+  // and the ledger's whole value is that its rows mean what they say.
+  const waived = input.status === 'waived'
+  const method = waived ? null : (input.payment_method?.trim() || null)
+  const reference = waived ? null : (input.payment_reference?.trim() || null)
+  if (!waived) {
+    if (!method) return { success: false, message: 'Record how the payment was made' }
+    if (!reference) return { success: false, message: 'Record a check number or reference for the payment' }
+  }
+
   const { data: payment, error } = await admin.from('dues_payments').insert({
     family_code: familyCode,
     person_id: input.person_id,
@@ -734,7 +905,8 @@ export async function recordPayment(input: {
     amount_cents: input.amount_cents,
     status: input.status,
     payment_date: input.payment_date,
-    payment_method: input.payment_method,
+    payment_method: method,
+    payment_reference: reference,
     notes: input.notes,
     recorded_by: myPerson.id,
   }).select('id, amount_cents, payment_date, routed_at').single()

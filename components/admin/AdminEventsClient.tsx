@@ -13,7 +13,7 @@ import { useServerState } from '@/lib/use-server-state'
 import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type AdminEvent } from '@/app/actions/admin/events'
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 
 const STATUS_LABELS: Record<AdminEvent['status'], string> = {
   draft:     'Draft',
@@ -35,6 +35,24 @@ interface Props {
   canApprove: boolean
 }
 
+/**
+ * A fresh create form. One factory rather than the literal twice, so the two copies
+ * cannot drift — they already had to be kept identical by hand.
+ *
+ * `start_date` opens on today; end date and RSVP deadline stay empty on purpose. Those
+ * two close a window rather than open one, so a today default would create an event
+ * that ended before it was saved and stopped taking RSVPs the same afternoon.
+ */
+function blankForm() {
+  return {
+    name: '', description: '', event_type_id: '',
+    start_date: todayLocal(), end_date: '',
+    is_all_day: true, start_time: '', end_time: '',
+    location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '',
+    rsvp_deadline: '',
+  }
+}
+
 export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -44,7 +62,7 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
   // new event appear.
   const [events, setEvents] = useServerState(initialEvents)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', description: '', event_type_id: '', start_date: '', end_date: '', is_all_day: true, start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', rsvp_deadline: '' })
+  const [form, setForm] = useState(blankForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -58,7 +76,7 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
     setSaving(true)
     const result = await createEvent({ name: form.name, description: form.description, event_type_id: form.event_type_id || undefined, start_date: form.start_date || undefined, end_date: form.end_date || undefined, is_all_day: form.is_all_day, start_time: form.is_all_day ? undefined : form.start_time || undefined, end_time: form.is_all_day ? undefined : form.end_time || undefined, location: form.location, street_address: form.street_address, suite: form.suite, city: form.city, state: form.state, zip_code: form.zip_code, country: form.country, rsvp_deadline: form.rsvp_deadline || undefined })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
-    setForm({ name: '', description: '', event_type_id: '', start_date: '', end_date: '', is_all_day: true, start_time: '', end_time: '', location: '', street_address: '', suite: '', city: '', state: '', zip_code: '', country: '', rsvp_deadline: '' })
+    setForm(blankForm())
     setShowForm(false)
     setSaving(false)
     router.refresh()
@@ -124,7 +142,10 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => setShowForm(s => !s)}>
+        {/* Re-blanked on the way OPEN, not on the way closed: the start date has to be
+            today as of when the form is opened, and a page left up overnight would
+            otherwise still be offering yesterday. */}
+        <Button onClick={() => { if (!showForm) setForm(blankForm()); setShowForm(s => !s) }}>
           <Plus className="h-4 w-4" /> New Event
         </Button>
       </div>

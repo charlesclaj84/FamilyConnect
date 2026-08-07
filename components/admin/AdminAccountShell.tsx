@@ -22,7 +22,7 @@ import {
   SECTION_LABELS, type AccountSection, type AccountRights,
 } from '@/components/admin/account-sections'
 import { MainRail } from '@/components/layout/MainRail'
-import type { DuesSchedule } from '@/app/actions/dues'
+import type { DuesSchedule, ScheduleUsage } from '@/app/actions/dues'
 import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -105,6 +105,8 @@ const CREATE_ACTIONS: Partial<Record<AccountSection, string>> = {
 interface Props {
   initialSection: AccountSection
   initialSchedules: DuesSchedule[]
+  /** Which schedules the ledger has been posted against — see AdminIncomeClient. */
+  scheduleUsage: Record<string, ScheduleUsage>
   initialFunds: FundWithStats[]
   allMilestones: FundMilestone[]
   initialAllocations: FundAllocationRow[]
@@ -136,6 +138,7 @@ interface Props {
 export function AdminAccountShell({
   initialSection,
   initialSchedules,
+  scheduleUsage,
   initialFunds,
   allMilestones,
   initialAllocations,
@@ -272,6 +275,7 @@ export function AdminAccountShell({
             creating={creating}
             onCloseCreate={() => setCreating(null)}
             initialSchedules={initialSchedules}
+            scheduleUsage={scheduleUsage}
             rights={rights}
           />
           <AdminFundsClient

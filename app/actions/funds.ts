@@ -422,6 +422,16 @@ export async function recordDisbursement(input: {
   if (!(await canAny(user.id, 'transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
+  // Required, which is what 20260805000001 added the column for and stopped one step
+  // short of: money going OUT with no identifier cannot be matched to a bank statement,
+  // and cannot be answered when a member says the check never came. Required on the way
+  // in rather than chased later, because there is no editing a disbursement afterwards
+  // to add what should have been captured.
+  const reference = input.payment_reference?.trim() || null
+  if (!reference) {
+    return { success: false, message: 'Record a check number or reference for the disbursement' }
+  }
+
   // Fund, recipient AND milestone are re-scoped to this family: the insert below runs
   // on the service-role client, which bypasses RLS, so ids alone must not be enough.
   //
@@ -448,7 +458,7 @@ export async function recordDisbursement(input: {
     person_id: input.person_id,
     amount_cents: input.amount_cents,
     disbursed_date: input.disbursed_date,
-    payment_reference: input.payment_reference?.trim() || null,
+    payment_reference: reference,
     notes: input.notes,
     recorded_by: myPerson?.id ?? null,
   })
@@ -591,6 +601,14 @@ export async function recordFundContribution(input: {
     return { success: false, message: 'Record who the contribution came from' }
   }
   if (!input.payment_method) return { success: false, message: 'Record how the contribution was given' }
+  // Required for the same reason the method is, and the reason is in this function's
+  // own doc comment: nothing sits behind this row. A dues-routed contribution can be
+  // traced back to the payment that produced it; a hand-recorded one is the only
+  // record that exists, so "which cheque was this?" has to be answerable from it.
+  const reference = input.payment_reference?.trim() || null
+  if (!reference) {
+    return { success: false, message: 'Record a check number or reference for the contribution' }
+  }
 
   // Both ids are re-scoped to this family: the insert below uses the admin client,
   // which bypasses RLS, so nothing else stops another family's fund or person from
@@ -615,7 +633,7 @@ export async function recordFundContribution(input: {
     contributor_person_id: input.contributor_person_id,
     contributor_name: input.contributor_person_id ? null : contributorName,
     payment_method: input.payment_method,
-    payment_reference: input.payment_reference?.trim() || null,
+    payment_reference: reference,
     notes: input.notes,
     recorded_by: myPersonId,
   })

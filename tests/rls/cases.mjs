@@ -134,6 +134,19 @@ export const CASES = [
   }),
   read('dues.getAllDuesPayments', 'app/actions/dues.ts', 'getAllDuesPayments'),
   read('dues.getMyPaymentHistory', 'app/actions/dues.ts', 'getMyPaymentHistory'),
+  // NOT an RLS-path read: getScheduleUsage aggregates dues_payments through the
+  // service-role client on purpose, because a member's own RLS view of that table
+  // cannot answer "has anyone paid this?" — so its family isolation is a hand-written
+  // `.eq('family_code', …)` and nothing else. That makes the attack half more
+  // load-bearing here than in the cases around it, not less: there is no policy
+  // underneath to catch the scoping if it is ever dropped.
+  //
+  // The attacker passes no arguments (the action takes none) and must still come back
+  // without ALPHA's schedule ids, which are the keys of what it returns. Control runs
+  // as the admin for the same reason getDuesSchedules above does — see the note there.
+  read('dues.getScheduleUsage', 'app/actions/dues.ts', 'getScheduleUsage', {
+    positiveActor: 'alphaAdmin',
+  }),
   read('funds.getFunds', 'app/actions/funds.ts', 'getFunds'),
   read('funds.getAllDisbursements', 'app/actions/funds.ts', 'getAllDisbursements'),
   read('funds.getFundContributions', 'app/actions/funds.ts', 'getFundContributions'),
@@ -510,6 +523,27 @@ export const PENDING_CASES = [
   }),
   read('dues.getAllDuesPayments (pending member)', 'app/actions/dues.ts', 'getAllDuesPayments', {
     attacker: 'alphaPending',
+  }),
+  // NOT [crux], and this was established by mutation rather than assumed — both
+  // approved-gates in lib/auth/permissions.ts were commented out (resolveScope's
+  // `if (!perms.approved) return 'none'` AND the earlier `if (!approved) return EMPTY`)
+  // and this case still passed. What actually refuses the applicant is that they do not
+  // hold admin/account/dues|donations view — which is true of every ordinary member,
+  // approved or not — so this is NOT evidence for the approval gate and should not be
+  // read as any.
+  //
+  // Kept as a regression guard on the grant check itself, which is the only thing
+  // standing here: getScheduleUsage aggregates through the service role, so no policy
+  // sits underneath it, and auth_family_code() resolves ALPHATEST for an applicant
+  // deliberately — the family scoping inside the action would scope TO ALPHA quite
+  // happily. Widen that gate to a resource members hold and this case is what notices.
+  //
+  // The control is the ADMIN, not the default plain member: alphaMember does not hold
+  // the grant either, so it would get {} and the case would assert nothing. Same
+  // substitution, and the same underlying reason, as dues.getDuesSchedules above.
+  read('dues.getScheduleUsage (pending member)', 'app/actions/dues.ts', 'getScheduleUsage', {
+    attacker: 'alphaPending',
+    positiveActor: 'alphaAdmin',
   }),
   // NOT [crux] — and the mutation run is how that was established rather than assumed.
   // chat_messages' base policy requires membership of the ROOM, and an applicant is not

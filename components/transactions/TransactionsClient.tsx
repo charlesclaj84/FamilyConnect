@@ -20,7 +20,7 @@ import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
@@ -142,12 +142,17 @@ export function TransactionsClient({
   const [disbursements, setDisbursements] = useServerState(initialDisbursements)
 
   // ── Record payment (dues or donation, decided by the ledger it opened from) ──
+  // 'pending' is gone from this union: a treasurer typing an entry in is recording
+  // something that already happened, so the honest outcomes are that the money came or
+  // that the family let it go. recordPayment refuses 'pending' for the same reason, and
+  // explains where the settlement path lives.
   const [rpPersonId, setRpPersonId] = useState('')
   const [rpScheduleId, setRpScheduleId] = useState('')
   const [rpAmount, setRpAmount] = useState('')
-  const [rpDate, setRpDate] = useState(new Date().toISOString().split('T')[0])
+  const [rpDate, setRpDate] = useState(todayLocal())
   const [rpMethod, setRpMethod] = useState('')
-  const [rpStatus, setRpStatus] = useState<'paid' | 'pending' | 'waived'>('paid')
+  const [rpReference, setRpReference] = useState('')
+  const [rpStatus, setRpStatus] = useState<'paid' | 'waived'>('paid')
   const [rpNotes, setRpNotes] = useState('')
 
   // ── Record contribution ──
@@ -157,7 +162,7 @@ export function TransactionsClient({
   const [fcMethod, setFcMethod] = useState('')
   const [fcReference, setFcReference] = useState('')
   const [fcAmount, setFcAmount] = useState('')
-  const [fcDate, setFcDate] = useState(new Date().toISOString().split('T')[0])
+  const [fcDate, setFcDate] = useState(todayLocal())
   const [fcNotes, setFcNotes] = useState('')
 
   // ── Record disbursement ──
@@ -165,7 +170,7 @@ export function TransactionsClient({
   const [rdMilestoneId, setRdMilestoneId] = useState('')
   const [rdPersonId, setRdPersonId] = useState('')
   const [rdAmount, setRdAmount] = useState('')
-  const [rdDate, setRdDate] = useState(new Date().toISOString().split('T')[0])
+  const [rdDate, setRdDate] = useState(todayLocal())
   const [rdReference, setRdReference] = useState('')
   const [rdNotes, setRdNotes] = useState('')
 
@@ -174,7 +179,25 @@ export function TransactionsClient({
   const [prevLedger, setPrevLedger] = useState(ledger)
   if (prevLedger !== ledger) { setPrevLedger(ledger); setError('') }
   const [prevRecording, setPrevRecording] = useState(recording)
-  if (prevRecording !== recording) { setPrevRecording(recording); setError('') }
+  if (prevRecording !== recording) {
+    setPrevRecording(recording)
+    setError('')
+    if (recording) {
+      // Every calendar in here opens on today. The initializers above run ONCE — this
+      // component is never unmounted, by design, so a tab left open overnight would
+      // otherwise keep offering yesterday's date to every entry made the next morning.
+      //
+      // This does cost the contribution form its remembered date, which used to survive
+      // between entries so a batch of back-dated cheques could share one. Opening on
+      // today is the rule that was asked for; a batch dated other than today now needs
+      // the date set once per cheque.
+      const today = todayLocal()
+      setRpDate(today); setFcDate(today); setRdDate(today)
+      // Status resets with them. It is hidden for a donation and must be 'paid' there,
+      // so a 'waived' left behind by a dues entry would be both invisible and wrong.
+      setRpStatus('paid')
+    }
+  }
 
   function selectLedger(next: Ledger) {
     setLedger(next)
@@ -236,16 +259,30 @@ export function TransactionsClient({
 
   function handleRecordPayment() {
     if (!rpPersonId || !rpScheduleId || !rpAmount) { setError('Member, schedule and amount required'); return }
+    // A donation has no waived form — nobody owed it — so the dialog hides Status and
+    // this is always false there.
+    const waived = payingKind !== 'donation' && rpStatus === 'waived'
+    if (!waived) {
+      if (!rpMethod) { setError('Choose how the payment was made'); return }
+      if (!rpReference.trim()) { setError('Enter the check number or reference for the payment'); return }
+    }
     setError('')
     const kind = payingKind
+    // Forced rather than read for a donation: the field is not on screen, so its state
+    // is not something the person filling the form can see or correct.
+    const status = kind === 'donation' ? 'paid' as const : rpStatus
+    // Nothing to record about a payment that never happened.
+    const method = waived ? null : rpMethod
+    const reference = waived ? null : (rpReference.trim() || null)
     startTransition(async () => {
       const result = await recordPayment({
         person_id: rpPersonId,
         schedule_id: rpScheduleId,
         amount_cents: Math.round(parseFloat(rpAmount) * 100),
-        status: rpStatus,
+        status,
         payment_date: rpDate,
-        payment_method: rpMethod || null,
+        payment_method: method,
+        payment_reference: reference,
         notes: rpNotes || null,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
@@ -260,15 +297,16 @@ export function TransactionsClient({
         schedule_label: schedule?.label ?? null,
         schedule_kind: kind,
         amount_cents: cents,
-        status: rpStatus,
+        status,
         payment_date: rpDate,
-        payment_method: rpMethod || null,
+        payment_method: method,
+        payment_reference: reference,
         notes: rpNotes || null,
         created_at: new Date().toISOString(),
         reverses_id: null,
         reversed_by_id: null,
       }, ...prev])
-      setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpNotes('')
+      setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpReference(''); setRpNotes('')
       setRecording(null)
       // A paid payment routes into funds, so re-read the server for the balances.
       router.refresh()
@@ -280,6 +318,7 @@ export function TransactionsClient({
     if (!fcGiver) { setError('Choose who the contribution came from'); return }
     if (fcGiver === NON_MEMBER && !fcGiverName.trim()) { setError('Name who the contribution came from'); return }
     if (!fcMethod) { setError('Choose how the contribution was given'); return }
+    if (!fcReference.trim()) { setError('Enter the check number or reference for the contribution'); return }
     setError('')
     const cents = dollarsToCents(fcAmount)
     const fundId = fcFundId
@@ -313,10 +352,11 @@ export function TransactionsClient({
         notes: fcNotes || null,
         created_at: new Date().toISOString(),
       }, ...prev])
-      // Fund, date and method survive — contributions get entered in batches, and a
-      // stack of cheques shares all three. The GIVER is always cleared: silently
-      // re-attributing the next amount to the last person is the one mistake this
-      // form must not make.
+      // Fund and method survive — contributions get entered in batches, and a stack of
+      // cheques shares both. The date used to survive with them; it now re-opens on
+      // today, so a back-dated batch sets it per entry. The GIVER is always cleared:
+      // silently re-attributing the next amount to the last person is the one mistake
+      // this form must not make.
       setFcGiver(''); setFcGiverName('')
       setFcAmount(''); setFcReference(''); setFcNotes('')
       setRecording(null)
@@ -326,6 +366,7 @@ export function TransactionsClient({
 
   function handleRecordDisbursement() {
     if (!rdFundId || !rdPersonId || !rdAmount) { setError('Fund, member, and amount required'); return }
+    if (!rdReference.trim()) { setError('Enter the check number or reference for the disbursement'); return }
     setError('')
     const cents = Math.round(parseFloat(rdAmount) * 100)
     const fundId = rdFundId, personId = rdPersonId, milestoneId = rdMilestoneId || null
@@ -524,28 +565,46 @@ export function TransactionsClient({
               <Input type="number" min="0" step="0.01" value={rpAmount} onChange={e => setRpAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
+              <Label>Date <span className="text-destructive">*</span></Label>
+              <Input type="date" value={rpDate} onChange={e => setRpDate(e.target.value)} />
+            </div>
+          </div>
+          {/* Status is a dues field only. A gift has one outcome worth recording —
+              waiving a donation would be forgiving something nobody owed — so for a
+              donation it is set to Paid rather than shown as a one-option select.
+              recordPayment enforces both halves; this only decides what is asked. */}
+          {payingKind !== 'donation' && (
+            <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={rpStatus} onChange={e => setRpStatus(e.target.value as typeof rpStatus)}>
                 <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
                 <option value="waived">Waived</option>
               </Select>
+              {rpStatus === 'waived' && (
+                <p className="text-xs text-muted-foreground">
+                  Waiving forgives the due. No money changed hands, so there is no
+                  method or reference to record.
+                </p>
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Date</Label>
-              <Input type="date" value={rpDate} onChange={e => setRpDate(e.target.value)} />
+          )}
+          {/* Both required, and both hidden for a waived due: they describe how money
+              arrived, and on a waived row no money did. */}
+          {rpStatus !== 'waived' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Payment Method <span className="text-destructive">*</span></Label>
+                <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
+                  <option value="">— Select method —</option>
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Check # / Reference <span className="text-destructive">*</span></Label>
+                <Input value={rpReference} onChange={e => setRpReference(e.target.value)} placeholder="Check #1043" />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Payment Method</Label>
-              {/* Optional — a waived payment never had a method. */}
-              <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
-                <option value="">— Select method —</option>
-                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-              </Select>
-            </div>
-          </div>
+          )}
           <div className="space-y-1.5">
             <Label>Notes</Label>
             <Input value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder="Optional notes" />
@@ -603,7 +662,7 @@ export function TransactionsClient({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Check # / Reference</Label>
+              <Label>Check # / Reference <span className="text-destructive">*</span></Label>
               <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder="Check #1043" />
             </div>
           </div>
@@ -680,7 +739,7 @@ export function TransactionsClient({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Check # / Reference</Label>
+            <Label>Check # / Reference <span className="text-destructive">*</span></Label>
             <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder="Check #1043" />
           </div>
           <div className="space-y-1.5">
@@ -739,9 +798,13 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, pending }: {
               <p className={cn('text-sm font-medium', isReversed && 'line-through text-muted-foreground')}>
                 {p.person_name ?? 'Unknown'}
               </p>
+              {/* The reference is shown here for the same reason the other two ledgers
+                  show theirs: it is now required on the way in, and a mandatory field
+                  that never appears again is a field nobody can reconcile against. */}
               <p className="text-xs text-muted-foreground">
                 {p.schedule_label ?? 'No schedule'} · {formatDate(p.payment_date)}
                 {p.payment_method && ` · ${p.payment_method}`}
+                {p.payment_reference && ` · Ref: ${p.payment_reference}`}
               </p>
               {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
               {isReversed && <p className="text-xs font-medium text-amber-700">Reversed</p>}

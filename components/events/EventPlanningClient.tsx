@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
 import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 
 const STATUS_COLORS = {
   pending:   'bg-muted text-muted-foreground',
@@ -131,7 +131,7 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
   const isPastDue = !!(
     assignment.due_date &&
     status !== 'approved' &&
-    assignment.due_date < new Date().toISOString().slice(0, 10)
+    assignment.due_date < todayLocal()
   )
 
   return (

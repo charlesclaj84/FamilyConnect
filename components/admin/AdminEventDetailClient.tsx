@@ -28,7 +28,7 @@ import type { MemberWithRoles } from '@/app/actions/admin/users'
 import { AddressSelects } from '@/components/ui/AddressSelects'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 
 interface BudgetFund { id: string; name: string; event_id: string | null }
@@ -665,7 +665,7 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
   // New expense
   const [exDesc, setExDesc]     = useState('')
   const [exAmount, setExAmount] = useState('')
-  const [exDate, setExDate]     = useState(new Date().toISOString().split('T')[0])
+  const [exDate, setExDate]     = useState(todayLocal())
   const [exItem, setExItem]     = useState('')
   const [exFund, setExFund]     = useState('')
 
@@ -921,7 +921,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
   // "Passed" uses the effective end (end_date → start_date → legacy event_date),
   // compared as YYYY-MM-DD strings. Today is captured once via a lazy initializer
   // to keep render pure.
-  const [today] = useState(() => new Date().toISOString().slice(0, 10))
+  const [today] = useState(todayLocal)
   const effectiveEnd = event.end_date ?? event.start_date ?? event.event_date
   const isPast = !!effectiveEnd && effectiveEnd.slice(0, 10) < today
 

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
-import { getDuesSchedules } from '@/app/actions/dues'
+import { getDuesSchedules, getScheduleUsage } from '@/app/actions/dues'
 import { getFunds, getFundAllocations } from '@/app/actions/funds'
 import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
 import {
@@ -67,8 +67,11 @@ export default async function AdminAccountPage({
   // reach the browser whether or not a component renders them, so loading the funds or
   // the dues schedules for someone who may not see that section would publish them
   // regardless of which pane is showing (AGENTS.md §4).
-  const [schedules, fundsData, allocations, milestonesResult] = await Promise.all([
+  const [schedules, scheduleUsage, fundsData, allocations, milestonesResult] = await Promise.all([
     rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
+    // Gated on the same pair as the schedules themselves: it says which of them the
+    // ledger has been posted against, which is only meaningful beside the list.
+    rights.dues.view || rights.donations.view ? getScheduleUsage() : Promise.resolve({}),
     rights.funds.view || rights.routing.view || rights.milestones.view ? getFunds() : Promise.resolve([]),
     rights.routing.view ? getFundAllocations() : Promise.resolve([]),
     // Family-scoped explicitly: the service-role client does not apply RLS.
@@ -86,6 +89,7 @@ export default async function AdminAccountPage({
       <AdminAccountShell
         initialSection={initialSection}
         initialSchedules={schedules}
+        scheduleUsage={scheduleUsage}
         initialFunds={fundsData}
         allMilestones={milestonesResult.data ?? []}
         initialAllocations={allocations}
