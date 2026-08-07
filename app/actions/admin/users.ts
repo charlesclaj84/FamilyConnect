@@ -5,6 +5,7 @@ import { getMyFamilyCode } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatRoleTitle } from '@/lib/role-utils'
+import { pickProfileColumns } from '@/lib/profile-columns'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
 
 export interface FamilyRole {
@@ -237,7 +238,30 @@ export async function updateUserProfile(
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!(await assertCanManageRoles(user.id))) return { success: false, error: 'Not authorized' }
 
+  // Two things this needs that it did not have, both required by AGENTS.md §3 for a
+  // service-role write — which sees past RLS entirely, so nothing else was applying
+  // either:
+  //
+  //   1. FAMILY SCOPING. `.eq('id', peopleId)` alone matches a people row in ANY
+  //      family, so a user manager in one family could rewrite a member of another
+  //      just by passing their id.
+  //   2. AN ALLOW-LIST on `data`. It arrives as JSON from the client; the
+  //      Partial<PersonalInfoData> annotation is erased at runtime. Unfiltered it could
+  //      set user_id (reassigning the row to a different account), family_code (moving
+  //      a member between families) or, since Phase 3, membership_status — admitting
+  //      somebody without going through Member Approvals, which is the surface that
+  //      exists to make that decision reviewable.
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family associated with account' }
+
+  const fields = pickProfileColumns(data)
+  if (Object.keys(fields).length === 0) return { success: true }
+
   const admin = createAdminClient()
-  const { error } = await admin.from('people').update(data).eq('id', peopleId)
+  const { error } = await admin
+    .from('people')
+    .update(fields)
+    .eq('id', peopleId)
+    .eq('family_code', familyCode)
   return error ? { success: false, error: error.message } : { success: true }
 }

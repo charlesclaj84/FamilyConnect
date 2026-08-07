@@ -5,7 +5,8 @@ import {
 } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/server'
-import { requireView } from '@/lib/auth/permissions'
+import { requireViewOrPending } from '@/lib/auth/permissions'
+import { PendingApproval } from '@/components/membership/PendingApproval'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getUpcomingEvents } from '@/app/actions/events'
@@ -31,7 +32,13 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'dashboard')
+  // requireViewOrPending, not requireView: a pending member must be able to LAND
+  // somewhere that tells them what is happening. The early return is above every fetch
+  // below, and has to stay there — the Promise.all is nine calls' worth of family data,
+  // and props reach the browser in the RSC payload whether or not a component renders
+  // them, so returning after it would publish everything this screen exists to withhold.
+  const gate = await requireViewOrPending(user.id, 'dashboard')
+  if (gate.pending) return <PendingApproval membership={gate.membership} />
 
   const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Member'
   const lastName  = user.user_metadata?.last_name ?? ''

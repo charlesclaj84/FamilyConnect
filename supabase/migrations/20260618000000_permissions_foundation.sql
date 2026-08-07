@@ -78,6 +78,17 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('documents',           'Documents',              'resources',  140),
   ('elections',           'Elections',              'resources',  150),
   ('admin/users',         'User Management',        'admin',      160),
+  -- Added by 20260806000010 (Phase 3, join-by-code). Listed here as well as there
+  -- because this insert is ON CONFLICT DO UPDATE and a replay would otherwise leave
+  -- the key registered only by the later file — harmless in itself, but the seeding
+  -- and visibility loops at the foot of THIS file are what give a fresh database its
+  -- 'restricted' row and its Administrators grant for the key.
+  --
+  -- Deliberately without the `actions` column: it does not exist until
+  -- 20260806000007, so naming it here would abort the chain on an empty database.
+  -- The row is created with the default four actions and narrowed to view+edit by
+  -- 20260806000010 §1, which does not update `actions` on conflict.
+  ('admin/approvals',     'Member Approvals',       'admin',      165),
   ('admin/groups',        'Groups & Permissions',   'admin',      170),
   ('admin/chapters',      'Regions & Chapters',     'admin',      180),
   -- Key renamed from 'admin/user-roles' by 20260805000006, together with the route.

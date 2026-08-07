@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -35,6 +35,11 @@ const devLogin =
 
 export function LoginForm() {
   const router = useRouter()
+  // /auth/confirm redirects here with ?error=… when a confirmation link is invalid,
+  // expired or already used. Without this the user lands on a bare sign-in form with no
+  // hint that the link they just clicked did anything at all.
+  const searchParams = useSearchParams()
+  const linkError = searchParams.get('error') ?? ''
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -97,6 +102,14 @@ export function LoginForm() {
               Forgot password?
             </Link>
           </div>
+
+          {/* A failed confirmation link, until they try to sign in and get a live
+              answer — at which point the sign-in error is the more useful one. */}
+          {linkError && !serverError && (
+            <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {linkError}
+            </div>
+          )}
 
           {serverError && (
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

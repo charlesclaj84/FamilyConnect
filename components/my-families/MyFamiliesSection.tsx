@@ -2,10 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Home, Star, Check, Eye } from 'lucide-react'
+import { Home, Star, Check, Eye, Clock, Ban } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
-import { switchActiveFamily, setDefaultFamily } from '@/app/actions/family'
+// switchActiveFamily is no longer called from here — the navbar FamilySwitcher owns
+// switching now that "View this family" is gone.
+import { setDefaultFamily } from '@/app/actions/family'
+import { JoinFamilyDialog } from '@/components/my-families/JoinFamilyDialog'
+import { CreateFamilyDialog } from '@/components/my-families/CreateFamilyDialog'
+import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import type { FamilyMembership } from '@/lib/auth/family'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +24,12 @@ import { cn } from '@/lib/utils'
  * family code shown here is worth being able to look up either way. (This used to
  * render as a card inside My Profile and returned null below two families; as its
  * own page it always renders, or a direct visit would be a blank screen.)
+ *
+ * That last decision is what makes Join reachable: a single-family account renders
+ * this section, so the button below is on screen for the people most likely to need
+ * it. A membership awaiting approval is listed like any other, badged, and with its
+ * switching controls withheld — switching TO it would land on the awaiting-approval
+ * screen, which is a dead end presented as navigation.
  */
 export function MyFamiliesSection({ families }: { families: FamilyMembership[] }) {
   const router = useRouter()
@@ -64,25 +75,37 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
       <CardContent className="space-y-2">
         {families.map(family => {
           const busy = isPending && pendingCode === family.familyCode
+          const approved = family.status === 'approved'
           return (
             <div
               key={family.familyCode}
               className={cn(
                 'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3',
                 family.isActive ? 'border-[#0f2540]/40 bg-[#e6ecfa]/60' : 'bg-card',
+                !approved && 'opacity-90',
               )}
             >
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <span className="truncate">{family.familyName}</span>
-                  {family.isActive && (
+                  {family.status === 'pending' && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                      <Clock className="h-3 w-3" /> Awaiting approval
+                    </span>
+                  )}
+                  {family.status === 'rejected' && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Ban className="h-3 w-3" /> Declined
+                    </span>
+                  )}
+                  {family.isActive && approved && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#0f2540] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#e6ecfa]">
                       <Eye className="h-3 w-3" /> Viewing
                     </span>
                   )}
                   {family.isDefault && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Star className="h-3 w-3" /> Login default
+                      <Star className="h-3 w-3" /> Default
                     </span>
                   )}
                 </p>
@@ -91,22 +114,32 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                 </p>
               </div>
 
-              <div className={cn('shrink-0 items-center gap-2', multi ? 'flex' : 'hidden')}>
-                {!family.isActive && (
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => run(family.familyCode, null, () => switchActiveFamily(family.familyCode))}
-                    className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
-                  >
-                    {busy ? 'Switching…' : 'View this family'}
-                  </button>
-                )}
+              {/* Every approved membership, viewed or not — since 20260806000014 the
+                  invitation carries its own target family instead of being addressed to
+                  whichever one you happen to be looking at. These are never
+                  pre-approved: an ordinary member is not deciding who gets in, and for a
+                  family you are not currently viewing the database refuses pre-approval
+                  outright, because permissions only resolve for the active family. */}
+              <div className={cn('shrink-0 items-center gap-2', approved ? 'flex' : 'hidden')}>
+                <InviteMemberDialog
+                  label="Invite Member"
+                  className="px-2.5 py-1 text-xs"
+                  familyCode={family.familyCode}
+                  familyName={family.familyName}
+                />
+              </div>
+
+              {/* "View this family" used to live here. Removed — the navbar
+                  FamilySwitcher does the same job from every page, so this was a second
+                  control for one action, and the only one that had to be found first. */}
+              <div className={cn('shrink-0 items-center gap-2', multi && approved ? 'flex' : 'hidden')}>
                 <button
                   type="button"
                   disabled={isPending || family.isDefault}
                   onClick={() => run(family.familyCode, {
-                    title: 'Change login default',
+                    title: 'Change default family',
+                    // The label is just "Default", which does not say default *what* —
+                    // so the confirmation is where that gets spelled out.
                     description: `Open ${family.familyName} by default when you log in?`,
                     confirmLabel: 'Make default',
                   }, () => setDefaultFamily(family.familyCode))}
@@ -118,7 +151,11 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   )}
                 >
                   {family.isDefault ? <Check className="h-3 w-3" /> : <Star className="h-3 w-3" />}
-                  {family.isDefault ? 'Opens on login' : busy ? 'Saving…' : 'Open on login'}
+                  {/* The label is "Default" in both states; the icon and the disabled
+                      styling are what distinguish "is the default" from "make it the
+                      default". busy cannot be true while isDefault, because the button
+                      is disabled then. */}
+                  {busy ? 'Saving…' : 'Default'}
                 </button>
               </div>
             </div>
@@ -128,6 +165,13 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
         {error && (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
         )}
+
+        {/* Right-aligned, and wrapping rather than shrinking: two buttons plus their
+            labels do not fit beside each other on a narrow phone. */}
+        <div className="flex flex-wrap justify-end gap-2 pt-2">
+          <CreateFamilyDialog />
+          <JoinFamilyDialog />
+        </div>
       </CardContent>
     </Card>
   )

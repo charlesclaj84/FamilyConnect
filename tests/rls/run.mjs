@@ -147,6 +147,16 @@ const actors = {}
 for (const key of Object.keys(fx.users)) {
   actors[key] = await signIn(fx.users[key])
 }
+
+// A signed-OUT caller. The supabase-server stub already builds an anonymous client
+// when there is no actor, so this needs no plumbing — but without a name in this map
+// no case could ask for it, and the anon role was invisible to the whole suite.
+//
+// That mattered once 20260806000015 revoked EXECUTE on every public function from
+// anon: exactly one function is still granted to it, and if that grant is ever lost
+// every invitation link breaks for every invitee who does not already have an
+// account. Nothing else here would notice.
+actors.anon = null
 console.log(`Seeded. ALPHA=${fx.alpha.familyCode} BRAVO=${fx.bravo.familyCode}`)
 console.log(`Attacker: ${actors.bravoAdmin.label} — administrator of BRAVO, scope 'any' on every resource\n`)
 

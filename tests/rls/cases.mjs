@@ -34,6 +34,20 @@ export function alphaMarkers(fx) {
     a.notification.id, a.otherNotification.id,
     a.child.id, a.ancestor.id, a.ownerPersonId, a.otherPersonId,
     a.nominationElection.id, a.plan.id,
+    // ALPHA's applicants. Their rows are the PII that admin/approvals unlocks, and the
+    // `people` SELECT policy hides them from every caller who cannot view that
+    // resource — so finding one in BRAVO's response is a leak like any other.
+    //
+    // fx.users.alphaPending is deliberately ABSENT from this list, and it is not an
+    // oversight: that account is an attacking ACTOR in the cases below, and RLS
+    // correctly lets it read its own `people` row. Listing its id would make every
+    // pending-member case fail on the applicant seeing themselves.
+    a.applicantPersonId, a.rejectablePersonId,
+    'alpha.applicant@rls.test', 'alpha.rejectable@rls.test',
+    // Invitations are a list of email addresses belonging to people who are not yet in
+    // the family — PII that only an approver should see, and only for their own family.
+    a.invitation.id, a.revocableInvitation.id,
+    'invited.alpha@rls.test', 'revocable.alpha@rls.test',
     // auth user ids too — some actions key on user_id rather than people.id.
     fx.users.alphaMember.userId, fx.users.alphaOther.userId, fx.users.alphaAdmin.userId,
     'secret body ALPHATEST',
@@ -392,7 +406,325 @@ export const MORE_CASES = [
   },
 ]
 
-CASES.push(...MORE_CASES)
+/**
+ * PHASE 3 — the pending-membership axis.
+ *
+ * A THIRD KIND OF ATTACKER, and the one this phase exists for. Every case above asks
+ * whether BRAVO can reach ALPHA. These ask whether someone who has joined ALPHA by
+ * family code, and NOT yet been admitted, can reach ALPHA — a caller who is inside the
+ * family boundary by every test the earlier cases apply. `auth_family_code()` resolves
+ * ALPHATEST for them, deliberately and permanently (nulling it would hide their own
+ * profile from themselves), so the family-scoping conjunct on every policy in the app
+ * is SATISFIED. What must stop them is `auth_person_id()` returning NULL, and the
+ * handful of policies that reach past it.
+ *
+ * The shape is the harness's existing one, unchanged: `attacker: 'alphaPending'`, the
+ * default positive control, and the same ALPHA markers. The control is doing real work
+ * here — it runs as ALPHA's approved member against the same call, so an empty result
+ * on the attack side means "denied" rather than "there was nothing to see".
+ *
+ * A NOTE ON WHAT IS *NOT* ASSERTED. The pending member can read their own `people` row,
+ * and should: it is their own profile, the one thing they may fill in while they wait.
+ * That is why their id is not a marker.
+ *
+ * WHICH MECHANISM EACH CASE ACTUALLY EXERCISES — established by MUTATING the database
+ * and re-running, not by reading the migration. Removing the single conjunct from
+ * auth_person_id() and leaving everything else in place fails the ten cases marked
+ * [crux] below, with real leaks and one real row mutation. The three marked otherwise
+ * still pass under that mutation, so they are NOT evidence for it, and are labelled
+ * individually rather than left to look like they are.
+ *
+ * Worth doing again after any change to §4 or §6 of 20260806000011:
+ *
+ *   npx supabase db reset --local
+ *   docker exec supabase_db_<project> psql -U postgres -d postgres -c \
+ *     "CREATE OR REPLACE FUNCTION public.auth_person_id() RETURNS uuid LANGUAGE sql
+ *      STABLE SECURITY DEFINER SET search_path = '' AS \$\$
+ *        SELECT p.id FROM public.people p WHERE p.user_id = (SELECT auth.uid())
+ *         AND p.family_code = public.auth_family_code() LIMIT 1; \$\$;"
+ *   npm run test:rls "pending member"
+ *
+ * (The reset is not optional between runs — teardown cannot delete dues_payments while
+ * the append-only trigger is installed. That is a known gap, recorded in TODO.md.)
+ */
+export const PENDING_CASES = [
+  // [crux] The directory and the family tree — the most direct PII questions.
+  read('members.getMembers (pending member)', 'app/actions/members.ts', 'getMembers', {
+    attacker: 'alphaPending',
+  }),
+  read('ancestors.getFamilyMembers (pending member)', 'app/actions/ancestors.ts', 'getFamilyMembers', {
+    attacker: 'alphaPending',
+  }),
+  read('chat.getFamilyMembersWithAccounts (pending member)', 'app/actions/chat.ts', 'getFamilyMembersWithAccounts', {
+    attacker: 'alphaPending',
+  }),
+
+  // [crux] Tables covered by way of auth_permission() returning 'none'.
+  read('announcements.getAnnouncements (pending member)', 'app/actions/announcements.ts', 'getAnnouncements', {
+    attacker: 'alphaPending',
+  }),
+  read('documents.getDocuments (pending member)', 'app/actions/documents.ts', 'getDocuments', {
+    attacker: 'alphaPending',
+  }),
+  read('photos.getPhotoCollections (pending member)', 'app/actions/photos.ts', 'getPhotoCollections', {
+    attacker: 'alphaPending',
+  }),
+  read('funds.getFunds (pending member)', 'app/actions/funds.ts', 'getFunds', {
+    attacker: 'alphaPending',
+  }),
+  read('elections.getActiveElections (pending member)', 'app/actions/elections.ts', 'getActiveElections', {
+    attacker: 'alphaPending',
+  }),
+  read('dues.getAllDuesPayments (pending member)', 'app/actions/dues.ts', 'getAllDuesPayments', {
+    attacker: 'alphaPending',
+  }),
+  // NOT [crux] — and the mutation run is how that was established rather than assumed.
+  // chat_messages' base policy requires membership of the ROOM, and an applicant is not
+  // a participant in anything, so this is refused with or without Phase 3. Kept as a
+  // regression guard on that base policy, which is the thing actually protecting chat
+  // from an unapproved member; it is not evidence for the conjunct.
+  read('chat.getMessages (pending member)', 'app/actions/chat.ts', 'getMessages', {
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.room.id],
+  }),
+
+  // NOT [crux] either, and for a different reason worth writing down: getNotifications
+  // narrows to `recipient_id = <own person id>` in the ACTION, so a pending member sees
+  // only their own notifications however the policies are configured.
+  //
+  // What 20260806000011 §6 actually closes on this table is the INSERT policy —
+  // `family_code = auth_family_code() AND true`, i.e. any member may write a
+  // notification, with any title and any LINK, to any member of their family. An
+  // applicant could have put something in every member's bell. No server action exposes
+  // that (notifyAllMembers and notifyApprovers are plain modules on the service role
+  // precisely so they have no URL), so this action-shaped suite structurally cannot
+  // reach it — see UNCOVERED at the foot of this file. The policy TEXT is asserted
+  // instead, by §8 of the migration, which fails the deploy if any policy on any swept
+  // table is missing the conjunct.
+  read('notifications.getNotifications (pending member)', 'app/actions/notifications.ts', 'getNotifications', {
+    attacker: 'alphaPending',
+  }),
+
+  // [crux] A self-service WRITE. requireMember() is the one line that covers all of
+  // them, and castVote is the representative: any member may vote, so there is no grant
+  // to withhold — being a member is the whole of the authorization. Under the mutation
+  // this one lands a real vote in ALPHA's election, which is the clearest single
+  // demonstration of what the conjunct is for.
+  {
+    kind: 'write',
+    id: 'elections.castVote (pending member)',
+    mod: 'app/actions/elections.ts', fn: 'castVote',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.election.id, fx.alpha.position.id, fx.alpha.otherPersonId],
+    probe: (db, fx) => snapshot('election_votes', 'id, voter_id, nominee_id',
+      { election_id: fx.alpha.election.id })(db),
+    positive: 'not-applicable',
+    why: 'the approved owner has already voted; a second call is an upsert no-op, and their vote is asserted by the cross-family castVote case above',
+  },
+
+  // THE SELF-APPROVAL REGRESSION TEST. Not [crux] — nothing about the conjunct stops
+  // this one, which is the point of it existing separately.
+  //
+  // `saveProfileSection` is the one write a pending member is deliberately allowed to
+  // make, and `membership_status` is a column on the row it writes. The `people` UPDATE
+  // policy admits a member's write to their own row — it must, or nobody could edit
+  // their own profile — and an RLS policy is a predicate over the ROW, with no opinion
+  // about which of its columns changed. So posting the column name to that endpoint was
+  // a self-approval that every policy in the database was satisfied by.
+  //
+  // Two things now refuse it: lib/profile-columns.ts drops the key, and
+  // people_guard_membership_status raises if an 'authenticated' caller moves the column
+  // at all. This case is aimed at the pair — remove either and it fails.
+  {
+    kind: 'write',
+    id: 'personal-info.saveProfileSection (pending member self-approving)',
+    mod: 'app/actions/personal-info.ts', fn: 'saveProfileSection',
+    attacker: 'alphaPending',
+    args: () => [{ membership_status: 'approved', first_name: 'SelfApproved' }],
+    // membership_status ONLY. first_name is in the same payload on purpose — a pending
+    // member editing their own name is legitimate and must still work, so projecting it
+    // would make a successful, wanted write look like the attack succeeding.
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.users.alphaPending.personId })(db),
+    positive: 'not-applicable',
+    why: 'the only legitimate way to move this column is set_membership_status(), which admin/approvals.approveApplicant exercises below',
+  },
+]
+
+/**
+ * PHASE 3 — the approvals surface itself.
+ *
+ * The attacker is BRAVO's administrator as usual, and here they hold `admin/approvals`
+ * at scope 'any' in their OWN family — which is the point. Whatever they can still do
+ * to ALPHA's applicants, they can do because family isolation failed, not because
+ * nobody checked a grant.
+ *
+ * Controls run as ALPHA's administrator: approving is `canAny`-gated, so a plain member
+ * is refused for a reason that has nothing to do with isolation.
+ */
+export const APPROVAL_CASES = [
+  read('admin/approvals.getApplicants', 'app/actions/admin/approvals.ts', 'getApplicants', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) =>
+      r.pending.some(a => a.personId === fx.alpha.applicantPersonId) && r.canDecide === true,
+  }),
+  {
+    kind: 'write',
+    id: 'admin/approvals.approveApplicant',
+    mod: 'app/actions/admin/approvals.ts', fn: 'approveApplicant',
+    args: fx => [fx.alpha.applicantPersonId],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.alpha.applicantPersonId })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/approvals.rejectApplicant',
+    mod: 'app/actions/admin/approvals.ts', fn: 'rejectApplicant',
+    // Its own applicant row, for deletableChild's reason: the control really does decide
+    // this membership, and consuming the row another case asserts about would turn that
+    // case into a vacuous pass.
+    args: fx => [fx.alpha.rejectablePersonId, 'not recognised'],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.alpha.rejectablePersonId })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  // ── invitations ───────────────────────────────────────────────────────────
+  // A genuine cross-family READ: the list is email addresses of people who are not in
+  // the family yet, and the only thing keeping BRAVO's administrator out of ALPHA's is
+  // the policy on family_invitations. Unlike getApplicants this reads through the USER
+  // client, so RLS is the whole of the enforcement.
+  read('invitations.getInvitations', 'app/actions/invitations.ts', 'getInvitations', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => r.some(i => i.id === fx.alpha.invitation.id),
+  }),
+  {
+    kind: 'write',
+    id: 'invitations.revokeInvitation',
+    mod: 'app/actions/invitations.ts', fn: 'revokeInvitation',
+    // Its own invitation, so the control's real revocation does not silently empty the
+    // list the case above asserts on.
+    args: fx => [fx.alpha.revocableInvitation.id],
+    probe: (db, fx) => snapshot('family_invitations', 'id, revoked_at',
+      { id: fx.alpha.revocableInvitation.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  // THE ONLY anon COVERAGE IN THE SUITE, and it asserts the opposite of everything
+  // else here: that a signed-out stranger holding a valid token CAN read the family
+  // name. peek_family_invitation is the single function 20260806000015 leaves granted
+  // to anon, because /invite/<token> and /register?invite=<token> must name the family
+  // before the visitor has an account. Lose that grant and every invitation link 500s
+  // for exactly the people invitations exist for — and no other case would fail.
+  //
+  // `expectAttack` is required rather than incidental: the invited address IS an ALPHA
+  // marker, so the default leak check would flag this as a breach. Disclosing it to
+  // whoever holds the token is the documented trade — the token is the credential.
+  //
+  // The other half — that anon holds EXECUTE on NOTHING ELSE — is asserted by the
+  // migration itself ("anon STILL HAS"), which runs on every reset and every push and
+  // covers all 34 functions rather than the handful an action could reach.
+  read('invitations.peekInvitation (anon, valid token)', 'app/actions/invitations.ts', 'peekInvitation', {
+    attacker: 'anon',
+    args: () => ['rls-invite-token-ALPHATEST'],
+    expectAttack: (r) => r?.valid === true && r.email === 'invited.alpha@rls.test',
+    positive: 'not-applicable',
+    why: 'the anon call IS the assertion — there is no more-entitled caller to compare against, and a signed-in member reaching the same link is covered by redeemInvitation below',
+  }),
+  {
+    kind: 'write',
+    id: 'invitations.redeemInvitation (ALPHA token, wrong person)',
+    mod: 'app/actions/invitations.ts', fn: 'redeemInvitation',
+    // The attacker holds ALPHA's plaintext token — the fixture seeds a known one
+    // precisely so this is testable. The email binding is what must stop them: it was
+    // addressed to invited.alpha@rls.test, and they are not that person. Without that
+    // check a leaked or forwarded link would be a way into any family.
+    args: () => ['rls-invite-token-ALPHATEST'],
+    probe: (db) => snapshot('people', 'id, membership_status',
+      { family_code: 'ALPHATEST' })(db),
+    positive: 'not-applicable',
+    why: 'the invited address has no account in the fixture, so nobody can legitimately redeem it; the pre-approved path is exercised directly against SQL and recorded in TODO',
+  },
+  {
+    kind: 'write',
+    id: 'invitations.inviteMember (pending member)',
+    mod: 'app/actions/invitations.ts', fn: 'inviteMember',
+    // An applicant must not be able to invite anyone — it would let someone who has not
+    // been let in start pulling others in behind them. create_family_invitation() tests
+    // auth_person_id(), which is NULL for them.
+    attacker: 'alphaPending',
+    args: () => ['newcomer.by.pending@rls.test', true],
+    probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
+      { family_code: 'ALPHATEST' })(db),
+    // The control proves the action works at all — and, because it asks for
+    // pre_approved: true as a PLAIN member, that the request is silently downgraded
+    // rather than honoured. alphaMember holds no admin/approvals grant.
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'invitations.inviteMember (BRAVO naming ALPHA as the target family)',
+    mod: 'app/actions/invitations.ts', fn: 'inviteMember',
+    // 20260806000014 let the caller name a target family so /my-families can offer the
+    // button on every row. That turned an action with no cross-family argument into one
+    // with the classic shape — an id from the client written onto a row — so it needs
+    // the classic test. The RPC's defence is that it looks for the CALLER's own approved
+    // people row in the named family; BRAVO's administrator has none in ALPHA.
+    //
+    // pre_approved: true is passed deliberately. Even if the family check were somehow
+    // satisfied, honouring pre-approval on the strength of BRAVO permissions would be
+    // the escalation the migration's `v_family = v_active` clause exists to stop.
+    args: () => ['intruder@rls.test', true, 'ALPHATEST'],
+    probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
+      { family_code: 'ALPHATEST' })(db),
+    // The control names ALPHATEST too — the same argument, from someone entitled to it —
+    // so the attack assertion cannot pass merely because the parameter is ignored.
+    positiveActor: 'alphaMember',
+    positiveArgs: () => ['legit.invite@rls.test', false, 'ALPHATEST'],
+  },
+
+  // Creating a family is not a cross-family operation — there is no ALPHA id to pass —
+  // so the usual attack/control split does not apply. What IS worth asserting, and what
+  // this case is aimed at, is that creating one does not disturb ALPHA and that the
+  // founder comes out able to run it. The second half is the interesting one: it depends
+  // on three triggers firing in the right order across two inserts (seed the groups,
+  // inherit the profile, stamp approved, join Administrators), and getting the inserts
+  // the wrong way round produces a family with an administrator nobody can be.
+  {
+    kind: 'write',
+    id: 'my-families.createFamily (founder administers, ALPHA untouched)',
+    mod: 'app/actions/my-families.ts', fn: 'createFamily',
+    attacker: 'bravoAdmin',
+    args: () => ['Harness Created Family'],
+    // ALPHA's membership set. Creating a family elsewhere must not add, remove or
+    // re-status a single ALPHA row.
+    probe: (db) => snapshot('people', 'id, membership_status',
+      { family_code: 'ALPHATEST' })(db),
+    positive: 'not-applicable',
+    why: 'no rightful-vs-attacker split exists for creating your own family; the founder outcome is asserted by the migration\'s own verify block, which creates a throwaway family and RAISEs unless its creator comes out approved AND in Administrators',
+  },
+  // Joining is LAST because it leaves a membership behind: bravoNewcomer ends the run
+  // with a pending row in ALPHA. Harmless (a pending row confers nothing, which is what
+  // this asserts) but it is still fixture drift, and no case after it should inherit it.
+  {
+    kind: 'write',
+    id: 'my-families.joinFamilyByCode (confers nothing)',
+    mod: 'app/actions/my-families.ts', fn: 'joinFamilyByCode',
+    attacker: 'bravoNewcomer',
+    args: () => ['ALPHATEST'],
+    // The probe is ALPHA's APPROVED membership set, and that framing is the assertion.
+    // A stranger applying to ALPHA is the feature working, so the row count going up is
+    // not a failure — becoming an approved member of ALPHA is. This is the case that
+    // would catch `?mode=join`-style unpending, or a stamp trigger that stopped firing.
+    probe: (db) => snapshot('people', 'id, membership_status',
+      { family_code: 'ALPHATEST', membership_status: 'approved' })(db),
+    positive: 'not-applicable',
+    why: 'any signed-in user may apply to any family by design, so there is no rightful-vs-attacker split to draw; what must hold is that applying confers nothing, which the approved-only probe asserts',
+  },
+]
+
+// Order is load-bearing, and only here: APPROVAL_CASES decides two memberships and
+// leaves a third behind, so it runs after everything that reads the fixture.
+CASES.push(...MORE_CASES, ...PENDING_CASES, ...APPROVAL_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.
@@ -408,6 +740,21 @@ CASES.push(...MORE_CASES)
  *     auth_family_code(). There is no other family's id to supply, so there is no
  *     cross-family case to construct. Their risk is the permission layer, not
  *     family isolation.
+ *
+ *   The notifications INSERT policy, and the rest of 20260806000011 §6's sweep
+ *     A structural gap rather than a missing case. The sweep narrows policies on
+ *     tables that no server action lets an unapproved caller touch — the
+ *     notifications INSERT ("any member may notify any member", so an applicant
+ *     could reach every bell in the family), and the "readable in family" SELECTs on
+ *     user_groups, user_group_members, group_permissions and resource_visibility.
+ *     Every one of those is reachable only by calling PostgREST directly with the
+ *     applicant's own JWT, and this suite calls exported ACTIONS. Adding it means a
+ *     raw-query harness alongside this one, which is worth doing and is not this.
+ *
+ *     What stands in for it meanwhile is not nothing: §8 of that migration recomputes
+ *     the swept table list from permission_table_map and RAISEs if a single policy on
+ *     any of them lacks the conjunct, so the sweep silently matching zero rows fails
+ *     the deploy rather than passing the tests.
  */
 export const UNCOVERED = [
   'documents.uploadDocument', 'photos.uploadPhoto',

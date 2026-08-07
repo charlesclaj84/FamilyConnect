@@ -75,6 +75,72 @@ RSVP, but only to their own family's event, and only for people in it.
 
 "No permission needed" never means "no check needed".
 
+`requireMember()` also demands an **approved** membership, since `20260806000011`.
+A `people` row can exist without its owner having been admitted to the family — that
+is what joining by family code creates — and every one of these actions is defined as
+something a *member* may do. The database refuses them independently, because
+`auth_person_id()` gates on `membership_status` and so collapses every own/self
+expression a pending caller could match; the guard exists so the caller is told,
+rather than watching a policy match zero rows and being shown "saved".
+
+The exception is editing your own profile, which a pending member may do and which
+therefore does not go through `requireMember()`. That makes `people` the one table
+whose UPDATE policy a non-approved caller can satisfy — so a write to it must
+allow-list its columns (`lib/profile-columns.ts`). `membership_status` lives on that
+row, and `saveProfileSection({ membership_status: 'approved' })` was a self-approval
+every policy in the database was satisfied by, because the row really was theirs.
+
+## 2b. A function in `public` is a public endpoint. Grant it deliberately
+
+PostgREST publishes every function in `public` at `POST /rest/v1/rpc/<name>`, and the
+anon key ships in the browser bundle. A SECURITY DEFINER function with a loose grant is
+an unauthenticated HTTP endpoint running as its owner with RLS switched off.
+
+**`20260806000015` locked this down**, and until it did, a `REVOKE` in a migration was
+documentation rather than enforcement: `supabase/seed.sql` re-granted every function
+after every reset, and the hosted project did the same. `seed_family_system_groups()`
+was the cost — its own migration revoked it from PUBLIC and granted it to nobody, and
+an **anonymous** call still restored an Administrators grant an admin had deleted.
+
+Grants are now the primary control. Three rules follow.
+
+**1. Adding a function means adding its grant.** Default privileges now revoke EXECUTE
+from `anon` and `authenticated`, so a new function is unreachable from the browser until
+a migration grants it. If the app calls it with the user client, grant it to
+`authenticated`; if only with the admin client, grant nothing — `service_role` keeps
+EXECUTE by default. `20260806000015`'s assertion block fails the push if a function ends
+up executable by a role not on its list, so drift stops the deploy rather than shipping.
+
+**2. A function named in an RLS policy needs the grant too.** Policy expressions are
+evaluated as the QUERYING role — revoke `auth_family_code()` and every authenticated
+query in the app dies with "permission denied for function". The lockdown derives those
+grants from `pg_policies` at migration time rather than hard-coding them, because the
+policies here are themselves composed at migration time and hosted has drifted from the
+chain before (`d9d91c0`). Realtime counts: it evaluates RLS as the subscribing role, so
+`auth_uid_is_room_participant()` is load-bearing for chat despite having no call site.
+
+Trigger functions need no grant — EXECUTE is checked at `CREATE TRIGGER` time, not at
+fire time — and neither does a function called only from inside another SECURITY DEFINER
+function, which runs as that function's owner.
+
+**3. Grants are the outer layer, not the only one.** Still write the function as if it
+were reachable, because twice now the outer layer has been re-opened by something
+outside the migration chain:
+
+* Re-derive the caller from `auth.uid()` and the permission model. Never rely on a
+  function being unreachable.
+* **Never take an identity as a parameter** unless the function distinguishes the caller
+  itself. `redeem_family_invitation` needs one for registration, so it reads the role
+  from PostgREST's verified JWT claims and honours `p_user_id` only for `service_role`;
+  for everyone else the argument is ignored, not validated.
+* Inside a SECURITY DEFINER body `current_user` is the owner and tells you nothing. The
+  caller shows up in the JWT `role` claim and the `role` GUC — see
+  `seed_family_system_groups`, which refuses a known browser role unless it arrived via
+  `pg_trigger_depth() > 0`.
+* **Do not assert `NOT has_function_privilege(...)` and call it protection** unless you
+  have checked what runs after the migration. That assertion passed for ten seconds and
+  was false thereafter.
+
 ## 3. The service-role client bypasses RLS — so redo its work
 
 `createAdminClient()` is the service role. No RLS, no family isolation, nothing.
@@ -179,6 +245,25 @@ and the two halves are both load-bearing:
   query PostgREST refused — passes an isolation assertion trivially. Three of the
   bugs found while writing this suite were found by the control, not the attack.
 
+* **A second attacker, since Phase 3:** `attacker: 'alphaPending'` — someone who has
+  joined ALPHA by family code and not been admitted. They are *inside* the family
+  boundary by every test the cross-family cases apply, because `auth_family_code()`
+  resolves ALPHATEST for them deliberately and permanently. Add one of these for any
+  action that reads or writes family data; the existing default control does the other
+  half. `PENDING_CASES` in `cases.mjs` is the worked set.
+
+  Note that the fixture states `membership_status` **explicitly**, by UPDATE after the
+  insert loop. The stamp trigger overrides insert values, so left alone it would make
+  the first person seeded into each family approved and every one after it pending —
+  and the whole suite would then go green while testing nothing, because a pending
+  attacker is refused by the membership gate before family scoping is ever consulted.
+
+**A green suite is not evidence until you have seen it fail.** Mutate the thing you
+believe is protecting the data — drop the conjunct, neuter the function — and re-run.
+Phase 3's ten pending cases fail that way; three others pass, and are labelled in
+`cases.mjs` as not being evidence for the conjunct rather than left looking like they
+are. The commands are in the `PENDING_CASES` header.
+
 Where a control genuinely cannot apply, say so in the case (`positive:
 'not-applicable'` plus a `why`) rather than deleting it. The runner reports those
 separately, so a gap stays visible instead of blending into the green.
@@ -228,3 +313,22 @@ Migrations must apply to an empty database. `20260618000002` is deliberately an 
 file: it is superseded by `20260618000003`, and running its `DROP COLUMN` at that point
 in the chain fails against the ~64 policies still referencing `people.is_admin`. Verify
 with `npx supabase db reset`, not by reading.
+
+**A migration that applies is not a migration that works.** plpgsql does not resolve
+names in a function body until the body runs, so a function with a bad reference is
+created without complaint and throws for the first caller — in production, if the local
+run never called it. Two things follow:
+
+* **Schema-qualify extension functions with `extensions.`,** not `public.`. Supabase
+  installs pgcrypto (and the rest) into `extensions`, and every function here sets
+  `search_path = ''`, so `public.gen_random_bytes(...)` resolves to nothing.
+  `20260806000012` shipped that exact mistake and applied cleanly.
+* **A verify block that can skip must not be the only check.** That same migration's
+  assertion needed an `auth.users` row and returned early without one, so a fresh local
+  database reported success over a function that could not run. Split it: assert what
+  needs no fixture unconditionally, and `RAISE NOTICE` for the part that genuinely
+  cannot run — a skip should be visible, never silent.
+
+`npx supabase db push --linked` **does nothing from a non-TTY** — exit 0, no output, no
+migrations applied — because it is waiting on a confirmation prompt. Redirect stdin:
+`npx supabase db push --linked < /dev/null`.

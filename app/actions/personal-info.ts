@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { pickProfileColumns } from '@/lib/profile-columns'
 
 export async function uploadAvatar(
   formData: FormData
@@ -106,7 +107,10 @@ export async function saveProfileSection(
 
   const dateFields = new Set(['date_of_birth', 'sunset_date'])
   const cleaned: Record<string, unknown> = {}
-  for (const [key, val] of Object.entries(fields)) {
+  // Allow-listed BEFORE anything else touches it. `fields` is a JSON object off the
+  // wire, and every column of `people` is writable by its owner as far as RLS is
+  // concerned — including membership_status. See lib/profile-columns.ts.
+  for (const [key, val] of Object.entries(pickProfileColumns(fields))) {
     if (dateFields.has(key)) {
       cleaned[key] = (val as string) || null
     } else if (typeof val === 'string') {

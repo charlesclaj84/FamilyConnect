@@ -161,6 +161,21 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     blurb: 'Group membership and per-person access exceptions.',
   },
+  // Member Approvals is LIVE, and must be: it is the only surface that can admit
+  // someone who has joined by family code, and a family with an unreachable approvals
+  // page would collect applicants it could never let in. Who sees it is decided by the
+  // permission model — 20260806000010 registers it 'restricted' per family, so it is
+  // administrators-only until a family says otherwise.
+  //
+  // Registering it here is not optional decoration. viewableResources() walks THIS
+  // list to build the set of keys a caller may view, so an unlisted route never enters
+  // `viewable` and requireView() 404s the page for everybody, administrators included.
+  {
+    href: '/admin/approvals',
+    label: 'Member Approvals',
+    status: 'live',
+    blurb: 'Review the people asking to join your family, and admit or decline them.',
+  },
   {
     href: '/admin/groups',
     label: 'Groups & Permissions',

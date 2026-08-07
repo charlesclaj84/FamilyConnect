@@ -34,9 +34,51 @@
  * it recognises the founder as `families.created_by`, and the two families below
  * are inserted without one. A "first member wins" rule would have made
  * `alphaMember` an administrator and quietly deleted the ownership axis above.
+ *
+ * A THIRD THING THE DATABASE NOW DOES, AND IT WOULD BREAK THIS FIXTURE SILENTLY
+ * (20260806000011)
+ *
+ * A BEFORE INSERT trigger on `people` decides founder-vs-applicant for itself and
+ * OVERRIDES whatever the caller supplied — deliberately, because register.ts writes
+ * with the service role and a rule it had to opt into would be one `?mode=join`
+ * could skip. Applied to the loop below that means: the FIRST person inserted into
+ * each family comes out 'approved' and EVERY ONE AFTER IT comes out 'pending'.
+ *
+ * Left alone, this suite would go green while testing almost nothing. A pending
+ * member resolves to no person at all (auth_person_id() gates on the column), so
+ * auth_permission() returns 'none' for every resource — and the isolation assertion
+ * "BRAVO's admin saw none of ALPHA's data" would pass because BRAVO's admin is not a
+ * member of anywhere, not because family scoping works. Worse, it would pass for the
+ * ALPHA controls too, which is the one thing meant to catch exactly this.
+ *
+ * So the statuses are set EXPLICITLY, after the loop, by UPDATE — see the section
+ * marked "membership status". An UPDATE, not an insert value, because the trigger
+ * would discard the insert value; and it works because the service role is allowed to
+ * move this column (people_guard_membership_status refuses only the 'authenticated'
+ * role, which is what stops a member self-approving through the profile endpoint).
+ *
+ * THE FOUR APPLICANTS
+ *   alphaPending / bravoPending  stay pending for the life of the run. They are
+ *                                ATTACKING ACTORS: cases that ask what an
+ *                                unapproved member of ALPHA can see of ALPHA.
+ *   alphaApplicant               the row approveApplicant decides.
+ *   alphaRejectable              the row rejectApplicant decides.
+ *
+ * The last two exist separately for `deletableChild`'s reason: a positive control
+ * that consumes a row a later case depends on turns that later case into a vacuous
+ * pass. approveApplicant's control really does approve somebody, so it must not be
+ * allowed to approve the actor the pending cases are asserting about.
  */
+import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { API_URL, SERVICE_ROLE_KEY } from './env.mjs'
+
+/**
+ * Invitation tokens are stored only as a SHA-256, so the fixture has to hash the same
+ * way create_family_invitation() does — `encode(digest(token,'sha256'),'hex')`.
+ * Seeding a known plaintext is what lets a case try to redeem another family's token.
+ */
+const tokenHash = (token) => createHash('sha256').update(token).digest('hex')
 
 export const ALPHA = 'ALPHATEST'
 export const BRAVO = 'BRAVOTEST'
@@ -58,6 +100,14 @@ export const USERS = {
   // exact shape getLinkPersonBannerData requires before it will show anything.
   alphaNewcomer: { email: 'alpha.newcomer@rls.test', family: ALPHA, admin: false, newcomer: true },
   bravoNewcomer: { email: 'bravo.newcomer@rls.test', family: BRAVO, admin: false, newcomer: true },
+  // Joined by family code and not yet admitted. `pending: true` is read by the
+  // membership-status section below, not by the insert — see the header.
+  alphaPending: { email: 'alpha.pending@rls.test', family: ALPHA, admin: false, pending: true },
+  bravoPending: { email: 'bravo.pending@rls.test', family: BRAVO, admin: false, pending: true },
+  // Two more of ALPHA's applicants, kept apart so the approve and reject controls each
+  // have their own row to consume.
+  alphaApplicant: { email: 'alpha.applicant@rls.test', family: ALPHA, admin: false, pending: true },
+  alphaRejectable: { email: 'alpha.rejectable@rls.test', family: ALPHA, admin: false, pending: true },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -104,7 +154,7 @@ async function teardown(db) {
     'fund_disbursements', 'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
     'dues_payments', 'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
-    'person_relationships', 'events', 'user_roles', 'user_groups',
+    'person_relationships', 'events', 'user_roles', 'family_invitations', 'user_groups',
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
@@ -167,6 +217,39 @@ export async function seed() {
     fx.users[key] = { ...spec, userId, personId: person.id, password: PASSWORD }
   }
 
+  // ── membership status, stated rather than inherited ────────────────────────
+  // See the header for why this cannot be an insert value. Two statements, in this
+  // order, so the result does not depend on the iteration order of USERS: everyone is
+  // approved, then the applicants are pended back.
+  const everyone = Object.values(fx.users).map(u => u.personId)
+  must('approve seeded members', await db.from('people')
+    .update({ membership_status: 'approved', membership_decided_at: new Date().toISOString() })
+    .in('id', everyone))
+
+  const applicants = Object.values(fx.users).filter(u => u.pending).map(u => u.personId)
+  must('pend seeded applicants', await db.from('people')
+    .update({
+      membership_status: 'pending',
+      membership_requested_at: new Date().toISOString(),
+      membership_decided_at: null,
+      membership_decided_by: null,
+    })
+    .in('id', applicants))
+
+  // Assert it, rather than trusting two UPDATEs to have matched. Getting this wrong in
+  // either direction makes the whole suite meaningless and does so silently: everyone
+  // approved erases the pending axis, and anyone accidentally pending makes their
+  // isolation assertions pass for the wrong reason.
+  const statuses = must('verify statuses', await db.from('people')
+    .select('id, membership_status').in('id', everyone))
+  for (const [key, u] of Object.entries(fx.users)) {
+    const want = u.pending ? 'pending' : 'approved'
+    const got = statuses.find(s => s.id === u.personId)?.membership_status
+    if (got !== want) {
+      throw new Error(`seed membership_status: ${key} is '${got}', expected '${want}'`)
+    }
+  }
+
   // ── an administrator in each family: scope 'any' on everything ────────────
   const resources = must('resources', await db.from('permission_resources').select('key'))
   for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin']]) {
@@ -211,6 +294,12 @@ export async function seed() {
     f.familyCode = code
     f.ownerPersonId = owner.personId
     f.otherPersonId = other.personId
+    // The applicant rows, named so a case can pass ALPHA's ids while calling as BRAVO.
+    f.pendingPersonId = side === 'alpha' ? fx.users.alphaPending.personId : fx.users.bravoPending.personId
+    if (side === 'alpha') {
+      f.applicantPersonId = fx.users.alphaApplicant.personId
+      f.rejectablePersonId = fx.users.alphaRejectable.personId
+    }
 
     f.announcement = must('announcement', await db.from('announcements').insert({
       family_code: code, title: `${code} announcement`, body: `secret body ${code}`,
@@ -381,6 +470,26 @@ export async function seed() {
         relationship_type_id: types.Father, family_code: code, is_step: false,
         created_by: owner.userId },
     ]).select())
+
+    // ── invitations ─────────────────────────────────────────────────────────
+    // TWO of them, for deletableChild's reason: revokeInvitation's positive control
+    // really does revoke one, so the case that reads the list must not be looking at
+    // the row another case consumed.
+    f.invitation = must('invitation', await db.from('family_invitations').insert({
+      family_code: code,
+      email: `invited.${side}@rls.test`,
+      token_hash: tokenHash(`rls-invite-token-${code}`),
+      pre_approved: true,
+      invited_by: familyAdmin.personId,
+    }).select().single())
+
+    f.revocableInvitation = must('revocable invitation', await db.from('family_invitations').insert({
+      family_code: code,
+      email: `revocable.${side}@rls.test`,
+      token_hash: tokenHash(`rls-revocable-token-${code}`),
+      pre_approved: false,
+      invited_by: familyAdmin.personId,
+    }).select().single())
 
     f.spouseRelId = rels.find(r => r.related_person_id === other.personId).id
     f.childRelId = rels.find(r => r.related_person_id === f.child.id).id

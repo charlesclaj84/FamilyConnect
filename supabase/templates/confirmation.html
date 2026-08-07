@@ -1,0 +1,34 @@
+<!--
+  Sign-up confirmation email.
+
+  The link uses {{ .TokenHash }} against our own /auth/confirm route rather than
+  {{ .ConfirmationURL }}. GoTrue's default URL confirms server-side and then hands the
+  session back in the URL *fragment*, which the browser never sends to the server — so
+  a cookie-based app (@supabase/ssr) would end up with a confirmed account and no
+  session. See app/auth/confirm/route.ts.
+
+  {{ .SiteURL }} comes from auth.site_url in config.toml, and must match the deployment
+  this email was sent from.
+-->
+<h2>Confirm your email</h2>
+
+<p>
+  Someone — hopefully you — signed up for Family Connect with this address.
+  Confirm it to activate your account:
+</p>
+
+<p>
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/dashboard">
+    Confirm my email address
+  </a>
+</p>
+
+<p>
+  If the link does not work, copy and paste this into your browser:<br />
+  {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/dashboard
+</p>
+
+<p>
+  If you did not sign up, you can ignore this email — no account will be activated
+  and nobody has been given access to any family.
+</p>

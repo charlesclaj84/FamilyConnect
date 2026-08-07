@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, isApprovedMember } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scoreMatch, type MatchReason } from '@/lib/match-utils'
 
@@ -111,6 +111,12 @@ export async function getLinkPersonBannerData(): Promise<{
 /**
  * Links the current user's auth account to an existing unlinked person record,
  * then deletes the stub record that was created during registration.
+ *
+ * Runs entirely on the service-role client, so it owes by hand everything RLS would
+ * have done (AGENTS.md §3) — including the membership test below. An applicant
+ * awaiting approval must not be able to reach this at all: the row it moves them onto
+ * is one an existing member entered, and picking one is not a way to be admitted.
+ * The status carry-across further down is the second layer, not the only one.
  */
 export async function linkPersonToCurrentUser(
   targetPersonId: string,
@@ -118,6 +124,10 @@ export async function linkPersonToCurrentUser(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
+
+  if (!(await isApprovedMember(user.id))) {
+    return { success: false, message: 'Your membership is awaiting approval.' }
+  }
 
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -134,9 +144,11 @@ export async function linkPersonToCurrentUser(
   if (target.user_id) return { success: false, message: 'That person already has an account linked.' }
 
   // Find the current stub record (created at registration) for THIS family.
+  // membership_status comes along because it has to be carried onto the target — see
+  // the comment on the update below.
   const { data: stub } = await admin
     .from('people')
-    .select('id')
+    .select('id, membership_status')
     .eq('user_id', user.id)
     .eq('family_code', familyCode)
     .maybeSingle()
@@ -162,10 +174,29 @@ export async function linkPersonToCurrentUser(
 
   if (clearError) return { success: false, message: 'Failed to prepare account link. Please try again.' }
 
-  // Link the existing record to this user
+  // Link the existing record to this user.
+  //
+  // membership_status MOVES WITH THE USER, and this is the whole reason the column is
+  // written here rather than left alone. The target is a relative someone entered by
+  // hand, so it is 'approved' — correctly, since the column default is what makes a
+  // child or an ancestor visible in the directory. But approval attaches to a
+  // MEMBERSHIP, not to a row, and this action's entire job is to move a membership
+  // from one row to another. Left implicit, an applicant awaiting approval could
+  // launder themselves into the family by picking any pre-entered relative from the
+  // banner: their pending stub is deleted below and the row they land on says
+  // 'approved'.
+  //
+  // The stamp trigger cannot cover this. It fires BEFORE INSERT, and this is an
+  // UPDATE; and by the time it runs the stub's user_id has already been cleared just
+  // above (UNIQUE(user_id, family_code) forces that order), so a trigger on
+  // UPDATE OF user_id could not find the row whose status it was supposed to inherit.
+  // Hence explicitly, here, plus the caller check at the top of the action.
   const { error: updateError } = await admin
     .from('people')
-    .update({ user_id: user.id })
+    .update({
+      user_id: user.id,
+      membership_status: stub.membership_status ?? 'pending',
+    })
     .eq('id', targetPersonId)
 
   if (updateError) {

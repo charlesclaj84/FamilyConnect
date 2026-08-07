@@ -22,6 +22,18 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * RPCs (see app/actions/family.ts).
  */
 
+/**
+ * Where a membership stands. Mirrors people.membership_status and its CHECK
+ * constraint (20260806000011).
+ *
+ * Everything that gates on this tests POSITIVELY for 'approved' — never
+ * `!== 'pending'` — so an unknown or absent value denies rather than admits.
+ */
+export type MembershipStatus = 'pending' | 'approved' | 'rejected'
+
+export const isApproved = (status: MembershipStatus | null | undefined): boolean =>
+  status === 'approved'
+
 export interface FamilyMembership {
   familyCode: string
   familyName: string
@@ -31,12 +43,20 @@ export interface FamilyMembership {
   isActive: boolean
   /** True for the family that opens on login. */
   isDefault: boolean
+  /**
+   * Whether an administrator has admitted them to this family. A pending
+   * membership still resolves here — it has to, or the pending member could not
+   * see their own application — but it confers nothing: auth_person_id() gates on
+   * the same column, so the database denies every resource regardless.
+   */
+  status: MembershipStatus
 }
 
 interface PersonRow {
   id: string
   family_code: string
   created_at: string
+  membership_status: MembershipStatus | null
 }
 
 /**
@@ -49,11 +69,33 @@ export const getMyFamilies = cache(async (userId: string): Promise<FamilyMembers
   if (!userId) return []
   const admin = createAdminClient()
 
-  const { data: rows } = await admin
+  const { data: rows, error } = await admin
     .from('people')
-    .select('id, family_code, created_at')
+    .select('id, family_code, created_at, membership_status')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
+
+  // The error is READ, not discarded (AGENTS.md §8), because the two outcomes are
+  // indistinguishable in `data` and mean opposite things: `[]` is "this account belongs
+  // to no family", a legitimate answer that every caller handles by denying, while a
+  // refused query means the resolver has no idea and is denying out of ignorance.
+  //
+  // This is not hypothetical. Shipping the membership_status select against a database
+  // that had not yet had 20260806000011 applied returned PostgREST 42703 — "column does
+  // not exist" — which killed the WHOLE query, not just that column. Every caller then
+  // saw an account with no memberships: requireViewOrPending() called notFound(), and
+  // every page in the app answered 404 with nothing anywhere saying why. It took a
+  // direct query against the database to find. Failing closed was correct; failing
+  // closed *silently* cost an hour.
+  if (error) {
+    console.error(
+      `[auth] getMyFamilies could not resolve memberships for ${userId}: ${error.message}. ` +
+      'Every page will deny access until this is fixed. If this is "column ... does not ' +
+      'exist", the app is running against a database that is behind supabase/migrations ' +
+      '— check `npx supabase migration list --linked`.',
+    )
+    return []
+  }
 
   const people = (rows ?? []) as PersonRow[]
   if (people.length === 0) return []
@@ -78,6 +120,13 @@ export const getMyFamilies = cache(async (userId: string): Promise<FamilyMembers
       personId: p.id,
       isActive: p.family_code === activeCode,
       isDefault: p.family_code === settings?.default_family_code,
+      // NOT NULL since 20260806000011, so the coalesce is unreachable in practice and
+      // is here only so a NULL cannot become `undefined` downstream. It is deliberately
+      // NOT a compatibility shim for a database without the column: selecting a column
+      // that does not exist fails the entire query rather than returning undefined for
+      // that field, which is what the error branch above exists to report. An earlier
+      // version of this comment claimed otherwise and was wrong.
+      status: (p.membership_status ?? 'approved') as MembershipStatus,
     }))
     .sort((a, b) => a.familyName.localeCompare(b.familyName))
 })
@@ -161,6 +210,33 @@ export async function getMyActiveMembership(
 /** True when the caller belongs to more than one family (drives the switcher UI). */
 export async function hasMultipleFamilies(userId: string): Promise<boolean> {
   return (await getMyFamilies(userId)).length > 1
+}
+
+/**
+ * The membership the caller is currently viewing, whatever its state.
+ *
+ * The one resolver that deliberately answers for a NON-approved membership, so the
+ * pending screens can tell three cases apart that all look like "no access":
+ *
+ *   no membership at all  → not a member of anything; send them to login/register
+ *   pending / rejected    → render the awaiting-approval screen, fetch nothing else
+ *   approved              → the normal path
+ *
+ * Returns null when the caller has no people row in any family. Reads through the
+ * service-role client (getMyFamilies), which is required rather than convenient: a
+ * rejected row is outside the `people` SELECT policy's reach, so the user's own
+ * client cannot see it to report on it.
+ */
+export async function getViewingMembership(
+  userId: string,
+): Promise<FamilyMembership | null> {
+  const families = await getMyFamilies(userId)
+  return families.find(f => f.isActive) ?? families[0] ?? null
+}
+
+/** True when the caller is an admitted member of the family they are viewing. */
+export async function isApprovedMember(userId: string): Promise<boolean> {
+  return isApproved((await getViewingMembership(userId))?.status)
 }
 
 /**

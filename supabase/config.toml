@@ -156,11 +156,25 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "https://family-connect-kappa.vercel.app"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# A list of *exact* URLs that auth providers are permitted to redirect to post
+# authentication.
+#
+# NOTE FOR LOCAL DEVELOPMENT: site_url above now points at the deployed origin, so
+# `{{ .SiteURL }}` in the confirmation template resolves there too — a signup against
+# the LOCAL stack produces a Mailpit message whose link goes to Vercel, not to
+# 127.0.0.1:3000. That is fine when the intent is to configure hosted, and confusing if
+# you are trying to click through a local signup. To test the flow locally, point
+# site_url back at http://127.0.0.1:3000 and add the matching origins here — both
+# `127.0.0.1` and `localhost`, which are different origins to a browser.
+#
+# The invitation links built by InviteMemberDialog are unaffected either way: they are
+# composed from window.location.origin in the browser, not from this setting.
+additional_redirect_urls = [
+  "https://family-connect-kappa.vercel.app/login"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -223,7 +237,19 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# TURNED ON 2026-08-06, together with the confirmation route and template below.
+# It could not be flipped on its own: with it false, GoTrue stamps email_confirmed_at
+# at signup, so every check against that column passed trivially — which is why Phase 3
+# shipped its email checks inert and said so. They are live now.
+#
+# What this changes at runtime:
+#   * signUp() returns a user but NO session, so RegisterForm's auto sign-in fails and
+#     it shows its "Check your email" screen. That branch already existed.
+#   * signInWithPassword() returns "Email not confirmed" until they click the link.
+#   * join_family_by_code() (20260806000011 §7b) now genuinely refuses an unconfirmed
+#     account, and PendingApprovalScreen renders its resend panel for one.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -242,6 +268,15 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# The sign-up confirmation email. Overridden rather than left to the default because
+# the default links to GoTrue's own /auth/v1/verify, which returns the session in a URL
+# fragment — never sent to the server, so a cookie-based app gets a confirmed account
+# and no session. Ours links to /auth/confirm with a token_hash instead. See
+# app/auth/confirm/route.ts for the full argument.
+[auth.email.template.confirmation]
+subject = "Confirm your Family Connect account"
+content_path = "./supabase/templates/confirmation.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

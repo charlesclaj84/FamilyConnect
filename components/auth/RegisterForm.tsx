@@ -32,7 +32,28 @@ const schema = z
 
 type FormData = z.infer<typeof schema>
 
-export function RegisterForm() {
+/**
+ * `invite` turns this into a third mode that is not on the toggle.
+ *
+ * An invited registrant has no family code — they were never told one, which is the
+ * whole point of an invitation — so the code field would be an unanswerable required
+ * question. Instead the family comes from the token, the email is fixed to the address
+ * the invitation was sent to, and the mode toggle is hidden because neither of its
+ * options applies.
+ *
+ * The lock on the email field is a courtesy, not a control: `registerUser` re-checks
+ * the address against the invitation server-side and refuses a mismatch, because a
+ * readOnly attribute is a suggestion to a browser and nothing to an HTTP client.
+ */
+export function RegisterForm({
+  inviteToken,
+  invitedEmail,
+  invitedFamilyName,
+}: {
+  inviteToken?: string
+  invitedEmail?: string
+  invitedFamilyName?: string
+} = {}) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('join')
   const [serverError, setServerError] = useState('')
@@ -45,7 +66,10 @@ export function RegisterForm() {
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) })
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: invitedEmail ? { email: invitedEmail } : undefined,
+  })
 
   function switchMode(next: Mode) {
     if (next === mode) return
@@ -56,11 +80,12 @@ export function RegisterForm() {
   async function onSubmit(data: FormData) {
     setServerError('')
 
-    if (mode === 'join' && !data.familyCode?.trim()) {
+    // Neither family question applies to an invitation — the token answers both.
+    if (!inviteToken && mode === 'join' && !data.familyCode?.trim()) {
       setError('familyCode', { message: 'Family code is required' })
       return
     }
-    if (mode === 'create' && !data.familyName?.trim()) {
+    if (!inviteToken && mode === 'create' && !data.familyName?.trim()) {
       setError('familyName', { message: 'Family name is required' })
       return
     }
@@ -73,10 +98,11 @@ export function RegisterForm() {
       mode,
       familyCode: data.familyCode,
       familyName: data.familyName,
+      inviteToken,
     })
 
     if (!result.success) {
-      if (result.field === 'familyCode' || result.field === 'familyName') {
+      if (result.field === 'familyCode' || result.field === 'familyName' || result.field === 'email') {
         setError(result.field as keyof FormData, { message: result.message })
       } else {
         setServerError(result.message)
@@ -93,7 +119,8 @@ export function RegisterForm() {
     if (!signInError) {
       setAutoSignedIn(true)
       // For join mode go straight to dashboard; create mode shows the family code first.
-      if (mode === 'join') {
+      // An invitation is a join: the membership already exists, pre-approved or queued.
+      if (inviteToken || mode === 'join') {
         router.push('/dashboard')
         router.refresh()
         return
@@ -168,11 +195,18 @@ export function RegisterForm() {
       <CardHeader>
         <CardTitle className="text-2xl">Create your account</CardTitle>
         <CardDescription>
-          {mode === 'join' ? 'Join your family on Family Connect' : 'Start a new family on Family Connect'}
+          {inviteToken
+            ? <>You have been invited to join{' '}
+                <span className="font-medium">{invitedFamilyName}</span>.</>
+            : mode === 'join'
+              ? 'Join your family on Family Connect'
+              : 'Start a new family on Family Connect'}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-5 flex rounded-lg border p-1">
+        {/* Hidden for an invitation: neither option applies. The token already names the
+            family, and "Create a Family" would throw away the invitation silently. */}
+        <div className={`mb-5 rounded-lg border p-1 ${inviteToken ? 'hidden' : 'flex'}`}>
           <button
             type="button"
             onClick={() => switchMode('join')}
@@ -217,7 +251,24 @@ export function RegisterForm() {
 
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...register('email')} />
+            {/* readOnly for an invitation, because only this address can redeem it —
+                registering under another one would create an account the redemption
+                then refuses. A courtesy for the browser only: registerUser compares the
+                address to the invitation server-side and refuses a mismatch there. */}
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              readOnly={Boolean(inviteToken)}
+              className={inviteToken ? 'bg-muted' : undefined}
+              {...register('email')}
+            />
+            {inviteToken && (
+              <p className="text-xs text-muted-foreground">
+                The address your invitation was sent to.
+              </p>
+            )}
             {errors.email && (
               <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
@@ -239,7 +290,7 @@ export function RegisterForm() {
             )}
           </div>
 
-          {mode === 'join' && (
+          {!inviteToken && mode === 'join' && (
             <div className="space-y-1.5">
               <Label htmlFor="familyCode">Family Code</Label>
               <Input
@@ -256,7 +307,7 @@ export function RegisterForm() {
             </div>
           )}
 
-          {mode === 'create' && (
+          {!inviteToken && mode === 'create' && (
             <div className="space-y-1.5">
               <Label htmlFor="familyName">Family name</Label>
               <Input

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode, getMyPersonId } from '@/lib/auth/family'
+import { getMyFamilyCode, getMyPersonId, isApprovedMember } from '@/lib/auth/family'
 import { can, canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
 
 /**
@@ -131,7 +131,7 @@ export async function requireRead(...resources: string[]): Promise<GuardResult> 
 }
 
 /**
- * Authenticated caller, no permission demanded — for SELF-SERVICE writes only.
+ * Authenticated, APPROVED member; no permission demanded — for SELF-SERVICE writes.
  *
  * Sending a chat message, submitting an RSVP, casting a vote, updating your own
  * profile: things every member may do by definition. These have no edit grant to
@@ -139,9 +139,24 @@ export async function requireRead(...resources: string[]): Promise<GuardResult> 
  * out of chat), but they still need the family code, and they still owe the caller a
  * check that the row they are touching is genuinely theirs. This returns the identity
  * so that check can be made — it does not make it for you.
+ *
+ * "No permission needed" never meant "no membership needed". Since Phase 3 a person
+ * row can exist without its owner having been admitted, and every one of these
+ * actions is defined as something a MEMBER may do. The approval test below is
+ * therefore one line covering all of them at once — chat, RSVP, votes, nominations,
+ * profile edits — rather than a check each of them could be written without.
+ *
+ * The database refuses these writes independently: 20260806000011 gates
+ * auth_person_id() on membership_status, which collapses every own/self expression a
+ * pending caller could match. This exists so the caller is TOLD, instead of watching
+ * a policy silently match zero rows and being shown "saved" — the failure mode
+ * already recorded in TODO for members without a grant.
  */
 export async function requireMember(): Promise<GuardResult> {
   const who = await caller()
   if ('ok' in who) return who
+  if (!(await isApprovedMember(who.userId))) {
+    return { ok: false, message: 'Your membership is awaiting approval' }
+  }
   return resolve(who.userId)
 }

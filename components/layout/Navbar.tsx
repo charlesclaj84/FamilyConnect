@@ -28,7 +28,22 @@ export default async function Navbar() {
     ])
     notifications = notifResult
     families = familyResult
-    personId = families.find(f => f.isActive)?.personId ?? ''
+
+    // The bell renders only for an APPROVED membership. `personId` is what gates it,
+    // and it is also what NotificationBell subscribes to for real-time inserts, so
+    // leaving it blank suppresses both the panel and the subscription in one place.
+    //
+    // Notifications a pending member DOES have — "you have been approved", "your
+    // request was declined" — are still written and still there; they simply arrive
+    // with the access that makes the rest of the bell's contents readable. What is
+    // being avoided is a bell offering links into pages that 404, next to an
+    // awaiting-approval screen.
+    //
+    // FamilySwitcher above is deliberately NOT suppressed: it is how a multi-family
+    // account gets back out of the family it is waiting on, and hiding it would strand
+    // them on the pending screen with no navigation at all.
+    const active = families.find(f => f.isActive)
+    personId = active?.status === 'approved' ? active.personId : ''
   }
 
   return (

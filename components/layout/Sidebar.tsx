@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ShieldCheck,
   UsersRound,
+  UserCheck,
   ListChecks,
   CalendarClock,
   Menu,
@@ -55,6 +56,10 @@ interface NavGroup {
 // This order is independent of the Groups & Permissions grid, which sorts by
 // permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
+  // Member Approvals leads. It is the only admin surface with a QUEUE behind it —
+  // people waiting, who can see nothing until somebody acts — so it is the one an
+  // administrator should be prompted to look at, rather than the one they scroll to.
+  { href: '/admin/approvals',      label: 'Member Approvals',     icon: UserCheck },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },

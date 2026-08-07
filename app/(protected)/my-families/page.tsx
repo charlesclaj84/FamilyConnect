@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { requireView } from '@/lib/auth/permissions'
+import { requireViewOrPending } from '@/lib/auth/permissions'
 import { getMyFamilies } from '@/lib/auth/family'
 import { MyFamiliesSection } from '@/components/my-families/MyFamiliesSection'
 
@@ -18,7 +18,11 @@ export default async function MyFamiliesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'my-families')
+  // Reachable while pending, and the ONLY family-listing page that is. It is how a
+  // multi-family account gets back out of a family it is waiting on, and how a
+  // single-family applicant sees what they applied to. Everything it renders is the
+  // caller's own memberships, so there is nothing here to withhold from them.
+  await requireViewOrPending(user.id, 'my-families')
 
   const families = await getMyFamilies(user.id)
 

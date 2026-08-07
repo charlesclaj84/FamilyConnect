@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyActiveMembership } from '@/lib/auth/family'
+import { getViewingMembership, isApproved, type FamilyMembership } from '@/lib/auth/family'
 import { FEATURES, getFeature } from '@/lib/features'
 
 /**
@@ -44,6 +44,17 @@ export interface PermissionSet {
   legacy: boolean
   /** Only meaningful when `legacy` is true. */
   legacyIsAdmin: boolean
+  /**
+   * True when an administrator has admitted the caller to this family.
+   *
+   * False for a pending or rejected membership, which resolveScope() then denies
+   * outright. This mirrors the `AND p.membership_status = 'approved'` conjunct that
+   * 20260806000011 added to public.auth_person_id(): there, a non-approved caller
+   * resolves to no person and auth_permission() returns 'none' for everything. The
+   * database is still the enforcement — this keeps the TypeScript twin from
+   * disagreeing with it and rendering affordances the policies will refuse.
+   */
+  approved: boolean
 }
 
 const key = (resource: string, action: PermissionAction) => `${resource}:${action}`
@@ -67,7 +78,7 @@ export function resourceKeyFor(pathname: string): string {
 
 const EMPTY: PermissionSet = {
   personId: '', familyCode: '', resolved: new Map(), restricted: new Set(),
-  legacy: false, legacyIsAdmin: false,
+  legacy: false, legacyIsAdmin: false, approved: false,
 }
 
 /**
@@ -79,8 +90,18 @@ const EMPTY: PermissionSet = {
 export const getMyPermissionSet = cache(async (userId: string): Promise<PermissionSet> => {
   if (!userId) return EMPTY
 
-  const { familyCode, personId } = await getMyActiveMembership(userId)
+  const membership = await getViewingMembership(userId)
+  const familyCode = membership?.familyCode ?? ''
+  const personId = membership?.personId ?? ''
   if (!familyCode || !personId) return EMPTY
+
+  // A non-approved membership is resolved no further. Loading its groups would be
+  // wasted work — resolveScope() denies every resource below on the `approved` flag
+  // — and it would also be misleading: since 20260806000008 a member is put into
+  // General the moment their row is inserted, so an applicant genuinely holds group
+  // grants. What they do not hold is a membership those grants can act through.
+  const approved = isApproved(membership?.status)
+  if (!approved) return { ...EMPTY, personId, familyCode }
 
   const admin = createAdminClient()
 
@@ -135,7 +156,7 @@ export const getMyPermissionSet = cache(async (userId: string): Promise<Permissi
       .map(r => r.resource_key),
   )
 
-  return { personId, familyCode, resolved, restricted, legacy: false, legacyIsAdmin: false }
+  return { personId, familyCode, resolved, restricted, legacy: false, legacyIsAdmin: false, approved }
 })
 
 interface GroupPermRow {
@@ -151,6 +172,13 @@ export function resolveScope(
   action: PermissionAction,
 ): PermissionScope {
   if (!perms.personId) return 'none'
+
+  // ABOVE the legacy branch on purpose. That branch hands scope 'any' to a legacy
+  // administrator and view 'any' to every member, so a pending applicant in a
+  // family whose database predates 20260618000000 would come out of it with more
+  // access than an approved member of a current one. Approval is not a permission
+  // and cannot be overridden by one — nothing below this line can grant it back.
+  if (!perms.approved) return 'none'
 
   // Pre-migration fallback, reproducing exactly what this replaces: admins do
   // everything; everyone else can view the member-facing pages and touch only
@@ -237,6 +265,30 @@ export async function canOn(
  */
 export async function requireView(userId: string, resource: string): Promise<void> {
   if (!(await can(userId, resource, 'view'))) notFound()
+}
+
+/**
+ * Page guard for the three surfaces a PENDING member is allowed to reach:
+ * the dashboard, My Profile and My Families.
+ *
+ * Returns the membership so the page can branch, rather than deciding for it —
+ * `{ pending: true }` means "render the awaiting-approval screen and fetch nothing
+ * else". Which is the load-bearing half: props are serialized into the RSC payload
+ * and reach the browser whether a component renders them or not, so the early
+ * return has to happen ABOVE the page's data fetching, not around its JSX.
+ *
+ * A caller with no membership at all still gets the 404 that requireView() would
+ * have given them — they are not awaiting anything.
+ */
+export async function requireViewOrPending(
+  userId: string,
+  resource: string,
+): Promise<{ pending: false } | { pending: true; membership: FamilyMembership }> {
+  const membership = await getViewingMembership(userId)
+  if (!membership) notFound()
+  if (!isApproved(membership.status)) return { pending: true, membership }
+  if (!(await can(userId, resource, 'view'))) notFound()
+  return { pending: false }
 }
 
 /**
