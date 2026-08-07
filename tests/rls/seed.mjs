@@ -16,24 +16,34 @@
  * "may a member touch a row belonging to a different member of the same family?"
  * is a different question from cross-family, and own_expr is what answers it.
  *
- * TWO THINGS THE DATABASE NOW DOES TO THIS FIXTURE (20260806000008)
+ * TWO THINGS THE DATABASE NOW DOES TO THIS FIXTURE
+ * (20260806000008, rewritten for templates by 20260807000000)
  *
- * 1. Inserting a family seeds Administrators / Board Users / General with their
- *    policy, and 'restricted' visibility for every admin resource. So the
- *    Administrators group below already exists by the time this asks for it — hence
- *    the upserts — and a plain member no longer sees admin pages by default, which
- *    previously happened only because no resource_visibility row existed at all.
+ * 1. Inserting a family seeds the Administrators and General TEMPLATES with their
+ *    grids, and 'restricted' visibility for every admin resource. So the
+ *    Administrators template below already exists by the time this asks for it —
+ *    hence the upsert — and a plain member no longer sees admin pages by default,
+ *    which previously happened only because no resource_visibility row existed.
  *
- * 2. Inserting a user-linked person puts them in General. Every member here
- *    therefore holds General's policy (view on the community pages, chat and
- *    photos scoped to 'own') where before they held nothing. That is the shape a
- *    real member has, so the controls that run as alphaMember are now testing the
- *    real thing rather than a permission vacuum.
+ * 2. Inserting a user-linked person stamps people.permission_template_id with
+ *    General. Every member here therefore holds General's grid (view on the
+ *    community pages, chat and photos scoped to 'own') where before they held
+ *    nothing. That is the shape a real member has, so the controls that run as
+ *    alphaMember are testing the real thing rather than a permission vacuum.
  *
  * What the trigger deliberately does NOT do is promote anyone to Administrators:
  * it recognises the founder as `families.created_by`, and the two families below
  * are inserted without one. A "first member wins" rule would have made
  * `alphaMember` an administrator and quietly deleted the ownership axis above.
+ *
+ * THE ADMIN ASSIGNMENT IS AN UPDATE TO `people`, NOT A MEMBERSHIP ROW
+ *
+ * user_group_members is gone. Making somebody an administrator is now one column on
+ * their people row — and that column is guarded: people_guard_permission_template
+ * refuses a change made by the 'authenticated' role, so only the service role (this
+ * fixture) and apply_permission_template() may move it. The service role is what the
+ * harness uses, so the UPDATE below goes through for the same reason the
+ * membership_status UPDATE does.
  *
  * A THIRD THING THE DATABASE NOW DOES, AND IT WOULD BREAK THIS FIXTURE SILENTLY
  * (20260806000011)
@@ -108,6 +118,12 @@ export const USERS = {
   // have their own row to consume.
   alphaApplicant: { email: 'alpha.applicant@rls.test', family: ALPHA, admin: false, pending: true },
   alphaRejectable: { email: 'alpha.rejectable@rls.test', family: ALPHA, admin: false, pending: true },
+  // An approved ALPHA member who exists to be re-templated and switched off. Separate
+  // from alphaMember and alphaOther for `deletableChild`'s reason: applyTemplate and
+  // setMemberEnabled both have positive controls that really do change their target,
+  // and a later case asserting about a member whose access an earlier control revoked
+  // would pass for the wrong reason. Nothing else in the fixture reads this row.
+  alphaSpare: { email: 'alpha.spare@rls.test', family: ALPHA, admin: false },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -141,11 +157,14 @@ async function teardown(db) {
     if (photos?.length) await db.from('photo_tags').delete().in('photo_id', photos.map(p => p.id))
   }
 
-  const { data: groups } = await db.from('user_groups').select('id').in('family_code', codes)
-  const groupIds = (groups ?? []).map(g => g.id)
-  if (groupIds.length) {
-    await db.from('group_permissions').delete().in('group_id', groupIds)
-    await db.from('user_group_members').delete().in('group_id', groupIds)
+  // Templates: their grid first, then the assignment on `people`, or the RESTRICT
+  // foreign key refuses the delete below. The people rows themselves go with the
+  // family-scoped sweep that follows.
+  const { data: templates } = await db.from('permission_templates').select('id').in('family_code', codes)
+  const templateIds = (templates ?? []).map(t => t.id)
+  if (templateIds.length) {
+    await db.from('template_permissions').delete().in('template_id', templateIds)
+    await db.from('people').update({ permission_template_id: null }).in('family_code', codes)
   }
 
   // Family-scoped tables, children before parents.
@@ -154,12 +173,15 @@ async function teardown(db) {
     'fund_disbursements', 'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
     'dues_payments', 'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
-    'person_relationships', 'events', 'user_roles', 'family_invitations', 'user_groups',
+    'person_relationships', 'events', 'user_roles', 'family_invitations',
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
     'resource_visibility',
-    'people', 'families',
+    // AFTER `people`: permission_template_id is ON DELETE RESTRICT, and the null-out
+    // above only covers rows in these families. Deleting the people first means there
+    // is provably nothing left pointing here.
+    'people', 'permission_templates', 'families',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)
@@ -253,10 +275,10 @@ export async function seed() {
   // ── an administrator in each family: scope 'any' on everything ────────────
   const resources = must('resources', await db.from('permission_resources').select('key'))
   for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin']]) {
-    // Upsert, not insert: 20260806000008's families trigger created this group when
-    // the family row went in. Claiming it here rather than reading it keeps the
-    // harness's description on the row, so it is obvious which one this is.
-    const group = must(`${who} group`, await db.from('user_groups').upsert({
+    // Upsert, not insert: the families trigger created this template when the family
+    // row went in. Claiming it here rather than reading it keeps the harness's
+    // description on the row, so it is obvious which one this is.
+    const template = must(`${who} template`, await db.from('permission_templates').upsert({
       family_code: code, name: 'Administrators', description: 'seeded by the RLS harness',
     }, { onConflict: 'family_code,name' }).select().single())
 
@@ -269,14 +291,31 @@ export async function seed() {
     const grants = []
     for (const { key } of resources) {
       for (const action of ['view', 'create', 'edit', 'delete']) {
-        grants.push({ group_id: group.id, resource_key: key, action, scope: 'any' })
+        grants.push({ template_id: template.id, resource_key: key, action, scope: 'any' })
       }
     }
-    must(`${who} grants`, await db.from('group_permissions')
-      .upsert(grants, { onConflict: 'group_id,resource_key,action' }))
-    must(`${who} membership`, await db.from('user_group_members')
-      .upsert({ group_id: group.id, person_id: fx.users[who].personId },
-              { onConflict: 'group_id,person_id' }))
+    must(`${who} grants`, await db.from('template_permissions')
+      .upsert(grants, { onConflict: 'template_id,resource_key,action' }))
+
+    // One column, not a membership row — see the header. Service role, so
+    // people_guard_permission_template does not fire.
+    must(`${who} template assignment`, await db.from('people')
+      .update({ permission_template_id: template.id })
+      .eq('id', fx.users[who].personId))
+  }
+
+  // Assert it, for the reason the membership_status block below states: a fixture
+  // whose attacker silently ended up on General would make every attack assertion
+  // pass because the permission layer refused it, which is the one thing the
+  // administrator-as-attacker design exists to rule out.
+  for (const who of ['alphaAdmin', 'bravoAdmin']) {
+    const { data: check } = await db.from('people')
+      .select('permission_template_id, permission_templates(name)')
+      .eq('id', fx.users[who].personId).single()
+    const name = check?.permission_templates?.name
+    if (name !== 'Administrators') {
+      throw new Error(`seed ${who}: template is '${name ?? 'none'}', expected 'Administrators'`)
+    }
   }
 
   const typeRows = must('relationship types', await db.from('relationship_types').select('id, name'))
@@ -299,6 +338,17 @@ export async function seed() {
     if (side === 'alpha') {
       f.applicantPersonId = fx.users.alphaApplicant.personId
       f.rejectablePersonId = fx.users.alphaRejectable.personId
+      f.sparePersonId = fx.users.alphaSpare.personId
+    }
+
+    // The two seeded templates, so a case can hand BRAVO's administrator one of
+    // ALPHA's template ids and watch it be refused.
+    const seeded = must(`${code} templates`, await db.from('permission_templates')
+      .select('id, name').eq('family_code', code))
+    f.adminTemplateId = seeded.find(t => t.name === 'Administrators')?.id ?? null
+    f.generalTemplateId = seeded.find(t => t.name === 'General')?.id ?? null
+    if (!f.adminTemplateId || !f.generalTemplateId) {
+      throw new Error(`seed ${code}: the families trigger did not seed both templates`)
     }
 
     f.announcement = must('announcement', await db.from('announcements').insert({

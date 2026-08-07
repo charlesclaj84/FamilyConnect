@@ -53,7 +53,7 @@ export default async function AdminPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { href: '/admin/users',       icon: UsersRound,   label: 'Users & Roles',  desc: 'Manage member permissions and organizational roles.' },
+          { href: '/admin/users',       icon: UsersRound,   label: 'Members & Access', desc: 'Who is in the family, and the permission template deciding what each can do.' },
           { href: '/admin/event-types', icon: ListChecks,   label: 'Event Types',    desc: 'Create reusable event templates with planning checklists.' },
           { href: '/admin/events',      icon: CalendarClock, label: 'Events',        desc: 'Create, publish, and manage family events.' },
         ].map(({ href, icon: Icon, label, desc }) => (

@@ -145,21 +145,26 @@ export const FEATURES: readonly Feature[] = [
   // The `/admin` entry covers every nested admin route by prefix; the specific
   // entries below exist so the Coming Soon screen can name the right tool.
   //
-  // User Management and Groups & Permissions are LIVE — they were rebuilt on the
-  // permission model, and gating them would leave a family unable to administer
-  // itself. Who actually sees them is decided by the permission model, not here:
-  // both pages start 'restricted' so only administrators reach them.
+  // Members & Access is LIVE — it was rebuilt on the permission model, and gating it
+  // would leave a family unable to administer itself. Who actually sees it is decided
+  // by the permission model, not here: the page starts 'restricted' so only
+  // administrators reach it.
   {
     href: '/admin',
     label: 'Admin Tools',
     status: 'future',
     blurb: 'The leadership toolkit for running your family organization.',
   },
+  // Absorbed /admin/groups in 20260807000000. One template per member replaced group
+  // membership plus per-person overrides, which left nothing for a second screen to
+  // show — so the route is gone, and its resource key was merged into this one. A
+  // stale /admin/groups URL now 404s, which is right: it is not a feature awaiting
+  // launch, it is a page that no longer exists.
   {
     href: '/admin/users',
-    label: 'User Management',
+    label: 'Members & Access',
     status: 'live',
-    blurb: 'Group membership and per-person access exceptions.',
+    blurb: 'Who is in the family, and the permission template deciding what each of them can do.',
   },
   // Member Approvals is LIVE, and must be: it is the only surface that can admit
   // someone who has joined by family code, and a family with an unreachable approvals
@@ -175,12 +180,6 @@ export const FEATURES: readonly Feature[] = [
     label: 'Member Approvals',
     status: 'live',
     blurb: 'Review the people asking to join your family, and admit or decline them.',
-  },
-  {
-    href: '/admin/groups',
-    label: 'Groups & Permissions',
-    status: 'live',
-    blurb: 'Create groups, set what each can do, and choose who may see each page.',
   },
   {
     href: '/admin/chapters',

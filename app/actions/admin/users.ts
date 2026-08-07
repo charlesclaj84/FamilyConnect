@@ -163,8 +163,8 @@ export async function getFamilyMemberRoles(): Promise<Record<string, string[]>> 
 }
 
 // setAdminFlag / setApproveFlag were removed in the authorization rebuild.
-// Authority now comes from group membership — see app/actions/admin/permissions.ts
-// (setGroupMembership) and the Groups & Permissions page.
+// Authority now comes from the member's permission template — see
+// app/actions/admin/permissions.ts (applyTemplate) and the Members & Access page.
 
 export async function assignRole(
   targetUserId: string,

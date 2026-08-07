@@ -78,16 +78,16 @@ export async function notifyAllMembers(opts: {
 /**
  * Notify everyone in a family who can act on a membership application.
  *
- * "Who can act on it" is resolved from the permission model rather than from a group
- * name or an is_admin flag: whoever holds admin/approvals at 'edit' scope 'any',
- * through a group or an individual override. A family that delegates approvals to a
- * Membership Committee gets its committee notified without anything here knowing the
- * group exists.
+ * "Who can act on it" is resolved from the permission model rather than from a
+ * template name or an is_admin flag: whoever is on a template granting admin/approvals
+ * at 'edit' scope 'any'. A family that delegates approvals to a Membership Committee
+ * gets its committee notified without anything here knowing the template exists.
  *
  * Resolved with the service-role client on purpose. The alternative — reading the
  * permission tables as the applicant — cannot work: the applicant is pending, so
- * 20260806000011's sweep denies them user_groups and group_permissions outright. The
- * person who needs to be told is precisely the person the caller may not look up.
+ * 20260806000011's sweep denies them permission_templates and template_permissions
+ * outright. The person who needs to be told is precisely the person the caller may
+ * not look up.
  *
  * As with its siblings above, `familyCode` must be a value the caller has already
  * established, never one from the client — this is a plain module and has no URL, but
@@ -102,41 +102,29 @@ export async function notifyApprovers(opts: {
 }): Promise<void> {
   const admin = createAdminClient()
 
-  const [groupGrants, personGrants] = await Promise.all([
-    admin.from('group_permissions')
-      .select('group_id, user_groups!inner(family_code)')
-      .eq('resource_key', 'admin/approvals')
-      .eq('action', 'edit')
-      .eq('scope', 'any')
-      .eq('user_groups.family_code', opts.familyCode),
-    admin.from('person_permissions')
-      .select('person_id, people!inner(family_code, membership_status)')
-      .eq('resource_key', 'admin/approvals')
-      .eq('action', 'edit')
-      .eq('scope', 'any')
-      .eq('people.family_code', opts.familyCode),
-  ])
+  const { data: grants } = await admin
+    .from('template_permissions')
+    .select('template_id, permission_templates!inner(family_code)')
+    .eq('resource_key', 'admin/approvals')
+    .eq('action', 'edit')
+    .eq('scope', 'any')
+    .eq('permission_templates.family_code', opts.familyCode)
 
-  const recipients = new Set<string>()
+  const templateIds = (grants ?? []).map(g => g.template_id as string)
+  if (!templateIds.length) return
 
-  const groupIds = (groupGrants.data ?? []).map(g => g.group_id as string)
-  if (groupIds.length) {
-    // Re-scoped to the family by the group ids above; person_id alone is not
-    // family-scoped, and this is the service-role client.
-    const { data: members } = await admin
-      .from('user_group_members')
-      .select('person_id, people!inner(family_code, membership_status)')
-      .in('group_id', groupIds)
-      .eq('people.family_code', opts.familyCode)
-      .eq('people.membership_status', 'approved')
-    for (const m of members ?? []) recipients.add(m.person_id as string)
-  }
+  // Re-scoped to the family as well as to the template ids: this is the service-role
+  // client, so nothing else is applying it. Approved members only — a pending or
+  // disabled member holds nothing whatever their template says, so mailing them a
+  // queue they cannot open would be noise.
+  const { data: people } = await admin
+    .from('people')
+    .select('id')
+    .eq('family_code', opts.familyCode)
+    .eq('membership_status', 'approved')
+    .in('permission_template_id', templateIds)
 
-  for (const p of personGrants.data ?? []) {
-    const person = p.people as unknown as { membership_status: string } | null
-    if (person?.membership_status === 'approved') recipients.add(p.person_id as string)
-  }
-
+  const recipients = new Set((people ?? []).map(p => p.id as string))
   if (!recipients.size) return
 
   await admin.from('notifications').insert([...recipients].map(personId => ({

@@ -24,12 +24,15 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Where a membership stands. Mirrors people.membership_status and its CHECK
- * constraint (20260806000011).
+ * constraint (20260806000011, extended by 20260807000000).
  *
  * Everything that gates on this tests POSITIVELY for 'approved' — never
- * `!== 'pending'` — so an unknown or absent value denies rather than admits.
+ * `!== 'pending'` — so an unknown or absent value denies rather than admits. That
+ * is what let 'disabled' be added as a fourth value rather than a second column:
+ * every gate in the app and every policy in the database denies it already,
+ * without a sweep and without a branch.
  */
-export type MembershipStatus = 'pending' | 'approved' | 'rejected'
+export type MembershipStatus = 'pending' | 'approved' | 'rejected' | 'disabled'
 
 export const isApproved = (status: MembershipStatus | null | undefined): boolean =>
   status === 'approved'

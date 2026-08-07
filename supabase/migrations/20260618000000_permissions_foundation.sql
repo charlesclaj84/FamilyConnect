@@ -77,7 +77,11 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('photos',              'Photos',                 'resources',  130),
   ('documents',           'Documents',              'resources',  140),
   ('elections',           'Elections',              'resources',  150),
-  ('admin/users',         'User Management',        'admin',      160),
+  -- Renamed by 20260807000000, which merged Groups & Permissions into this page:
+  -- one template per member replaced group membership plus per-person overrides, so
+  -- the two screens became one. The label is updated here as well as there because
+  -- this insert is ON CONFLICT DO UPDATE and would otherwise revert it on replay.
+  ('admin/users',         'Members & Access',       'admin',      160),
   -- Added by 20260806000010 (Phase 3, join-by-code). Listed here as well as there
   -- because this insert is ON CONFLICT DO UPDATE and a replay would otherwise leave
   -- the key registered only by the later file — harmless in itself, but the seeding
@@ -89,6 +93,11 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- The row is created with the default four actions and narrowed to view+edit by
   -- 20260806000010 §1, which does not update `actions` on conflict.
   ('admin/approvals',     'Member Approvals',       'admin',      165),
+  -- DELETED by 20260807000000, which merges it into admin/users. Left in place here
+  -- rather than removed: every policy between this file and that one names it, and
+  -- auth_can() on an unregistered key falls through to the default — 'none' for edit —
+  -- which would lock every permission table in the app for the length of the chain.
+  -- The chain inserts it, uses it, and then deletes it; a replay does the same.
   ('admin/groups',        'Groups & Permissions',   'admin',      170),
   ('admin/chapters',      'Regions & Chapters',     'admin',      180),
   -- Key renamed from 'admin/user-roles' by 20260805000006, together with the route.

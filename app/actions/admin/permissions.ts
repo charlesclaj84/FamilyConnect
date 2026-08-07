@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyActiveMembership, belongsToFamily } from '@/lib/auth/family'
+import { getMyActiveMembership } from '@/lib/auth/family'
 import { isFeatureFuture } from '@/lib/features'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import {
@@ -12,34 +12,62 @@ import {
   type PermissionAction,
   type PermissionScope,
 } from '@/lib/auth/permissions'
+import type { MembershipStatus } from '@/lib/auth/family'
 
 /**
- * Group and permission administration.
+ * Members & Access — the whole of the family's authorization surface.
  *
- * Every mutation is gated on edit rights over the 'admin/groups' resource, and
- * every write is additionally scoped to the caller's active family. The RLS
- * policies from 20260618000000 enforce the same thing at the database level —
- * these checks give a clean error message rather than a policy violation, and
- * cover the paths that use the service-role client.
+ * THE MODEL, since 20260807000000
+ *   A template is a named grid: per resource, per action, a scope. A person is
+ *   assigned exactly ONE template and it is the entirety of their access. There is
+ *   no membership table, no per-person override, and so no precedence rule to
+ *   explain — which is what let User Management and Groups & Permissions become one
+ *   screen instead of two showing half an answer each.
+ *
+ * WHICH CLIENT, AND WHY
+ *   The TEMPLATE side runs on the service role and re-applies family scoping by hand
+ *   on every read, write and delete (AGENTS.md §3) — `.eq('family_code', …)` from the
+ *   caller's own people row, never from an argument, and every client-supplied id
+ *   confirmed into that family before it is used.
+ *
+ *   The two PERSON-level mutations do not. Applying a template and switching a member
+ *   off both write to `people`, whose UPDATE policy deliberately admits a member's
+ *   write to their own row — so those go through SECURITY DEFINER RPCs called on the
+ *   USER client, which derive the caller from auth.uid() and do the authorization in
+ *   the database. Calling them with the admin client would leave auth.uid() NULL and
+ *   every check inside evaluating against nothing; both refuse a NULL caller outright
+ *   so that mistake fails loudly. Same division as Member Approvals.
+ *
+ * Every mutation here is additionally gated on 'admin/users', the key the RLS
+ * policies on permission_templates and template_permissions now use. The code and
+ * the database must never disagree about who may do what.
  */
 
-const RESOURCE = 'admin/groups'
+const RESOURCE = 'admin/users'
 
 export type AdminResult = { success: true } | { success: false; message: string }
 
-export interface GroupSummary {
+export interface TemplateSummary {
   id: string
   name: string
   description: string | null
+  /** Seeded with the family. Renameable and editable, but not deletable. */
   isSystem: boolean
+  /** How many people are currently assigned to it. */
   memberCount: number
+  /** True when this template grants admin/users:edit — i.e. it can administer. */
+  grantsAdmin: boolean
 }
 
 export interface MemberSummary {
   personId: string
   name: string
   email: string | null
-  groupIds: string[]
+  templateId: string | null
+  templateName: string | null
+  status: MembershipStatus
+  /** True for the caller's own row, which they may not disable. */
+  isSelf: boolean
 }
 
 export interface MemberPage {
@@ -66,14 +94,12 @@ export interface ResourceSummary {
    * control being honoured when nothing consults it.
    */
   actions: PermissionAction[]
-  /** 'everyone' or 'restricted' for the caller's family. */
-  visibility: 'everyone' | 'restricted'
 }
 
-/** Group policy rows keyed `${resource}:${action}`. */
+/** A template's grid, keyed `${resource}:${action}`. */
 export type PolicyMap = Record<string, PermissionScope>
 
-async function requireGroupAdmin(
+async function requireAccessAdmin(
   action: PermissionAction = 'edit',
 ): Promise<{ ok: true; userId: string; familyCode: string } | { ok: false; message: string }> {
   const supabase = await createClient()
@@ -87,15 +113,15 @@ async function requireGroupAdmin(
     return {
       ok: false,
       message: action === 'delete'
-        ? 'You do not have permission to remove members from groups.'
-        : 'You do not have permission to manage groups.',
+        ? 'You do not have permission to delete templates.'
+        : 'You do not have permission to manage access.',
     }
   }
   return { ok: true, userId: user.id, familyCode }
 }
 
-/** What the caller may do on the Groups & Permissions page. */
-export async function canManageGroups(): Promise<{
+/** What the caller may do on Members & Access. Drives the UI; never the enforcement. */
+export async function canManageAccess(): Promise<{
   view: boolean
   create: boolean
   edit: boolean
@@ -115,40 +141,49 @@ export async function canManageGroups(): Promise<{
 
 // ── Reads ───────────────────────────────────────────────────────────────────
 
-export async function getGroups(): Promise<GroupSummary[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return []
+export async function getTemplates(): Promise<TemplateSummary[]> {
+  const auth = await requireAccessAdmin('view')
+  if (!auth.ok) return []
 
   const admin = createAdminClient()
-  const { data: groups } = await admin
-    .from('user_groups')
+  const { data: templates } = await admin
+    .from('permission_templates')
     .select('id, name, description, is_system')
-    .eq('family_code', familyCode)
+    .eq('family_code', auth.familyCode)
     .order('is_system', { ascending: false })
     .order('name')
 
-  const rows = (groups ?? []) as { id: string; name: string; description: string | null; is_system: boolean }[]
+  const rows = (templates ?? []) as {
+    id: string; name: string; description: string | null; is_system: boolean
+  }[]
   if (rows.length === 0) return []
 
-  const { data: members } = await admin
-    .from('user_group_members')
-    .select('group_id')
-    .in('group_id', rows.map(g => g.id))
+  const ids = rows.map(t => t.id)
+  const [{ data: assigned }, { data: adminGrants }] = await Promise.all([
+    admin.from('people').select('permission_template_id').in('permission_template_id', ids),
+    admin.from('template_permissions')
+      .select('template_id')
+      .in('template_id', ids)
+      .eq('resource_key', RESOURCE)
+      .eq('action', 'edit')
+      .neq('scope', 'none'),
+  ])
 
   const counts = new Map<string, number>()
-  for (const m of (members ?? []) as { group_id: string }[]) {
-    counts.set(m.group_id, (counts.get(m.group_id) ?? 0) + 1)
+  for (const p of (assigned ?? []) as { permission_template_id: string }[]) {
+    counts.set(p.permission_template_id, (counts.get(p.permission_template_id) ?? 0) + 1)
   }
+  const administers = new Set(
+    ((adminGrants ?? []) as { template_id: string }[]).map(g => g.template_id),
+  )
 
-  return rows.map(g => ({
-    id: g.id,
-    name: g.name,
-    description: g.description,
-    isSystem: g.is_system,
-    memberCount: counts.get(g.id) ?? 0,
+  return rows.map(t => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    isSystem: t.is_system,
+    memberCount: counts.get(t.id) ?? 0,
+    grantsAdmin: administers.has(t.id),
   }))
 }
 
@@ -157,6 +192,8 @@ interface PersonRow {
   first_name: string
   last_name: string
   primary_email: string | null
+  membership_status: MembershipStatus | null
+  permission_template_id: string | null
 }
 
 const displayName = (p: PersonRow) =>
@@ -171,53 +208,26 @@ function safeQuery(query: string): string {
   return query.trim().replace(/[^\p{L}\p{N}\s@._'-]/gu, '').slice(0, 60)
 }
 
-/** Attach each person's group ids — only for the rows on the current page. */
-async function withGroups(rows: PersonRow[]): Promise<MemberSummary[]> {
-  if (rows.length === 0) return []
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('user_group_members')
-    .select('group_id, person_id')
-    .in('person_id', rows.map(p => p.id))
-
-  const byPerson = new Map<string, string[]>()
-  for (const m of (data ?? []) as { group_id: string; person_id: string }[]) {
-    byPerson.set(m.person_id, [...(byPerson.get(m.person_id) ?? []), m.group_id])
-  }
-
-  return rows.map(p => ({
-    personId: p.id,
-    name: displayName(p),
-    email: p.primary_email,
-    groupIds: byPerson.get(p.id) ?? [],
-  }))
-}
-
 /**
- * One page of family members, optionally filtered by name or email.
+ * One page of the family's members, optionally filtered by name or email.
  *
- * Paged and searched in the database on purpose: a family can run to several
- * hundred people, and shipping them all to the browser to filter client-side
- * does not scale.
+ * Paged and searched in the database on purpose: a family can run to several hundred
+ * people, and shipping them all to the browser to filter client-side does not scale.
+ *
+ * Gated on 'admin/users' rather than 'members'. This runs on the service role, so RLS
+ * never narrows it, and it returns more than the directory does — every member's
+ * email, their template, and whether their access is switched off. That is this
+ * page's data, and this page's key governs it.
  */
 export async function searchMembers(opts: {
   query?: string
   offset?: number
   limit?: number
 } = {}): Promise<MemberPage> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { rows: [], total: 0 }
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return { rows: [], total: 0 }
+  const auth = await requireAccessAdmin('view')
+  if (!auth.ok) return { rows: [], total: 0 }
 
-  // This returns every member's name AND primary_email, and it runs on the service
-  // role, so RLS on people never narrows it. Family scoping alone is not the whole
-  // answer: a family that has restricted its Member Directory has said this roster
-  // is not for everyone, and without this check the endpoint hands it over anyway.
-  // Gated on 'members' rather than 'admin/groups' — the group screens are just one
-  // caller, but the roster itself is the directory's to govern.
-  if (!(await can(user.id, 'members', 'view'))) return { rows: [], total: 0 }
+  const { personId: myPersonId } = await getMyActiveMembership(auth.userId)
 
   const limit = opts.limit ?? MEMBER_PAGE_SIZE
   const offset = opts.offset ?? 0
@@ -226,9 +236,19 @@ export async function searchMembers(opts: {
   const admin = createAdminClient()
   let builder = admin
     .from('people')
-    .select('id, first_name, last_name, primary_email', { count: 'exact' })
-    .eq('family_code', familyCode)
+    .select(
+      'id, first_name, last_name, primary_email, membership_status, permission_template_id',
+      { count: 'exact' },
+    )
+    .eq('family_code', auth.familyCode)
+    // Rows with no user_id are relatives entered by somebody else — a child, an
+    // ancestor. They hold no permissions and have no access to switch off.
     .not('user_id', 'is', null)
+    // A declined application is not a member. Member Approvals owns those rows and is
+    // the only place that can reverse the decision, so listing them here would offer a
+    // menu with nothing in it for every applicant a family has ever turned away.
+    // PENDING rows stay: their template can usefully be set before they are admitted.
+    .neq('membership_status', 'rejected')
 
   if (q) {
     builder = builder.or(
@@ -241,118 +261,52 @@ export async function searchMembers(opts: {
     .order('first_name')
     .range(offset, offset + limit - 1)
 
-  return { rows: await withGroups((data ?? []) as PersonRow[]), total: count ?? 0 }
-}
+  const rows = (data ?? []) as PersonRow[]
 
-/** One page of the people actually in a group. */
-export async function getGroupMembers(groupId: string, opts: {
-  query?: string
-  offset?: number
-  limit?: number
-} = {}): Promise<MemberPage> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { rows: [], total: 0 }
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return { rows: [], total: 0 }
-
-  const limit = opts.limit ?? MEMBER_PAGE_SIZE
-  const offset = opts.offset ?? 0
-  const q = safeQuery(opts.query ?? '')
-
-  const admin = createAdminClient()
-  // Inner join so the filter and the count both apply to real memberships.
-  let builder = admin
-    .from('user_group_members')
-    .select('person_id, people!inner(id, first_name, last_name, primary_email, family_code)', { count: 'exact' })
-    .eq('group_id', groupId)
-    .eq('people.family_code', familyCode)
-
-  if (q) {
-    builder = builder.or(
-      `first_name.ilike.%${q}%,last_name.ilike.%${q}%,primary_email.ilike.%${q}%`,
-      { referencedTable: 'people' },
-    )
+  // Resolve template names for the rows on this page only. Scoped to the family as
+  // well as to the ids, so a stale assignment pointing at another family's template
+  // renders as "no template" rather than naming it.
+  const templateIds = [...new Set(rows.map(r => r.permission_template_id).filter(Boolean))] as string[]
+  const names = new Map<string, string>()
+  if (templateIds.length) {
+    const { data: templates } = await admin
+      .from('permission_templates')
+      .select('id, name')
+      .eq('family_code', auth.familyCode)
+      .in('id', templateIds)
+    for (const t of (templates ?? []) as { id: string; name: string }[]) {
+      names.set(t.id, t.name)
+    }
   }
 
-  const { data, count } = await builder
-    .order('last_name', { referencedTable: 'people' })
-    .range(offset, offset + limit - 1)
-
-  const rows = ((data ?? []) as { people: unknown }[])
-    .map(r => (Array.isArray(r.people) ? r.people[0] : r.people) as PersonRow)
-    .filter(Boolean)
-
-  return { rows: await withGroups(rows), total: count ?? 0 }
-}
-
-/**
- * Candidates to add to a group: family members matching the query who are not
- * already in it. Bounded to a short list — this backs a type-ahead, not a table.
- */
-export async function searchCandidatesForGroup(
-  groupId: string,
-  query: string,
-  limit = 10,
-): Promise<MemberSummary[]> {
-  const q = safeQuery(query)
-  if (!q) return []
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return []
-
-  const admin = createAdminClient()
-  // Over-fetch a little, then drop those already in the group. Cheaper than
-  // sending a 500-element NOT IN list to PostgREST.
-  const { data } = await admin
-    .from('people')
-    .select('id, first_name, last_name, primary_email')
-    .eq('family_code', familyCode)
-    .not('user_id', 'is', null)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,primary_email.ilike.%${q}%`)
-    .order('last_name')
-    .limit(limit * 3)
-
-  const found = (data ?? []) as PersonRow[]
-  if (found.length === 0) return []
-
-  const { data: existing } = await admin
-    .from('user_group_members')
-    .select('person_id')
-    .eq('group_id', groupId)
-    .in('person_id', found.map(p => p.id))
-
-  const already = new Set(((existing ?? []) as { person_id: string }[]).map(m => m.person_id))
-
-  return found
-    .filter(p => !already.has(p.id))
-    .slice(0, limit)
-    .map(p => ({ personId: p.id, name: displayName(p), email: p.primary_email, groupIds: [] }))
+  return {
+    rows: rows.map(p => {
+      const templateId = p.permission_template_id && names.has(p.permission_template_id)
+        ? p.permission_template_id
+        : null
+      return {
+        personId: p.id,
+        name: displayName(p),
+        email: p.primary_email,
+        templateId,
+        templateName: templateId ? names.get(templateId)! : null,
+        status: (p.membership_status ?? 'approved') as MembershipStatus,
+        isSelf: p.id === myPersonId,
+      }
+    }),
+    total: count ?? 0,
+  }
 }
 
 export async function getResources(): Promise<ResourceSummary[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return []
+  const auth = await requireAccessAdmin('view')
+  if (!auth.ok) return []
 
   const admin = createAdminClient()
-  const [{ data: resources }, { data: visibility }] = await Promise.all([
-    admin.from('permission_resources')
-      .select('key, label, category, subsection, sort_order, actions')
-      .order('sort_order'),
-    admin.from('resource_visibility').select('resource_key, visibility').eq('family_code', familyCode),
-  ])
-
-  const restricted = new Set(
-    ((visibility ?? []) as { resource_key: string; visibility: string }[])
-      .filter(v => v.visibility === 'restricted')
-      .map(v => v.resource_key),
-  )
+  const { data: resources } = await admin
+    .from('permission_resources')
+    .select('key, label, category, subsection, sort_order, actions')
+    .order('sort_order')
 
   type Row = {
     key: string; label: string; category: string
@@ -368,7 +322,7 @@ export async function getResources(): Promise<ResourceSummary[]> {
     // `transactions/` prefix matters — getFeature() longest-prefix-matches, so
     // `transactions/*` resolves to the live /transactions entry. A key prefixed
     // `family-finances/` or `admin/` would inherit a 'future' entry and vanish from
-    // both grids with no error.
+    // the grid with no error.
     .filter(r => !isFeatureFuture(`/${r.key}`))
     .map(r => ({
       key: r.key,
@@ -378,110 +332,42 @@ export async function getResources(): Promise<ResourceSummary[]> {
       sortOrder: r.sort_order,
       // Older rows predate the column; treat a missing value as "all four".
       actions: (r.actions?.length ? r.actions : ['view', 'create', 'edit', 'delete']) as PermissionAction[],
-      visibility: restricted.has(r.key) ? 'restricted' : 'everyone',
     }))
 }
 
 /**
- * One group's policy. Reading a family's permission configuration is itself
+ * One template's grid. Reading a family's permission configuration is itself
  * privileged — it is the map of who may do what — so this gates on view over
- * 'admin/groups' rather than being treated as harmless lookup data.
+ * 'admin/users' rather than being treated as harmless lookup data.
  *
- * `groupId` arrives from the client and the read runs on the service role, so the
- * group is confirmed to belong to the caller's family before anything is returned.
- * Without that, `.eq('group_id', id)` alone hands any signed-in user any family's
+ * `templateId` arrives from the client and the read runs on the service role, so the
+ * template is confirmed to belong to the caller's family before anything is returned.
+ * Without that, `.eq('template_id', id)` alone hands any signed-in user any family's
  * policy — the query is keyed on a column that carries no family of its own.
  */
-export async function getGroupPolicy(groupId: string): Promise<PolicyMap> {
-  const g = await requireGroupAdmin('view')
-  if (!g.ok) return {}
+export async function getTemplatePolicy(templateId: string): Promise<PolicyMap> {
+  const auth = await requireAccessAdmin('view')
+  if (!auth.ok) return {}
 
   const admin = createAdminClient()
-  const { data: group } = await admin
-    .from('user_groups')
+  const { data: template } = await admin
+    .from('permission_templates')
     .select('id')
-    .eq('id', groupId)
-    .eq('family_code', g.familyCode)
+    .eq('id', templateId)
+    .eq('family_code', auth.familyCode)
     .maybeSingle()
-  if (!group) return {}
+  if (!template) return {}
 
   const { data } = await admin
-    .from('group_permissions')
+    .from('template_permissions')
     .select('resource_key, action, scope')
-    .eq('group_id', groupId)
+    .eq('template_id', templateId)
 
   const out: PolicyMap = {}
   for (const row of (data ?? []) as { resource_key: string; action: PermissionAction; scope: PermissionScope }[]) {
     out[`${row.resource_key}:${row.action}`] = row.scope
   }
   return out
-}
-
-/**
- * One member's individual overrides. Same reasoning as getGroupPolicy above:
- * privileged to read, and `personId` is a client-supplied id used against the
- * service role, so it is checked into the caller's family first.
- */
-export async function getPersonPolicy(personId: string): Promise<PolicyMap> {
-  const g = await requireGroupAdmin('view')
-  if (!g.ok) return {}
-
-  if (!(await belongsToFamily('people', personId, g.familyCode))) return {}
-
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('person_permissions')
-    .select('resource_key, action, scope')
-    .eq('person_id', personId)
-
-  const out: PolicyMap = {}
-  for (const row of (data ?? []) as { resource_key: string; action: PermissionAction; scope: PermissionScope }[]) {
-    out[`${row.resource_key}:${row.action}`] = row.scope
-  }
-  return out
-}
-
-/**
- * Everything the individual-override grid needs for one member: their own
- * overrides, plus which cells their groups already decide (group policy wins, so
- * those cells must render as not editable rather than pretending otherwise).
- *
- * Returns found: false when the id is not a member of the caller's family, so the
- * page can ignore a stale or hand-typed `?person=` without leaking anything.
- */
-export async function getPersonOverrideContext(personId: string): Promise<{
-  found: boolean
-  personPolicy: PolicyMap
-  groupCoveredKeys: string[]
-}> {
-  const empty = { found: false, personPolicy: {}, groupCoveredKeys: [] }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return empty
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return empty
-  if (!(await can(user.id, RESOURCE, 'view'))) return empty
-
-  const admin = createAdminClient()
-  const { data: person } = await admin
-    .from('people').select('id').eq('id', personId).eq('family_code', familyCode).maybeSingle()
-  if (!person) return empty
-
-  const { data: memberships } = await admin
-    .from('user_group_members').select('group_id').eq('person_id', personId)
-  const groupIds = ((memberships ?? []) as { group_id: string }[]).map(m => m.group_id)
-
-  const [personPolicy, covered] = await Promise.all([
-    getPersonPolicy(personId),
-    groupIds.length
-      ? admin.from('group_permissions').select('resource_key, action').in('group_id', groupIds)
-          .then(r => ((r.data ?? []) as { resource_key: string; action: string }[])
-            .map(x => `${x.resource_key}:${x.action}`))
-      : Promise.resolve([] as string[]),
-  ])
-
-  return { found: true, personPolicy, groupCoveredKeys: [...new Set(covered)] }
 }
 
 /** The caller's own effective permissions — used to render the UI honestly. */
@@ -493,296 +379,275 @@ export async function getMyEffectivePermissions(): Promise<{ legacy: boolean }> 
   return { legacy: perms.legacy }
 }
 
-// ── Groups ──────────────────────────────────────────────────────────────────
+// ── Templates ───────────────────────────────────────────────────────────────
 
-export async function createGroup(name: string, description: string): Promise<AdminResult> {
-  const auth = await requireGroupAdmin('create')
+export async function createTemplate(name: string, description: string): Promise<AdminResult> {
+  const auth = await requireAccessAdmin('create')
   if (!auth.ok) return { success: false, message: auth.message }
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, message: 'Group name is required.' }
+  if (!trimmed) return { success: false, message: 'Template name is required.' }
 
   const admin = createAdminClient()
-  const { error } = await admin.from('user_groups').insert({
-    family_code: auth.familyCode,
-    name: trimmed,
-    description: description.trim() || null,
-    created_by: auth.userId,
-  })
+  const { data: created, error } = await admin
+    .from('permission_templates')
+    .insert({
+      family_code: auth.familyCode,
+      name: trimmed,
+      description: description.trim() || null,
+      created_by: auth.userId,
+    })
+    .select('id')
+    .single()
 
   if (error) {
-    if (error.code === '23505') return { success: false, message: 'A group with that name already exists.' }
-    return { success: false, message: 'Could not create the group.' }
+    if (error.code === '23505') return { success: false, message: 'A template with that name already exists.' }
+    return { success: false, message: 'Could not create the template.' }
   }
 
-  revalidatePath('/admin/groups')
+  // A new template starts as a complete grid of denials rather than an empty one.
+  // The grid on screen is the whole answer to "what may these people do", and a
+  // template with no rows would fall through to resource_visibility for 'view' —
+  // so it would silently grant every unrestricted page while showing nothing.
+  const { data: resources } = await admin
+    .from('permission_resources')
+    .select('key, actions')
+
+  const rows: { template_id: string; resource_key: string; action: string; scope: string }[] = []
+  for (const r of (resources ?? []) as { key: string; actions: string[] | null }[]) {
+    for (const action of r.actions?.length ? r.actions : ['view', 'create', 'edit', 'delete']) {
+      rows.push({ template_id: created.id, resource_key: r.key, action, scope: 'none' })
+    }
+  }
+  if (rows.length) {
+    await admin.from('template_permissions')
+      .upsert(rows, { onConflict: 'template_id,resource_key,action' })
+  }
+
+  revalidatePath('/admin/users')
   return { success: true }
 }
 
-export async function renameGroup(groupId: string, name: string, description: string): Promise<AdminResult> {
-  const auth = await requireGroupAdmin()
+export async function renameTemplate(
+  templateId: string,
+  name: string,
+  description: string,
+): Promise<AdminResult> {
+  const auth = await requireAccessAdmin()
   if (!auth.ok) return { success: false, message: auth.message }
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, message: 'Group name is required.' }
+  if (!trimmed) return { success: false, message: 'Template name is required.' }
 
   const admin = createAdminClient()
   const { error } = await admin
-    .from('user_groups')
+    .from('permission_templates')
     .update({ name: trimmed, description: description.trim() || null })
-    .eq('id', groupId)
+    .eq('id', templateId)
     .eq('family_code', auth.familyCode)
 
-  if (error) return { success: false, message: 'Could not rename the group.' }
-  revalidatePath('/admin/groups')
+  if (error) {
+    if (error.code === '23505') return { success: false, message: 'A template with that name already exists.' }
+    return { success: false, message: 'Could not rename the template.' }
+  }
+  revalidatePath('/admin/users')
   return { success: true }
 }
 
-export async function deleteGroup(groupId: string): Promise<AdminResult> {
-  const auth = await requireGroupAdmin('delete')
+export async function deleteTemplate(templateId: string): Promise<AdminResult> {
+  const auth = await requireAccessAdmin('delete')
   if (!auth.ok) return { success: false, message: auth.message }
 
   const admin = createAdminClient()
-  const { data: group } = await admin
-    .from('user_groups')
-    .select('is_system')
-    .eq('id', groupId)
+  const { data: template } = await admin
+    .from('permission_templates')
+    .select('is_system, name')
+    .eq('id', templateId)
     .eq('family_code', auth.familyCode)
     .maybeSingle()
 
-  if (!group) return { success: false, message: 'Group not found.' }
-  if ((group as { is_system: boolean }).is_system) {
-    return { success: false, message: 'Built-in groups cannot be deleted. Remove its members or clear its policy instead.' }
+  if (!template) return { success: false, message: 'Template not found.' }
+  if ((template as { is_system: boolean }).is_system) {
+    return {
+      success: false,
+      message: 'Administrators and General are built in and cannot be deleted. Edit what they grant instead.',
+    }
   }
 
-  const { error } = await admin.from('user_groups').delete().eq('id', groupId).eq('family_code', auth.familyCode)
-  if (error) return { success: false, message: 'Could not delete the group.' }
+  // people.permission_template_id is ON DELETE RESTRICT, so the database refuses
+  // this anyway. Counting first turns a foreign-key violation into a sentence that
+  // says what to do about it.
+  const { count } = await admin
+    .from('people')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_code', auth.familyCode)
+    .eq('permission_template_id', templateId)
 
-  revalidatePath('/admin/groups')
-  revalidatePath('/', 'layout')
-  return { success: true }
-}
-
-// ── Membership ──────────────────────────────────────────────────────────────
-
-export async function setGroupMembership(
-  groupId: string,
-  personId: string,
-  isMember: boolean,
-): Promise<AdminResult> {
-  // Adding someone changes the group; removing them destroys a membership, so it
-  // is governed by the delete permission rather than edit.
-  const auth = await requireGroupAdmin(isMember ? 'edit' : 'delete')
-  if (!auth.ok) return { success: false, message: auth.message }
-
-  const admin = createAdminClient()
-
-  // Both the group and the person must belong to the caller's family.
-  const [{ data: group }, { data: person }] = await Promise.all([
-    admin.from('user_groups').select('id, name').eq('id', groupId).eq('family_code', auth.familyCode).maybeSingle(),
-    admin.from('people').select('id').eq('id', personId).eq('family_code', auth.familyCode).maybeSingle(),
-  ])
-  if (!group) return { success: false, message: 'Group not found in your family.' }
-  if (!person) return { success: false, message: 'Member not found in your family.' }
-
-  if (isMember) {
-    const { error } = await admin
-      .from('user_group_members')
-      .upsert({ group_id: groupId, person_id: personId, added_by: auth.userId }, { onConflict: 'group_id,person_id' })
-    if (error) return { success: false, message: 'Could not add the member.' }
-  } else {
-    // Never let the last administrator be removed — the family would lose the
-    // ability to manage its own permissions with no way back in.
-    const lockout = await wouldLoseLastAdmin(groupId, personId, auth.familyCode)
-    if (lockout) return { success: false, message: lockout }
-
-    const { error } = await admin
-      .from('user_group_members')
-      .delete()
-      .eq('group_id', groupId)
-      .eq('person_id', personId)
-    if (error) return { success: false, message: 'Could not remove the member.' }
+  if ((count ?? 0) > 0) {
+    return {
+      success: false,
+      message: `${count} member${count === 1 ? ' is' : 's are'} on this template. Move them to another one first.`,
+    }
   }
 
-  revalidatePath('/admin/groups')
+  const { error } = await admin
+    .from('permission_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('family_code', auth.familyCode)
+  if (error) return { success: false, message: 'Could not delete the template.' }
+
   revalidatePath('/admin/users')
   revalidatePath('/', 'layout')
   return { success: true }
 }
 
-/**
- * Normalize a `group_permissions` row joined to `user_groups`. PostgREST types an
- * embedded relation as an array even for a to-one join, so flatten rather than
- * asserting a shape the generated types disagree with.
- */
-function asGroupRows(rows: unknown): { groupId: string; familyCode: string }[] {
-  return ((rows ?? []) as { group_id: string; user_groups: unknown }[]).map(r => {
-    const rel = Array.isArray(r.user_groups) ? r.user_groups[0] : r.user_groups
-    return {
-      groupId: r.group_id,
-      familyCode: (rel as { family_code?: string } | null)?.family_code ?? '',
-    }
-  })
-}
-
-/**
- * Returns an error message when removing `personId` from `groupId` would leave the
- * family with nobody who can edit admin/groups.
- */
-async function wouldLoseLastAdmin(
-  groupId: string,
-  personId: string,
-  familyCode: string,
-): Promise<string | null> {
-  const admin = createAdminClient()
-
-  // Which groups in this family can still edit admin/groups?
-  const { data: capable } = await admin
-    .from('group_permissions')
-    .select('group_id, user_groups!inner(family_code)')
-    .eq('resource_key', RESOURCE)
-    .eq('action', 'edit')
-    .neq('scope', 'none')
-
-  const capableIds = asGroupRows(capable)
-    .filter(r => r.familyCode === familyCode)
-    .map(r => r.groupId)
-
-  if (!capableIds.includes(groupId)) return null
-
-  const { data: holders } = await admin
-    .from('user_group_members')
-    .select('person_id, group_id')
-    .in('group_id', capableIds)
-
-  const remaining = new Set(
-    ((holders ?? []) as { person_id: string; group_id: string }[])
-      .filter(h => !(h.group_id === groupId && h.person_id === personId))
-      .map(h => h.person_id),
-  )
-
-  return remaining.size === 0
-    ? 'That would remove the last member who can manage permissions. Add someone else to an administrator group first.'
-    : null
-}
-
-// ── Policy ──────────────────────────────────────────────────────────────────
-
-export async function setGroupPermission(
-  groupId: string,
+export async function setTemplatePermission(
+  templateId: string,
   resourceKey: string,
   action: PermissionAction,
   scope: PermissionScope,
 ): Promise<AdminResult> {
-  const auth = await requireGroupAdmin()
+  const auth = await requireAccessAdmin()
   if (!auth.ok) return { success: false, message: auth.message }
 
   const admin = createAdminClient()
-  const { data: group } = await admin
-    .from('user_groups').select('id').eq('id', groupId).eq('family_code', auth.familyCode).maybeSingle()
-  if (!group) return { success: false, message: 'Group not found in your family.' }
+  const { data: template } = await admin
+    .from('permission_templates').select('id').eq('id', templateId)
+    .eq('family_code', auth.familyCode).maybeSingle()
+  if (!template) return { success: false, message: 'Template not found in your family.' }
 
-  // Guard the same lockout as membership: don't let an admin revoke the last
-  // group that can edit permissions.
+  // Never let the family revoke its own last route back in. Removing the grant that
+  // governs THIS page is the one edit with no undo: the screen that could restore it
+  // is the screen it just locked.
   if (resourceKey === RESOURCE && action === 'edit' && scope === 'none') {
-    const lockout = await wouldLoseLastAdminPolicy(groupId, auth.familyCode)
+    const lockout = await wouldLoseLastAdmin(templateId, auth.familyCode)
     if (lockout) return { success: false, message: lockout }
   }
 
-  const { error } = await admin.from('group_permissions').upsert(
-    { group_id: groupId, resource_key: resourceKey, action, scope, updated_at: new Date().toISOString() },
-    { onConflict: 'group_id,resource_key,action' },
+  const { error } = await admin.from('template_permissions').upsert(
+    {
+      template_id: templateId,
+      resource_key: resourceKey,
+      action,
+      scope,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'template_id,resource_key,action' },
   )
   if (error) return { success: false, message: 'Could not save the permission.' }
-
-  revalidatePath('/admin/groups')
-  revalidatePath('/', 'layout')
-  return { success: true }
-}
-
-async function wouldLoseLastAdminPolicy(groupId: string, familyCode: string): Promise<string | null> {
-  const admin = createAdminClient()
-  const { data: capable } = await admin
-    .from('group_permissions')
-    .select('group_id, user_groups!inner(family_code)')
-    .eq('resource_key', RESOURCE)
-    .eq('action', 'edit')
-    .neq('scope', 'none')
-
-  const ids = asGroupRows(capable)
-    .filter(r => r.familyCode === familyCode)
-    .map(r => r.groupId)
-    .filter(id => id !== groupId)
-
-  if (ids.length === 0) {
-    return 'This is the only group that can manage permissions. Grant it to another group first.'
-  }
-
-  const { data: holders } = await admin
-    .from('user_group_members').select('person_id').in('group_id', ids)
-  return (holders ?? []).length === 0
-    ? 'No other group with permission-management rights has any members. Add someone there first.'
-    : null
-}
-
-export async function setPersonPermission(
-  personId: string,
-  resourceKey: string,
-  action: PermissionAction,
-  scope: PermissionScope | null,
-): Promise<AdminResult> {
-  const auth = await requireGroupAdmin()
-  if (!auth.ok) return { success: false, message: auth.message }
-
-  const admin = createAdminClient()
-  const { data: person } = await admin
-    .from('people').select('id').eq('id', personId).eq('family_code', auth.familyCode).maybeSingle()
-  if (!person) return { success: false, message: 'Member not found in your family.' }
-
-  // null clears the override so the person falls back to their groups.
-  if (scope === null) {
-    const { error } = await admin
-      .from('person_permissions')
-      .delete()
-      .eq('person_id', personId)
-      .eq('resource_key', resourceKey)
-      .eq('action', action)
-    if (error) return { success: false, message: 'Could not clear the override.' }
-  } else {
-    const { error } = await admin.from('person_permissions').upsert(
-      { person_id: personId, resource_key: resourceKey, action, scope, updated_at: new Date().toISOString() },
-      { onConflict: 'person_id,resource_key,action' },
-    )
-    if (error) return { success: false, message: 'Could not save the override.' }
-  }
 
   revalidatePath('/admin/users')
   revalidatePath('/', 'layout')
   return { success: true }
 }
 
-// ── Page visibility ─────────────────────────────────────────────────────────
-
-export async function setResourceVisibility(
-  resourceKey: string,
-  visibility: 'everyone' | 'restricted',
-): Promise<AdminResult> {
-  const auth = await requireGroupAdmin()
-  if (!auth.ok) return { success: false, message: auth.message }
-
+/**
+ * Returns an error message when stripping admin/users:edit from `templateId` would
+ * leave the family with nobody who can manage access.
+ *
+ * The TypeScript twin of family_has_other_admin() in 20260807000000, asked about a
+ * template rather than a person: everyone on this template is about to lose the
+ * grant, so the question is whether anyone NOT on it still holds it.
+ */
+async function wouldLoseLastAdmin(templateId: string, familyCode: string): Promise<string | null> {
   const admin = createAdminClient()
-  const { error } = await admin.from('resource_visibility').upsert(
-    {
-      family_code: auth.familyCode,
-      resource_key: resourceKey,
-      visibility,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'family_code,resource_key' },
-  )
-  if (error) return { success: false, message: 'Could not update page visibility.' }
 
-  revalidatePath('/admin/groups')
+  const { data: capable } = await admin
+    .from('template_permissions')
+    .select('template_id, permission_templates!inner(family_code)')
+    .eq('resource_key', RESOURCE)
+    .eq('action', 'edit')
+    .neq('scope', 'none')
+
+  const otherIds = ((capable ?? []) as { template_id: string; permission_templates: unknown }[])
+    .filter(r => {
+      const rel = Array.isArray(r.permission_templates) ? r.permission_templates[0] : r.permission_templates
+      return (rel as { family_code?: string } | null)?.family_code === familyCode
+    })
+    .map(r => r.template_id)
+    .filter(id => id !== templateId)
+
+  if (otherIds.length === 0) {
+    return 'This is the only template that can manage access. Grant it to another template first.'
+  }
+
+  // A template nobody is on is not a way back in. Only APPROVED members count — a
+  // pending applicant holds no permissions whatever their template says, and a
+  // disabled one holds none by definition.
+  const { count } = await admin
+    .from('people')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_code', familyCode)
+    .eq('membership_status', 'approved')
+    .not('user_id', 'is', null)
+    .in('permission_template_id', otherIds)
+
+  return (count ?? 0) === 0
+    ? 'No other template that can manage access has any members. Put someone on one first.'
+    : null
+}
+
+// ── Members ─────────────────────────────────────────────────────────────────
+
+/**
+ * Put one member on one template.
+ *
+ * The TypeScript check is the friendly layer; apply_permission_template() is the real
+ * one. USER client, always — see the header. The RPC re-derives the caller from
+ * auth.uid(), confirms both ids into the caller's family, and refuses the move that
+ * would leave the family with no administrator.
+ */
+export async function applyTemplate(personId: string, templateId: string): Promise<AdminResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated.' }
+
+  // canAny would be the guard-file equivalent; assigning permissions has no coherent
+  // "own" version, and the row a member would own is their own access.
+  if ((await can(user.id, RESOURCE, 'edit')) === false) {
+    return { success: false, message: 'You do not have permission to manage access.' }
+  }
+
+  const { data, error } = await supabase
+    .rpc('apply_permission_template', { p_person_id: personId, p_template_id: templateId })
+    .maybeSingle<{ ok: boolean; message: string | null }>()
+
+  if (error) return { success: false, message: 'Could not apply that template. Please try again.' }
+  if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
+
+  revalidatePath('/admin/users')
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
+/**
+ * Switch a member's access off, or back on.
+ *
+ * 'disabled' is a membership_status, so this needs no new gate anywhere: every check
+ * in the app and every policy in the database tests positively for 'approved', and a
+ * disabled member fails all of them at once.
+ *
+ * USER client for the same reason as above. set_member_enabled() refuses to let the
+ * caller disable themselves or the family's last administrator.
+ */
+export async function setMemberEnabled(personId: string, enabled: boolean): Promise<AdminResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated.' }
+
+  if ((await can(user.id, RESOURCE, 'edit')) === false) {
+    return { success: false, message: 'You do not have permission to manage access.' }
+  }
+
+  const { data, error } = await supabase
+    .rpc('set_member_enabled', { p_person_id: personId, p_enabled: enabled })
+    .maybeSingle<{ ok: boolean; message: string | null }>()
+
+  if (error) return { success: false, message: 'Could not change that member. Please try again.' }
+  if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
+
+  revalidatePath('/admin/users')
   revalidatePath('/', 'layout')
   return { success: true }
 }

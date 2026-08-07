@@ -206,11 +206,42 @@ Decide what the caller may *see*, fetch only that, and let the UI follow.
 
 ## 6. New permissioned surfaces need a migration
 
-A new page needs a row in `permission_resources` so administrators can restrict it in
-Groups & Permissions. Without one it still works — an unregistered resource defaults
+A new page needs a row in `permission_resources` so administrators can restrict it on
+Members & Access. Without one it still works — an unregistered resource defaults
 to viewable — but it can never be turned off, which is a silent default nobody can fix
 from the UI. Add the row in a new migration *and* in the seed in `20260618000000`,
 whose insert is `ON CONFLICT DO UPDATE` and would otherwise revert it on replay.
+
+Since `20260807000000` the row is not quite enough on its own. A member's access is
+the grid on their one **permission template**, and that grid is materialized — every
+template carries an explicit row for every resource and action, so the screen can show
+the whole answer without explaining a fall-through. A resource registered later has no
+row in the templates that already exist, so it falls back to `resource_visibility`:
+`'everyone'` for view, and none for the rest. That is a working default, not a
+complete one. A new resource that should be restricted needs its per-family
+`resource_visibility` backfill in the same migration, exactly as `20260806000007` and
+`20260806000010` do — and a new resource that a system template should positively
+grant needs that backfill too, or only families created afterwards will have it.
+
+## 6b. One template per member — no second layer
+
+`permission_templates` and `template_permissions` replaced `user_groups`,
+`user_group_members`, `group_permissions` and `person_permissions`. There is no group
+membership to union and no per-person override to reconcile: `people
+.permission_template_id` names one template, `auth_permission()` reads its grid, and
+that is the whole resolution.
+
+Two consequences worth knowing before touching `people`:
+
+* **`permission_template_id` is guarded like `membership_status`.** The `people` UPDATE
+  policy admits a member's write to their own row, and a policy has no opinion about
+  which column changed — so `saveProfileSection({ permission_template_id: … })` would
+  be a self-promotion every policy is satisfied by. `people_guard_permission_template`
+  refuses any change made by the `authenticated` role; the only ways in are
+  `apply_permission_template()` and the service role.
+* **`membership_status` gained `'disabled'`.** Nothing had to be swept for it, because
+  every gate in the app and every policy in the database tests positively for
+  `'approved'`. Keep it that way: never write `<> 'pending'`.
 
 ## 7. Every RLS-path action owes a test
 

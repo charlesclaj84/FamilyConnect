@@ -2,13 +2,15 @@ import type { ResourceSummary } from '@/app/actions/admin/permissions'
 import type { PermissionAction, PermissionScope } from '@/lib/auth/permissions'
 
 /**
- * The shared vocabulary of the two permission grids.
+ * The vocabulary of the permission grid: how the resource catalog is ordered,
+ * grouped and labelled, and which scope buttons a given cell may offer.
  *
- * Groups & Permissions (AdminGroupsClient) and User Access (AdminUserAccessClient)
- * render the SAME catalog. Every constant below used to be copy-pasted verbatim into
- * both files, which is fine until one of them gains a level the other does not — at
- * which point the two screens quietly disagree about what a family's permissions are.
- * Adding the sub-section level is exactly that kind of change, so it lives here.
+ * Extracted when there were TWO grids — Groups & Permissions and User Access — which
+ * had every constant below copy-pasted into both, and would have quietly disagreed
+ * about a family's permissions the moment one of them gained a level the other did
+ * not. 20260807000000 merged those screens into one, so the duplication is gone; this
+ * stays a module because the grid is long enough without its lookup tables, and
+ * because `scopesFor` is a rule about the model rather than about the markup.
  */
 
 export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']

@@ -7,17 +7,22 @@ import { FEATURES, getFeature } from '@/lib/features'
 /**
  * Authorization for the authenticated caller in their active family.
  *
- * This mirrors public.auth_permission() in 20260618000000 exactly — the database
+ * This mirrors public.auth_permission() in 20260807000000 exactly — the database
  * enforces the same rules through RLS, and the two must never disagree. If you
- * change the precedence here, change it there in the same commit.
+ * change the resolution here, change it there in the same commit.
  *
- * PRECEDENCE
- *   1. Group layer. If ANY group the caller belongs to states a scope for
- *      (resource, action), the groups decide and the individual override is
- *      ignored. Across several groups the most permissive wins: any > own > none.
- *   2. The caller's own person_permissions row, if present.
- *   3. Default. For 'view', the family's page visibility ('everyone' => any,
+ * RESOLUTION
+ *   1. The caller's ONE permission template, if it states a scope for
+ *      (resource, action). A person is assigned at most one template and it is the
+ *      whole of their access.
+ *   2. Default. For 'view', the family's page visibility ('everyone' => any,
  *      'restricted' => none). For create/edit/delete, none — it fails closed.
+ *
+ * There is no second layer to reconcile. 20260807000000 replaced group membership
+ * (N groups, unioned, beating a per-person override grid) with a single template,
+ * and materialized every template's grid so step 1 answers nearly everything —
+ * step 2 survives for a person with no template and for a resource registered by a
+ * migration later than the templates that exist.
  *
  * Scope: 'none' denied · 'own' only rows the caller owns · 'any' all rows in the
  * family. 'create' treats own and any alike.
@@ -32,7 +37,10 @@ export interface PermissionSet {
   /** people.id in the active family, or '' when the caller has no membership. */
   personId: string
   familyCode: string
-  /** Resolved scope keyed `${resource}:${action}`. Absent means fall to default. */
+  /**
+   * The caller's template, flattened to `${resource}:${action}` -> scope. Absent
+   * means fall to default — rare since 20260807000000 materialized every grid.
+   */
   resolved: Map<string, PermissionScope>
   /** Resources the family has switched to 'restricted'. */
   restricted: Set<string>
@@ -45,9 +53,10 @@ export interface PermissionSet {
   /** Only meaningful when `legacy` is true. */
   legacyIsAdmin: boolean
   /**
-   * True when an administrator has admitted the caller to this family.
+   * True when an administrator has admitted the caller to this family and has not
+   * since switched them off.
    *
-   * False for a pending or rejected membership, which resolveScope() then denies
+   * False for pending, rejected and disabled, all of which resolveScope() then denies
    * outright. This mirrors the `AND p.membership_status = 'approved'` conjunct that
    * 20260806000011 added to public.auth_person_id(): there, a non-approved caller
    * resolves to no person and auth_permission() returns 'none' for everything. The
@@ -58,12 +67,6 @@ export interface PermissionSet {
 }
 
 const key = (resource: string, action: PermissionAction) => `${resource}:${action}`
-
-const MOST_PERMISSIVE = (a: PermissionScope, b: PermissionScope): PermissionScope => {
-  if (a === 'any' || b === 'any') return 'any'
-  if (a === 'own' || b === 'own') return 'own'
-  return 'none'
-}
 
 /**
  * Turn a route into a resource key. Resource keys are the feature registry's
@@ -95,24 +98,31 @@ export const getMyPermissionSet = cache(async (userId: string): Promise<Permissi
   const personId = membership?.personId ?? ''
   if (!familyCode || !personId) return EMPTY
 
-  // A non-approved membership is resolved no further. Loading its groups would be
-  // wasted work — resolveScope() denies every resource below on the `approved` flag
-  // — and it would also be misleading: since 20260806000008 a member is put into
-  // General the moment their row is inserted, so an applicant genuinely holds group
-  // grants. What they do not hold is a membership those grants can act through.
+  // A non-approved membership is resolved no further. Loading its template would be
+  // wasted work — resolveScope() denies every resource below on the `approved` flag —
+  // and it would also be misleading: the default-template trigger assigns General the
+  // moment a user-linked row is inserted, so an applicant genuinely holds a template.
+  // What they do not hold is a membership it can act through. Since 20260807000000
+  // that also covers a DISABLED member: isApproved() tests positively for 'approved',
+  // so switching someone off denies them here without a second branch.
   const approved = isApproved(membership?.status)
   if (!approved) return { ...EMPTY, personId, familyCode }
 
   const admin = createAdminClient()
 
-  const memberships = await admin
-    .from('user_group_members')
-    .select('group_id, user_groups!inner(id, family_code)')
-    .eq('person_id', personId)
+  // The template id, and the family it belongs to. The join is not decoration:
+  // permission_template_id is a bare uuid, and a row carrying another family's
+  // template must resolve to nothing rather than to that family's grants. The SQL
+  // resolver applies the same conjunct.
+  const assignment = await admin
+    .from('people')
+    .select('permission_template_id, permission_templates(id, family_code)')
+    .eq('id', personId)
+    .maybeSingle()
 
-  // The tables only exist once 20260618000000 has run. Until then fall back to
-  // the legacy is_admin flag so the app is usable in both states.
-  if (memberships.error) {
+  // The column and the tables only exist once 20260807000000 has run. Until then fall
+  // back to the legacy is_admin flag so the app is usable in both states.
+  if (assignment.error) {
     const { data: person } = await admin
       .from('people').select('is_admin').eq('id', personId).maybeSingle()
     return {
@@ -124,30 +134,21 @@ export const getMyPermissionSet = cache(async (userId: string): Promise<Permissi
     }
   }
 
-  const groupIds = (memberships.data ?? [])
-    .filter(m => (m.user_groups as unknown as { family_code: string } | null)?.family_code === familyCode)
-    .map(m => m.group_id as string)
+  const template = (Array.isArray(assignment.data?.permission_templates)
+    ? assignment.data?.permission_templates[0]
+    : assignment.data?.permission_templates) as { id: string; family_code: string } | null | undefined
+  const templateId = template?.family_code === familyCode ? template.id : ''
 
-  const [groupPerms, personPerms, visibility] = await Promise.all([
-    groupIds.length
-      ? admin.from('group_permissions').select('resource_key, action, scope').in('group_id', groupIds)
-      : Promise.resolve({ data: [] as GroupPermRow[] }),
-    admin.from('person_permissions').select('resource_key, action, scope').eq('person_id', personId),
+  const [templatePerms, visibility] = await Promise.all([
+    templateId
+      ? admin.from('template_permissions').select('resource_key, action, scope').eq('template_id', templateId)
+      : Promise.resolve({ data: [] as TemplatePermRow[] }),
     admin.from('resource_visibility').select('resource_key, visibility').eq('family_code', familyCode),
   ])
 
-  // Group layer first — it wins outright wherever it states anything.
-  const fromGroups = new Map<string, PermissionScope>()
-  for (const row of (groupPerms.data ?? []) as GroupPermRow[]) {
-    const k = key(row.resource_key, row.action)
-    const prev = fromGroups.get(k)
-    fromGroups.set(k, prev ? MOST_PERMISSIVE(prev, row.scope) : row.scope)
-  }
-
-  const resolved = new Map(fromGroups)
-  for (const row of (personPerms.data ?? []) as GroupPermRow[]) {
-    const k = key(row.resource_key, row.action)
-    if (!fromGroups.has(k)) resolved.set(k, row.scope)
+  const resolved = new Map<string, PermissionScope>()
+  for (const row of (templatePerms.data ?? []) as TemplatePermRow[]) {
+    resolved.set(key(row.resource_key, row.action), row.scope)
   }
 
   const restricted = new Set(
@@ -159,7 +160,7 @@ export const getMyPermissionSet = cache(async (userId: string): Promise<Permissi
   return { personId, familyCode, resolved, restricted, legacy: false, legacyIsAdmin: false, approved }
 })
 
-interface GroupPermRow {
+interface TemplatePermRow {
   resource_key: string
   action: PermissionAction
   scope: PermissionScope
@@ -182,9 +183,9 @@ export function resolveScope(
 
   // Pre-migration fallback, reproducing exactly what this replaces: admins do
   // everything; everyone else can view the member-facing pages and touch only
-  // their own records. Admin pages stay admin-only — without this the newly-live
-  // admin/users and admin/groups pages would be open to every member during the
-  // window between deploying this code and applying 20260618000000.
+  // their own records. Admin pages stay admin-only — without this the Members &
+  // Access page would be open to every member during the window between deploying
+  // this code and applying the permission migrations.
   if (perms.legacy) {
     if (perms.legacyIsAdmin) return 'any'
     if (resource.startsWith('admin/')) return 'none'

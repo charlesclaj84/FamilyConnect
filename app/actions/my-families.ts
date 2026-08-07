@@ -195,7 +195,8 @@ export async function createFamily(familyName: string): Promise<CreateFamilyResu
     return { success: false, message: 'That family name is too long (100 characters maximum).' }
   }
 
-  // Creating a family writes two rows and seeds three groups with their whole policy,
+  // Creating a family writes two rows and seeds two permission templates with their
+  // whole grid,
   // so it is the most expensive thing an ordinary member can ask for. Rate-limited on
   // the same in-process limiter as the code lookup — a speed bump against a script, not
   // a quota; the honest description is in the comment on that limiter.

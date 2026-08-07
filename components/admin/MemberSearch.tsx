@@ -11,8 +11,9 @@ import type { MemberPage, MemberSummary } from '@/app/actions/admin/permissions'
  * Search + paging over a family's members. Families can run past 500 people, so
  * both happen in the database — this component only ever holds one page.
  *
- * The caller supplies `fetchPage`, so the same control drives the full directory
- * (User Management) and a single group's roster (Groups & Permissions).
+ * The caller supplies `fetchPage` rather than the query being baked in. Members &
+ * Access is the only caller today — it was written when there were two, and the seam
+ * is worth keeping for the next screen that needs a member picker.
  */
 export function usePagedMembers(
   fetchPage: (opts: { query: string; offset: number }) => Promise<MemberPage>,

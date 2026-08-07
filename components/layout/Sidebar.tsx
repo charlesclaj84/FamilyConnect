@@ -26,7 +26,6 @@ import {
   BarChart3,
   Camera,
   ChevronDown,
-  KeyRound,
   ArrowRightLeft,
   Home,
 } from 'lucide-react'
@@ -53,8 +52,8 @@ interface NavGroup {
 // Hand-ordered, not alphabetical: structure first (who the family's officers are,
 // then where its chapters are), then Accounting, then the people and their access.
 // Elections and Reports are periodic tasks rather than setup, so they trail.
-// This order is independent of the Groups & Permissions grid, which sorts by
-// permission_resources.sort_order in the database.
+// This order is independent of the permission grid on Members & Access, which sorts
+// by permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
   // Member Approvals leads. It is the only admin surface with a QUEUE behind it —
   // people waiting, who can see nothing until somebody acts — so it is the one an
@@ -63,8 +62,7 @@ const adminItems: NavItem[] = [
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
-  { href: '/admin/users',          label: 'User Management',      icon: UsersRound },
-  { href: '/admin/groups',         label: 'Groups & Permissions', icon: KeyRound },
+  { href: '/admin/users',          label: 'Members & Access',     icon: UsersRound },
   { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
 ]

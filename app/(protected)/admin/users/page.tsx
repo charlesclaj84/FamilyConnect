@@ -1,55 +1,62 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import {
-  getGroups, getResources, canManageGroups, getPersonOverrideContext,
+  getTemplates, getResources, getTemplatePolicy, canManageAccess, getMyEffectivePermissions,
 } from '@/app/actions/admin/permissions'
-import { AdminUserAccessClient } from '@/components/admin/AdminUserAccessClient'
+import { AdminAccessClient } from '@/components/admin/AdminAccessClient'
 
-export const metadata = { title: 'User Management — Family Connect' }
+export const metadata = { title: 'Members & Access — Family Connect' }
 
 interface Props {
-  searchParams: Promise<{ person?: string }>
+  searchParams: Promise<{ tab?: string; template?: string }>
 }
 
-export default async function AdminUsersPage({ searchParams }: Props) {
+export default async function AdminAccessPage({ searchParams }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'admin/users')
 
-  // The member list itself is searched and paged client-side against the database,
-  // so this page only loads the group catalog and the expanded member's overrides.
-  const [groups, resources, rights] = await Promise.all([
-    getGroups(),
+  // The member list is searched and paged in the database by the client on demand — a
+  // family can run past 500 people — so this page loads only the template catalog.
+  const [templates, resources, rights, effective] = await Promise.all([
+    getTemplates(),
     getResources(),
-    canManageGroups(),
+    canManageAccess(),
+    getMyEffectivePermissions(),
   ])
 
-  const { person } = await searchParams
-  const context = person
-    ? await getPersonOverrideContext(person)
-    : { found: false, personPolicy: {}, groupCoveredKeys: [] }
+  const params = await searchParams
+  const tab = params.tab === 'templates' ? 'templates' : 'members'
+  const selectedTemplateId = templates.some(t => t.id === params.template)
+    ? params.template!
+    : templates[0]?.id ?? null
+
+  // Only fetched for the tab that shows it. A grid the caller is not looking at would
+  // still be serialized into the RSC payload and reach the browser (AGENTS.md §5).
+  const policy = tab === 'templates' && selectedTemplateId
+    ? await getTemplatePolicy(selectedTemplateId)
+    : {}
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">User Management</h1>
+        <h1 className="mb-1 text-3xl font-bold">Members &amp; Access</h1>
         <p className="text-muted-foreground">
-          Group policies are set on
-          {' '}<Link href="/admin/groups" className="text-primary hover:underline">Groups &amp; Permissions</Link>.
+          Every member is on one permission template, and that template is what they can do.
         </p>
       </div>
 
-      <AdminUserAccessClient
-        groups={groups}
+      <AdminAccessClient
+        templates={templates}
         resources={resources}
-        expandedPersonId={context.found ? person! : null}
-        personPolicy={context.personPolicy}
-        groupCoveredKeys={context.groupCoveredKeys}
+        tab={tab}
+        selectedTemplateId={selectedTemplateId}
+        policy={policy}
         rights={rights}
+        legacy={effective.legacy}
       />
     </div>
   )

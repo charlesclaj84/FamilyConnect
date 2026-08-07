@@ -48,6 +48,11 @@ export function alphaMarkers(fx) {
     // the family — PII that only an approver should see, and only for their own family.
     a.invitation.id, a.revocableInvitation.id,
     'invited.alpha@rls.test', 'revocable.alpha@rls.test',
+    // ALPHA's permission templates and the member who exists to be re-templated.
+    // The template ids are the family's access map; the spare's email is roster PII
+    // that Members & Access hands out and the directory does not.
+    a.adminTemplateId, a.generalTemplateId, a.sparePersonId,
+    'alpha.spare@rls.test',
     // auth user ids too — some actions key on user_id rather than people.id.
     fx.users.alphaMember.userId, fx.users.alphaOther.userId, fx.users.alphaAdmin.userId,
     'secret body ALPHATEST',
@@ -244,9 +249,37 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'returns only {legacy:false} for everyone — no family data to leak or confirm',
   }),
-  read('admin/permissions.canManageGroups', 'app/actions/admin/permissions.ts', 'canManageGroups', {
+  read('admin/permissions.canManageAccess', 'app/actions/admin/permissions.ts', 'canManageAccess', {
     positive: 'not-applicable',
     why: 'returns the caller\'s own capability flags; carries no other family\'s data',
+  }),
+
+  // ── Members & Access ──────────────────────────────────────────────────────
+  // The roster and the family's access map. Both run on the service role, so RLS
+  // narrows neither and the family scoping is the action's own work — which is
+  // exactly the code these cases are here to check. Controls run as alphaAdmin:
+  // admin/users starts 'restricted' in every family, so a plain member holds no
+  // view grant and their control would fail for a permission reason rather than an
+  // isolation one.
+  read('admin/permissions.searchMembers', 'app/actions/admin/permissions.ts', 'searchMembers', {
+    positiveActor: 'alphaAdmin',
+  }),
+  read('admin/permissions.getTemplates', 'app/actions/admin/permissions.ts', 'getTemplates', {
+    positiveActor: 'alphaAdmin',
+  }),
+  read('admin/permissions.getTemplatePolicy', 'app/actions/admin/permissions.ts', 'getTemplatePolicy', {
+    // BRAVO's administrator asks for ALPHA's Administrators grid by id.
+    args: fx => [fx.alpha.adminTemplateId],
+    positiveActor: 'alphaAdmin',
+    // A PolicyMap is `resource:action -> scope` and carries no ids, so the marker
+    // scan cannot see it either way. Assert on the shape instead: empty for the
+    // attacker, and populated for ALPHA's own administrator.
+    expectAttack: r => r && typeof r === 'object' && Object.keys(r).length === 0,
+    expectPositive: r => r?.['admin/users:edit'] === 'any',
+  }),
+  read('admin/permissions.getResources', 'app/actions/admin/permissions.ts', 'getResources', {
+    positive: 'not-applicable',
+    why: 'the resource catalog is global product data, identical for every family — the attack half is here so that stops being true loudly',
   }),
 
   // ── writes against ALPHA's rows ───────────────────────────────────────────
@@ -589,6 +622,37 @@ export const APPROVAL_CASES = [
       { id: fx.alpha.rejectablePersonId })(db),
     positiveActor: 'alphaAdmin',
   },
+  // ── Members & Access: the two writes to `people` ──────────────────────────
+  // Both go through a SECURITY DEFINER RPC called on the USER client, so the database
+  // is the enforcement and these exercise it for real. The attack is the whole point
+  // of that design: BRAVO's administrator holds admin/users:edit at 'any' in their own
+  // family, and passes ALPHA's ids. Anything that lands, landed because the RPC's own
+  // family check failed — there is no grant left to refuse them.
+  {
+    kind: 'write',
+    id: 'admin/permissions.applyTemplate',
+    mod: 'app/actions/admin/permissions.ts', fn: 'applyTemplate',
+    // ALPHA's spare member, onto ALPHA's Administrators template. If this landed,
+    // BRAVO's administrator would have made somebody an administrator of ALPHA.
+    args: fx => [fx.alpha.sparePersonId, fx.alpha.adminTemplateId],
+    probe: (db, fx) => snapshot('people', 'id, permission_template_id',
+      { id: fx.alpha.sparePersonId })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/permissions.setMemberEnabled',
+    mod: 'app/actions/admin/permissions.ts', fn: 'setMemberEnabled',
+    // Runs AFTER applyTemplate above, which has put the spare on Administrators. That
+    // ordering is deliberate rather than incidental: it makes the control disable an
+    // administrator, which is the case family_has_other_admin() has to allow (ALPHA
+    // still has alphaAdmin) and the one most likely to be wrongly refused.
+    args: fx => [fx.alpha.sparePersonId, false],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.alpha.sparePersonId })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
   // ── invitations ───────────────────────────────────────────────────────────
   // A genuine cross-family READ: the list is email addresses of people who are not in
   // the family yet, and the only thing keeping BRAVO's administrator out of ALPHA's is
@@ -700,7 +764,7 @@ export const APPROVAL_CASES = [
     probe: (db) => snapshot('people', 'id, membership_status',
       { family_code: 'ALPHATEST' })(db),
     positive: 'not-applicable',
-    why: 'no rightful-vs-attacker split exists for creating your own family; the founder outcome is asserted by the migration\'s own verify block, which creates a throwaway family and RAISEs unless its creator comes out approved AND in Administrators',
+    why: 'no rightful-vs-attacker split exists for creating your own family; the founder outcome is asserted by the last case in this file, which needs a real auth user and so cannot live in a migration',
   },
   // Joining is LAST because it leaves a membership behind: bravoNewcomer ends the run
   // with a pending row in ALPHA. Harmless (a pending row confers nothing, which is what
@@ -719,6 +783,53 @@ export const APPROVAL_CASES = [
       { family_code: 'ALPHATEST', membership_status: 'approved' })(db),
     positive: 'not-applicable',
     why: 'any signed-in user may apply to any family by design, so there is no rightful-vs-attacker split to draw; what must hold is that applying confers nothing, which the approved-only probe asserts',
+  },
+
+  // ── the founder of a NEW family administers it ────────────────────────────
+  // This used to be asserted by 20260806000012's own verify block, against
+  // user_group_members. 20260807000000 replaced that table with a column, and its
+  // verify block cannot re-assert the outcome: the founder rule keys on
+  // `families.created_by = people.user_id`, people.user_id is a foreign key into
+  // auth.users, and a migration has no auth user to fabricate. On a fresh database
+  // that block can only skip — which AGENTS.md calls out as the failure mode where a
+  // green run reports success over something that was never exercised. So the
+  // assertion moves here, where real accounts exist.
+  //
+  // THE PROBE IS THE ASSERTION, and it is filtered on purpose. It returns
+  // alphaNewcomer's people rows that sit on a template NAMED Administrators — so:
+  //
+  //   founder lands on Administrators  → [] becomes [row]  → control passes
+  //   founder lands on General         → [] stays []       → control FAILS as
+  //                                                          "owner's own write did
+  //                                                          nothing", which is the
+  //                                                          right complaint
+  //
+  // A probe of the founder's rows unfiltered would change either way and would prove
+  // only that a family got created.
+  //
+  // LAST in the file, after joinFamilyByCode: it leaves a whole family behind and
+  // switches alphaNewcomer's active family to it, so nothing may run after it.
+  {
+    kind: 'write',
+    id: 'my-families.createFamily (founder lands on Administrators)',
+    mod: 'app/actions/my-families.ts', fn: 'createFamily',
+    // The attack is the same isolation claim as the case above, aimed at a different
+    // row: creating a family as BRAVO's administrator must not make ALPHA's newcomer
+    // an administrator of anything.
+    attacker: 'bravoAdmin',
+    args: () => ['Harness Attacker Family'],
+    positiveActor: 'alphaNewcomer',
+    positiveArgs: () => ['Harness Founder Family'],
+    probe: async (db, fx) => {
+      const { data, error } = await db
+        .from('people')
+        .select('id, family_code, permission_templates!inner(name)')
+        .eq('user_id', fx.users.alphaNewcomer.userId)
+        .eq('permission_templates.name', 'Administrators')
+        .order('id')
+      if (error) throw new Error(`probe founder template: ${error.message}`)
+      return JSON.stringify(data)
+    },
   },
 ]
 
@@ -746,7 +857,7 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...APPROVAL_CASES)
  *     tables that no server action lets an unapproved caller touch — the
  *     notifications INSERT ("any member may notify any member", so an applicant
  *     could reach every bell in the family), and the "readable in family" SELECTs on
- *     user_groups, user_group_members, group_permissions and resource_visibility.
+ *     permission_templates, template_permissions and resource_visibility.
  *     Every one of those is reachable only by calling PostgREST directly with the
  *     applicant's own JWT, and this suite calls exported ACTIONS. Adding it means a
  *     raw-query harness alongside this one, which is worth doing and is not this.
