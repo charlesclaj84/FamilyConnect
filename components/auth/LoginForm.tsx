@@ -20,20 +20,6 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-/**
- * Local testing convenience: prefill the form from `.env.development.local` so
- * Sign In works in one click. Both guards are compile-time — Next inlines
- * `NODE_ENV` and `NEXT_PUBLIC_*` at build time, so a production build drops this
- * branch entirely and never carries the values.
- */
-const devLogin =
-  process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_DEV_LOGIN_EMAIL
-    ? {
-        email: process.env.NEXT_PUBLIC_DEV_LOGIN_EMAIL,
-        password: process.env.NEXT_PUBLIC_DEV_LOGIN_PASSWORD ?? '',
-      }
-    : null
-
 export function LoginForm() {
   const router = useRouter()
   // /auth/confirm redirects here with ?error=… when a confirmation link is invalid,
@@ -63,7 +49,6 @@ export function LoginForm() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: devLogin ?? undefined,
   })
 
   async function onSubmit(data: FormData) {
@@ -96,7 +81,6 @@ export function LoginForm() {
               type="email"
               placeholder="you@example.com"
               autoComplete="email"
-              defaultValue={devLogin?.email}
               {...register('email')}
             />
             {errors.email && (
@@ -111,7 +95,6 @@ export function LoginForm() {
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
-              defaultValue={devLogin?.password}
               {...register('password')}
             />
             {errors.password && (
@@ -134,13 +117,6 @@ export function LoginForm() {
             <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {serverError}
             </div>
-          )}
-
-          {devLogin && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Dev mode — prefilled with <span className="font-medium">{devLogin.email}</span> from
-              {' '}<code>.env.development.local</code>. Clear the fields to sign in as someone else.
-            </p>
           )}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
