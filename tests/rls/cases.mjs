@@ -113,25 +113,20 @@ export const CASES = [
   }),
 
   // ── money ─────────────────────────────────────────────────────────────────
-  // These two run their control as the ADMIN, and the reason is a live bug rather
-  // than the usual "this policy wants a grant" — read TODO before copying the
-  // pattern. permission_table_map points dues_schedules at 'admin/account' with both
-  // own_expr and self_expr 'false', so its composed SELECT reduces to
-  // admin/account:view = 'any'. 20260618000000 restricts every admin resource per
-  // family, so a plain member cannot read the dues table at all — and
-  // getMyDuesSummary is the member-facing "what do I owe" call behind My Summary and
-  // the dashboard card. Both return [] for every member of every real family.
+  // These two ran their control as the ADMIN until 20260808000002, and not because the
+  // policy wanted a grant: permission_table_map points dues_schedules at 'admin/account'
+  // with own_expr and self_expr both 'false', so the composed SELECT reduced to
+  // admin/account:view = 'any' — a key General holds at 'none'. A plain member read
+  // ZERO schedules, which meant getMyDuesSummary returned [] and My Summary was blank
+  // for every non-administrator in every real family.
   //
-  // Until 20260806000008 the fixture wrote no resource_visibility rows, so
-  // admin/account fell through to 'any' and these controls passed against a
-  // permission configuration no family has. Holding permissions constant at 'any'
-  // keeps the attack assertion meaningful; it does not make the bug go away.
-  read('dues.getDuesSchedules', 'app/actions/dues.ts', 'getDuesSchedules', {
-    positiveActor: 'alphaAdmin',
-  }),
-  read('dues.getMyDuesSummary', 'app/actions/dues.ts', 'getMyDuesSummary', {
-    positiveActor: 'alphaAdmin',
-  }),
+  // 20260808000002 adds a second, unwrapped SELECT policy: an approved member reads
+  // their own family's schedules. So the control is a plain member again, which is what
+  // it should always have been — and that is the assertion that now fails if the policy
+  // is dropped. Do not re-pin these to alphaAdmin; that pin was the bug's shadow, and
+  // an admin-only control passes whether or not members can see their own dues.
+  read('dues.getDuesSchedules', 'app/actions/dues.ts', 'getDuesSchedules'),
+  read('dues.getMyDuesSummary', 'app/actions/dues.ts', 'getMyDuesSummary'),
   read('dues.getAllDuesPayments', 'app/actions/dues.ts', 'getAllDuesPayments'),
   read('dues.getMyPaymentHistory', 'app/actions/dues.ts', 'getMyPaymentHistory'),
 
@@ -625,6 +620,23 @@ export const PENDING_CASES = [
     attacker: 'alphaPending',
   }),
   read('dues.getAllDuesPayments (pending member)', 'app/actions/dues.ts', 'getAllDuesPayments', {
+    attacker: 'alphaPending',
+  }),
+  // [crux] for 20260808000002's own conjunct, and the reason it is worth having is that
+  // this policy is the one place in the schema where a member reads family-wide
+  // configuration without holding any grant over it. What keeps the applicant out is
+  // `auth_person_id() IS NOT NULL` — auth_person_id() resolves only for
+  // membership_status = 'approved' — and NOT a permission check, because there is no
+  // longer a permission in the way. Drop that conjunct and these pass for someone who
+  // has merely typed the family code; nothing else in the suite would notice, because
+  // auth_family_code() resolves ALPHATEST for an applicant deliberately.
+  //
+  // The control is the default plain member, which is the whole point of the migration:
+  // an approved member sees them, an applicant does not.
+  read('dues.getDuesSchedules (pending member)', 'app/actions/dues.ts', 'getDuesSchedules', {
+    attacker: 'alphaPending',
+  }),
+  read('dues.getMyDuesSummary (pending member)', 'app/actions/dues.ts', 'getMyDuesSummary', {
     attacker: 'alphaPending',
   }),
   // NOT [crux], and this was established by mutation rather than assumed — both

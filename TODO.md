@@ -106,41 +106,87 @@ grant; a callee of a SECURITY DEFINER function needs no grant; and not one polic
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## 1. Members cannot read the dues table, so "what do I owe" is empty for everyone
+## DONE 2026-08-08: Members can read the dues table — "what do I owe" works
 
-**Action:** decide which resource governs *reading* `dues_schedules`, then re-point it.
-This one is live on every family, not a latent risk — which is why it is now the active
-piece of work, Phase 3 having shipped.
+**The product call was made and it is the widest of the three on offer: every APPROVED
+member of a family may read that family's dues and donation schedules.** Reading what
+you owe and editing what everyone owes are different rights, and only the second one
+is an officer's. `20260808000002` adds a second, unwrapped SELECT policy saying exactly
+that; the `admin/account` policies stay untouched and still govern INSERT, UPDATE and
+DELETE.
+
+**Not re-pointed in `permission_table_map`, which is why it turned out not to need the
+policy surgery this entry feared.** The map is right about writes. Adding a permissive
+policy beside the composed ones is OR-ed with them, so members gain reads and nothing
+else moves — no literal rewritten, no existing policy dropped. The new policy carries a
+`perm:` prefix it did not earn, because the sweep rewrites any policy on a mapped table
+that lacks one and would wrap this back into `admin/account`, restoring the bug.
+
+**No `AND active`.** The narrower version was the intent and is wrong by one case:
+`getMyPaymentHistory` embeds `dues_schedules(label, kind)`, so restricting members to
+active rows means retiring a schedule silently blanks the label on every payment ever
+made against it — a one-off like "Cedar Point Trip" being deactivated after the event
+is the normal course of things. Nothing is protected by hiding it either; the label was
+visible to those same members while it ran, and whoever paid into it has the strongest
+claim to see it.
+
+**Found in production, from the outside.** An invitee's account was working perfectly —
+approved, linked, on General, holding view on all three `account-summary/*` keys — and
+her My Summary was empty. Every screen said she was entitled to see her dues and the one
+table behind them said no. Nobody had hit it in months of use because everyone testing
+was an administrator in every family they belonged to.
+
+**The suite now proves it, having been watched failing** (AGENTS.md §7):
+
+* `dues.getDuesSchedules` and `dues.getMyDuesSummary` run their positive control as a
+  plain member again. The `positiveActor: 'alphaAdmin'` pin those two carried was this
+  bug's shadow — an admin-only control passes whether or not members can see their own
+  dues. Do not put it back.
+* Two new `PENDING_CASES` assert an applicant still reads nothing. What refuses them is
+  `auth_person_id() IS NOT NULL`, not a grant, because there is no longer a grant in the
+  way — so this policy is one of the few places that conjunct is load-bearing on its own.
+* Mutation-checked both directions: dropping the policy fails the four controls;
+  replacing the approved conjunct with `true` fails the two pending attacks.
+
+The three sibling tables were already correct and are unchanged — `dues_member_plans`
+is own-row, `dues_payments` is own-row OR a `transactions/*` grant.
+
+### What it was, and how it stayed hidden
 
 `permission_table_map` maps `dues_schedules` to `admin/account`, with `own_expr` and
-`self_expr` both `'false'`. The composed SELECT policy therefore reduces to
+`self_expr` both `'false'`, so the composed SELECT policy reduced to
 
 ```
 base_qual AND auth_permission('admin/account', 'view') = 'any'
 ```
 
-and `20260618000000` restricts every `category='admin'` resource per family. So a
-member with no Accounting grant reads **zero** dues schedules — and
-[`getMyDuesSummary`](app/actions/dues.ts) is the member-facing call behind My Summary
-and the dashboard's "you owe" card. It reads `dues_schedules` through the user client
-and returns `[]`. `dues_payments` and `dues_member_plans` are unaffected: both map to
-`dues`, which is `category='accounting'` and not restricted.
+and `20260618000000` restricts every `category='admin'` resource per family. A member
+with no Accounting grant therefore read **zero** dues schedules, and
+[`getMyDuesSummary`](app/actions/dues.ts) — the member-facing call behind My Summary and
+the dashboard's "you owe" card — reads that table through the user client and returned
+`[]`. `dues_payments` and `dues_member_plans` were never affected.
 
-Found because `20260806000008` made the RLS fixture seed `resource_visibility`. Before
-that the fixture wrote no visibility rows at all, so `admin/account` fell through to
-`'any'` and `dues.getDuesSchedules` / `dues.getMyDuesSummary` passed their positive
-controls against a permission configuration **no real family has** — the fixture
-failure mode AGENTS.md §7 warns about, in its most literal form. Both cases now pin
-`positiveActor: 'alphaAdmin'` with a comment pointing here; that keeps the isolation
-assertion meaningful and does nothing about the bug.
+**Two separate things hid it, and both are worth remembering.**
 
-The fix is not a one-liner, which is why it was parked: the sweep bakes the resource key
-into each policy as a literal, so re-pointing the table needs the policy surgery of
-`20260806000000` §6. And it is a product call first — *who may see the family's dues
-and donation schedules?* Reading what you owe and editing what everyone owes are
-plainly different rights, and one key currently governs both.
+*In the fixture:* until `20260806000008` the RLS fixture wrote no `resource_visibility`
+rows at all, so `admin/account` fell through to `'any'` and both cases passed their
+positive controls against a permission configuration **no real family has** — the
+failure mode AGENTS.md §7 warns about, in its most literal form. Seeding the rows
+exposed it, and the response at the time was to pin `positiveActor: 'alphaAdmin'` and
+write this entry: it kept the isolation assertion meaningful and did nothing about the
+bug. That pin is now gone.
 
-## 2. PARKED 2026-08-07: "Were you already added to the family?"
+*In use:* every person who had ever signed in was an administrator of every family they
+belonged to, so nobody had ever seen the member view of their own dues. The bug needed a
+plain member to exist before it could be observed, and the first one was an invitee.
+
+**On the fix being "not a one-liner", which is why it was parked:** that assessment
+assumed the table had to be re-pointed, and re-pointing means the policy surgery of
+`20260806000000` §6 because the sweep bakes the resource key in as a literal. Adding a
+policy alongside avoids all of it. The product question was the real blocker, and it was
+one question to the family, not a design problem.
+
+## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
 **Action:** decide how a registrant proves they are the pre-entered person, then either
 rebuild it around that proof or delete the code. It is off, not gone.
