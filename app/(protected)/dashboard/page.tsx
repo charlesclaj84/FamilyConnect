@@ -18,6 +18,7 @@ import { getUnreadCount } from '@/app/actions/notifications'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { formatDate } from '@/lib/date-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
+import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
@@ -56,7 +57,13 @@ export default async function DashboardPage() {
   const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters] = await Promise.all([
     eventsLive ? getUpcomingEvents().then(e => e.slice(0, 3)) : [],
     getMyRoles(),
-    getLinkPersonBannerData(),
+    // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
+    // Not fetched rather than fetched-and-hidden: the response is a roster of unlinked
+    // people, and props are serialized into the RSC payload whether a component renders
+    // them or not (AGENTS.md §5). The action refuses independently of this line.
+    LINK_EXISTING_PERSON_ENABLED
+      ? getLinkPersonBannerData()
+      : Promise.resolve({ showBanner: false, unlinkedPeople: [] }),
     announcementsLive ? getPinnedAnnouncements() : [],
     getMyDuesSummary(),
     getUnreadCount(),

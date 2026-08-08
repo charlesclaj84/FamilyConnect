@@ -306,8 +306,34 @@ export const MORE_CASES = [
     // so both sides run as newcomers rather than the usual member/admin pair.
     attacker: 'bravoNewcomer',
     positiveActor: 'alphaNewcomer',
-    expectPositive: (r) => JSON.stringify(r).includes('ALPHATESTChild'),
+    // The control is suspended, NOT deleted, because LINK_EXISTING_PERSON_ENABLED is
+    // false (lib/feature-flags.ts) and the action now returns an empty roster to
+    // everyone. That makes the attack assertion vacuous for as long as the flag is off —
+    // which is exactly the failure mode this suite exists to catch, so it is said out
+    // loud here rather than left as a green tick. Flip the flag and restore
+    //     expectPositive: (r) => JSON.stringify(r).includes('ALPHATESTChild')
+    // in the same commit; the kill-switch case below is what covers it meanwhile.
+    positive: 'not-applicable',
+    why: 'LINK_EXISTING_PERSON_ENABLED is false, so the action returns [] for everyone and no positive control is possible until it is re-enabled',
   }),
+  {
+    kind: 'write',
+    id: 'link-person.linkPersonToCurrentUser (feature off + cross-family)',
+    mod: 'app/actions/link-person.ts', fn: 'linkPersonToCurrentUser',
+    // Two assertions in one probe, and both survive the flag being flipped:
+    //   * while LINK_EXISTING_PERSON_ENABLED is false, NOBODY moves this row — the
+    //     kill switch is in the action, not only in the dashboard that hid the banner.
+    //   * whatever the flag says, BRAVO's administrator must never claim an ALPHA
+    //     record. That is the assertion that outlives the parking.
+    // The ancestor is the target because it is unlinked (user_id IS NULL), which is
+    // precisely what this action looks for — aiming at a linked row would be refused
+    // for a reason that has nothing to do with either question.
+    args: fx => [fx.alpha.ancestor.id],
+    probe: (db, fx) => snapshot('people', 'id, user_id',
+      { id: fx.alpha.ancestor.id })(db),
+    positive: 'not-applicable',
+    why: 'a successful link is exactly what the flag exists to prevent, so there is no positive control to run while it is off; re-enable it and the control becomes alphaNewcomer claiming their own family\'s record',
+  },
   // Not an RLS-path action — it reads through the service-role client, which sees
   // past every policy. Included because the family scoping RLS would have applied
   // has to be written by hand there, and this is the assertion that proves it was.

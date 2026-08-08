@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, isApprovedMember } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scoreMatch, type MatchReason } from '@/lib/match-utils'
+import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 
 export interface UnlinkedPerson {
   id: string
@@ -33,6 +34,12 @@ export async function getLinkPersonBannerData(): Promise<{
   showBanner: boolean
   unlinkedPeople: UnlinkedPerson[]
 }> {
+  // Turned off at the ENDPOINT, not only in the dashboard that renders it. This
+  // function returns the first name, last name and birth date of every unlinked person
+  // in the caller's family; leaving it live behind a hidden banner would keep that
+  // roster one POST away for anyone signed in. See lib/feature-flags.ts.
+  if (!LINK_EXISTING_PERSON_ENABLED) return { showBanner: false, unlinkedPeople: [] }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { showBanner: false, unlinkedPeople: [] }
@@ -121,6 +128,14 @@ export async function getLinkPersonBannerData(): Promise<{
 export async function linkPersonToCurrentUser(
   targetPersonId: string,
 ): Promise<LinkPersonResult> {
+  // The half that actually matters. This action moves an existing `people` row — with
+  // whatever dues history, payments, relationships and photo tags it carries — onto the
+  // caller's account, on nothing more than their say-so that it is them. Hiding the
+  // banner leaves that a live POST away. Refused here first, before anything is read.
+  if (!LINK_EXISTING_PERSON_ENABLED) {
+    return { success: false, message: 'This feature is not currently available.' }
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated.' }

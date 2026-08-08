@@ -140,6 +140,65 @@ into each policy as a literal, so re-pointing the table needs the policy surgery
 and donation schedules?* Reading what you owe and editing what everyone owes are
 plainly different rights, and one key currently governs both.
 
+## 2. PARKED 2026-08-07: "Were you already added to the family?"
+
+**Action:** decide how a registrant proves they are the pre-entered person, then either
+rebuild it around that proof or delete the code. It is off, not gone.
+
+Turned off with `LINK_EXISTING_PERSON_ENABLED = false`
+([lib/feature-flags.ts](lib/feature-flags.ts)). The dashboard banner
+([LinkPersonBanner](components/dashboard/LinkPersonBanner.tsx)) and both actions
+(`getLinkPersonBannerData`, `linkPersonToCurrentUser`) remain in the tree.
+
+**It is switched off at the ENDPOINTS, not merely hidden**, and that distinction is the
+whole reason this is more than a CSS change. Both actions are `'use server'` exports, so
+each has a URL and stays callable by anyone signed in however the dashboard renders
+(AGENTS.md §5). Hiding the banner alone would have left:
+
+* `getLinkPersonBannerData` returning the first name, last name and birth date of every
+  unlinked person in the caller's family — a roster, one POST away;
+* `linkPersonToCurrentUser` still able to move one of those rows onto the caller's
+  account.
+
+Verified as the *rightful* caller in their *own* family — an ALPHA newcomer claiming an
+ALPHA record — not merely as a cross-family attacker: banner `[]`, link refused.
+
+### Why it was worth parking rather than leaving on
+
+What the feature asks the user is "which of these people is you?", and the answer is
+self-asserted. What it hands over on that answer is an existing `people` row, which may
+already carry dues history, payments, relationships and photo tags — and, since Phase 3,
+a `membership_status` that the action has to carry across by hand precisely so claiming
+a record is not a way to launder approval.
+
+It is the same shape as the claim-by-email block Phase 3 deleted from `register.ts`, one
+step further along: there the match was automatic, here it is a menu. That deletion is
+documented in `register.ts` and its reasoning applies unchanged.
+
+### What has to be decided before it comes back
+
+1. **What counts as proof.** An administrator approving the link is the obvious answer
+   and fits the machinery that now exists — Member Approvals already reviews strangers;
+   reviewing "this newcomer says they are your Aunt Ada" is the same decision. An
+   invitation addressed to the pre-entered person's email is the other, and needs no new
+   surface at all now that invitations exist.
+2. **Whether the roster should ever reach the browser.** Today it ships names and birth
+   dates to anyone who has just registered with a valid family code, before anybody has
+   vouched for them. Matching server-side and returning only "we found a likely match,
+   ask an administrator to confirm" discloses nothing and probably suffices.
+3. **What happens to the stub.** The current implementation deletes it after moving
+   `user_id`, which is why the pending status has to be copied first. Any redesign
+   inherits that ordering problem.
+
+### Turning it back on
+
+Flip the flag, and in the same commit restore the two suspended assertions in
+`tests/rls/cases.mjs` — `getLinkPersonBannerData`'s positive control (it currently
+returns `[]` for everyone, so its isolation assertion is vacuous while the flag is off,
+and the case says so) and the positive half of
+`link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
+half of that case is live either way and needs no change.
+
 ## DONE 2026-08-06: Invite into any family you belong to
 
 `20260806000014`. `create_family_invitation()` takes a target family instead of always
