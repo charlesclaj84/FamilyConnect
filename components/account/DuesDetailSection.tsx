@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CheckCircle2, Clock, DollarSign, CalendarClock, HeartHandshake, History,
+  CheckCircle2, DollarSign, CalendarClock, HeartHandshake, History,
   Search, ArrowUpDown, ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,7 @@ import {
   setMyDuesPlan, setMyDuesOptOut,
   type DuesSummary, type DuesPayment,
 } from '@/app/actions/dues'
+import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import {
   SUMMARY_PANE_LABELS, type SummaryPane,
@@ -104,17 +105,55 @@ export function DuesDetailSection({
   const declined = rows.filter(s => s.optedOut)
   const paidPayments = history.filter(p => p.status === 'paid')
   const totalPaidCents = paidPayments.reduce((sum, p) => sum + p.amount_cents, 0)
-  // Split out rather than summed inline, because the Remaining Balance card needs the
-  // COUNT of required schedules as well as their total — see the comment there for why
-  // it counts only the required ones.
-  const requiredUnpaid = unpaid.filter(s => s.required)
-  const optionalUnpaid = unpaid.filter(s => !s.required)
-  const totalRequiredCents = requiredUnpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
-  const totalOptionalCents = optionalUnpaid.reduce((sum, s) => sum + s.remainingBalanceCents, 0)
-  const totalRemainingCents = totalRequiredCents + totalOptionalCents
-  const nextDue = unpaid
+  // No required/optional totals here any more: DuesBalanceKpi derives its own from the
+  // same rows, which is the point of it being one component rather than two.
+
+  /**
+   * What "Paid This Year" is the sum OF, per schedule, largest first.
+   *
+   * Dues and donations together, because both are rows of the same table and the member
+   * asked one question: where did my money go. The schedule name separates them on its
+   * own — a schedule is one kind or the other — so the lines need no Dues/Donation tag
+   * to be readable.
+   *
+   * Reversals net out here exactly as they do in the headline: a reversal is a `paid` row
+   * with a negative amount, so a payment that was corrected leaves its schedule showing
+   * what is actually left of it, including `$0.00` if the whole thing was taken back.
+   * That is the honest line to draw, and it is what explains a total that would otherwise
+   * look short.
+   *
+   * Not memoized on purpose: `paidPayments` is a fresh array every render, so a useMemo
+   * keyed on it would recompute anyway while costing a dependency the React Compiler then
+   * has to reason about (see the bail-out it already reports on `sortedDues`).
+   */
+  const paidBySchedule = (() => {
+    const byName = new Map<string, number>()
+    for (const p of paidPayments) {
+      // Same fallback the Payment History table uses, so one payment cannot be called two
+      // different things on one page.
+      const name = p.schedule_label ?? 'General Payment'
+      byName.set(name, (byName.get(name) ?? 0) + p.amount_cents)
+    }
+    return [...byName]
+      .map(([name, cents]) => ({ name, cents }))
+      .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name))
+  })()
+
+  /**
+   * Every outstanding schedule that has a date to show, soonest first.
+   *
+   * The card used to name only the first of these and call itself "Next Installment"
+   * whether there was one or five — so a member paying three dues on three cadences saw
+   * one date and had to infer that the other two existed. It now lists each schedule's own
+   * next date, and says "Installments" when it means more than one.
+   */
+  const installmentDueCents = (s: DuesSummary) => Math.min(s.installmentCents, s.remainingBalanceCents)
+  const upcoming = unpaid
     .filter(s => s.nextInstallmentDate)
-    .sort((a, b) => (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? ''))[0] ?? null
+    .sort((a, b) => (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? ''))
+  // The headline is what the member is about to pay across all of them. With one schedule
+  // that is the single installment, which is what this card has always shown.
+  const upcomingTotalCents = upcoming.reduce((sum, s) => sum + installmentDueCents(s), 0)
 
   async function changeCadence(scheduleId: string, cadence: PayCadence) {
     const row = rows.find(r => r.schedule.id === scheduleId)
@@ -232,58 +271,62 @@ export function DuesDetailSection({
           <p className="text-xs text-muted-foreground">
             {paidPayments.length === 0 ? 'No payments on record' : `${paidPayments.length} payment${paidPayments.length !== 1 ? 's' : ''} recorded`}
           </p>
-        </div>
-
-        <div className="rounded-2xl border bg-card p-5 space-y-2">
-          <div className="flex items-center gap-2.5">
-            {/* Amber for REQUIRED money only — an optional due left unpaid is not a
-                problem to flag. */}
-            <div className={`p-1.5 rounded-full ${totalRequiredCents > 0 ? 'bg-amber-100' : 'bg-green-100'}`}>
-              <Clock className={`h-4 w-4 ${totalRequiredCents > 0 ? 'text-amber-600' : 'text-green-600'}`} />
-            </div>
-            <span className="text-sm text-muted-foreground font-medium">Remaining Balance</span>
-          </div>
-          {/* THE SAME KPI AS THE DASHBOARD'S, said the same way — same headline, same
-              qualifier, same optional line, same icon, same words. It used to differ in
-              the one place that mattered: the figure was bare and "required" appeared
-              only as the first word of the line beneath it, so with an optional due
-              present the card read "$50.00 / required · $200.00 optional" — one sentence
-              spanning two elements, in which the $50 and the $200 looked like the same
-              kind of number and the qualifier could be read as belonging to either.
-              `required` now sits ON the headline, and optional is its own line below. */}
-          <div className="flex items-end gap-2">
-            <p className="text-3xl font-bold">{formatCurrency(totalRequiredCents)}</p>
-            <span className="mb-1 text-sm text-muted-foreground">required</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {/* Counts REQUIRED schedules only, because that is what the figure above is.
-                Counting all of them would have said "1 schedule outstanding" under a
-                headline of $0.00 whenever the only thing left was optional. */}
-            {totalRemainingCents === 0
-              ? 'All dues settled'
-              : totalRequiredCents === 0
-                ? 'Required dues all paid'
-                : `${requiredUnpaid.length} schedule${requiredUnpaid.length !== 1 ? 's' : ''} outstanding`}
-          </p>
-          {totalOptionalCents > 0 && (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <HeartHandshake className="h-3 w-3 shrink-0" />
-              <span><span className="font-medium text-foreground">{formatCurrency(totalOptionalCents)}</span> optional</span>
-            </p>
+          {/* The breakdown, under the count. Name on the left, figure on the right rather
+              than run together with a dash: these are a column of amounts to be compared
+              with each other, and a right edge is what makes that possible. Long names
+              truncate instead of wrapping, so the figures stay on their own lines. */}
+          {paidBySchedule.length > 0 && (
+            <ul className="space-y-0.5 pt-0.5">
+              {paidBySchedule.map(g => (
+                <li key={g.name} className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="min-w-0 truncate" title={g.name}>{g.name}</span>
+                  <span className="shrink-0 font-medium text-foreground">{formatCurrency(g.cents)}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
+
+        {/* NOT A LOCAL CARD ANY MORE. This is the dashboard's Account card, the same
+            component, unchanged — see DuesBalanceKpi. Two hand-rolled versions of one
+            KPI had drifted into two different readings of the same money, and matching
+            them by hand only lasts until the next edit to one of them.
+            Fed from `rows` rather than the `summary` prop, so an opt-out or a cadence
+            change updates the headline optimistically along with the table below. */}
+        <DuesBalanceKpi summary={rows} />
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-full bg-green-100"><DollarSign className="h-4 w-4 text-green-600" /></div>
-            <span className="text-sm text-muted-foreground font-medium">Next Installment</span>
+            {/* Plural only when it is plural. One schedule and this card is about one
+                payment; five and the figure below is a sum, which the title has to admit
+                or the number reads as a single installment five times too large. */}
+            <span className="text-sm text-muted-foreground font-medium">
+              Next Installment{upcoming.length > 1 ? 's' : ''}
+            </span>
           </div>
           <p className="text-2xl font-bold leading-tight">
-            {nextDue ? formatCurrency(Math.min(nextDue.installmentCents, nextDue.remainingBalanceCents)) : '—'}
+            {upcoming.length > 0 ? formatCurrency(upcomingTotalCents) : '—'}
           </p>
-          <p className="text-xs text-muted-foreground">
-            {nextDue ? `${nextDue.schedule.label} · due ${fmtDate(nextDue.nextInstallmentDate!)}` : 'No upcoming dues'}
-          </p>
+          {upcoming.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No upcoming dues</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {upcoming.map(s => (
+                <li key={s.schedule.id} className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="min-w-0 truncate" title={s.schedule.label}>
+                    {s.schedule.label} · due {fmtDate(s.nextInstallmentDate!)}
+                  </span>
+                  {/* Only when there are several. With one schedule the headline above
+                      already IS this amount, and printing it twice in a card five lines
+                      tall reads as two different figures. */}
+                  {upcoming.length > 1 && (
+                    <span className="shrink-0 font-medium text-foreground">{formatCurrency(installmentDueCents(s))}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

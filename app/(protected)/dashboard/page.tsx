@@ -20,7 +20,7 @@ import { formatDate } from '@/lib/date-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
-import { DuesStatusCard } from '@/components/dues/DuesStatusCard'
+import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
 import { isFeatureLive } from '@/lib/features'
 
@@ -128,7 +128,10 @@ export default async function DashboardPage() {
       {/* ── Account widget ────────────────────────────────────────── */}
       <section>
         <h2 className="text-lg font-semibold mb-4">Account</h2>
-        <DuesStatusCard summary={duesSummary} />
+        {/* The same component My Summary renders in its stat row — see DuesBalanceKpi on
+            why there is only one of these. `max-w-sm` is the width the card had here; on
+            My Summary a grid cell decides instead. */}
+        <DuesBalanceKpi summary={duesSummary} showViewLink className="max-w-sm" />
       </section>
 
       {/* ── Upcoming Events ───────────────────────────────────────── */}

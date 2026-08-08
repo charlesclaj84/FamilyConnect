@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Trash2, Pencil, X, DollarSign } from 'lucide-react'
+import { Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -55,12 +55,13 @@ const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time
 
 /**
  * Wording that differs between the two kinds. Everything else about them — the CRUD,
- * the list, the edit row, the payment form — is shared, which is the whole reason
+ * the list, the editor, the payment form — is shared, which is the whole reason
  * donations are a `kind` on dues_schedules rather than a parallel feature.
  */
 const KIND_COPY: Record<ScheduleKind, {
   noun: string
   title: string
+  editTitle: string
   blurb: string
   empty: string
   labelPlaceholder: string
@@ -69,6 +70,7 @@ const KIND_COPY: Record<ScheduleKind, {
   dues: {
     noun: 'dues',
     title: 'New Dues',
+    editTitle: 'Edit Dues',
     blurb: 'Dues every member of the family owes on this cadence.',
     empty: 'No dues yet.',
     labelPlaceholder: 'Annual Dues',
@@ -77,11 +79,48 @@ const KIND_COPY: Record<ScheduleKind, {
   donation: {
     noun: 'donation',
     title: 'New Donation',
+    editTitle: 'Edit Donation',
     blurb: 'A drive members can give to between two dates. Nobody owes it, and it never counts against a member’s balance.',
     empty: 'No donations yet.',
     labelPlaceholder: 'Scholarship Drive',
     amountPlaceholder: '500.00',
   },
+}
+
+/**
+ * Every field a dues schedule or a donation is made of, as the form holds them — dollars
+ * as typed rather than cents, dates as the `<input type="date">` strings.
+ */
+interface ScheduleForm {
+  label: string
+  /** Dues only. */
+  amount: string
+  /** Donations only. */
+  goal: string
+  frequency: string
+  startDate: string
+  endDate: string
+  description: string
+  required: boolean
+}
+
+const EMPTY_SCHEDULE_FORM: ScheduleForm = {
+  label: '', amount: '', goal: '', frequency: 'annual',
+  startDate: '', endDate: '', description: '', required: true,
+}
+
+/** A stored row, as the editor's form. */
+function formOfSchedule(s: DuesSchedule): ScheduleForm {
+  return {
+    label: s.label,
+    amount: (s.amount_cents / 100).toFixed(2),
+    goal: s.goal_cents ? (s.goal_cents / 100).toFixed(2) : '',
+    frequency: s.frequency,
+    startDate: s.start_date ?? '',
+    endDate: s.end_date ?? '',
+    description: s.description ?? '',
+    required: s.required,
+  }
 }
 
 /**
@@ -120,6 +159,109 @@ function RequiredToggle({ checked, onChange }: {
   )
 }
 
+/**
+ * The fields, once — used by BOTH the create dialog and the edit dialog.
+ *
+ * They were two near-identical copies before, differing only in ways nobody had decided:
+ * the editor had no placeholders, no required markers and no goal hint, because it had
+ * been written second. Now the same block renders in both, and the two things that
+ * genuinely differ arrive as props with a reason attached.
+ *
+ * `locked` freezes what a posted payment has already fixed. It is advisory — the action
+ * re-derives it and 20260807000001's trigger enforces it against the service-role client
+ * the action writes through — so disabling the input is about not offering an edit that is
+ * going to be refused, not about being the thing that refuses it.
+ *
+ * `endDateMin` is the editor's only other addition: an existing due may not have its end
+ * date MOVED into the past, because that would retire it behind the payments already
+ * recorded against it. Creating one with a past end date stays allowed, deliberately —
+ * that is how a treasurer enters last year's dues in order to record its history.
+ */
+function ScheduleFields({ kind, form, onChange, locked = false, endDateMin, autoFocus = false }: {
+  kind: ScheduleKind
+  form: ScheduleForm
+  onChange: (patch: Partial<ScheduleForm>) => void
+  locked?: boolean
+  endDateMin?: string
+  autoFocus?: boolean
+}) {
+  const copy = KIND_COPY[kind]
+  const isDonation = kind === 'donation'
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label>Name <span className="text-destructive">*</span></Label>
+        <Input
+          value={form.label}
+          onChange={e => onChange({ label: e.target.value })}
+          placeholder={copy.labelPlaceholder}
+          autoFocus={autoFocus}
+        />
+      </div>
+
+      {/* The one place the two kinds really differ. Dues state what is owed and how
+          often; a donation states a target and nothing else, because it asks for no
+          particular amount and does not recur. */}
+      {isDonation ? (
+        <div className="space-y-1.5">
+          <Label>Goal Amount <span className="text-destructive">*</span></Label>
+          <Input type="number" min="0" step="0.01" value={form.goal}
+            onChange={e => onChange({ goal: e.target.value })} placeholder={copy.amountPlaceholder} />
+          <p className="text-xs text-muted-foreground">
+            What each member is encouraged to reach. Advisory — members give what they
+            like, and may go past it.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Due Amount <span className="text-destructive">*</span></Label>
+            <Input type="number" min="0" step="0.01" disabled={locked} value={form.amount}
+              onChange={e => onChange({ amount: e.target.value })} placeholder={copy.amountPlaceholder} />
+          </div>
+          {/* Amount and frequency travel together: annualTotalCents is one multiplied by
+              the other, so freezing the amount alone would leave the same restatement one
+              field over. */}
+          <div className="space-y-1.5">
+            <Label>Frequency</Label>
+            <Select value={form.frequency} disabled={locked} onChange={e => onChange({ frequency: e.target.value })}>
+              {FREQ_OPTIONS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
+            </Select>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          {/* Both kinds name these the same. Only dues carry the "(optional)" hint, which
+              is where the wording already was. */}
+          <Label>Start Date{!isDonation && ' (optional)'}</Label>
+          <Input type="date" disabled={locked} value={form.startDate}
+            onChange={e => onChange({ startDate: e.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>End Date{!isDonation && ' (optional)'}</Label>
+          {/* `min` is the browser's local today, which is the honest boundary to show; the
+              action and the trigger allow a day of timezone slack so an evening in Pacific
+              time is not refused its own date. */}
+          <Input type="date" min={endDateMin} value={form.endDate}
+            onChange={e => onChange({ endDate: e.target.value })} />
+        </div>
+      </div>
+
+      {/* Dues only. A donation is optional by definition — the field would be a checkbox
+          that cannot be unticked. */}
+      {!isDonation && <RequiredToggle checked={form.required} onChange={next => onChange({ required: next })} />}
+
+      <div className="space-y-1.5">
+        <Label>Description (optional)</Label>
+        <Input value={form.description} onChange={e => onChange({ description: e.target.value })}
+          placeholder={`What this ${copy.noun} is for…`} />
+      </div>
+    </>
+  )
+}
+
 /** What is frozen once a schedule has been transacted against, in the editor's words. */
 const LOCK_NOTE: Record<ScheduleKind, string> = {
   dues: 'Payments have been recorded against this due, so its start date, amount and frequency are fixed — every one of those payments was made against these terms. The end date can still change.',
@@ -153,33 +295,25 @@ export function AdminIncomeClient({
   // Lives in a modal opened from the sub-nav, but its fields stay on the component:
   // closing the dialog (or switching section) keeps whatever was typed, the same way
   // the inline card used to. Only a successful create clears them.
-  const [nsLabel, setNsLabel] = useState('')
-  const [nsAmount, setNsAmount] = useState('')
-  const [nsGoal, setNsGoal] = useState('')
-  const [nsFreq, setNsFreq] = useState('annual')
-  const [nsStartDate, setNsStartDate] = useState('')
-  const [nsEndDate, setNsEndDate] = useState('')
-  const [nsDescription, setNsDescription] = useState('')
-  // Dues only. Defaults to required, which is what every schedule in the table meant
-  // before the flag existed.
-  const [nsRequired, setNsRequired] = useState(true)
+  // `required` defaults true, which is what every schedule in the table meant before the
+  // flag existed.
+  const [newForm, setNewForm] = useState<ScheduleForm>(EMPTY_SCHEDULE_FORM)
+  const patchNew = (patch: Partial<ScheduleForm>) => setNewForm(f => ({ ...f, ...patch }))
 
   // ── Edit schedule ──
-  // `editKind` fixes which fields the open editor shows to the row being edited, not
-  // to the page — they are always the same page today, but the row is the truth.
-  // `editLocked` is fixed at the same moment and for the same reason: it is a fact
-  // about the row being edited, not about the pane.
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editLocked, setEditLocked] = useState(false)
-  const [editKind, setEditKind] = useState<ScheduleKind>('dues')
-  const [editLabel, setEditLabel] = useState('')
-  const [editAmount, setEditAmount] = useState('')
-  const [editGoal, setEditGoal] = useState('')
-  const [editFreq, setEditFreq] = useState('annual')
-  const [editStartDate, setEditStartDate] = useState('')
-  const [editEndDate, setEditEndDate] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [editRequired, setEditRequired] = useState(true)
+  // WHICH row is being edited, as one object rather than four parallel useStates — every
+  // field of it is a fact about that row and they are only ever set together.
+  //
+  // `kind` and `locked` are fixed at the moment the editor opens, from the ROW: which
+  // fields to show and which of them are frozen are properties of the thing being edited,
+  // not of the pane it was opened from (always the same page today, but the row is the
+  // truth). `name` is the label as STORED, so the dialog can keep saying which record it
+  // is after the name field has been typed in.
+  const [editing, setEditing] = useState<{
+    id: string; kind: ScheduleKind; name: string; locked: boolean
+  } | null>(null)
+  const [editForm, setEditForm] = useState<ScheduleForm>(EMPTY_SCHEDULE_FORM)
+  const patchEdit = (patch: Partial<ScheduleForm>) => setEditForm(f => ({ ...f, ...patch }))
 
   // The deleted tab strip cleared `error` on every tab click; this preserves that.
   // Adjusted during render rather than in an effect on purpose — an effect runs
@@ -201,7 +335,7 @@ export function AdminIncomeClient({
     // The calendar opens on today. Only the start date: an end date of today would
     // retire a brand-new schedule the day it was created, and the field says
     // "(optional)" for dues because leaving it open is the normal case.
-    if (creating) { setNsStartDate(todayLocal()); setNsRequired(true) }
+    if (creating) patchNew({ startDate: todayLocal(), required: true })
   }
 
   // Which kind this pane is showing. The Dues and Donations pages are the same list
@@ -212,51 +346,53 @@ export function AdminIncomeClient({
   const visibleSchedules = schedules.filter(s => s.kind === kind)
 
   function startEdit(s: DuesSchedule) {
-    setEditId(s.id)
-    setEditKind(s.kind)
     // A due is locked by ANY payment against it, a donation only by money actually
     // received — see ScheduleUsage for why the two differ.
     const usage = scheduleUsage[s.id]
-    setEditLocked(s.kind === 'donation' ? (usage?.funded ?? false) : (usage?.used ?? false))
-    setEditLabel(s.label)
-    setEditAmount((s.amount_cents / 100).toFixed(2))
-    setEditGoal(s.goal_cents ? (s.goal_cents / 100).toFixed(2) : '')
-    setEditFreq(s.frequency)
-    setEditStartDate(s.start_date ?? '')
-    setEditEndDate(s.end_date ?? '')
-    setEditDescription(s.description ?? '')
-    setEditRequired(s.required)
+    setEditing({
+      id: s.id,
+      kind: s.kind,
+      name: s.label,
+      locked: s.kind === 'donation' ? (usage?.funded ?? false) : (usage?.used ?? false),
+    })
+    setEditForm(formOfSchedule(s))
     setError('')
   }
 
-  function cancelEdit() { setEditId(null); setError('') }
+  function cancelEdit() { setEditing(null); setError('') }
 
   async function handleSaveEdit() {
-    if (!editId || !editLabel) { setError('Name required'); return }
-    // Keyed off the ROW's kind, not the pane's: the row is what is being saved.
+    if (!editing) return
+    // Keyed off the ROW's kind, not the pane's: the row is what is being saved. Read once,
+    // so the closure that runs after the await cannot see a different row.
+    const { id, kind: editKind } = editing
     const isDonation = editKind === 'donation'
-    if (isDonation && !editGoal) { setError('A donation needs a goal'); return }
-    if (!isDonation && !editAmount) { setError('Amount required'); return }
+    if (!editForm.label) { setError('Name required'); return }
+    if (isDonation && !editForm.goal) { setError('A donation needs a goal'); return }
+    if (!isDonation && !editForm.amount) { setError('Amount required'); return }
 
     // Only when the value MOVES. A due that ended last March can still have its name
     // corrected, and rejecting the save over an end date nobody touched would make that
     // impossible. `min` on the input already discourages it; this is the message.
-    const stored = schedules.find(s => s.id === editId)
+    const stored = schedules.find(s => s.id === id)
     if (!isDonation
-        && editEndDate
-        && editEndDate !== (stored?.end_date ?? '')
-        && editEndDate < todayLocal()) {
+        && editForm.endDate
+        && editForm.endDate !== (stored?.end_date ?? '')
+        && editForm.endDate < todayLocal()) {
       setError('The end date cannot be in the past.')
       return
     }
 
-    const goalCents = editGoal ? Math.round(parseFloat(editGoal) * 100) : null
-    const amountCents = Math.round(parseFloat(editAmount || '0') * 100)
+    const goalCents = editForm.goal ? Math.round(parseFloat(editForm.goal) * 100) : null
+    const amountCents = Math.round(parseFloat(editForm.amount || '0') * 100)
+    // The confirm now opens on top of the edit dialog. That works — it portals to body at
+    // z-[100] — and it is the reason ConfirmDialog takes Escape in the capture phase; see
+    // the comment there.
     const ok = await confirm({
       title: `Save ${KIND_COPY[editKind].noun}`,
       description: isDonation
-        ? `Apply your edits to "${editLabel}" (goal ${formatDollars(goalCents ?? 0)})?`
-        : `Apply your edits to "${editLabel}" (${formatDollars(amountCents)} ${editFreq})?`,
+        ? `Apply your edits to "${editForm.label}" (goal ${formatDollars(goalCents ?? 0)})?`
+        : `Apply your edits to "${editForm.label}" (${formatDollars(amountCents)} ${editForm.frequency})?`,
       confirmLabel: 'Save changes',
     })
     if (!ok) return
@@ -270,27 +406,27 @@ export function AdminIncomeClient({
       // false and a CHECK holds it there.
       const changes = isDonation
         ? { goal_cents: goalCents }
-        : { amount_cents: amountCents, frequency: editFreq, required: editRequired }
-      const result = await updateDuesSchedule(editId, {
-        label: editLabel,
-        start_date: editStartDate || null,
-        end_date: editEndDate || null,
-        description: editDescription.trim() || null,
+        : { amount_cents: amountCents, frequency: editForm.frequency, required: editForm.required }
+      const result = await updateDuesSchedule(id, {
+        label: editForm.label,
+        start_date: editForm.startDate || null,
+        end_date: editForm.endDate || null,
+        description: editForm.description.trim() || null,
         ...changes,
       })
       if (!result.success) { setError(result.message ?? 'Failed'); return }
-      setSchedules(prev => prev.map(s => s.id === editId
+      setSchedules(prev => prev.map(s => s.id === id
         ? {
             ...s,
-            label: editLabel,
-            start_date: editStartDate || null,
-            end_date: editEndDate || null,
-            description: editDescription || null,
+            label: editForm.label,
+            start_date: editForm.startDate || null,
+            end_date: editForm.endDate || null,
+            description: editForm.description || null,
             ...changes,
           }
         : s
       ))
-      setEditId(null)
+      setEditing(null)
     })
   }
 
@@ -299,26 +435,26 @@ export function AdminIncomeClient({
     // runs after the await cannot see a different one.
     const newKind = creatingKind ?? 'dues'
     const isDonation = newKind === 'donation'
-    if (!nsLabel) { setError('Name required'); return }
-    if (isDonation && !nsGoal) { setError('A donation needs a goal'); return }
-    if (!isDonation && !nsAmount) { setError('Amount required'); return }
+    if (!newForm.label) { setError('Name required'); return }
+    if (isDonation && !newForm.goal) { setError('A donation needs a goal'); return }
+    if (!isDonation && !newForm.amount) { setError('Amount required'); return }
     setError('')
     startTransition(async () => {
       const result = await createDuesSchedule({
-        label: nsLabel,
+        label: newForm.label,
         // A donation asks for nothing per period and does not recur; the action pins
         // both of these itself, and passing them keeps the type honest.
-        amount_cents: isDonation ? 0 : Math.round(parseFloat(nsAmount) * 100),
-        frequency: isDonation ? 'one-time' : nsFreq,
-        goal_cents: isDonation ? Math.round(parseFloat(nsGoal) * 100) : null,
+        amount_cents: isDonation ? 0 : Math.round(parseFloat(newForm.amount) * 100),
+        frequency: isDonation ? 'one-time' : newForm.frequency,
+        goal_cents: isDonation ? Math.round(parseFloat(newForm.goal) * 100) : null,
         // Forced false for a donation rather than sent as-is: nobody owes a gift, and
         // the CHECK in 20260807000003 would refuse the row anyway.
-        required: isDonation ? false : nsRequired,
+        required: isDonation ? false : newForm.required,
         due_month: null,
         due_day: null,
-        start_date: nsStartDate || null,
-        end_date: nsEndDate || null,
-        description: nsDescription.trim() || null,
+        start_date: newForm.startDate || null,
+        end_date: newForm.endDate || null,
+        description: newForm.description.trim() || null,
         kind: newKind,
       })
       if (!result.success || !result.schedule) { setError(result.message ?? 'Failed'); return }
@@ -326,8 +462,7 @@ export function AdminIncomeClient({
       // label), so the list reads the same before and after the next refresh.
       const created = result.schedule
       setSchedules(prev => [...prev, created].sort((a, b) => a.label.localeCompare(b.label)))
-      setNsLabel(''); setNsAmount(''); setNsGoal(''); setNsStartDate(''); setNsEndDate(''); setNsDescription('')
-      setNsRequired(true)
+      setNewForm(EMPTY_SCHEDULE_FORM)
       onCloseCreate()
     })
   }
@@ -371,57 +506,12 @@ export function AdminIncomeClient({
             className="max-w-lg max-h-[90vh] overflow-y-auto"
           >
             <div className="space-y-3 mt-2">
-              <div className="space-y-1.5">
-                <Label>Name <span className="text-destructive">*</span></Label>
-                <Input value={nsLabel} onChange={e => setNsLabel(e.target.value)} placeholder={copy.labelPlaceholder} autoFocus />
-              </div>
-              {/* The one place the two kinds really differ. Dues state what is owed
-                  and how often; a donation states a target and nothing else, because
-                  it asks for no particular amount and does not recur. */}
-              {creatingKind === 'donation' ? (
-                <div className="space-y-1.5">
-                  <Label>Goal Amount <span className="text-destructive">*</span></Label>
-                  <Input type="number" min="0" step="0.01" value={nsGoal} onChange={e => setNsGoal(e.target.value)} placeholder={copy.amountPlaceholder} />
-                  <p className="text-xs text-muted-foreground">
-                    What each member is encouraged to reach. Advisory — members give what they
-                    like, and may go past it.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Due Amount <span className="text-destructive">*</span></Label>
-                    <Input type="number" min="0" step="0.01" value={nsAmount} onChange={e => setNsAmount(e.target.value)} placeholder={copy.amountPlaceholder} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Frequency</Label>
-                    <Select value={nsFreq} onChange={e => setNsFreq(e.target.value)}>
-                      {FREQ_OPTIONS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
-                    </Select>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  {/* Both kinds name these the same now. Only dues carry the
-                      "(optional)" hint, which is where the wording already was. */}
-                  <Label>Start Date{creatingKind !== 'donation' && ' (optional)'}</Label>
-                  <Input type="date" value={nsStartDate} onChange={e => setNsStartDate(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>End Date{creatingKind !== 'donation' && ' (optional)'}</Label>
-                  <Input type="date" value={nsEndDate} onChange={e => setNsEndDate(e.target.value)} />
-                </div>
-              </div>
-              {/* Dues only. A donation is optional by definition — the field would be a
-                  checkbox that cannot be unticked. */}
-              {creatingKind !== 'donation' && (
-                <RequiredToggle checked={nsRequired} onChange={setNsRequired} />
-              )}
-              <div className="space-y-1.5">
-                <Label>Description (optional)</Label>
-                <Input value={nsDescription} onChange={e => setNsDescription(e.target.value)} placeholder={`What this ${copy.noun} is for…`} />
-              </div>
+              <ScheduleFields
+                kind={creatingKind ?? kind}
+                form={newForm}
+                onChange={patchNew}
+                autoFocus
+              />
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleCreateSchedule} disabled={isPending}>
@@ -434,11 +524,67 @@ export function AdminIncomeClient({
             </div>
           </Dialog>
 
+          {/* ── Edit, in a dialog ──
+              It used to take over the row it belonged to: a full-width `colSpan` cell
+              holding eight fields inside the table it was editing. That is what the table
+              had to grow around, and it cost more than it looked like. The row's own
+              columns vanished while you edited it, so the values you were changing were no
+              longer next to the values you were changing them against; the table jumped by
+              a couple of hundred pixels on every pencil click; and on a phone the form was
+              inside a horizontally scrolling container, so half of it sat off-screen.
+
+              A dialog also means the editor and the create form can be the same fields —
+              they are, now, via ScheduleFields — because they finally have the same amount
+              of room to be the same in.
+
+              `editing` carries the row, so the dialog cannot be open without one, and the
+              fields it shows follow the ROW's kind rather than the pane's. */}
+          <Dialog
+            open={editing !== null}
+            onClose={cancelEdit}
+            title={editing ? KIND_COPY[editing.kind].editTitle : ''}
+            /* The name as STORED, so it still says which record this is after the Name
+               field has been typed in. */
+            description={editing?.name}
+            className="max-w-lg max-h-[90vh] overflow-y-auto"
+          >
+            {editing && (
+              <div className="space-y-3 mt-2">
+                {/* Said once, above the fields it explains, rather than as a tooltip on
+                    each disabled input: a greyed-out box with no reason beside it reads as
+                    a bug. */}
+                {editing.locked && (
+                  <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    {LOCK_NOTE[editing.kind]}
+                  </p>
+                )}
+                <ScheduleFields
+                  kind={editing.kind}
+                  form={editForm}
+                  onChange={patchEdit}
+                  locked={editing.locked}
+                  endDateMin={editing.kind === 'dues' ? todayLocal() : undefined}
+                  autoFocus
+                />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button className="flex-1" onClick={handleSaveEdit} disabled={isPending}>
+                    {isPending ? 'Saving…' : 'Save changes'}
+                  </Button>
+                  <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Dialog>
+
           {/* A table, matching Member Directory and the Funds pane. The columns differ by
               kind because the two kinds ARE different facts: dues state what is owed, how
-              often, and whether it can be declined; a donation states a target. The
-              inline editor takes over the whole row as a full-width cell rather than
-              trying to edit in place, because the fields it shows outnumber the columns. */}
+              often, and whether it can be declined; a donation states a target.
+              Nothing about editing lives in here any more — the pencil opens the dialog
+              above, so a row is only ever a row and the table's shape never changes under
+              the reader. */}
           {visibleSchedules.length > 0 && (
             <div className="overflow-x-auto rounded-xl border">
               <table className="w-full min-w-[44rem] border-collapse text-sm">
@@ -462,84 +608,6 @@ export function AdminIncomeClient({
                 <tbody>
               {visibleSchedules.map(s => (
                 <tr key={s.id} className="border-b last:border-0 align-middle">
-                  {editId === s.id ? (
-                    <td colSpan={kind === 'donation' ? 5 : 7} className="space-y-3 bg-muted/30 px-4 py-3">
-                      {/* Said once, above the fields it explains, rather than as a
-                          tooltip on each disabled input: a greyed-out box with no
-                          reason beside it reads as a bug. */}
-                      {editLocked && (
-                        <p className="rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground">
-                          {LOCK_NOTE[editKind]}
-                        </p>
-                      )}
-                      {/* Mirrors the create dialog: a donation edits its goal, dues
-                          edit amount and frequency. */}
-                      {editKind === 'donation' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label>Name</Label>
-                            <Input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Goal Amount</Label>
-                            <Input type="number" min="0" step="0.01" value={editGoal} onChange={e => setEditGoal(e.target.value)} />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="space-y-1.5">
-                            <Label>Name</Label>
-                            <Input value={editLabel} onChange={e => setEditLabel(e.target.value)} />
-                          </div>
-                          {/* Amount and frequency travel together: annualTotalCents is
-                              one multiplied by the other, so freezing the amount alone
-                              would leave the same restatement one field over. */}
-                          <div className="space-y-1.5">
-                            <Label>Due Amount</Label>
-                            <Input type="number" min="0" step="0.01" disabled={editLocked} value={editAmount} onChange={e => setEditAmount(e.target.value)} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Frequency</Label>
-                            <Select value={editFreq} disabled={editLocked} onChange={e => setEditFreq(e.target.value)}>
-                              {FREQ_OPTIONS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
-                            </Select>
-                          </div>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label>Start Date</Label>
-                          <Input type="date" disabled={editLocked} value={editStartDate} onChange={e => setEditStartDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>End Date</Label>
-                          {/* Never in the past for a due. `min` is the browser's local
-                              today, which is the honest boundary to show; the action and
-                              the trigger allow a day of timezone slack so an evening in
-                              Pacific time is not refused its own date. */}
-                          <Input
-                            type="date"
-                            min={editKind === 'dues' ? todayLocal() : undefined}
-                            value={editEndDate}
-                            onChange={e => setEditEndDate(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      {editKind !== 'donation' && (
-                        <RequiredToggle checked={editRequired} onChange={setEditRequired} />
-                      )}
-                      <div className="space-y-1.5">
-                        <Label>Description</Label>
-                        <Input value={editDescription} onChange={e => setEditDescription(e.target.value)} />
-                      </div>
-                      {error && <p className="text-sm text-destructive">{error}</p>}
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={handleSaveEdit} disabled={isPending}>Save</Button>
-                        <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="h-3.5 w-3.5" /></Button>
-                      </div>
-                    </td>
-                  ) : (
-                    <>
                       <td className="px-3 py-2.5">
                         {/* Description on hover, matching how a member sees the same
                             field in My Summary. Underlined only when there is
@@ -596,8 +664,6 @@ export function AdminIncomeClient({
                           )}
                         </div>
                       </td>
-                    </>
-                  )}
                 </tr>
               ))}
                 </tbody>

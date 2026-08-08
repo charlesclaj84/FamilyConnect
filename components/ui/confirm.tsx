@@ -89,19 +89,29 @@ function ConfirmDialog({
 
   // Escape always cancels; Enter takes the affirmative. Both are scoped to the
   // window because the dialog owns focus for as long as it is open.
+  //
+  // CAPTURE PHASE, and it stops propagation — because a confirm can now open ON TOP OF a
+  // Dialog (the schedule editor in AdminIncomeClient is the first). `Dialog` closes itself
+  // on Escape from its own document listener, and a bubble-phase listener here does not
+  // prevent that one from also firing: Escape would cancel the confirm AND close the
+  // editor underneath it, throwing away the edits. A capture listener on `document` runs
+  // before any bubble listener on `document`, so stopping propagation there means the
+  // topmost modal is the only thing that answers the key — which is what "modal" means.
   React.useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         onSettle(false)
       } else if (e.key === 'Enter') {
         e.preventDefault()
+        e.stopPropagation()
         onSettle(true)
       }
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
   }, [open, onSettle])
 
   React.useEffect(() => {
