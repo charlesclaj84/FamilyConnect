@@ -338,7 +338,17 @@ export function RegisterForm({
       </CardContent>
       <CardFooter className="justify-center text-sm">
         <span className="text-muted-foreground">Already have an account?&nbsp;</span>
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        {/* An invited visitor who turns out to have an account already must come back to
+            the invitation after signing in, or the token is simply lost and they are in
+            no family. Plain /login would strand them on the dashboard. */}
+        <Link
+          href={
+            inviteToken
+              ? `/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
+              : '/login'
+          }
+          className="font-medium text-primary hover:underline"
+        >
           Sign in
         </Link>
       </CardFooter>

@@ -246,6 +246,37 @@ it belongs with the SMTP box under GO LIVE, and until then "invite" means "gener
 link". Registration handles `?invite=` so a brand-new invitee is not asked for a family
 code they were never given.
 
+**FIXED 2026-08-08: nothing ever linked to `?invite=`.** The sentence above was true of
+the register page and false of the flow. `/invite/<token>` sent an unauthenticated
+visitor to a bare `/register`, which is the ordinary join form — so the invitation mode
+built for exactly this case was unreachable, and every invitee hit a required Family Code
+field answering a code an invitation exists to replace. A dead end, reported from a real
+invite off Members & Access.
+
+Both links on that page now carry the token, and so does each form's link to the other:
+
+| From | To | Carries |
+|---|---|---|
+| `/invite/<token>` | Create an account | `/register?invite=<token>` |
+| `/invite/<token>` | Sign in | `/login?next=/invite/<token>` |
+| `/register?invite=` | Sign in | `/login?next=/invite/<token>` |
+| `/login?next=/invite/` | Create one | `/register?invite=<token>` |
+
+The cross-links are the half worth keeping: an invitee who guesses wrong about whether
+they already have an account must not be dropped into the other form with the token
+stripped, which lands them right back on the family-code question.
+
+`?next=` is validated by [lib/safe-next.ts](lib/safe-next.ts) — same-origin absolute
+paths only, `//` and `/\` rejected. It is the rule that was already private to
+`/auth/confirm`, extracted rather than copied: two implementations of an open-redirect
+guard are two chances for one of them to be the lenient one, and both of these sit on
+URLs users are told by email to trust.
+
+Verified end to end against the local stack by calling the real `registerUser` with a
+token and no family code: pending for an ordinary invitation, approved for a
+pre-approved one, invitation spent, and a mismatched address refused against the email
+field with no account created.
+
 ### The finding that came out of building it
 
 The first draft had a second RPC taking `(token, user_id)`, granted to `service_role`

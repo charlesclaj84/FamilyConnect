@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { safeNext } from '@/lib/safe-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,6 +41,24 @@ export function LoginForm() {
   // hint that the link they just clicked did anything at all.
   const searchParams = useSearchParams()
   const linkError = searchParams.get('error') ?? ''
+  // Where to go after signing in. /invite/<token> sends people here with one, so an
+  // invitee who already has an account lands back on the invitation and has it redeemed,
+  // instead of arriving at the dashboard and being told to go find the email again.
+  // Validated because it arrives in a URL and is therefore attacker-controlled —
+  // lib/safe-next.ts, shared with /auth/confirm.
+  const next = safeNext(searchParams.get('next'))
+  // Someone who came from an invitation, then found they have no account, must not be
+  // handed the ordinary register form — it asks for a family code they were never told,
+  // which is the dead end this whole flow exists to close. Carry the token across.
+  // `next` is already decoded by searchParams.get(), so the token is taken as-is —
+  // decoding it a second time would both mangle a legitimate value and throw on a
+  // malformed escape (`?next=/invite/%zz`), which is a crash an attacker picks.
+  const inviteToken = next.startsWith('/invite/')
+    ? next.slice('/invite/'.length).split(/[?#/]/)[0]
+    : ''
+  const registerHref = inviteToken
+    ? `/register?invite=${encodeURIComponent(inviteToken)}`
+    : '/register'
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -57,7 +76,7 @@ export function LoginForm() {
     if (error) {
       setServerError(error.message)
     } else {
-      router.push('/dashboard')
+      router.push(next)
       router.refresh()
     }
   }
@@ -131,7 +150,7 @@ export function LoginForm() {
       </CardContent>
       <CardFooter className="justify-center text-sm">
         <span className="text-muted-foreground">Don&apos;t have an account?&nbsp;</span>
-        <Link href="/register" className="text-primary font-medium hover:underline">
+        <Link href={registerHref} className="text-primary font-medium hover:underline">
           Create one
         </Link>
       </CardFooter>

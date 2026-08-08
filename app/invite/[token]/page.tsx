@@ -22,6 +22,16 @@ export const metadata = { title: 'Invitation — Family Connect' }
  *                      register or sign-in. Redemption needs an account: the invitation
  *                      is bound to an email, and matching it is what makes a forwarded
  *                      link useless to anyone else.
+ *
+ *                      BOTH LINKS CARRY THE TOKEN, and that is the whole flow rather
+ *                      than a nicety. `/register` on its own is the ordinary form, which
+ *                      requires a family code an invited person has never been told —
+ *                      a dead end, and the one this page shipped with. `?invite=` puts
+ *                      the form into invitation mode: the family comes from the token,
+ *                      so they answer first name, last name and password and are done.
+ *                      Sign-in gets `?next=` for the same reason: an existing account
+ *                      should come back here and be redeemed, not be told to find the
+ *                      email again.
  *   signed in          redeem immediately and go where the result says.
  *
  * Redeeming on GET is deliberate and safe here: it is idempotent in the direction that
@@ -69,8 +79,10 @@ export default async function InvitePage({
           </CardTitle>
           <CardDescription>
             This invitation was sent to{' '}
-            <span className="font-medium">{invitation.email}</span>. Sign in with that
-            address — or create an account with it — and then open this link again.
+            <span className="font-medium">{invitation.email}</span>. Create an account
+            with that address to accept it — you will not need a family code, this
+            invitation is your way in. Already have an account? Sign in and you will come
+            straight back here.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -86,13 +98,13 @@ export default async function InvitePage({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/register"
+              href={`/register?invite=${encodeURIComponent(token)}`}
               className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
             >
               Create an account
             </Link>
             <Link
-              href="/login"
+              href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
               className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
             >
               Sign in

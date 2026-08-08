@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeNext } from '@/lib/safe-next'
 
 /**
  * Where a confirmation email lands. The piece that did not exist while
@@ -33,19 +34,9 @@ const ALLOWED_TYPES: readonly EmailOtpType[] = [
   'signup', 'email_change', 'recovery', 'magiclink', 'invite', 'email',
 ]
 
-/**
- * `next` comes off the query string, so an unvalidated redirect here is an open
- * redirect wearing our domain — the classic phishing primitive, and it would be sitting
- * on the one URL users are told to trust from an email. Only a same-origin ABSOLUTE
- * PATH is accepted: a value starting `//` or `/\` is a protocol-relative URL to
- * somewhere else and is rejected along with everything that names a host.
- */
-function safeNext(raw: string | null): string {
-  if (!raw) return '/dashboard'
-  if (!raw.startsWith('/')) return '/dashboard'
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/dashboard'
-  return raw
-}
+// `next` is validated by lib/safe-next.ts, which the sign-in form shares — see there for
+// why an unvalidated value on this route in particular would be an open redirect sitting
+// on the one URL users are told to trust from an email.
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
