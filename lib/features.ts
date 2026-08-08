@@ -109,11 +109,23 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
-  // There is no `/dues` route. The member-facing dues view is My Summary, and the
-  // admin-facing one is Accounting. The `dues` PERMISSION RESOURCE still exists and
-  // is load-bearing — it gates `dues:edit` (recording a payment for someone other
-  // than yourself) and the RLS on dues_member_plans / dues_payments — it simply has
-  // no page of its own, so it needs no entry here.
+  // There is no `/dues` route and, since 20260808000001, no `dues` permission resource
+  // either. Both halves of what it used to govern moved to the key of the screen that
+  // actually asks the question:
+  //
+  //   dues_payments SELECT   -> transactions/dues-payments:view
+  //                             OR transactions/donation-payments:view
+  //                             ("may I see OTHER people's" — a Transactions question)
+  //   dues_member_plans      -> nothing. Self-service; a member's own cadence and
+  //                             opt-out, which no screen offers to set for anyone else.
+  //
+  // Both keep an unconditional `person_id = auth_person_id()` clause, which is what
+  // makes My Summary own-only regardless of any grant. My Summary and Transactions are
+  // two different screens answering two different questions and no longer share a key.
+  //
+  // The note this replaces claimed `dues:edit` gated "recording a payment for someone
+  // other than yourself". That stopped being true in 20260806000000, which moved
+  // recording to transactions/dues-payments:create.
   {
     href: '/family-finances',
     label: 'Family Finances',

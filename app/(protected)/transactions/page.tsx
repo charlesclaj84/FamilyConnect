@@ -140,6 +140,21 @@ export default async function TransactionsPage({
       .eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
   ])
 
+  // Dues and Donations are two ledgers over ONE table, split by schedule kind — so the
+  // single query above answers for both and the rows for a ledger this caller cannot
+  // see have to be dropped before they become props. The RLS policy admits the row on
+  // EITHER ledger grant (it cannot ask about kind — dues_schedules is gated by
+  // admin/account, so a subquery against it returns nothing for most callers; see
+  // 20260808000001 §1), which makes this the only place the kind split can be applied
+  // correctly.
+  //
+  // Split on the same test the client uses to fill the two ledgers, so what is dropped
+  // here is exactly what the hidden tab would have shown — including the legacy
+  // no-schedule rows, which both treat as dues.
+  const visiblePayments = payments.filter(p =>
+    p.schedule_kind === 'donation' ? canSee('donations') : canSee('dues'),
+  )
+
   // Schedules drive the payment form's picker; a caller who can record neither kind
   // has no use for them, and they are family configuration.
   const visibleSchedules = canRecordDues || canRecordDonations ? schedules : []
@@ -159,7 +174,7 @@ export default async function TransactionsPage({
       <TransactionsClient
         initialLedger={initialLedger}
         visibleLedgers={visibleLedgers}
-        initialPayments={payments}
+        initialPayments={visiblePayments}
         initialContributions={contributions}
         initialDisbursements={disbursements}
         schedules={visibleSchedules}

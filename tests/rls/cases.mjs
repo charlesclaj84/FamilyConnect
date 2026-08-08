@@ -134,6 +134,44 @@ export const CASES = [
   }),
   read('dues.getAllDuesPayments', 'app/actions/dues.ts', 'getAllDuesPayments'),
   read('dues.getMyPaymentHistory', 'app/actions/dues.ts', 'getMyPaymentHistory'),
+
+  // ── My Summary is for me and me only ──────────────────────────────────────
+  // A DIFFERENT CLAIM from every other case in this file. The rest ask "can BRAVO
+  // reach ALPHA"; these two ask "can a member of ALPHA who holds EVERY grant ALPHA can
+  // confer see another ALPHA member through My Summary". The answer must be no, and
+  // not because a grant was withheld — alphaAdmin holds scope 'any' on everything.
+  //
+  // What makes it no is that both actions filter `.eq('person_id', myPersonId)` in the
+  // ACTION, before RLS is consulted. That is three easily-deleted lines standing
+  // between "what I owe" and "what everybody owes", and until now nothing tested them:
+  // the cross-family cases above pass whether or not the filter is there, because
+  // BRAVO is refused by family scoping either way.
+  //
+  // The attacker is alphaAdmin, so `alphaMarkers` cannot be the assertion — every
+  // ALPHA id is legitimately theirs to hold. Assert the shape instead: no row may
+  // carry another member's person_id. Delete either filter and these fail; that is
+  // what they are for.
+  read('dues.getMyDuesSummary (own rows only, even for an administrator)',
+    'app/actions/dues.ts', 'getMyDuesSummary', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => Array.isArray(r)
+        && r.every(row => row.schedule && !JSON.stringify(row).includes(fx.alpha.otherPersonId)),
+      positiveActor: 'alphaAdmin',
+      positive: 'not-applicable',
+      why: 'attacker and owner are the same caller by design — the claim is about scope within one family, not across two; the cross-family control is the getMyDuesSummary case above',
+    }),
+  read('dues.getMyPaymentHistory (own rows only, even for an administrator)',
+    'app/actions/dues.ts', 'getMyPaymentHistory', {
+      attacker: 'alphaAdmin',
+      // ALPHA's seeded payment belongs to ownerPersonId, not to alphaAdmin — so an
+      // unfiltered query returns it and a filtered one does not. That single row is
+      // the whole difference between the two behaviours.
+      expectAttack: (r, fx) => Array.isArray(r)
+        && r.every(row => row.person_id !== fx.alpha.ownerPersonId
+                       && row.person_id !== fx.alpha.otherPersonId),
+      positive: 'not-applicable',
+      why: 'same caller on both halves by design; cross-family isolation for this action is the getMyPaymentHistory case above',
+    }),
   // NOT an RLS-path read: getScheduleUsage aggregates dues_payments through the
   // service-role client on purpose, because a member's own RLS view of that table
   // cannot answer "has anyone paid this?" — so its family isolation is a hand-written
