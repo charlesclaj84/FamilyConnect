@@ -311,18 +311,23 @@ export function DuesDetailSection({
           {upcoming.length === 0 ? (
             <p className="text-xs text-muted-foreground">No upcoming dues</p>
           ) : (
-            <ul className="space-y-0.5">
+            /* TWO LINES PER SCHEDULE: the name, then when it is due and for how much.
+               One line held all three and the name was the part that lost — it truncated
+               first, because the date and the amount are fixed-width and it was not, so a
+               "Building Maintenance Fund" was read as "Building Mainten…" while a date
+               nobody was looking for sat beside it in full. On its own line it fits.
+               The amount now shows even when there is only one schedule, where it repeats
+               the headline. That repetition is worth less than a card whose rows change
+               shape depending on how many of them there are. */
+            <ul className="space-y-1.5">
               {upcoming.map(s => (
-                <li key={s.schedule.id} className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="min-w-0 truncate" title={s.schedule.label}>
-                    {s.schedule.label} · due {fmtDate(s.nextInstallmentDate!)}
-                  </span>
-                  {/* Only when there are several. With one schedule the headline above
-                      already IS this amount, and printing it twice in a card five lines
-                      tall reads as two different figures. */}
-                  {upcoming.length > 1 && (
-                    <span className="shrink-0 font-medium text-foreground">{formatCurrency(installmentDueCents(s))}</span>
-                  )}
+                <li key={s.schedule.id} className="text-xs">
+                  <p className="truncate font-medium" title={s.schedule.label}>{s.schedule.label}</p>
+                  <p className="text-muted-foreground">
+                    due {fmtDate(s.nextInstallmentDate!)}
+                    {' · '}
+                    <span className="font-medium text-foreground">{formatCurrency(installmentDueCents(s))}</span>
+                  </p>
                 </li>
               ))}
             </ul>
