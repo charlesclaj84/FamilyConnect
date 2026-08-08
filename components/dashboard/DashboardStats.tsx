@@ -8,13 +8,23 @@ interface Props {
   unreadCount: number
   /** False while Events is still on the roadmap — see lib/features.ts. */
   eventsLive: boolean
+  /**
+   * People waiting on a membership decision, shown under the Members count.
+   *
+   * Already 0 for anyone who cannot work the approvals queue: the page resolves the
+   * grant server-side via getPendingApprovalCount() and never computes it otherwise, so
+   * this component does not re-check it and there is no hidden number in the payload.
+   */
+  pendingApprovals?: number
 }
 
-function StatCard({ icon: Icon, label, value, color }: {
+function StatCard({ icon: Icon, label, value, color, footnote }: {
   icon: React.ElementType
   label: string
   value: string
   color: string
+  /** Second line under the value. Omitted entirely when absent, so the card keeps its height. */
+  footnote?: React.ReactNode
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 w-full hover:shadow-sm transition-shadow">
@@ -24,12 +34,13 @@ function StatCard({ icon: Icon, label, value, color }: {
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="text-lg font-semibold leading-tight">{value}</p>
+        {footnote}
       </div>
     </div>
   )
 }
 
-export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unreadCount, eventsLive }: Props) {
+export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unreadCount, eventsLive, pendingApprovals = 0 }: Props) {
   const eventLabel = daysToNextEvent === null
     ? 'No events'
     : daysToNextEvent === 0
@@ -39,7 +50,24 @@ export function DashboardStats({ memberCount, daysToNextEvent, nextEventId, unre
   return (
     <div className="flex flex-col sm:flex-row gap-3">
       <Link href="/members" className="flex-1">
-        <StatCard icon={Users} label="Members" value={String(memberCount)} color="bg-blue-100 text-blue-700" />
+        <StatCard
+          icon={Users}
+          label="Members"
+          value={String(memberCount)}
+          color="bg-blue-100 text-blue-700"
+          // OUTSIDE the count, never added to it. `memberCount` is approved members —
+          // people who are in the family — and an applicant is not one yet, which is the
+          // whole reason they stopped being counted. Showing the queue depth as a second
+          // line says "and this many are waiting on you" without restating who belongs.
+          //
+          // Rendered only for someone who can work the queue, and the value is 0 for
+          // everybody else before it ever reaches the browser.
+          footnote={pendingApprovals > 0 ? (
+            <p className="text-[11px] font-medium leading-tight text-amber-700 mt-0.5">
+              {pendingApprovals} pending approval
+            </p>
+          ) : undefined}
+        />
       </Link>
 
       {/* Omitted entirely until Events ships, rather than shown as "coming soon".

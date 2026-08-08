@@ -123,6 +123,50 @@ export async function getApplicants(): Promise<{
   }
 }
 
+/**
+ * How many people are waiting on a decision, for the notification bell.
+ *
+ * A COUNT AND NOTHING ELSE. The bell hangs on every page in the app, so this runs on
+ * every render, and the alternative — calling getApplicants() and reading `.length` —
+ * would pull every applicant's name, email and phone into the navbar's props on every
+ * page load, for a number. Props are serialized into the RSC payload whether a
+ * component reads them or not (AGENTS.md §5), so that is a roster published to the
+ * browser, not a wasted query. `head: true` sends no rows at all.
+ *
+ * Returns 0 rather than throwing for a caller without the grant, because the bell is
+ * rendered for everyone and only some of them can act on this. The guard is what makes
+ * it 0: a member with no admin/approvals view never reaches the query, so the number
+ * they cannot act on is never computed and never reaches their browser.
+ *
+ * `.not('user_id', 'is', null)` matters as much here as in getApplicants(). A `people`
+ * row can be pending WITHOUT anyone waiting behind it — that is what pre-entering a
+ * relative creates, and one of those sat in 23HAYW until 2026-08-08. Counting those
+ * would put a number on the bell that the approvals queue does not show and no
+ * decision can clear.
+ *
+ * 'pending' only, never `<> 'approved'`: 'rejected' and 'disabled' are decided states,
+ * and testing positively for the one state that means "waiting" is the rule
+ * 20260807000000 set for this column.
+ */
+export async function getPendingApprovalCount(): Promise<number> {
+  const g = await requireRead('admin/approvals')
+  if (!g.ok) return 0
+
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from('people')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_code', g.familyCode)
+    .not('user_id', 'is', null)
+    .eq('membership_status', 'pending')
+
+  // A refused query and an empty queue are different things and `count` cannot tell
+  // them apart — AGENTS.md §8. Nothing on screen distinguishes them either, so the
+  // honest failure is to show no badge rather than a wrong one.
+  if (error) return 0
+  return count ?? 0
+}
+
 async function decide(
   personId: string,
   status: 'approved' | 'rejected',

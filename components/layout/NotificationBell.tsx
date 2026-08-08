@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
 import { formatDate } from '@/lib/date-utils'
@@ -9,6 +9,12 @@ import { formatDate } from '@/lib/date-utils'
 interface Props {
   initialNotifications: Notification[]
   personId: string
+  /**
+   * How many people are waiting on a membership decision. Already 0 for a caller who
+   * cannot work the approvals queue — the navbar resolves the grant server-side and
+   * never computes it for anyone else, so this component does not re-check it.
+   */
+  pendingApprovals?: number
 }
 
 function timeAgo(iso: string): string {
@@ -21,12 +27,29 @@ function timeAgo(iso: string): string {
   return formatDate(iso) ?? ''
 }
 
-export function NotificationBell({ initialNotifications, personId }: Props) {
+export function NotificationBell({ initialNotifications, personId, pendingApprovals = 0 }: Props) {
   const [notifications, setNotifications] = useState(initialNotifications)
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const unread = notifications.filter(n => !n.read_at).length
+  // A STANDING ITEM, not a notification, and the difference is load-bearing in three
+  // places below. It has no row in `notifications`, so it cannot be marked read, is not
+  // cleared by "Mark all read", and does not arrive over the real-time subscription. It
+  // is a live count of the queue: it disappears when the queue is empty, which is the
+  // only way a derived item can be "dismissed".
+  const showApprovals = pendingApprovals > 0
+
+  // Two numbers, deliberately. `unreadNotifications` is what "Mark all read" can
+  // actually clear; the badge also counts the standing item, which that button cannot
+  // touch. Driving both from one number would put a "Mark all read" link above a panel
+  // whose only entry is the approvals row, where pressing it changes nothing.
+  const unreadNotifications = notifications.filter(n => !n.read_at).length
+
+  // Counted as ONE, not as `pendingApprovals`. The badge says how many rows in the panel
+  // want looking at, and this is one row — the count it carries is in its own caption.
+  // Adding 3 to the badge for a single line reading "… - 3" would make the badge
+  // disagree with what opening it shows.
+  const badgeCount = unreadNotifications + (showApprovals ? 1 : 0)
 
   // Real-time subscription
   useEffect(() => {
@@ -64,9 +87,9 @@ export function NotificationBell({ initialNotifications, personId }: Props) {
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5 text-[#0f2540]" />
-        {unread > 0 && (
+        {badgeCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-            {unread > 9 ? '9+' : unread}
+            {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
       </button>
@@ -77,7 +100,7 @@ export function NotificationBell({ initialNotifications, personId }: Props) {
           <div className="absolute right-0 top-full mt-2 w-80 bg-background border rounded-xl shadow-lg z-20 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <span className="font-semibold text-sm">Notifications</span>
-              {unread > 0 && (
+              {unreadNotifications > 0 && (
                 <button
                   onClick={handleMarkAllRead}
                   disabled={isPending}
@@ -88,12 +111,36 @@ export function NotificationBell({ initialNotifications, personId }: Props) {
               )}
             </div>
 
-            {notifications.length === 0 ? (
+            {notifications.length === 0 && !showApprovals ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 No notifications yet.
               </div>
             ) : (
               <ul className="divide-y max-h-96 overflow-y-auto">
+                {/* Pinned above the feed rather than sorted into it: it has no
+                    timestamp to sort by, and it is the one row here that is a job
+                    rather than a record of something that happened. A real <a> so
+                    cmd-click and copy-link-address work — the rest of the list has no
+                    href to give, which is why it is still a click handler. */}
+                {showApprovals && (
+                  <li>
+                    <a
+                      href="/admin/approvals"
+                      onClick={() => setOpen(false)}
+                      className="flex items-start gap-2 px-4 py-3 hover:bg-muted/50 transition-colors bg-amber-50/60"
+                    >
+                      <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
+                      <div>
+                        <p className="text-xs font-medium leading-snug text-amber-900">
+                          Members Pending Approval - {pendingApprovals}
+                        </p>
+                        <p className="text-[10px] text-amber-900/70 mt-1">
+                          Review {pendingApprovals === 1 ? 'the request' : 'the requests'}
+                        </p>
+                      </div>
+                    </a>
+                  </li>
+                )}
                 {notifications.map(n => (
                   <li
                     key={n.id}

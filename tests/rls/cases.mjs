@@ -633,6 +633,22 @@ export const PENDING_CASES = [
   //
   // The control is the default plain member, which is the whole point of the migration:
   // an approved member sees them, an applicant does not.
+  // NOT [crux], and labelled so rather than left looking like evidence. An applicant is
+  // refused this by holding no admin/approvals grant — which is true of every ordinary
+  // member, approved or not — so neuter the approval conjunct and it still passes. It is
+  // kept because the count is the one thing about the approvals queue that reaches a
+  // NON-approver's browser at all (the navbar renders for everyone), so the guard in
+  // front of it is worth a regression test of its own.
+  //
+  // Control is the ADMIN: alphaMember holds no grant either and would get 0, making the
+  // case assert nothing. Same substitution, same reason, as dues.getScheduleUsage above.
+  read('admin/approvals.getPendingApprovalCount (pending member)',
+    'app/actions/admin/approvals.ts', 'getPendingApprovalCount', {
+      attacker: 'alphaPending',
+      expectAttack: r => r === 0,
+      positiveActor: 'alphaAdmin',
+      expectPositive: r => r === 3,
+    }),
   read('dues.getDuesSchedules (pending member)', 'app/actions/dues.ts', 'getDuesSchedules', {
     attacker: 'alphaPending',
   }),
@@ -769,6 +785,21 @@ export const APPROVAL_CASES = [
     positiveActor: 'alphaAdmin',
     expectPositive: (r, fx) =>
       r.pending.some(a => a.personId === fx.alpha.applicantPersonId) && r.canDecide === true,
+  }),
+  // The bell's queue depth. THE DEFAULT ATTACK ASSERTION IS USELESS HERE and that is
+  // why both are spelled out: leaks() scans the returned value for ALPHA's marker
+  // strings, and a bare number can never contain one — so this case would pass with no
+  // family filter at all, reporting every family's applicants to every administrator.
+  //
+  // The numbers are therefore the assertion. The fixture seeds three pending members in
+  // ALPHA and one in BRAVO, so a missing `.eq('family_code', …)` returns the global 4,
+  // and reading ALPHA's queue instead of their own returns 3. BRAVO's administrator must
+  // see exactly their own 1. If a later fixture change moves these, update the numbers —
+  // a failure here is the case working, not rotting.
+  read('admin/approvals.getPendingApprovalCount', 'app/actions/admin/approvals.ts', 'getPendingApprovalCount', {
+    expectAttack: r => r === 1,
+    positiveActor: 'alphaAdmin',
+    expectPositive: r => r === 3,
   }),
   {
     kind: 'write',

@@ -5,6 +5,7 @@ import { SignOutButton } from '@/components/auth/SignOutButton'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { getNotifications } from '@/app/actions/notifications'
+import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { getMyFamilies } from '@/lib/auth/family'
 
 export default async function Navbar() {
@@ -17,13 +18,22 @@ export default async function Navbar() {
   let notifications: Awaited<ReturnType<typeof getNotifications>> = []
   let personId = ''
   let families: Awaited<ReturnType<typeof getMyFamilies>> = []
+  // The approvals queue depth, for the bell's standing "Members Pending Approval" row.
+  // getPendingApprovalCount() runs requireRead('admin/approvals') itself and returns 0
+  // without it, so a member who cannot work the queue never has the number computed and
+  // never receives it — the count is a fetch that is gated, not a row that is hidden
+  // (AGENTS.md §5). It is a COUNT, so nothing about any applicant crosses the boundary
+  // even for someone who can see it.
+  let pendingApprovals = 0
   if (user) {
-    const [notifResult, familyResult] = await Promise.all([
+    const [notifResult, familyResult, pendingResult] = await Promise.all([
       getNotifications(),
       getMyFamilies(user.id),
+      getPendingApprovalCount(),
     ])
     notifications = notifResult
     families = familyResult
+    pendingApprovals = pendingResult
 
     // The bell renders only for an APPROVED membership. `personId` is what gates it,
     // and it is also what NotificationBell subscribes to for real-time inserts, so
@@ -56,7 +66,11 @@ export default async function Navbar() {
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
           <FamilySwitcher families={families} />
           {personId && (
-            <NotificationBell initialNotifications={notifications} personId={personId} />
+            <NotificationBell
+              initialNotifications={notifications}
+              personId={personId}
+              pendingApprovals={pendingApprovals}
+            />
           )}
           <SignOutButton />
         </div>

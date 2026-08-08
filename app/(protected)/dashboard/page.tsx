@@ -15,6 +15,7 @@ import { getLinkPersonBannerData } from '@/app/actions/link-person'
 import { getPinnedAnnouncements, getChapters } from '@/app/actions/announcements'
 import { getMyDuesSummary } from '@/app/actions/dues'
 import { getUnreadCount } from '@/app/actions/notifications'
+import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { formatDate } from '@/lib/date-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
   const eventsLive = isFeatureLive('/events')
   const announcementsLive = isFeatureLive('/announcements')
 
-  const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters] = await Promise.all([
+  const [upcomingEvents, myRoles, linkBannerData, pinnedAnnouncements, duesSummary, unreadCount, memberCountResult, myPersonResult, chapters, pendingApprovals] = await Promise.all([
     eventsLive ? getUpcomingEvents().then(e => e.slice(0, 3)) : [],
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -67,10 +68,19 @@ export default async function DashboardPage() {
     announcementsLive ? getPinnedAnnouncements() : [],
     getMyDuesSummary(),
     getUnreadCount(),
-    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
+    // The "Members" stat. `membership_status = 'approved'` is not decoration: this runs
+    // on the ADMIN client, so no policy is filtering it, and without the conjunct an
+    // applicant was counted as a member of the family on the dashboard of EVERY member
+    // — not just of the administrators who can see the queue. Someone who has asked to
+    // join has not joined.
+    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null).eq('membership_status', 'approved'),
     // chapter_id is per-family — scope to the family being viewed.
     supabase.from('people').select('chapter_id, chapters(name)').eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
     getChapters(),
+    // The queue depth for the Members widget. Gated inside the action on
+    // admin/approvals:view, so a member who cannot work the queue gets 0 and the
+    // footnote never renders — the number is not fetched for them, not merely hidden.
+    getPendingApprovalCount(),
   ])
 
   const memberCount = memberCountResult.count ?? 0
@@ -112,7 +122,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Quick stats ───────────────────────────────────────────── */}
-      <DashboardStats memberCount={memberCount} daysToNextEvent={daysToNextEvent} nextEventId={nextEvent?.id ?? null} unreadCount={unreadCount} eventsLive={eventsLive} />
+      <DashboardStats memberCount={memberCount} daysToNextEvent={daysToNextEvent} nextEventId={nextEvent?.id ?? null} unreadCount={unreadCount} eventsLive={eventsLive} pendingApprovals={pendingApprovals} />
 
       {/* ── Link existing person banner ───────────────────────────── */}
       {linkBannerData.showBanner && (

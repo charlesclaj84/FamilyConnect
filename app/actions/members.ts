@@ -80,6 +80,21 @@ export async function getMembers(): Promise<MemberRecord[]> {
   const { data: people } = await supabase
     .from('people')
     .select('id, user_id, prefix, first_name, last_name, nick_name, avatar_url, primary_email, primary_phone, city, state, chapter_id, date_of_birth, chapters(name), permission_templates(name)')
+    // Approved only: an applicant is not in the family yet, so they are not in the
+    // directory, not nominatable in an election and not taggable in a photo — the three
+    // screens this feeds.
+    //
+    // THE FILTER IS HERE BECAUSE RLS DELIBERATELY DOES NOT APPLY IT. The people SELECT
+    // policy admits a non-approved row to anyone holding admin/approvals:view, which
+    // Member Approvals needs and every other reader inherits. So the queue was visible
+    // to administrators in the directory and nowhere else was it wanted; the policy is
+    // right for its purpose and the wrong place to express this.
+    //
+    // Safe for children and pre-entered relatives, which is the thing to check before
+    // copying this: the stamp trigger returns early for a row with no user_id, so an
+    // unlinked person keeps the column default — 'approved'. Only a real applicant, who
+    // always has an account, is stamped 'pending'.
+    .eq('membership_status', 'approved')
     .order('last_name')
     .order('first_name')
 

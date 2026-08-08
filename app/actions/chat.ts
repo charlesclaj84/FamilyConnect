@@ -480,6 +480,15 @@ export async function getFamilyMembersWithAccounts(): Promise<
     .select('user_id, first_name, last_name')
     .eq('family_code', familyCode)
     .not('user_id', 'is', null)
+    // Approved only. This list is who you may start a conversation with, and an
+    // applicant is not in the family yet — see the note in getMembers() for why RLS
+    // does not do this for us (it admits pending rows to anyone who can view Member
+    // Approvals, so an administrator saw the queue in their chat picker).
+    //
+    // It also stops a message being addressed to someone who cannot open chat: the
+    // room would exist, the notification would fire, and the recipient would be
+    // looking at the awaiting-approval screen.
+    .eq('membership_status', 'approved')
     .neq('user_id', user.id)
 
   return (data ?? []).map(p => ({
