@@ -45,9 +45,10 @@ interface NavItem {
    * Resource keys, ANY of which makes this item visible. Defaults to the one derived
    * from `href`, which is right for every page whose route and permission key match.
    *
-   * Members & Access is the exception: it hosts two independently granted surfaces —
-   * its own screens under `admin/users`, and the Pending Approval tab under
-   * `admin/approvals` — so someone holding only the second still needs the link.
+   * Members & Access is the exception: it hosts three independently granted tabs —
+   * Members under `admin/users`, Pending Approval under `admin/approvals`, and
+   * Permission Templates under `admin/users/templates` — and the page opens for any
+   * one of them, so someone holding only one still needs the link.
    */
   viewKeys?: string[]
 }
@@ -71,7 +72,7 @@ const adminItems: NavItem[] = [
     href: '/admin/users',
     label: 'Members & Access',
     icon: UsersRound,
-    viewKeys: ['admin/users', 'admin/approvals'],
+    viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates'],
   },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },

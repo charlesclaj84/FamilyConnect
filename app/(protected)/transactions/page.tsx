@@ -2,12 +2,12 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
-import { canAny, requireView } from '@/lib/auth/permissions'
+import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundContributions } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
 import {
-  resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE,
+  LEDGERS, resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE, type Ledger,
 } from '@/components/transactions/ledgers'
 
 export const metadata = { title: 'Transactions — Family Connect' }
@@ -16,22 +16,29 @@ export const metadata = { title: 'Transactions — Family Connect' }
  * Every transaction the family has recorded: dues in, donations in, contributions
  * into funds, disbursements out.
  *
- * NOT an admin page — that was the point of moving it off /admin/account. Three
- * separate gates, because "can see the page" and "can move money" are different
- * questions:
+ * NOT an admin page — that was the point of moving it off /admin/account. Four
+ * separate gates, because "can see the page", "can see this ledger" and "can move
+ * money" are three different questions:
  *
  *   1. requireView('transactions') — 404s anyone the family has restricted.
- *   2. RLS on every read below, so a member whose `dues` view is scoped to 'own' sees
- *      their own payments and not the family's.
- *   3. One RECORDING grant per add button, from LEDGER_RESOURCE, resolved here so the
- *      buttons and the server actions can never disagree. All canAny: none of these
- *      records has a coherent "own" version, and the row a member would own — a
- *      payment they record for themselves, a disbursement paying themselves — is
+ *   2. One VIEW grant per ledger, from LEDGER_RESOURCE, added by 20260808000000. It
+ *      decides whether the tab is offered AND whether the ledger is fetched. Both
+ *      halves matter: props are serialized into the RSC payload and reach the browser
+ *      whether a component renders them or not, so hiding a tab over data already
+ *      fetched publishes that data (AGENTS.md §5).
+ *   3. RLS on every read below, so a member whose `dues` view is scoped to 'own' sees
+ *      their own payments and not the family's. This is a SECOND narrowing, not the
+ *      same one: gate 2 decides whether the ledger exists for this caller, `dues` and
+ *      `transactions/fund-*` decide which rows come back inside it.
+ *   4. One RECORDING grant per add button, from the same resource's `create`, resolved
+ *      here so the buttons and the server actions can never disagree. All canAny: none
+ *      of these records has a coherent "own" version, and the row a member would own —
+ *      a payment they record for themselves, a disbursement paying themselves — is
  *      exactly the abuse case.
  *
- * A member with no recording grant sees four read-only ledgers, which is the normal
- * case: recording a payment asserts money changed hands, and the person who owes it
- * does not get to make that assertion.
+ * A member with no recording grant sees read-only ledgers, which is the normal case:
+ * recording a payment asserts money changed hands, and the person who owes it does not
+ * get to make that assertion.
  */
 export default async function TransactionsPage({
   searchParams,
@@ -47,10 +54,26 @@ export default async function TransactionsPage({
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
 
+  // Which ledgers this caller may see at all. `can`, not `canAny`: a view scoped to
+  // 'own' is a real grant — on Contributions and Disbursements it is the RLS predicate
+  // that narrows the rows — so it opens the tab and lets the policy do the narrowing.
+  const ledgerViews = await Promise.all(
+    LEDGERS.map(id => can(user.id, LEDGER_RESOURCE[id], 'view')),
+  )
+  const visibleLedgers = LEDGERS.filter((_, i) => ledgerViews[i])
+  const canSee = (id: Ledger) => visibleLedgers.includes(id)
+
   // Resolved server-side so the first paint already shows the right ledger, and so
   // the client's initial state matches the server HTML exactly — which is what keeps
   // this free of hydration mismatch. searchParams is a Promise in Next 16.
-  const initialLedger = resolveLedger((await searchParams).ledger)
+  //
+  // A ledger the caller cannot view — a shared link, or a grant removed since — falls
+  // back to the first one they can, the same recovery AdminAccountShell does for a
+  // stale ?section=.
+  const requestedLedger = resolveLedger((await searchParams).ledger)
+  const initialLedger = canSee(requestedLedger)
+    ? requestedLedger
+    : visibleLedgers[0] ?? requestedLedger
 
   // One grant per add button. Every one is canAny: none of these four records has a
   // coherent "own" version — a payment you record for YOURSELF and a disbursement
@@ -58,16 +81,22 @@ export default async function TransactionsPage({
   // There is no delete grant here any more. fund_disbursements is append-only as of
   // 20260807000002 and the resource no longer declares a 'delete' action, so asking for
   // one would resolve a permission nothing can act on.
+  //
+  // Each ledger's ROWS are fetched only under its own view grant. Skipping the call is
+  // the point rather than not rendering it: the result would reach the browser in the
+  // RSC payload either way (AGENTS.md §5). The two payment ledgers share one query, so
+  // it runs when either is visible and the client splits it by schedule kind.
+  const wantPayments = canSee('dues') || canSee('donations')
   const [
     schedules, payments, fundsData, disbursements, contributions,
     canRecordDues, canRecordDonations, canRecordContributions,
     canRecordDisbursements, canReverse,
   ] = await Promise.all([
     getDuesSchedules(),
-    getAllDuesPayments(),
+    wantPayments ? getAllDuesPayments() : [],
     getFunds(),
-    getAllDisbursements(),
-    getFundContributions(),
+    canSee('disbursements') ? getAllDisbursements() : [],
+    canSee('contributions') ? getFundContributions() : [],
     canAny(user.id, LEDGER_RESOURCE.dues, 'create'),
     canAny(user.id, LEDGER_RESOURCE.donations, 'create'),
     canAny(user.id, LEDGER_RESOURCE.contributions, 'create'),
@@ -129,6 +158,7 @@ export default async function TransactionsPage({
 
       <TransactionsClient
         initialLedger={initialLedger}
+        visibleLedgers={visibleLedgers}
         initialPayments={payments}
         initialContributions={contributions}
         initialDisbursements={disbursements}

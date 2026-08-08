@@ -429,6 +429,53 @@ main rail, then the pages inside the active group — and the inner one keeps th
 pills in its 16rem column, along with the create trigger that sits under it. The rule is
 about the page's *primary* nav, not about every list of links on it.
 
+## One rail item, one permission resource
+
+Every item on a rail — main or second-level — owns a row in `permission_resources`, and
+that row's `label` is the caption the rail prints. Both halves are load-bearing.
+
+**A grant per item,** because a rail is where a page divides into jobs, and jobs are what
+a family delegates. One grant over a whole rail cannot express "record dues but not pay
+money out", which is the division basic accounting exists to make. Every rail is bound to
+its keys through one table, next to the labels, so the tab and the server action cannot
+disagree: `LEDGER_RESOURCE` (Transactions), `SECTION_RESOURCE` (Accounting),
+`PANE_RESOURCE` (My Summary). Members & Access is the exception that proves it — its
+three tabs have three keys and no table, because its page resolves them one by one.
+
+Sub-keys nest under their page's key (`transactions/dues-payments`,
+`admin/account/routing`, `account-summary/history`) and that prefix is **not** cosmetic:
+`getResources()` drops any row where `isFeatureFuture('/' + key)`, and `getFeature()`
+longest-prefix-matches. A key under a `'future'` prefix vanishes from the grid with no
+error at all — `family-finances/foo` would, `transactions/foo` does not.
+
+**Gate the fetch, not the tab.** A hidden tab over data already fetched has published
+that data (§5). Each page resolves its rail's grants server-side, skips the query for
+every item the caller cannot view, and hands down the surviving list — `visibleLedgers`,
+`visiblePanes`, `rights` — so the rail renders from the same answer the fetch used. A
+caller who can view none of them gets a sentence saying so, not an empty rail over an
+empty pane.
+
+**Declare only the actions something reads.** `permission_resources.actions` is what
+decides which switches the grid renders, and a switch nothing consults reads as a
+control being honoured. `transactions` and `account-summary` each carried all four
+until `20260808000000` narrowed them to `view`: both are read-only pages over records
+owned by other resources, and their write grants live on those. Before adding an
+action, name the policy, the `permission_table_map` row or the `can*()` call that will
+read it.
+
+**Captions come from the screen.** The grid used to say "Dues Schedules" where the
+Accounting rail says "Dues", and "Fund Disbursements" where the Transactions rail says
+"Disbursements"; an administrator matching a switch to the thing it switches off should
+not have to translate. Two rails may use the same word — "Dues" appears under both
+Accounting and Transactions — and that is fine, because each renders under its own
+`subsection` heading.
+
+**Dashboard and the Personal pages are deliberately outside all of this.** My Profile, My
+Families, My Children and Family Tree are a member's own things, and `20260806000006`
+removed their rows so they cannot be restricted; the 2026-08-08 review reconsidered that
+and kept it. The empty `personal` heading in `components/admin/resource-groups.ts` is the
+trace of that decision, not a gap to fill.
+
 # Page width is a component, not a per-page guess
 
 `components/layout/PageShell.tsx` is **the page container**. Every page under

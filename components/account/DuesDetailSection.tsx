@@ -63,12 +63,26 @@ interface Props {
    * a Donations tab opening an empty panel is worse than no tab at all.
    */
   hasDonations: boolean
+  /**
+   * The panes this caller holds a view grant on, from PANE_RESOURCE — resolved on the
+   * server, which also skips the fetch for every pane absent from this list.
+   *
+   * So a missing pane means missing DATA as well as a missing tab, and the stat card
+   * that summarises it goes with it: "Paid This Year" is the payment history in one
+   * figure, and rendering it over a `history` of `[]` would report $0.00 to a member
+   * who has paid. In SUMMARY_PANES order, so the rail keeps its order without sorting.
+   *
+   * Separate from `hasDonations`, which answers a different question — that pane is
+   * hidden when the family HAS no donations, this one when the member may not see
+   * them. Both hide it; only one of them is about permission.
+   */
+  visiblePanes: SummaryPane[]
   /** Pane resolved from `?pane=` on the server, so the first paint is already right. */
   initialPane: SummaryPane
 }
 
 export function DuesDetailSection({
-  summary, history, donationsSlot, hasDonations, initialPane,
+  summary, history, donationsSlot, hasDonations, visiblePanes, initialPane,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -83,9 +97,15 @@ export function DuesDetailSection({
   // Which pane the rail is showing. A family with no donations cannot land on that pane
   // even from a shared link — the item is not in the rail, so nothing would take them
   // back off it.
-  const [pane, setPane] = useState<SummaryPane>(
-    initialPane === 'donations' && !hasDonations ? 'dues' : initialPane,
-  )
+  //
+  // The fallback is the first pane still in the rail rather than a hard-coded 'dues':
+  // the server already redirected an unviewable `?pane=`, but Upcoming Dues is itself a
+  // grant now, so naming it here would land a member without it on a pane the rail does
+  // not contain.
+  const [pane, setPane] = useState<SummaryPane>(() => {
+    const usable = visiblePanes.filter(p => p !== 'donations' || hasDonations)
+    return usable.includes(initialPane) ? initialPane : usable[0] ?? initialPane
+  })
 
   function selectPane(next: SummaryPane) {
     setPane(next)
@@ -258,10 +278,36 @@ export function DuesDetailSection({
     })
   }, [unpaid, declined, duesSort])
 
+  // Reachable: `account-summary:view` opens the page, but each pane is its own grant
+  // since 20260808000000, so a caller can hold the page and none of its contents.
+  // Said out loud rather than rendered as three empty cards over an empty rail — the
+  // same answer AdminAccountShell and TransactionsClient give.
+  if (visiblePanes.length === 0) {
+    return (
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+        None of the sections of My Summary have been shared with you. Ask an
+        administrator for access to the ones you need — your upcoming dues, the
+        donation drives and your payment history are each granted separately.
+      </div>
+    )
+  }
+
+  // The cards are one per pane, so they appear and disappear with them. Donations has
+  // no card of its own, which is why this counts two rather than three.
+  const showDues = visiblePanes.includes('dues')
+  const showHistory = visiblePanes.includes('history')
+  // Column count follows the cards. A fixed `sm:grid-cols-3` would leave a hole where
+  // a withheld card used to be, which reads as something that failed to load.
+  const cardColumns = (showHistory ? 1 : 0) + (showDues ? 2 : 0)
+
   return (
     <div className="space-y-5">
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={cn(
+        'grid grid-cols-1 gap-4',
+        cardColumns === 3 ? 'sm:grid-cols-3' : cardColumns === 2 ? 'sm:grid-cols-2' : '',
+      )}>
+        {showHistory && (
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-full bg-green-100"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
@@ -286,6 +332,7 @@ export function DuesDetailSection({
             </ul>
           )}
         </div>
+        )}
 
         {/* NOT A LOCAL CARD ANY MORE. This is the dashboard's Account card, the same
             component, unchanged — see DuesBalanceKpi. Two hand-rolled versions of one
@@ -293,8 +340,9 @@ export function DuesDetailSection({
             them by hand only lasts until the next edit to one of them.
             Fed from `rows` rather than the `summary` prop, so an opt-out or a cadence
             change updates the headline optimistically along with the table below. */}
-        <DuesBalanceKpi summary={rows} />
+        {showDues && <DuesBalanceKpi summary={rows} />}
 
+        {showDues && (
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-full bg-green-100"><DollarSign className="h-4 w-4 text-green-600" /></div>
@@ -333,15 +381,20 @@ export function DuesDetailSection({
             </ul>
           )}
         </div>
+        )}
       </div>
 
       {/* ── The rail, under the stat cards ──
           The cards are a summary of ALL THREE panes at once — paid to date, what is
           left, what is next — so they belong above the rail rather than inside any one
           pane. Switching pane does not change them, which is the point. */}
+      {/* Two independent narrowings, both of which remove an item: the permission
+          grant, and — for Donations alone — whether the family has any. */}
       <MainRail
         label="My Summary sections"
-        items={RAIL_ITEMS.filter(i => i.id !== 'donations' || hasDonations)}
+        items={RAIL_ITEMS.filter(i =>
+          visiblePanes.includes(i.id) && (i.id !== 'donations' || hasDonations),
+        )}
         active={pane}
         onSelect={selectPane}
       />

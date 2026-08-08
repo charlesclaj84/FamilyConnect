@@ -86,9 +86,21 @@ END $$;
 
 -- ── 2. The four recording resources ─────────────────────────────────────────
 -- sort_order 116-119 slots them between Transactions (115) and Family Finances (120).
+--
+-- THE LABELS ARE THE LEDGER TABS' OWN, since 20260808000000: LEDGER_LABELS in
+-- components/transactions/ledgers.ts is what the rail on /transactions prints, and the
+-- grid on Members & Access said "Fund Disbursements" where the tab says
+-- "Disbursements". Updated HERE as well as there for the same reason the actions
+-- below are — this insert is ON CONFLICT DO UPDATE ... SET label = EXCLUDED.label.
+-- They read unambiguously despite `admin/account/*` now carrying "Dues" and
+-- "Donations" too, because each set renders under its own sub-heading.
 INSERT INTO public.permission_resources (key, label, category, subsection, sort_order, actions) VALUES
-  ('transactions/dues-payments',      'Dues Payments',      'accounting', 'Transactions', 116, ARRAY['create']::TEXT[]),
-  ('transactions/donation-payments',  'Donation Payments',  'accounting', 'Transactions', 117, ARRAY['create']::TEXT[]),
+  -- Both payment ledgers gained 'view' in 20260808000000: it decides whether the tab
+  -- is offered on /transactions and whether the page fetches the ledger at all. The
+  -- ROWS inside it stay governed by `dues`, which is where dues_payments is mapped —
+  -- a member's own history behind My Summary must not depend on a ledger grant.
+  ('transactions/dues-payments',      'Dues',           'accounting', 'Transactions', 116, ARRAY['view','create']::TEXT[]),
+  ('transactions/donation-payments',  'Donations',      'accounting', 'Transactions', 117, ARRAY['view','create']::TEXT[]),
   -- These two own their tables after section 5, so they must declare every action
   -- their policies consult — see the header note.
   --
@@ -96,8 +108,8 @@ INSERT INTO public.permission_resources (key, label, category, subsection, sort_
   -- Narrowed HERE as well as there because this insert is ON CONFLICT DO UPDATE ... SET
   -- actions = EXCLUDED.actions, so leaving it would put a dead Delete column back on the
   -- Members & Access grid the next time this migration replays (AGENTS.md §6).
-  ('transactions/fund-contributions', 'Fund Contributions', 'accounting', 'Transactions', 118, ARRAY['view','create']::TEXT[]),
-  ('transactions/fund-disbursements', 'Fund Disbursements', 'accounting', 'Transactions', 119, ARRAY['view','create']::TEXT[])
+  ('transactions/fund-contributions', 'Contributions',  'accounting', 'Transactions', 118, ARRAY['view','create']::TEXT[]),
+  ('transactions/fund-disbursements', 'Disbursements',  'accounting', 'Transactions', 119, ARRAY['view','create']::TEXT[])
 ON CONFLICT (key) DO UPDATE
   SET label      = EXCLUDED.label,
       category   = EXCLUDED.category,

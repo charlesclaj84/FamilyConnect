@@ -224,6 +224,24 @@ const snapshot = (table, cols, filter) => async (db) => {
 }
 
 /**
+ * One cell of ALPHA's General template.
+ *
+ * Its own probe rather than snapshot(), because template_permissions is keyed
+ * (template_id, resource_key, action) and has no `id` column to order by — snapshot's
+ * `.order('id')` would fail the whole case with a probe error rather than a finding.
+ */
+const templateGrantProbe = (resourceKey, action) => async (db, fx) => {
+  const { data, error } = await db
+    .from('template_permissions')
+    .select('resource_key, action, scope')
+    .eq('template_id', fx.alpha.generalTemplateId)
+    .eq('resource_key', resourceKey)
+    .eq('action', action)
+  if (error) throw new Error(`probe template_permissions: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+/**
  * The remaining RLS-path actions: the writes, and the reads that take an id.
  *
  * The writes are the important half. A read that leaks is a confidentiality
@@ -288,7 +306,12 @@ export const MORE_CASES = [
     // scan cannot see it either way. Assert on the shape instead: empty for the
     // attacker, and populated for ALPHA's own administrator.
     expectAttack: r => r && typeof r === 'object' && Object.keys(r).length === 0,
-    expectPositive: r => r?.['admin/users:edit'] === 'any',
+    // Both keys Members & Access is built on since 20260808000000 split them. Naming
+    // the second one here is what notices if `admin/users/templates` ever falls out of
+    // the resource catalog: the grid would silently lose its own row, and the policies
+    // on permission_templates would start evaluating a key nothing registers.
+    expectPositive: r =>
+      r?.['admin/users:edit'] === 'any' && r?.['admin/users/templates:edit'] === 'any',
   }),
   read('admin/permissions.getResources', 'app/actions/admin/permissions.ts', 'getResources', {
     positive: 'not-applicable',
@@ -605,6 +628,26 @@ export const PENDING_CASES = [
     why: 'the approved owner has already voted; a second call is an upsert no-op, and their vote is asserted by the cross-family castVote case above',
   },
 
+  // [crux] The family's access map, written by somebody who has joined by family code
+  // and not been admitted. auth_family_code() resolves ALPHATEST for them deliberately
+  // and permanently, so every family-scoping test in this action passes for them — the
+  // only thing standing between an applicant and rewriting what ALPHA's members may do
+  // is that resolveScope() denies a non-approved caller everything.
+  //
+  // A DIFFERENT ACTION from the cross-family case above ('view', not 'edit'), so the
+  // control is a real change rather than a repeat of a write that already landed —
+  // which would report the owner's write as doing nothing and make the attack
+  // assertion above it vacuous.
+  {
+    kind: 'write',
+    id: 'admin/permissions.setTemplatePermission (pending member)',
+    mod: 'app/actions/admin/permissions.ts', fn: 'setTemplatePermission',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.generalTemplateId, 'admin/account/bank', 'view', 'any'],
+    probe: templateGrantProbe('admin/account/bank', 'view'),
+    positiveActor: 'alphaAdmin',
+  },
+
   // THE SELF-APPROVAL REGRESSION TEST. Not [crux] — nothing about the conjunct stops
   // this one, which is the point of it existing separately.
   //
@@ -700,6 +743,29 @@ export const APPROVAL_CASES = [
     args: fx => [fx.alpha.sparePersonId, false],
     probe: (db, fx) => snapshot('people', 'id, membership_status',
       { id: fx.alpha.sparePersonId })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/permissions.setTemplatePermission',
+    mod: 'app/actions/admin/permissions.ts', fn: 'setTemplatePermission',
+    // The family's access map, written through the SERVICE ROLE — so RLS narrows
+    // nothing and the `.eq('family_code', …)` inside the action is the whole of the
+    // isolation. Exactly the class AGENTS.md §3 is about, and it had no case until the
+    // 20260808000000 audit moved the grant it checks to `admin/users/templates`.
+    //
+    // The attack is ALPHA's GENERAL template — the one every ordinary member is on. If
+    // it landed, BRAVO's administrator would have rewritten what everybody in ALPHA may
+    // do, from inside their own family, holding every grant BRAVO can confer.
+    //
+    // `admin/account/bank` is chosen because nothing else in this suite reads it: it has
+    // no permission_table_map row, so no policy is composed from it, and no action
+    // consults it. A grant that meant something would make every case after this one
+    // depend on the order they run in.
+    args: fx => [fx.alpha.generalTemplateId, 'admin/account/bank', 'edit', 'any'],
+    // template_permissions has a composite primary key and no `id`, so snapshot()'s
+    // .order('id') cannot be used here.
+    probe: templateGrantProbe('admin/account/bank', 'edit'),
     positiveActor: 'alphaAdmin',
   },
 

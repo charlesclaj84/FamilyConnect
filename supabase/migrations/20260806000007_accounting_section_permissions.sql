@@ -26,11 +26,18 @@
 --   'future' would vanish from both admin grids with no error at all.
 --
 -- ACTIONS PER SECTION
---   Routing and Settings get view+edit only: routing is a single allocation table that
---   is adjusted rather than added to, and the two Settings panes are inert
---   placeholders with nothing to create or delete. The rest get the full four. This is
---   the `actions` column doing its job — a section with no create renders no create
---   column, instead of a switch wired to nothing.
+--   Routing, Processing and Bank Information get view+edit only: routing is a single
+--   allocation table that is adjusted rather than added to, and the two Settings panes
+--   are inert placeholders with nothing to create or delete. The rest get the full
+--   four. This is the `actions` column doing its job — a section with no create
+--   renders no create column, instead of a switch wired to nothing.
+--
+--   Processing and Bank Information shared ONE key ('admin/account/settings') until
+--   20260808000000, on the argument that neither was implemented. That is the rule
+--   this file states, broken: they are two rail items, so they are two grants. Bank
+--   Information is also the pane most likely to want a narrower audience than the rest
+--   of Accounting the moment it holds an account number, which its own placeholder
+--   text already says.
 --
 -- VISIBILITY DEFAULTS TO RESTRICTED
 --   These are category='admin', and 20260618000000 restricts every admin row per
@@ -49,13 +56,25 @@
 BEGIN;
 
 -- ── 1. The six sections ─────────────────────────────────────────────────────
+--
+-- THE LABELS ARE THE RAIL'S OWN, since 20260808000000: SECTION_LABELS in
+-- components/admin/account-sections.ts is what the second-level rail prints, and this
+-- grid said "Dues Schedules" where that rail says "Dues". Updated HERE as well as
+-- there because this insert is ON CONFLICT DO UPDATE ... SET label = EXCLUDED.label.
+--
+-- SETTINGS BECAME TWO ROWS in the same migration. It was one key behind two rail
+-- items — Processing and Bank Information — which the one-grant-per-rail-item rule
+-- this file established for the other five does not allow. Split here as well as
+-- there so a fresh database never creates the shared row at all; 20260808000000
+-- carries the grants across and deletes it for databases that already have it.
 INSERT INTO public.permission_resources (key, label, category, subsection, sort_order, actions) VALUES
-  ('admin/account/dues',       'Dues Schedules',   'admin', 'Accounting', 241, ARRAY['view','create','edit','delete']::TEXT[]),
-  ('admin/account/donations',  'Donation Drives',  'admin', 'Accounting', 242, ARRAY['view','create','edit','delete']::TEXT[]),
+  ('admin/account/dues',       'Dues',             'admin', 'Accounting', 241, ARRAY['view','create','edit','delete']::TEXT[]),
+  ('admin/account/donations',  'Donations',        'admin', 'Accounting', 242, ARRAY['view','create','edit','delete']::TEXT[]),
   ('admin/account/funds',      'Funds',            'admin', 'Accounting', 243, ARRAY['view','create','edit','delete']::TEXT[]),
-  ('admin/account/routing',    'Dues Routing',     'admin', 'Accounting', 244, ARRAY['view','edit']::TEXT[]),
+  ('admin/account/routing',    'Routing',          'admin', 'Accounting', 244, ARRAY['view','edit']::TEXT[]),
   ('admin/account/milestones', 'Milestones',       'admin', 'Accounting', 245, ARRAY['view','create','edit','delete']::TEXT[]),
-  ('admin/account/settings',   'Payment Settings', 'admin', 'Accounting', 246, ARRAY['view','edit']::TEXT[])
+  ('admin/account/processing', 'Processing',       'admin', 'Accounting', 246, ARRAY['view','edit']::TEXT[]),
+  ('admin/account/bank',       'Bank Information', 'admin', 'Accounting', 247, ARRAY['view','edit']::TEXT[])
 ON CONFLICT (key) DO UPDATE
   SET label      = EXCLUDED.label,
       category   = EXCLUDED.category,
@@ -109,7 +128,8 @@ DECLARE v_missing int;
 BEGIN
   SELECT COUNT(*) INTO v_missing
     FROM (VALUES ('admin/account/dues'), ('admin/account/donations'), ('admin/account/funds'),
-                 ('admin/account/routing'), ('admin/account/milestones'), ('admin/account/settings')) AS k(key)
+                 ('admin/account/routing'), ('admin/account/milestones'),
+                 ('admin/account/processing'), ('admin/account/bank')) AS k(key)
    WHERE NOT EXISTS (SELECT 1 FROM public.permission_resources r WHERE r.key = k.key);
   IF v_missing > 0 THEN
     RAISE EXCEPTION 'ROLLBACK: % accounting section resources missing', v_missing;

@@ -115,8 +115,12 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
  * four different jobs, and `admin/account:edit` used to be a single switch for all of
  * them. Registered by 20260806000007 under the Admin category, subsection 'Accounting'.
  *
- * Both Settings panes share one key — they are two views of the same "how money is
- * processed" question, and neither is implemented yet.
+ * ONE KEY PER SECTION, with no exceptions since 20260808000000. Processing and Bank
+ * Information used to share `admin/account/settings` on the grounds that neither was
+ * implemented — but they are two items on the rail, and a rail item without a grant of
+ * its own is the thing this table exists to prevent. Bank Information is also the pane
+ * most likely to want a narrower audience than the rest of Accounting the moment it
+ * holds an account number, which its own placeholder text already says.
  *
  * The `admin/account/` prefix is load-bearing: getFeature() longest-prefix-matches, so
  * these resolve to the live /admin/account entry rather than the 'future' /admin one.
@@ -128,8 +132,8 @@ export const SECTION_RESOURCE: Record<AccountSection, string> = {
   funds:      'admin/account/funds',
   routing:    'admin/account/routing',
   milestones: 'admin/account/milestones',
-  processing: 'admin/account/settings',
-  bank:       'admin/account/settings',
+  processing: 'admin/account/processing',
+  bank:       'admin/account/bank',
 }
 
 /** What the caller may do in one section. Resolved server-side, passed down as props. */

@@ -33,6 +33,14 @@ export const SCOPE_STYLE: Record<PermissionScope, string> = {
 }
 
 // Presentation order for the category list; anything unlisted falls to the end.
+//
+// `general` and `personal` are EMPTY and are meant to be. 20260806000006 deleted the
+// Dashboard and the four Personal resources — a member's own things are not something a
+// family administers — and the 2026-08-08 rail audit reconsidered that and kept it.
+// Registering Dashboard in particular would let a family 404 somebody's own post-login
+// destination, and a new template starts as a complete grid of denials. The two entries
+// stay so the order is stated once and holds if a general-category resource ever
+// appears; they are not a gap to fill with those five.
 export const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'accounting', 'resources', 'admin']
 
 export const CATEGORY_LABEL: Record<string, string> = {
@@ -45,10 +53,11 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *
  * Two narrowings, both of which prevent a control that cannot do anything:
  *   * an action the resource does not declare renders NO buttons at all
- *   * 'own' is dropped where the resource has no coherent owner. Fund Disbursements
- *     is the case that forces this: its own_expr is 'false' in permission_table_map
- *     and the action uses canAny(), because the disbursement paying the caller IS the
- *     abuse case. Offering "Own" there would light up amber and grant nothing.
+ *   * 'own' is dropped where the resource has no coherent owner. Disbursements is the
+ *     case that forces this: `transactions/fund-disbursements` has own_expr 'false' in
+ *     permission_table_map and the action uses canAny(), because the disbursement
+ *     paying the caller IS the abuse case. Offering "Own" there would light up amber
+ *     and grant nothing.
  */
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []
@@ -77,9 +86,13 @@ export interface ResourceBlock {
  * Category -> ordered rows, with sub-section headings interleaved.
  *
  * Ordered by sort_order rather than alphabetically, because a sub-section only reads
- * correctly when it sits directly beneath the row it belongs to. Alphabetical ordering
- * would scatter Dues Payments, Donation Payments and Fund Contributions among the
- * top-level Accounting rows and the grouping would be meaningless.
+ * correctly when it sits directly beneath the row it belongs to, IN THE ORDER ITS RAIL
+ * USES. Alphabetical ordering would scatter the four Transactions ledgers among the
+ * top-level Accounting rows and the grouping would be meaningless — and since every
+ * sub-section row is now named for the rail item it governs, two of them under
+ * different parents legitimately share a caption ("Dues" appears under both
+ * Accounting > Transactions and Administration > Accounting). The heading above them
+ * is what tells those apart, so the heading has to stay attached to its own block.
  */
 export function groupResources(resources: ResourceSummary[]): ResourceBlock[] {
   const byCategory = new Map<string, ResourceSummary[]>()

@@ -38,12 +38,26 @@ import type { MembershipStatus } from '@/lib/auth/family'
  *   every check inside evaluating against nothing; both refuse a NULL caller outright
  *   so that mistake fails loudly. Same division as Member Approvals.
  *
- * Every mutation here is additionally gated on 'admin/users', the key the RLS
- * policies on permission_templates and template_permissions now use. The code and
- * the database must never disagree about who may do what.
+ * TWO KEYS, since 20260808000000, matching the two tabs this file serves:
+ *
+ *   admin/users            the roster. Who is in the family, which template each
+ *                          person is on, and the switch that turns a member off.
+ *   admin/users/templates  the grids. What a template grants, and which templates
+ *                          exist at all.
+ *
+ * They are separated because the second can invent authority and the first can only
+ * hand out authority that already exists. "Add this person, put them on Treasurer" and
+ * "decide what Treasurer means" are different jobs, and a family wanting a roster
+ * administrator who cannot quietly promote themselves could not express that while
+ * both rode on one grant.
+ *
+ * The RLS policies on permission_templates and template_permissions name the second
+ * key; the two SECURITY DEFINER RPCs that write to `people` name the first. The code
+ * and the database must never disagree about who may do what.
  */
 
 const RESOURCE = 'admin/users'
+const TEMPLATE_RESOURCE = 'admin/users/templates'
 
 export type AdminResult = { success: true } | { success: false; message: string }
 
@@ -55,7 +69,11 @@ export interface TemplateSummary {
   isSystem: boolean
   /** How many people are currently assigned to it. */
   memberCount: number
-  /** True when this template grants admin/users:edit — i.e. it can administer. */
+  /**
+   * True when this template can administer other people — it grants edit on
+   * `admin/users` (re-assign a member's template, switch them off) or on
+   * `admin/users/templates` (rewrite what any template grants), or both.
+   */
   grantsAdmin: boolean
 }
 
@@ -95,10 +113,10 @@ export interface ResourceSummary {
   /** Ordering within the category. Sub-section rows are contiguous by construction. */
   sortOrder: number
   /**
-   * Which actions are MEANINGFUL for this resource. A capability row like
-   * "Dues Payments" only has `create`; rendering the other three would be four
-   * switches wired to nothing, and `view` in particular would read as a privacy
-   * control being honoured when nothing consults it.
+   * Which actions are MEANINGFUL for this resource. "Payment Reversals" has only
+   * `create` and "Transactions" has only `view`; rendering the rest would be switches
+   * wired to nothing, and one of them reading as a privacy control being honoured when
+   * nothing consults it is the worst version of that.
    */
   actions: PermissionAction[]
 }
@@ -106,7 +124,16 @@ export interface ResourceSummary {
 /** A template's grid, keyed `${resource}:${action}`. */
 export type PolicyMap = Record<string, PermissionScope>
 
+/**
+ * Resolve the caller and check one (resource, action).
+ *
+ * `resource` is explicit on every call rather than defaulted, because the whole point
+ * of the 20260808000000 split is that this file serves two of them and the wrong
+ * default would be invisible — a template mutation checking the roster key reads
+ * exactly like a correct one.
+ */
 async function requireAccessAdmin(
+  resource: string,
   action: PermissionAction = 'edit',
 ): Promise<{ ok: true; userId: string; familyCode: string } | { ok: false; message: string }> {
   const supabase = await createClient()
@@ -116,40 +143,75 @@ async function requireAccessAdmin(
   const { familyCode } = await getMyActiveMembership(user.id)
   if (!familyCode) return { ok: false, message: 'No family associated with your account.' }
 
-  if (!(await can(user.id, RESOURCE, action))) {
+  if (!(await can(user.id, resource, action))) {
     return {
       ok: false,
-      message: action === 'delete'
-        ? 'You do not have permission to delete templates.'
+      message: resource === TEMPLATE_RESOURCE
+        ? (action === 'delete'
+            ? 'You do not have permission to delete templates.'
+            : 'You do not have permission to change permission templates.')
         : 'You do not have permission to manage access.',
     }
   }
   return { ok: true, userId: user.id, familyCode }
 }
 
-/** What the caller may do on Members & Access. Drives the UI; never the enforcement. */
-export async function canManageAccess(): Promise<{
+/** What the caller may do on one of the two keys. Drives the UI; never the enforcement. */
+export interface AccessRights {
   view: boolean
   create: boolean
   edit: boolean
   remove: boolean
-}> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { view: false, create: false, edit: false, remove: false }
+}
+
+const NO_RIGHTS: AccessRights = { view: false, create: false, edit: false, remove: false }
+
+async function rightsOn(userId: string, resource: string): Promise<AccessRights> {
   const [view, create, edit, remove] = await Promise.all([
-    can(user.id, RESOURCE, 'view'),
-    can(user.id, RESOURCE, 'create'),
-    can(user.id, RESOURCE, 'edit'),
-    can(user.id, RESOURCE, 'delete'),
+    can(userId, resource, 'view'),
+    can(userId, resource, 'create'),
+    can(userId, resource, 'edit'),
+    can(userId, resource, 'delete'),
   ])
   return { view, create, edit, remove }
 }
 
+/**
+ * Both halves of the page's rights, in one round trip.
+ *
+ * Returned as two objects rather than merged, because merging them is the bug the
+ * split exists to prevent: `edit` means "may re-template a member" on one and "may
+ * rewrite what a template grants" on the other, and a single flag would have to
+ * choose which, silently, for every control on the screen.
+ */
+export async function canManageAccess(): Promise<{
+  members: AccessRights
+  templates: AccessRights
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { members: NO_RIGHTS, templates: NO_RIGHTS }
+  const [members, templates] = await Promise.all([
+    rightsOn(user.id, RESOURCE),
+    rightsOn(user.id, TEMPLATE_RESOURCE),
+  ])
+  return { members, templates }
+}
+
 // ── Reads ───────────────────────────────────────────────────────────────────
 
+/**
+ * The family's templates, with a head count and whether each one can administer.
+ *
+ * Gated on EITHER key, deliberately. The Members tab's row menu is a list of templates
+ * to put someone on, so a roster administrator has to be able to read their names and
+ * ids without holding the grant that edits their grids — and the templates grid needs
+ * the same list for its left column. What it returns is names, ids and counts; the
+ * grants themselves are getTemplatePolicy(), which is gated on the template key alone.
+ */
 export async function getTemplates(): Promise<TemplateSummary[]> {
-  const auth = await requireAccessAdmin('view')
+  const asRoster = await requireAccessAdmin(RESOURCE, 'view')
+  const auth = asRoster.ok ? asRoster : await requireAccessAdmin(TEMPLATE_RESOURCE, 'view')
   if (!auth.ok) return []
 
   const admin = createAdminClient()
@@ -168,10 +230,14 @@ export async function getTemplates(): Promise<TemplateSummary[]> {
   const ids = rows.map(t => t.id)
   const [{ data: assigned }, { data: adminGrants }] = await Promise.all([
     admin.from('people').select('permission_template_id').in('permission_template_id', ids),
+    // EITHER key, since 20260808000000 split them. A template that can only re-assign
+    // members is administrative, and so is one that can only rewrite grids — the badge
+    // answers "does putting somebody on this hand them authority over other people",
+    // and both of them do.
     admin.from('template_permissions')
       .select('template_id')
       .in('template_id', ids)
-      .eq('resource_key', RESOURCE)
+      .in('resource_key', [RESOURCE, TEMPLATE_RESOURCE])
       .eq('action', 'edit')
       .neq('scope', 'none'),
   ])
@@ -238,7 +304,7 @@ export async function searchMembers(opts: {
   offset?: number
   limit?: number
 } = {}): Promise<MemberPage> {
-  const auth = await requireAccessAdmin('view')
+  const auth = await requireAccessAdmin(RESOURCE, 'view')
   if (!auth.ok) return { rows: [], total: 0 }
 
   const { personId: myPersonId } = await getMyActiveMembership(auth.userId)
@@ -322,7 +388,7 @@ export async function searchMembers(opts: {
 }
 
 export async function getResources(): Promise<ResourceSummary[]> {
-  const auth = await requireAccessAdmin('view')
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'view')
   if (!auth.ok) return []
 
   const admin = createAdminClient()
@@ -369,7 +435,7 @@ export async function getResources(): Promise<ResourceSummary[]> {
  * policy — the query is keyed on a column that carries no family of its own.
  */
 export async function getTemplatePolicy(templateId: string): Promise<PolicyMap> {
-  const auth = await requireAccessAdmin('view')
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'view')
   if (!auth.ok) return {}
 
   const admin = createAdminClient()
@@ -405,7 +471,7 @@ export async function getMyEffectivePermissions(): Promise<{ legacy: boolean }> 
 // ── Templates ───────────────────────────────────────────────────────────────
 
 export async function createTemplate(name: string, description: string): Promise<AdminResult> {
-  const auth = await requireAccessAdmin('create')
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'create')
   if (!auth.ok) return { success: false, message: auth.message }
 
   const trimmed = name.trim()
@@ -456,7 +522,7 @@ export async function renameTemplate(
   name: string,
   description: string,
 ): Promise<AdminResult> {
-  const auth = await requireAccessAdmin()
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE)
   if (!auth.ok) return { success: false, message: auth.message }
 
   const trimmed = name.trim()
@@ -478,7 +544,7 @@ export async function renameTemplate(
 }
 
 export async function deleteTemplate(templateId: string): Promise<AdminResult> {
-  const auth = await requireAccessAdmin('delete')
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'delete')
   if (!auth.ok) return { success: false, message: auth.message }
 
   const admin = createAdminClient()
@@ -531,7 +597,7 @@ export async function setTemplatePermission(
   action: PermissionAction,
   scope: PermissionScope,
 ): Promise<AdminResult> {
-  const auth = await requireAccessAdmin()
+  const auth = await requireAccessAdmin(TEMPLATE_RESOURCE)
   if (!auth.ok) return { success: false, message: auth.message }
 
   const admin = createAdminClient()
@@ -540,11 +606,20 @@ export async function setTemplatePermission(
     .eq('family_code', auth.familyCode).maybeSingle()
   if (!template) return { success: false, message: 'Template not found in your family.' }
 
-  // Never let the family revoke its own last route back in. Removing the grant that
-  // governs THIS page is the one edit with no undo: the screen that could restore it
-  // is the screen it just locked.
-  if (resourceKey === RESOURCE && action === 'edit' && scope === 'none') {
-    const lockout = await wouldLoseLastAdmin(templateId, auth.familyCode)
+  // Never let the family revoke its own last route back in. Removing either of the two
+  // grants that govern THIS page is the edit with no undo: the screen that could
+  // restore it is the screen it just locked.
+  //
+  // BOTH keys, since 20260808000000 split them, and each is a separate lockout with a
+  // different shape:
+  //   admin/users:edit            nobody can put a member on a different template, so
+  //                               a grid can be rewritten but reaches no one.
+  //   admin/users/templates:edit  nobody can change what any template grants, so every
+  //                               grid in the family is frozen exactly as it stands.
+  // Neither is recoverable from the UI, so neither is allowed to reach zero.
+  if ((resourceKey === RESOURCE || resourceKey === TEMPLATE_RESOURCE)
+      && action === 'edit' && scope === 'none') {
+    const lockout = await wouldLoseLastAdmin(resourceKey, templateId, auth.familyCode)
     if (lockout) return { success: false, message: lockout }
   }
 
@@ -565,21 +640,37 @@ export async function setTemplatePermission(
   return { success: true }
 }
 
+/** How each of the two lockouts reads to the person about to cause it. */
+const LOCKOUT_SUBJECT: Record<string, string> = {
+  [RESOURCE]: 'manage access',
+  [TEMPLATE_RESOURCE]: 'change permission templates',
+}
+
 /**
- * Returns an error message when stripping admin/users:edit from `templateId` would
- * leave the family with nobody who can manage access.
+ * Returns an error message when stripping `resourceKey`:edit from `templateId` would
+ * leave the family with nobody holding it.
  *
  * The TypeScript twin of family_has_other_admin() in 20260807000000, asked about a
  * template rather than a person: everyone on this template is about to lose the
  * grant, so the question is whether anyone NOT on it still holds it.
+ *
+ * The database has no twin for the TEMPLATE key and does not need one — every template
+ * mutation in this file runs on the service role, so this is the only layer that sees
+ * the edit. family_has_other_admin() stays keyed on `admin/users` because its callers
+ * are the two RPCs that write to `people`, which are Members-tab operations.
  */
-async function wouldLoseLastAdmin(templateId: string, familyCode: string): Promise<string | null> {
+async function wouldLoseLastAdmin(
+  resourceKey: string,
+  templateId: string,
+  familyCode: string,
+): Promise<string | null> {
   const admin = createAdminClient()
+  const subject = LOCKOUT_SUBJECT[resourceKey] ?? 'manage access'
 
   const { data: capable } = await admin
     .from('template_permissions')
     .select('template_id, permission_templates!inner(family_code)')
-    .eq('resource_key', RESOURCE)
+    .eq('resource_key', resourceKey)
     .eq('action', 'edit')
     .neq('scope', 'none')
 
@@ -592,7 +683,7 @@ async function wouldLoseLastAdmin(templateId: string, familyCode: string): Promi
     .filter(id => id !== templateId)
 
   if (otherIds.length === 0) {
-    return 'This is the only template that can manage access. Grant it to another template first.'
+    return `This is the only template that can ${subject}. Grant it to another template first.`
   }
 
   // A template nobody is on is not a way back in. Only APPROVED members count — a
@@ -607,7 +698,7 @@ async function wouldLoseLastAdmin(templateId: string, familyCode: string): Promi
     .in('permission_template_id', otherIds)
 
   return (count ?? 0) === 0
-    ? 'No other template that can manage access has any members. Put someone on one first.'
+    ? `No other template that can ${subject} has any members. Put someone on one first.`
     : null
 }
 

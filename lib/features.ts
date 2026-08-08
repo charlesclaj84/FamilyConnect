@@ -302,3 +302,23 @@ export function describeFeature(pathname: string): { label: string; blurb: strin
 
 /** Shipped features, in registry order — the "available now" list. */
 export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status === 'live')
+
+/**
+ * Permission resource keys that gate a TAB inside a live page rather than a route of
+ * their own.
+ *
+ * `viewableResources()` builds the sidebar's answer by walking FEATURES, so a key with
+ * no entry there resolves to nothing and any nav item depending on it disappears. That
+ * is fine for a key nobody navigates by — the four `transactions/*` ledgers and the
+ * six `admin/account/*` sections are all reached through a page that has its own
+ * entry — but not for one that can be a caller's ONLY reason to reach a page.
+ *
+ * `admin/users/templates` is that case. Members & Access opens for any of its three
+ * tab grants (see the page), so someone holding Permission Templates and neither of
+ * the other two has a working page and, without this, no link to it.
+ *
+ * `admin/approvals` is NOT here: it has a real FEATURES entry, because its path is a
+ * redirect into the same page and the entry is what keeps that link working. Read the
+ * note on it above before adding anything to either list.
+ */
+export const TAB_RESOURCES: readonly string[] = ['admin/users/templates']

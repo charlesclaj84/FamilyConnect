@@ -28,7 +28,7 @@ import {
   recordDisbursement, recordFundContribution,
   type FundMilestone, type FundDisbursement, type FundContribution,
 } from '@/app/actions/funds'
-import { LEDGERS, LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
+import { LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
@@ -36,6 +36,21 @@ interface FundOption { id: string; name: string }
 
 interface Props {
   initialLedger: Ledger
+  /**
+   * The ledgers this caller holds a view grant on, from LEDGER_RESOURCE — resolved on
+   * the server, which also skips the fetch for every ledger absent from this list.
+   *
+   * A ledger missing here has no tab and no rows, and that is one decision rather than
+   * two: the page hands down `[]` for it, so a tab rendered anyway would be an empty
+   * one rather than a leak. In LEDGERS order, so the rail keeps its order without
+   * sorting.
+   *
+   * VIEW gates the tab, CREATE gates the button inside it — the same division
+   * AdminAccountShell uses for Accounting's sections. A create grant without a view
+   * grant therefore shows nothing, which is visible in the grid as a row with view set
+   * to "—" rather than a silent no-op.
+   */
+  visibleLedgers: Ledger[]
   initialPayments: DuesPayment[]
   initialContributions: FundContribution[]
   initialDisbursements: FundDisbursement[]
@@ -304,6 +319,7 @@ function LedgerRowTrigger({ onOpen, children }: { onOpen: () => void; children: 
  */
 export function TransactionsClient({
   initialLedger,
+  visibleLedgers,
   initialPayments,
   initialContributions,
   initialDisbursements,
@@ -618,6 +634,20 @@ export function TransactionsClient({
         ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id))
         : viewOfPayment(payments.find(p => p.id === viewing.id))
 
+  // Reachable: `transactions:view` opens the page, but each ledger is its own grant
+  // since 20260808000000, so a caller can hold the page and none of its contents.
+  // Better to say so than to render an empty rail over an empty pane and let them
+  // wonder what broke — the same answer AdminAccountShell gives for Accounting.
+  if (visibleLedgers.length === 0) {
+    return (
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
+        You can open Transactions, but none of its ledgers have been shared with you.
+        Ask an administrator for access to the ones you need — dues, donations,
+        contributions and disbursements are each granted separately.
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* The main rail, with the record trigger on its right — same shape as the
@@ -626,7 +656,7 @@ export function TransactionsClient({
           width. */}
       <MainRail
         label="Transaction ledgers"
-        items={LEDGERS.map(id => ({
+        items={visibleLedgers.map(id => ({
           id,
           label: LEDGER_LABELS[id],
           icon: LEDGER_ICONS[id],

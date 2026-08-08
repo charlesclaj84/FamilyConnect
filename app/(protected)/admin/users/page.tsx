@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
 import {
   getTemplates, getResources, getTemplatePolicy, canManageAccess, getMyEffectivePermissions,
+  type AccessRights,
 } from '@/app/actions/admin/permissions'
 import { getApplicants } from '@/app/actions/admin/approvals'
 import { getInvitations } from '@/app/actions/invitations'
@@ -17,40 +18,46 @@ interface Props {
   searchParams: Promise<{ tab?: string; template?: string }>
 }
 
+/** The shape handed down when neither half of the page was fetched. */
+const NO_RIGHTS: AccessRights = { view: false, create: false, edit: false, remove: false }
+
 /**
  * Members & Access, and — since Member Approvals moved here from its own route — the
  * join queue.
  *
- * TWO RESOURCE KEYS GATE THIS ONE PAGE, and neither implies the other.
+ * THREE RESOURCE KEYS GATE THIS ONE PAGE — one per tab — and none implies another.
  *
- *   `admin/users`      the member list and the permission templates
- *   `admin/approvals`  the Pending Approval tab
+ *   `admin/users`            the Members tab: the roster, and re-templating someone
+ *   `admin/approvals`        the Pending Approval tab: the join queue
+ *   `admin/users/templates`  the Permission Templates tab: the grids themselves
  *
- * The page opens for EITHER, which is what keeps the move from being a quiet
- * tightening: before it, reviewing applicants needed only the approvals grant, and a
- * family that had given someone Member Approvals without Members & Access would have
- * found them locked out of a queue they were responsible for. Requiring both would
- * have been a permission change smuggled in as a navigation change.
+ * The page opens for ANY of them, which is what keeps each move onto this screen from
+ * being a quiet tightening: reviewing applicants needed only the approvals grant before
+ * the queue moved here, and editing grids needed only the Groups & Permissions grant
+ * before that screen was merged in. Requiring the page's key on top of a tab's would be
+ * a permission change smuggled in as a navigation change.
  *
- * Each half then fetches only under its own grant (AGENTS.md §5 — props are
+ * Each tab then fetches only under its own grant (AGENTS.md §5 — props are
  * serialized into the RSC payload and reach the browser whether a component renders
  * them or not, so hiding a tab over data already fetched publishes that data). The
- * actions behind both halves re-check independently: getTemplates() and friends run
- * requireAccessAdmin('view'), getApplicants() runs requireRead('admin/approvals').
+ * actions behind all three re-check independently: getResources() and
+ * getTemplatePolicy() run requireAccessAdmin(TEMPLATE_RESOURCE, 'view'), searchMembers()
+ * runs it on 'admin/users', getApplicants() runs requireRead('admin/approvals').
  */
 export default async function AdminAccessPage({ searchParams }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [canViewAccess, canViewApprovals] = await Promise.all([
+  const [canViewAccess, canViewApprovals, canViewTemplates] = await Promise.all([
     can(user.id, 'admin/users', 'view'),
     can(user.id, 'admin/approvals', 'view'),
+    can(user.id, 'admin/users/templates', 'view'),
   ])
 
-  // Neither grant: the 404 requireView() would have given, and for the same reason —
+  // No grant at all: the 404 requireView() would have given, and for the same reason —
   // a restricted page should not advertise that it exists.
-  if (!canViewAccess && !canViewApprovals) notFound()
+  if (!canViewAccess && !canViewApprovals && !canViewTemplates) notFound()
 
   const params = await searchParams
   const requested: AccessTab =
@@ -59,29 +66,36 @@ export default async function AdminAccessPage({ searchParams }: Props) {
         : 'members'
 
   // Landing on a tab this caller cannot see — a stale link, a grant removed since, or
-  // an approvals-only caller arriving at the bare URL — falls back to one they can.
-  const tab: AccessTab =
-    requested === 'approvals'
-      ? (canViewApprovals ? 'approvals' : 'members')
-      : (canViewAccess ? requested : 'approvals')
+  // a single-grant caller arriving at the bare URL — falls back to one they can, in
+  // the rail's own order so the landing tab is the leftmost one available.
+  const allowed: Record<AccessTab, boolean> = {
+    members: canViewAccess,
+    approvals: canViewApprovals,
+    templates: canViewTemplates,
+  }
+  const tab: AccessTab = allowed[requested]
+    ? requested
+    : (['members', 'approvals', 'templates'] as AccessTab[]).find(t => allowed[t])!
 
   // The member list is searched and paged in the database by the client on demand — a
   // family can run past 500 people — so this page loads only the template catalog.
-  const [templates, resources, rights, effective] = canViewAccess
-    ? await Promise.all([
-        getTemplates(),
-        getResources(),
-        canManageAccess(),
-        getMyEffectivePermissions(),
-      ])
-    : [[], [], { view: false, create: false, edit: false, remove: false }, { legacy: false }]
+  //
+  // getTemplates() is fetched for EITHER key: the Members tab's row menu is a list of
+  // templates to put someone on, so the roster half needs their names as much as the
+  // grid half does. getResources() is the templates half alone — the resource catalog
+  // is only the grid's columns.
+  const [templates, rights, effective] = canViewAccess || canViewTemplates
+    ? await Promise.all([getTemplates(), canManageAccess(), getMyEffectivePermissions()])
+    : [[], { members: NO_RIGHTS, templates: NO_RIGHTS }, { legacy: false }]
+
+  const resources = canViewTemplates ? await getResources() : []
 
   const selectedTemplateId = templates.some(t => t.id === params.template)
     ? params.template!
     : templates[0]?.id ?? null
 
-  // Only fetched for the tab that shows it, on both halves.
-  const policy = tab === 'templates' && selectedTemplateId
+  // Only fetched for the tab that shows it, and only under the grant that governs it.
+  const policy = canViewTemplates && tab === 'templates' && selectedTemplateId
     ? await getTemplatePolicy(selectedTemplateId)
     : {}
 
@@ -112,11 +126,13 @@ export default async function AdminAccessPage({ searchParams }: Props) {
         tab={tab}
         selectedTemplateId={selectedTemplateId}
         policy={policy}
-        rights={rights}
+        memberRights={rights.members}
+        templateRights={rights.templates}
         legacy={effective.legacy}
         approvals={approvalsData}
         canViewApprovals={canViewApprovals}
         canViewAccess={canViewAccess}
+        canViewTemplates={canViewTemplates}
       />
     </PageShell>
   )

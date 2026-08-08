@@ -27,7 +27,8 @@ export const LEDGER_LABELS: Record<Ledger, string> = {
 export const DEFAULT_LEDGER: Ledger = 'dues'
 
 /**
- * Which permission resource governs the "add" button on each ledger.
+ * Which permission resource governs each ledger — its TAB via `view`, and its "add"
+ * button via `create`.
  *
  * The single binding that the page, the client and the server actions all read, so
  * the button and the action can never disagree about which grant they need. Before
@@ -35,6 +36,18 @@ export const DEFAULT_LEDGER: Ledger = 'dues'
  * donations, family-finances:edit covered contributions AND disbursements — so a
  * treasurer who could record dues could also record donations, and there was no way
  * to let someone log a contribution without also letting them pay money out.
+ *
+ * THE `view` HALF ARRIVED LATER (20260808000000) and does not mean quite the same
+ * thing on all four, which is worth knowing before reading a grant off the grid:
+ *
+ *   contributions, disbursements   permission_table_map points fund_contributions and
+ *                                  fund_disbursements at these keys, so the view IS the
+ *                                  RLS SELECT predicate as well as the tab gate.
+ *   dues, donations                dues_payments is mapped to `dues` and stays there —
+ *                                  a member's own history behind My Summary must not
+ *                                  depend on a ledger grant. So the view gates the tab
+ *                                  and the page's fetch, and `dues:view` still decides
+ *                                  which rows come back inside it.
  *
  * Registered in permission_resources by 20260806000000, under the Accounting
  * category with subsection 'Transactions'.

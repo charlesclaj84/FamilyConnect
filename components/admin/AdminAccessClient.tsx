@@ -40,12 +40,17 @@ import type { FamilyInvitation } from '@/app/actions/invitations'
  * PENDING APPROVAL is the join queue that used to live at /admin/approvals — the
  * three questions you can ask about who is in this family and what they may do.
  *
- * THE APPROVALS TAB IS GATED SEPARATELY, and that is load-bearing rather than tidy.
- * It reads a different resource key (`admin/approvals`) from the rest of this screen
- * (`admin/users`), and the rows behind it are the only place an applicant's name,
- * email, phone and date of birth are visible to anyone but themselves. So the tab is
- * absent, and its data unfetched, for a caller who holds Members & Access without
- * Member Approvals — see the page, which decides both.
+ * EACH TAB IS GATED SEPARATELY, and that is load-bearing rather than tidy. Three
+ * resource keys, one per tab — `admin/users`, `admin/approvals`,
+ * `admin/users/templates` — and a tab is absent, with its data unfetched, for a caller
+ * who does not hold its key. See the page, which decides all three.
+ *
+ * The two splits have different reasons and both are worth keeping straight:
+ *   * Pending Approval, because the rows behind it are the only place an applicant's
+ *     name, email, phone and date of birth are visible to anyone but themselves.
+ *   * Permission Templates, because editing a grid can invent authority while
+ *     re-templating a member can only hand out authority that already exists — so a
+ *     roster administrator need not be someone who can promote themselves.
  */
 
 export type AccessTab = 'members' | 'templates' | 'approvals'
@@ -66,7 +71,10 @@ interface Props {
   tab: AccessTab
   selectedTemplateId: string | null
   policy: PolicyMap
-  rights: Rights
+  /** What the caller may do on `admin/users` — the roster, and re-templating someone. */
+  memberRights: Rights
+  /** What the caller may do on `admin/users/templates` — the grids themselves. */
+  templateRights: Rights
   legacy: boolean
   /**
    * The queue, and ONLY when `tab` is 'approvals'. Whether the tab exists is
@@ -79,16 +87,18 @@ interface Props {
   /** Whether the caller may view `admin/approvals` — drives the tab. */
   canViewApprovals: boolean
   /**
-   * Whether the caller may view `admin/users` itself. False for someone who reached
-   * this page on their Member Approvals grant alone, who gets the approvals tab and
-   * nothing else.
+   * Whether the caller may view `admin/users` itself — the Members tab. False for
+   * someone who reached this page on their Member Approvals or Permission Templates
+   * grant alone.
    */
   canViewAccess: boolean
+  /** Whether the caller may view `admin/users/templates` — drives the templates tab. */
+  canViewTemplates: boolean
 }
 
 export function AdminAccessClient({
-  templates, resources, tab, selectedTemplateId, policy, rights, legacy,
-  approvals, canViewApprovals, canViewAccess,
+  templates, resources, tab, selectedTemplateId, policy, memberRights, templateRights,
+  legacy, approvals, canViewApprovals, canViewAccess, canViewTemplates,
 }: Props) {
   const router = useRouter()
   const [error, setError] = useState('')
@@ -104,10 +114,10 @@ export function AdminAccessClient({
   }
 
   // Built from what the caller may actually see, so a visible tab always leads
-  // somewhere they can go. Every entry is conditional: an approvals-only caller gets
-  // one tab, and so does someone with no approvals grant. Order is Members → Pending
-  // Approval → Permission Templates regardless of which of them survive, so the two
-  // people-shaped tabs stay adjacent.
+  // somewhere they can go. Every entry is conditional and each reads its OWN key —
+  // three grants, three tabs, any combination of which is a legitimate caller. Order is
+  // Members → Pending Approval → Permission Templates regardless of which of them
+  // survive, so the two people-shaped tabs stay adjacent.
   const tabs: MainRailItem<AccessTab>[] = [
     ...(canViewAccess ? [
       { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
@@ -118,7 +128,7 @@ export function AdminAccessClient({
       icon: Clock,
       href: '/admin/users?tab=approvals',
     }] : []),
-    ...(canViewAccess ? [{
+    ...(canViewTemplates ? [{
       id: 'templates' as const,
       label: 'Permission Templates',
       icon: KeyRound,
@@ -136,11 +146,18 @@ export function AdminAccessClient({
         </div>
       )}
 
-      {/* Suppressed for an approvals-only caller: they are not looking at access
-          settings, so telling them they cannot change any is a non sequitur. */}
-      {canViewAccess && !rights.edit && (
+      {/* Per TAB, not per page: read-only on the roster and read-only on the grids are
+          different facts, and a caller can hold one and not the other. Suppressed
+          entirely on Pending Approval, which is neither — telling somebody reviewing
+          applicants that they cannot change access settings is a non sequitur. */}
+      {tab === 'members' && canViewAccess && !memberRights.edit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can view access settings but not change them.
+          You can view the member list but not change who is on which template.
+        </div>
+      )}
+      {tab === 'templates' && canViewTemplates && !templateRights.edit && (
+        <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          You can view what each template grants but not change it.
         </div>
       )}
 
@@ -165,7 +182,7 @@ export function AdminAccessClient({
       )}
 
       {tab === 'members' && (
-        <MembersTab templates={templates} rights={rights} onError={setError} />
+        <MembersTab templates={templates} rights={memberRights} onError={setError} />
       )}
 
       {tab === 'templates' && (
@@ -174,7 +191,7 @@ export function AdminAccessClient({
           resources={resources}
           selectedTemplateId={selectedTemplateId}
           policy={policy}
-          rights={rights}
+          rights={templateRights}
           onError={setError}
           onSelect={id => go({ tab: 'templates', template: id })}
         />

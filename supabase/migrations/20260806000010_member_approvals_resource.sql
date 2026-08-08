@@ -54,8 +54,17 @@ BEGIN;
 -- sort_order 165 sits it between User Management (160) and Groups & Permissions
 -- (170) in the Groups & Permissions grid: admitting a member belongs next to
 -- managing one, not off at the end of the Admin section.
+-- Labelled 'Pending Approval' since 20260808000000 — the caption on its own tab in
+-- Members & Access, which is where the queue has lived since 20260807000000 moved it
+-- off this route. Updated here as well as there because this insert is ON CONFLICT DO
+-- UPDATE on label.
+--
+-- `subsection` is deliberately NOT set here: the column exists by this point, but the
+-- sub-heading it joins ('Members & Access') only makes sense once admin/users/templates
+-- is beside it, which is 20260808000000's business. Naming it early would render a
+-- sub-heading over a single row.
 INSERT INTO public.permission_resources (key, label, category, sort_order, actions)
-VALUES ('admin/approvals', 'Member Approvals', 'admin', 165, ARRAY['view','edit']::TEXT[])
+VALUES ('admin/approvals', 'Pending Approval', 'admin', 165, ARRAY['view','edit']::TEXT[])
 ON CONFLICT (key) DO UPDATE
   SET label      = EXCLUDED.label,
       category   = EXCLUDED.category,

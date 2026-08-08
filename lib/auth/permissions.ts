@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewingMembership, isApproved, type FamilyMembership } from '@/lib/auth/family'
-import { FEATURES, getFeature } from '@/lib/features'
+import { FEATURES, TAB_RESOURCES, getFeature } from '@/lib/features'
 
 /**
  * Authorization for the authenticated caller in their active family.
@@ -297,12 +297,16 @@ export async function requireViewOrPending(
  * answer at once. Computed over the full feature catalog rather than only the
  * rows that exist, so a resource with no explicit grant still picks up the
  * family's default visibility.
+ *
+ * TAB_RESOURCES is walked alongside it: a key gating a tab inside a live page has no
+ * FEATURES entry to be found under, and one of them — `admin/users/templates` — can be
+ * a caller's only reason to reach Members & Access. See the note on that constant.
  */
 export async function viewableResources(userId: string): Promise<Set<string>> {
   const perms = await getMyPermissionSet(userId)
   const out = new Set<string>()
-  for (const feature of FEATURES) {
-    const resource = feature.href.replace(/^\//, '')
+  const keys = [...FEATURES.map(f => f.href.replace(/^\//, '')), ...TAB_RESOURCES]
+  for (const resource of keys) {
     if (resolveScope(perms, resource, 'view') !== 'none') out.add(resource)
   }
   return out

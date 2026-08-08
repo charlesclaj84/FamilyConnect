@@ -92,7 +92,12 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- 20260806000007, so naming it here would abort the chain on an empty database.
   -- The row is created with the default four actions and narrowed to view+edit by
   -- 20260806000010 §1, which does not update `actions` on conflict.
-  ('admin/approvals',     'Member Approvals',       'admin',      165),
+  -- Labelled 'Pending Approval' since 20260808000000 — the caption on its own tab in
+  -- Members & Access, which is where the queue has lived since 20260807000000 moved
+  -- it off /admin/approvals. Updated here too because this insert is ON CONFLICT DO
+  -- UPDATE on label. lib/features.ts still calls the FEATURE "Member Approvals"; that
+  -- string names a route which is now a redirect and is rendered nowhere.
+  ('admin/approvals',     'Pending Approval',       'admin',      165),
   -- DELETED by 20260807000000, which merges it into admin/users. Left in place here
   -- rather than removed: every policy between this file and that one names it, and
   -- auth_can() on an unregistered key falls through to the default — 'none' for edit —
