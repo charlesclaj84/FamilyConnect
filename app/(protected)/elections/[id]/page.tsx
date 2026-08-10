@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/date-utils'
 import { BallotForm } from '@/components/elections/BallotForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export const metadata = { title: 'Election — Family Connect' }
+export const metadata = { title: 'Election' }
 
 export default async function ElectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

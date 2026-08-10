@@ -12,7 +12,7 @@ import { ChevronLeft, Calendar, MapPin, Clock, ClipboardList, Users, Camera } fr
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDate } from '@/lib/date-utils'
 
-export const metadata = { title: 'Event — Family Connect' }
+export const metadata = { title: 'Event' }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -11,7 +11,7 @@ import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'My Profile — Family Connect' }
+export const metadata = { title: 'My Profile' }
 
 export default async function PersonalInfoPage({
   searchParams,
@@ -54,7 +54,7 @@ export default async function PersonalInfoPage({
         {myRoles.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2 mb-1">
             {myRoles.map((r, i) => (
-              <span key={i} className="inline-flex items-center text-sm font-medium bg-[#0f2540] text-[#e6ecfa] px-3 py-1 rounded-full">
+              <span key={i} className="inline-flex items-center text-sm font-medium bg-brand-navy text-brand-tint px-3 py-1 rounded-full">
                 {formatRoleTitle(r)}
               </span>
             ))}

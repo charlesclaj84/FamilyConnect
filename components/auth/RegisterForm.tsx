@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { APP_NAME } from '@/lib/brand'
 
 type Mode = 'join' | 'create'
 
@@ -199,8 +200,8 @@ export function RegisterForm({
             ? <>You have been invited to join{' '}
                 <span className="font-medium">{invitedFamilyName}</span>.</>
             : mode === 'join'
-              ? 'Join your family on Family Connect'
-              : 'Start a new family on Family Connect'}
+              ? `Join your family on ${APP_NAME}`
+              : `Start a new family on ${APP_NAME}`}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -212,8 +213,8 @@ export function RegisterForm({
             onClick={() => switchMode('join')}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               mode === 'join'
-                ? 'bg-[#0f2540] text-[#e6ecfa] shadow-sm'
-                : 'text-[#0f2540] hover:bg-[#0f2540]/10'
+                ? 'bg-brand-navy text-brand-tint shadow-sm'
+                : 'text-brand-navy hover:bg-brand-navy/10'
             }`}
           >
             Join a Family
@@ -223,8 +224,8 @@ export function RegisterForm({
             onClick={() => switchMode('create')}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               mode === 'create'
-                ? 'bg-[#0f2540] text-[#e6ecfa] shadow-sm'
-                : 'text-[#0f2540] hover:bg-[#0f2540]/10'
+                ? 'bg-brand-navy text-brand-tint shadow-sm'
+                : 'text-brand-navy hover:bg-brand-navy/10'
             }`}
           >
             Start a New Family

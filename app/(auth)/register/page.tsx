@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { RegisterForm } from '@/components/auth/RegisterForm'
 import { peekInvitation } from '@/app/actions/invitations'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { APP_NAME } from '@/lib/brand'
 
-export const metadata = { title: 'Create Account — Family Connect' }
+export const metadata = { title: 'Create Account' }
 
 /**
  * `?invite=<token>` puts the form into invitation mode.
@@ -39,7 +40,7 @@ export default async function RegisterPage({
           <CardTitle className="text-2xl">You already have an account</CardTitle>
           <CardDescription>
             <span className="font-medium">{invitation.email}</span> is already registered
-            with Family Connect, so there is nothing to create. Sign in and you will come
+            with {APP_NAME}, so there is nothing to create. Sign in and you will come
             straight back to your invitation to{' '}
             <span className="font-medium">{invitation.familyName}</span> and join it.
           </CardDescription>
@@ -47,7 +48,7 @@ export default async function RegisterPage({
         <CardContent>
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${invite}`)}`}
-            className="inline-flex rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+            className="inline-flex rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
           >
             Sign in to accept
           </Link>

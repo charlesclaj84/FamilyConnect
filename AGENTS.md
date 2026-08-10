@@ -476,6 +476,123 @@ removed their rows so they cannot be restricted; the 2026-08-08 review reconside
 and kept it. The empty `personal` heading in `components/admin/resource-groups.ts` is the
 trace of that decision, not a gap to fill.
 
+# Colours live in one place
+
+`app/globals.css` is **the only file in the app that may contain a colour literal.**
+Not "the preferred place" — the only one. A new page or component that needs a colour
+uses a token that already exists, or adds one here first and then uses it.
+
+Two ramps sit in that file and they answer different questions:
+
+* **The GENORRA brand ramp** — `--brand-*` in `:root`, surfaced as Tailwind utilities
+  through the `@theme inline` block. This is the product's identity: navy, its pale
+  companion, teal, the affirmative green.
+
+  | Token | Utility | What it is for |
+  |---|---|---|
+  | `--brand-navy` | `bg-brand-navy`, `text-brand-navy`, `border-brand-navy` | Primary ink; filled chips, buttons, active rail items |
+  | `--brand-navy-deep` | `bg-brand-navy-deep` | The banner hero behind the logo |
+  | `--brand-tint` | `bg-brand-tint`, `text-brand-tint` | Navy's pale companion: resting pills, and text *on* navy |
+  | `--brand-mist` | `bg-brand-mist`, `text-brand-mist` | Header bars |
+  | `--brand-teal` | `text-brand-teal`, `bg-brand-teal` | Links, `h3`–`h6`, unread markers |
+  | `--brand-green` | `bg-brand-green`, `border-brand-green` | Affirmative actions: create, record, pay |
+
+* **The shadcn semantic ramp** — `--background`, `--card`, `--muted`, `--border`,
+  `--destructive` and the rest, in oklch. This dresses generic UI, and it is the ramp
+  that already knows about dark mode.
+
+**Reach for the semantic token first.** `bg-card`, `text-muted-foreground`,
+`border-border` and `text-destructive` are right far more often than a brand colour is,
+and they are the only ones that respond to `.dark`. Use a `--brand-*` token when the
+thing you are colouring is specifically GENORRA — a filled navy chip, a teal link, the
+green "record payment" button — not merely when you want *a* dark blue.
+
+## Never write a hex outside globals.css
+
+`bg-[#0f2540]` is the failure mode this rule exists to prevent, and it is not
+hypothetical: it was in 33 files before 2026-08-10, and the sweep that removed it
+turned up **two** pale blues, `#e6ecfa` and `#e6ecf1`, differing by one channel and
+used interchangeably as "text on navy" — a drift nobody chose and nobody could see.
+Both survive as `--brand-tint` and `--brand-mist` because collapsing them is a visual
+change and the sweep was a refactor; if you are ever in a position to decide which one
+the header bars really want, delete the other.
+
+That is the cost the rule buys off. An arbitrary value in a `className` is invisible to
+every search that matters — you cannot count the uses, cannot rename it, and cannot
+change the brand without a 33-file diff that is impossible to review for completeness.
+A token you can grep.
+
+The same goes for `style={{ color: … }}` and any SVG `fill`/`stroke`. There are none in
+the tree today. If a chart or an illustration ever genuinely needs a colour in JS, read
+it from the custom property (`var(--brand-teal)`) rather than restating the hex.
+
+**The brand ramp is deliberately not overridden in `.dark`.** The hardcoded hexes did
+not vary by theme either, so centralising them changed nothing — but it did put the
+override in reach. Dark mode is still the stock shadcn greyscale: `--primary` there is
+`oklch(0.922 0 0)`, near-white, and none of the brand hues appear. Giving the brand a
+dark treatment is a design decision, not a cleanup; make it in the `.dark` block, all
+at once, or not at all.
+
+**One trap to know about.** `globals.css` carries an unscoped `a { color: var(--brand-teal) }`
+in its base layer, so every anchor is teal unless a component says otherwise. That is
+why `MainRail`, `Sidebar`, `RoomListItem` and `AdminAccountShell` all set an explicit
+text colour on both branches of their active/inactive ternary — those are not
+decoration, and removing one turns that rail teal. Each carries a comment saying so.
+
+# The product name lives in one place
+
+`lib/brand.ts` is the counterpart to the colour tokens: colours are centralised in
+`app/globals.css` because CSS consumes them, and the name is centralised here because
+TypeScript does. **Never type the product name as a literal in a component.**
+
+```tsx
+import { APP_NAME, APP_BANNER_ALT } from '@/lib/brand'
+
+<span className="text-xl font-bold">{APP_NAME}</span>
+<Image src="/banner.png" alt={APP_BANNER_ALT} … />
+```
+
+`APP_NAME`, `APP_TAGLINE`, `APP_PROMISE`, `APP_DESCRIPTION`, `APP_BANNER_ALT` and
+`APP_LOGO_ALT` are the whole surface. In a template string use `${APP_NAME}`, not a
+literal — `lib/features.ts` and `app/actions/children.ts` are the worked examples.
+
+## Page titles are composed, not written
+
+**A page declares only its own name.** `app/layout.tsx` sets a `title.template`, and
+Next appends the product name to every child segment:
+
+```ts
+export const metadata = { title: 'Dashboard' }   // renders "Dashboard — GENORRA"
+```
+
+Three things follow from how `title.template` actually behaves:
+
+* **Do not write the suffix yourself.** `title: 'Dashboard — GENORRA'` renders
+  `Dashboard — GENORRA — GENORRA`. Twenty-seven pages carried that suffix by hand
+  before 2026-08-10; the template is why they no longer do.
+* **`title.default` is required alongside a template,** and it is what `/` renders,
+  because a template does *not* apply to the segment that defines it.
+* **A page with no `title` gets the default,** which is the bare product name. That is
+  the correct fallback, not a gap to fill.
+
+`generateMetadata` obeys the same rule — see `app/(protected)/coming-soon/page.tsx`,
+which returns `` `${label} — Coming Soon` `` and lets the template finish the job.
+
+## What is deliberately *not* in here
+
+**Deployment hostnames.** `supabase/config.toml` carries `site_url` and
+`additional_redirect_urls`, and those are DNS names that either resolve or do not.
+They are not references to the product name and must never be swept along with one —
+changing them to match a rename breaks sign-in and every confirmation-email link until
+the deployment is actually renamed to match.
+
+**`project_id` in `supabase/config.toml`.** It namespaces the local Docker containers.
+Changing it does not rename a running stack — it orphans it and builds a new one on the
+next `supabase start`.
+
+**Applied migrations.** Comments in `supabase/migrations/*` are a record of what ran and
+when. They were swept once, during the 2026-08-10 rename; do not make a habit of it.
+
 # Page width is a component, not a per-page guess
 
 `components/layout/PageShell.tsx` is **the page container**. Every page under

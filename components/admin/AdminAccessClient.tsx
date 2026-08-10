@@ -327,7 +327,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
       <td className="px-3 py-2.5 text-muted-foreground">{member.email ?? '—'}</td>
       <td className="px-3 py-2.5 text-muted-foreground">{member.location ?? '—'}</td>
       <td className="px-3 py-2.5">
-        <span className="inline-block whitespace-nowrap rounded-full bg-[#e6ecfa] px-2.5 py-1 text-xs font-medium text-[#0f2540]">
+        <span className="inline-block whitespace-nowrap rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand-navy">
           {member.templateName ?? 'No template'}
         </span>
       </td>
@@ -345,7 +345,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
               const current = t.id === member.templateId
               return (
                 <button key={t.id} type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[#e6ecfa]"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint"
                   onClick={() => {
                     close()
                     if (current) return
@@ -369,7 +369,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
 
             {member.status === 'pending' ? (
               <Link href="/admin/users?tab=approvals" onClick={close}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[#e6ecfa]">
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
                 Review in Pending Approval
               </Link>
@@ -380,7 +380,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
             ) : (
               <button type="button"
                 className={cn(
-                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-[#e6ecfa]',
+                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint',
                   !disabled && 'text-destructive',
                 )}
                 onClick={() => {
@@ -629,8 +629,8 @@ function TemplatesTab({
                 <div className={cn(
                   'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
                   t.id === selectedTemplateId
-                    ? 'bg-[#0f2540] text-[#e6ecfa]'
-                    : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
+                    ? 'bg-brand-navy text-brand-tint'
+                    : 'bg-brand-tint text-brand-navy hover:opacity-90',
                 )}>
                   <button type="button" onClick={() => onSelect(t.id)} className="min-w-0 flex-1 text-left">
                     <span className="flex items-center gap-1.5 font-medium">

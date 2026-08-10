@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- FamilyConnect Chat — clean install
+-- GENORRA Chat — clean install
 -- Run chat_teardown.sql first if reinstalling.
 -- ─────────────────────────────────────────────────────────────────────────────
 

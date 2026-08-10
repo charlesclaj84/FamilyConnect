@@ -128,7 +128,7 @@ export function CreateFamilyDialog() {
               <button
                 type="submit"
                 disabled={isPending || !name.trim()}
-                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {isPending ? 'Creating…' : 'Create family'}
               </button>
@@ -143,11 +143,11 @@ export function CreateFamilyDialog() {
               now viewing it as its administrator.
             </p>
 
-            <div className="rounded-xl border-2 border-[#0f2540]/30 bg-[#e6ecfa]/40 px-6 py-4 text-center">
+            <div className="rounded-xl border-2 border-brand-navy/30 bg-brand-tint/40 px-6 py-4 text-center">
               <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
                 Family Code
               </p>
-              <p className="font-mono text-3xl font-bold tracking-widest text-[#0f2540]">
+              <p className="font-mono text-3xl font-bold tracking-widest text-brand-navy">
                 {step.familyCode}
               </p>
             </div>
@@ -169,7 +169,7 @@ export function CreateFamilyDialog() {
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
               >
                 Done
               </button>

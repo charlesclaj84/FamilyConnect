@@ -8,7 +8,7 @@ import {
 } from '@/app/actions/chat'
 import { ChatShell } from '@/components/chat/ChatShell'
 
-export const metadata = { title: 'Chat — Family Connect' }
+export const metadata = { title: 'Chat' }
 
 export default async function ChatPage() {
   const supabase = await createClient()

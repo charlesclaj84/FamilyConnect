@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersRound, ListChecks, CalendarClock, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
-export const metadata = { title: 'Admin — Family Connect' }
+export const metadata = { title: 'Admin' }
 
 export default async function AdminPage() {
   const supabase = await createClient()

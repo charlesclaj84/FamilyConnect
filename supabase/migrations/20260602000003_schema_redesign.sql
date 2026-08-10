@@ -17,7 +17,7 @@ END;
 $$;
 
 -- ── People ─────────────────────────────────────────────────────────────────────
--- Every family member — whether they have a Family Connect account or not.
+-- Every family member — whether they have a GENORRA account or not.
 -- is_minor=true   → child
 -- is_minor=false  → adult
 -- user_id         → set only when the person has registered an account

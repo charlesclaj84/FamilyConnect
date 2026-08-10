@@ -4,7 +4,7 @@ import { requireView } from '@/lib/auth/permissions'
 import { getMyAssignments, getFamilyMembersForPlanning } from '@/app/actions/event-planning'
 import { EventPlanningClient } from '@/components/events/EventPlanningClient'
 
-export const metadata = { title: 'Event Planning — Family Connect' }
+export const metadata = { title: 'Event Planning' }
 
 export default async function EventPlanningPage() {
   const supabase = await createClient()

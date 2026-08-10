@@ -81,7 +81,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
               key={family.familyCode}
               className={cn(
                 'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3',
-                family.isActive ? 'border-[#0f2540]/40 bg-[#e6ecfa]/60' : 'bg-card',
+                family.isActive ? 'border-brand-navy/40 bg-brand-tint/60' : 'bg-card',
                 !approved && 'opacity-90',
               )}
             >
@@ -99,7 +99,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                     </span>
                   )}
                   {family.isActive && approved && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#0f2540] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#e6ecfa]">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-navy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-tint">
                       <Eye className="h-3 w-3" /> Viewing
                     </span>
                   )}

@@ -9,7 +9,7 @@ import { getCollectionDetail } from '@/app/actions/photos'
 import { getMembers } from '@/app/actions/members'
 import { PhotoCollectionGallery } from '@/components/photos/PhotoCollectionGallery'
 
-export const metadata = { title: 'Photo Collection — Family Connect' }
+export const metadata = { title: 'Photo Collection' }
 
 export default async function PhotoCollectionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

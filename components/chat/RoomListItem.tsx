@@ -29,8 +29,8 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
         className={cn(
           'flex-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-left transition-colors min-w-0',
           isActive
-            ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
-            : 'text-[#0f2540] hover:bg-[#0f2540]/10',
+            ? 'bg-brand-navy text-brand-mist font-medium'
+            : 'text-brand-navy hover:bg-brand-navy/10',
         )}
       >
         {room.kind === 'family'
@@ -44,7 +44,7 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
           <span className="text-xs opacity-60 shrink-0">ended</span>
         )}
         {room.has_unread && (
-          <span className="h-2 w-2 rounded-full bg-[#1aa88a] shrink-0" aria-label="Unread messages" />
+          <span className="h-2 w-2 rounded-full bg-brand-teal shrink-0" aria-label="Unread messages" />
         )}
       </button>
 

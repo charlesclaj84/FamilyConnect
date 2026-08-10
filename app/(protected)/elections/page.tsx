@@ -6,7 +6,7 @@ import { getAllElections } from '@/app/actions/elections'
 import { ChevronRight, Vote } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 
-export const metadata = { title: 'Elections — Family Connect' }
+export const metadata = { title: 'Elections' }
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-blue-100 text-blue-700',

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture, LIVE_FEATURES } from '@/lib/features'
+import { APP_NAME } from '@/lib/brand'
 
 // Whether to mark an entry "Coming Soon". Anything tied to a route reads its
 // status from lib/features.ts so the landing page can't drift from the app;
@@ -65,10 +66,10 @@ function ImagePlaceholder({ src, accent }: { src: string; accent: string }) {
   return (
     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border shadow-sm">
       <div className={cn('absolute inset-0 bg-gradient-to-br opacity-90', accent)} />
-      <div className="fc-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="gn-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
       {/* floating decorative shapes */}
-      <div className="fc-float absolute -top-8 -right-8 h-28 w-28 rounded-full bg-white/20 blur-xl" />
-      <div className="fc-float-slow absolute bottom-4 left-6 h-20 w-20 rounded-2xl bg-white/15 blur-lg" />
+      <div className="gn-float absolute -top-8 -right-8 h-28 w-28 rounded-full bg-white/20 blur-xl" />
+      <div className="gn-float-slow absolute bottom-4 left-6 h-20 w-20 rounded-2xl bg-white/15 blur-lg" />
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-white">
         <div className="rounded-2xl bg-white/20 p-3 backdrop-blur-sm">
           <ImageIcon className="h-7 w-7" />
@@ -234,7 +235,7 @@ export function FeatureShowcase() {
             Everything it takes to run a family
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Family Connect replaces the group texts, spreadsheets, and shoeboxes of receipts with
+            {APP_NAME} replaces the group texts, spreadsheets, and shoeboxes of receipts with
             one beautiful, private home for your people, your plans, and your money.
           </p>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto mt-4">

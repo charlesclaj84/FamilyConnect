@@ -50,7 +50,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
         disabled={isPending}
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="menu"
-        className="flex max-w-[8rem] items-center gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-sm text-[#0f2540] transition-colors hover:bg-white disabled:opacity-60 sm:max-w-[14rem] sm:px-2.5"
+        className="flex max-w-[8rem] items-center gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-sm text-brand-navy transition-colors hover:bg-white disabled:opacity-60 sm:max-w-[14rem] sm:px-2.5"
         title={`Viewing ${active.familyName} — click to switch family`}
       >
         <Home className="h-4 w-4 shrink-0" />
@@ -88,7 +88,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                     disabled={isPending}
                     className={cn(
                       'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:opacity-60',
-                      family.isActive ? 'bg-[#e6ecfa] font-medium text-[#0f2540]' : 'hover:bg-muted',
+                      family.isActive ? 'bg-brand-tint font-medium text-brand-navy' : 'hover:bg-muted',
                     )}
                   >
                     <Check

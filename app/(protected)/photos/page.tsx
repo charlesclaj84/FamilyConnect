@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { PhotosClient } from '@/components/photos/PhotosClient'
 
-export const metadata = { title: 'Photos — Family Connect' }
+export const metadata = { title: 'Photos' }
 
 /**
  * Server shell so the page can carry the view gate. The gallery itself is

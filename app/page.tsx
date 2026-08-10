@@ -3,20 +3,21 @@ import Link from 'next/link'
 import { User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
+import { APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT } from '@/lib/brand'
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar */}
-      <header className="border-b bg-[#e6ecf1] sticky top-0 z-10">
+      <header className="border-b bg-brand-mist sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Family Connect" width={120} height={60} className="h-10 w-auto" />
-            <span className="text-xl font-bold text-primary">Family Connect</span>
+            <Image src="/logo.png" alt={APP_LOGO_ALT} width={120} height={60} className="h-10 w-auto" />
+            <span className="text-xl font-bold text-primary">{APP_NAME}</span>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/login">
-              <Button className="bg-[#e6ecf1] text-[#0f2540] border border-[#0f2540] hover:opacity-80 gap-1.5">
+              <Button className="bg-brand-mist text-brand-navy border border-brand-navy hover:opacity-80 gap-1.5">
                 <User className="h-4 w-4" />
                 Login
               </Button>
@@ -29,10 +30,10 @@ export default function LandingPage() {
       </header>
 
       {/* Banner */}
-      <div className="w-full flex justify-center bg-[#011b43] px-4 py-6">
+      <div className="w-full flex justify-center bg-brand-navy-deep px-4 py-6">
         <Image
           src="/banner.png"
-          alt="Family Connect — Stronger Families. Closer Together."
+          alt={APP_BANNER_ALT}
           width={800}
           height={400}
           className="w-full max-w-2xl h-auto"
@@ -101,7 +102,7 @@ export default function LandingPage() {
       <footer className="border-t py-8 px-4 bg-background">
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">Family Connect</span>
+            <span className="font-semibold text-foreground">{APP_NAME}</span>
             <span>Keeping families together.</span>
             <div className="flex gap-4">
               <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>

@@ -16,6 +16,8 @@
  *      unknown URL still falls through to the normal 404.
  */
 
+import { APP_NAME } from '@/lib/brand'
+
 export type FeatureStatus = 'live' | 'future'
 
 export interface Feature {
@@ -301,7 +303,7 @@ export function isGatedPath(pathname: string): boolean {
 
 const UNKNOWN_FEATURE = {
   label: 'This feature',
-  blurb: 'We are still building this part of Family Connect. It will show up here once it ships.',
+  blurb: `We are still building this part of ${APP_NAME}. It will show up here once it ships.`,
 }
 
 /**

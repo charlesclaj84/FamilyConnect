@@ -668,7 +668,7 @@ export function TransactionsClient({
           // Green rather than the default navy: navy is exactly what the ACTIVE rail
           // item looks like, so a navy trigger here read as another ledger.
           <Button
-            className="bg-[#6bbe6b] text-[#0f2540] hover:opacity-90"
+            className="bg-brand-green text-brand-navy hover:opacity-90"
             onClick={() => { setError(''); setRecording(ledger) }}
           >
             <CirclePlus className="h-4 w-4 mr-1" /> {RECORD_LABELS[ledger]}

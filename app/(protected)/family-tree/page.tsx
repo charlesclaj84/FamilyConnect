@@ -13,7 +13,7 @@ import { getPersonPartners } from '@/app/actions/spouse'
 import { getMyRoles, getFamilyMemberRoles } from '@/app/actions/admin/users'
 import { FamilyTreeClient } from '@/components/family-tree/FamilyTreeClient'
 
-export const metadata = { title: 'Family Tree — Family Connect' }
+export const metadata = { title: 'Family Tree' }
 
 export default async function FamilyTreePage({
   searchParams,

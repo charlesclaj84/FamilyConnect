@@ -39,6 +39,12 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-deep: var(--brand-navy-deep);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-mist: var(--brand-mist);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-green: var(--brand-green);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -46,6 +52,28 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── GENORRA brand palette ──────────────────────────────────────────
+   The single source of truth for the site's colours. Every brand colour
+   in the app resolves here; nothing hardcodes a hex outside this block.
+
+   These are declared alongside — not instead of — the shadcn semantic
+   tokens below. The two answer different questions: the shadcn ramp
+   dresses generic UI (cards, inputs, borders, destructive), the brand
+   ramp is GENORRA's own identity. See AGENTS.md, "Colours live in one
+   place", for which to reach for.
+
+   Deliberately not overridden in `.dark`: the brand hues are fixed, and
+   before centralisation the hardcoded hexes did not vary by theme either.
+   Overriding them is a design decision, and this is where to make it. */
+:root {
+  --brand-navy: #0f2540;        /* primary ink, filled chips, active states */
+  --brand-navy-deep: #011b43;   /* banner hero behind the logo */
+  --brand-tint: #e6ecfa;        /* pale companion to navy: resting pills, text on navy */
+  --brand-mist: #e6ecf1;        /* header bars — a hair greyer than tint (see AGENTS.md) */
+  --brand-teal: #1aa88a;        /* links, h3–h6, unread markers */
+  --brand-green: #6bbe6b;       /* affirmative actions: create, record, pay */
 }
 
 :root {
@@ -128,35 +156,38 @@
     @apply font-sans;
   }
   h1, h2 {
-    color: #0F2540;
+    color: var(--brand-navy);
   }
   h3, h4, h5, h6 {
-    color: #1aa88a;
+    color: var(--brand-teal);
   }
+  /* Unscoped on purpose and load-bearing — but note it paints EVERY anchor,
+     including nav items that are not meant to read as links. Components that
+     need to escape it set an explicit text colour; see MainRail. */
   a {
-    color: #1aa88a;
+    color: var(--brand-teal);
   }
 }
 
 /* ── Landing-page feature animations ───────────────────────────── */
-@keyframes fc-float {
+@keyframes gn-float {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-10px); }
 }
-@keyframes fc-float-slow {
+@keyframes gn-float-slow {
   0%, 100% { transform: translateY(0) translateX(0); }
   50%      { transform: translateY(12px) translateX(6px); }
 }
-@keyframes fc-shimmer {
+@keyframes gn-shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-.fc-float       { animation: fc-float 6s ease-in-out infinite; }
-.fc-float-slow  { animation: fc-float-slow 9s ease-in-out infinite; }
-.fc-shimmer {
+.gn-float       { animation: gn-float 6s ease-in-out infinite; }
+.gn-float-slow  { animation: gn-float-slow 9s ease-in-out infinite; }
+.gn-shimmer {
   background-size: 200% 100%;
-  animation: fc-shimmer 3.5s linear infinite;
+  animation: gn-shimmer 3.5s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .fc-float, .fc-float-slow, .fc-shimmer { animation: none; }
+  .gn-float, .gn-float-slow, .gn-shimmer { animation: none; }
 }

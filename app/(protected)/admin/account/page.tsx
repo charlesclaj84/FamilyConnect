@@ -12,7 +12,7 @@ import {
 } from '@/components/admin/account-sections'
 import { can, canAny } from '@/lib/auth/permissions'
 
-export const metadata = { title: 'Accounting — Admin — Family Connect' }
+export const metadata = { title: 'Accounting — Admin' }
 
 /**
  * Accounting CONFIGURATION: dues, donations, funds, routing, milestones, settings.

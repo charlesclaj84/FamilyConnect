@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { APP_NAME } from '@/lib/brand'
 import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { Card, CardContent } from '@/components/ui/card'
@@ -356,7 +357,7 @@ function ChildRow({
         </div>
         <p className="text-sm text-muted-foreground">Born: {dob} &middot; T-Shirt: {shirt}</p>
         {child.has_account && (
-          <p className="text-xs text-muted-foreground">Has joined Family Connect — they manage their own profile.</p>
+          <p className="text-xs text-muted-foreground">Has joined {APP_NAME} — they manage their own profile.</p>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">

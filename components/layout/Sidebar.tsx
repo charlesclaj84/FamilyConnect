@@ -175,8 +175,8 @@ function NavLink({ href, label, icon: Icon, active, onClick }: {
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
         active
-          ? 'bg-[#0f2540] text-[#e6ecf1] font-medium'
-          : 'bg-[#e6ecfa] text-[#0f2540] hover:opacity-90',
+          ? 'bg-brand-navy text-brand-mist font-medium'
+          : 'bg-brand-tint text-brand-navy hover:opacity-90',
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
@@ -332,7 +332,7 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
       <div className="md:hidden sticky top-[calc(4rem_+_1px)] z-10 border-b bg-background shrink-0 flex items-center px-3 py-2">
         <button
           onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm bg-[#e6ecfa] text-[#0f2540] hover:opacity-90 transition-colors"
+          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm bg-brand-tint text-brand-navy hover:opacity-90 transition-colors"
           aria-label="Open navigation menu"
         >
           <Menu className="h-4 w-4" />
@@ -350,13 +350,13 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           />
           <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-30 flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b">
-              <span className="font-semibold text-[#0f2540]">Menu</span>
+              <span className="font-semibold text-brand-navy">Menu</span>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="rounded-lg p-1.5 hover:bg-[#e6ecfa] transition-colors"
+                className="rounded-lg p-1.5 hover:bg-brand-tint transition-colors"
                 aria-label="Close navigation menu"
               >
-                <X className="h-4 w-4 text-[#0f2540]" />
+                <X className="h-4 w-4 text-brand-navy" />
               </button>
             </div>
             <nav className="flex flex-col p-3 overflow-y-auto">

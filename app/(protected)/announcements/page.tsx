@@ -6,7 +6,7 @@ import { getAnnouncements, getChapters } from '@/app/actions/announcements'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { NewAnnouncementForm } from '@/components/announcements/NewAnnouncementForm'
 
-export const metadata = { title: 'Announcements — Family Connect' }
+export const metadata = { title: 'Announcements' }
 
 export default async function AnnouncementsPage() {
   const supabase = await createClient()

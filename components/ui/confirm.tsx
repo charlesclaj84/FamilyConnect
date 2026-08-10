@@ -169,7 +169,7 @@ function ConfirmDialog({
               'h-9 rounded-lg px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
               destructive
                 ? 'bg-destructive focus-visible:ring-destructive'
-                : 'bg-[#0f2540] focus-visible:ring-[#0f2540]'
+                : 'bg-brand-navy focus-visible:ring-brand-navy'
             )}
           >
             {pending.confirmLabel ?? 'Confirm'}

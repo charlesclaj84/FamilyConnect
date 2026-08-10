@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { LoginForm } from '@/components/auth/LoginForm'
 
-export const metadata = { title: 'Sign In — Family Connect' }
+export const metadata = { title: 'Sign In' }
 
 export default function LoginPage() {
   // LoginForm reads ?error= (set by /auth/confirm when a confirmation link is invalid

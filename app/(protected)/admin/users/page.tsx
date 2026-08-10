@@ -12,7 +12,7 @@ import {
 } from '@/components/admin/AdminAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Members & Access — Family Connect' }
+export const metadata = { title: 'Members & Access' }
 
 interface Props {
   searchParams: Promise<{ tab?: string; template?: string }>

@@ -10,7 +10,7 @@ import {
   LEDGERS, resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE, type Ledger,
 } from '@/components/transactions/ledgers'
 
-export const metadata = { title: 'Transactions — Family Connect' }
+export const metadata = { title: 'Transactions' }
 
 /**
  * Every transaction the family has recorded: dues in, donations in, contributions

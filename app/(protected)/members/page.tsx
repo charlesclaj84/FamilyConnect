@@ -5,7 +5,7 @@ import { getMembers } from '@/app/actions/members'
 import { MemberDirectoryClient } from '@/components/members/MemberDirectoryClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Member Directory — Family Connect' }
+export const metadata = { title: 'Member Directory' }
 
 export default async function MembersPage() {
   const supabase = await createClient()

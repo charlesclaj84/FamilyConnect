@@ -5,7 +5,7 @@ import { getMyChildren, getSpouseChildren } from '@/app/actions/children'
 import { DirectLineageClient } from '@/components/direct-lineage/DirectLineageClient'
 import { Card, CardContent } from '@/components/ui/card'
 
-export const metadata = { title: 'Direct Lineage — Family Connect' }
+export const metadata = { title: 'Direct Lineage' }
 
 export default async function DirectLineagePage() {
   const supabase = await createClient()

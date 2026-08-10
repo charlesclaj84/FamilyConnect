@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, MapPin, Clock, ChevronRight, Users } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
-export const metadata = { title: 'Events — Family Connect' }
+export const metadata = { title: 'Events' }
 
 export default async function EventsPage() {
   const supabase = await createClient()

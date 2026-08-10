@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
 
-export const metadata = { title: 'Documents — Family Connect' }
+export const metadata = { title: 'Documents' }
 
 export default async function DocumentsPage() {
   const supabase = await createClient()

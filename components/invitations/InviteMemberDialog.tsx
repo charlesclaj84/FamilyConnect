@@ -153,7 +153,7 @@ export function InviteMemberDialog({
               <button
                 type="submit"
                 disabled={isPending || !email.trim()}
-                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {isPending ? 'Creating…' : 'Create invitation'}
               </button>
@@ -170,7 +170,7 @@ export function InviteMemberDialog({
             <div
               className={cn(
                 'flex items-start gap-2 rounded-xl border px-4 py-3 text-sm',
-                result.preApproved ? 'bg-[#e6ecfa]/50' : 'bg-muted/40',
+                result.preApproved ? 'bg-brand-tint/50' : 'bg-muted/40',
               )}
             >
               {result.preApproved
@@ -214,7 +214,7 @@ export function InviteMemberDialog({
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
               >
                 Done
               </button>

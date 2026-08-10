@@ -15,7 +15,7 @@ interface Props {
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const { from } = await searchParams
   const { label } = describeFeature(from ?? '')
-  return { title: `${label} — Coming Soon — Family Connect` }
+  return { title: `${label} — Coming Soon` }
 }
 
 export default async function ComingSoonPage({ searchParams }: Props) {

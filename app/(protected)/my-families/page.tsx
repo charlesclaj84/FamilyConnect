@@ -5,7 +5,7 @@ import { getMyFamilies } from '@/lib/auth/family'
 import { MyFamiliesSection } from '@/components/my-families/MyFamiliesSection'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'My Families — Family Connect' }
+export const metadata = { title: 'My Families' }
 
 /**
  * Every family this account belongs to. Split out of My Profile, where it sat as a

@@ -52,7 +52,7 @@ function HotelCard({ hotel }: { hotel: PublicHotel }) {
         {hotel.estimates.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {hotel.estimates.map(e => (
-              <span key={e.id} className="text-xs bg-[#e6ecfa] text-[#0f2540] px-2 py-0.5 rounded-full">
+              <span key={e.id} className="text-xs bg-brand-tint text-brand-navy px-2 py-0.5 rounded-full">
                 {e.room_type} — ${Number(e.amount).toFixed(2)}
               </span>
             ))}

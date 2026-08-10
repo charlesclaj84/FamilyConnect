@@ -4,8 +4,9 @@ import { Clock, ShieldCheck, Ban } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { peekInvitation, redeemInvitation } from '@/app/actions/invitations'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { APP_NAME } from '@/lib/brand'
 
-export const metadata = { title: 'Invitation — Family Connect' }
+export const metadata = { title: 'Invitation' }
 
 /**
  * Where an invitation link lands.
@@ -91,7 +92,7 @@ export default async function InvitePage({
             {invitation.hasAccount
               ? <>This invitation was sent to{' '}
                   <span className="font-medium">{invitation.email}</span>, which already has
-                  a Family Connect account. Sign in and you will come straight back here and
+                  a {APP_NAME} account. Sign in and you will come straight back here and
                   join — you will not need a family code, this invitation is your way in.</>
               : <>This invitation was sent to{' '}
                   <span className="font-medium">{invitation.email}</span>. Create an account
@@ -119,7 +120,7 @@ export default async function InvitePage({
             {invitation.hasAccount ? (
               <Link
                 href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
-                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
               >
                 Sign in to accept
               </Link>
@@ -127,7 +128,7 @@ export default async function InvitePage({
               <>
                 <Link
                   href={`/register?invite=${encodeURIComponent(token)}`}
-                  className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+                  className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
                 >
                   Create an account
                 </Link>

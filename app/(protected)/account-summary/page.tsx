@@ -9,7 +9,7 @@ import {
 } from '@/components/account/summary-panes'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'My Summary — Family Connect' }
+export const metadata = { title: 'My Summary' }
 
 export default async function AccountSummaryPage({
   searchParams,

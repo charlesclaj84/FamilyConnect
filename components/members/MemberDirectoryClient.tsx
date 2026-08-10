@@ -122,7 +122,7 @@ export function MemberDirectoryClient({ members }: Props) {
                     <td className="px-3 py-2.5">
                       {member.group_name
                         ? (
-                          <span className="inline-block whitespace-nowrap rounded-full bg-[#e6ecfa] px-2.5 py-1 text-xs font-medium text-[#0f2540]">
+                          <span className="inline-block whitespace-nowrap rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand-navy">
                             {member.group_name}
                           </span>
                         )

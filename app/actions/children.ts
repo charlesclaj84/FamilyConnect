@@ -6,6 +6,7 @@ import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { CHILD_RELATIONSHIP_TYPES, SPOUSE_TYPES, type ChildRelationshipType } from '@/lib/family-constants'
 import { computeIsMinor } from '@/lib/age-utils'
+import { APP_NAME } from '@/lib/brand'
 
 export interface ChildRecord {
   relationship_id: string
@@ -210,7 +211,7 @@ export async function updateChild(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
-  // Once the child has joined Family Connect (claimed their own account),
+  // Once the child has joined GENORRA (claimed their own account),
   // they manage their own profile — the parent can no longer edit them.
   const { data: target } = await supabase
     .from('people')
@@ -221,7 +222,7 @@ export async function updateChild(
   if (target?.user_id) {
     return {
       success: false,
-      message: 'This person has joined Family Connect and now manages their own profile.',
+      message: `This person has joined ${APP_NAME} and now manages their own profile.`,
     }
   }
 

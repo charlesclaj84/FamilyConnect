@@ -7,7 +7,7 @@ import { getFunds } from '@/app/actions/funds'
 import { AccountPnLCard } from '@/components/account/AccountPnLCard'
 import { FundsSection } from '@/components/account/FundsSection'
 
-export const metadata = { title: 'Family Finances — Family Connect' }
+export const metadata = { title: 'Family Finances' }
 
 export default async function FamilyFinancesPage() {
   const supabase = await createClient()

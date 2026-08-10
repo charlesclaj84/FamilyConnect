@@ -636,7 +636,7 @@ export function AdminIncomeClient({
                             <span className={cn(
                               'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
                               s.required
-                                ? 'bg-[#e6ecfa] text-[#0f2540]'
+                                ? 'bg-brand-tint text-brand-navy'
                                 : 'bg-amber-100 text-amber-800',
                             )}>
                               {s.required ? 'Required' : 'Optional'}
