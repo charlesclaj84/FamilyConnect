@@ -23,6 +23,16 @@ export const metadata = { title: 'Invitation — Family Connect' }
  *                      is bound to an email, and matching it is what makes a forwarded
  *                      link useless to anyone else.
  *
+ *                      WHICH OF THE TWO LEADS IS DECIDED BY `hasAccount`, and it has to
+ *                      be. "Create an account" led unconditionally, so someone already
+ *                      in one family who was invited to a second pressed the button that
+ *                      sounds like accepting and hit a registration failure — signUp
+ *                      cannot be aimed at an address that already exists, and it fails
+ *                      in two different unusable ways depending on whether email
+ *                      confirmation is on. See 20260810000000. When the address already
+ *                      has an account, Sign in leads and registration is not offered at
+ *                      all: there is nothing to register.
+ *
  *                      BOTH LINKS CARRY THE TOKEN, and that is the whole flow rather
  *                      than a nicety. `/register` on its own is the ordinary form, which
  *                      requires a family code an invited person has never been told —
@@ -78,11 +88,16 @@ export default async function InvitePage({
             You have been invited to {invitation.familyName}
           </CardTitle>
           <CardDescription>
-            This invitation was sent to{' '}
-            <span className="font-medium">{invitation.email}</span>. Create an account
-            with that address to accept it — you will not need a family code, this
-            invitation is your way in. Already have an account? Sign in and you will come
-            straight back here.
+            {invitation.hasAccount
+              ? <>This invitation was sent to{' '}
+                  <span className="font-medium">{invitation.email}</span>, which already has
+                  a Family Connect account. Sign in and you will come straight back here and
+                  join — you will not need a family code, this invitation is your way in.</>
+              : <>This invitation was sent to{' '}
+                  <span className="font-medium">{invitation.email}</span>. Create an account
+                  with that address to accept it — you will not need a family code, this
+                  invitation is your way in. Already have an account? Sign in and you will
+                  come straight back here.</>}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -96,19 +111,34 @@ export default async function InvitePage({
                 : 'An administrator will review your request once you accept.'}
             </p>
           </div>
+          {/* Filled button = the one that will work. For an address that already has an
+              account, registration is not offered as a secondary either: signUp cannot
+              be aimed at it, so a quieter version of the same dead end is still a dead
+              end. */}
           <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/register?invite=${encodeURIComponent(token)}`}
-              className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
-            >
-              Create an account
-            </Link>
-            <Link
-              href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
-              className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              Sign in
-            </Link>
+            {invitation.hasAccount ? (
+              <Link
+                href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+                className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+              >
+                Sign in to accept
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href={`/register?invite=${encodeURIComponent(token)}`}
+                  className="rounded-lg bg-[#0f2540] px-3 py-1.5 text-sm font-medium text-[#e6ecfa] transition-opacity hover:opacity-90"
+                >
+                  Create an account
+                </Link>
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
+                  className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </CardContent>
       </Shell>

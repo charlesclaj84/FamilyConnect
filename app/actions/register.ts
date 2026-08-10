@@ -81,7 +81,9 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   if (inviteToken) {
     const { data: peek } = await admin
       .rpc('peek_family_invitation', { p_token: inviteToken })
-      .maybeSingle<{ valid: boolean; email: string; family_name: string }>()
+      .maybeSingle<{
+        valid: boolean; email: string; family_name: string; has_account: boolean | null
+      }>()
 
     if (!peek?.valid) {
       return {
@@ -97,6 +99,22 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         success: false,
         field: 'email',
         message: `This invitation was sent to ${peek.email}. Register with that address.`,
+      }
+    }
+    // Registration is the wrong door for an address that can already sign in, and the
+    // signUp below cannot tell them so usefully: with confirmations off it answers "User
+    // already registered", and with them on it answers with a FABRICATED user rather than
+    // an error, which used to be redeemed against an id in no table. Refuse here, name
+    // the door that works, and let the two pages in front of this render it as a link.
+    //
+    // 20260810000000 added `has_account`. `=== true` so a database that predates it —
+    // where the column is absent and this reads undefined — keeps the old behaviour and
+    // falls through to the signUp guard below rather than refusing every registration.
+    if (peek.has_account === true) {
+      return {
+        success: false,
+        field: 'email',
+        message: 'You already have an account with this address. Sign in and this invitation will be waiting for you.',
       }
     }
   }
@@ -162,6 +180,27 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
   if (authError) {
     return { success: false, message: authError.message }
+  }
+
+  // AN EXISTING ADDRESS DOES NOT ALWAYS COME BACK AS AN ERROR. With email confirmation
+  // on, GoTrue refuses to be an account-enumeration oracle: it returns 200 with a
+  // FABRICATED user — a fresh random id, and `identities: []` — for an address that is
+  // already registered. Everything below then runs against a user id that exists in no
+  // table: the invitation branch redeemed against it and got "sent to a different email
+  // address" (auth.users had no row to compare), then deleted a user that had never been
+  // created; the ordinary branch wrote a family and a people row keyed to a phantom.
+  //
+  // The empty array is the signal, so test for it positively. `identities === undefined`
+  // is NOT this case — it is an older GoTrue that omits the field — and treating it as
+  // one would refuse every legitimate registration.
+  if (authData.user?.identities?.length === 0) {
+    return {
+      success: false,
+      field: 'email',
+      message: inviteToken
+        ? 'You already have an account with this address. Sign in and this invitation will be waiting for you.'
+        : 'An account already exists for this address. Sign in instead, or reset your password.',
+    }
   }
 
   // ── Invitation: redeem it, and stop ───────────────────────────────────────

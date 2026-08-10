@@ -168,16 +168,23 @@ export async function revokeInvitation(invitationId: string): Promise<Invitation
  * family before the visitor has an account.
  *
  * Uses the ANON client deliberately: the caller may have no session, and the token is
- * the credential. The RPC returns only the family name and the address it was sent to,
- * both of which whoever holds the link already knows.
+ * the credential. The RPC returns only the family name, the address it was sent to, and
+ * whether that address can already sign in — the first two are already known to whoever
+ * holds the link, and the third is what decides which of the two doors this page should
+ * point at. See 20260810000000 for why that bit is safe behind a token and would not be
+ * behind an email parameter.
  */
 export async function peekInvitation(token: string): Promise<
-  { valid: true; email: string; familyName: string; preApproved: boolean } | { valid: false }
+  | { valid: true; email: string; familyName: string; preApproved: boolean; hasAccount: boolean }
+  | { valid: false }
 > {
   const supabase = await createClient()
   const { data } = await supabase
     .rpc('peek_family_invitation', { p_token: token })
-    .maybeSingle<{ valid: boolean; email: string; family_name: string; pre_approved: boolean }>()
+    .maybeSingle<{
+      valid: boolean; email: string; family_name: string
+      pre_approved: boolean; has_account: boolean | null
+    }>()
 
   if (!data?.valid) return { valid: false }
   return {
@@ -185,6 +192,11 @@ export async function peekInvitation(token: string): Promise<
     email: data.email,
     familyName: data.family_name,
     preApproved: data.pre_approved,
+    // Defaults to "no account" against a database that has not had 20260810000000
+    // applied, where the column is absent and this reads undefined. That keeps the
+    // pre-migration behaviour — offer registration — rather than sending everyone to a
+    // sign-in page for an account they may not have.
+    hasAccount: data.has_account === true,
   }
 }
 
