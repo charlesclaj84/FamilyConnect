@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Home, Star } from 'lucide-react'
+import { Check, ChevronDown, Clock, Home, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
 import type { FamilyMembership } from '@/lib/auth/family'
 import { cn } from '@/lib/utils'
@@ -95,6 +95,20 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                       className={cn('h-4 w-4 shrink-0', family.isActive ? 'opacity-100' : 'opacity-0')}
                     />
                     <span className="min-w-0 flex-1 truncate">{family.familyName}</span>
+                    {/* Same badge, same word as My Families. Switching to a family that
+                        has not admitted you is allowed — set_active_family() checks
+                        membership, not approval — and it lands on the awaiting-approval
+                        screen, so the badge is what makes that a choice rather than a
+                        surprise. It matters most for the account this menu exists for:
+                        one waiting on two families at once. */}
+                    {family.status === 'pending' && (
+                      <span
+                        className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                        title="Waiting for approval"
+                      >
+                        <Clock className="h-3 w-3" /> Pending
+                      </span>
+                    )}
                     {family.isDefault && (
                       <span
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"

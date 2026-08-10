@@ -293,6 +293,26 @@ export async function requireViewOrPending(
 }
 
 /**
+ * The pages a member may reach while their membership is not approved.
+ *
+ * Exactly the three `requireViewOrPending()` admits, and that is the whole rule: this
+ * is the SIDEBAR'S copy of a decision the page guards already make, so a key here that
+ * the guard would refuse is a nav link to a 404. Change one, change the other.
+ *
+ * My Children and Family Tree sit under the same Personal heading and are deliberately
+ * NOT here. Both read `people` rows that belong to the FAMILY — the tree is everyone's
+ * relationships, and a child is a family record with dues and tags of its own — and
+ * auth_person_id() is NULL for a non-approved caller (20260806000011), so every policy
+ * behind them matches nothing. They gate with requireView(), which 404s. Listing them
+ * would offer a pending member two dead links to prove it.
+ */
+export const PENDING_RESOURCES: readonly string[] = [
+  'dashboard',
+  'personal-info',
+  'my-families',
+]
+
+/**
  * Every resource key the caller may view — for the sidebar, which needs the whole
  * answer at once. Computed over the full feature catalog rather than only the
  * rows that exist, so a resource with no explicit grant still picks up the
@@ -304,6 +324,18 @@ export async function requireViewOrPending(
  */
 export async function viewableResources(userId: string): Promise<Set<string>> {
   const perms = await getMyPermissionSet(userId)
+
+  // A membership awaiting a decision resolves to 'none' on every resource, which is
+  // right for authorization and left the sidebar completely EMPTY — no Dashboard, no My
+  // Profile, no My Families, nothing to click at all. The pages themselves admit a
+  // pending caller, so the nav has to as well or the awaiting-approval screen is a room
+  // with no doors. Note this is presentation only: requireViewOrPending() is what
+  // actually lets those three render, and RLS is what protects the data underneath.
+  //
+  // `personId` is what distinguishes "not admitted yet" from "belongs to no family at
+  // all"; the latter keeps the empty set, because there is nothing they are waiting on.
+  if (perms.personId && !perms.approved) return new Set(PENDING_RESOURCES)
+
   const out = new Set<string>()
   const keys = [...FEATURES.map(f => f.href.replace(/^\//, '')), ...TAB_RESOURCES]
   for (const resource of keys) {

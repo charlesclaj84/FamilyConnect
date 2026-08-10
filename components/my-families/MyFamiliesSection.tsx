@@ -27,9 +27,9 @@ import { cn } from '@/lib/utils'
  *
  * That last decision is what makes Join reachable: a single-family account renders
  * this section, so the button below is on screen for the people most likely to need
- * it. A membership awaiting approval is listed like any other, badged, and with its
- * switching controls withheld — switching TO it would land on the awaiting-approval
- * screen, which is a dead end presented as navigation.
+ * it. A membership awaiting approval is listed like any other and badged Pending, with
+ * every action withheld — it cannot be made the login default, and it cannot be invited
+ * into. The row is there to say "you asked, they have not answered", and nothing else.
  */
 export function MyFamiliesSection({ families }: { families: FamilyMembership[] }) {
   const router = useRouter()
@@ -90,7 +90,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   <span className="truncate">{family.familyName}</span>
                   {family.status === 'pending' && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                      <Clock className="h-3 w-3" /> Awaiting approval
+                      <Clock className="h-3 w-3" /> Pending
                     </span>
                   )}
                   {family.status === 'rejected' && (
@@ -114,20 +114,31 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                 </p>
               </div>
 
-              {/* Every approved membership, viewed or not — since 20260806000014 the
+              {/* Every APPROVED membership, viewed or not — since 20260806000014 the
                   invitation carries its own target family instead of being addressed to
                   whichever one you happen to be looking at. These are never
                   pre-approved: an ordinary member is not deciding who gets in, and for a
                   family you are not currently viewing the database refuses pre-approval
-                  outright, because permissions only resolve for the active family. */}
-              <div className={cn('shrink-0 items-center gap-2', approved ? 'flex' : 'hidden')}>
-                <InviteMemberDialog
-                  label="Invite Member"
-                  className="px-2.5 py-1 text-xs"
-                  familyCode={family.familyCode}
-                  familyName={family.familyName}
-                />
-              </div>
+                  outright, because permissions only resolve for the active family.
+
+                  NOT RENDERED for a family that has not admitted you, rather than
+                  rendered and hidden with a class. You cannot invite anyone into a room
+                  you are still waiting outside of — create_family_invitation() looks for
+                  the caller's APPROVED people row in the target family and refuses when
+                  there is none, so a hidden button was a control that existed, sat in the
+                  DOM and the RSC payload, and answered "You are not an approved member of
+                  that family" to anyone who un-hid it. A pending row shows its badge and
+                  no actions at all. */}
+              {approved && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <InviteMemberDialog
+                    label="Invite Member"
+                    className="px-2.5 py-1 text-xs"
+                    familyCode={family.familyCode}
+                    familyName={family.familyName}
+                  />
+                </div>
+              )}
 
               {/* "View this family" used to live here. Removed — the navbar
                   FamilySwitcher does the same job from every page, so this was a second

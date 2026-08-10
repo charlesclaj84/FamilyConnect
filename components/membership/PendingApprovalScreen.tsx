@@ -18,23 +18,46 @@ import type { MembershipStatus } from '@/lib/auth/family'
  * serialized into the RSC payload whether a component uses them or not (AGENTS.md §5).
  * So the pages that show this screen return here BEFORE they fetch anything.
  *
- * The family name itself is safe: they typed the code and confirmed the name in order
- * to get here — and a disabled member was in the family until a moment ago.
+ * The family names themselves are safe: they typed the code, or followed an invitation,
+ * and confirmed the name in order to get here — and a disabled member was in the family
+ * until a moment ago.
  *
- * THREE STATES, THREE MESSAGES, and the third is why this is a switch rather than a
- * boolean. 'disabled' arrived with 20260807000000 and reaches every gate that
- * 'pending' does, so without a branch of its own a member an administrator had just
- * switched off would be told their request was awaiting approval — advice to wait for
- * something that is not going to happen.
+ * THREE STATES, THREE MESSAGES, and the third is why this is a lookup rather than a
+ * boolean. 'disabled' arrived with 20260807000000 and reaches every gate that 'pending'
+ * does, so without a branch of its own a member an administrator had just switched off
+ * would be told their request was awaiting approval — advice to wait for something that
+ * is not going to happen.
+ *
+ * ONE FAMILY OR SEVERAL. An account can be waiting on more than one at a time, and the
+ * statuses need not match — declined by one family while queued at another is an
+ * ordinary state, not an edge case. So the single-family case keeps its own sentence,
+ * because a list of one reads like a form, and anything above one becomes a list where
+ * each row carries its own status.
  */
+
+interface PendingFamily {
+  familyCode: string
+  familyName: string
+  status: MembershipStatus
+}
+
+/** Heading, and the sentence that belongs under it, per status. */
+const COPY: Record<MembershipStatus, { heading: React.ReactNode; line: string }> = {
+  pending:  { heading: <><Clock className="h-4 w-4" /> Waiting for approval</>, line: 'With its administrators for review.' },
+  rejected: { heading: <><Ban className="h-4 w-4" /> Request declined</>,       line: 'An administrator declined your request to join.' },
+  disabled: { heading: <><Ban className="h-4 w-4" /> Access switched off</>,    line: 'An administrator has switched off your access.' },
+  // Unreachable — this screen renders only for a non-approved membership. Present so
+  // the lookup is total and a status can never resolve to `undefined.heading`.
+  approved: { heading: <><Clock className="h-4 w-4" /> Waiting for approval</>, line: 'With its administrators for review.' },
+}
+
 export function PendingApprovalScreen({
-  familyName,
-  status,
+  pending,
   emailConfirmed,
   otherFamilies,
 }: {
-  familyName: string
-  status: MembershipStatus
+  /** Every membership of this account that is not approved. Never empty. */
+  pending: PendingFamily[]
   /** False only when a confirmation is genuinely outstanding — see the action. */
   emailConfirmed: boolean
   /** Approved memberships elsewhere, so a multi-family account is not stranded. */
@@ -53,87 +76,117 @@ export function PendingApprovalScreen({
     })
   }
 
-  const waiting = status === 'pending'
+  // A decision is still outstanding somewhere. Drives the two panels that are only
+  // useful while one is: filling in a profile the reviewers will read, and confirming
+  // an address the approval waits on. Telling someone whose access was declined or
+  // switched off to confirm their email advertises a route back in that confirming an
+  // address does not open — so with nothing pending, neither panel renders.
+  const waiting = pending.some(f => f.status === 'pending')
 
-  const heading = {
-    pending:  <><Clock className="h-4 w-4" /> Waiting for approval</>,
-    rejected: <><Ban className="h-4 w-4" /> Request declined</>,
-    disabled: <><Ban className="h-4 w-4" /> Access switched off</>,
-    approved: <><Clock className="h-4 w-4" /> Waiting for approval</>,
-  }[status]
+  const single = pending.length === 1 ? pending[0] : null
 
-  const body = {
-    pending: <>Your request to join <span className="font-medium">{familyName}</span> is with
-      its administrators. You will be able to see the family once one of them approves you.</>,
-    rejected: <>An administrator of <span className="font-medium">{familyName}</span> declined
-      your request to join. Get in touch with them if you think that was a mistake.</>,
-    disabled: <>An administrator of <span className="font-medium">{familyName}</span> has
-      switched off your access. Your account and your profile are untouched — get in touch
-      with them if you think that was a mistake.</>,
-    approved: <>Your request to join <span className="font-medium">{familyName}</span> is with
-      its administrators.</>,
-  }[status]
+  const heading = single
+    ? COPY[single.status].heading
+    : waiting
+      ? <><Clock className="h-4 w-4" /> Waiting for approval</>
+      : <><Ban className="h-4 w-4" /> Your family requests</>
+
+  const body = single
+    ? {
+        pending: <>Your request to join <span className="font-medium">{single.familyName}</span> is with
+          its administrators. You will be able to see the family once one of them approves you.</>,
+        rejected: <>An administrator of <span className="font-medium">{single.familyName}</span> declined
+          your request to join. Get in touch with them if you think that was a mistake.</>,
+        disabled: <>An administrator of <span className="font-medium">{single.familyName}</span> has
+          switched off your access. Your account and your profile are untouched — get in touch
+          with them if you think that was a mistake.</>,
+        approved: <>Your request to join <span className="font-medium">{single.familyName}</span> is with
+          its administrators.</>,
+      }[single.status]
+    : <>You are waiting on {pending.length} families. Each one is reviewed by its own
+        administrators, so they may not answer at the same time.</>
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">{heading}</CardTitle>
-          <CardDescription>{body}</CardDescription>
-        </CardHeader>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">{heading}</CardTitle>
+        <CardDescription>{body}</CardDescription>
+      </CardHeader>
 
-        <CardContent className="space-y-4">
-          {waiting && (
-            <p className="text-sm text-muted-foreground">
-              In the meantime you can fill in{' '}
-              <Link href="/personal-info" className="text-primary hover:underline">
-                your profile
-              </Link>
-              , so the family recognises you when they review the request.
-            </p>
-          )}
-
-          {/* Only while a decision is still outstanding. Telling someone whose access
-              was declined or switched off to confirm their email advertises a route
-              back in that confirming an address does not open. */}
-          {waiting && !emailConfirmed && (
-            <div className="rounded-xl border bg-muted/40 px-4 py-3">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <Mail className="h-4 w-4" /> Confirm your email address
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                We sent a confirmation link when you signed up. Your request cannot be
-                approved until you have used it.
-              </p>
-              <button
-                type="button"
-                onClick={resend}
-                disabled={isPending}
-                className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
+      <CardContent className="space-y-4">
+        {/* One row per family, only when there is more than one to tell apart. */}
+        {!single && (
+          <ul className="space-y-2">
+            {pending.map(family => (
+              <li
+                key={family.familyCode}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3"
               >
-                {isPending ? 'Sending…' : 'Send it again'}
-              </button>
-              {message && <p className="mt-2 text-sm text-muted-foreground">{message}</p>}
-            </div>
-          )}
+                <span className="text-sm font-medium">{family.familyName}</span>
+                {family.status === 'pending' ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                    <Clock className="h-3 w-3" /> Pending
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Ban className="h-3 w-3" /> {family.status === 'rejected' ? 'Declined' : 'Switched off'}
+                  </span>
+                )}
+                <span className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1">
+                  {COPY[family.status].line}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
-          {otherFamilies.length > 0 && (
-            <div className="rounded-xl border px-4 py-3">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <Home className="h-4 w-4" /> Your other families
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                You are already a member of{' '}
-                {otherFamilies.map(f => f.familyName).join(', ')}. Switch to one from{' '}
-                <Link href="/my-families" className="text-primary hover:underline">
-                  My Families
-                </Link>
-                .
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        {waiting && (
+          <p className="text-sm text-muted-foreground">
+            In the meantime you can fill in{' '}
+            <Link href="/personal-info" className="text-primary hover:underline">
+              your profile
+            </Link>
+            , so the family recognises you when they review the request.
+          </p>
+        )}
+
+        {waiting && !emailConfirmed && (
+          <div className="rounded-xl border bg-muted/40 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Mail className="h-4 w-4" /> Confirm your email address
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              We sent a confirmation link when you signed up. Your request cannot be
+              approved until you have used it.
+            </p>
+            <button
+              type="button"
+              onClick={resend}
+              disabled={isPending}
+              className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
+            >
+              {isPending ? 'Sending…' : 'Send it again'}
+            </button>
+            {message && <p className="mt-2 text-sm text-muted-foreground">{message}</p>}
+          </div>
+        )}
+
+        {otherFamilies.length > 0 && (
+          <div className="rounded-xl border px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Home className="h-4 w-4" /> Your other families
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You are already a member of{' '}
+              {otherFamilies.map(f => f.familyName).join(', ')}. Switch to one from{' '}
+              <Link href="/my-families" className="text-primary hover:underline">
+                My Families
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
