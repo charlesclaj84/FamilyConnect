@@ -650,7 +650,7 @@ than retyping them, so adding a fourth is one edit.
 | Folder | What it is |
 |---|---|
 | `public/identity/` | **The only artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
-| `public/v1_2/` | The current vendor kit, exactly as delivered. |
+| `public/v1_1/` | The current vendor kit, exactly as delivered. |
 | `public/v1_0/` | The superseded kit, kept for reference. |
 
 **Serve from `identity/`, never from a kit folder.** Two reasons, both of which have
@@ -658,7 +658,7 @@ bitten:
 
 * Kit folders are named for a design deliverable — `SVG_Masters`, `PNG_Exports` — and
   those names would end up in public URLs, where they are permanent. Worse, they are
-  *version-scoped*: a URL containing `v1_2` has to be rewritten at every kit bump, and
+  *version-scoped*: a URL containing `v1_1` has to be rewritten at every kit bump, and
   the one that gets missed 404s in production.
 * A `public/brand/` for web assets would be the *same* directory as the kit's `Brand/`
   on Windows and macOS and a *different* one on the Linux box that serves production —
@@ -673,7 +673,7 @@ what happened: `identity/` held the v1.0 mark for a full round after v1.1 landed
 v1.1 existed precisely to correct that mark's silhouette.
 
 **Asset names move between kits.** v1.0's dark-ground lockup was `Horizontal_Reversed`;
-v1_2 renames it `Horizontal_Dark` and drops the old file. Both render, so pointing at
+v1_1 renames it `Horizontal_Dark` and drops the old file. Both render, so pointing at
 the wrong one is silent. `Dark` and `Light` in this kit name the **ground the artwork
 sits on**, not the artwork's own colour: `Horizontal_Dark` carries a cream wordmark and
 belongs on Heritage; `Horizontal_Light` is for pale grounds.

@@ -51,16 +51,23 @@ export const APP_DESCRIPTION =
 /**
  * Brand artwork, by role rather than by filename.
  *
- * These are copies under `public/identity/`, not references into the vendor kit
- * that ships alongside them in `public/`. Two reasons, and both have bitten:
+ * These are copies under `public/identity/`, never references into the versioned
+ * vendor kits beside it (`public/v1_1/` current, `public/v1_0/` superseded).
+ * Three reasons, and all three have bitten:
  *
- *  1. The kit's folders are named for a design deliverable (`SVG_Masters`,
+ *  1. Kit folders are named for a design deliverable (`SVG_Masters`,
  *     `PNG_Exports`), and those names would otherwise end up in public URLs,
  *     where they are permanent.
- *  2. `public/Brand/` already exists. A `public/brand/` for web assets is the
- *     SAME directory on Windows and macOS and a DIFFERENT one on the Linux box
- *     that serves production — so it works locally and 404s once deployed.
+ *  2. They are version-scoped. A URL containing `v1_1` needs rewriting at every
+ *     kit bump, and the one that gets missed 404s in production.
+ *  3. Each kit contains a `Brand/` folder. A `public/brand/` for web assets is
+ *     the SAME directory on Windows and macOS and a DIFFERENT one on the Linux
+ *     box that serves production — it works locally and 404s once deployed.
  *     `identity/` collides with nothing in either direction.
+ *
+ * Bumping the kit is therefore a COPY, not a path edit: re-copy every file here
+ * from the new kit and `cmp` each one. Skipping that leaves the site serving the
+ * previous kit's artwork silently, which is exactly what happened to the lockup.
  */
 export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
 
@@ -68,7 +75,7 @@ export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
  * The horizontal lockup for a DARK ground — the banner band on the landing page
  * and the auth shell.
  *
- * Named for the kit's own vocabulary: v1_2 ships `Horizontal_Dark` (cream
+ * Named for the kit's own vocabulary: v1_1 ships `Horizontal_Dark` (cream
  * wordmark, for dark grounds) and `Horizontal_Light` (for pale grounds). It is
  * NOT the v1.0 `Horizontal_Reversed` this used to point at — that file exists
  * only in v1.0 and carries the superseded mark, the "simplified recreation"

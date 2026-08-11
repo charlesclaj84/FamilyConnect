@@ -1,0 +1,12 @@
+:root {
+  --genorra-heritage: #6B2D3A;
+  --genorra-warmth: #C65D3A;
+  --genorra-growth: #7A7F4E;
+  --genorra-legacy: #D6A24A;
+  --genorra-nurturing: #E5D9C6;
+  --genorra-light: #FAF7F2;
+  --genorra-ink: #2E1C22;
+
+  --genorra-font-display: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+  --genorra-font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
