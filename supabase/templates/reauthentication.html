@@ -1,17 +1,19 @@
 <!--
-  Sign-up confirmation email. Rationale is in supabase/templates/README.md, NOT here:
+  Reauthentication code. Rationale is in supabase/templates/README.md, NOT here:
   this file is the payload, so every byte ships to every recipient.
 
-  Four things that look like defects and are not, before you "fix" one:
-    * The link is a .TokenHash against our own /auth/confirm, not the default
-      .ConfirmationURL, which returns the session in a URL fragment a cookie-based app
-      never sees.  ->  app/auth/confirm/route.ts
-      (Braces omitted above on purpose: Go substitutes inside HTML comments too, so
-      writing them here would render a live token into every message.)
-    * Tables and inline styles, because Outlook renders mail with Word's engine.
-    * The <style> block is enhancement only. Every colour that matters is also inline.
-    * Hex literals, sanctioned here — no stylesheet of ours reaches a mail client.
-      Each one is a token by value; the mapping is in the README.
+  THE ONE TEMPLATE WITH NO LINK. GoTrue sends a 6-digit .Token here, not a URL, because
+  the user is already signed in and is being asked to prove it is still them at the
+  keyboard. So there is no button, no /auth/confirm, and no fragment problem to avoid —
+  the code is typed back into the screen that asked for it.
+
+  Consequently the copy must NOT say "click"; and the code has to survive being read off
+  a phone, which is why it is set large, letterspaced and on its own line rather than
+  inline in a sentence.
+
+  DORMANT: nothing in the app calls supabase.auth.reauthenticate(), and
+  secure_password_change is false in config.toml, so nothing triggers this today. It
+  exists so the flow is correct on the day one of those changes.
 -->
 <!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -21,9 +23,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
-<title>Confirm your GENORRA account</title>
+<title>Your GENORRA confirmation code</title>
 <style>
-  /* Enhancement only — see the header comment. Inline styles carry the design. */
+  /* Enhancement only — see the README. Inline styles carry the design. */
   @media (prefers-color-scheme: dark) {
     .gn-page  { background-color: #1e1216 !important; }
     .gn-card  { background-color: #26191e !important; border-color: #402931 !important; }
@@ -31,23 +33,18 @@
     .gn-text  { color: #e5d9c6 !important; }
     .gn-muted { color: #b9afa4 !important; }
     .gn-rule  { border-color: #402931 !important; }
-    .gn-btn   { background-color: #7d474f !important; }
-    .gn-btn a { color: #faf7f2 !important; }
-    .gn-code  { background-color: #1e1216 !important; border-color: #402931 !important; color: #b9afa4 !important; }
+    .gn-otp   { background-color: #1e1216 !important; border-color: #402931 !important; color: #e5d9c6 !important; }
   }
   @media only screen and (max-width: 620px) {
-    .gn-pad  { padding-left: 24px !important; padding-right: 24px !important; }
-    .gn-btn  { width: 100% !important; }
-    .gn-btn a { display: block !important; }
+    .gn-pad { padding-left: 24px !important; padding-right: 24px !important; }
+    .gn-otp { font-size: 32px !important; letter-spacing: 0.18em !important; }
   }
 </style>
 </head>
 <body class="gn-page" style="margin:0; padding:0; width:100%; background-color:#f2ece3;">
 
-<!-- Preview text: what the inbox list shows beside the subject. Hidden in the body,
-     and padded so the client does not pull the first paragraph in after it. -->
 <div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
-  One tap and you&rsquo;re set. The link is good for one hour.
+  Your confirmation code is below. It works once and expires in one hour.
   &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
 </div>
 
@@ -57,7 +54,6 @@
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="gn-card" style="width:600px; max-width:600px; background-color:#faf7f2; border:1px solid #e7dccf; border-radius:14px; overflow:hidden;">
 
-        <!-- Band. Heritage in both themes so the mark's own tile stays invisible. -->
         <tr>
           <td align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; padding:28px 24px 22px 24px;">
             <img src="{{ .SiteURL }}/identity/genorra-app-256.png" width="64" height="64" alt="" border="0" style="display:block; width:64px; height:64px; border:0; outline:none; text-decoration:none;">
@@ -71,8 +67,6 @@
           </td>
         </tr>
 
-        <!-- Gold hairline. Legacy gold is a non-text accent — it can never carry text
-             in light mode (2.30 on white), which is why it is a rule and not a word. -->
         <tr>
           <td style="font-size:0; line-height:0;" bgcolor="#d6a24a" height="3">&nbsp;</td>
         </tr>
@@ -80,61 +74,31 @@
         <tr>
           <td class="gn-pad" style="padding:36px 44px 8px 44px;">
             <h1 class="gn-h1" style="margin:0; font-family:'Cormorant Garamond',Georgia,'Times New Roman',Times,serif; font-weight:600; font-size:30px; line-height:36px; color:#6b2d3a; mso-line-height-rule:exactly;">
-              You&rsquo;re almost in
+              Just checking it&rsquo;s you
             </h1>
           </td>
         </tr>
 
         <tr>
           <td class="gn-pad gn-text" style="padding:14px 44px 0 44px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:26px; color:#3c2528;">
-            <p style="margin:0 0 14px 0;">
-              Welcome. Confirm this address and your GENORRA account is ready — your
-              family&rsquo;s stories, photographs and plans, kept in one place.
-            </p>
             <p style="margin:0;">
-              One thing to expect next: your family reviews new members before admitting
-              them, so there may be a short wait after this step.
+              You&rsquo;re making a change that needs a second look. Type this code into
+              the screen that asked for it:
             </p>
           </td>
         </tr>
 
         <tr>
-          <td class="gn-pad" align="center" style="padding:28px 44px 6px 44px;">
-            <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/dashboard" style="height:50px; v-text-anchor:middle; width:290px;" arcsize="16%" stroke="f" fillcolor="#6b2d3a">
-              <w:anchorlock/>
-              <center style="color:#e5d9c6; font-family:'Segoe UI',Arial,sans-serif; font-size:16px; font-weight:600;">Confirm my email address</center>
-            </v:roundrect>
-            <![endif]-->
-            <!--[if !mso]><!-- -->
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td class="gn-btn" align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; border-radius:8px;">
-                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/dashboard"
-                     style="display:inline-block; padding:15px 38px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; font-weight:600; line-height:20px; color:#e5d9c6; text-decoration:none; border-radius:8px;">
-                    Confirm my email address
-                  </a>
-                </td>
-              </tr>
-            </table>
-            <!--<![endif]-->
+          <td class="gn-pad" align="center" style="padding:24px 44px 4px 44px;">
+            <div class="gn-otp" style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:38px; line-height:48px; font-weight:600; letter-spacing:0.26em; text-indent:0.26em; color:#6b2d3a; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:10px; padding:18px 12px; mso-line-height-rule:exactly;">
+              {{ .Token }}
+            </div>
           </td>
         </tr>
 
         <tr>
-          <td class="gn-pad gn-muted" align="center" style="padding:12px 44px 0 44px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:20px; color:#6d5a53;">
-            This link works once and expires in one hour.
-          </td>
-        </tr>
-
-        <tr>
-          <td class="gn-pad" style="padding:26px 44px 0 44px;">
-            <div class="gn-muted" style="font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:20px; color:#6d5a53; padding-bottom:8px;">
-              If the button does not work, paste this into your browser:
-            </div>
-            <div class="gn-code gn-muted" style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:12px; line-height:19px; color:#6d5a53; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:8px; padding:12px 14px; word-break:break-all;">
-              {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/dashboard
-            </div>
+          <td class="gn-pad gn-muted" align="center" style="padding:14px 44px 0 44px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:20px; color:#6d5a53;">
+            This code works once and expires in one hour.
           </td>
         </tr>
 
@@ -146,8 +110,9 @@
 
         <tr>
           <td class="gn-pad gn-muted" style="padding:18px 44px 32px 44px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:21px; color:#6d5a53;">
-            If you didn&rsquo;t sign up, you can safely ignore this email. No account is
-            activated and nobody has been given access to any family.
+            We&rsquo;ll never ask you for this code by phone, text or email. If you
+            weren&rsquo;t expecting it, don&rsquo;t share it — someone may know your
+            password, and changing it is the right next step.
           </td>
         </tr>
 

@@ -156,15 +156,32 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "https://genorra-kappa.vercel.app"
+#
+# 2026-08-10: moved off genorra-kappa.vercel.app to the purchased domain. The vercel.app
+# host must now REDIRECT here rather than serve in parallel — two origins serving the
+# same app is how a confirmation link writes its session cookie on the origin the user
+# just left, landing them signed out on a dashboard with nothing explaining why.
+site_url = "https://genorra.com"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post
 # authentication.
 #
-# NOTE FOR LOCAL DEVELOPMENT: site_url above now points at the deployed origin, so
+# WILDCARDED ON PURPOSE. This list governs the `redirectTo` / `emailRedirectTo` argument
+# passed to an auth call — today that is exactly one site, `resetPasswordForEmail` in
+# ForgotPasswordForm — and an allow-list that has to be extended every time a route is
+# added is an allow-list that will silently be wrong the first time somebody forgets.
+# `https://genorra.com/**` is same-origin by construction, so it is not an open redirect;
+# what stops `?next=` being one is lib/safe-next.ts, which is a separate control and the
+# one actually doing that job.
+#
+# NOT NEEDED HERE: the confirmation email's link. The template writes
+# `{{ .SiteURL }}/auth/confirm?...` as a plain href, so it is a navigation to our own
+# origin and never passes through GoTrue's redirect check.
+#
+# NOTE FOR LOCAL DEVELOPMENT: site_url above points at the deployed origin, so
 # `{{ .SiteURL }}` in the confirmation template resolves there too — a signup against
-# the LOCAL stack produces a Mailpit message whose link goes to Vercel, not to
+# the LOCAL stack produces a Mailpit message whose link goes to genorra.com, not to
 # 127.0.0.1:3000. That is fine when the intent is to configure hosted, and confusing if
 # you are trying to click through a local signup. To test the flow locally, point
 # site_url back at http://127.0.0.1:3000 and add the matching origins here — both
@@ -173,7 +190,7 @@ site_url = "https://genorra-kappa.vercel.app"
 # The invitation links built by InviteMemberDialog are unaffected either way: they are
 # composed from window.location.origin in the browser, not from this setting.
 additional_redirect_urls = [
-  "https://genorra-kappa.vercel.app/login"
+  "https://genorra.com/**"
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -210,7 +227,16 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+#
+# RAISED FROM 2 TO 30, 2026-08-10, at the same time as custom SMTP. With confirmations on,
+# this cap sits directly in the signup path: the third person to join in an hour gets no
+# email, and the resend button they are shown appears to do nothing. Two was Supabase's
+# figure for its shared built-in sender, not a judgement about this app; a family onboarding
+# together in one sitting clears it before lunch.
+#
+# Set this in the DASHBOARD too (Authentication → Rate Limits). Hosted does not read this
+# file — see the SMTP block below for why config push is not the way to get it there.
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -260,14 +286,32 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
+#
+# HOSTED SENDS THROUGH RESEND AS OF 2026-08-10. The settings live in the dashboard
+# (Authentication → Emails → SMTP Settings), not here, and this block stays commented
+# out. Two separate reasons, and only the first is the familiar one:
+#
+#   1. `supabase config push` sends the whole [auth] block, site_url included. TODO.md's
+#      GO LIVE section says so; the failure it prevents is production mailing people
+#      links to somebody's laptop.
+#   2. Uncommenting this changes LOCAL behaviour, which is the part that surprises. The
+#      CLI routes local mail through whatever [auth.email.smtp] names, so an enabled
+#      block takes local development off Mailpit ([local_smtp] above, port 54324) and
+#      starts delivering real mail to real addresses out of `db reset` and the test
+#      fixtures. Local signups are meant to be inspectable, not delivered.
+#
+# Recorded here so the hosted values are reviewable in the repo. To genuinely test real
+# delivery from a local stack, uncomment temporarily and export RESEND_SMTP_PASSWORD —
+# then put it back.
+#
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
+# host = "smtp.resend.com"
 # port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# user = "resend"                          # literally the word; Resend's SMTP username is fixed
+# pass = "env(RESEND_SMTP_PASSWORD)"       # the re_… API key — there is no separate password
+# admin_email = "noreply@genorra.com"
+# sender_name = "GENORRA"
 
 # The sign-up confirmation email. Overridden rather than left to the default because
 # the default links to GoTrue's own /auth/v1/verify, which returns the session in a URL
@@ -278,10 +322,38 @@ otp_expiry = 3600
 subject = "Confirm your GENORRA account"
 content_path = "./supabase/templates/confirmation.html"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# The remaining four, added 2026-08-11. Every one of GoTrue's defaults links with
+# {{ .ConfirmationURL }}, so leaving any of them stock means the first person to use that
+# flow hits the fragment bug described above — a confirmed action and no session. They
+# are overridden together for that reason, not because all four are in use.
+#
+# THREE OF THESE ARE DORMANT and that is deliberate, not an oversight:
+#   recovery         LIVE   — resetPasswordForEmail, components/auth/ForgotPasswordForm
+#   invite           unused — nothing calls auth.admin.inviteUserByEmail()
+#   email_change     unused — nothing calls auth.updateUser({ email })
+#   reauthentication unused — nothing calls auth.reauthenticate(), and
+#                             secure_password_change is false below
+#
+# `invite` is NOT the family invitation email. That flow is family_invitations +
+# InviteMemberDialog + /invite/<token>, it deliberately sends no mail, and giving it one
+# is an application-level Resend call — GoTrue knows nothing about families.
+
+[auth.email.template.recovery]
+subject = "Reset your GENORRA password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.invite]
+subject = "You are invited to join your family on GENORRA"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new GENORRA email address"
+content_path = "./supabase/templates/email-change.html"
+
+# No link in this one — GoTrue sends a 6-digit .Token, so the subject says "code".
+[auth.email.template.reauthentication]
+subject = "Your GENORRA confirmation code"
+content_path = "./supabase/templates/reauthentication.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

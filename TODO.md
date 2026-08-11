@@ -27,16 +27,35 @@ they clicked it" is not among the things the administrator can rely on. **Do not
 describe the product as email-verified until this box is ticked.**
 
 * Authentication → Providers → Email → **Confirm email: on**
-* Authentication → Email Templates → **Confirm signup** → paste the body of
-  [supabase/templates/confirmation.html](supabase/templates/confirmation.html)
+* Authentication → Email Templates → paste **all five** bodies from
+  [supabase/templates/](supabase/templates/), subject lines included. `config.toml` wires
+  them up locally only; hosted renders whatever was last pasted, so this step is the
+  whole deployment. See [supabase/templates/README.md](supabase/templates/README.md).
 
-  The `token_hash` link is the load-bearing part. The stock template's
-  `{{ .ConfirmationURL }}` confirms the account and then returns the session in a URL
-  **fragment**, which the browser never sends to the server — so this app, which is
-  cookie-based via `@supabase/ssr`, would leave the user signed out on the dashboard
-  with nothing explaining why. See [app/auth/confirm/route.ts](app/auth/confirm/route.ts).
+  | Dashboard tab | File |
+  |---|---|
+  | Confirm signup | `confirmation.html` |
+  | Reset password | `recovery.html` |
+  | Invite user | `invite.html` |
+  | Change email address | `email-change.html` |
+  | Reauthentication | `reauthentication.html` |
+
+  **Paste the dormant three as well.** Every GoTrue default links with
+  `{{ .ConfirmationURL }}`, so any tab left stock is a trap set for whoever later enables
+  that flow. The `token_hash` link is the load-bearing part: the stock template confirms
+  the account and then returns the session in a URL **fragment**, which the browser never
+  sends to the server — so this app, which is cookie-based via `@supabase/ssr`, would
+  leave the user signed out with nothing explaining why. See
+  [app/auth/confirm/route.ts](app/auth/confirm/route.ts).
 * Authentication → URL Configuration → site URL and redirect allow-list set to the
-  **production** origin. `{{ .SiteURL }}` is what the link in the email is built from.
+  **production** origin — `https://genorra.com` since 2026-08-10, with
+  `https://genorra.com/**` on the allow-list. `{{ .SiteURL }}` is what the link in the
+  email is built from.
+
+  The vercel.app host must **redirect** to the domain rather than keep serving the app.
+  Two live origins is the fragment bug in a different costume: the link in the email is
+  built from one origin, `/auth/confirm` writes the session cookie there, and a redirect
+  mid-flight lands the user on the other one signed out.
 
 **Do not do this with `npx supabase config push`.** It sends the whole `[auth]` block,
 including `site_url = "http://127.0.0.1:3000"` from the local config — production would
@@ -50,11 +69,68 @@ signup path: the first symptom is a confirmation email that never arrives and a 
 button that appears to do nothing. `[auth.rate_limit] email_sent = 2` is worth raising
 at the same time.
 
+**Decided 2026-08-10: Resend, from `noreply@genorra.com`.** `email_sent` is 30 in
+`config.toml`; set it in the dashboard as well, since hosted does not read that file.
+
+The block in `config.toml` stays **commented out** and that is deliberate rather than
+unfinished — see the comment above it. Uncommenting takes local development off Mailpit
+and starts mailing real addresses out of `db reset` and the RLS fixture.
+
 ### [ ] Retire Claude's write access to the hosted database
 
 See the 2026-10-01 section below — it is dated rather than launch-gated, but shipping
 with an agent holding unprompted `db push` on production is a decision, not an
 oversight.
+
+## 0. PARKED 2026-08-10: "Send Reset Link" leads nowhere, and SMTP is what exposes it
+
+**Action:** build the set-a-new-password screen, or take the link off the sign-in page.
+Found while configuring email for launch; it is not caused by that work, but it stops
+being invisible the moment mail actually gets delivered.
+
+Password reset is broken in two independent places, and each one alone is enough:
+
+* [ForgotPasswordForm](components/auth/ForgotPasswordForm.tsx) passes
+  `redirectTo: ${origin}/update-password`. **There is no `/update-password` route** —
+  `app/(auth)` holds `login`, `register` and `forgot-password`, and nothing else.
+* [app/auth/confirm/route.ts](app/auth/confirm/route.ts) sends `type=recovery` to
+  `/forgot-password?stage=reset` instead. That route exists, and its page ignores the
+  query entirely — it renders `ForgotPasswordForm`, which asks for an email address. So
+  the best case is a user who clicks the link in their email and is asked to request the
+  same email again.
+
+The two are not merely both wrong, they **disagree about the destination**, which is the
+tell that neither was ever walked end to end. Nobody hit it because `email_sent = 2` on a
+shared sender meant reset mail mostly did not arrive, and an email that never comes and an
+email that leads nowhere look identical from the sign-in page.
+
+Worth doing properly rather than pointing one at the other:
+
+1. The recovery template is still GoTrue's stock one, so its link is
+   `{{ .ConfirmationURL }}` — the same fragment problem
+   [supabase/templates/confirmation.html](supabase/templates/confirmation.html) exists to
+   avoid, and the reason `/auth/confirm` was written. A recovery template built the same
+   way (`token_hash`, `type=recovery`) makes the existing route the landing spot and the
+   `redirectTo` argument unnecessary.
+2. Then the only new surface is a password form rendered against the session that route
+   already establishes. `secure_password_change = false` in `config.toml`, so
+   `updateUser({ password })` on a recovery session is enough — worth revisiting, since
+   that setting is what decides whether a stolen recovery link can also change the
+   address on the account.
+3. `https://genorra.com/**` covers `/update-password` on the allow-list either way, so
+   whichever shape wins needs no further URL configuration.
+
+**The same missing screen blocks a second flow.** A GoTrue invitation
+(`auth.admin.inviteUserByEmail()`) creates an account with no password, so it needs the
+identical set-a-password form on landing. That is why `invite.html` exists but nothing
+calls it — the template is ready and the screen is not. Build the screen once and both
+flows open up. `supabase/templates/recovery.html` and `invite.html` both carry a pointer
+back to this entry.
+
+Since 2026-08-11 the branded templates for both are in the tree and wired into
+`config.toml`, which changes the risk here in one specific way: reset mail now looks
+entirely legitimate — right domain, right mark, SPF and DKIM passing — and still leads
+nowhere. A polished dead end is worse than a shabby one, because nobody suspects it.
 
 ## FIXED 2026-08-06: every `public` function was callable by anon
 

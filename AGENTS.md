@@ -563,11 +563,28 @@ The same goes for `style={{ color: … }}` and any SVG `fill`/`stroke`. There ar
 the tree today. If a chart or an illustration ever genuinely needs a colour in JS, read
 it from the custom property (`var(--brand-accent)`) rather than restating the hex.
 
-**The one sanctioned exception is `BRAND_THEME_COLOR` in `lib/brand.ts`.** Those two
-hexes are consumed by the *browser* as document metadata — `viewport.themeColor` and the
-web manifest paint the mobile address bar — and no stylesheet is involved, so a custom
-property cannot reach them. They must be kept in step with `--genorra-heritage` and
-`--genorra-ground-dark` by hand. Nothing else earns this.
+**There are exactly two sanctioned exceptions, and they earn it the same way: the thing
+consuming the colour is not a stylesheet of ours, so a custom property cannot resolve.**
+
+* **`BRAND_THEME_COLOR` in `lib/brand.ts`.** Those two hexes are consumed by the
+  *browser* as document metadata — `viewport.themeColor` and the web manifest paint the
+  mobile address bar. Keep them in step with `--genorra-heritage` and
+  `--genorra-ground-dark` by hand.
+* **`supabase/templates/*.html`,** the auth emails. These render in somebody else's mail
+  client, where nothing of ours is loaded and even a `<style>` block is unreliable —
+  Gmail strips it for non-Gmail accounts in its app. Every colour that matters is
+  therefore inline, and inline means literal. The hex→token mapping and the reasoning
+  are in [supabase/templates/README.md](supabase/templates/README.md).
+
+Nothing else earns this. In particular, "it's just one component" and "Tailwind won't
+let me" do not — the second is a token that needs adding to `globals.css` first.
+
+Two things follow for the email templates specifically, because they are unlike every
+other file here. **The template is the payload:** every byte ships to every recipient and
+is one "view source" away, which is why the rationale lives in the README and the files
+keep a short pointer comment. And **`config.toml` only wires up the local stack** —
+hosted renders whatever was last pasted into the dashboard, so editing a template does
+nothing to production until somebody pastes it and sends themselves a real signup.
 
 ## Dark mode is real, and the brand has a dark treatment
 
