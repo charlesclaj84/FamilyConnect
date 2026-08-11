@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond, Geist_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { APP_NAME, APP_DESCRIPTION, BRAND_THEME_COLOR } from '@/lib/brand'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import './globals.css'
@@ -70,6 +72,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
+        {/* Vercel Web Analytics and Speed Insights. Both render null and inject
+            their scripts client-side, so they cost no markup and are safe to sit
+            inside the flex column. Both live in the root layout so every route is
+            covered; each no-ops off Vercel. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
