@@ -24,14 +24,24 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </header>
 
       {/* Banner hero — the gold lockup on Heritage, the same band the landing page
-          uses, so signing in does not feel like a different product. */}
-      <div className="w-full flex justify-center bg-brand-hero px-4 py-10 sm:py-12">
+          uses, so signing in does not feel like a different product.
+
+          The lockup steps up exactly as the landing hero does: it is a 3.27:1
+          horizontal lockup, so a width that looks generous as a number still
+          renders short, and at max-w-xl it sat small enough to read as a header
+          ornament rather than the brand.
+
+          The VERTICAL padding stays tighter than the landing page's on purpose.
+          This band has a sign-in form under it, not a headline — matching the
+          landing hero's py-16/py-20 as well would push the form off a laptop
+          screen, and the point of this page is the form. */}
+      <div className="w-full flex justify-center bg-brand-hero px-4 py-8 sm:py-10">
         <Image
           src={BRAND_LOCKUP_DARK_SRC}
           alt={APP_BANNER_ALT}
           width={1700}
           height={520}
-          className="w-full max-w-xl h-auto"
+          className="h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
           priority
         />
       </div>
