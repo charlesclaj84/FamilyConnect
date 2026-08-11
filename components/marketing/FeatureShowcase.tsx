@@ -264,8 +264,11 @@ const miniFeatures: MiniFeature[] = [
 // ── Section ──────────────────────────────────────────────────────────────────
 
 export function FeatureShowcase() {
+  // A flat ground, deliberately. This was a three-stop gradient between two
+  // values a tenth of a step apart, which cost a paint and read as nothing.
+  // Contrast on this page now comes from the dark bands above and below it.
   return (
-    <section className="py-16 sm:py-24 px-4 bg-gradient-to-b from-muted/40 via-background to-muted/30">
+    <section className="bg-muted/50 px-4 py-16 sm:py-24">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <Reveal className="text-center mb-14 sm:mb-20">
@@ -334,7 +337,10 @@ export function FeatureShowcase() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {miniFeatures.map((f, i) => (
             <Reveal key={f.title} delay={(i % 4) * 80}>
-              <div className="group relative h-full rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40">
+              {/* A resting shadow, not just a hover one. White on cream is
+                  1.069:1, so without it these cards had no edge at all until
+                  you pointed at them. */}
+              <div className="group relative h-full rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1.5 hover:border-brand-primary/40 hover:shadow-[var(--shadow-card-hover)]">
                 {isComingSoon(f) && <ComingSoonPill className="absolute top-3 right-3" />}
                 <div className={cn(
                   'mb-3 inline-flex p-2.5 rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6',

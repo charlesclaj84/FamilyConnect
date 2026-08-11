@@ -24,24 +24,28 @@ import {
 const VALUE_DETAIL: Record<(typeof APP_VALUES)[number], {
   blurb: string
   icon: LucideIcon
-  tone: string
+  tone: string   // icon colour — must clear 3:1 on the card
+  chip: string   // the wash behind it
 }> = {
   Connect: {
     blurb: 'Every branch of the family in one private place — chat, directory, and the tree that ties them together.',
     icon: Users,
     tone: 'text-brand-accent',
+    chip: 'bg-brand-accent/12',
   },
   Plan: {
     blurb: 'Reunions that practically run themselves, from the first save-the-date to day-of check-in.',
     icon: CalendarCheck,
     tone: 'text-brand-affirm',
+    chip: 'bg-brand-affirm/15',
   },
   Celebrate: {
     blurb: 'Photos, milestones and stories, kept for the generations who come after you.',
     icon: Sparkles,
     // Ink, not Legacy gold. Gold is 2.30 on this card and an icon that carries
-    // meaning needs 3:1 — gold is a surface colour here, never a foreground.
+    // meaning needs 3:1 — gold is the WASH here, never the foreground.
     tone: 'text-brand-ink',
+    chip: 'bg-brand-legacy/20',
   },
 }
 
@@ -73,74 +77,121 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Banner — the gold lockup on Heritage. This is the one place the full
-          artwork appears: mark, wordmark, acronym and the three values together. */}
-      <div className="w-full flex justify-center bg-brand-hero px-4 py-10 sm:py-14">
-        <Image
-          src={BRAND_LOCKUP_REVERSED_SRC}
-          alt={APP_BANNER_ALT}
-          width={1700}
-          height={520}
-          className="w-full max-w-2xl h-auto"
-          priority
-        />
-      </div>
+      {/* ── HERO ──────────────────────────────────────────────────────────
+          One band, not three. This used to be the artwork, then a values strip,
+          then the headline — three pale stacked sections that pushed the actual
+          proposition and the sign-up button below the fold, and left the page
+          with a single dark moment competing against nothing.
 
-      {/* Values strip */}
-      <section aria-label={`What ${APP_NAME} is for`} className="border-b bg-card">
-        <div className="max-w-6xl mx-auto grid gap-8 px-4 py-12 sm:px-6 sm:grid-cols-3 sm:gap-10">
+          Now the lockup, the promise and both calls to action share one
+          Heritage ground, so the first screen carries the brand AND the ask. */}
+      <section className="relative overflow-hidden bg-brand-hero px-4 py-16 sm:py-20">
+        {/* Two soft gold pools, well under the text. Purely atmospheric — they
+            add depth to a large flat field of burgundy, which is what stops it
+            reading as a plain colour block. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="gn-float absolute -top-24 -right-16 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
+          <div className="gn-float-slow absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
+        </div>
+
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
+          <Image
+            src={BRAND_LOCKUP_REVERSED_SRC}
+            alt={APP_BANNER_ALT}
+            width={1700}
+            height={520}
+            className="h-auto w-full max-w-lg"
+            priority
+          />
+
+          {/* h1 needs an explicit colour on every dark ground: the base layer
+              paints h1/h2 with --brand-ink, which is burgundy in light mode and
+              would be invisible here. */}
+          <h1 className="mt-9 text-4xl leading-[1.12] text-brand-on-primary sm:text-5xl lg:text-6xl">
+            {APP_LEAD}
+          </h1>
+
+          <p className="mt-5 max-w-xl text-lg text-brand-on-primary/80 sm:text-xl">
+            The all-in-one portal to plan events, share memories, and keep your family
+            close — no matter the distance.
+          </p>
+
+          <div className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+            <Link href="/register" className="sm:w-auto">
+              {/* Gold on burgundy is the brand's signature pairing and the single
+                  highest-contrast thing on the page, which is where the primary
+                  action belongs. `on-legacy` is Ink in both themes — plain
+                  `text-brand-ink` would turn cream in dark and fail at 1.65. */}
+              <Button
+                size="lg"
+                className="w-full bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90 sm:w-auto"
+              >
+                Join Your Family
+              </Button>
+            </Link>
+            <Link href="/login" className="sm:w-auto">
+              <Button
+                size="lg"
+                className="w-full border-brand-on-primary/40 bg-transparent px-8 text-base text-brand-on-primary hover:bg-brand-on-primary/10 sm:w-auto"
+              >
+                Sign In
+              </Button>
+            </Link>
+          </div>
+
+          <p className="mt-7 text-sm text-brand-on-primary/70">
+            Private &amp; secure — your family&apos;s data is never shared or sold.
+          </p>
+        </div>
+      </section>
+
+      {/* ── VALUES ────────────────────────────────────────────────────────
+          Real cards now. As flat text on a white band these were the worst of
+          the "washed" problem: white on cream is 1.069:1, so there was nothing
+          to see. Border plus an ink-tinted shadow gives them an actual edge. */}
+      <section aria-label={`What ${APP_NAME} is for`} className="bg-background px-4 py-16 sm:py-20">
+        <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-3">
           {APP_VALUES.map(value => {
-            const { blurb, icon: Icon, tone } = VALUE_DETAIL[value]
+            const { blurb, icon: Icon, tone, chip } = VALUE_DETAIL[value]
             return (
-              <div key={value} className="flex flex-col items-center gap-2 text-center sm:items-start sm:text-left">
-                <Icon className={`h-6 w-6 ${tone}`} aria-hidden="true" />
-                <h2 className="text-lg tracking-[0.14em] uppercase">{value}</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">{blurb}</p>
+              <div
+                key={value}
+                className="rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]"
+              >
+                <div className={`mb-4 inline-flex rounded-xl p-2.5 ${chip}`}>
+                  <Icon className={`h-6 w-6 ${tone}`} aria-hidden="true" />
+                </div>
+                <h2 className="mb-2 text-lg uppercase tracking-[0.14em]">{value}</h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">{blurb}</p>
               </div>
             )
           })}
         </div>
       </section>
 
-      {/* Hero */}
-      <section className="bg-gradient-to-b from-brand-soft/50 to-background py-20 sm:py-28 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-block mb-5 px-3 py-1 rounded-full bg-brand-soft text-brand-on-soft text-sm font-medium">
-            Private &amp; Secure for Your Family
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl mb-6 leading-[1.1]">
-            {APP_LEAD}
-          </h1>
-          <p className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-xl mx-auto">
-            The all-in-one portal to plan events, share memories, and keep your family close — no matter the distance.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/register">
-              <Button size="lg" className="w-full sm:w-auto text-base px-8">
-                Join Your Family
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto text-base px-8">
-                Sign In
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* Features */}
       <FeatureShowcase />
 
-      {/* CTA Banner */}
-      <section className="py-16 px-4 bg-gradient-to-b from-brand-soft/50 to-background">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl mb-4">Ready to connect?</h2>
-          <p className="mb-8 text-muted-foreground">
+      {/* ── CLOSING CTA ───────────────────────────────────────────────────
+          The second dark band, and the reason the page now has rhythm: it
+          bookends the hero so the eye travels light → dark → light → dark
+          instead of drifting through four consecutive pale washes. Gold button
+          again, because the closing ask should look identical to the opening
+          one — a visitor who scrolled past it the first time recognises it. */}
+      <section className="relative overflow-hidden bg-brand-hero px-4 py-20">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="gn-float-slow absolute -top-20 left-1/4 h-64 w-64 rounded-full bg-brand-legacy/10 blur-3xl" />
+        </div>
+        <div className="relative mx-auto max-w-2xl text-center">
+          <h2 className="mb-4 text-3xl text-brand-on-primary sm:text-4xl">Ready to connect?</h2>
+          <p className="mb-9 text-lg text-brand-on-primary/80">
             Create your free account and bring your family together.
           </p>
           <Link href="/register">
-            <Button size="lg" variant="secondary" className="text-base px-8">
+            <Button
+              size="lg"
+              className="bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90"
+            >
               Create Your Account
             </Button>
           </Link>

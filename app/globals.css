@@ -51,6 +51,7 @@
   --color-brand-affirm: var(--brand-affirm);
   --color-brand-on-affirm: var(--brand-on-affirm);
   --color-brand-legacy: var(--brand-legacy);
+  --color-brand-on-legacy: var(--brand-on-legacy);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -134,6 +135,21 @@
   --brand-affirm: var(--genorra-growth-deep);    /* create, record, pay */
   --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
   --brand-legacy: var(--genorra-legacy);         /* premium accent — SURFACE ONLY, see below */
+  --brand-on-legacy: var(--genorra-ink);         /* 6.99 on gold — dark in BOTH themes */
+
+  /* ── Elevation ────────────────────────────────────────────────────
+     A white card on a cream page is 1.069:1 — invisible — and the border
+     alone only reaches 1.35. Cards need a shadow to read as cards at all.
+
+     The shadow is INK-TINTED, not black. A neutral black shadow over a warm
+     cream ground turns grey and makes the whole page look dirty, which is a
+     large part of what "washed out" actually is. */
+  --shadow-card:
+    0 1px 2px color-mix(in srgb, var(--genorra-ink) 8%, transparent),
+    0 6px 16px -4px color-mix(in srgb, var(--genorra-ink) 9%, transparent);
+  --shadow-card-hover:
+    0 2px 6px color-mix(in srgb, var(--genorra-ink) 10%, transparent),
+    0 16px 34px -8px color-mix(in srgb, var(--genorra-ink) 20%, transparent);
 }
 
 /* Dark mode takes its cue from the kit's own dark app icon: gold on deep
@@ -153,13 +169,30 @@
   --brand-affirm: var(--genorra-growth-lift);
   --brand-on-affirm: var(--genorra-ink);         /* 4.91 on affirm */
   --brand-legacy: var(--genorra-legacy);
+  /* Ink here too, NOT --genorra-nurturing. Gold is the one surface whose
+     foreground must not flip: cream on gold is 1.65. */
+  --brand-on-legacy: var(--genorra-ink);
+
+  /* On a dark ground a tinted shadow is invisible, so elevation comes from
+     near-black depth plus the lighter card fill doing most of the work. */
+  --shadow-card:
+    0 1px 2px rgb(0 0 0 / 0.45),
+    0 6px 16px -4px rgb(0 0 0 / 0.5);
+  --shadow-card-hover:
+    0 2px 6px rgb(0 0 0 / 0.5),
+    0 16px 34px -8px rgb(0 0 0 / 0.6);
 }
 
-/* --brand-legacy is the one role with no `on-` partner, deliberately.
-   Gold is 2.30 on white and 1.65 on sand: it can never carry text in light
-   mode, and a partner token would invite exactly that. Use it as a SURFACE
-   with `text-brand-ink`-adjacent dark text on it (ink on gold is 6.99), or
-   as a non-text accent — a rule, a dot, a border. */
+/* --brand-legacy is a SURFACE, never a foreground on a pale ground: gold is
+   2.30 on white and 1.65 on sand. Its partner `--brand-on-legacy` is the text
+   that goes ON gold, and it is Ink in BOTH themes — the only `on-` token that
+   does not flip. That is the point of it: `text-brand-ink` would have been the
+   obvious choice for a gold button, and it turns cream in dark mode, landing
+   at 1.65 on the very surface it was meant to sit on.
+
+   So: `bg-brand-legacy text-brand-on-legacy` (6.99) is a gold button, and it
+   is the brand's signature pairing. Gold as a text colour is still wrong in
+   light mode; use `--brand-accent`, which resolves to gold in dark anyway. */
 
 :root {
   --background: var(--genorra-light);
