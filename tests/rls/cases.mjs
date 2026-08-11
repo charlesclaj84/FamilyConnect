@@ -30,6 +30,11 @@ export function alphaMarkers(fx) {
     a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
+    // The beneficiary-hidden drive and the gift to it. These are markers like any
+    // other — a BRAVO caller must not see them because they are ALPHA's. That they are
+    // ALSO hidden from one caller INSIDE Alpha is a separate claim, asserted by the
+    // dedicated cases further down; listing them here does not test it.
+    a.hiddenDonation.id, a.hiddenDonationPayment.id, 'ALPHATEST secret gift',
     a.contribution.id, a.disbursement.id, a.allocation.id, a.election.id,
     a.notification.id, a.otherNotification.id,
     a.child.id, a.ancestor.id, a.ownerPersonId, a.otherPersonId,
@@ -180,6 +185,64 @@ export const CASES = [
   read('dues.getScheduleUsage', 'app/actions/dues.ts', 'getScheduleUsage', {
     positiveActor: 'alphaAdmin',
   }),
+  read('dues.getDonationProgress', 'app/actions/dues.ts', 'getDonationProgress'),
+
+  // ── A drive is hidden from the people it is FOR ───────────────────────────
+  // A THIRD KIND OF CLAIM, alongside "can BRAVO reach ALPHA" and "can an ALPHA
+  // administrator see another member's own things". This one is: can a caller holding
+  // EVERY grant their family can confer see a donation drive that names them as its
+  // beneficiary. The answer must be no, and no permission can make it yes — which is
+  // why the attacker here is alphaAdmin rather than a plain member. Point these at
+  // someone with no grants and they pass whether or not 20260811000000 exists.
+  //
+  // WHAT MAKES THEM EVIDENCE. Each is three RESTRICTIVE policies away from failing.
+  // To watch them fail, flip one to permissive — which is also the exact accident the
+  // sweep in 20260618000001 would cause if these policies ever lost their 'perm:'
+  // prefix, and is worse than dropping them, because a permissive policy of the same
+  // shape GRANTS the hidden rows:
+  //
+  //   ALTER POLICY "perm:beneficiaries cannot see their own drive"
+  //     ON dues_schedules …                       -- (drop and recreate without
+  //                                               --  AS RESTRICTIVE)
+  //
+  // The positive control is alphaMember, who is NOT a beneficiary and must see the
+  // drive, its goal and the money in it. Without that half these would pass against a
+  // table that failed to seed, a renamed column, or a policy that hid the drive from
+  // everybody — which is the failure this feature is one typo away from.
+  read('dues.getDuesSchedules (hidden from its beneficiary, who is an administrator)',
+    'app/actions/dues.ts', 'getDuesSchedules', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => Array.isArray(r)
+        && !r.some(s => s.id === fx.alpha.hiddenDonation.id)
+        // The ordinary dues schedule must still come back, or this would also pass on
+        // an administrator who could suddenly see no schedules at all.
+        && r.some(s => s.id === fx.alpha.schedule.id),
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(s => s.id === fx.alpha.hiddenDonation.id),
+    }),
+  read('dues.getDonationProgress (hidden from its beneficiary)',
+    'app/actions/dues.ts', 'getDonationProgress', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => Array.isArray(r)
+        && !r.some(d => d.schedule?.id === fx.alpha.hiddenDonation.id),
+      // Asserts the MONEY, not just the row. getDonationProgress reads its totals
+      // through the service-role client, where no policy runs — so a control that only
+      // checked the drive was present would say nothing about whether the amounts
+      // behind it are reachable at all.
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(d => d.schedule?.id === fx.alpha.hiddenDonation.id && d.raisedCents === 25000),
+    }),
+  read('dues.getAllDuesPayments (a gift to the hidden drive is hidden too)',
+    'app/actions/dues.ts', 'getAllDuesPayments', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => Array.isArray(r)
+        && !r.some(p => p.id === fx.alpha.hiddenDonationPayment.id)
+        // Same shape guard as above: the ordinary payment proves the administrator's
+        // view of this ledger is otherwise intact.
+        && r.some(p => p.id === fx.alpha.payment.id),
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(p => p.id === fx.alpha.hiddenDonationPayment.id),
+    }),
   read('funds.getFunds', 'app/actions/funds.ts', 'getFunds'),
   read('funds.getAllDisbursements', 'app/actions/funds.ts', 'getAllDisbursements'),
   read('funds.getFundContributions', 'app/actions/funds.ts', 'getFundContributions'),

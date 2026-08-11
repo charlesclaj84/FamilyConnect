@@ -442,6 +442,31 @@ export async function seed() {
       recorded_by: owner.personId,
     }).select().single())
 
+    // ── A drive the family's ADMINISTRATOR is the beneficiary of ──────────────
+    // The surprise-gift case from 20260811000000, and the actor is the administrator
+    // on purpose. They hold scope 'any' on every resource their family can confer, so
+    // a drive they still cannot see is a claim about the RESTRICTIVE policies and
+    // nothing else. Seeded against a member with no grants, the same assertion would
+    // pass whether or not those policies existed.
+    f.hiddenDonation = must('beneficiary-hidden donation', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} secret gift`, amount_cents: 0,
+      kind: 'donation', goal_cents: 200000, required: false, frequency: 'one-time',
+      active: true,
+    }).select().single())
+
+    must('donation beneficiary', await db.from('donation_beneficiaries').insert({
+      family_code: code, schedule_id: f.hiddenDonation.id, person_id: familyAdmin.personId,
+    }).select().single())
+
+    // A gift to it, so the payment and fund-contribution exclusions have a row to hide
+    // and not merely a drive. Without this the two policies below the schedule one
+    // would be asserted against an empty set and prove nothing.
+    f.hiddenDonationPayment = must('gift to the hidden drive', await db.from('dues_payments').insert({
+      family_code: code, person_id: owner.personId, schedule_id: f.hiddenDonation.id,
+      amount_cents: 25000, status: 'paid', payment_date: '2026-07-04',
+      recorded_by: owner.personId,
+    }).select().single())
+
     // The owner's own enrolment — what clearMyDuesPlan must not be able to destroy
     // from another family.
     f.plan = must('dues plan', await db.from('dues_member_plans').insert({

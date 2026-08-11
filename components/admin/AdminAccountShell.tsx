@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { AdminIncomeClient } from '@/components/admin/AdminIncomeClient'
+import { AdminIncomeClient, type BeneficiaryOption } from '@/components/admin/AdminIncomeClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 import {
   SECTION_LABELS, type AccountSection, type AccountRights,
@@ -112,6 +112,9 @@ interface Props {
   initialAllocations: FundAllocationRow[]
   /** Per-section grants, resolved on the server from SECTION_RESOURCE. */
   rights: AccountRights
+  /** Adults a donation drive can be for — see AdminIncomeClient. Empty when the
+   *  caller cannot view Donations, because the page gates the fetch. */
+  members: BeneficiaryOption[]
 }
 
 /**
@@ -143,6 +146,7 @@ export function AdminAccountShell({
   allMilestones,
   initialAllocations,
   rights,
+  members,
 }: Props) {
   // Only the sections this caller may view, and only the rails that still hold one.
   // Derived from the same rights the server actions enforce, so a visible rail always
@@ -279,6 +283,7 @@ export function AdminAccountShell({
             initialSchedules={initialSchedules}
             scheduleUsage={scheduleUsage}
             rights={rights}
+            members={members}
           />
           <AdminFundsClient
             section={section}

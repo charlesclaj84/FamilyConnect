@@ -49,6 +49,22 @@ export interface DuesSchedule {
    * may decline is not a gift.
    */
   required: boolean
+  /**
+   * DONATIONS ONLY: the people this drive is FOR — and therefore the people who cannot
+   * see it, administrators included.
+   *
+   * A family collecting for one of its own needs the drive hidden from them, and no
+   * grant-shaped answer can do that: an administrator holds scope 'any' everywhere and
+   * edits the grid on Members & Access, so the people most likely to be given a gift
+   * are exactly the ones a permission could not hide it from. 20260811000000 makes it
+   * a set of RESTRICTIVE policies instead, which AND with every grant rather than
+   * OR-ing another way in.
+   *
+   * ALWAYS EMPTY IN A BENEFICIARY'S OWN READ, because the schedule row does not come
+   * back for them at all. Nothing here is what does the hiding — the database is —
+   * and a caller holding this array is by definition not on it.
+   */
+  beneficiary_person_ids: string[]
 }
 
 export interface DuesPayment {
@@ -222,12 +238,27 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
  * therefore never lose a schedule to an unapplied migration; the worst case is that
  * donations do not exist yet, which is true.
  */
-function mapSchedule(s: DuesSchedule & { kind?: string | null; required?: boolean | null }): DuesSchedule {
+function mapSchedule(
+  s: DuesSchedule & {
+    kind?: string | null
+    required?: boolean | null
+    donation_beneficiaries?: { person_id: string }[] | null
+  },
+): DuesSchedule {
   const kind: ScheduleKind = s.kind === 'donation' ? 'donation' : 'dues'
+  // The embed is pulled OUT of the spread rather than left to ride along: this object is
+  // serialized into the RSC payload, and shipping the raw join rows beside the flattened
+  // ids would put the same fact on the wire twice in two shapes.
+  const { donation_beneficiaries, ...rest } = s
   return {
-    ...s,
+    ...rest,
     kind,
     goal_cents: s.goal_cents ?? null,
+    // Absent whenever the caller did not ask for the embed — the insert's `.select('*')`
+    // is the normal case — so it defaults to empty rather than undefined. A missing
+    // embed must never read as "no beneficiaries" anywhere that DECIDES something; it
+    // does not, because the deciding is done by the policies, not by this array.
+    beneficiary_person_ids: (donation_beneficiaries ?? []).map(b => b.person_id),
     // A donation is never required. Defaulted rather than trusted so a database that has
     // not run 20260807000003 yet reads as "required dues, optional donations", which is
     // what every row in it means.
@@ -425,12 +456,100 @@ async function routePaidPayment(
  */
 export async function getDuesSchedules(): Promise<DuesSchedule[]> {
   const supabase = await createClient()
+  // THE USER CLIENT IS DOING THE HIDING HERE. A drive the caller is a beneficiary of is
+  // refused by the restrictive policy from 20260811000000 and simply does not come back
+  // — there is no filter in this function to forget, and none should be added. The
+  // embed is the beneficiary list for every drive that DID come back, which the
+  // Accounting editor needs to render its "this drive is for" field.
+  //
+  // Only one foreign key joins donation_beneficiaries to dues_schedules, so a bare embed
+  // is unambiguous here — unlike the two-path embeds AGENTS.md §8 warns about.
   const { data } = await supabase
     .from('dues_schedules')
-    .select('*')
+    .select('*, donation_beneficiaries(person_id)')
     .eq('active', true)
     .order('label')
   return (data ?? []).map(mapSchedule)
+}
+
+/**
+ * Replace a drive's beneficiary set.
+ *
+ * SERVICE ROLE, so AGENTS.md §3 applies twice over: `.eq('family_code', familyCode)` on
+ * the delete, and every incoming person id verified against this family BEFORE it is
+ * written. That second one is §4 — the row being inserted carries the caller's own
+ * family_code and satisfies every policy, while the `person_id` it points at could be
+ * anybody's. `upsertSpouse` and three others shipped exactly that bug.
+ *
+ * Delete-then-insert rather than a diff: the row is (schedule, person) and nothing else,
+ * so there is no such thing as editing one. That is also why the table has no UPDATE
+ * policy.
+ *
+ * Returns a message on refusal so the caller can surface it rather than half-saving.
+ */
+async function syncDonationBeneficiaries(
+  admin: ReturnType<typeof createAdminClient>,
+  scheduleId: string,
+  familyCode: string,
+  personIds: string[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  // Deduplicated because the UNIQUE constraint would otherwise reject the whole insert
+  // over a double-click, and empties dropped so a stray '' cannot reach the FK.
+  const ids = [...new Set(personIds.filter(Boolean))]
+
+  for (const personId of ids) {
+    if (!(await belongsToFamily('people', personId, familyCode))) {
+      return { ok: false, message: 'One of those people is not in this family.' }
+    }
+  }
+
+  const { error: delError } = await admin
+    .from('donation_beneficiaries')
+    .delete()
+    .eq('schedule_id', scheduleId)
+    .eq('family_code', familyCode)
+  if (delError) return { ok: false, message: delError.message }
+
+  if (ids.length === 0) return { ok: true }
+
+  const { error: insError } = await admin
+    .from('donation_beneficiaries')
+    .insert(ids.map(person_id => ({
+      schedule_id: scheduleId,
+      person_id,
+      family_code: familyCode,
+    })))
+  // The guard trigger from 20260811000000 is what refuses a dues schedule, a
+  // cross-family person or a mismatched family_code. Reaching it means the checks above
+  // were bypassed or wrong, so the message is deliberately the raw one.
+  if (insError) return { ok: false, message: insError.message }
+  return { ok: true }
+}
+
+/**
+ * The drives this caller is a beneficiary of, and so must not be shown.
+ *
+ * FOR SERVICE-ROLE READS ONLY. Anything going through `createClient()` is already
+ * handled by the restrictive policies from 20260811000000 and must not filter twice —
+ * a second filter there would be dead code that looks load-bearing. This exists because
+ * `createAdminClient()` bypasses RLS entirely, so the admin-client reads have to re-apply
+ * by hand what the policies would have done (AGENTS.md §3).
+ *
+ * An empty set for a caller with no person row: they are pending or not in this family,
+ * and both are refused upstream rather than here.
+ */
+async function myHiddenDonationScheduleIds(
+  admin: ReturnType<typeof createAdminClient>,
+  familyCode: string,
+  personId: string | null,
+): Promise<Set<string>> {
+  if (!personId) return new Set()
+  const { data } = await admin
+    .from('donation_beneficiaries')
+    .select('schedule_id')
+    .eq('family_code', familyCode)
+    .eq('person_id', personId)
+  return new Set((data ?? []).map(r => r.schedule_id as string))
 }
 
 /**
@@ -488,10 +607,17 @@ export async function createDuesSchedule(
     return { success: false, message: 'Dues need an amount' }
   }
 
+  // Pulled out of the spread: it is a join table, not a column, and spreading it onto
+  // the insert would be a PostgREST error rather than a no-op. Dues never carry one —
+  // a bill nobody can see is a bill that silently never gets paid, which is why the
+  // guard trigger refuses the row as well as this line ignoring it.
+  const { beneficiary_person_ids, ...columns } = input
+  const beneficiaryIds = kind === 'donation' ? (beneficiary_person_ids ?? []) : []
+
   const { data, error } = await supabase
     .from('dues_schedules')
     .insert({
-      ...input,
+      ...columns,
       kind,
       ...kindInvariants(kind, input.goal_cents),
       family_code: familyCode,
@@ -500,9 +626,27 @@ export async function createDuesSchedule(
     .select('*')
     .single()
   if (error) return { success: false, message: error.message }
+
+  // AFTER the insert, because the beneficiary rows point at the schedule that did not
+  // exist until now. A failure here leaves a VISIBLE drive rather than a half-hidden
+  // one, which is the right way round to fail: the treasurer is told, and nobody has
+  // been shown something they should not see. Reported rather than swallowed for
+  // exactly that reason — silence here would be a drive the beneficiary can read.
+  if (beneficiaryIds.length > 0) {
+    const synced = await syncDonationBeneficiaries(
+      createAdminClient(), data.id as string, familyCode ?? '', beneficiaryIds,
+    )
+    if (!synced.ok) {
+      return {
+        success: false,
+        message: `The drive was created, but it is VISIBLE TO EVERYONE — ${synced.message} Open it and set who it is for.`,
+      }
+    }
+  }
+
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
-  return { success: true, schedule: mapSchedule(data) }
+  return { success: true, schedule: mapSchedule({ ...data, donation_beneficiaries: beneficiaryIds.map(person_id => ({ person_id })) }) }
 }
 
 export async function updateDuesSchedule(
@@ -591,14 +735,28 @@ export async function updateDuesSchedule(
     }
   }
 
+  // Same reason as on create: a join table cannot ride along in the column spread.
+  // `undefined` means "not sent" and leaves the set alone; an explicit [] clears it,
+  // which is how a drive stops being hidden from anyone.
+  const { beneficiary_person_ids, ...columns } = input
+
   const { error } = await admin
     .from('dues_schedules')
-    .update({ ...input, kind, ...kindInvariants(kind, goalCents) })
+    .update({ ...columns, kind, ...kindInvariants(kind, goalCents) })
     .eq('id', id)
     .eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
+
+  if (kind === 'donation' && beneficiary_person_ids !== undefined) {
+    const synced = await syncDonationBeneficiaries(
+      admin, id, familyCode ?? '', beneficiary_person_ids,
+    )
+    if (!synced.ok) return { success: false, message: synced.message }
+  }
+
   revalidatePath('/account-summary')
   revalidatePath('/admin/account')
+  revalidatePath('/transactions')
   return { success: true }
 }
 
@@ -1050,6 +1208,23 @@ export async function recordPayment(input: {
     .maybeSingle()
   if (!schedule) return { success: false, message: 'Dues schedule not found' }
 
+  // A drive's beneficiary may not record against it, and the wording is the same
+  // "not found" the line above gives — telling them the id is real but forbidden is
+  // telling them a drive exists that they are not supposed to know about.
+  //
+  // THIS READ IS ON THE ADMIN CLIENT, so the restrictive policies from 20260811000000
+  // do not apply and this is the only thing standing here (AGENTS.md §3). The id can
+  // only have come from outside the UI — the drive is absent from every list this
+  // caller can fetch — so reaching this line at all means a forged or stale argument.
+  const { data: hiddenFromMe } = await admin
+    .from('donation_beneficiaries')
+    .select('id')
+    .eq('schedule_id', schedule.id)
+    .eq('person_id', myPerson.id)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  if (hiddenFromMe) return { success: false, message: 'Dues schedule not found' }
+
   // Recording a payment asserts that money changed hands. The person who OWES it does
   // not get to make that assertion — basic accounting, and the reason the old
   // self-payment branch is gone. The member-facing path is Pay Online, where a
@@ -1285,10 +1460,30 @@ export async function getFamilyPnL(): Promise<PnLData> {
   for (const p of (byFamilyRes.data ?? [])) paymentById.set(p.id as string, p)
   for (const p of (byRoutedRes.data ?? [])) paymentById.set(p.id as string, p)
 
-  const payments: DuesPayment[] = [...paymentById.values()]
+  const allPayments: DuesPayment[] = [...paymentById.values()]
     .map(mapPayment)
     .sort((a, b) => b.payment_date.localeCompare(a.payment_date))
-  const totalIncomeCents = payments.reduce((s, p) => s + (p.amount_cents ?? 0), 0)
+
+  // THE TOTAL IS COMPUTED BEFORE THE ROWS ARE FILTERED, and that order is the whole
+  // decision. A drive's beneficiary loses the ROWS — the label, the giver, the amount,
+  // anything that would spoil a surprise — and keeps a truthful family income figure.
+  //
+  // The alternative was netting the gift out of the total too, which would mean two
+  // members of one family being shown two different incomes for the same bank account
+  // with neither told which. A treasurer reconciling against a statement has to be able
+  // to trust this number. So the cost is accepted openly: for a beneficiary the listed
+  // rows do not add up to the headline, and an unexplained few hundred pounds is a far
+  // weaker signal than "Gift for Martha — £450".
+  const totalIncomeCents = allPayments.reduce((s, p) => s + (p.amount_cents ?? 0), 0)
+
+  // Service-role reads throughout this function, so the policies never ran — see
+  // myHiddenDonationScheduleIds.
+  const hidden = await myHiddenDonationScheduleIds(
+    admin, familyCode ?? '', await getMyPersonId(user.id),
+  )
+  const payments = hidden.size === 0
+    ? allPayments
+    : allPayments.filter(p => !p.schedule_id || !hidden.has(p.schedule_id))
 
   // Money collected outside of dues (admin top-ups + member contributions).
   const totalContributionsCents = (contribRes.data ?? [])

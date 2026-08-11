@@ -67,7 +67,7 @@ export default async function AdminAccountPage({
   // reach the browser whether or not a component renders them, so loading the funds or
   // the dues schedules for someone who may not see that section would publish them
   // regardless of which pane is showing (AGENTS.md §4).
-  const [schedules, scheduleUsage, fundsData, allocations, milestonesResult] = await Promise.all([
+  const [schedules, scheduleUsage, fundsData, allocations, milestonesResult, membersResult] = await Promise.all([
     rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
     // Gated on the same pair as the schedules themselves: it says which of them the
     // ledger has been posted against, which is only meaningful beside the list.
@@ -77,6 +77,22 @@ export default async function AdminAccountPage({
     // Family-scoped explicitly: the service-role client does not apply RLS.
     rights.milestones.view
       ? admin.from('fund_milestones').select('*').eq('family_code', familyCode).order('sort_order')
+      : Promise.resolve({ data: [] }),
+    // The roster the "this drive is for" picker chooses from, and the names the
+    // Donations list prints its "For …" caption with. Gated on Donations alone — Dues
+    // has no beneficiaries and never will, so a dues-only treasurer has no business
+    // being handed the roster (AGENTS.md §5: props reach the browser whether or not a
+    // component renders them).
+    //
+    // Adults only, matching every other member picker, and family-scoped explicitly
+    // because the service-role client applies no RLS.
+    rights.donations.view
+      ? admin.from('people')
+          .select('id, first_name, last_name, nick_name, date_of_birth')
+          .eq('family_code', familyCode)
+          .eq('is_minor', false)
+          .not('user_id', 'is', null)
+          .order('last_name')
       : Promise.resolve({ data: [] }),
   ])
 
@@ -94,6 +110,13 @@ export default async function AdminAccountPage({
         allMilestones={milestonesResult.data ?? []}
         initialAllocations={allocations}
         rights={rights}
+        members={(membersResult.data ?? []).map(m => ({
+          id: m.id,
+          first_name: m.first_name,
+          last_name: m.last_name,
+          nick_name: m.nick_name ?? null,
+          date_of_birth: m.date_of_birth ?? null,
+        }))}
       />
     </div>
   )

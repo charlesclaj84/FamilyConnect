@@ -22,6 +22,7 @@
  */
 
 import { APP_NAME } from '@/lib/brand'
+import { SITE_URL } from '@/lib/site'
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
@@ -51,14 +52,18 @@ function fromAddress(): string {
  * to trust. Host-header poisoning turning a password-reset or invitation link into an
  * attacker's domain is a well-worn bug and this is exactly its shape.
  *
- * NEXT_PUBLIC_SITE_URL should be set on the deployment to the same value as
- * `auth.site_url` in supabase/config.toml, so application email and GoTrue email agree
- * about where the product lives.
+ * ONE RESOLVER, IN lib/site.ts. This used to read NEXT_PUBLIC_SITE_URL itself and fall
+ * back to a genorra.com literal of its own, while `lib/site.ts` fell back to the
+ * .vercel.app host — so with the variable unset (which it was) the sitemap and the Open
+ * Graph cards advertised one origin and invitation emails linked to another. Two
+ * fallbacks for one question is how that happens; there is now one.
+ *
+ * Still worth keeping in step with `auth.site_url` in supabase/config.toml and with the
+ * Site URL in the Supabase dashboard: GoTrue composes its own links and has never read
+ * anything in this repo.
  */
 export function emailOrigin(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (configured) return configured.replace(/\/+$/, '')
-  return 'https://genorra.com'
+  return SITE_URL
 }
 
 /**

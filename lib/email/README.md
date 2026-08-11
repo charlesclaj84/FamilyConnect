@@ -18,21 +18,25 @@ Three variables, none of which has a safe fallback in production.
 | Variable | Required | What breaks without it |
 |---|---|---|
 | `RESEND_API_KEY` | yes | Nothing is sent. Logged as a warning, never thrown — an approval still succeeds. |
-| `NEXT_PUBLIC_SITE_URL` | yes in production | Links and artwork fall back to `https://genorra.com`. Wrong on any other deployment, and silently so. |
+| `NEXT_PUBLIC_SITE_URL` | no | An override. Unset, `emailOrigin()` resolves through `lib/site.ts`: the custom domain on a production deployment, the stable `.vercel.app` host on a preview, `localhost:3000` in dev. Set it only to point somewhere else — `.env.local` uses it so a dev server's emails link to localhost. |
 | `EMAIL_FROM` | no | Defaults to `GENORRA <noreply@genorra.com>`. Must be on a Resend-verified domain or every send 403s. |
 
 `RESEND_API_KEY` is the **same** `re_…` key used as the SMTP password in the Supabase
 dashboard. One key, both paths — revoking it stops all mail, which is the correct blast
 radius for a compromised credential.
 
-Set `NEXT_PUBLIC_SITE_URL` to the same value as `auth.site_url` in
-`supabase/config.toml`, so application email and GoTrue email agree about where the
-product lives. They are separate settings and nothing reconciles them.
+`PRODUCTION_ORIGIN` in [`lib/site.ts`](../site.ts) must stay in step with `auth.site_url`
+in `supabase/config.toml` **and** with the Site URL in the Supabase dashboard, so
+application email and GoTrue email agree about where the product lives. They are three
+separate settings and nothing reconciles them — the dashboard one in particular is read
+by GoTrue alone and by nothing in this repo.
 
 ```bash
-# .env.local
+# .env.local — localhost so a dev server's invitation links are clickable.
+# The logo still will not render: a hosted mail client fetches images through its own
+# proxy, where `localhost` is that proxy's machine. Expected, not a bug.
 RESEND_API_KEY=re_xxxxxxxxxxxx
-NEXT_PUBLIC_SITE_URL=https://genorra.com
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 ## Three rules
