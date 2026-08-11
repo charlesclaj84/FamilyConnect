@@ -103,6 +103,17 @@ export interface DuesSummary {
   installmentCents: number
   amountPaidThisPeriodCents: number
   amountPaidTotalCents: number
+  /**
+   * Forgiven against this period, in cents.
+   *
+   * SETTLES THE DUE WITHOUT BEING MONEY, which is the whole reason it is its own field
+   * rather than folded into the paid figures beside it. Waiving is the family deciding
+   * this member does not have to find it, so it reduces `remainingBalanceCents` exactly
+   * as a payment does; but nothing arrived, so it must never reach a paid total, a fund
+   * balance, or the family's collected figure. `recordPayment` keeps it out of the
+   * routing waterfall for the same reason.
+   */
+  amountWaivedThisPeriodCents: number
   remainingBalanceCents: number
   nextInstallmentDate: string | null
   paid: boolean
@@ -664,14 +675,30 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     const annual = annualTotalCents(schedule)
     const installment = installmentCents(annual, cadence)
 
-    const schedulePaid = payments.filter(p => p.schedule_id === schedule.id && p.status === 'paid')
+    const scheduleRows = payments.filter(p => p.schedule_id === schedule.id)
+    const schedulePaid = scheduleRows.filter(p => p.status === 'paid')
     const periodStart = currentPeriodStart(schedule)
     const paidThisPeriod = schedulePaid.filter(p => p.payment_date >= periodStart)
+    // A WAIVED DUE IS SETTLED, so it comes off the balance alongside the money. Waiving
+    // is the family forgiving the obligation — recordPayment refuses a method and a
+    // reference on one precisely because nothing arrived — and an obligation nobody is
+    // asking for any more is not a balance. Leaving it out was why waiving $50 changed
+    // the ledger and left the member still owing $50.
+    //
+    // Same period window as a payment, and for the same reason: last year's forgiveness
+    // does not settle this year's due. And the two are summed but never merged — see
+    // amountWaivedThisPeriodCents on DuesSummary; only one of them is money.
+    const waivedThisPeriod = scheduleRows.filter(
+      p => p.status === 'waived' && p.payment_date >= periodStart,
+    )
     const amountPaidThisPeriodCents = paidThisPeriod.reduce((s, p) => s + p.amount_cents, 0)
+    const amountWaivedThisPeriodCents = waivedThisPeriod.reduce((s, p) => s + p.amount_cents, 0)
     const amountPaidTotalCents = schedulePaid.reduce((s, p) => s + p.amount_cents, 0)
     // Zeroed for a declined due: they owe nothing on it, and every total on the
     // dashboard and My Summary is built by summing this field.
-    const remainingBalanceCents = optedOut ? 0 : Math.max(0, annual - amountPaidThisPeriodCents)
+    const remainingBalanceCents = optedOut
+      ? 0
+      : Math.max(0, annual - amountPaidThisPeriodCents - amountWaivedThisPeriodCents)
     const paid = remainingBalanceCents <= 0
 
     return {
@@ -682,9 +709,17 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
       installmentCents: installment,
       amountPaidThisPeriodCents,
       amountPaidTotalCents,
+      amountWaivedThisPeriodCents,
       remainingBalanceCents,
       // Nothing is coming due on something they have declined.
-      nextInstallmentDate: paid || optedOut ? null : nextInstallmentDate(schedule, cadence, paidThisPeriod.length),
+      //
+      // Waived rows count toward the installment tally as well as the balance: the
+      // date is anchor + (settled installments × cadence step), and an installment the
+      // family forgave is one the member is not being asked for again. Counting only
+      // the paid ones would keep pointing at an installment that has been dealt with.
+      nextInstallmentDate: paid || optedOut
+        ? null
+        : nextInstallmentDate(schedule, cadence, paidThisPeriod.length + waivedThisPeriod.length),
       paid,
       lastPayment: payments.find(p => p.schedule_id === schedule.id) ?? null,
       required: schedule.required,

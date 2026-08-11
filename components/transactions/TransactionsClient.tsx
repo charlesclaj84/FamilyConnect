@@ -1180,7 +1180,12 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                   : p.status === 'paid' ? 'text-green-600'
                     : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600',
             )}>
-              {p.status === 'waived' ? 'Waived' : fmt(p.amount_cents)}
+              {/* Waived rows print their figure like every other row: it is what
+                  came off that member's balance, and the amount column going blank
+                  on the one status that is hard to audit was the wrong place to be
+                  terse. PaymentStatusPill still says "Waived", in the Status column
+                  and on the meta line below `sm`. */}
+              {fmt(p.amount_cents)}
             </td>
             <td className="w-px px-3 py-2.5 text-right align-top sm:align-middle">
               {reversible && (

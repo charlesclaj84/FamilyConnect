@@ -564,7 +564,14 @@ export function DuesDetailSection({
                       <td className={`py-2.5 pr-3 text-right font-semibold whitespace-nowrap ${
                         p.status === 'paid' ? 'text-green-600' : p.status === 'waived' ? 'text-blue-600' : 'text-muted-foreground'
                       }`}>
-                        {p.status === 'waived' ? 'Waived' : formatCurrency(p.amount_cents)}
+                        {/* The figure, on a waived row too. It used to read "Waived"
+                            here, which was honest while waiving changed nothing —
+                            but it now comes off the remaining balance, and a balance
+                            that drops by $50 with no $50 anywhere on the page is a
+                            number the member cannot check. The status is not lost:
+                            the pill says it, in this row's own Status column and on
+                            the meta line below `sm`. */}
+                        {formatCurrency(p.amount_cents)}
                       </td>
                       <td className={cn('py-2.5 pr-3 text-muted-foreground text-xs', COLLAPSING_CELL)}>{p.payment_method ?? '—'}</td>
                       <td className={cn('py-2.5', COLLAPSING_CELL)}>
