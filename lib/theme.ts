@@ -12,10 +12,24 @@
 /** Where the preference is persisted. */
 export const THEME_STORAGE_KEY = 'genorra-theme'
 
-/** Light, dark, or "follow the OS". `system` is the default. */
+/** Light, dark, or "follow the OS". */
 export type Theme = 'light' | 'dark' | 'system'
 
 export const THEMES: readonly Theme[] = ['light', 'dark', 'system']
+
+/**
+ * What the app looks like to someone who has never touched the toggle.
+ *
+ * Light, NOT `system`. GENORRA's identity is burgundy on cream — that is the
+ * brand board, the printed guide and the light app icon — so a member whose
+ * laptop happens to be in dark mode should still meet the product the way it
+ * was designed, rather than having the OS pick for them on first contact.
+ *
+ * `system` remains a choice, it is simply not the default. A stored preference
+ * of any kind still wins on every load; this constant only decides what happens
+ * when there is nothing stored.
+ */
+export const DEFAULT_THEME: Theme = 'light'
 
 /**
  * Runs synchronously in `<head>`, before the browser paints anything.
@@ -36,4 +50,4 @@ export const THEMES: readonly Theme[] = ['light', 'dark', 'system']
  * private mode and under some embedded webviews — a themed page is worth
  * less than a page that renders.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var d=s==="dark"||((!s||s==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light"}catch(e){}})()`
+export const THEME_BOOT_SCRIPT = `(function(){try{var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var d=s==="dark"||(s==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.style.colorScheme=d?"dark":"light"}catch(e){}})()`

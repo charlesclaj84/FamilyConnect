@@ -574,7 +574,17 @@ There is a `.dark` class on `<html>`, put there before first paint by the inline
 script in `app/layout.tsx` (`THEME_BOOT_SCRIPT` in `lib/theme.ts`), and cycled by
 `components/layout/ThemeToggle.tsx` between Light, Dark and System.
 
-Four things to know before changing any of it:
+**Light is the default, not System** — `DEFAULT_THEME` in `lib/theme.ts`. GENORRA's
+identity is burgundy on cream, so someone meeting the product for the first time sees it
+as designed rather than having their OS choose. System remains a choice; it is simply not
+the fallback. A stored preference of any kind still wins on every load.
+
+If you change that constant, change it **once**: the boot script and `readPreference()`
+in `ThemeToggle` both derive from it, and if they ever disagree the page paints one theme
+while the button claims the other — visible only on a hard refresh, which is the worst
+kind of bug to hunt.
+
+Five things to know before changing any of it:
 
 * **The class, not `data-theme`.** The Next guide on preventing flash uses a
   `data-theme` attribute; this app cannot, because `globals.css` declares

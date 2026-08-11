@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { THEME_STORAGE_KEY, type Theme } from '@/lib/theme'
+import { THEME_STORAGE_KEY, DEFAULT_THEME, type Theme } from '@/lib/theme'
 
 const ORDER: readonly Theme[] = ['light', 'dark', 'system']
 
@@ -25,10 +25,13 @@ function isTheme(value: string | null): value is Theme {
 function readPreference(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
-    return isTheme(stored) ? stored : 'system'
+    // No stored choice falls back to DEFAULT_THEME (Light), matching the boot
+    // script exactly. If these two ever disagree the page paints one theme and
+    // the button claims the other, and only on a hard refresh.
+    return isTheme(stored) ? stored : DEFAULT_THEME
   } catch {
     // localStorage throws outright in Safari private mode and some webviews.
-    return 'system'
+    return DEFAULT_THEME
   }
 }
 
@@ -49,9 +52,15 @@ function getSnapshot(): string {
   return `${preference}|${dark ? 'dark' : 'light'}`
 }
 
-/** The server has no OS and no storage; `system`/light is the honest default. */
+/**
+ * The server has no OS and no storage, so it reports the default.
+ *
+ * Derived from DEFAULT_THEME rather than hardcoded, so changing that one
+ * constant cannot leave this behind. `system` is the only value the server
+ * genuinely cannot resolve, and it falls back to light.
+ */
 function getServerSnapshot(): string {
-  return 'system|light'
+  return `${DEFAULT_THEME}|${DEFAULT_THEME === 'dark' ? 'dark' : 'light'}`
 }
 
 function subscribe(onChange: () => void) {
