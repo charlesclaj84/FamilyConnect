@@ -912,3 +912,92 @@ The tables no longer scroll, so the containers are `overflow-visible` (or
 but keep the portal. It costs nothing and the clipping ancestor is one careless
 `overflow-x-auto` away from coming back. If you add another row-level popover anywhere,
 it needs the same treatment.
+
+# Build every member list for a hundred-member family
+
+A family with 120 adults in it is an ordinary customer of this product, not an edge
+case — holding a whole extended family is the entire premise. So **any control that
+lists members must be designed for that size**, and the default is that it is not:
+`tests/rls` seeds six people, a hand-built dev family has a dozen, and twelve names
+make a bare column of checkboxes look perfectly reasonable.
+
+The failure at 120 is not performance. React will render 120 checkboxes without
+complaining. The failure is that the name you came for is three screens down, there is
+no way to reach it but scrolling, and the control gives you no way to tell whether you
+have already picked it.
+
+Assume 150 whenever you write one of these. It costs nothing at 12.
+
+## `PersonMultiSelect` is the control for choosing several members
+
+`components/ui/person-multi-select.tsx`. Use it. Do not write a second one — this has
+already been hand-rolled three times in this codebase, each a little differently, which
+is how the Member Directory got accent-insensitive search and the photo tagger did not.
+
+```tsx
+<PersonMultiSelect
+  people={members}                       // SelectablePerson[] — id + names
+  selected={form.beneficiaryIds}
+  onChange={next => onChange({ beneficiaryIds: next })}
+  label="This drive is for (optional)"
+  hint="What choosing someone actually does."
+/>
+```
+
+Four things in it are load-bearing, and the second is the one that gets left out:
+
+* **Search, matching first, last and nickname**, accent- and punctuation-insensitively,
+  so "jose" finds "José" and "oconnor" finds "O'Connor". This is the only way to reach
+  one name out of a hundred.
+
+* **Selections stay on screen as chips, above the search.** Filter a list to "mar" and
+  every ticked name that does not match *disappears* — so if the checkboxes are the only
+  record of what is selected, the control silently stops showing its own state, and a
+  user removes someone by forgetting they were there. The chips are the state; the list
+  is only a way to change it. Each chip is a remove button in its entirety, because a
+  12px × beside a name is the wrong target on the screen where a mis-tap costs most.
+
+* **An honest count, and an honest overflow.** "3 selected · 12 of 137 shown", and when
+  a filter still leaves more rows than `RENDER_LIMIT` it says how many are off-screen.
+  A list that stops at 60 while *looking* complete is how somebody concludes a person is
+  not in the family. Never truncate quietly — same rule as the migration verify blocks:
+  a skip must be visible.
+
+* **A bounded height with its own scroll**, so the size of the family cannot push a
+  dialog's Save button off the bottom of a phone.
+
+**Names come from `disambiguatedName`, computed against the whole roster** — never the
+filtered subset. Two Martha Allens are *more* likely in a large family, not less, and
+scoring the name against the filtered list would make them read as unambiguous at
+exactly the moment a search had separated them.
+
+**It does not claim `role="combobox"`,** and a variant must not either. That role
+promises arrow-key navigation, `aria-activedescendant` and Enter-to-commit, and a screen
+reader changes its key handling to match; none of it is implemented, so claiming it
+strands the users it is aimed at. It is a search input and a group of real checkboxes,
+which is what it says it is. Same reasoning as `MainRail` refusing `role="tablist"`.
+
+## Anything else that lists members needs a way to find one
+
+The rule is about the size of the list, not about this one component.
+
+* A **table** of members gets a filter box — `MemberDirectoryClient` is the worked
+  example, and Members & Access follows it.
+* A **single-select** over members is the one case where the platform helps: a native
+  `<select>` has OS-level type-ahead, so it degrades rather than breaks. It still owes
+  `disambiguatedName` on every option.
+* **Gate the fetch first (§5).** A roster is PII that reaches the browser in the RSC
+  payload whether the control renders it or not, and a 150-row roster fetched for a
+  field the caller cannot use is both a leak and a payload.
+
+## Known gaps, so nobody reads the above as a description of the tree
+
+* `components/elections/BallotForm.tsx` — a native `<select>` over members that prints
+  `{m.first_name} {m.last_name}` directly. Two Martha Allens are indistinguishable on a
+  ballot, which is the worst screen for it.
+* `components/transactions/TransactionsClient.tsx` — three native member selects. They
+  do disambiguate; they have no search beyond the browser's.
+* `components/photos/PhotoCollectionGallery.tsx` — its own `tagSearch`, a plain
+  lowercased `.includes()` on the formatted name. No accent or punctuation handling, no
+  chips, no count. This is the third hand-rolled copy the shared component exists to
+  stop being a fourth.

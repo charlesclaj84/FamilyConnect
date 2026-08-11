@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
+import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person-multi-select'
 import { cn } from '@/lib/utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
@@ -76,16 +77,11 @@ interface Props {
 }
 
 /**
- * A member as the beneficiary picker needs them. The same shape every other member
- * picker in the app takes, so `disambiguatedName` can tell two Martha Allens apart.
+ * A member as the beneficiary picker needs them — an alias for the shared control's
+ * shape, not a second definition of it. The page builds this list and it flows through
+ * the shell unchanged, so the two must stay the same type by construction.
  */
-export interface BeneficiaryOption {
-  id: string
-  first_name: string
-  last_name: string
-  nick_name?: string | null
-  date_of_birth?: string | null
-}
+export type BeneficiaryOption = SelectablePerson
 
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
 
@@ -200,83 +196,6 @@ function RequiredToggle({ checked, onChange }: {
 }
 
 /**
- * Who a donation drive is for — and therefore who cannot see it.
- *
- * A CHECKBOX LIST, NOT A `<select multiple>`. The native control needs ctrl-click to
- * add a second name and silently drops the whole selection on a plain click, which on
- * this field means quietly un-hiding a surprise. Nothing here should be reachable by
- * accident.
- *
- * The consequence is spelled out under the label rather than left to the word
- * "beneficiary". An administrator ticking a name is doing something no other control in
- * Accounting does — taking a page away from someone who has every grant the family can
- * confer — and that is worth one sentence, especially as the switch that would normally
- * undo it (Members & Access) has no power over this one.
- *
- * Names come from `disambiguatedName`, so a family with two Martha Allens is not asked
- * to pick between two identical rows on the screen where picking wrong is worst.
- */
-function BeneficiaryPicker({ members, selected, onChange }: {
-  members: BeneficiaryOption[]
-  selected: string[]
-  onChange: (next: string[]) => void
-}) {
-  const chosen = new Set(selected)
-  const toggle = (id: string) => {
-    const next = new Set(chosen)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    onChange([...next])
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <Label>This drive is for (optional)</Label>
-      <p className="text-xs text-muted-foreground">
-        Anyone named here cannot see this drive anywhere in {APP_NAME} — not the goal,
-        not the progress, not a single gift to it. That holds for administrators too, so
-        a collection can be kept from the person it is meant to surprise. Everyone else
-        sees who it is for.
-      </p>
-      {members.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          No members to choose from yet.
-        </p>
-      ) : (
-        // Capped height with a scroll: a large family would otherwise push the dialog's
-        // buttons off the bottom of a phone. This is a list inside a form control, not
-        // a table, so §"a table narrows" does not apply.
-        <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border p-2">
-          {members.map(m => {
-            const id = `beneficiary-${m.id}`
-            return (
-              <label
-                key={m.id}
-                htmlFor={id}
-                className="flex cursor-pointer select-none items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-muted/60"
-              >
-                <input
-                  id={id}
-                  type="checkbox"
-                  checked={chosen.has(m.id)}
-                  onChange={() => toggle(m.id)}
-                  className="h-4 w-4 rounded border-input accent-primary"
-                />
-                <span>{disambiguatedName(m, members)}</span>
-              </label>
-            )
-          })}
-        </div>
-      )}
-      {chosen.size > 0 && (
-        <p className="text-xs font-medium text-brand-on-soft">
-          Hidden from {chosen.size} {chosen.size === 1 ? 'member' : 'members'}.
-        </p>
-      )}
-    </div>
-  )
-}
-
-/**
  * The fields, once — used by BOTH the create dialog and the edit dialog.
  *
  * They were two near-identical copies before, differing only in ways nobody had decided:
@@ -375,10 +294,19 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
           bill that silently never gets paid, so the guard trigger in 20260811000000
           refuses a beneficiary on a dues row outright. */}
       {isDonation && (
-        <BeneficiaryPicker
-          members={members}
+        <PersonMultiSelect
+          people={members}
           selected={form.beneficiaryIds}
           onChange={next => onChange({ beneficiaryIds: next })}
+          label="This drive is for (optional)"
+          // Spelled out rather than left to the word "beneficiary". Ticking a name here
+          // does something no other control in Accounting does — takes a page away from
+          // someone holding every grant the family can confer — and the switch that
+          // would normally undo that, on Members & Access, has no power over this one.
+          hint={`Anyone named here cannot see this drive anywhere in ${APP_NAME} — not the `
+            + 'goal, not the progress, not a single gift to it. That holds for '
+            + 'administrators too, so a collection can be kept from the person it is '
+            + 'meant to surprise. Everyone else sees who it is for.'}
         />
       )}
 
