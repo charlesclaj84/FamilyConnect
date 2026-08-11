@@ -63,7 +63,18 @@ export const APP_DESCRIPTION =
  *     `identity/` collides with nothing in either direction.
  */
 export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
-export const BRAND_LOCKUP_REVERSED_SRC = '/identity/genorra-lockup-reversed.svg'
+
+/**
+ * The horizontal lockup for a DARK ground — the banner band on the landing page
+ * and the auth shell.
+ *
+ * Named for the kit's own vocabulary: v1_2 ships `Horizontal_Dark` (cream
+ * wordmark, for dark grounds) and `Horizontal_Light` (for pale grounds). It is
+ * NOT the v1.0 `Horizontal_Reversed` this used to point at — that file exists
+ * only in v1.0 and carries the superseded mark, the "simplified recreation"
+ * v1.1 was issued to correct. Picking the wrong one is silent: both render.
+ */
+export const BRAND_LOCKUP_DARK_SRC = '/identity/genorra-lockup-dark.svg'
 
 /**
  * Alt text for the mark, which is wordless.

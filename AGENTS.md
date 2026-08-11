@@ -626,14 +626,14 @@ rail. Each carries a comment saying so.
 TypeScript does. **Never type the product name as a literal in a component.**
 
 ```tsx
-import { APP_NAME, APP_BANNER_ALT, BRAND_LOCKUP_REVERSED_SRC } from '@/lib/brand'
+import { APP_NAME, APP_BANNER_ALT, BRAND_LOCKUP_DARK_SRC } from '@/lib/brand'
 
 <span className="gn-wordmark text-xl text-brand-ink">{APP_NAME}</span>
-<Image src={BRAND_LOCKUP_REVERSED_SRC} alt={APP_BANNER_ALT} … />
+<Image src={BRAND_LOCKUP_DARK_SRC} alt={APP_BANNER_ALT} … />
 ```
 
 `APP_NAME`, `APP_TAGLINE`, `APP_LEAD`, `APP_VALUES`, `APP_PROMISE`, `APP_DESCRIPTION`,
-`APP_BANNER_ALT`, `APP_LOGO_ALT`, `BRAND_MARK_SRC`, `BRAND_LOCKUP_REVERSED_SRC` and
+`APP_BANNER_ALT`, `APP_LOGO_ALT`, `BRAND_MARK_SRC`, `BRAND_LOCKUP_DARK_SRC` and
 `BRAND_THEME_COLOR` are the whole surface. In a template string use `${APP_NAME}`, not a
 literal — `lib/features.ts` and `app/actions/children.ts` are the worked examples.
 
@@ -643,21 +643,40 @@ expansion and belongs beside the mark; the lead line — "Where every generation
 joins them for running text; a surface that lists the values maps over the array rather
 than retyping them, so adding a fourth is one edit.
 
-## Artwork paths, and the `public/brand` trap
+## Artwork paths, and the versioned kits
 
-Brand artwork is served from **`public/identity/`** and named by role in `lib/brand.ts`.
-It is deliberately not referenced out of the vendor kit that ships alongside it, for two
-reasons that both bite:
+`public/` holds exactly three things:
 
-* The kit's folders are named for a design deliverable — `SVG_Masters`, `PNG_Exports` —
-  and those names would end up in public URLs, where they are permanent.
-* **`public/Brand/` already exists.** A `public/brand/` for web assets is the *same*
-  directory on Windows and macOS and a *different* one on the Linux box that serves
-  production: it works locally and 404s once deployed. `identity/` collides with nothing
-  in either direction. This was hit while doing the rebrand, not theorised.
+| Folder | What it is |
+|---|---|
+| `public/identity/` | **The only artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
+| `public/v1_2/` | The current vendor kit, exactly as delivered. |
+| `public/v1_0/` | The superseded kit, kept for reference. |
 
-The kit itself (`SVG_Masters`, `PNG_Exports`, `Brand`, `Favicons`, `App_Icons`,
-`Editable_SVG`, `Web`) is the delivered package and is left exactly as delivered.
+**Serve from `identity/`, never from a kit folder.** Two reasons, both of which have
+bitten:
+
+* Kit folders are named for a design deliverable — `SVG_Masters`, `PNG_Exports` — and
+  those names would end up in public URLs, where they are permanent. Worse, they are
+  *version-scoped*: a URL containing `v1_2` has to be rewritten at every kit bump, and
+  the one that gets missed 404s in production.
+* A `public/brand/` for web assets would be the *same* directory as the kit's `Brand/`
+  on Windows and macOS and a *different* one on the Linux box that serves production —
+  it works locally and 404s once deployed. `identity/` collides with nothing in either
+  direction. This was hit while doing the rebrand, not theorised.
+
+**Bumping the kit is a copy, not a reference change.** Drop the new kit in as
+`public/v1_N/`, then re-copy every file in `identity/` (and `app/favicon.ico`,
+`app/icon.svg`, `app/apple-icon.png`) from it and `cmp` each one. Skipping that leaves
+the site serving the *previous* kit's artwork with no error anywhere — which is exactly
+what happened: `identity/` held the v1.0 mark for a full round after v1.1 landed, and
+v1.1 existed precisely to correct that mark's silhouette.
+
+**Asset names move between kits.** v1.0's dark-ground lockup was `Horizontal_Reversed`;
+v1_2 renames it `Horizontal_Dark` and drops the old file. Both render, so pointing at
+the wrong one is silent. `Dark` and `Light` in this kit name the **ground the artwork
+sits on**, not the artwork's own colour: `Horizontal_Dark` carries a cream wordmark and
+belongs on Heritage; `Horizontal_Light` is for pale grounds.
 
 ## The wordmark is set, not placed
 

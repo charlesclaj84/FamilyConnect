@@ -7,7 +7,7 @@ import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT,
-  BRAND_MARK_SRC, BRAND_LOCKUP_REVERSED_SRC,
+  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC,
 } from '@/lib/brand'
 
 /**
@@ -96,7 +96,7 @@ export default function LandingPage() {
 
         <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
           <Image
-            src={BRAND_LOCKUP_REVERSED_SRC}
+            src={BRAND_LOCKUP_DARK_SRC}
             alt={APP_BANNER_ALT}
             width={1700}
             height={520}

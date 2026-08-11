@@ -4,7 +4,7 @@ import { AuthNavButtons } from '@/components/auth/AuthNavButtons'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT,
-  BRAND_MARK_SRC, BRAND_LOCKUP_REVERSED_SRC,
+  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC,
 } from '@/lib/brand'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -27,7 +27,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           uses, so signing in does not feel like a different product. */}
       <div className="w-full flex justify-center bg-brand-hero px-4 py-10 sm:py-12">
         <Image
-          src={BRAND_LOCKUP_REVERSED_SRC}
+          src={BRAND_LOCKUP_DARK_SRC}
           alt={APP_BANNER_ALT}
           width={1700}
           height={520}
