@@ -4,7 +4,9 @@ import { useState, useEffect, useTransition } from 'react'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
+import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
 import { formatDate } from '@/lib/date-utils'
+import { cn } from '@/lib/utils'
 
 interface Props {
   initialNotifications: Notification[]
@@ -96,9 +98,13 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-80 bg-background border rounded-xl shadow-lg z-20 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className={HEADER_PANEL_SCRIM_CLASS} onClick={() => setOpen(false)} aria-hidden="true" />
+          {/* Was a flat `w-80` anchored `right-0` to the bell. The bell sits ~110px in
+              from the right edge, so on a 375px screen those 320px started 55px off the
+              left of the display and the first half of every notification was gone. It
+              is a full-width sheet under the header below sm now; see header-panel.ts. */}
+          <div className={cn(HEADER_PANEL_CLASS, 'sm:w-80')}>
+            <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b">
               <span className="font-semibold text-sm">Notifications</span>
               {unreadNotifications > 0 && (
                 <button
@@ -116,7 +122,11 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
                 No notifications yet.
               </div>
             ) : (
-              <ul className="divide-y max-h-96 overflow-y-auto">
+              /* The panel owns the height cap now (header-panel.ts), so the list takes
+                 whatever is left rather than carrying its own max-h — a fixed max-h-96
+                 inside a shorter panel would have scrolled the sticky header out of
+                 reach on a small screen. */
+              <ul className="min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain">
                 {/* Pinned above the feed rather than sorted into it: it has no
                     timestamp to sort by, and it is the one row here that is a job
                     rather than a record of something that happened. A real <a> so

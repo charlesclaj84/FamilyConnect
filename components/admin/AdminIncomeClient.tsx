@@ -8,11 +8,28 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
+import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
+
+/**
+ * Start and End as ONE line, for the meta line the two date columns fold into.
+ *
+ * An open-ended schedule is the common case and reads better as "from 1 Jan 2026" than
+ * as "1 Jan 2026 — —"; a schedule with neither date says nothing at all rather than
+ * printing a bare dash under its own name.
+ */
+function dateRange(start: string | null | undefined, end: string | null | undefined): string | null {
+  const from = formatDate(start)
+  const to = formatDate(end)
+  if (from && to) return `${from} – ${to}`
+  if (from) return `from ${from}`
+  if (to) return `until ${to}`
+  return null
+}
 import {
   createDuesSchedule, updateDuesSchedule, deleteDuesSchedule,
   type DuesSchedule, type ScheduleUsage,
@@ -503,7 +520,7 @@ export function AdminIncomeClient({
             onClose={onCloseCreate}
             title={copy.title}
             description={copy.blurb}
-            className="max-w-lg max-h-[90vh] overflow-y-auto"
+            className="max-w-lg"
           >
             <div className="space-y-3 mt-2">
               <ScheduleFields
@@ -546,7 +563,7 @@ export function AdminIncomeClient({
             /* The name as STORED, so it still says which record this is after the Name
                field has been typed in. */
             description={editing?.name}
-            className="max-w-lg max-h-[90vh] overflow-y-auto"
+            className="max-w-lg"
           >
             {editing && (
               <div className="space-y-3 mt-2">
@@ -586,8 +603,13 @@ export function AdminIncomeClient({
               above, so a row is only ever a row and the table's shape never changes under
               the reader. */}
           {visibleSchedules.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[44rem] border-collapse text-sm">
+            /* Everything but Name, the money figure and the row's controls folds below
+               `sm` — see components/ui/table-collapse.tsx. The two dates fold as a PAIR
+               and are restated as a single range, because "1 Jan 2026 · 31 Dec 2026" is
+               one fact about a schedule and two columns were only ever the way to line
+               them up. */
+            <div className="overflow-visible rounded-xl border">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2 font-semibold">Name</th>
@@ -596,18 +618,18 @@ export function AdminIncomeClient({
                     ) : (
                       <>
                         <th scope="col" className="px-3 py-2 text-right font-semibold">Due Amount</th>
-                        <th scope="col" className="px-3 py-2 font-semibold">Frequency</th>
-                        <th scope="col" className="px-3 py-2 font-semibold">Payment</th>
+                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Frequency</th>
+                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Payment</th>
                       </>
                     )}
-                    <th scope="col" className="px-3 py-2 font-semibold">Start Date</th>
-                    <th scope="col" className="px-3 py-2 font-semibold">End Date</th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Start Date</th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>End Date</th>
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
               {visibleSchedules.map(s => (
-                <tr key={s.id} className="border-b last:border-0 align-middle">
+                <tr key={s.id} className="border-b align-top last:border-0 sm:align-middle">
                       <td className="px-3 py-2.5">
                         {/* Description on hover, matching how a member sees the same
                             field in My Summary. Underlined only when there is
@@ -618,6 +640,22 @@ export function AdminIncomeClient({
                         >
                           {s.label}
                         </span>
+                        <RowMeta className="gap-x-2">
+                          {s.kind !== 'donation' && (
+                            <>
+                              <span className="capitalize">{s.frequency}</span>
+                              <span className={cn(
+                                'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                s.required
+                                  ? 'bg-brand-soft text-brand-on-soft'
+                                  : 'bg-amber-100 text-amber-800',
+                              )}>
+                                {s.required ? 'Required' : 'Optional'}
+                              </span>
+                            </>
+                          )}
+                          <MetaIf value={dateRange(s.start_date, s.end_date)} />
+                        </RowMeta>
                       </td>
                       {s.kind === 'donation' ? (
                         <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
@@ -628,8 +666,8 @@ export function AdminIncomeClient({
                           <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
                             {formatDollars(s.amount_cents)}
                           </td>
-                          <td className="px-3 py-2.5 capitalize text-muted-foreground">{s.frequency}</td>
-                          <td className="px-3 py-2.5">
+                          <td className={cn('px-3 py-2.5 capitalize text-muted-foreground', COLLAPSING_CELL)}>{s.frequency}</td>
+                          <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
                             {/* Required is the plain badge and Optional the coloured one,
                                 because optional is the exception worth spotting — it is
                                 the row a member can decline. */}
@@ -644,10 +682,10 @@ export function AdminIncomeClient({
                           </td>
                         </>
                       )}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
+                      <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {formatDate(s.start_date) ?? '—'}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">
+                      <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {formatDate(s.end_date) ?? '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">

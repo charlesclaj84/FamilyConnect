@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
+import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 import {
   createTemplate, renameTemplate, deleteTemplate, setTemplatePermission,
@@ -260,9 +261,16 @@ function MembersTab({ templates, rights, onError }: {
  * column when it reads the cell, which is the whole difference between "512 555 0134"
  * and "Phone: 512 555 0134".
  *
- * It scrolls INSIDE its own container rather than widening the page. Six columns do not
- * fit a phone, and the alternative — collapsing to stacked cards below some breakpoint —
- * would mean maintaining two renderings of the same row.
+ * BELOW `sm` THE MIDDLE FOUR COLUMNS FOLD AWAY and are restated under the name, leaving
+ * Name and the row menu. This used to be a `min-w-[52rem]` table scrolling inside its own
+ * container — the note here said the alternative was maintaining two renderings of the
+ * row, and it is not: the cells are the same cells, hidden by a media query, with a small
+ * block beside them that only renders where they do not. Sideways scrolling cost more
+ * than the duplication would have. It hid the row menu, which is the entire point of this
+ * table, behind a drag; and the header row scrolled away with the columns it named.
+ *
+ * Member Directory folds the same four, so the two lists still match column for column at
+ * every width.
  */
 function MemberTable({ rows, templates, rights, busy, run }: {
   rows: MemberSummary[]
@@ -271,16 +279,21 @@ function MemberTable({ rows, templates, rights, busy, run }: {
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
 }) {
+  // `overflow-visible`, not the `overflow-x-auto` that was here: an ancestor with
+  // `overflow-x: auto` computes its `overflow-y` to `auto` as well, which is what forced
+  // RowMenu to portal its panel to the body in the first place. With the scroll gone
+  // there is nothing left to clip, and nothing here should acquire a new clipping
+  // ancestor.
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full min-w-[52rem] border-collapse text-sm">
+    <div className="overflow-visible rounded-xl border">
+      <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Phone</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Email</th>
-            <th scope="col" className="px-3 py-2 font-semibold">City, State</th>
-            <th scope="col" className="px-3 py-2 font-semibold">Group</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Phone</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Email</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>City, State</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
             {/* The menu column has no heading to give. An empty <th> would be announced
                 as a blank column header, so the label is present and hidden. */}
             <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
@@ -308,11 +321,11 @@ function MemberRow({ member, templates, rights, busy, run }: {
   const disabled = member.status === 'disabled'
 
   return (
-    <tr className="border-b last:border-0 align-middle">
+    <tr className="border-b last:border-0 align-top sm:align-middle">
       {/* Name carries the status, because that is what the badge qualifies — a
           struck-through name with the badge in another column reads as two facts. */}
       <td className="px-3 py-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={cn('font-medium', disabled && 'text-muted-foreground line-through')}>
             {member.name}
           </span>
@@ -322,11 +335,23 @@ function MemberRow({ member, templates, rights, busy, run }: {
             </span>
           )}
         </div>
+        {/* The folded columns, below sm only — stacked rather than run inline, because
+            this is a contact block and Member Directory renders the identical one. The
+            template is always shown: it is what this page is FOR, so unlike a missing
+            phone number it is never omitted, and "No template" is a real answer. */}
+        <RowMeta className="flex-col items-start gap-y-0.5">
+          <MetaIf value={member.phone} />
+          {member.email && <span className="break-all">{member.email}</span>}
+          <MetaIf value={member.location} />
+          <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
+            {member.templateName ?? 'No template'}
+          </span>
+        </RowMeta>
       </td>
-      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{member.phone ?? '—'}</td>
-      <td className="px-3 py-2.5 text-muted-foreground">{member.email ?? '—'}</td>
-      <td className="px-3 py-2.5 text-muted-foreground">{member.location ?? '—'}</td>
-      <td className="px-3 py-2.5">
+      <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>{member.phone ?? '—'}</td>
+      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.email ?? '—'}</td>
+      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.location ?? '—'}</td>
+      <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
         <span className="inline-block whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-on-soft">
           {member.templateName ?? 'No template'}
         </span>
@@ -685,15 +710,32 @@ function TemplatesTab({
                 are listed, and each row shows only the actions that mean something for it.
               </CardDescription>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-sm">
+            {/* THIS GRID FOLDS TOO, and it is the one that looked like it could not.
+                A permission matrix has no subordinate columns — the four actions ARE
+                the content — so the argument for folding it is not width, it is that
+                `min-w-[34rem]` in an `overflow-x-auto` box scrolled the FEATURE column
+                out of view. On a narrow screen you ended up looking at four unlabelled
+                switch groups with no indication of which row you were about to change,
+                on the one screen in the app where changing the wrong row hands somebody
+                authority they should not have.
+
+                So below `sm` each action becomes a labelled line under the feature name.
+                It is taller, and that is the correct trade: this is a screen an
+                administrator visits to make one deliberate change, not a list they
+                scan. The same buttons are rendered in both layouts — one is always
+                `display: none`, so only one is ever focusable — rather than a second
+                implementation that could drift from the first. */}
+            <CardContent className="overflow-visible">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                     {/* Not "Page": the rows under Accounting > Transactions are
                         capabilities — the add buttons on the Transactions page — and
                         have no route of their own. */}
                     <th className="py-2 pr-4 font-medium">Feature</th>
-                    {ACTIONS.map(a => <th key={a} className="py-2 pr-3 font-medium capitalize">{a}</th>)}
+                    {ACTIONS.map(a => (
+                      <th key={a} className={cn('py-2 pr-3 font-medium capitalize', COLLAPSING_CELL)}>{a}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -704,7 +746,31 @@ function TemplatesTab({
                           {label}
                         </td>
                       </tr>
-                      {rows.map(({ resource: r, header, nested }) => (
+                      {rows.map(({ resource: r, header, nested }) => {
+                        // One definition, rendered into the action column at `sm` and up
+                        // and into the stacked line below it.
+                        const scopeButtons = (action: typeof ACTIONS[number]) => {
+                          const current = policy[`${r.key}:${action}`] ?? 'none'
+                          return scopesFor(r, action).map(scope => (
+                            <button key={scope} type="button" disabled={!rights.edit || isPending}
+                              onClick={() => run({
+                                title: 'Change what this template grants',
+                                description:
+                                  `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
+                                  `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
+                                  `This applies to all ${selected.memberCount} member` +
+                                  `${selected.memberCount === 1 ? '' : 's'} on the template.`,
+                                confirmLabel: 'Change',
+                                destructive: scope === 'none',
+                              }, () => setTemplatePermission(selected.id, r.key, action, scope))}
+                              title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
+                              className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60',
+                                current === scope ? SCOPE_STYLE[scope] : 'text-muted-foreground hover:bg-muted')}>
+                              {SCOPE_LABEL[scope]}
+                            </button>
+                          ))
+                        }
+                        return (
                         <Fragment key={r.key}>
                           {header && (
                             <tr>
@@ -713,38 +779,39 @@ function TemplatesTab({
                               </td>
                             </tr>
                           )}
-                          <tr className="border-b last:border-0">
-                            <td className={cn('py-1.5 pr-4', nested && 'pl-8')}>{r.label}</td>
-                            {ACTIONS.map(action => {
-                              const current = policy[`${r.key}:${action}`] ?? 'none'
-                              return (
-                                <td key={action} className="py-1.5 pr-3">
-                                  <div className="flex gap-0.5">
-                                    {scopesFor(r, action).map(scope => (
-                                      <button key={scope} type="button" disabled={!rights.edit || isPending}
-                                        onClick={() => run({
-                                          title: 'Change what this template grants',
-                                          description:
-                                            `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
-                                            `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
-                                            `This applies to all ${selected.memberCount} member` +
-                                            `${selected.memberCount === 1 ? '' : 's'} on the template.`,
-                                          confirmLabel: 'Change',
-                                          destructive: scope === 'none',
-                                        }, () => setTemplatePermission(selected.id, r.key, action, scope))}
-                                        title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
-                                        className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60',
-                                          current === scope ? SCOPE_STYLE[scope] : 'text-muted-foreground hover:bg-muted')}>
-                                        {SCOPE_LABEL[scope]}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </td>
-                              )
-                            })}
+                          <tr className="border-b align-top last:border-0 sm:align-middle">
+                            <td className={cn('py-1.5 pr-4', nested && 'pl-8')}>
+                              {r.label}
+                              {/* Not a `RowMeta`: that renders one inline run of values,
+                                  and these are four labelled groups of controls. Same
+                                  `sm:hidden` contract, different shape. */}
+                              <div className="mt-1.5 space-y-1 sm:hidden">
+                                {ACTIONS.map(action => {
+                                  const buttons = scopeButtons(action)
+                                  // A resource declares only the actions something reads
+                                  // (AGENTS.md), so most rows have fewer than four. An
+                                  // empty label is a switch that does nothing.
+                                  if (buttons.length === 0) return null
+                                  return (
+                                    <div key={action} className="flex items-center gap-2">
+                                      <span className="w-12 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        {action}
+                                      </span>
+                                      <div className="flex gap-0.5">{buttons}</div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </td>
+                            {ACTIONS.map(action => (
+                              <td key={action} className={cn('py-1.5 pr-3', COLLAPSING_CELL)}>
+                                <div className="flex gap-0.5">{scopeButtons(action)}</div>
+                              </td>
+                            ))}
                           </tr>
                         </Fragment>
-                      ))}
+                        )
+                      })}
                     </Fragment>
                   ))}
                 </tbody>

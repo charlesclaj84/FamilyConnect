@@ -329,7 +329,11 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
       {/* ── Mobile: hamburger button ────────────────────────────────── */}
       {/* Pinned directly under the navbar for the same reason as the desktop
           panel — the nav should stay reachable however far the page has scrolled. */}
-      <div className="md:hidden sticky top-[calc(4rem_+_1px)] z-10 border-b bg-background shrink-0 flex items-center px-3 py-2">
+      {/* z-20, which is BELOW the navbar's z-30 — see the stacking table in Navbar.
+          This bar and the header used to share z-10, and because it is rendered after
+          the header it won, swallowing the top of the family switcher and the
+          notification panel where they hang past the header's edge. */}
+      <div className="md:hidden sticky top-[calc(4rem_+_1px)] z-20 border-b bg-background shrink-0 flex items-center px-3 py-2">
         <button
           onClick={() => setMobileOpen(true)}
           className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm bg-brand-soft text-brand-on-soft hover:opacity-90 transition-colors"
@@ -343,12 +347,15 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
       {/* ── Mobile: slide-out drawer ────────────────────────────────── */}
       {mobileOpen && (
         <>
+          {/* Above the header (z-30), not below it: this is a modal drawer, and a
+              backdrop that leaves the navbar live lets someone sign out through the
+              scrim they just tapped to dismiss. */}
           <div
-            className="md:hidden fixed inset-0 bg-black/50 z-20"
+            className="md:hidden fixed inset-0 bg-black/50 z-40"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-30 flex flex-col">
+          <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-50 flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <span className="font-semibold text-brand-ink">Menu</span>
               <button

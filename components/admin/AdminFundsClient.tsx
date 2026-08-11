@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
+import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { useServerState } from '@/lib/use-server-state'
@@ -292,7 +293,6 @@ export function AdminFundsClient({
             onClose={onCloseCreate}
             title="New Fund"
             description="A pot that dues route into and disbursements come out of."
-            className="max-h-[90vh] overflow-y-auto"
           >
             <div className="space-y-3 mt-2">
               <div className="space-y-1.5">
@@ -335,22 +335,29 @@ export function AdminFundsClient({
               fund, and reading "Balance: X · Collected Y · Disbursed Z" as prose meant
               re-finding the same word on every row to compare two funds. */}
           {funds.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[52rem] border-collapse text-sm">
+            /* Five of the seven columns fold below `sm`; see
+               components/ui/table-collapse.tsx. BALANCE is the one figure that stays,
+               because it is the answer this screen exists to give — Collected and
+               Disbursed are how it got there, and the share and the minimum are
+               configuration rather than position. All five are on the meta line, and
+               labelled: six currency amounts in a row with no captions is exactly the
+               prose this table replaced. */
+            <div className="overflow-visible rounded-xl border">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2 font-semibold">Fund</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">% of dues</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>% of dues</th>
                     <th scope="col" className="px-3 py-2 text-right font-semibold">Balance</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">Collected</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">Disbursed</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">Minimum</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Collected</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Disbursed</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Minimum</th>
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {funds.map(f => (
-                    <tr key={f.id} className="border-b last:border-0 align-middle">
+                    <tr key={f.id} className="border-b align-top last:border-0 sm:align-middle">
                       <td className="px-3 py-2.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">{f.name}</span>
@@ -367,8 +374,28 @@ export function AdminFundsClient({
                           )}
                         </div>
                         {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
+                        <RowMeta className="gap-x-2">
+                          <MetaIf value={fmt(f.total_contributed_cents)} prefix="Collected" />
+                          <MetaDot />
+                          <MetaIf value={fmt(f.total_disbursed_cents)} prefix="Disbursed" />
+                          {!f.system_key && (
+                            <>
+                              <MetaDot />
+                              <MetaIf
+                                value={`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
+                                prefix="Share of dues"
+                              />
+                            </>
+                          )}
+                          {f.minimum_cents > 0 && (
+                            <>
+                              <MetaDot />
+                              <MetaIf value={fmt(f.minimum_cents)} prefix="Minimum" />
+                            </>
+                          )}
+                        </RowMeta>
                       </td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {/* The Donations fund takes no share of dues — it takes donations,
                             whole — so a percentage here would be a number nothing reads. */}
                         {f.system_key
@@ -379,9 +406,9 @@ export function AdminFundsClient({
                         f.balance_cents >= 0 ? 'text-green-600' : 'text-destructive')}>
                         {fmt(f.balance_cents)}
                       </td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{fmt(f.total_contributed_cents)}</td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">{fmt(f.total_disbursed_cents)}</td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground">
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_contributed_cents)}</td>
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_disbursed_cents)}</td>
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {f.minimum_cents > 0 ? fmt(f.minimum_cents) : '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">
@@ -429,7 +456,6 @@ export function AdminFundsClient({
             onClose={onCloseCreate}
             title="New Milestone"
             description="An award a member can be paid out of a fund when they reach it."
-            className="max-h-[90vh] overflow-y-auto"
           >
             {/* The rail's trigger is always live, so the "no fund yet" case has to be
                 answered in here — where the live fund list is — rather than by a
@@ -477,12 +503,12 @@ export function AdminFundsClient({
           </Dialog>
 
           {milestones.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[36rem] border-collapse text-sm">
+            <div className="overflow-visible rounded-xl border">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2 font-semibold">Milestone</th>
-                    <th scope="col" className="px-3 py-2 font-semibold">Fund</th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Fund</th>
                     <th scope="col" className="px-3 py-2 text-right font-semibold">Award</th>
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
                   </tr>
@@ -491,12 +517,15 @@ export function AdminFundsClient({
                   {milestones.map(m => {
                     const fund = funds.find(f => f.id === m.fund_id)
                     return (
-                      <tr key={m.id} className="border-b last:border-0 align-middle">
+                      <tr key={m.id} className="border-b align-top last:border-0 sm:align-middle">
                         <td className="px-3 py-2.5">
                           <span className="font-medium">{m.name}</span>
                           {m.description && <p className="text-xs text-muted-foreground">{m.description}</p>}
+                          <RowMeta>
+                            <MetaIf value={fund?.name} prefix="Paid from" />
+                          </RowMeta>
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground">{fund?.name ?? '—'}</td>
+                        <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{fund?.name ?? '—'}</td>
                         <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">{fmt(m.amount_cents)}</td>
                         <td className="w-px px-3 py-2.5 text-right">
                           {mayDeleteMilestone && (
@@ -539,23 +568,32 @@ export function AdminFundsClient({
               <p className="text-sm text-muted-foreground">Create a fund first to configure routing.</p>
             ) : !editingRouting ? (
               // ── View mode ──
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[480px]">
+              // The routing table is the one AGENTS.md names as the reason MainRail
+              // replaced the 16rem left column — at `min-w-[480px]` it had nothing to
+              // spare below about 1024px. Only Minimum folds: the ordinal is what says
+              // funds fill in order, and it costs 20px.
+              <div>
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
                       <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">#</th>
                       <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Fund</th>
                       <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">Allocation</th>
-                      <th className="py-2 text-right text-xs font-medium text-muted-foreground">Minimum</th>
+                      <th className={cn('py-2 text-right text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Minimum</th>
                     </tr>
                   </thead>
                   <tbody>
                     {alloc.map((a, i) => (
-                      <tr key={a.fund_id} className="border-b last:border-0">
+                      <tr key={a.fund_id} className="border-b align-top last:border-0 sm:align-middle">
                         <td className="py-2 pr-3 text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="py-2 pr-3 font-medium">{a.fund_name}</td>
+                        <td className="py-2 pr-3 font-medium">
+                          {a.fund_name}
+                          <RowMeta>
+                            <MetaIf value={fmt(dollarsToCents(a.minimum))} prefix="Minimum" />
+                          </RowMeta>
+                        </td>
                         <td className="py-2 pr-3 text-right">{(parseFloat(a.percent || '0') || 0).toFixed(2)}%</td>
-                        <td className="py-2 text-right">{fmt(dollarsToCents(a.minimum))}</td>
+                        <td className={cn('py-2 text-right', COLLAPSING_CELL)}>{fmt(dollarsToCents(a.minimum))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -564,19 +602,33 @@ export function AdminFundsClient({
             ) : (
               // ── Edit mode ──
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[560px]">
+                {/* Two INPUT columns plus a reorder control is what made this the
+                    widest thing on Accounting. Minimum $ folds and its input moves into
+                    the meta line — the input itself, not a description of it, so the
+                    field is still editable on a phone. It is labelled there, because a
+                    second number box under a percentage box with no caption is a coin
+                    toss. Allocation % stays: it is the field this screen is for, and it
+                    is the one that has to total 100. */}
+                <div>
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
                         <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Priority</th>
                         <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Fund</th>
                         <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Allocation&nbsp;%</th>
-                        <th className="py-2 text-left text-xs font-medium text-muted-foreground">Minimum&nbsp;$</th>
+                        <th className={cn('py-2 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Minimum&nbsp;$</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {alloc.map((a, i) => (
-                        <tr key={a.fund_id} className="border-b last:border-0">
+                      {alloc.map((a, i) => {
+                        const minimumInput = (
+                          <Input type="number" min="0" step="0.01" value={a.minimum}
+                            onChange={e => setAllocField(a.fund_id, 'minimum', e.target.value)}
+                            aria-label={`Minimum balance for ${a.fund_name}`}
+                            className="h-8 w-28" />
+                        )
+                        return (
+                        <tr key={a.fund_id} className="border-b align-top last:border-0 sm:align-middle">
                           <td className="py-2 pr-3">
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-muted-foreground w-4 text-center">{i + 1}</span>
@@ -600,17 +652,25 @@ export function AdminFundsClient({
                               </button>
                             </div>
                           </td>
-                          <td className="py-2 pr-3 font-medium">{a.fund_name}</td>
+                          <td className="py-2 pr-3 font-medium">
+                            {a.fund_name}
+                            <RowMeta className="flex-col items-start">
+                              <span>Minimum $</span>
+                              {minimumInput}
+                            </RowMeta>
+                          </td>
                           <td className="py-2 pr-3">
                             <Input type="number" min="0" max="100" step="0.01" value={a.percent}
-                              onChange={e => setAllocField(a.fund_id, 'percent', e.target.value)} className="h-8 w-24" />
+                              onChange={e => setAllocField(a.fund_id, 'percent', e.target.value)}
+                              aria-label={`Allocation percent for ${a.fund_name}`}
+                              className="h-8 w-24" />
                           </td>
-                          <td className="py-2">
-                            <Input type="number" min="0" step="0.01" value={a.minimum}
-                              onChange={e => setAllocField(a.fund_id, 'minimum', e.target.value)} className="h-8 w-28" />
+                          <td className={cn('py-2', COLLAPSING_CELL)}>
+                            {minimumInput}
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

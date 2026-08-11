@@ -247,7 +247,7 @@ function EditAncestorModal({
         </form>
       ) : (
         <form onSubmit={newForm.handleSubmit(onSubmitNew)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="anc-first">First Name <span className="text-destructive">*</span></Label>
               <Input id="anc-first" autoFocus {...newForm.register('first_name')} />
@@ -435,7 +435,7 @@ function EditPartnerModal({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="sp-my-type">They are my…</Label>
               <select
@@ -494,7 +494,7 @@ function EditPartnerModal({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="sp-first">First Name <span className="text-destructive">*</span></Label>
               <Input id="sp-first" autoFocus {...newForm.register('first_name')} />

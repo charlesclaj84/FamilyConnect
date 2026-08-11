@@ -40,7 +40,10 @@ interface Props<T extends string> {
  * A horizontal strip of underlined tabs, sitting on a rule that runs the width of
  * the pane. It replaced the filled-pill left rail that Transactions and Accounting
  * used to carry: that one claimed a 16rem column from every page it appeared on,
- * which the routing table (min-w-[560px]) could not spare below about 1280px.
+ * which the routing table — then floored at `min-w-[560px]` — could not spare below
+ * about 1280px. That floor is gone (the table folds instead; see
+ * components/ui/table-collapse.tsx), but the 16rem column is not coming back: the
+ * space it took was charged to every page carrying it, wide table or not.
  *
  * BELOW `sm` IT IS A STACK, one item per line — because it was wrapping. Four ledgers
  * or six profile sections do not fit 390px, and `flex-wrap` broke them into ragged rows

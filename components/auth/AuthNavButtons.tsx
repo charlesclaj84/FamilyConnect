@@ -12,9 +12,12 @@ export function AuthNavButtons() {
     <div className="flex items-center gap-2">
       {pathname !== '/login' && (
         <Link href="/login">
-          <Button variant="outline" className="gap-1.5">
+          {/* Icon-only below sm — the same trim the landing header makes, so the two
+              headers stay the same shape. The aria-label is what names it once the
+              word is hidden. */}
+          <Button variant="outline" size="icon" aria-label="Login" className="sm:w-auto sm:gap-1.5 sm:px-2.5">
             <User className="h-4 w-4" />
-            Login
+            <span className="hidden sm:inline">Login</span>
           </Button>
         </Link>
       )}

@@ -54,8 +54,31 @@ export default async function Navbar() {
     personId = active?.status === 'approved' ? active.personId : ''
   }
 
+  // ── THE STACKING ORDER, in one place ─────────────────────────────────────
+  // A positioned element with a z-index starts its OWN stacking context, and every
+  // z-index inside it is then scoped to that context — it competes with the header
+  // as a whole, never with the header's children individually.
+  //
+  // That is what broke the family switcher on a phone. This header was z-10 and so
+  // was the Sidebar's mobile menu bar; equal z-index is settled by document order,
+  // and the sidebar is rendered after the navbar, so the bar painted OVER the whole
+  // header. The switcher's panel is z-30, but that 30 only ever ranked it against
+  // the bell and the backdrop inside this header — from the outside it was part of a
+  // z-10 block sitting under a z-10 bar, and the top of the menu was not merely
+  // hidden, it was unclickable.
+  //
+  // So the levels are fixed, and the three of them have to be read together:
+  //
+  //   20  Sidebar's mobile menu bar        (pinned under this header)
+  //   30  THIS header, and the auth/landing headers, and everything inside them
+  //   40  Sidebar drawer backdrop          (covers the header — it is modal)
+  //   50  Sidebar drawer, Dialog, RowMenu, lightbox
+  //  100  ConfirmDialog                    (may open on top of a Dialog)
+  //
+  // Anything new that floats above the page picks a level from that list rather
+  // than inventing one.
   return (
-    <header className="border-b bg-brand-bar sticky top-0 z-10">
+    <header className="border-b bg-brand-bar sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
         {/* The wordmark is hidden below sm. On a 375px screen it, the logo, the family
             switcher, the bell and Sign Out do not fit on one row, and what gave way was

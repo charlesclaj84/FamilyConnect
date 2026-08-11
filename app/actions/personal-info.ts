@@ -58,6 +58,8 @@ export interface PersonalInfoData {
   country?: string
   date_of_birth?: string
   sunset_date?: string
+  /** 'male' | 'female', or absent. Constrained by a CHECK — see lib/gender.ts. */
+  gender?: string
   tshirt_category?: string
   tshirt_size?: string
   chapter_id?: string | null

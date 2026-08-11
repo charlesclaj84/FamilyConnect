@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { installmentCents, isOutstanding, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
 import { useConfirm } from '@/components/ui/confirm'
+import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import { useServerState } from '@/lib/use-server-state'
 import {
   setMyDuesPlan, setMyDuesOptOut,
@@ -32,11 +33,20 @@ type DuesCol = 'schedule' | 'amount' | 'due_date'
 const fmtDate = (s: string) => formatDate(s) ?? ''
 
 function SortTh({
-  label, active, dir, onClick, align = 'left',
-}: { label: string; active: boolean; dir: SortDir; onClick: () => void; align?: 'left' | 'right' }) {
+  label, active, dir, onClick, align = 'left', className,
+}: {
+  label: string; active: boolean; dir: SortDir; onClick: () => void
+  align?: 'left' | 'right'
+  /** Pass `COLLAPSING_CELL` when this heading's column folds below `sm`. */
+  className?: string
+}) {
   const Icon = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ArrowUpDown
   return (
-    <th className={`py-2 pr-3 text-xs font-medium text-muted-foreground ${align === 'right' ? 'text-right' : 'text-left'}`}>
+    <th className={cn(
+      'py-2 pr-3 text-xs font-medium text-muted-foreground',
+      align === 'right' ? 'text-right' : 'text-left',
+      className,
+    )}>
       <button
         type="button"
         onClick={onClick}
@@ -421,17 +431,32 @@ export function DuesDetailSection({
               <p className="text-sm text-muted-foreground">You&apos;re all caught up — nothing due right now.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[760px]">
+            /* Was `min-w-[760px]` in an `overflow-x-auto` box — the widest table in the
+                app, on the page a member is most likely to open on a phone.
+                Below `sm` it is two columns: the schedule, and what you pay each time.
+                Everything else folds into a plan block under the name — see DuesRow.
+
+                THE "PAY ONLINE (COMING SOON)" BUTTON IS GONE FROM THE ROWS and says the
+                same thing once, below. It was a disabled control repeated on every
+                required row, and folding it was never going to help: at ~170px it was
+                the widest thing on a 390px screen and it did nothing when tapped. A
+                promise about a feature is a property of the PANE, not of each schedule.
+                What is left in the Action column is the one real action — opting out of
+                an optional due, and back in — which most rows do not have either, so the
+                column heading is now `sr-only` like every other action column here. */
+            <div>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
                     <SortTh label="Schedule" active={duesSort.col === 'schedule'} dir={duesSort.dir} onClick={() => sortDues('schedule')} />
-                    <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-left">Payment</th>
-                    <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-left">Pay&nbsp;cadence</th>
+                    <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Payment</th>
+                    <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Pay&nbsp;cadence</th>
                     <SortTh label="Installment" active={duesSort.col === 'amount'} dir={duesSort.dir} onClick={() => sortDues('amount')} align="right" />
-                    <SortTh label="Next Due" active={duesSort.col === 'due_date'} dir={duesSort.dir} onClick={() => sortDues('due_date')} />
-                    <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-right">Remaining</th>
-                    <th className="py-2 text-xs font-medium text-muted-foreground text-right">Action</th>
+                    <SortTh label="Next Due" active={duesSort.col === 'due_date'} dir={duesSort.dir} onClick={() => sortDues('due_date')} className={COLLAPSING_CELL} />
+                    <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL)}>Remaining</th>
+                    <th className={cn('py-2 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL)}>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -446,6 +471,13 @@ export function DuesDetailSection({
                   ))}
                 </tbody>
               </table>
+              {/* Said once, where the old per-row button used to say it N times. It
+                  answers the question that button raised and never could — "so how DO I
+                  pay?" — which is the more useful half and was missing entirely. */}
+              <p className="mt-4 text-xs text-muted-foreground">
+                Online payments are coming soon. Anything you pay in the meantime appears
+                here once an administrator records it.
+              </p>
             </div>
           )}
         </div>
@@ -477,22 +509,32 @@ export function DuesDetailSection({
               <p className="text-sm text-muted-foreground">No payment history available yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[420px]">
+            /* Method and Status already folded here before the pattern had a name —
+                but nothing restated them, so a phone simply lost the fact that a
+                payment was waived, and the `min-w-[420px]` floor kept the scroll
+                anyway. Both are on the meta line now and the floor is gone. */
+            <div>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
                     <SortTh label="Schedule" active={histSort.col === 'schedule'} dir={histSort.dir} onClick={() => sortHist('schedule')} />
-                    <SortTh label="Date" active={histSort.col === 'date'} dir={histSort.dir} onClick={() => sortHist('date')} />
+                    <SortTh label="Date" active={histSort.col === 'date'} dir={histSort.dir} onClick={() => sortHist('date')} className={COLLAPSING_CELL} />
                     <SortTh label="Amount" active={histSort.col === 'amount'} dir={histSort.dir} onClick={() => sortHist('amount')} align="right" />
-                    <th className="py-2 pr-3 text-xs font-medium text-muted-foreground text-left hidden sm:table-cell">Method</th>
-                    <th className="py-2 text-xs font-medium text-muted-foreground text-left hidden sm:table-cell">Status</th>
+                    <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Method</th>
+                    <th className={cn('py-2 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredHistory.length === 0 ? (
                     <tr><td colSpan={5} className="text-center text-xs text-muted-foreground py-6">No matching payments.</td></tr>
-                  ) : filteredHistory.map(p => (
-                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
+                  ) : filteredHistory.map(p => {
+                    const statusPill = (
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                        p.status === 'paid' ? 'bg-green-100 text-green-700' : p.status === 'waived' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                      }`}>{p.status}</span>
+                    )
+                    return (
+                    <tr key={p.id} className="border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle">
                       <td className="py-2.5 pr-3">
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {p.schedule_label ?? 'General Payment'}
@@ -508,21 +550,29 @@ export function DuesDetailSection({
                           )}
                         </p>
                         {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
+                        {/* Date · method, then the pill. The pill is last and carries
+                            its own colour, so it needs no separator in front of it —
+                            a dot before a coloured chip reads as a bullet. */}
+                        <RowMeta className="gap-x-2">
+                          <span>{fmtDate(p.payment_date)}</span>
+                          {p.payment_method && <MetaDot />}
+                          <MetaIf value={p.payment_method} />
+                          {statusPill}
+                        </RowMeta>
                       </td>
-                      <td className="py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs">{fmtDate(p.payment_date)}</td>
+                      <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date)}</td>
                       <td className={`py-2.5 pr-3 text-right font-semibold whitespace-nowrap ${
                         p.status === 'paid' ? 'text-green-600' : p.status === 'waived' ? 'text-blue-600' : 'text-muted-foreground'
                       }`}>
                         {p.status === 'waived' ? 'Waived' : formatCurrency(p.amount_cents)}
                       </td>
-                      <td className="py-2.5 pr-3 text-muted-foreground text-xs hidden sm:table-cell">{p.payment_method ?? '—'}</td>
-                      <td className="py-2.5 hidden sm:table-cell">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                          p.status === 'paid' ? 'bg-green-100 text-green-700' : p.status === 'waived' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                        }`}>{p.status}</span>
+                      <td className={cn('py-2.5 pr-3 text-muted-foreground text-xs', COLLAPSING_CELL)}>{p.payment_method ?? '—'}</td>
+                      <td className={cn('py-2.5', COLLAPSING_CELL)}>
+                        {statusPill}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -557,9 +607,59 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
   onOptOut: (optOut: boolean) => void
 }) {
   const declined = row.optedOut
+
+  // Required / Optional / Declined. Declined REPLACES Optional rather than sitting
+  // beside it: a row cannot be both, and showing both would leave the member reading two
+  // answers to one question. Lifted out of the cell because the meta line renders the
+  // same pill below `sm`, where the column it lives in is gone.
+  const statusPill = (
+    <span className={cn(
+      'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+      declined ? 'bg-muted text-muted-foreground'
+        : row.required ? 'bg-brand-soft text-brand-on-soft'
+          : 'bg-amber-100 text-amber-800',
+    )}>
+      {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}
+    </span>
+  )
+
+  // No cadence to choose on a declined due — there is no installment to spread.
+  //
+  // `w-full sm:w-32`, because this element is rendered in two places: its own column at
+  // `sm` and up, where 32 is right beside its neighbours, and the plan block below that,
+  // where the cell is the width of the screen and a 128px control floating in it reads
+  // as unfinished. The aria-label names the schedule as well as the field, which the
+  // column heading alone never did — "Pay cadence" over five identical selects tells a
+  // screen-reader user nothing about which schedule they are changing.
+  const cadenceControl = declined ? null : (
+    <Select
+      value={row.cadence}
+      disabled={isPending}
+      onChange={e => onCadence(e.target.value as PayCadence)}
+      className="h-8 w-full text-xs capitalize sm:h-7 sm:w-32"
+      aria-label={`Payment cadence for ${row.schedule.label}`}
+    >
+      {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
+    </Select>
+  )
+
+  // Only an OPTIONAL due has an action — the choice to decline it, and the way back.
+  // Both live in the same place, or opting out looks permanent.
+  const optOutControl = row.required ? null : (
+    <Button
+      size="sm"
+      variant={declined ? 'outline' : 'ghost'}
+      disabled={isPending}
+      onClick={() => onOptOut(!declined)}
+      className={cn(!declined && 'text-muted-foreground hover:text-foreground')}
+    >
+      {declined ? 'Opt back in' : 'Opt out'}
+    </Button>
+  )
+
   return (
-    <tr className={cn('border-b last:border-0 hover:bg-muted/30', declined && 'bg-muted/30')}>
-      <td className="py-2.5 pr-3">
+    <tr className={cn('border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle', declined && 'bg-muted/30')}>
+      <td className="py-3 pr-3 sm:py-2.5">
         {/* The description is a tooltip on the title rather than its own line: it is
             reference text, and a paragraph of it under every row pushed the amounts
             apart. The dotted underline is the only hint that there is more to read,
@@ -572,65 +672,83 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
           {row.schedule.label}
         </p>
         <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
+
+        {/* ── The plan block: this row's other five columns, below `sm` ──────────
+            NOT a `RowMeta`. That renders one inline run of short values, and this is
+            three different kinds of thing — a state, two figures, and two controls —
+            which ran together into an unreadable smear when they shared a line. They
+            are banded instead: what this due IS, then when and how much is left, then
+            what you can change about it. Each band is a row of the same visual weight,
+            so the eye has somewhere to stop.
+
+            Note what is NOT here: the installment, and the opt-out. Both stay in the
+            Installment column beside this block (see below) — the figure because it is
+            what a member scans the list for, and the button because it belongs with the
+            figure it switches off. */}
+        <div className="mt-2.5 space-y-2 sm:hidden">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {statusPill}
+            {/* Labelled, unlike most folded values. A bare date and a bare amount next
+                to an installment figure are three numbers with no captions. */}
+            <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : null} prefix="Next due" />
+            {!declined && (
+              <>
+                <MetaDot />
+                <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix="Remaining" />
+              </>
+            )}
+          </div>
+
+          {cadenceControl && (
+            <div>
+              {/* A plain caption, not a <label>: the select already carries an
+                  aria-label naming both the field and the schedule, and a <label> would
+                  be overridden by it and read to nobody. This is here for the sighted
+                  reader, who has lost the column heading. */}
+              <span className="mb-1 block text-[11px] uppercase tracking-wide text-muted-foreground">
+                Pay cadence
+              </span>
+              {cadenceControl}
+            </div>
+          )}
+        </div>
       </td>
-      <td className="py-2.5 pr-3">
-        {/* Required / Optional / Declined, in one column. Declined replaces Optional
-            rather than sitting beside it: a row cannot be both, and showing both would
-            leave the member reading two answers to one question. */}
-        <span className={cn(
-          'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-          declined ? 'bg-muted text-muted-foreground'
-            : row.required ? 'bg-brand-soft text-brand-on-soft'
-              : 'bg-amber-100 text-amber-800',
-        )}>
-          {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}
+      <td className={cn('py-2.5 pr-3', COLLAPSING_CELL)}>
+        {statusPill}
+      </td>
+      <td className={cn('py-2.5 pr-3', COLLAPSING_CELL)}>
+        {cadenceControl ?? <span className="text-xs text-muted-foreground">—</span>}
+      </td>
+      {/* The one figure that keeps its column at every width, and below `sm` the column
+          the opt-out lives in too.
+          `align-top` on mobile so the amount sits level with the schedule name rather
+          than floating beside the middle of the plan block. Under it: the cadence — an
+          installment with no unit is a number, not an amount, and its own column is gone
+          down there — and then the button, because what "Opt out" opts out OF is this
+          amount, and putting it here means the decision and the figure it turns off are
+          read together instead of at opposite ends of a card.
+          `line-through` sits on the amount rather than on the cell, so a declined row
+          cannot strike through its own way back in. */}
+      <td className="py-3 text-right font-semibold whitespace-nowrap align-top sm:py-2.5 sm:pr-3 sm:align-middle">
+        <span className={cn(declined && 'text-muted-foreground line-through')}>
+          {formatCurrency(row.installmentCents)}
         </span>
-      </td>
-      <td className="py-2.5 pr-3">
-        {/* No cadence to choose on a declined due — there is no installment to spread. */}
-        {declined ? (
-          <span className="text-xs text-muted-foreground">—</span>
-        ) : (
-          <Select
-            value={row.cadence}
-            disabled={isPending}
-            onChange={e => onCadence(e.target.value as PayCadence)}
-            className="h-7 text-xs capitalize w-32"
-            aria-label={`Payment cadence for ${row.schedule.label}`}
-          >
-            {PAY_CADENCES.map(c => <option key={c} value={c}>{c}</option>)}
-          </Select>
+        {!declined && (
+          <span className="block text-[11px] font-normal capitalize text-muted-foreground sm:hidden">
+            {row.cadence}
+          </span>
         )}
+        {optOutControl && <span className="mt-1.5 block sm:hidden">{optOutControl}</span>}
       </td>
-      <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap', declined && 'text-muted-foreground line-through')}>
-        {formatCurrency(row.installmentCents)}
-      </td>
-      <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">
+      <td className={cn('py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
         {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
       </td>
       <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
-        declined ? 'text-muted-foreground' : 'text-amber-600')}>
+        declined ? 'text-muted-foreground' : 'text-amber-600', COLLAPSING_CELL)}>
         {declined ? '—' : formatCurrency(row.remainingBalanceCents)}
       </td>
-      <td className="py-2.5 text-right">
-        {/* A REQUIRED due offers nothing here but the (future) payment button. An optional
-            one offers the choice, in both directions from the same cell — the way back has
-            to be in the same place as the way out, or opting out looks permanent. */}
-        {row.required ? (
-          <Button size="sm" variant="outline" disabled title="Online payments are coming soon">
-            Pay Online (coming soon)
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant={declined ? 'outline' : 'ghost'}
-            disabled={isPending}
-            onClick={() => onOptOut(!declined)}
-            className={cn(!declined && 'text-muted-foreground hover:text-foreground')}
-          >
-            {declined ? 'Opt back in' : 'Opt out'}
-          </Button>
-        )}
+      <td className={cn('py-2.5 text-right', COLLAPSING_CELL)}>
+        {optOutControl}
       </td>
     </tr>
   )

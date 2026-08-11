@@ -162,7 +162,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
             <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" /> Nominations Window
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Opens</Label>
                 <Input type="datetime-local" value={nomOpenAt} onChange={e => setNomOpenAt(e.target.value)} />
@@ -179,7 +179,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
             <p className="text-xs font-semibold text-green-800 uppercase tracking-wide flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" /> Voting Window
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Opens</Label>
                 <Input type="datetime-local" value={voteOpenAt} onChange={e => setVoteOpenAt(e.target.value)} />

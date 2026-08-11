@@ -386,10 +386,11 @@ right-aligned slot for the active pane's one action.
 
 It replaced a filled-pill rail down a `xl:grid-cols-[16rem_1fr]` left column, which is
 why the rule is worth keeping rather than a preference to relitigate: that column was
-charged to every page carrying it, and the routing table on Accounting
-(`min-w-[560px]`) could not spare it much below 1280px. Members & Access, Transactions
-and Accounting all use it; there is no second main-rail style in the codebase, and a
-new one should not appear.
+charged to every page carrying it, and the routing table on Accounting — then floored at
+`min-w-[560px]` — could not spare it much below 1280px. That floor is gone now (see "On
+a phone a table narrows"), and the rail stays: the column cost every page, wide table or
+not. Members & Access, Transactions and Accounting all use it; there is no second
+main-rail style in the codebase, and a new one should not appear.
 
 Four things about it are load-bearing:
 
@@ -772,18 +773,86 @@ start.
 
 Members & Access and Member Directory list the same people and answer the same question,
 so they render the same six columns in the same order — Name, Phone, Email, City/State,
-Group, and (where it applies) a row menu. Two facts about that, both learned the hard way:
+Group, and (where it applies) a row menu.
 
-* **Use a real `<table>` with `<th scope="col">`,** not a flex row dressed as one. A
-  screen reader announces the column when it reads the cell, which is the whole
-  difference between "512 555 0134" and "Phone: 512 555 0134". A column with no heading
-  to give still needs one — see the `sr-only` "Actions" header.
+**Use a real `<table>` with `<th scope="col">`,** not a flex row dressed as one. A
+screen reader announces the column when it reads the cell, which is the whole difference
+between "512 555 0134" and "Phone: 512 555 0134". A column with no heading to give still
+needs one — see the `sr-only` "Actions" header.
 
-* **A scrolling table clips an absolutely positioned menu.** Six columns do not fit a
-  phone, so the table scrolls inside its own `overflow-x-auto` container — and a
-  container with `overflow-x: auto` has its `overflow-y: visible` computed to `auto`,
-  which clipped `RowMenu`'s dropdown at the row and made it unusable. `RowMenu` now
-  portals its panel to `document.body` and positions it `fixed` against the trigger's
-  measured rect. If you add another row-level popover to a scrolling table, it needs the
-  same treatment; do not solve it by removing the scroll and letting the page overflow
-  sideways.
+## On a phone a table narrows. It does not scroll sideways
+
+`components/ui/table-collapse.tsx` is the pattern, and it is the only one. Every table
+in the app used to sit in an `overflow-x-auto` box over a `min-w-*` floor — 52rem on the
+two member tables, 44rem on Accounting's schedules, 760px on My Summary's dues. There
+are no floors left, and a new one should not appear.
+
+A column that is not the row's subject or its headline figure gets `COLLAPSING_CELL` on
+**both** its `<th>` and every one of its `<td>`s, and the row restates it in a
+`<RowMeta>` inside the first cell:
+
+```tsx
+<th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Date</th>
+…
+<td className="px-3 py-2">
+  {row.name}
+  <RowMeta>
+    <span>{row.fund}</span><MetaDot /><span>{formatDate(row.date)}</span>
+  </RowMeta>
+</td>
+<td className={cn('px-3 py-2', COLLAPSING_CELL)}>{formatDate(row.date)}</td>
+```
+
+**Why not sideways scroll.** The gesture is easy to start by accident and hard to aim;
+the column parked off-screen is invariably the one people came for — the amount, or the
+row menu; and the heading row slides away with the columns it names, so what you scroll
+*to* is unlabelled. That last one is the reason this is not a taste question: the
+table's whole accessibility argument is that a cell is announced with its column, and a
+sideways scroll takes exactly that away from sighted users only. On the permission grid
+it was worse than unlabelled — the Feature column scrolled out of view, leaving four
+switch groups with no indication of which row you were about to change, on the one
+screen where changing the wrong row hands somebody authority they should not have.
+
+**Why not `display: block` on the rows and cells.** That is the usual recipe for a
+"responsive table" and it throws the semantics away: a `<td>` set to block loses its
+implicit cell role. This section exists because these lists were flex rows once.
+
+**Why not a second stacked rendering below `sm`.** Two renderings of the same row drift,
+and a column added to one and not the other is invisible until somebody opens a phone.
+The cells here are the *same* cells, hidden by a media query.
+
+Five things to get right:
+
+* **The `<th>` folds with its `<td>`s.** Hide four cells and leave five headings and
+  every remaining cell is announced under the wrong column. `display: none` takes both
+  out of the accessibility tree, which is what keeps the mobile table coherent.
+* **Choose what stays by what the table answers,** not by column order. Funds keeps
+  Balance and folds Collected and Disbursed — those are how it got there. Reports leads
+  with Type, not Date, and folds the date. Money ledgers keep who and how much.
+* **Label a folded value when its heading was doing the work.** Most meta lines are a
+  plain run of values; "Next due" and "Remaining" are not self-evident as two bare
+  numbers under an installment figure, so those are prefixed.
+* **A column holding a CONTROL folds by moving the control,** not by describing it —
+  assign the element to a variable and render it in both places, or the field goes
+  read-only on a phone. Both copies exist in the DOM, only one is ever visible or
+  focusable, and both bind the same state. No `id` on them (it would duplicate); use
+  `aria-label`, which they need anyway now the heading is gone.
+* **Row cells get `align-top sm:align-middle`** where a meta line makes the first cell
+  taller than the figures beside it.
+
+**The one sanctioned `overflow-x-auto` left is the family tree canvas.** A tree is a
+wide diagram and panning it is the interaction, not a fallback. It is not a table and
+this section does not apply to it.
+
+## A scrolling container clips an absolutely positioned menu
+
+The reason `RowMenu` portals its panel to `document.body` and positions it `fixed`
+against the trigger's measured rect: a container with `overflow-x: auto` has its
+`overflow-y: visible` computed to `auto`, which clipped the dropdown at the row and made
+it unusable.
+
+The tables no longer scroll, so the containers are `overflow-visible` (or
+`overflow-hidden` purely to clip the border radius) and the trap is gone from them —
+but keep the portal. It costs nothing and the clipping ancestor is one careless
+`overflow-x-auto` away from coming back. If you add another row-level popover anywhere,
+it needs the same treatment.

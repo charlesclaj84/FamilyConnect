@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/Avatar'
 import { formatPersonName } from '@/lib/name-utils'
 import { cn } from '@/lib/utils'
+import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import type { MemberRecord } from '@/app/actions/members'
 
 interface Props {
@@ -64,19 +65,27 @@ export function MemberDirectoryClient({ members }: Props) {
          * It replaced a three-column card grid. The cards stacked six labelled facts
          * vertically inside each tile, so comparing two members' phone numbers meant
          * hunting for the same line in two different places; a column does that for
-         * free. It scrolls inside this container rather than widening the page — six
-         * columns do not fit a phone, and the alternative is maintaining a second
-         * stacked rendering of every row.
+         * free.
+         *
+         * BELOW `sm` THE COLUMNS FOLD RATHER THAN SCROLL. This was a `min-w-[52rem]`
+         * table in an `overflow-x-auto` box, which on a 390px screen meant two thirds of
+         * every member was off to the right behind a sideways drag — and the heading row
+         * slid away with the columns it named, so what you dragged to was unlabelled.
+         * Phone, Email, City/State and Group are `hidden sm:table-cell` now and restated
+         * under the name, which is the same contact block the card grid had, without
+         * giving up the columns on a screen wide enough to line them up. The four
+         * `<th>`s go with their cells, so the mobile table is one column with one
+         * heading rather than five headings over one.
          */
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[52rem] border-collapse text-sm">
+        <div className="overflow-hidden rounded-xl border">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Phone</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Email</th>
-                <th scope="col" className="px-3 py-2 font-semibold">City, State</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Group</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Phone</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Email</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>City, State</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
               </tr>
             </thead>
             <tbody>
@@ -111,15 +120,30 @@ export function MemberDirectoryClient({ members }: Props) {
                           {!member.is_active && (
                             <p className="text-xs text-muted-foreground">Not yet registered</p>
                           )}
+                          {/* The folded columns, below sm only. A contact block reads
+                              down rather than across, so this one stacks — `RowMeta`'s
+                              default inline run is for two or three short values. */}
+                          <RowMeta className="flex-col items-start gap-y-0.5">
+                            <MetaIf value={member.primary_phone} />
+                            {member.primary_email && (
+                              <span className="break-all">{member.primary_email}</span>
+                            )}
+                            <MetaIf value={member.location} />
+                            {member.group_name && (
+                              <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
+                                {member.group_name}
+                              </span>
+                            )}
+                          </RowMeta>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                    <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
                       {member.primary_phone ?? '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{member.primary_email ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{member.location ?? '—'}</td>
-                    <td className="px-3 py-2.5">
+                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.primary_email ?? '—'}</td>
+                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.location ?? '—'}</td>
+                    <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
                       {member.group_name
                         ? (
                           <span className="inline-block whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-on-soft">

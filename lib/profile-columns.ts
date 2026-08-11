@@ -28,6 +28,11 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   'primary_email', 'primary_phone',
   'street_address', 'apartment', 'city', 'state', 'zip_code', 'country',
   'date_of_birth', 'sunset_date',
+  // Writable, but NOT validated here — this list decides which keys reach the row and
+  // says nothing about their contents. `gender` is confined to its two values by a
+  // CHECK constraint (20260810000001), which is the layer a caller who never loads the
+  // form cannot get past. See lib/gender.ts.
+  'gender',
   'tshirt_category', 'tshirt_size',
   'chapter_id', 'time_zone',
 ]

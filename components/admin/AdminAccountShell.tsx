@@ -222,8 +222,10 @@ export function AdminAccountShell({
       <div className="grid gap-6 xl:grid-cols-[16rem_1fr]">
         {/* Level two: the pages inside the active group. Two or three short links,
             so below xl this lies flat above the pane rather than squeezing it — a
-            16rem column would leave the pane under the routing table's
-            min-w-[560px] at 1024px.
+            16rem column used to leave the pane narrower at 1024px than the routing
+            table's `min-w-[560px]` floor. The floor is gone (the table folds now —
+            components/ui/table-collapse.tsx) and the flat layout stays regardless:
+            a 16rem column for two links is a poor trade at any pane width.
             Rendered for every group, including the one-page ones, so the pane starts
             in the same place and the create button has a fixed home wherever you are.
 

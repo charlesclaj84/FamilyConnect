@@ -2,6 +2,8 @@
 
 import { DollarSign, Users, Calendar, TrendingUp, ShirtIcon, Receipt } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
+import { cn } from '@/lib/utils'
 import type { OrgStats } from '@/app/actions/admin/reports'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDateNumeric } from '@/lib/date-utils'
@@ -128,25 +130,36 @@ export function AdminReportsClient({ stats }: Props) {
           {stats.recentActivity.length === 0 ? (
             <p className="text-sm text-muted-foreground">No financial activity recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[480px]">
+            /* TYPE leads below `sm`, not Date. The columns fold left-to-right in
+                importance, and what this table answers is "what happened, for how much"
+                — the date and who keyed it in are how you audit an entry once you have
+                found it. So Type becomes the row's subject and Date joins Recorded by
+                on the meta line. See components/ui/table-collapse.tsx. */
+            <div>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Date</th>
+                    <th className={cn('py-2 pr-3 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Date</th>
                     <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Type</th>
                     <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">Amount</th>
-                    <th className="py-2 text-left text-xs font-medium text-muted-foreground">Recorded By</th>
+                    <th className={cn('py-2 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Recorded By</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.recentActivity.map(a => (
-                    <tr key={a.id} className="border-b last:border-0">
-                      <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground text-xs">{formatDateNumeric(a.date)}</td>
-                      <td className="py-2 pr-3">{a.type}</td>
+                    <tr key={a.id} className="border-b align-top last:border-0 sm:align-middle">
+                      <td className={cn('py-2 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{formatDateNumeric(a.date)}</td>
+                      <td className="py-2 pr-3">
+                        {a.type}
+                        <RowMeta>
+                          <span>{formatDateNumeric(a.date)}</span>
+                          {a.recordedBy && <><MetaDot /><span>{a.recordedBy}</span></>}
+                        </RowMeta>
+                      </td>
                       <td className={`py-2 pr-3 text-right font-medium whitespace-nowrap ${a.amountCents < 0 ? 'text-rose-600' : 'text-green-600'}`}>
                         {a.amountCents < 0 ? '−' : ''}{formatDollars(Math.abs(a.amountCents))}
                       </td>
-                      <td className="py-2 text-muted-foreground">{a.recordedBy ?? '—'}</td>
+                      <td className={cn('py-2 text-muted-foreground', COLLAPSING_CELL)}>{a.recordedBy ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

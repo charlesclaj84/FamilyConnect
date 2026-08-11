@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Home, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
 import type { FamilyMembership } from '@/lib/auth/family'
+import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
 import { cn } from '@/lib/utils'
 
 /**
@@ -63,18 +64,15 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
       {open && (
         <>
           <div
-            className="fixed inset-0 z-20"
+            className={HEADER_PANEL_SCRIM_CLASS}
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          {/* Width is capped by the viewport, not fixed: a flat w-64 is wider than the
-              space left of the trigger on a small phone, so the panel ran off the edge.
-              Height is capped too — an account in several families produced a menu
-              taller than the screen with no way to reach the bottom of it. */}
-          <div
-            role="menu"
-            className="absolute right-0 z-30 mt-1 flex max-h-[60vh] w-[min(16rem,calc(100vw_-_2rem))] flex-col overflow-hidden rounded-xl border bg-card shadow-lg"
-          >
+          {/* Below sm this is a sheet pinned under the header rather than a dropdown
+              hanging off the trigger — capping the width was not enough, because the
+              panel was anchored to a button already well inside the right edge. See
+              header-panel.ts. */}
+          <div role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
             <p className="shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Your families
             </p>

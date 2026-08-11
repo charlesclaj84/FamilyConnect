@@ -15,6 +15,7 @@ import { saveProfileSection, saveChapterAndPropagate, uploadAvatar, type Persona
 import type { Chapter } from '@/app/actions/admin/chapters'
 import { Avatar } from '@/components/ui/Avatar'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
+import { GENDERS, GENDER_LABELS, genderLabel } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
@@ -168,6 +169,12 @@ const generalSchema = z.object({
   suffix:         z.string().optional(),
   primary_email:  z.string().optional(),
   primary_phone:  z.string().optional(),
+  // '' is "not stated" and reaches the row as NULL — saveProfileSection turns an
+  // empty string into null before writing, which is also what the CHECK constraint
+  // on the column expects. An enum here would reject '' and make the blank option
+  // unsubmittable, so the closed set is enforced by the database and by the two
+  // <option>s, not by the resolver.
+  gender:         z.string().optional(),
 })
 type GeneralData = z.infer<typeof generalSchema>
 
@@ -205,6 +212,7 @@ function GeneralSection({
       nick_name: tv(existing?.nick_name ?? null),
       suffix: tv(existing?.suffix),
       primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
+      gender: tv(existing?.gender),
     },
   })
 
@@ -227,6 +235,7 @@ function GeneralSection({
       nick_name: tv(existing?.nick_name ?? null),
       suffix: tv(existing?.suffix),
       primary_email: tv(existing?.primary_email), primary_phone: tv(existing?.primary_phone),
+      gender: tv(existing?.gender),
     })
     setChapterId(existingChapterId ?? '')
     setServerError('')
@@ -272,6 +281,10 @@ function GeneralSection({
           <Field label="Suffix"         value={existing?.suffix} />
           <Field label="Email"          value={existing?.primary_email} />
           <Field label="Phone"          value={existing?.primary_phone} />
+          {/* genderLabel() rather than the raw column: the row holds 'male', the
+              screen says Male. It returns '' for a value it does not recognise, so
+              Field falls through to "Not set" instead of printing a token. */}
+          <Field label="Gender"         value={genderLabel(existing?.gender)} />
           <Field label="Chapter"        value={currentChapter?.name} />
         </div>
       ) : (
@@ -316,6 +329,16 @@ function GeneralSection({
             <div className="space-y-1.5">
               <Label htmlFor="primary_phone">Phone</Label>
               <Input id="primary_phone" type="tel" placeholder="(555) 000-0000" {...register('primary_phone')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="gender">Gender</Label>
+              {/* Blank is a real, keepable answer and it is the default, so the option
+                  is worded as one rather than as an empty prompt — nothing here obliges
+                  anyone to state it. It saves as NULL. */}
+              <Select id="gender" {...register('gender')}>
+                <option value="">— Prefer not to say —</option>
+                {GENDERS.map(g => <option key={g} value={g}>{GENDER_LABELS[g]}</option>)}
+              </Select>
             </div>
             {chapters.length > 0 && (
               <div className="space-y-1.5">

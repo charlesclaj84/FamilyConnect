@@ -54,21 +54,34 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar */}
-      <header className="border-b bg-brand-bar sticky top-0 z-10">
+      {/* z-30 is the app-wide header level — see the stacking note in
+          components/layout/Navbar.tsx. */}
+      <header className="border-b bg-brand-bar sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
             <Image src={BRAND_MARK_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" priority />
             {/* The wordmark is set, not placed: `.gn-wordmark` is the brand board's
                 letterspaced Cormorant caps in CSS, so it stays crisp at any size and
-                follows the theme. An <img> of the wordmark would do neither. */}
-            <span className="gn-wordmark truncate text-xl text-brand-ink">{APP_NAME}</span>
+                follows the theme. An <img> of the wordmark would do neither.
+
+                Hidden below sm, for the reason the signed-in Navbar hides it: GENORRA
+                at text-xl with 0.18em tracking wants ~116px, and on a 375px screen the
+                mark, the appearance toggle and the two calls to action leave under 70.
+                `truncate` did not fix that — it MADE it, rendering "GENOR…", which reads
+                as broken rather than as tight. The mark keeps the brand present, its alt
+                text still announces the name, and the hero lockup directly below carries
+                the wordmark at full size. */}
+            <span className="gn-wordmark hidden truncate text-xl text-brand-ink sm:block">{APP_NAME}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
             <Link href="/login">
-              <Button variant="outline" className="gap-1.5">
+              {/* One button, not two: below sm it is the icon alone (hence the explicit
+                  aria-label, which is the accessible name once the word is gone), and
+                  from sm it grows back into a labelled button. */}
+              <Button variant="outline" size="icon" aria-label="Login" className="sm:w-auto sm:gap-1.5 sm:px-2.5">
                 <User className="h-4 w-4" />
-                Login
+                <span className="hidden sm:inline">Login</span>
               </Button>
             </Link>
             <Link href="/register">

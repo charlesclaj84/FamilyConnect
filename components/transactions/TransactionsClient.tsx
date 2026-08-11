@@ -30,6 +30,7 @@ import {
 } from '@/app/actions/funds'
 import { LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
+import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 interface FundOption { id: string; name: string }
@@ -210,14 +211,8 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
 }
 
 /**
- * The chrome every ledger table shares: the scroll container, the header row, and the
- * classes that keep four tables looking like one.
- *
- * Scrolls inside its own `overflow-x-auto` rather than widening the page — the same rule
- * Member Directory and the Accounting panes follow. The `minWidth` floors are now small
- * enough that all four tables fit a phone without scrolling at all, which is the point of
- * having trimmed them to four or five columns: the scroll container stays because a long
- * fund name or a two-word surname can still overflow, not because it is expected to.
+ * The chrome every ledger table shares: the header row and the classes that keep four
+ * tables looking like one.
  *
  * WHAT EACH LEDGER SHOWS IS THE ANSWER TO ITS OWN QUESTION, and nothing else. Method,
  * Check # / Reference and (for contributions) Source came off all four: they are what you
@@ -225,21 +220,39 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
  * them, and seven columns meant the four figures anyone actually scans — who, what, when,
  * how much — were never on screen together on anything narrower than a laptop. Every one
  * of them is still on the row's detail dialog, which is one click away.
+ *
+ * ── ON A PHONE THE TABLE NARROWS RATHER THAN SCROLLS ──────────────────────────
+ *
+ * A column marked `collapse` folds away below `sm` and the row restates it in a
+ * `<RowMeta>`; the pattern and the reasoning behind it are in
+ * `components/ui/table-collapse.tsx`. These four were the first tables to use it —
+ * `min-w-[32rem]` in an `overflow-x-auto` box meant a dues ledger on a 375px screen was
+ * a window onto something half again as wide, with the Amount column, the one figure
+ * anyone came for, parked off the right-hand edge.
+ *
+ * `min-w-*` is gone with the scroll it existed to cause; what remains fits 320px.
  */
-function LedgerTable({ minWidth, columns, children }: {
-  minWidth: string
-  /** `right: true` for a figures column, so the heading sits over its own numbers. */
-  columns: { label: string; right?: boolean; srOnly?: boolean }[]
+function LedgerTable({ columns, children }: {
+  /**
+   * `right: true` for a figures column, so the heading sits over its own numbers.
+   * `collapse: true` folds the column away below `sm` — the row is then responsible
+   * for restating it in a `<RowMeta>`.
+   */
+  columns: { label: string; right?: boolean; srOnly?: boolean; collapse?: boolean }[]
   children: React.ReactNode
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <table className={cn('w-full border-collapse text-sm', minWidth)}>
+    <div className="overflow-hidden rounded-xl border">
+      <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {columns.map(c => (
               <th key={c.label} scope="col"
-                className={cn('px-3 py-2 font-semibold', c.right && 'text-right')}>
+                className={cn(
+                  'px-3 py-2 font-semibold',
+                  c.right && 'text-right',
+                  c.collapse && COLLAPSING_CELL,
+                )}>
                 {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
               </th>
             ))}
@@ -699,9 +712,9 @@ export function TransactionsClient({
                  that were tagged Routed, so the distinction survives in the column that
                  was already carrying it. */
               <LedgerTable
-                minWidth="min-w-[22rem]"
                 columns={[
-                  { label: 'From' }, { label: 'Fund' }, { label: 'Date' },
+                  { label: 'From' },
+                  { label: 'Fund', collapse: true }, { label: 'Date', collapse: true },
                   { label: 'Amount', right: true },
                 ]}
               >
@@ -714,10 +727,15 @@ export function TransactionsClient({
                         {c.contributor_name ?? 'Routed from a payment'}
                       </LedgerRowTrigger>
                       {c.notes && <p className="text-xs text-muted-foreground">{c.notes}</p>}
+                      <RowMeta>
+                        <span>{c.fund_name ?? 'Unknown fund'}</span>
+                        <MetaDot />
+                        <span>{formatDate(c.contributed_date)}</span>
+                      </RowMeta>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{c.fund_name ?? 'Unknown fund'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(c.contributed_date)}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(c.amount_cents)}</td>
+                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? 'Unknown fund'}</td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date)}</td>
+                    <td className="px-3 py-2.5 text-right align-top font-medium text-green-600 whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -736,10 +754,9 @@ export function TransactionsClient({
                  belong together anyway: a milestone is always paid out of exactly one
                  fund, so "Reunion Fund · Graduation" is one fact, not two. */
               <LedgerTable
-                minWidth="min-w-[24rem]"
                 columns={[
-                  { label: 'Paid to' }, { label: 'Fund / Milestone' },
-                  { label: 'Date' }, { label: 'Amount', right: true },
+                  { label: 'Paid to' }, { label: 'Fund / Milestone', collapse: true },
+                  { label: 'Date', collapse: true }, { label: 'Amount', right: true },
                 ]}
               >
                 {disbursements.map(d => (
@@ -749,16 +766,22 @@ export function TransactionsClient({
                         {d.person_name ?? 'Unknown'}
                       </LedgerRowTrigger>
                       {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
+                      <RowMeta>
+                        <span>{d.fund_name ?? '—'}</span>
+                        {d.milestone_name && <><MetaDot /><span>{d.milestone_name}</span></>}
+                        <MetaDot />
+                        <span>{formatDate(d.disbursed_date)}</span>
+                      </RowMeta>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">
+                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                       {d.fund_name ?? '—'}
                       {/* The separator only appears when there is a milestone to separate,
                           so a fund-only row reads as a plain fund name rather than as
                           something with a missing half. */}
                       {d.milestone_name && <span className="text-muted-foreground/60"> · {d.milestone_name}</span>}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(d.disbursed_date)}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-green-600 whitespace-nowrap">{fmt(d.amount_cents)}</td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(d.disbursed_date)}</td>
+                    <td className="px-3 py-2.5 text-right align-top font-medium text-green-600 whitespace-nowrap sm:align-middle">{fmt(d.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -776,7 +799,7 @@ export function TransactionsClient({
         onClose={() => setViewing(null)}
         title={viewed?.title ?? ''}
         description={viewed?.subtitle}
-        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        className="max-w-lg"
       >
         {viewed && (
           <div className="mt-2">
@@ -803,7 +826,7 @@ export function TransactionsClient({
         description={payingKind === 'donation'
           ? 'Record a gift a member has already given.'
           : 'Record dues a member has already paid.'}
-        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
@@ -825,7 +848,7 @@ export function TransactionsClient({
               </p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Amount ($) <span className="text-destructive">*</span></Label>
               <Input type="number" min="0" step="0.01" value={rpAmount} onChange={e => setRpAmount(e.target.value)} />
@@ -857,7 +880,7 @@ export function TransactionsClient({
           {/* Both required, and both hidden for a waived due: they describe how money
               arrived, and on a waived row no money did. */}
           {rpStatus !== 'waived' && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Payment Method <span className="text-destructive">*</span></Label>
                 <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
@@ -891,7 +914,7 @@ export function TransactionsClient({
         onClose={() => setRecording(null)}
         title="New Contribution"
         description="Money added to a fund directly, outside of dues routing."
-        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
@@ -919,7 +942,7 @@ export function TransactionsClient({
               />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Payment Method <span className="text-destructive">*</span></Label>
               <Select value={fcMethod} onChange={e => setFcMethod(e.target.value)}>
@@ -932,7 +955,7 @@ export function TransactionsClient({
               <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder="Check #1043" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Amount ($) <span className="text-destructive">*</span></Label>
               <Input type="number" min="0" step="0.01" value={fcAmount} onChange={e => setFcAmount(e.target.value)} />
@@ -962,7 +985,7 @@ export function TransactionsClient({
         onClose={() => setRecording(null)}
         title="New Disbursement"
         description="Money paid out of a fund to a member."
-        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
@@ -994,7 +1017,7 @@ export function TransactionsClient({
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Amount ($) <span className="text-destructive">*</span></Label>
               <Input type="number" min="0" step="0.01" value={rdAmount} onChange={e => setRdAmount(e.target.value)} />
@@ -1093,12 +1116,15 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   const isDonations = kind === 'donations'
   return (
     <LedgerTable
-      minWidth={isDonations ? 'min-w-[24rem]' : 'min-w-[32rem]'}
       columns={[
         { label: 'Member' },
-        { label: isDonations ? 'Donation' : 'Schedule' },
-        { label: 'Date' },
-        ...(isDonations ? [] : [{ label: 'Status' }]),
+        { label: isDonations ? 'Donation' : 'Schedule', collapse: true },
+        { label: 'Date', collapse: true },
+        // Status collapses like the rest, but its pill is NOT restated as text in the
+        // meta line — the pill itself moves there. It is the one collapsed value that
+        // carries a colour, and "Reversed" in plain grey next to a struck-through
+        // amount is the row's most important fact rendered as its least visible one.
+        ...(isDonations ? [] : [{ label: 'Status', collapse: true }]),
         { label: 'Amount', right: true },
         { label: 'Actions', srOnly: true },
       ]}
@@ -1118,8 +1144,18 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                 </LedgerRowTrigger>
               </span>
               {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
+              {/* Below sm the schedule, the date and (on dues) the status pill come and
+                  sit here, because their columns are gone. See LedgerTable. */}
+              <RowMeta>
+                <span>{p.schedule_label ?? 'No schedule'}</span>
+                <MetaDot />
+                <span>{formatDate(p.payment_date)}</span>
+                {/* On Donations the pill is already conditional in the wide layout — an
+                    ordinary donation has nothing to say — and it stays conditional here. */}
+                {(!isDonations || isReversed || isReversal) && <PaymentStatusPill payment={p} />}
+              </RowMeta>
             </td>
-            <td className="px-3 py-2.5 text-muted-foreground">
+            <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
               <span className="flex flex-wrap items-center gap-2">
                 {p.schedule_label ?? 'No schedule'}
                 {/* Donations only, and only when the row is not an ordinary one: this is
@@ -1128,9 +1164,9 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                 {isDonations && (isReversed || isReversal) && <PaymentStatusPill payment={p} />}
               </span>
             </td>
-            <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground">{formatDate(p.payment_date)}</td>
+            <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(p.payment_date)}</td>
             {!isDonations && (
-              <td className="px-3 py-2.5">
+              <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
                 {/* Reversed and Correcting entry live in this column rather than under the
                     name: they ARE the row's status, and putting them anywhere else meant a
                     row could show two different answers to the same question. */}
@@ -1138,7 +1174,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
               </td>
             )}
             <td className={cn(
-              'px-3 py-2.5 text-right font-medium whitespace-nowrap',
+              'px-3 py-2.5 text-right align-top font-medium whitespace-nowrap sm:align-middle',
               isReversed ? 'text-muted-foreground line-through'
                 : isReversal ? 'text-amber-700'
                   : p.status === 'paid' ? 'text-green-600'
@@ -1146,7 +1182,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
             )}>
               {p.status === 'waived' ? 'Waived' : fmt(p.amount_cents)}
             </td>
-            <td className="w-px px-3 py-2.5 text-right">
+            <td className="w-px px-3 py-2.5 text-right align-top sm:align-middle">
               {reversible && (
                 // stopPropagation, or this click opens the detail dialog on its way up
                 // through the row. See LedgerRow.
