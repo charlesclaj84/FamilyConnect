@@ -1,11 +1,23 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { APP_NAME, APP_DESCRIPTION } from '@/lib/brand'
+import type { Metadata, Viewport } from 'next'
+import { Inter, Cormorant_Garamond, Geist_Mono } from 'next/font/google'
+import { APP_NAME, APP_DESCRIPTION, BRAND_THEME_COLOR } from '@/lib/brand'
+import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import './globals.css'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// The brand's two faces, per public/README.txt: Cormorant Garamond for display,
+// Inter for UI and body. Both are loaded as VARIABLE fonts — no `weight` option —
+// which ships one file per family covering every weight the app uses, instead of
+// one file per weight. Cormorant in particular needs 400 and 600 together.
+const inter = Inter({
+  variable: '--font-ui',
   subsets: ['latin'],
+  display: 'swap',
+})
+
+const cormorant = Cormorant_Garamond({
+  variable: '--font-display-serif',
+  subsets: ['latin'],
+  display: 'swap',
 })
 
 const geistMono = Geist_Mono({
@@ -24,11 +36,38 @@ export const metadata: Metadata = {
     template: `%s — ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
+  // Icons are NOT declared here. `app/favicon.ico`, `app/icon.svg` and
+  // `app/apple-icon.png` are file conventions Next discovers on its own and
+  // emits the <link> tags for; listing them again here would produce duplicates.
+}
+
+export const viewport: Viewport = {
+  // Paints the browser chrome (mobile address bar, PWA title bar) in Heritage
+  // burgundy so the frame around the app belongs to the brand too. Split by
+  // scheme: the light value is the burgundy bar, the dark value is the ground.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: BRAND_THEME_COLOR.light },
+    { media: '(prefers-color-scheme: dark)', color: BRAND_THEME_COLOR.dark },
+  ],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning is required and narrow: the boot script below
+    // mutates this element's className and style before React hydrates, so the
+    // server's markup and the DOM genuinely differ here by design. It applies to
+    // this element's own attributes only — it does not silence the tree beneath.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${cormorant.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <head>
+        {/* Must stay in <head> and stay inline. Moved to the body, or loaded as
+            an external file, it would run after the first paint and reintroduce
+            the white flash it exists to prevent. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
       </body>

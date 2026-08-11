@@ -327,7 +327,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
       <td className="px-3 py-2.5 text-muted-foreground">{member.email ?? '—'}</td>
       <td className="px-3 py-2.5 text-muted-foreground">{member.location ?? '—'}</td>
       <td className="px-3 py-2.5">
-        <span className="inline-block whitespace-nowrap rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand-navy">
+        <span className="inline-block whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-on-soft">
           {member.templateName ?? 'No template'}
         </span>
       </td>
@@ -345,7 +345,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
               const current = t.id === member.templateId
               return (
                 <button key={t.id} type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
                   onClick={() => {
                     close()
                     if (current) return
@@ -369,7 +369,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
 
             {member.status === 'pending' ? (
               <Link href="/admin/users?tab=approvals" onClick={close}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint">
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
                 Review in Pending Approval
               </Link>
@@ -380,7 +380,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
             ) : (
               <button type="button"
                 className={cn(
-                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-tint',
+                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft',
                   !disabled && 'text-destructive',
                 )}
                 onClick={() => {
@@ -629,8 +629,8 @@ function TemplatesTab({
                 <div className={cn(
                   'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
                   t.id === selectedTemplateId
-                    ? 'bg-brand-navy text-brand-tint'
-                    : 'bg-brand-tint text-brand-navy hover:opacity-90',
+                    ? 'bg-brand-primary text-brand-on-primary'
+                    : 'bg-brand-soft text-brand-on-soft hover:opacity-90',
                 )}>
                   <button type="button" onClick={() => onSelect(t.id)} className="min-w-0 flex-1 text-left">
                     <span className="flex items-center gap-1.5 font-medium">
@@ -643,13 +643,13 @@ function TemplatesTab({
                   </button>
                   {rights.edit && (
                     <span className="flex shrink-0 items-center gap-0.5">
-                      <button type="button" aria-label={`Rename ${t.name}`} className="rounded p-1 hover:bg-black/10"
+                      <button type="button" aria-label={`Rename ${t.name}`} className="rounded p-1 hover:bg-foreground/10"
                         onClick={() => { setEditingId(t.id); setEditName(t.name); setEditDesc(t.description ?? '') }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       {!t.isSystem && rights.remove && (
                         <button type="button" aria-label={`Delete ${t.name}`} disabled={isPending}
-                          className="rounded p-1 hover:bg-black/10" onClick={() => run({
+                          className="rounded p-1 hover:bg-foreground/10" onClick={() => run({
                             title: 'Delete template',
                             description: t.memberCount > 0
                               ? `"${t.name}" still has ${t.memberCount} member${t.memberCount === 1 ? '' : 's'}. Move them to another template first.`

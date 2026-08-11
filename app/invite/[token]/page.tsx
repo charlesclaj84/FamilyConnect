@@ -120,7 +120,7 @@ export default async function InvitePage({
             {invitation.hasAccount ? (
               <Link
                 href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
-                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
+                className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
               >
                 Sign in to accept
               </Link>
@@ -128,7 +128,7 @@ export default async function InvitePage({
               <>
                 <Link
                   href={`/register?invite=${encodeURIComponent(token)}`}
-                  className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
+                  className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
                 >
                   Create an account
                 </Link>

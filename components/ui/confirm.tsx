@@ -166,10 +166,13 @@ function ConfirmDialog({
             type="button"
             onClick={() => onSettle(true)}
             className={cn(
-              'h-9 rounded-lg px-4 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+              'h-9 rounded-lg px-4 text-sm font-medium transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+              // The foreground moved into the branches: `--brand-on-primary` is
+              // the tone guaranteed to meet AA on `--brand-primary` in BOTH
+              // themes, which plain white is not once primary lifts in the dark.
               destructive
-                ? 'bg-destructive focus-visible:ring-destructive'
-                : 'bg-brand-navy focus-visible:ring-brand-navy'
+                ? 'bg-destructive text-white focus-visible:ring-destructive'
+                : 'bg-brand-primary text-brand-on-primary focus-visible:ring-brand-primary'
             )}
           >
             {pending.confirmLabel ?? 'Confirm'}

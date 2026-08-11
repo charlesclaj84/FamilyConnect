@@ -1,0 +1,34 @@
+{
+  "brand": "GENORRA",
+  "concept": "Premium Family",
+  "acronym": "Generations Embracing Nurturing Our Roots, Relationships & Ancestry",
+  "colors": {
+    "heritage": "#6B2D3A",
+    "warmth": "#C65D3A",
+    "growth": "#7A7F4E",
+    "legacy": "#D6A24A",
+    "nurturing": "#E5D9C6",
+    "light": "#FAF7F2",
+    "ink": "#2E1C22",
+    "white": "#FFFFFF"
+  },
+  "typography": {
+    "display": [
+      "Cormorant Garamond",
+      "EB Garamond",
+      "Georgia",
+      "serif"
+    ],
+    "ui": [
+      "Inter",
+      "system-ui",
+      "sans-serif"
+    ]
+  },
+  "taglines": [
+    "Where every generation belongs.",
+    "Your family. Together forever.",
+    "Preserve today. Inspire tomorrow.",
+    "Rooted in love. Built for generations."
+  ]
+}

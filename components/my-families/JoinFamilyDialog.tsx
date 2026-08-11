@@ -129,7 +129,7 @@ export function JoinFamilyDialog() {
               <button
                 type="submit"
                 disabled={isPending || !code.trim()}
-                className="inline-flex items-center gap-1 rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {isPending ? 'Checking…' : <>Continue <ArrowRight className="h-3.5 w-3.5" /></>}
               </button>
@@ -169,7 +169,7 @@ export function JoinFamilyDialog() {
                 type="button"
                 disabled={isPending}
                 onClick={commit}
-                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {isPending ? 'Joining…' : `Yes, join ${step.familyName}`}
               </button>
@@ -190,7 +190,7 @@ export function JoinFamilyDialog() {
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
+                className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
               >
                 Done
               </button>

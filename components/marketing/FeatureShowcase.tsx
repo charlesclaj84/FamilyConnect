@@ -60,12 +60,53 @@ function Reveal({ children, delay = 0, className }: { children: ReactNode; delay
   )
 }
 
+// ── Brand tones ──────────────────────────────────────────────────────────────
+
+/**
+ * The palette a feature card may draw on.
+ *
+ * This replaced eleven ad-hoc Tailwind ramps — emerald/teal/cyan, violet/fuchsia,
+ * sky, rose, stone — which read as a generic SaaS rainbow next to a burgundy and
+ * gold identity. Every tone here is a brand token.
+ *
+ * Each is a WASH plus a matching foreground, rather than white on a saturated
+ * fill, because two of the four brand hues cannot carry white text: Legacy gold
+ * is 2.30 against white and Growth olive is 4.22, both short of AA. A tinted chip
+ * with the accessible token as the icon colour is legible in both themes and
+ * looks more considered than a filled square anyway.
+ */
+const TONES = {
+  heritage: 'bg-brand-primary/12 text-brand-ink',
+  warmth: 'bg-brand-accent/12 text-brand-accent',
+  growth: 'bg-brand-affirm/15 text-brand-affirm',
+  // Gold never carries its own text on a pale ground, so this one is a gold wash
+  // under ink rather than gold-on-gold.
+  legacy: 'bg-brand-legacy/20 text-brand-ink',
+} as const
+
+type Tone = keyof typeof TONES
+
+/**
+ * Placeholder grounds, which DO carry white text.
+ *
+ * Deliberately restricted to Heritage and the deeper hero burgundy: those are the
+ * only two roles that stay dark in both themes, so white stays readable after the
+ * theme flips. `--brand-accent` becomes Legacy gold in dark mode and would strand
+ * white text on it — which is exactly the kind of bug a "just use the brand
+ * colours" sweep introduces if nobody checks the dark side.
+ */
+const PLACEHOLDER_GROUNDS = [
+  'bg-gradient-to-br from-brand-hero via-brand-primary to-brand-hero',
+  'bg-gradient-to-tr from-brand-primary via-brand-hero to-brand-primary',
+  'bg-gradient-to-r from-brand-hero via-brand-primary to-brand-hero',
+] as const
+
 // ── Image placeholder (drop a real image at `src` in /public) ────────────────
 
 function ImagePlaceholder({ src, accent }: { src: string; accent: string }) {
   return (
     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border shadow-sm">
-      <div className={cn('absolute inset-0 bg-gradient-to-br opacity-90', accent)} />
+      <div className={cn('absolute inset-0 opacity-95', accent)} />
       <div className="gn-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
       {/* floating decorative shapes */}
       <div className="gn-float absolute -top-8 -right-8 h-28 w-28 rounded-full bg-white/20 blur-xl" />
@@ -89,8 +130,8 @@ interface Spotlight {
   blurb: string
   bullets: string[]
   icon: ReactNode
-  accent: string      // gradient for the placeholder + icon
-  badge: string       // icon chip gradient
+  accent: string      // placeholder ground — one of PLACEHOLDER_GROUNDS
+  badge: Tone         // icon chip tone
   image: string
   feature: string     // route this row is selling — drives its shipped/coming-soon state
 }
@@ -109,8 +150,8 @@ const spotlights: Spotlight[] = [
       'Per-event budgets with line items vs. actual spend',
     ],
     icon: <Calendar className="h-5 w-5" />,
-    accent: 'from-emerald-500 via-teal-500 to-cyan-600',
-    badge: 'from-emerald-500 to-teal-600',
+    accent: PLACEHOLDER_GROUNDS[0],
+    badge: 'warmth',
     image: '/features/events.png',
     feature: '/events',
   },
@@ -127,8 +168,8 @@ const spotlights: Spotlight[] = [
       'A clean P&L ledger: collected → routed → spent → net',
     ],
     icon: <Wallet className="h-5 w-5" />,
-    accent: 'from-amber-500 via-orange-500 to-rose-500',
-    badge: 'from-amber-500 to-orange-600',
+    accent: PLACEHOLDER_GROUNDS[1],
+    badge: 'legacy',
     image: '/features/finances.png',
     feature: '/family-finances',
   },
@@ -145,8 +186,8 @@ const spotlights: Spotlight[] = [
       'Search and filter the full member directory instantly',
     ],
     icon: <GitBranch className="h-5 w-5" />,
-    accent: 'from-violet-500 via-purple-500 to-fuchsia-600',
-    badge: 'from-violet-500 to-purple-600',
+    accent: PLACEHOLDER_GROUNDS[2],
+    badge: 'growth',
     image: '/features/family-tree.png',
     feature: '/family-tree',
   },
@@ -156,7 +197,7 @@ interface MiniFeature {
   title: string
   blurb: string
   icon: ReactNode
-  accent: string
+  accent: Tone
   feature?: string     // route backing this card, when it has one
   comingSoon?: boolean // for cards with no route yet
 }
@@ -166,56 +207,56 @@ const miniFeatures: MiniFeature[] = [
     title: 'Elections',
     blurb: 'Run real officer elections — nominate yourself or others, accept or decline, then vote family-wide. Positions pull straight from your board roster, results tally live, and a launch announcement goes out automatically.',
     icon: <Vote className="h-5 w-5" />,
-    accent: 'from-indigo-500 to-blue-600',
+    accent: 'heritage',
     feature: '/elections',
   },
   {
     title: 'Announcements',
     blurb: 'Now anyone in the family can share news. Admins can pin the important stuff to the top so it surfaces right on everyone’s dashboard.',
     icon: <Megaphone className="h-5 w-5" />,
-    accent: 'from-amber-500 to-yellow-600',
+    accent: 'legacy',
     feature: '/announcements',
   },
   {
     title: 'Family Chat',
     blurb: 'Real-time group threads and private direct messages keep the whole family talking between gatherings.',
     icon: <MessageCircle className="h-5 w-5" />,
-    accent: 'from-sky-500 to-cyan-600',
+    accent: 'warmth',
     feature: '/chat',
   },
   {
     title: 'Photo Collections',
     blurb: 'Spin up a gallery for every event, upload your favorite memories, add captions, and relive the moments together.',
     icon: <Camera className="h-5 w-5" />,
-    accent: 'from-pink-500 to-rose-600',
+    accent: 'growth',
     feature: '/photos',
   },
   {
     title: 'Documents',
     blurb: 'Keep bylaws, forms, meeting minutes, and family records in one shared, always-available place.',
     icon: <FileText className="h-5 w-5" />,
-    accent: 'from-slate-500 to-gray-700',
+    accent: 'heritage',
     feature: '/documents',
   },
   {
     title: 'Regions & Chapters',
     blurb: 'Organize a large family into regional chapters with scoped leadership and board positions for every level.',
     icon: <ShieldCheck className="h-5 w-5" />,
-    accent: 'from-teal-500 to-emerald-600',
+    accent: 'growth',
     feature: '/admin/chapters',
   },
   {
     title: 'Leadership Reports',
     blurb: 'Membership, dues collected vs. outstanding, RSVP turnout, and t-shirt counts — the numbers leadership needs at a glance.',
     icon: <BarChart3 className="h-5 w-5" />,
-    accent: 'from-rose-500 to-red-600',
+    accent: 'warmth',
     feature: '/admin/reports',
   },
   {
     title: 'Trusted Vendors',
     blurb: 'Family-owned and family-trusted businesses offering members-only products and services.',
     icon: <Store className="h-5 w-5" />,
-    accent: 'from-stone-500 to-stone-700',
+    accent: 'legacy',
     comingSoon: true,
   },
 ]
@@ -255,7 +296,7 @@ export function FeatureShowcase() {
                   {/* Copy */}
                   <div className={cn('space-y-5', reversed ? 'lg:order-2' : 'lg:order-1')}>
                     <div className="flex items-center gap-3">
-                      <div className={cn('inline-flex p-2.5 rounded-xl text-white shadow-md bg-gradient-to-br', s.badge)}>
+                      <div className={cn('inline-flex p-2.5 rounded-xl', TONES[s.badge])}>
                         {s.icon}
                       </div>
                       <span className="text-xs font-semibold uppercase tracking-widest text-primary">{s.eyebrow}</span>
@@ -296,8 +337,8 @@ export function FeatureShowcase() {
               <div className="group relative h-full rounded-2xl border bg-card p-5 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40">
                 {isComingSoon(f) && <ComingSoonPill className="absolute top-3 right-3" />}
                 <div className={cn(
-                  'mb-3 inline-flex p-2.5 rounded-xl text-white shadow-sm bg-gradient-to-br transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6',
-                  f.accent,
+                  'mb-3 inline-flex p-2.5 rounded-xl transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6',
+                  TONES[f.accent],
                 )}>
                   {f.icon}
                 </div>

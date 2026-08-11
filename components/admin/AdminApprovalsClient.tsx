@@ -105,7 +105,7 @@ export function AdminApprovalsClient({
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Clock className="h-4 w-4" /> Waiting for approval
               {pending.length > 0 && (
-                <span className="rounded-full bg-brand-navy px-2 py-0.5 text-xs font-semibold text-brand-tint">
+                <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs font-semibold text-brand-on-primary">
                   {pending.length}
                 </span>
               )}
@@ -159,7 +159,7 @@ export function AdminApprovalsClient({
                         type="button"
                         disabled={isPending}
                         onClick={() => onApprove(applicant)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-brand-navy px-2.5 py-1 text-xs font-medium text-brand-tint transition-opacity hover:opacity-90 disabled:opacity-60"
+                        className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-2.5 py-1 text-xs font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
                       >
                         <UserCheck className="h-3 w-3" />
                         {busy ? 'Saving…' : 'Approve'}
@@ -204,7 +204,7 @@ export function AdminApprovalsClient({
                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       <span className="truncate">{invitation.email}</span>
                       {invitation.preApproved && (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-navy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-tint">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-primary">
                           <ShieldCheck className="h-3 w-3" /> Pre-approved
                         </span>
                       )}

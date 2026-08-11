@@ -48,8 +48,8 @@ function ModeToggle({ mode, onChange }: { mode: 'select' | 'create'; onChange: (
           className={cn(
             'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
             mode === m
-              ? 'bg-brand-navy text-brand-tint shadow-sm'
-              : 'text-brand-navy hover:bg-brand-navy/10',
+              ? 'bg-brand-primary text-brand-on-primary shadow-sm'
+              : 'text-brand-ink hover:bg-brand-primary/10',
           )}
         >
           {m === 'select' ? 'Select Existing Person' : 'Add New Person'}
@@ -593,7 +593,7 @@ function PersonBox({ name, sublabel, highlight, titles = [], isDashed, icon = 'u
       <span className={cn('text-sm font-medium leading-tight', isDashed && 'text-xs font-normal')}>{name}</span>
       <span className="text-xs text-muted-foreground mt-0.5">{sublabel}</span>
       {titles.map((t, i) => (
-        <span key={i} className="text-xs bg-brand-navy text-brand-tint px-1.5 py-0.5 rounded-full mt-0.5 leading-tight whitespace-nowrap">
+        <span key={i} className="text-xs bg-brand-primary text-brand-on-primary px-1.5 py-0.5 rounded-full mt-0.5 leading-tight whitespace-nowrap">
           {t}
         </span>
       ))}

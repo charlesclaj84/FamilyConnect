@@ -141,7 +141,7 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
                   type="button"
                   onClick={() => setEditStatuses(prev => ({ ...prev, [person.person_id]: true }))}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    attending ? 'bg-green-600 text-white' : 'text-muted-foreground hover:bg-muted/50'
+                    attending ? 'bg-brand-affirm text-brand-on-affirm' : 'text-muted-foreground hover:bg-muted/50'
                   }`}
                 >
                   Yes

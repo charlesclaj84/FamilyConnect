@@ -401,8 +401,9 @@ Four things about it are load-bearing:
   the pane genuinely has no address.
 
 * **Never drop the explicit text colours** if you fork or extend it. `app/globals.css`
-  line 136 carries an unscoped `a { color: #1aa88a }`, and every link in the rail comes
-  out teal without them. The same trap is commented at each of the older rails.
+  carries an unscoped `a { color: var(--brand-accent) }` in its base layer, and every
+  link in the rail comes out in the accent colour without them. The same trap is
+  commented at each of the older rails.
 
 * **It is not a `role="tablist"`,** deliberately. That role promises arrow-key roving
   focus, Home/End, and `aria-controls` wiring, and a screen reader changes its own key
@@ -482,30 +483,60 @@ trace of that decision, not a gap to fill.
 Not "the preferred place" — the only one. A new page or component that needs a colour
 uses a token that already exists, or adds one here first and then uses it.
 
-Two ramps sit in that file and they answer different questions:
+**The brand ramp has two layers, and you consume the second one.** This is the part
+worth understanding before touching a colour.
 
-* **The GENORRA brand ramp** — `--brand-*` in `:root`, surfaced as Tailwind utilities
-  through the `@theme inline` block. This is the product's identity: navy, its pale
-  companion, teal, the affirmative green.
+* **Layer 1 — the palette.** `--genorra-*` in `:root`: Heritage burgundy, Warmth
+  terracotta, Growth olive, Legacy gold, Nurturing sand, Light, Ink. Named exactly as
+  the brand guide names them, identical in both themes, and taken verbatim from
+  `public/Web/genorra-colors.css`. **Do not use these in a component.** They answer
+  "what colour is GENORRA?", not "what colour is this button?".
+
+* **Layer 2 — the roles.** `--brand-*`, surfaced as Tailwind utilities through
+  `@theme inline`. Each names a *job*, and this is the only layer that changes between
+  light and dark.
 
   | Token | Utility | What it is for |
   |---|---|---|
-  | `--brand-navy` | `bg-brand-navy`, `text-brand-navy`, `border-brand-navy` | Primary ink; filled chips, buttons, active rail items |
-  | `--brand-navy-deep` | `bg-brand-navy-deep` | The banner hero behind the logo |
-  | `--brand-tint` | `bg-brand-tint`, `text-brand-tint` | Navy's pale companion: resting pills, and text *on* navy |
-  | `--brand-mist` | `bg-brand-mist`, `text-brand-mist` | Header bars |
-  | `--brand-teal` | `text-brand-teal`, `bg-brand-teal` | Links, `h3`–`h6`, unread markers |
-  | `--brand-green` | `bg-brand-green`, `border-brand-green` | Affirmative actions: create, record, pay |
+  | `--brand-primary` | `bg-brand-primary`, `border-brand-primary` | Filled chips, buttons, active rail items |
+  | `--brand-on-primary` | `text-brand-on-primary` | Text/icons **on** primary |
+  | `--brand-ink` | `text-brand-ink` | Strong brand text, `h1`/`h2` |
+  | `--brand-soft` | `bg-brand-soft` | Resting pills, hover wells |
+  | `--brand-on-soft` | `text-brand-on-soft` | Text **on** soft |
+  | `--brand-bar` | `bg-brand-bar` | Header bars |
+  | `--brand-hero` | `bg-brand-hero` | The banner band behind the lockup |
+  | `--brand-accent` | `text-brand-accent` | Links, `h3`–`h6`, unread markers |
+  | `--brand-affirm` / `--brand-on-affirm` | `bg-brand-affirm`, `text-brand-on-affirm` | Affirmative actions: create, record, pay |
+  | `--brand-legacy` | `bg-brand-legacy` | Premium gold accent — **surface only** |
+
+  **Why roles and not hues.** A token called `--brand-burgundy` would have to hold sand
+  in dark mode to stay readable, and then its name is a lie. `--brand-ink` is burgundy
+  on a cream page and sand on a dark one, and both are correct, because the role is
+  "strong brand text". This split is the whole reason dark mode was possible without
+  renaming anything twice.
+
+  **The pairs are load-bearing.** Every surface role has an `on-` partner guaranteed to
+  meet WCAG AA against it in *both* themes. Never put a foreground from one pair on the
+  surface of another — `text-brand-on-affirm` on `bg-brand-primary` is not a checked
+  combination and there is no reason to expect it to pass.
+
+  **`--brand-legacy` has no `on-` partner, deliberately.** Gold is 2.30 against white
+  and 1.65 against sand: it can never carry text in light mode, and a partner token
+  would invite exactly that. Use it as a surface with dark text on it (ink on gold is
+  6.99), or as a non-text accent — a rule, a dot, a border. The one place it *is* a
+  foreground is dark mode, where `--brand-accent` resolves to it against a near-black
+  ground at 7.91.
 
 * **The shadcn semantic ramp** — `--background`, `--card`, `--muted`, `--border`,
-  `--destructive` and the rest, in oklch. This dresses generic UI, and it is the ramp
-  that already knows about dark mode.
+  `--destructive` and the rest. This dresses generic UI. It is no longer neutral grey:
+  its values are warm, drawn from the palette, so a `bg-muted` sits in the same family
+  as everything around it.
 
 **Reach for the semantic token first.** `bg-card`, `text-muted-foreground`,
-`border-border` and `text-destructive` are right far more often than a brand colour is,
-and they are the only ones that respond to `.dark`. Use a `--brand-*` token when the
-thing you are colouring is specifically GENORRA — a filled navy chip, a teal link, the
-green "record payment" button — not merely when you want *a* dark blue.
+`border-border` and `text-destructive` are right far more often than a brand colour is.
+Use a `--brand-*` role when the thing you are colouring is specifically GENORRA — a
+filled Heritage chip, a link, the "record payment" button — not merely when you want
+*a* dark red.
 
 ## Never write a hex outside globals.css
 
@@ -513,31 +544,70 @@ green "record payment" button — not merely when you want *a* dark blue.
 hypothetical: it was in 33 files before 2026-08-10, and the sweep that removed it
 turned up **two** pale blues, `#e6ecfa` and `#e6ecf1`, differing by one channel and
 used interchangeably as "text on navy" — a drift nobody chose and nobody could see.
-Both survive as `--brand-tint` and `--brand-mist` because collapsing them is a visual
-change and the sweep was a refactor; if you are ever in a position to decide which one
-the header bars really want, delete the other.
+
+That drift is now gone. The Premium Family rebrand collapsed it: both roles resolve to
+Nurturing sand, because the question the old pair could not answer — *is this "text on
+the primary fill" or "the header bar"?* — is exactly what `--brand-on-primary` and
+`--brand-bar` now answer separately. The same rebrand found the same bug a second time
+in the components: "text on navy" was written `text-brand-tint` in twelve places and
+`text-brand-mist` in three, for no reason anyone had chosen.
 
 That is the cost the rule buys off. An arbitrary value in a `className` is invisible to
 every search that matters — you cannot count the uses, cannot rename it, and cannot
 change the brand without a 33-file diff that is impossible to review for completeness.
-A token you can grep.
+A token you can grep, which is why the rebrand itself was a scripted sweep that finished
+with `git grep` returning nothing.
 
 The same goes for `style={{ color: … }}` and any SVG `fill`/`stroke`. There are none in
 the tree today. If a chart or an illustration ever genuinely needs a colour in JS, read
-it from the custom property (`var(--brand-teal)`) rather than restating the hex.
+it from the custom property (`var(--brand-accent)`) rather than restating the hex.
 
-**The brand ramp is deliberately not overridden in `.dark`.** The hardcoded hexes did
-not vary by theme either, so centralising them changed nothing — but it did put the
-override in reach. Dark mode is still the stock shadcn greyscale: `--primary` there is
-`oklch(0.922 0 0)`, near-white, and none of the brand hues appear. Giving the brand a
-dark treatment is a design decision, not a cleanup; make it in the `.dark` block, all
-at once, or not at all.
+**The one sanctioned exception is `BRAND_THEME_COLOR` in `lib/brand.ts`.** Those two
+hexes are consumed by the *browser* as document metadata — `viewport.themeColor` and the
+web manifest paint the mobile address bar — and no stylesheet is involved, so a custom
+property cannot reach them. They must be kept in step with `--genorra-heritage` and
+`--genorra-ground-dark` by hand. Nothing else earns this.
 
-**One trap to know about.** `globals.css` carries an unscoped `a { color: var(--brand-teal) }`
-in its base layer, so every anchor is teal unless a component says otherwise. That is
-why `MainRail`, `Sidebar`, `RoomListItem` and `AdminAccountShell` all set an explicit
-text colour on both branches of their active/inactive ternary — those are not
-decoration, and removing one turns that rail teal. Each carries a comment saying so.
+## Dark mode is real, and the brand has a dark treatment
+
+There is a `.dark` class on `<html>`, put there before first paint by the inline boot
+script in `app/layout.tsx` (`THEME_BOOT_SCRIPT` in `lib/theme.ts`), and cycled by
+`components/layout/ThemeToggle.tsx` between Light, Dark and System.
+
+Four things to know before changing any of it:
+
+* **The class, not `data-theme`.** The Next guide on preventing flash uses a
+  `data-theme` attribute; this app cannot, because `globals.css` declares
+  `@custom-variant dark (&:is(.dark *))` and the `dark:` utilities already in the
+  components resolve against the class. Switching would light up the CSS variables and
+  silently leave every `dark:` utility dead.
+
+* **The script must stay inline and in `<head>`.** Moved to the body or loaded as a
+  file, it runs after first paint and the white flash it exists to prevent comes back.
+  `useEffect` cannot do this job for the same reason.
+
+* **`ThemeToggle` uses `useSyncExternalStore`, not `useState`.** The theme lives outside
+  React — in `localStorage`, in the OS, and on an element the boot script already
+  touched. Reading `localStorage` during render is a hydration mismatch; correcting it
+  from an effect is a cascading render that React Compiler rejects as an error. The
+  snapshot deliberately encodes *preference and resolved appearance* in one string, so
+  that an OS flip while the preference is `system` still repaints.
+
+* **Dark mode takes its cue from the kit's own dark app icon: gold on deep burgundy.**
+  That is why `--brand-accent` becomes Legacy gold there rather than a lightened
+  terracotta. Grounds are warm near-blacks mixed toward Ink, never neutral grey — grey
+  under burgundy reads as a bruise.
+
+**Every pairing in both themes was checked against WCAG AA before it shipped.** If you
+add or retune a role, check it the same way rather than by eye; the ratios that matter
+are recorded in the comments beside the tokens.
+
+**One trap to know about.** `globals.css` carries an unscoped
+`a { color: var(--brand-accent) }` in its base layer, so every anchor takes the accent
+unless a component says otherwise. That is why `MainRail`, `Sidebar`, `RoomListItem` and
+`AdminAccountShell` all set an explicit text colour on both branches of their
+active/inactive ternary — those are not decoration, and removing one recolours that
+rail. Each carries a comment saying so.
 
 # The product name lives in one place
 
@@ -546,15 +616,57 @@ decoration, and removing one turns that rail teal. Each carries a comment saying
 TypeScript does. **Never type the product name as a literal in a component.**
 
 ```tsx
-import { APP_NAME, APP_BANNER_ALT } from '@/lib/brand'
+import { APP_NAME, APP_BANNER_ALT, BRAND_LOCKUP_REVERSED_SRC } from '@/lib/brand'
 
-<span className="text-xl font-bold">{APP_NAME}</span>
-<Image src="/banner.png" alt={APP_BANNER_ALT} … />
+<span className="gn-wordmark text-xl text-brand-ink">{APP_NAME}</span>
+<Image src={BRAND_LOCKUP_REVERSED_SRC} alt={APP_BANNER_ALT} … />
 ```
 
-`APP_NAME`, `APP_TAGLINE`, `APP_PROMISE`, `APP_DESCRIPTION`, `APP_BANNER_ALT` and
-`APP_LOGO_ALT` are the whole surface. In a template string use `${APP_NAME}`, not a
+`APP_NAME`, `APP_TAGLINE`, `APP_LEAD`, `APP_VALUES`, `APP_PROMISE`, `APP_DESCRIPTION`,
+`APP_BANNER_ALT`, `APP_LOGO_ALT`, `BRAND_MARK_SRC`, `BRAND_LOCKUP_REVERSED_SRC` and
+`BRAND_THEME_COLOR` are the whole surface. In a template string use `${APP_NAME}`, not a
 literal — `lib/features.ts` and `app/actions/children.ts` are the worked examples.
+
+**`APP_TAGLINE` and `APP_LEAD` are not interchangeable.** The tagline is the acronym
+expansion and belongs beside the mark; the lead line — "Where every generation belongs."
+— is what leads a page. `APP_VALUES` is the three words as *data*, and `APP_PROMISE`
+joins them for running text; a surface that lists the values maps over the array rather
+than retyping them, so adding a fourth is one edit.
+
+## Artwork paths, and the `public/brand` trap
+
+Brand artwork is served from **`public/identity/`** and named by role in `lib/brand.ts`.
+It is deliberately not referenced out of the vendor kit that ships alongside it, for two
+reasons that both bite:
+
+* The kit's folders are named for a design deliverable — `SVG_Masters`, `PNG_Exports` —
+  and those names would end up in public URLs, where they are permanent.
+* **`public/Brand/` already exists.** A `public/brand/` for web assets is the *same*
+  directory on Windows and macOS and a *different* one on the Linux box that serves
+  production: it works locally and 404s once deployed. `identity/` collides with nothing
+  in either direction. This was hit while doing the rebrand, not theorised.
+
+The kit itself (`SVG_Masters`, `PNG_Exports`, `Brand`, `Favicons`, `App_Icons`,
+`Editable_SVG`, `Web`) is the delivered package and is left exactly as delivered.
+
+## The wordmark is set, not placed
+
+`.gn-wordmark` in `globals.css` reproduces the brand board's letterspaced Cormorant caps
+in CSS. Use it for the word GENORRA in a header or footer; do not place an image of the
+wordmark. Text stays crisp at every size, recolours per theme, and is selectable — an
+`<img>` does none of the three. The mark (`BRAND_MARK_SRC`) *is* artwork and is placed;
+it is a stroked form with the heart cut out of it, so the ground shows through and the
+one file works on both light and dark.
+
+## Typography
+
+Two faces, per `public/README.txt`: **Cormorant Garamond** for display and **Inter** for
+UI and body, both loaded as variable fonts in `app/layout.tsx`.
+
+`h1`/`h2` take the serif automatically from the base layer. **`h3`–`h6` deliberately do
+not** — Cormorant is a high-contrast old-style face that goes thin and hard to read below
+about 20px, which is exactly the size a functional subhead runs at. The serif is for
+statements; labels stay in Inter.
 
 ## Page titles are composed, not written
 

@@ -255,7 +255,7 @@ export function AdminAccountShell({
                   editing a row. All three triggers read "New …" so the rail says the
                   same thing whichever section you are in. */}
               <Button
-                className="bg-brand-green text-brand-navy hover:opacity-90"
+                variant="affirm"
                 onClick={() => setCreating(section)}
               >
                 <CirclePlus className="h-4 w-4 mr-1" /> {CREATE_ACTIONS[section]}
@@ -325,9 +325,9 @@ function SectionLink({ id, icon: Icon, active, onSelect }: {
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
         active
           // The explicit text colours are required: globals.css has an unscoped
-          // `a { color: var(--brand-teal) }` that would otherwise paint every item teal.
-          ? 'bg-brand-navy text-brand-mist font-medium'
-          : 'bg-brand-tint text-brand-navy hover:opacity-90',
+          // `a { color: var(--brand-accent) }` that would otherwise paint every item teal.
+          ? 'bg-brand-primary text-brand-on-primary font-medium'
+          : 'bg-brand-soft text-brand-on-soft hover:opacity-90',
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />

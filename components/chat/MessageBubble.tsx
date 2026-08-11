@@ -22,7 +22,7 @@ export function MessageBubble({ message, senderName, isOwn }: Props) {
         className={cn(
           'rounded-2xl px-4 py-2 text-sm break-words',
           isOwn
-            ? 'bg-brand-navy text-brand-tint rounded-br-sm'
+            ? 'bg-brand-primary text-brand-on-primary rounded-br-sm'
             : 'bg-muted text-foreground rounded-bl-sm',
         )}
       >

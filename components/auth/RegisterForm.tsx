@@ -213,8 +213,8 @@ export function RegisterForm({
             onClick={() => switchMode('join')}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               mode === 'join'
-                ? 'bg-brand-navy text-brand-tint shadow-sm'
-                : 'text-brand-navy hover:bg-brand-navy/10'
+                ? 'bg-brand-primary text-brand-on-primary shadow-sm'
+                : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
             Join a Family
@@ -224,8 +224,8 @@ export function RegisterForm({
             onClick={() => switchMode('create')}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               mode === 'create'
-                ? 'bg-brand-navy text-brand-tint shadow-sm'
-                : 'text-brand-navy hover:bg-brand-navy/10'
+                ? 'bg-brand-primary text-brand-on-primary shadow-sm'
+                : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
             Start a New Family

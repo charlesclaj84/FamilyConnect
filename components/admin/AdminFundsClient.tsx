@@ -357,7 +357,7 @@ export function AdminFundsClient({
                           {/* Says WHY there is no delete control on this row. A greyed-out
                               or absent button with no explanation reads as a bug. */}
                           {f.system_key && (
-                            <span className="shrink-0 rounded-full bg-brand-tint px-2 py-0.5 text-[11px] font-medium text-brand-navy"
+                            <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
                               title="Created automatically. Holds every donation the family receives, and cannot be deleted or switched off.">
                               Built in
                             </span>

@@ -54,7 +54,7 @@ export default async function PersonalInfoPage({
         {myRoles.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2 mb-1">
             {myRoles.map((r, i) => (
-              <span key={i} className="inline-flex items-center text-sm font-medium bg-brand-navy text-brand-tint px-3 py-1 rounded-full">
+              <span key={i} className="inline-flex items-center text-sm font-medium bg-brand-primary text-brand-on-primary px-3 py-1 rounded-full">
                 {formatRoleTitle(r)}
               </span>
             ))}

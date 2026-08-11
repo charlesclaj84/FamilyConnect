@@ -30,7 +30,7 @@ export function RoomList({ rooms, activeRoomId, currentUserId, onSelect, onNewDm
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-3 border-b shrink-0">
-        <h2 className="text-sm font-semibold text-brand-navy">Messages</h2>
+        <h2 className="text-sm font-semibold text-brand-ink">Messages</h2>
         <Button size="sm" onClick={onNewDm} className="h-7 px-2 text-xs gap-1">
           <Plus className="h-3 w-3" /> New DM
         </Button>
@@ -68,7 +68,7 @@ export function RoomList({ rooms, activeRoomId, currentUserId, onSelect, onNewDm
           action={
             <button
               onClick={onNewGroup}
-              className="text-xs text-brand-navy hover:opacity-70 transition-opacity flex items-center gap-0.5"
+              className="text-xs text-brand-ink hover:opacity-70 transition-opacity flex items-center gap-0.5"
             >
               <Plus className="h-3 w-3" /> New
             </button>

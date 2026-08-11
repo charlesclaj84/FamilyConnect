@@ -1,29 +1,37 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { AuthNavButtons } from '@/components/auth/AuthNavButtons'
-import { APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT } from '@/lib/brand'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import {
+  APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT,
+  BRAND_MARK_SRC, BRAND_LOCKUP_REVERSED_SRC,
+} from '@/lib/brand'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-muted/40">
-      <header className="border-b bg-brand-mist sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt={APP_LOGO_ALT} width={120} height={60} className="h-10 w-auto" />
-            <span className="text-xl font-bold text-primary">{APP_NAME}</span>
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="border-b bg-brand-bar sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5">
+            <Image src={BRAND_MARK_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" priority />
+            <span className="gn-wordmark truncate text-xl text-brand-ink">{APP_NAME}</span>
           </Link>
-          <AuthNavButtons />
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <ThemeToggle />
+            <AuthNavButtons />
+          </div>
         </div>
       </header>
 
-      {/* Banner hero */}
-      <div className="w-full flex justify-center bg-brand-navy-deep px-4 py-6">
+      {/* Banner hero — the gold lockup on Heritage, the same band the landing page
+          uses, so signing in does not feel like a different product. */}
+      <div className="w-full flex justify-center bg-brand-hero px-4 py-10 sm:py-12">
         <Image
-          src="/banner.png"
+          src={BRAND_LOCKUP_REVERSED_SRC}
           alt={APP_BANNER_ALT}
-          width={800}
-          height={400}
-          className="w-full max-w-2xl h-auto"
+          width={1700}
+          height={520}
+          className="w-full max-w-xl h-auto"
           priority
         />
       </div>

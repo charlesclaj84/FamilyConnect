@@ -62,7 +62,7 @@ interface Props<T extends string> {
  * which is what is actually true. Same reasoning as RowMenu in AdminAccessClient.
  *
  * The explicit text colours on every branch are required, not stylistic: globals.css
- * carries an unscoped `a { color: var(--brand-teal) }` in its base layer that would
+ * carries an unscoped `a { color: var(--brand-accent) }` in its base layer that would
  * otherwise paint every item in this rail teal.
  */
 export function MainRail<T extends string>({ label, items, active, onSelect, action }: Props<T>) {
@@ -83,7 +83,7 @@ export function MainRail<T extends string>({ label, items, active, onSelect, act
             // colour and never a size.
             'border-l-2 border-b-0 sm:border-l-0 sm:border-b-2',
             isActive
-              ? 'border-brand-navy bg-brand-navy/[0.04] font-medium text-brand-navy sm:bg-transparent'
+              ? 'border-brand-primary bg-brand-primary/[0.04] font-medium text-brand-ink sm:bg-transparent'
               : 'border-transparent text-muted-foreground hover:text-foreground',
           )
           const inner = (

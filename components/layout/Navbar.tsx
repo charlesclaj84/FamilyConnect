@@ -7,7 +7,8 @@ import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { getMyFamilies } from '@/lib/auth/family'
-import { APP_NAME, APP_LOGO_ALT } from '@/lib/brand'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { APP_NAME, APP_LOGO_ALT, BRAND_MARK_SRC } from '@/lib/brand'
 
 export default async function Navbar() {
   const supabase = await createClient()
@@ -54,7 +55,7 @@ export default async function Navbar() {
   }
 
   return (
-    <header className="border-b bg-brand-mist sticky top-0 z-10">
+    <header className="border-b bg-brand-bar sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
         {/* The wordmark is hidden below sm. On a 375px screen it, the logo, the family
             switcher, the bell and Sign Out do not fit on one row, and what gave way was
@@ -62,12 +63,13 @@ export default async function Navbar() {
             the cheapest thing to drop because the logo keeps the brand present and its
             alt text still carries the name; note the mark itself is wordless, so on a
             phone the name is announced but not seen. */}
-        <Link href="/dashboard" className="flex min-w-0 shrink items-center gap-2">
-          <Image src="/logo.png" alt={APP_LOGO_ALT} width={120} height={60} className="h-10 w-auto shrink-0" />
-          <span className="hidden truncate text-xl font-bold text-primary sm:block">{APP_NAME}</span>
+        <Link href="/dashboard" className="flex min-w-0 shrink items-center gap-2.5">
+          <Image src={BRAND_MARK_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" />
+          <span className="gn-wordmark hidden truncate text-xl text-brand-ink sm:block">{APP_NAME}</span>
         </Link>
-        <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5">
           <FamilySwitcher families={families} />
+          <ThemeToggle />
           {personId && (
             <NotificationBell
               initialNotifications={notifications}

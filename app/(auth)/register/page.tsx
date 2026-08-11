@@ -48,7 +48,7 @@ export default async function RegisterPage({
         <CardContent>
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${invite}`)}`}
-            className="inline-flex rounded-lg bg-brand-navy px-3 py-1.5 text-sm font-medium text-brand-tint transition-opacity hover:opacity-90"
+            className="inline-flex rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
           >
             Sign in to accept
           </Link>

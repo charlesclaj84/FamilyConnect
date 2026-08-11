@@ -12,7 +12,7 @@ export function AuthNavButtons() {
     <div className="flex items-center gap-2">
       {pathname !== '/login' && (
         <Link href="/login">
-          <Button className="bg-brand-mist text-brand-navy border border-brand-navy hover:opacity-80 gap-1.5">
+          <Button variant="outline" className="gap-1.5">
             <User className="h-4 w-4" />
             Login
           </Button>

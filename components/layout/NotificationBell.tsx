@@ -83,12 +83,12 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-1.5 rounded-lg hover:bg-black/10 transition-colors"
+        className="relative p-1.5 rounded-lg hover:bg-foreground/10 transition-colors"
         aria-label="Notifications"
       >
-        <Bell className="h-5 w-5 text-brand-navy" />
+        <Bell className="h-5 w-5 text-brand-ink" />
         {badgeCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
             {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}

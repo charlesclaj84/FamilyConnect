@@ -580,7 +580,7 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
         <span className={cn(
           'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
           declined ? 'bg-muted text-muted-foreground'
-            : row.required ? 'bg-brand-tint text-brand-navy'
+            : row.required ? 'bg-brand-soft text-brand-on-soft'
               : 'bg-amber-100 text-amber-800',
         )}>
           {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}

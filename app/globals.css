@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-ui);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-display: var(--font-display-serif);
+  --font-heading: var(--font-display-serif);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,12 +40,17 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-brand-navy: var(--brand-navy);
-  --color-brand-navy-deep: var(--brand-navy-deep);
-  --color-brand-tint: var(--brand-tint);
-  --color-brand-mist: var(--brand-mist);
-  --color-brand-teal: var(--brand-teal);
-  --color-brand-green: var(--brand-green);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-on-primary: var(--brand-on-primary);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-on-soft: var(--brand-on-soft);
+  --color-brand-bar: var(--brand-bar);
+  --color-brand-hero: var(--brand-hero);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-affirm: var(--brand-affirm);
+  --color-brand-on-affirm: var(--brand-on-affirm);
+  --color-brand-legacy: var(--brand-legacy);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -54,95 +60,174 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ── GENORRA brand palette ──────────────────────────────────────────
-   The single source of truth for the site's colours. Every brand colour
-   in the app resolves here; nothing hardcodes a hex outside this block.
+/* ══ LAYER 1 — THE PALETTE ═══════════════════════════════════════════
+   GENORRA's identity colours, named exactly as the brand guide names
+   them (public/Brand/GENORRA_Brand_Guide.pdf, public/Web/genorra-colors.css).
+   These are FIXED. They are the brand, they are identical in both themes,
+   and nothing outside this file may restate one as a hex.
 
-   These are declared alongside — not instead of — the shadcn semantic
-   tokens below. The two answer different questions: the shadcn ramp
-   dresses generic UI (cards, inputs, borders, destructive), the brand
-   ramp is GENORRA's own identity. See AGENTS.md, "Colours live in one
-   place", for which to reach for.
+   Do not consume these directly in a component. They answer "what colour
+   is GENORRA?", not "what colour is this button?" — that is layer 2's job,
+   and it is the layer that knows about dark mode.
 
-   Deliberately not overridden in `.dark`: the brand hues are fixed, and
-   before centralisation the hardcoded hexes did not vary by theme either.
-   Overriding them is a design decision, and this is where to make it. */
+   The six named brand colours, plus ink, come from the kit verbatim.
+   Everything under "derived" is computed from them for a reason recorded
+   on the line; see AGENTS.md, "Colours live in one place". */
 :root {
-  --brand-navy: #0f2540;        /* primary ink, filled chips, active states */
-  --brand-navy-deep: #011b43;   /* banner hero behind the logo */
-  --brand-tint: #e6ecfa;        /* pale companion to navy: resting pills, text on navy */
-  --brand-mist: #e6ecf1;        /* header bars — a hair greyer than tint (see AGENTS.md) */
-  --brand-teal: #1aa88a;        /* links, h3–h6, unread markers */
-  --brand-green: #6bbe6b;       /* affirmative actions: create, record, pay */
+  --genorra-heritage: #6b2d3a;   /* Heritage  — the primary burgundy */
+  --genorra-warmth: #c65d3a;     /* Warmth    — terracotta */
+  --genorra-growth: #7a7f4e;     /* Growth    — olive */
+  --genorra-legacy: #d6a24a;     /* Legacy    — gold */
+  --genorra-nurturing: #e5d9c6;  /* Nurturing — warm sand */
+  --genorra-light: #faf7f2;      /* Light     — the page ground */
+  --genorra-ink: #2e1c22;        /* Ink       — body text */
+
+  /* ── Derived ──────────────────────────────────────────────────────
+     Brand colours are chosen for artwork, where nothing has to be read
+     at 14px. Three of them fail WCAG AA as body text, so text roles use
+     a deepened tone rather than the poster colour. Ratios are against
+     --genorra-light unless noted. */
+  --genorra-warmth-deep: #af5336;    /* Warmth at AA: 4.78 (poster warmth is 3.91) */
+  --genorra-growth-deep: #6f7047;    /* carries --genorra-light as text at 4.81 */
+  --genorra-growth-lift: #8f9166;    /* dark mode: carries ink at 4.91 */
+  --genorra-heritage-deep: #46232c;  /* banner hero — depth behind the lockup */
+  --genorra-heritage-lift: #7d474f;  /* dark mode fill: carries light at 6.81 */
+
+  /* Dark-mode grounds. Warm near-blacks mixed toward ink, never neutral
+     grey — a grey ground under burgundy reads as a bruise. */
+  --genorra-ground-dark: #1e1216;
+  --genorra-card-dark: #26191e;
+  --genorra-soft-dark: #3a2028;
+  --genorra-hero-dark: #2a1319;
+  --genorra-border-dark: #402931;
+  --genorra-muted-fg-dark: #b9afa4;
+
+  /* Light-mode warm neutrals. The greys are tinted toward the brand so
+     borders and muted text sit in the same family as everything else. */
+  --genorra-border-light: #e7dccf;
+  --genorra-muted-light: #f2ece3;
+  --genorra-muted-fg-light: #6d5a53;  /* 5.98 on --genorra-light */
 }
 
+/* ══ LAYER 2 — THE ROLES ═════════════════════════════════════════════
+   What a colour is FOR. This is the layer components consume, and the
+   only layer that changes between themes.
+
+   Each role names a job, not a hue, which is what lets dark mode redefine
+   it honestly: `--brand-ink` is burgundy on a cream page and sand on a dark
+   one, and both are correct because the role is "strong brand text", not
+   "burgundy". A token called `--brand-burgundy` holding sand would be a lie,
+   and that is the trap this split exists to avoid.
+
+   Pairs are load-bearing: every `--brand-x` that is a surface has a
+   `--brand-on-x` that is guaranteed to meet AA on it. Never mix a
+   foreground from one pair onto the surface of another. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.55 0.148 149);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.94 0.04 149);
-  --accent-foreground: oklch(0.35 0.1 149);
+  --brand-primary: var(--genorra-heritage);      /* filled chips, buttons, active rail */
+  --brand-on-primary: var(--genorra-nurturing);  /* 7.31 on primary */
+  --brand-ink: var(--genorra-heritage);          /* strong brand text, h1/h2 — 9.53 */
+  --brand-soft: var(--genorra-nurturing);        /* resting pills, hover wells */
+  --brand-on-soft: var(--genorra-heritage);      /* 7.31 on soft */
+  --brand-bar: var(--genorra-nurturing);         /* header bars */
+  --brand-hero: var(--genorra-heritage-deep);    /* the banner band */
+  --brand-accent: var(--genorra-warmth-deep);    /* links, h3–h6, unread markers — 4.78 */
+  --brand-affirm: var(--genorra-growth-deep);    /* create, record, pay */
+  --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
+  --brand-legacy: var(--genorra-legacy);         /* premium accent — SURFACE ONLY, see below */
+}
+
+/* Dark mode takes its cue from the kit's own dark app icon: gold on deep
+   burgundy. So `--brand-accent` becomes Legacy gold here rather than a
+   lightened terracotta — it is the brand's existing answer for "the warm
+   mark on a dark ground", and gold finally gets to carry text, which it
+   cannot do on a cream page (2.30, see --brand-legacy below). */
+.dark {
+  --brand-primary: var(--genorra-heritage-lift);
+  --brand-on-primary: var(--genorra-light);      /* 6.81 on primary */
+  --brand-ink: var(--genorra-nurturing);         /* 13.07 on the dark ground */
+  --brand-soft: var(--genorra-soft-dark);
+  --brand-on-soft: var(--genorra-nurturing);     /* 10.64 on soft */
+  --brand-bar: var(--genorra-card-dark);
+  --brand-hero: var(--genorra-hero-dark);
+  --brand-accent: var(--genorra-legacy);         /* 7.91 on ground, 7.36 on card */
+  --brand-affirm: var(--genorra-growth-lift);
+  --brand-on-affirm: var(--genorra-ink);         /* 4.91 on affirm */
+  --brand-legacy: var(--genorra-legacy);
+}
+
+/* --brand-legacy is the one role with no `on-` partner, deliberately.
+   Gold is 2.30 on white and 1.65 on sand: it can never carry text in light
+   mode, and a partner token would invite exactly that. Use it as a SURFACE
+   with `text-brand-ink`-adjacent dark text on it (ink on gold is 6.99), or
+   as a non-text accent — a rule, a dot, a border. */
+
+:root {
+  --background: var(--genorra-light);
+  --foreground: var(--genorra-ink);
+  --card: #ffffff;
+  --card-foreground: var(--genorra-ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--genorra-ink);
+  --primary: var(--genorra-heritage);
+  --primary-foreground: var(--genorra-nurturing);
+  --secondary: var(--genorra-nurturing);
+  --secondary-foreground: var(--genorra-heritage);
+  --muted: var(--genorra-muted-light);
+  --muted-foreground: var(--genorra-muted-fg-light);
+  --accent: var(--genorra-nurturing);
+  --accent-foreground: var(--genorra-heritage);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.55 0.148 149);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: var(--genorra-border-light);
+  --input: var(--genorra-border-light);
+  --ring: var(--genorra-heritage);
+  --chart-1: var(--genorra-heritage);
+  --chart-2: var(--genorra-warmth);
+  --chart-3: var(--genorra-growth);
+  --chart-4: var(--genorra-legacy);
+  --chart-5: var(--genorra-nurturing);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--genorra-light);
+  --sidebar-foreground: var(--genorra-ink);
+  --sidebar-primary: var(--genorra-heritage);
+  --sidebar-primary-foreground: var(--genorra-nurturing);
+  --sidebar-accent: var(--genorra-nurturing);
+  --sidebar-accent-foreground: var(--genorra-heritage);
+  --sidebar-border: var(--genorra-border-light);
+  --sidebar-ring: var(--genorra-heritage);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: var(--genorra-ground-dark);
+  --foreground: var(--genorra-light);
+  --card: var(--genorra-card-dark);
+  --card-foreground: var(--genorra-light);
+  --popover: var(--genorra-card-dark);
+  --popover-foreground: var(--genorra-light);
+  --primary: var(--genorra-heritage-lift);
+  --primary-foreground: var(--genorra-light);
+  --secondary: var(--genorra-soft-dark);
+  --secondary-foreground: var(--genorra-nurturing);
+  --muted: var(--genorra-soft-dark);
+  --muted-foreground: var(--genorra-muted-fg-dark);
+  --accent: var(--genorra-soft-dark);
+  --accent-foreground: var(--genorra-nurturing);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: var(--genorra-border-dark);
+  --input: var(--genorra-border-dark);
+  --ring: var(--genorra-legacy);
+  --chart-1: var(--genorra-legacy);
+  --chart-2: var(--genorra-warmth);
+  --chart-3: var(--genorra-growth-lift);
+  --chart-4: var(--genorra-heritage-lift);
+  --chart-5: var(--genorra-nurturing);
+  --sidebar: var(--genorra-card-dark);
+  --sidebar-foreground: var(--genorra-light);
+  --sidebar-primary: var(--genorra-heritage-lift);
+  --sidebar-primary-foreground: var(--genorra-light);
+  --sidebar-accent: var(--genorra-soft-dark);
+  --sidebar-accent-foreground: var(--genorra-nurturing);
+  --sidebar-border: var(--genorra-border-dark);
+  --sidebar-ring: var(--genorra-legacy);
 }
 
 @layer base {
@@ -155,18 +240,38 @@
   html {
     @apply font-sans;
   }
+  /* h1/h2 are the display voice: Cormorant Garamond, the brand's serif.
+     h3–h6 stay in Inter — Cormorant is a high-contrast old-style face that
+     goes thin and hard to read below about 20px, which is exactly the size
+     a functional subhead runs at. The serif is for statements, not labels. */
   h1, h2 {
-    color: var(--brand-navy);
+    font-family: var(--font-display-serif), Georgia, serif;
+    color: var(--brand-ink);
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
   h3, h4, h5, h6 {
-    color: var(--brand-teal);
+    color: var(--brand-accent);
   }
   /* Unscoped on purpose and load-bearing — but note it paints EVERY anchor,
      including nav items that are not meant to read as links. Components that
      need to escape it set an explicit text colour; see MainRail. */
   a {
-    color: var(--brand-teal);
+    color: var(--brand-accent);
   }
+}
+
+/* The wordmark, set rather than placed as artwork. The brand board draws
+   GENORRA as widely letterspaced Cormorant caps; reproducing that in CSS
+   keeps it crisp at every size, recolourable per theme, and selectable as
+   text — none of which an <img> of the wordmark would be. */
+.gn-wordmark {
+  font-family: var(--font-display-serif), Georgia, serif;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  /* The tracking is applied to the right of the last letter too, which
+     visually decentres the word inside its box. Pull it back. */
+  margin-right: -0.18em;
 }
 
 /* ── Landing-page feature animations ───────────────────────────── */
