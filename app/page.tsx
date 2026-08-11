@@ -126,6 +126,12 @@ export default function LandingPage() {
               constraint, not the size. The stacked lockup is 1.27:1 and comes out around
               281px in the same slot. See BRAND_LOCKUP_STACKED_DARK_SRC.
 
+              That 281px assumes the image is allowed the full content width. It is
+              `max-w-sm` and not `max-w-xs` for exactly that reason: at max-w-xs the
+              cap (320px) bit before the column (358px on a 390px phone) did, so the
+              stacked art rendered 252px and gave back a third of what art-directing
+              it was worth. Any cap here must stay above the widest phone column.
+
               <picture> rather than two <Image>s hidden by CSS: `hidden` does not stop
               the fetch, so that ships both ~50KB SVGs to every phone to display one.
               next/image was doing no work here — SVG has nothing to convert or resize —
@@ -141,14 +147,14 @@ export default function LandingPage() {
               width={1400}
               height={1100}
               fetchPriority="high"
-              className="mx-auto h-auto w-full max-w-xs sm:max-w-2xl lg:max-w-3xl"
+              className="mx-auto h-auto w-full max-w-sm sm:max-w-2xl lg:max-w-3xl"
             />
           </picture>
 
           {/* A gold diamond on a hairline rule — the same diamond that sits at
               the foot of the mark, reused as the divider between the artwork and
               the message. Decorative, so it is hidden from assistive tech. */}
-          <div aria-hidden="true" className="gn-rise gn-rise-1 mt-8 flex w-full max-w-xs items-center gap-3">
+          <div aria-hidden="true" className="gn-rise gn-rise-1 mt-8 flex w-full max-w-sm items-center gap-3">
             <span className="h-px flex-1 bg-brand-legacy/30" />
             <span className="size-1.5 rotate-45 bg-brand-legacy/80" />
             <span className="h-px flex-1 bg-brand-legacy/30" />
@@ -157,7 +163,12 @@ export default function LandingPage() {
           {/* h1 needs an explicit colour on every dark ground: the base layer
               paints h1/h2 with --brand-ink, which is burgundy in light mode and
               would be invisible here. */}
-          <h1 className="gn-rise gn-rise-2 mt-7 text-3xl leading-[1.15] text-brand-on-primary sm:text-4xl lg:text-5xl">
+          {/* No `sm:` step: sm was text-4xl too, so the phone was the only size
+              running at text-3xl — 30px of serif under a 252px lockup, which is
+              what made the hero read as small. Serif at display sizes also looks
+              optically smaller than sans at the same px, so the phone is exactly
+              where it could least afford the smaller step. */}
+          <h1 className="gn-rise gn-rise-2 mt-7 text-4xl leading-[1.15] text-brand-on-primary lg:text-5xl">
             {APP_LEAD}
           </h1>
 
