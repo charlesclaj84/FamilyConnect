@@ -4,6 +4,7 @@ import { User, Users, CalendarCheck, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
+import { Reveal } from '@/components/marketing/Reveal'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT,
@@ -101,28 +102,42 @@ export default function LandingPage() {
               against a 60px headline that ran to two lines, and the artwork read
               as a caption to the type rather than the other way round. The brand
               should arrive first. */}
+          {/* The stagger runs lockup → rule → headline → promise → actions →
+              fine print, so the brand lands before the sentence does. It is CSS
+              (`gn-rise` in globals.css), not `Reveal`: this is above the fold,
+              and an intersection observer here would hold the hero blank until
+              React hydrated. */}
           <Image
             src={BRAND_LOCKUP_DARK_SRC}
             alt={APP_BANNER_ALT}
             width={1700}
             height={520}
-            className="h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
+            className="gn-rise h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
             priority
           />
+
+          {/* A gold diamond on a hairline rule — the same diamond that sits at
+              the foot of the mark, reused as the divider between the artwork and
+              the message. Decorative, so it is hidden from assistive tech. */}
+          <div aria-hidden="true" className="gn-rise gn-rise-1 mt-8 flex w-full max-w-xs items-center gap-3">
+            <span className="h-px flex-1 bg-brand-legacy/30" />
+            <span className="size-1.5 rotate-45 bg-brand-legacy/80" />
+            <span className="h-px flex-1 bg-brand-legacy/30" />
+          </div>
 
           {/* h1 needs an explicit colour on every dark ground: the base layer
               paints h1/h2 with --brand-ink, which is burgundy in light mode and
               would be invisible here. */}
-          <h1 className="mt-8 text-3xl leading-[1.15] text-brand-on-primary sm:text-4xl lg:text-5xl">
+          <h1 className="gn-rise gn-rise-2 mt-7 text-3xl leading-[1.15] text-brand-on-primary sm:text-4xl lg:text-5xl">
             {APP_LEAD}
           </h1>
 
-          <p className="mt-5 max-w-xl text-lg text-brand-on-primary/80 sm:text-xl">
+          <p className="gn-rise gn-rise-3 mt-5 max-w-xl text-lg text-brand-on-primary/80 sm:text-xl">
             The all-in-one portal to plan events, share memories, and keep your family
             close — no matter the distance.
           </p>
 
-          <div className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+          <div className="gn-rise gn-rise-4 mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
             <Link href="/register" className="sm:w-auto">
               {/* Gold on burgundy is the brand's signature pairing and the single
                   highest-contrast thing on the page, which is where the primary
@@ -145,7 +160,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <p className="mt-7 text-sm text-brand-on-primary/70">
+          <p className="gn-rise gn-rise-5 mt-7 text-sm text-brand-on-primary/70">
             Private &amp; secure — your family&apos;s data is never shared or sold.
           </p>
         </div>
@@ -157,19 +172,24 @@ export default function LandingPage() {
           to see. Border plus an ink-tinted shadow gives them an actual edge. */}
       <section aria-label={`What ${APP_NAME} is for`} className="bg-background px-4 py-16 sm:py-20">
         <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-3">
-          {APP_VALUES.map(value => {
+          {APP_VALUES.map((value, i) => {
             const { blurb, icon: Icon, tone, chip } = VALUE_DETAIL[value]
             return (
-              <div
-                key={value}
-                className="rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]"
-              >
-                <div className={`mb-4 inline-flex rounded-xl p-2.5 ${chip}`}>
-                  <Icon className={`h-6 w-6 ${tone}`} aria-hidden="true" />
+              // Below the fold, so these use the observer rather than the CSS
+              // stagger. The delay walks left to right, which is the direction
+              // they are read; revealing all three at once wastes the sequence.
+              <Reveal key={value} delay={i * 110} className="h-full">
+                <div className="group h-full rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
+                  {/* The chip scales, the card does not move. These cards are not
+                      links, and a card that lifts under the cursor promises a
+                      click that never happens — the icon is enough of a response. */}
+                  <div className={`mb-4 inline-flex rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100 ${chip}`}>
+                    <Icon className={`h-6 w-6 ${tone}`} aria-hidden="true" />
+                  </div>
+                  <h2 className="mb-2 text-lg uppercase tracking-[0.14em]">{value}</h2>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{blurb}</p>
                 </div>
-                <h2 className="mb-2 text-lg uppercase tracking-[0.14em]">{value}</h2>
-                <p className="text-sm leading-relaxed text-muted-foreground">{blurb}</p>
-              </div>
+              </Reveal>
             )
           })}
         </div>

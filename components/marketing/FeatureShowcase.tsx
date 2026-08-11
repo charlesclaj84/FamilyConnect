@@ -1,6 +1,8 @@
-'use client'
-
-import { useEffect, useRef, useState } from 'react'
+// No 'use client'. Extracting Reveal took the last hook out of this file, and
+// what remains is data and markup — so the whole showcase (three spotlights,
+// eight feature cards, all their copy) renders on the server and ships no JS.
+// Only `Reveal` itself crosses to the client. Adding a hook or a handler here
+// would need the directive back; prefer putting it in a small client child.
 import type { ReactNode } from 'react'
 import {
   Calendar, Wallet, GitBranch, Vote, Megaphone, MessageCircle, Camera,
@@ -9,6 +11,7 @@ import {
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
+import { Reveal } from '@/components/marketing/Reveal'
 
 // Whether to mark an entry "Coming Soon". Anything tied to a route reads its
 // status from lib/features.ts so the landing page can't drift from the app;
@@ -25,38 +28,6 @@ function ComingSoonPill({ className }: { className?: string }) {
     )}>
       Coming Soon
     </span>
-  )
-}
-
-// ── Scroll-reveal helper ─────────────────────────────────────────────────────
-
-function Reveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); io.disconnect() } },
-      { threshold: 0.15 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={cn(
-        'transition-all duration-700 ease-out will-change-transform motion-reduce:transition-none',
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8',
-        className,
-      )}
-    >
-      {children}
-    </div>
   )
 }
 

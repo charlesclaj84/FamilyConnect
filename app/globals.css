@@ -335,6 +335,31 @@
   background-size: 200% 100%;
   animation: gn-shimmer 3.5s linear infinite;
 }
+
+/* ── Entrance stagger, for ABOVE the fold ─────────────────────────
+   The hero is on screen the instant the page paints, so its entrance must
+   not wait for React. This is pure CSS and runs during the first paint;
+   `Reveal` (an intersection observer) is the tool for content further down,
+   and using it up here would hold the hero blank until hydration.
+
+   The opacity:0 lives ONLY inside the keyframe, never on `.gn-rise` itself.
+   That is what makes the reduced-motion rule below safe: killing the
+   animation leaves the element at its normal, visible styles rather than
+   stranding it invisible. Never move that 0 onto the class.
+
+   Ease-out with no bounce — the brand is heritage and permanence, and a
+   springy overshoot reads as a consumer app. */
+@keyframes gn-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.gn-rise { animation: gn-rise 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.gn-rise-1 { animation-delay: 60ms; }
+.gn-rise-2 { animation-delay: 150ms; }
+.gn-rise-3 { animation-delay: 240ms; }
+.gn-rise-4 { animation-delay: 330ms; }
+.gn-rise-5 { animation-delay: 420ms; }
+
 @media (prefers-reduced-motion: reduce) {
-  .gn-float, .gn-float-slow, .gn-shimmer { animation: none; }
+  .gn-float, .gn-float-slow, .gn-shimmer, .gn-rise { animation: none; }
 }
