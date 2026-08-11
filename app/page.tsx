@@ -178,7 +178,15 @@ export default function LandingPage() {
               // Below the fold, so these use the observer rather than the CSS
               // stagger. The delay walks left to right, which is the direction
               // they are read; revealing all three at once wastes the sequence.
-              <Reveal key={value} delay={i * 110} className="h-full">
+              //
+              // 190ms apart, not the 110ms this started at. Around 100ms is the
+              // threshold where a sequence stops reading as one event and starts
+              // reading as a walk, so 110 sat right on it and the cascade was
+              // more inferred than seen. This is comfortably past it while still
+              // finishing inside a second — the last card begins at 380ms and
+              // lands at 1080ms, and much beyond that a visitor who has already
+              // read card one is waiting on card three.
+              <Reveal key={value} delay={i * 190} className="h-full">
                 <div className="group h-full rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
                   {/* The chip scales, the card does not move. These cards are not
                       links, and a card that lifts under the cursor promises a
