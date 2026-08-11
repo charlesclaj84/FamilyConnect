@@ -10,9 +10,10 @@ import { APP_NAME, APP_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/br
  * the wrong choice here — it disappears into a pale home-screen wallpaper, which
  * is exactly the case an app icon has to survive.
  *
- * `sizes` are the kit's real exports. There is no 192px in the package, so this
- * declares 256 rather than shipping a 180 renamed to 192 — a manifest that lies
- * about a size makes the browser scale it and the mark goes soft.
+ * `sizes` are the kit's real exports and must stay honest — a manifest that lies
+ * about a size makes the browser scale it and the mark goes soft. Kit v1.0 had no
+ * 192px, so this declared 256; v1.1 added a real one, and 192 + 512 is the pair
+ * Android actually looks for.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -24,6 +25,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: BRAND_THEME_COLOR.dark,
     theme_color: BRAND_THEME_COLOR.light,
     icons: [
+      { src: '/identity/genorra-app-192.png', sizes: '192x192', type: 'image/png' },
       { src: '/identity/genorra-app-256.png', sizes: '256x256', type: 'image/png' },
       { src: '/identity/genorra-app-512.png', sizes: '512x512', type: 'image/png' },
     ],

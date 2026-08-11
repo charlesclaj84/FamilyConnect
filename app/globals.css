@@ -75,13 +75,19 @@
    Everything under "derived" is computed from them for a reason recorded
    on the line; see AGENTS.md, "Colours live in one place". */
 :root {
+  /* Kit v1.1 (public/Web/genorra-design-tokens.json). v1.1 supersedes v1.0 and
+     changed two things that matter here: Ink lightened #2E1C22 → #3C2528, and
+     Rose became a NAMED brand colour rather than just a gradient stop in the
+     mark. Ink is a foreground in three roles, so that shift moved real ratios —
+     see --genorra-growth-lift below for the one it broke. */
   --genorra-heritage: #6b2d3a;   /* Heritage  — the primary burgundy */
   --genorra-warmth: #c65d3a;     /* Warmth    — terracotta */
   --genorra-growth: #7a7f4e;     /* Growth    — olive */
   --genorra-legacy: #d6a24a;     /* Legacy    — gold */
   --genorra-nurturing: #e5d9c6;  /* Nurturing — warm sand */
   --genorra-light: #faf7f2;      /* Light     — the page ground */
-  --genorra-ink: #2e1c22;        /* Ink       — body text */
+  --genorra-rose: #b86766;       /* Rose      — the mark's warm mid-tone */
+  --genorra-ink: #3c2528;        /* Ink       — body text, 13.21 on Light */
 
   /* ── Derived ──────────────────────────────────────────────────────
      Brand colours are chosen for artwork, where nothing has to be read
@@ -90,7 +96,10 @@
      --genorra-light unless noted. */
   --genorra-warmth-deep: #af5336;    /* Warmth at AA: 4.78 (poster warmth is 3.91) */
   --genorra-growth-deep: #6f7047;    /* carries --genorra-light as text at 4.81 */
-  --genorra-growth-lift: #8f9166;    /* dark mode: carries ink at 4.91 */
+  /* Lightened for kit v1.1. At #8F9166 this carried the OLD ink at 4.91; the
+     v1.1 ink is lighter and dropped that pair to 4.31, under AA. This is the
+     one ratio the palette change actually broke — it now reads 4.61. */
+  --genorra-growth-lift: #95966c;    /* dark mode: carries ink at 4.61 */
   --genorra-heritage-deep: #46232c;  /* banner hero — depth behind the lockup */
   --genorra-heritage-lift: #7d474f;  /* dark mode fill: carries light at 6.81 */
 
