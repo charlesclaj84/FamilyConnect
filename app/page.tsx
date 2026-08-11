@@ -34,7 +34,7 @@ const VALUE_DETAIL: Record<(typeof APP_VALUES)[number], {
     chip: 'bg-brand-accent/12',
   },
   Plan: {
-    blurb: 'Reunions that practically run themselves, from the first save-the-date to day-of check-in.',
+    blurb: 'Family Reunions and events that practically run themselves, from the first save-the-date to day-of check-in.',
     icon: CalendarCheck,
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
@@ -95,19 +95,25 @@ export default function LandingPage() {
         </div>
 
         <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
+          {/* The lockup steps up with the viewport and fills the column at lg.
+              It is a 3.27:1 horizontal lockup, so a width that looks generous as
+              a number still renders short — at max-w-lg it stood 157px tall
+              against a 60px headline that ran to two lines, and the artwork read
+              as a caption to the type rather than the other way round. The brand
+              should arrive first. */}
           <Image
             src={BRAND_LOCKUP_DARK_SRC}
             alt={APP_BANNER_ALT}
             width={1700}
             height={520}
-            className="h-auto w-full max-w-lg"
+            className="h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
             priority
           />
 
           {/* h1 needs an explicit colour on every dark ground: the base layer
               paints h1/h2 with --brand-ink, which is burgundy in light mode and
               would be invisible here. */}
-          <h1 className="mt-9 text-4xl leading-[1.12] text-brand-on-primary sm:text-5xl lg:text-6xl">
+          <h1 className="mt-8 text-3xl leading-[1.15] text-brand-on-primary sm:text-4xl lg:text-5xl">
             {APP_LEAD}
           </h1>
 

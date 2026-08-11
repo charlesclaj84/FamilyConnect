@@ -7,7 +7,7 @@ import {
   FileText, ShieldCheck, BarChart3, Store, Check, ImageIcon, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isFeatureFuture, LIVE_FEATURES } from '@/lib/features'
+import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
 
 // Whether to mark an entry "Coming Soon". Anything tied to a route reads its
@@ -139,7 +139,7 @@ interface Spotlight {
 const spotlights: Spotlight[] = [
   {
     eyebrow: 'Plan it all',
-    title: 'Reunions that practically run themselves',
+    title: 'Family Reunions and events that practically run themselves',
     blurb: 'From the first save-the-date to the day-of check-in, every detail of your family gathering lives in one place — and everyone stays on the same page.',
     bullets: [
       'Multi-day itineraries with nested sub-events',
@@ -174,7 +174,7 @@ const spotlights: Spotlight[] = [
     feature: '/family-finances',
   },
   {
-    eyebrow: 'Know your people',
+    eyebrow: 'Know your family',
     title: 'Every branch of the family, mapped',
     blurb: 'Build the living record of your family — who is related to whom, how to reach them, and the legacy that connects every generation.',
     bullets: [
@@ -280,12 +280,7 @@ export function FeatureShowcase() {
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             {APP_NAME} replaces the group texts, spreadsheets, and shoeboxes of receipts with
-            one beautiful, private home for your people, your plans, and your money.
-          </p>
-          <p className="text-sm text-muted-foreground max-w-2xl mx-auto mt-4">
-            <span className="font-medium text-foreground">Live today:</span>{' '}
-            {LIVE_FEATURES.map(f => f.label).join(' · ')}. Everything marked
-            {' '}<ComingSoonPill className="align-middle" />{' '}is on the way.
+            one beautiful, private home for your family, your plans, and your money.
           </p>
         </Reveal>
 
