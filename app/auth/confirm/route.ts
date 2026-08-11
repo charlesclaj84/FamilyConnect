@@ -60,8 +60,14 @@ export async function GET(request: NextRequest) {
 
   // Recovery lands on the password form rather than the dashboard — the user asked to
   // change their password, and a session alone does not do that for them.
+  //
+  // This pointed at `/forgot-password?stage=reset` until 2026-08-11, and that page ignores
+  // the query: it renders the "enter your email" form, so clicking the link in a reset
+  // email asked you to request a reset email. Meanwhile ForgotPasswordForm's redirectTo
+  // named `/update-password`, which did not exist. Two destinations, both wrong, neither
+  // reachable by the other. `/update-password` is now real and is the single answer.
   if (type === 'recovery') {
-    return NextResponse.redirect(new URL('/forgot-password?stage=reset', request.url))
+    return NextResponse.redirect(new URL('/update-password', request.url))
   }
 
   return NextResponse.redirect(new URL(next, request.url))

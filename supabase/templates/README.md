@@ -13,31 +13,36 @@ comment; everything else is below.
 | File | Config key | Dashboard name | Triggered by | Status |
 |---|---|---|---|---|
 | `confirmation.html` | `confirmation` | Confirm signup | sign-up | **live** |
-| `recovery.html` | `recovery` | Reset password | `resetPasswordForEmail` | **live**, lands nowhere — TODO item 0 |
+| `recovery.html` | `recovery` | Reset password | `resetPasswordForEmail` → `/auth/confirm` → `/update-password` | **live** |
+| `email-change.html` | `email_change` | Change email address | `auth.updateUser({ email })` — Sign-in & Security | **live** |
+| `reauthentication.html` | `reauthentication` | Reauthentication | `auth.reauthenticate()` — same section | **live** |
 | `invite.html` | `invite` | Invite user | `auth.admin.inviteUserByEmail()` | dormant — nothing calls it |
-| `email-change.html` | `email_change` | Change email address | `auth.updateUser({ email })` | dormant — nothing calls it |
-| `reauthentication.html` | `reauthentication` | Reauthentication | `auth.reauthenticate()` | dormant — and `secure_password_change` is `false` |
 
-**Three are dormant on purpose.** Every GoTrue default links with
-`{{ .ConfirmationURL }}`, so leaving one stock means the first person ever to use that
-flow hits the fragment bug below — a successful action and no session, in production, on
-the day somebody flips a switch they think is unrelated. Overriding all five costs
-nothing now and removes that trap.
+Four of the five were dormant when they were written, and overriding them anyway is what
+made activating them a one-commit job rather than a bug hunt. Every GoTrue default links
+with `{{ .ConfirmationURL }}`, so a stock tab means the first person ever to use that flow
+hits the fragment bug below — a successful action and no session, in production, on the
+day somebody flips a switch they think is unrelated.
+
+`invite.html` stays overridden for exactly that reason, though nothing calls it.
 
 ## `invite.html` is not the family invitation email
 
 The one thing in this directory most likely to be misread. There are two unrelated
-invitation systems:
+invitation systems, and only one of them is here:
 
 * **The family invitation** — `family_invitations`, `InviteMemberDialog`,
-  `/invite/<token>`. It carries pre-approval and a target family, and it deliberately
-  **sends no email**: the dialog hands back a link for the inviter to send by hand.
+  `/invite/<token>`. It carries pre-approval and a target family. Since 2026-08-11 it
+  emails through [`lib/email/`](../../lib/email/README.md) over Resend's HTTP API, because
+  GoTrue knows nothing about families, family codes or pre-approval. Editing `invite.html`
+  will not change that email.
 * **`invite.html`** — GoTrue's `admin.inviteUserByEmail()`, which nothing in the app
-  calls.
+  calls, and which cannot express either of those things.
 
-Giving the family flow a real email is an **application-level job** — a Resend API call
-from a server action — not a template here, because GoTrue knows nothing about families,
-family codes or pre-approval. Editing this file will not make the dialog send mail.
+There is a second, smaller reason the GoTrue one is still unused: an account it creates
+has no password, so it needs the same set-a-password landing that recovery does. That
+screen now exists at `/update-password`, so wiring it up is no longer blocked — it is
+just not something the product needs while the family flow does the job better.
 
 ## Keeping the two copies in step
 

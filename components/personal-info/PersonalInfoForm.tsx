@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Camera, Loader2, User, MapPin, Info } from 'lucide-react'
+import { Pencil, Camera, Loader2, User, MapPin, Info, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +20,7 @@ import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity'
 import {
   PROFILE_SECTION_LABELS, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
@@ -637,13 +638,23 @@ const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
   { id: 'general', label: PROFILE_SECTION_LABELS.general, icon: User },
   { id: 'address', label: PROFILE_SECTION_LABELS.address, icon: MapPin },
   { id: 'additional', label: PROFILE_SECTION_LABELS.additional, icon: Info },
+  { id: 'security', label: PROFILE_SECTION_LABELS.security, icon: ShieldCheck },
 ]
 
-export function PersonalInfoForm({ existing, chapters = [], initialSection }: {
+/**
+ * Sections whose content is not an editable record, so the rail's Edit trigger would be
+ * meaningless on them. Sign-in & Security carries its own two forms, each with its own
+ * confirmation step; an Edit button above them would suggest a fourth thing to save.
+ */
+const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> = new Set<ProfileSection>(['security'])
+
+export function PersonalInfoForm({ existing, chapters = [], initialSection, signInEmail }: {
   existing: PersonalInfoRecord | null
   chapters?: Chapter[]
   /** Resolved from `?section=` on the server, so the first paint is already right. */
   initialSection: ProfileSection
+  /** `auth.users.email` — the address the account signs in with, not `primary_email`. */
+  signInEmail: string
 }) {
   const router = useRouter()
   const [section, setSection] = useState<ProfileSection>(initialSection)
@@ -681,7 +692,7 @@ export function PersonalInfoForm({ existing, chapters = [], initialSection }: {
         // The active pane's one action, in the slot Transactions and Accounting use for
         // theirs. Hidden while that section is already in edit mode, where Save and
         // Cancel at the foot of the form are the actions that apply.
-        action={!editing && (
+        action={!editing && !NO_EDIT_TRIGGER.has(section) && (
           <Button size="sm" variant="ghost"
             onClick={() => setEditingSection(section)}
             aria-label={`Edit ${PROFILE_SECTION_LABELS[section]}`}>
@@ -708,6 +719,12 @@ export function PersonalInfoForm({ existing, chapters = [], initialSection }: {
         visible={section === 'additional'}
         editing={editingSection === 'additional'}
         onEditDone={() => setEditingSection(null)}
+      />
+      {/* No `editing` prop: this section is never in the rail's edit mode — see
+          NO_EDIT_TRIGGER. Its two forms open and close themselves. */}
+      <SignInSecuritySection
+        visible={section === 'security'}
+        signInEmail={signInEmail}
       />
     </div>
   )

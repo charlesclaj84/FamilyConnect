@@ -2,22 +2,31 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRead } from '@/lib/auth/guard'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { sendEmail, emailOrigin } from '@/lib/email/send'
+import { familyInvitationEmail } from '@/lib/email/templates'
 
 /**
  * Invitations to join a family.
  *
- * NO EMAIL IS SENT, AND THAT IS A STATED LIMITATION RATHER THAN AN OVERSIGHT.
- * This codebase has no mail layer of its own, and `[auth.email.smtp]` is unconfigured
- * on both the local stack and the hosted project (it is a GO LIVE item in TODO.md). So
- * `inviteMember` returns the invitation TOKEN and the dialog turns it into a link for
- * the inviter to send however they like. A button that claimed to send an email which
- * silently never arrived would be worse than one that hands you something that works.
+ * THE INVITATION IS EMAILED, since 2026-08-11. It was not, for as long as this app had
+ * no mail layer and `[auth.email.smtp]` was unconfigured — the dialog returned a link
+ * for the inviter to send by hand, and said so, because a button that claims to send an
+ * email which silently never arrives is worse than one that hands you something that
+ * works. lib/email/ removed that constraint; the hand-send path survives as the FAILURE
+ * case, which is the same reasoning pointed the other way.
  *
  * THE TOKEN IS THE CREDENTIAL. `create_family_invitation()` returns it exactly once
- * and stores only its SHA-256, so it exists in this process, in the response, and
+ * and stores only its SHA-256, so it exists in this process, in the email, and
  * nowhere else. Treat it like a password reset link: it must not be logged, and it
- * must not be put anywhere a third party can read it back.
+ * must not be put anywhere a third party can read it back. It is now withheld from the
+ * response entirely when the email goes out — see InviteResult.
+ *
+ * THE EMAIL GOES TO THE INVITED ADDRESS AND NOWHERE ELSE. Not CC'd to the inviter, not
+ * batched. The address narrows who may redeem ON TOP of the secret, so a copy sent
+ * anywhere else discards that second factor.
  *
  * WHY NOT JUST MATCH ON EMAIL. Because Phase 3 removed a feature that did exactly that
  * and it was an account-takeover vector — with confirmation off, an address is a claim,
@@ -38,8 +47,33 @@ export interface FamilyInvitation {
 }
 
 export type InviteResult =
-  | { success: true; token: string; email: string; preApproved: boolean }
   | { success: false; message: string }
+  | {
+      success: true
+      email: string
+      preApproved: boolean
+      /** Whether the invitation email actually reached the provider. */
+      emailed: boolean
+      /**
+       * The raw token — present ONLY when `emailed` is false.
+       *
+       * Withheld on the happy path deliberately. It is the credential, and the browser
+       * has no use for it once the email carrying it has gone: a value that never
+       * reaches the RSC payload cannot be read out of it. When delivery fails it comes
+       * back so the inviter can still send the link by hand, which is the old flow kept
+       * as the failure path rather than as the normal one.
+       */
+      token?: string
+    }
+
+/**
+ * Mirrors `expires_at DEFAULT NOW() + INTERVAL '14 days'` in 20260806000013.
+ *
+ * Duplicated into TypeScript only to write a sentence in an email. If the migration
+ * changes, this is wrong and nothing will say so — which is why the email says "expires
+ * in N days" rather than printing a date it would be confidently incorrect about.
+ */
+const INVITATION_EXPIRY_DAYS = 14
 
 export type InvitationActionResult =
   | { success: true }
@@ -94,14 +128,72 @@ export async function inviteMember(
     return { success: false, message: data?.message ?? 'Could not create that invitation.' }
   }
 
+  const invitedEmail = data.email ?? normalized
+
+  // Send it. The RPC returns the token exactly once and stores only its SHA-256, so this
+  // is the only moment it exists in readable form anywhere.
+  //
+  // The lookups below use the SERVICE ROLE for a specific reason: `familyCode` may name a
+  // family other than the active one (/my-families offers this on every row), and
+  // auth_family_code() resolves only to the ACTIVE family — so the user client would read
+  // nothing for exactly the case this feature exists to serve. The RPC has already proved
+  // the caller has an approved people row in the target family, which is what earns the
+  // read; the .eq('family_code', …) on both queries is what applies it (AGENTS.md §3).
+  const targetFamily = familyCode?.trim().toUpperCase() || await getMyFamilyCode(user.id)
+  let emailed = false
+
+  try {
+    const admin = createAdminClient()
+
+    const { data: family } = await admin
+      .from('families')
+      .select('family_name')
+      .eq('family_code', targetFamily ?? '')
+      .maybeSingle()
+
+    const { data: inviter } = await admin
+      .from('people')
+      .select('first_name, last_name')
+      .eq('family_code', targetFamily ?? '')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const inviterName = inviter
+      ? `${inviter.first_name ?? ''} ${inviter.last_name ?? ''}`.trim()
+      : null
+
+    const mail = familyInvitationEmail({
+      origin: emailOrigin(),
+      familyName: (family?.family_name as string) ?? targetFamily ?? 'your family',
+      inviterName,
+      token: data.token,
+      preApproved: data.pre_approved,
+      expiresInDays: INVITATION_EXPIRY_DAYS,
+    })
+
+    const result = await sendEmail({
+      to: invitedEmail,
+      subject: mail.subject,
+      html: mail.html,
+      tag: mail.tag,
+    })
+    emailed = result.sent
+  } catch {
+    // sendEmail() does not throw, so this is a failed lookup. The invitation is already
+    // minted and valid; falling through with emailed=false hands the link back instead.
+    emailed = false
+  }
+
   // Invitations are listed on the Pending Approval tab of Members & Access.
   revalidatePath('/admin/users')
   revalidatePath('/my-families')
   return {
     success: true,
-    token: data.token,
-    email: data.email ?? normalized,
+    email: invitedEmail,
     preApproved: data.pre_approved,
+    emailed,
+    // See the type: the credential goes to the browser only when the email did not.
+    ...(emailed ? {} : { token: data.token }),
   }
 }
 

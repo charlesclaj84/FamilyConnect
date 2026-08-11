@@ -4,7 +4,7 @@ import { AuthNavButtons } from '@/components/auth/AuthNavButtons'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT,
-  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC,
+  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -40,15 +40,32 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           This band has a sign-in form under it, not a headline — matching the
           landing hero's py-16/py-20 as well would push the form off a laptop
           screen, and the point of this page is the form. */}
+      {/* ART DIRECTION, NOT RESIZING. Below sm the STACKED lockup (1.27:1) is used;
+          from sm up, the horizontal one (3.27:1). The wide lockup on a 390px phone
+          renders about 109px tall however much width it is given, which is why the band
+          read as an ornament rather than a hero — no max-width change could have fixed
+          it, because the aspect ratio was the constraint and not the size.
+
+          A plain <picture> rather than two <Image>s: `hidden` does not stop a browser
+          fetching an image, so the CSS approach ships both ~50KB lockups to every phone
+          to show one. <source media> picks one before the fetch. next/image was buying
+          nothing here anyway — these are SVGs, so there is no format conversion or
+          resizing for it to do — and fetchPriority="high" preserves what `priority` was
+          for, this being the LCP element. */}
       <div className="w-full flex justify-center bg-brand-hero px-4 py-8 sm:py-10">
-        <Image
-          src={BRAND_LOCKUP_DARK_SRC}
-          alt={APP_BANNER_ALT}
-          width={1700}
-          height={520}
-          className="h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
-          priority
-        />
+        {/* `block` is load-bearing: <picture> is inline by default, so the <img>'s
+            w-full would resolve against a shrink-wrapped box. */}
+        <picture className="block w-full">
+          <source media="(min-width: 640px)" srcSet={BRAND_LOCKUP_DARK_SRC} />
+          <img
+            src={BRAND_LOCKUP_STACKED_DARK_SRC}
+            alt={APP_BANNER_ALT}
+            width={1400}
+            height={1100}
+            fetchPriority="high"
+            className="mx-auto h-auto w-full max-w-xs sm:max-w-2xl lg:max-w-3xl"
+          />
+        </picture>
       </div>
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">

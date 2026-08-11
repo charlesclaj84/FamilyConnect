@@ -29,7 +29,10 @@
  * `min-h-0 flex-1 overflow-y-auto` and everything else needs `shrink-0`.
  */
 export const HEADER_PANEL_CLASS = [
-  // Mobile: a sheet under the header. 4.25rem clears the h-16 bar and its 1px border.
+  // Mobile: a sheet under the header. 4.25rem (68px) clears the h-16 bar and the 2px
+  // Legacy gold rule that replaced its 1px border, leaving a 2px breath. If the header's
+  // edge gets thicker again, this and the Sidebar's two `calc(4rem + 2px)` offsets move
+  // together — they are the same measurement written three times.
   // The underscores are Tailwind's escape for the spaces `calc()` requires around a
   // `-`; `calc(100dvh-5.5rem)` is not valid CSS. Same convention as the Sidebar's
   // `top-[calc(4rem_+_1px)]`.

@@ -76,7 +76,15 @@ export default async function PersonalInfoPage({
         </div>
       )}
 
-      <PersonalInfoForm existing={existing} chapters={chapters} initialSection={initialSection} />
+      {/* signInEmail is auth.users.email — the account's identity, not the profile's
+          primary_email. Passed from here rather than read in the client so the Sign-in &
+          Security section paints with it already resolved. */}
+      <PersonalInfoForm
+        existing={existing}
+        chapters={chapters}
+        initialSection={initialSection}
+        signInEmail={user.email ?? ''}
+      />
     </PageShell>
   )
 }

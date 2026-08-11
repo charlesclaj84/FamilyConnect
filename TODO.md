@@ -82,13 +82,25 @@ See the 2026-10-01 section below — it is dated rather than launch-gated, but s
 with an agent holding unprompted `db push` on production is a decision, not an
 oversight.
 
-## 0. PARKED 2026-08-10: "Send Reset Link" leads nowhere, and SMTP is what exposes it
+## FIXED 2026-08-11: "Send Reset Link" led nowhere
 
-**Action:** build the set-a-new-password screen, or take the link off the sign-in page.
-Found while configuring email for launch; it is not caused by that work, but it stops
-being invisible the moment mail actually gets delivered.
+Closed by [`/update-password`](<app/(auth)/update-password/page.tsx>) plus a one-line
+change to [app/auth/confirm/route.ts](app/auth/confirm/route.ts). Kept because the shape
+of the bug — two halves of one flow disagreeing about a destination, both wrong, neither
+reachable from the other — is worth recognising again.
 
-Password reset is broken in two independent places, and each one alone is enough:
+The page is a server component whose whole job is the session check: reaching it without
+one means the link expired, was already used, or somebody typed the URL, and all three
+want the same answer. Deciding that on the server means nobody is shown a password form
+that was never going to work.
+
+**What it did NOT need:** a permission resource, a migration, or an RLS case. It acts on
+`auth.users` through the caller's own session — `updateUser({ password })` — and touches
+no family data, so there is no policy in the path and nothing for `tests/rls` to attack.
+
+### What it was
+
+Password reset was broken in two independent places, and each one alone was enough:
 
 * [ForgotPasswordForm](components/auth/ForgotPasswordForm.tsx) passes
   `redirectTo: ${origin}/update-password`. **There is no `/update-password` route** —
@@ -104,33 +116,28 @@ tell that neither was ever walked end to end. Nobody hit it because `email_sent 
 shared sender meant reset mail mostly did not arrive, and an email that never comes and an
 email that leads nowhere look identical from the sign-in page.
 
-Worth doing properly rather than pointing one at the other:
+### How it was fixed, and what is still owed
 
-1. The recovery template is still GoTrue's stock one, so its link is
-   `{{ .ConfirmationURL }}` — the same fragment problem
-   [supabase/templates/confirmation.html](supabase/templates/confirmation.html) exists to
-   avoid, and the reason `/auth/confirm` was written. A recovery template built the same
-   way (`token_hash`, `type=recovery`) makes the existing route the landing spot and the
-   `redirectTo` argument unnecessary.
-2. Then the only new surface is a password form rendered against the session that route
-   already establishes. `secure_password_change = false` in `config.toml`, so
-   `updateUser({ password })` on a recovery session is enough — worth revisiting, since
-   that setting is what decides whether a stolen recovery link can also change the
-   address on the account.
-3. `https://genorra.com/**` covers `/update-password` on the allow-list either way, so
-   whichever shape wins needs no further URL configuration.
+1. `recovery.html` links with a `token_hash` to `/auth/confirm`, so the `redirectTo`
+   argument in `ForgotPasswordForm` is now belt-and-braces rather than the mechanism. It
+   is left pointing at `/update-password` on purpose: if anyone ever reverts the template
+   to GoTrue's stock one, that argument becomes load-bearing again and now names a route
+   that exists.
+2. `/update-password` renders the form against the session `/auth/confirm` established.
+   It requires 8 characters, matching `RegisterForm`; `minimum_password_length` in
+   `config.toml` is 6, so the UI is the stricter of the two, which is the safe direction.
+3. `https://genorra.com/**` already covered the route on the redirect allow-list.
 
-**The same missing screen blocks a second flow.** A GoTrue invitation
-(`auth.admin.inviteUserByEmail()`) creates an account with no password, so it needs the
-identical set-a-password form on landing. That is why `invite.html` exists but nothing
-calls it — the template is ready and the screen is not. Build the screen once and both
-flows open up. `supabase/templates/recovery.html` and `invite.html` both carry a pointer
-back to this entry.
+**Still owed:** `secure_password_change` is still `false`. The reauthentication nonce is
+verified whenever it is supplied, so the in-app password change is genuinely gated by the
+emailed code — but the flag is what would make a nonce *mandatory*, and turning it on may
+also demand one on the recovery path, where the user has no second code to type. The
+config carries the full note and the flow to test. Until then a caller driving the JS
+client directly can change a password without the code.
 
-Since 2026-08-11 the branded templates for both are in the tree and wired into
-`config.toml`, which changes the risk here in one specific way: reset mail now looks
-entirely legitimate — right domain, right mark, SPF and DKIM passing — and still leads
-nowhere. A polished dead end is worse than a shabby one, because nobody suspects it.
+**The same screen unblocks GoTrue invitations,** which create an account with no password
+and therefore need identical landing. `invite.html` remains unused, but it is no longer
+*blocked* — it is simply not needed while `family_invitations` does the job better.
 
 ## FIXED 2026-08-06: every `public` function was callable by anon
 
@@ -362,11 +369,22 @@ Pre-approval is granted by `create_family_invitation()` only to a caller holding
 admin/approvals:edit, and **silently downgraded** otherwise — verified in the suite by
 having a plain member ask for it and come back with `pre_approved = false`.
 
-**NO EMAIL IS SENT.** There is no mail layer here and SMTP is unconfigured, so the
-dialog returns a link to send by hand. That is a real gap rather than a design choice —
-it belongs with the SMTP box under GO LIVE, and until then "invite" means "generate a
-link". Registration handles `?invite=` so a brand-new invitee is not asked for a family
-code they were never given.
+**~~NO EMAIL IS SENT.~~ FIXED 2026-08-11.** `inviteMember` now composes and sends the
+invitation through [lib/email/](lib/email/README.md) over Resend's HTTP API — an
+application-level send, because GoTrue's own invite template cannot express a target
+family or pre-approval. Registration handles `?invite=` so a brand-new invitee is not
+asked for a family code they were never given.
+
+Two things about the fix worth keeping:
+
+* **The token no longer reaches the browser on the happy path.** It is the credential,
+  and once the email carrying it has gone the dialog has no use for it — a value that
+  never enters the RSC payload cannot be read out of it. `InviteResult.token` is now
+  present only when `emailed` is false.
+* **The copy-a-link flow survives as the FAILURE path.** `sendEmail()` fails soft by
+  design, so a provider outage would otherwise produce a success screen over an email
+  nobody received, leaving the inviter believing their cousin was contacted. When
+  delivery fails the dialog says so plainly and hands back the link.
 
 **FIXED 2026-08-08: nothing ever linked to `?invite=`.** The sentence above was true of
 the register page and false of the flow. `/invite/<token>` sent an unauthenticated

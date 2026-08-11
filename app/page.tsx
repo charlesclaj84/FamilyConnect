@@ -8,7 +8,7 @@ import { Reveal } from '@/components/marketing/Reveal'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT,
-  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC,
+  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
 
 /**
@@ -120,14 +120,30 @@ export default function LandingPage() {
               (`gn-rise` in globals.css), not `Reveal`: this is above the fold,
               and an intersection observer here would hold the hero blank until
               React hydrated. */}
-          <Image
-            src={BRAND_LOCKUP_DARK_SRC}
-            alt={APP_BANNER_ALT}
-            width={1700}
-            height={520}
-            className="gn-rise h-auto w-full max-w-xl sm:max-w-2xl lg:max-w-3xl"
-            priority
-          />
+          {/* ART DIRECTION BELOW sm. The horizontal lockup is 3.27:1, so on a 390px
+              phone it renders about 109px tall whatever max-width it is given — the hero
+              read as small beside the headline under it because the aspect ratio was the
+              constraint, not the size. The stacked lockup is 1.27:1 and comes out around
+              281px in the same slot. See BRAND_LOCKUP_STACKED_DARK_SRC.
+
+              <picture> rather than two <Image>s hidden by CSS: `hidden` does not stop
+              the fetch, so that ships both ~50KB SVGs to every phone to display one.
+              next/image was doing no work here — SVG has nothing to convert or resize —
+              and fetchPriority="high" keeps what `priority` was for on the LCP element. */}
+          {/* `block` is load-bearing: <picture> is inline by default, so the <img>'s
+              w-full would resolve against a shrink-wrapped box. Width lives on the
+              picture, the cap and the centring on the image. */}
+          <picture className="gn-rise block w-full">
+            <source media="(min-width: 640px)" srcSet={BRAND_LOCKUP_DARK_SRC} />
+            <img
+              src={BRAND_LOCKUP_STACKED_DARK_SRC}
+              alt={APP_BANNER_ALT}
+              width={1400}
+              height={1100}
+              fetchPriority="high"
+              className="mx-auto h-auto w-full max-w-xs sm:max-w-2xl lg:max-w-3xl"
+            />
+          </picture>
 
           {/* A gold diamond on a hairline rule — the same diamond that sits at
               the foot of the mark, reused as the divider between the artwork and

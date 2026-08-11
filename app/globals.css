@@ -47,6 +47,7 @@
   --color-brand-on-soft: var(--brand-on-soft);
   --color-brand-bar: var(--brand-bar);
   --color-brand-hero: var(--brand-hero);
+  --color-brand-on-hero: var(--brand-on-hero);
   --color-brand-accent: var(--brand-accent);
   --color-brand-affirm: var(--brand-affirm);
   --color-brand-on-affirm: var(--brand-on-affirm);
@@ -140,6 +141,7 @@
   --brand-on-soft: var(--genorra-heritage);      /* 7.31 on soft */
   --brand-bar: var(--genorra-nurturing);         /* header bars */
   --brand-hero: var(--genorra-heritage-deep);    /* the banner band */
+  --brand-on-hero: var(--genorra-nurturing);     /* 9.80 on hero */
   --brand-accent: var(--genorra-warmth-deep);    /* links, h3–h6, unread markers — 4.78 */
   --brand-affirm: var(--genorra-growth-deep);    /* create, record, pay */
   --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
@@ -174,6 +176,7 @@
   --brand-on-soft: var(--genorra-nurturing);     /* 10.64 on soft */
   --brand-bar: var(--genorra-card-dark);
   --brand-hero: var(--genorra-hero-dark);
+  --brand-on-hero: var(--genorra-light);         /* 16.30 on hero */
   --brand-accent: var(--genorra-legacy);         /* 7.91 on ground, 7.36 on card */
   --brand-affirm: var(--genorra-growth-lift);
   --brand-on-affirm: var(--genorra-ink);         /* 4.91 on affirm */
@@ -228,8 +231,17 @@
   --chart-4: var(--genorra-legacy);
   --chart-5: var(--genorra-nurturing);
   --radius: 0.625rem;
-  --sidebar: var(--genorra-light);
-  --sidebar-foreground: var(--genorra-ink);
+  /* The nav rail is RECESSED from the page, not level with it.
+     This was `--genorra-light` — byte-for-byte `--background` — so the shadcn sidebar
+     ramp existed, was wired to `bg-sidebar`, and described a surface indistinguishable
+     from the one beside it. A 1px border was carrying the whole separation, which is why
+     the nav and the content read as one undivided field.
+     Muted sand is 1.10 against the page: barely a colour difference and entirely enough,
+     because separation between two large adjacent fields is felt rather than measured.
+     Dark mode already did this — card-dark against ground-dark is 1.08 — and is unchanged;
+     only light was flat. */
+  --sidebar: var(--genorra-muted-light);
+  --sidebar-foreground: var(--genorra-ink);   /* 12.02 on sidebar */
   --sidebar-primary: var(--genorra-heritage);
   --sidebar-primary-foreground: var(--genorra-nurturing);
   --sidebar-accent: var(--genorra-nurturing);

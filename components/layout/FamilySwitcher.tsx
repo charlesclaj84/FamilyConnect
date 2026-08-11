@@ -51,7 +51,15 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
         disabled={isPending}
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="menu"
-        className="flex max-w-[8rem] items-center gap-1.5 rounded-lg bg-card/70 px-2 py-1.5 text-sm text-brand-ink transition-colors hover:bg-card disabled:opacity-60 sm:max-w-[14rem] sm:px-2.5"
+        // A SOLID SAND CHIP, not a translucent one. This is the only control in the
+        // header carrying a piece of state rather than an action — which family you are
+        // acting in — and on the Heritage band it should read as the identity chip it is,
+        // not as a third icon button. `bg-card/70` was a wash of the generic card colour
+        // over burgundy, which came out muddy and put the one thing worth reading at the
+        // lowest contrast in the bar.
+        //
+        // --brand-soft / --brand-on-soft is a checked pair (7.31) in both themes.
+        className="flex max-w-[8rem] items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1.5 text-sm font-medium text-brand-on-soft shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60 sm:max-w-[14rem] sm:px-3"
         title={`Viewing ${active.familyName} — click to switch family`}
       >
         <Home className="h-4 w-4 shrink-0" />
@@ -101,7 +109,13 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                         one waiting on two families at once. */}
                     {family.status === 'pending' && (
                       <span
-                        className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                        // --brand-accent, not text-amber-700. The amber was a raw
+                        // Tailwind palette colour — not a hex, so the ban in AGENTS.md
+                        // did not literally catch it, but equally untokenised and equally
+                        // invisible to a rebrand. It also had no dark treatment: amber-700
+                        // on the dark card was the muddiest thing in the panel. The accent
+                        // role IS the attention marker, and it resolves to gold in dark.
+                        className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-accent"
                         title="Waiting for approval"
                       >
                         <Clock className="h-3 w-3" /> Pending

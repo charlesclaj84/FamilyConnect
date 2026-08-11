@@ -364,6 +364,36 @@ run never called it. Two things follow:
 migrations applied — because it is waiting on a confirmation prompt. Redirect stdin:
 `npx supabase db push --linked < /dev/null`.
 
+# Sending email is a plain module, never a server action
+
+`lib/email/` sends the mail the **app** composes — membership approved, family invitation.
+`supabase/templates/` is the mail **GoTrue** sends. Both go out through one Resend
+account, over different protocols, and [lib/email/README.md](lib/email/README.md) has the
+full picture.
+
+One rule matters more than the rest, and it is the same rule `lib/notifications.ts` and
+`lib/invitations.ts` are built on:
+
+**Never export a sender from a `'use server'` file.** Everything exported from one gets a
+URL, so a `sendEmail` export is an **open relay** — any signed-in user could POST an
+arbitrary recipient, subject and body and have it delivered over GENORRA's authenticated
+domain, carrying our SPF and DKIM. That is phishing with the product's reputation
+attached, not spam. Keep the senders in plain modules and let actions import them.
+
+Two more that have already shaped call sites:
+
+* **The origin comes from configuration, never a request header.** `Host` and
+  `X-Forwarded-Host` are attacker-controlled, and here they would control the hostname
+  inside a link an email tells someone to trust. `emailOrigin()` reads
+  `NEXT_PUBLIC_SITE_URL`; set it to match `auth.site_url` in `supabase/config.toml`.
+* **Sending fails soft, so the UI owes the truth.** `sendEmail()` never throws — every
+  call site runs *after* a decision is committed, and a mail outage must not roll back an
+  approval or surface as a failure to the administrator who clicked it. The cost is that a
+  dropped message is invisible to whoever was expecting it, so a caller must not render
+  success over an email that did not go. `inviteMember` is the worked example: it withholds
+  the invitation token when the send worked and hands it back, with an explicit failure
+  notice, when it did not.
+
 # The main rail is a standard component
 
 `components/layout/MainRail.tsx` is **the default primary in-page navigation**. A page

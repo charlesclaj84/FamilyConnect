@@ -7,6 +7,8 @@ import { requireRead } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createNotification } from '@/lib/notifications'
+import { sendEmail, emailOrigin } from '@/lib/email/send'
+import { membershipApprovedEmail } from '@/lib/email/templates'
 
 /**
  * Member Approvals: review, admit or refuse the people who have asked to join.
@@ -215,6 +217,64 @@ async function decide(
       })
     } catch {
       // The decision is recorded; failing to announce it must not undo it.
+    }
+  }
+
+  // ...and email them, if they got in.
+  //
+  // BOTH, NOT EITHER. The notification above is what an approved member sees if they
+  // happen to come back; the email is what brings them back. Somebody who applied, was
+  // told to wait and closed the tab has no reason to look again on the day a decision is
+  // made, and nothing else in the product reaches them — the bell is deliberately
+  // suppressed while pending.
+  //
+  // Nothing is emailed on rejection, and that is a decision. A refusal is a message from
+  // a family to a person, and the family is the right author of it; an automated "you
+  // were declined" with a free-text reason attached lands badly and cannot be softened.
+  // The in-app notification carries the note for anyone who comes looking.
+  if (status === 'approved' && familyCode) {
+    try {
+      const admin = createAdminClient()
+
+      // Service role: RLS is off, so the family scoping is re-applied by hand on both
+      // reads — AGENTS.md §3. `familyCode` is the ACTOR's, resolved from their own people
+      // row, and set_membership_status() has already refused a cross-family decision, so
+      // a personId that survives to here is in this family. The .eq is what makes that
+      // true of the query rather than merely true of the argument.
+      const { data: person } = await admin
+        .from('people')
+        .select('first_name, user_id')
+        .eq('family_code', familyCode)
+        .eq('id', personId)
+        .maybeSingle()
+
+      const { data: family } = await admin
+        .from('families')
+        .select('family_name')
+        .eq('family_code', familyCode)
+        .maybeSingle()
+
+      // The AUTH address, NOT people.primary_email. primary_email is a profile field its
+      // owner can set to anything — it is on the allow-list in lib/profile-columns.ts and
+      // a pending member may edit their own profile — so mailing it would let an applicant
+      // aim this message at a third party. The auth address is the one the account signs
+      // in with and, with confirmations on, has demonstrably received mail at.
+      const userId = person?.user_id as string | null
+      const authEmail = userId
+        ? (await admin.auth.admin.getUserById(userId)).data.user?.email ?? null
+        : null
+
+      if (authEmail) {
+        const mail = membershipApprovedEmail({
+          origin: emailOrigin(),
+          firstName: (person?.first_name as string) ?? '',
+          familyName: (family?.family_name as string) ?? familyCode,
+        })
+        await sendEmail({ to: authEmail, subject: mail.subject, html: mail.html, tag: mail.tag })
+      }
+    } catch {
+      // sendEmail() does not throw, so reaching here means a lookup failed. The member is
+      // approved either way; the worst case is that they find out on their next visit.
     }
   }
 

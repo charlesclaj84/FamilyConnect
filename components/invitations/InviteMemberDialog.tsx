@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { UserPlus, Copy, Check, ShieldCheck, Clock } from 'lucide-react'
+import { UserPlus, Copy, Check, ShieldCheck, Clock, AlertTriangle } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,9 +24,14 @@ import { cn } from '@/lib/utils'
  * comes back is what actually happened, and that — not the prop — is what the success
  * screen reports.
  *
- * NO EMAIL IS SENT. There is no mail layer in this app and SMTP is unconfigured, so the
- * dialog hands back a link to send. Saying so on screen is the point: an invite button
- * that silently sends nothing is worse than one that gives you something that works.
+ * THE EMAIL IS SENT FOR YOU, since 2026-08-11. The copy-this-link step it replaced was
+ * never a design choice — it was what an app with no mail layer could honestly offer.
+ *
+ * The link box survives as the FAILURE path and only that. When `emailed` comes back
+ * false the action also returns the token, and the dialog says plainly that the message
+ * did not go out rather than showing a success screen over an email nobody received.
+ * On the happy path there is no token in the payload at all, so there is nothing to
+ * copy and nothing to leak.
  */
 export function InviteMemberDialog({
   preApproved = false,
@@ -51,12 +56,18 @@ export function InviteMemberDialog({
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-  const [result, setResult] = useState<{ token: string; email: string; preApproved: boolean } | null>(null)
+  const [result, setResult] = useState<{
+    email: string
+    preApproved: boolean
+    emailed: boolean
+    token?: string
+  } | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  // Composed in the browser rather than on the server so there is no origin to guess
-  // or configure — the link is for whatever host the inviter is actually using.
-  const inviteLink = result ? `${window.location.origin}/invite/${result.token}` : ''
+  // Only ever set on the failure path, where the action hands the token back so the
+  // invitation is not stranded. Composed in the browser so there is no origin to guess —
+  // the link is for whatever host the inviter is actually using.
+  const inviteLink = result?.token ? `${window.location.origin}/invite/${result.token}` : ''
 
   function reset() {
     setEmail('')
@@ -75,8 +86,14 @@ export function InviteMemberDialog({
     setError('')
     startTransition(async () => {
       const r = await inviteMember(email, preApproved, familyCode)
-      if (r.success) setResult({ token: r.token, email: r.email, preApproved: r.preApproved })
-      else setError(r.message)
+      if (r.success) {
+        setResult({
+          email: r.email,
+          preApproved: r.preApproved,
+          emailed: r.emailed,
+          token: r.token,
+        })
+      } else setError(r.message)
     })
   }
 
@@ -107,7 +124,7 @@ export function InviteMemberDialog({
       <Dialog
         open={open}
         onClose={close}
-        title={result ? 'Invitation ready' : label}
+        title={result ? (result.emailed ? 'Invitation sent' : 'Invitation created') : label}
         description={
           result
             ? undefined
@@ -134,8 +151,8 @@ export function InviteMemberDialog({
             </div>
 
             <p className="text-sm text-muted-foreground">
-              We will generate an invitation link for you to send. Only this address can
-              use it, and it expires in 14 days.
+              We&apos;ll email them an invitation. Only this address can use it, and it
+              expires in 14 days.
             </p>
 
             {error && (
@@ -164,7 +181,11 @@ export function InviteMemberDialog({
         {result && (
           <div className="space-y-4">
             <p className="text-sm">
-              An invitation for <span className="font-medium">{result.email}</span>.
+              {result.emailed ? (
+                <>We&apos;ve emailed an invitation to <span className="font-medium">{result.email}</span>.</>
+              ) : (
+                <>An invitation for <span className="font-medium">{result.email}</span>.</>
+              )}
             </p>
 
             <div
@@ -183,32 +204,48 @@ export function InviteMemberDialog({
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="invite-link">Send them this link</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="invite-link"
-                  readOnly
-                  value={inviteLink}
-                  onFocus={e => e.currentTarget.select()}
-                  className="font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-            </div>
+            {/*
+              The old copy-a-link flow, kept as the failure path and nothing else. If the
+              email did not go out, saying "invitation sent" would leave the inviter
+              believing their cousin has been contacted and the cousin waiting on nothing.
+            */}
+            {!result.emailed && (
+              <>
+                <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  <p>
+                    The invitation was created, but we could not email it. Send them this
+                    link instead — it works exactly the same.
+                  </p>
+                </div>
 
-            <p className="text-sm text-muted-foreground">
-              We cannot email this for you yet, so send it however you normally reach
-              them. Treat it like a password — anyone who gets hold of it and has that
-              email address can use it. It is shown once.
-            </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-link">Send them this link</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="invite-link"
+                      readOnly
+                      value={inviteLink}
+                      onFocus={e => e.currentTarget.select()}
+                      className="font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyLink}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Treat it like a password — anyone who gets hold of it and has that email
+                  address can use it. It is shown once.
+                </p>
+              </>
+            )}
 
             <div className="flex justify-end">
               <button

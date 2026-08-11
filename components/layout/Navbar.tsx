@@ -8,7 +8,7 @@ import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { getMyFamilies } from '@/lib/auth/family'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
-import { APP_NAME, APP_LOGO_ALT, BRAND_MARK_SRC } from '@/lib/brand'
+import { APP_NAME, APP_LOGO_ALT, BRAND_MARK_GOLD_SRC } from '@/lib/brand'
 
 export default async function Navbar() {
   const supabase = await createClient()
@@ -77,8 +77,28 @@ export default async function Navbar() {
   //
   // Anything new that floats above the page picks a level from that list rather
   // than inventing one.
+  // ── WHY THE SIGNED-IN HEADER IS THE HERITAGE BAND ────────────────────────
+  // It was `bg-brand-bar` — the same sand as the landing and auth headers — with a
+  // hairline border and four controls sitting on it in a row. Nothing about it said
+  // which product you were in, and the most-seen surface in the app is the wrong place
+  // to say nothing. Signing in now lands you on the SAME Heritage band the landing hero,
+  // the auth banner and every email header use, so the brand is continuous across the
+  // whole journey rather than appearing on the way in and evaporating once you arrive.
+  //
+  // The landing and auth headers deliberately keep the sand bar: there the burgundy band
+  // is the hero directly beneath, and two burgundy bands stacked would erase the
+  // separation the hero depends on. Inside the app there is no hero, so the header takes
+  // the band itself.
+  //
+  // THE BAND DOES NOT CHANGE BETWEEN THEMES in the sense that matters — `--brand-hero`
+  // resolves per theme, but it is deep burgundy in both, so the gold mark works on it
+  // either way and there is no second artwork to keep in step (see BRAND_MARK_GOLD_SRC).
+  //
+  // Text on it is `--brand-on-hero`, added to globals.css for this: 9.80 in light, 16.30
+  // in dark. `--brand-on-primary` would have LOOKED fine and been an unchecked pairing
+  // across two token families, which AGENTS.md warns about specifically.
   return (
-    <header className="border-b bg-brand-bar sticky top-0 z-30">
+    <header className="sticky top-0 z-30 bg-brand-hero shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
         {/* The wordmark is hidden below sm. On a 375px screen it, the logo, the family
             switcher, the bell and Sign Out do not fit on one row, and what gave way was
@@ -86,13 +106,20 @@ export default async function Navbar() {
             the cheapest thing to drop because the logo keeps the brand present and its
             alt text still carries the name; note the mark itself is wordless, so on a
             phone the name is announced but not seen. */}
-        <Link href="/dashboard" className="flex min-w-0 shrink items-center gap-2.5">
-          <Image src={BRAND_MARK_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" />
-          <span className="gn-wordmark hidden truncate text-xl text-brand-ink sm:block">{APP_NAME}</span>
+        <Link
+          href="/dashboard"
+          className="group flex min-w-0 shrink items-center gap-2.5 rounded-lg py-1 pr-2 transition-opacity hover:opacity-90"
+        >
+          <Image src={BRAND_MARK_GOLD_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" />
+          <span className="gn-wordmark hidden truncate text-xl text-brand-on-hero sm:block">{APP_NAME}</span>
         </Link>
-        <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5">
+        <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-1.5">
           <FamilySwitcher families={families} />
-          <ThemeToggle />
+          {/* ThemeToggle is shared with the landing and auth headers, where the ground is
+              sand and its built-in `text-brand-ink` is correct. On this band that would be
+              burgundy on burgundy — invisible in light mode. It merges `className` last
+              through `cn` (tailwind-merge), so these win. */}
+          <ThemeToggle className="text-brand-on-hero hover:bg-brand-primary" />
           {personId && (
             <NotificationBell
               initialNotifications={notifications}
@@ -103,6 +130,12 @@ export default async function Navbar() {
           <SignOutButton />
         </div>
       </div>
+      {/* Legacy gold as a rule, which is the one thing it may always be: it is a
+          non-text accent here, exactly as in the email templates and under the landing
+          hero's lockup. 5.94 against the band, so it reads as a deliberate edge rather
+          than the 1px border it replaces. This is the detail that makes the bar look
+          finished rather than merely coloured. */}
+      <div aria-hidden="true" className="h-0.5 w-full bg-brand-legacy" />
     </header>
   )
 }

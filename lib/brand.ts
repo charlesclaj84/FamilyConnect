@@ -72,6 +72,21 @@ export const APP_DESCRIPTION =
 export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
 
 /**
+ * The mark in Legacy gold, for a Heritage ground.
+ *
+ * `BRAND_MARK_SRC` is the full-colour mark, and it is built to survive either ground —
+ * stroked, with the heart cut out, so the page shows through. That is what makes it right
+ * for the pale headers on the landing and auth pages, and what makes it *weak* on deep
+ * burgundy, where its own burgundy strokes have nothing to separate them from the band.
+ *
+ * Gold on Heritage is not a new idea invented here: it is the brand's own dark app-icon
+ * treatment, straight from the kit (`SVG_Masters/GENORRA_Mark_Gold.svg`). Because the
+ * signed-in header is Heritage in BOTH themes — see the note in `components/layout/
+ * Navbar.tsx` — one file serves both and there is no theme swap to keep in step.
+ */
+export const BRAND_MARK_GOLD_SRC = '/identity/genorra-mark-gold.svg'
+
+/**
  * The horizontal lockup for a DARK ground — the banner band on the landing page
  * and the auth shell.
  *
@@ -82,6 +97,26 @@ export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
  * v1.1 was issued to correct. Picking the wrong one is silent: both render.
  */
 export const BRAND_LOCKUP_DARK_SRC = '/identity/genorra-lockup-dark.svg'
+
+/**
+ * The STACKED lockup for a dark ground — the same artwork composed vertically, for
+ * narrow screens.
+ *
+ * The kit calls this `Primary_Dark` and the wide one `Horizontal_Dark`; both are named
+ * here for the shape they are, because "primary" says nothing about when to reach for it
+ * and the two are chosen by viewport rather than by rank.
+ *
+ * WHY IT EXISTS. The horizontal lockup is 1700x520 — 3.27:1. Across a 390px phone with
+ * the hero's padding that renders about 109px tall, which is why the hero read as small
+ * beside everything under it however much max-width it was given: on a phone the artwork
+ * was never the constraint, the aspect ratio was. This one is 1400x1100 (1.27:1) and
+ * comes out around 281px in the same slot.
+ *
+ * The two heroes therefore ART-DIRECT rather than resize — see the <picture> in
+ * app/page.tsx and app/(auth)/layout.tsx. A single image scaled up cannot fix this,
+ * because the problem is the composition and not the size.
+ */
+export const BRAND_LOCKUP_STACKED_DARK_SRC = '/identity/genorra-lockup-stacked-dark.svg'
 
 /**
  * Alt text for the mark, which is wordless.

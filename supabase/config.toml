@@ -277,7 +277,38 @@ double_confirm_changes = true
 #     account, and PendingApprovalScreen renders its resend panel for one.
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+#
+# TRUE since 2026-08-11, and it had to be — measured, not reasoned.
+#
+# WHAT IT ACTUALLY DOES, measured against a local stack rather than reasoned about. Read
+# the line above literally: "reauthenticate OR HAVE LOGGED IN RECENTLY". The second half
+# is the whole story, and it is not what an earlier note here claimed.
+#
+#   session age    wrong code                              correct code
+#   ------------   -------------------------------------   ------------
+#   fresh (<24h)   ACCEPTED — reauthentication skipped     accepted
+#   3 days old     refused, "Nonce has expired or is       accepted
+#                  invalid"
+#
+# So for a session under GoTrue's recent-login window the emailed code is not checked at
+# all, whatever this flag says — supplying a deliberately wrong one still changes the
+# password. The flag bites only on older sessions.
+#
+# That is still worth having on, because it is aimed at exactly the case it covers: an
+# unattended session someone else sits down at days later. A member whose session is
+# minutes old proved their password minutes ago, and GoTrue treating that as equivalent
+# reauthentication is defensible. What is NOT defensible is claiming the code is a gate in
+# both cases — components/personal-info/SignInSecurity.tsx says so plainly.
+#
+# THE RECOVERY PATH SURVIVES IT, which was the open question that kept this false for a
+# day. generateLink(recovery) -> verifyOtp -> updateUser({ password }) with NO nonce is
+# accepted and the new password then signs in, because a recovery session is fresh by
+# construction. /forgot-password -> /update-password is unaffected.
+#
+# Re-run the probe if you change this. Both failure modes are silent: turning it off stops
+# checking without any error, and turning it on breaks nothing visible until somebody with
+# an old session tries to change a password.
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
@@ -327,16 +358,19 @@ content_path = "./supabase/templates/confirmation.html"
 # flow hits the fragment bug described above — a confirmed action and no session. They
 # are overridden together for that reason, not because all four are in use.
 #
-# THREE OF THESE ARE DORMANT and that is deliberate, not an oversight:
-#   recovery         LIVE   — resetPasswordForEmail, components/auth/ForgotPasswordForm
-#   invite           unused — nothing calls auth.admin.inviteUserByEmail()
-#   email_change     unused — nothing calls auth.updateUser({ email })
-#   reauthentication unused — nothing calls auth.reauthenticate(), and
-#                             secure_password_change is false below
+# WHAT CALLS EACH, as of 2026-08-11 (three were dormant when they were written):
+#   confirmation     sign-up
+#   recovery         resetPasswordForEmail -> /auth/confirm -> /update-password
+#   email_change     auth.updateUser({ email })  — Sign-in & Security on My Profile
+#   reauthentication auth.reauthenticate()       — same section, before a password change
+#   invite           STILL UNUSED — nothing calls auth.admin.inviteUserByEmail()
 #
-# `invite` is NOT the family invitation email. That flow is family_invitations +
-# InviteMemberDialog + /invite/<token>, it deliberately sends no mail, and giving it one
-# is an application-level Resend call — GoTrue knows nothing about families.
+# `invite` is NOT the family invitation email, which is why it is the one left dormant.
+# That flow is family_invitations + InviteMemberDialog + /invite/<token>, and since
+# 2026-08-11 it emails through lib/email/ over Resend's HTTP API — an application-level
+# send, because GoTrue knows nothing about families, family codes or pre-approval. The
+# template stays overridden so a future inviteUserByEmail() cannot fall back to GoTrue's
+# default and reintroduce the fragment bug.
 
 [auth.email.template.recovery]
 subject = "Reset your GENORRA password"

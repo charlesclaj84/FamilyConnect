@@ -85,10 +85,13 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-1.5 rounded-lg hover:bg-foreground/10 transition-colors"
+        // Sits on the Heritage band — see the note at the top of Navbar. `hover:bg-
+        // foreground/10` was a generic-ramp wash that read as grey smudge on burgundy;
+        // --brand-primary is the band's own lighter sibling, so the well reads as a lift.
+        className="relative rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
         aria-label="Notifications"
       >
-        <Bell className="h-5 w-5 text-brand-ink" />
+        <Bell className="h-5 w-5" />
         {badgeCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
             {badgeCount > 9 ? '9+' : badgeCount}

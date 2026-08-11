@@ -8,7 +8,7 @@
  * graph.
  */
 
-export const PROFILE_SECTIONS = ['general', 'address', 'additional'] as const
+export const PROFILE_SECTIONS = ['general', 'address', 'additional', 'security'] as const
 
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number]
 
@@ -16,6 +16,11 @@ export const PROFILE_SECTION_LABELS: Record<ProfileSection, string> = {
   general: 'General',
   address: 'Address',
   additional: 'Additional Information',
+  // The account, not the profile: sign-in address and password. It carries no
+  // permission_resources row and needs no migration, because My Profile is one of the
+  // pages 20260806000006 deliberately put outside the permission grid — see the header
+  // of components/personal-info/SignInSecurity.tsx.
+  security: 'Sign-in & Security',
 }
 
 /** Landing section when `?section=` is absent or unreadable. */
@@ -32,6 +37,10 @@ const ALIASES: Record<string, ProfileSection> = {
   'additional-information': 'additional',
   other: 'additional',
   extra: 'additional',
+  'sign-in': 'security',
+  signin: 'security',
+  account: 'security',
+  password: 'security',
 }
 
 export function isProfileSection(value: string): value is ProfileSection {
