@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import { APP_NAME, APP_DESCRIPTION, BRAND_THEME_COLOR } from '@/lib/brand'
+import { APP_NAME, APP_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
+import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import './globals.css'
 
@@ -38,6 +39,37 @@ export const metadata: Metadata = {
     template: `%s — ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
+
+  // Every relative URL in this object — and the generated og:image — is resolved
+  // against this. Open Graph has no notion of a relative path: a scraper that
+  // receives one drops the tag and shows a bare link instead of a card. Without
+  // metadataBase Next warns at build and falls back to localhost, which is the
+  // version of this bug that looks fine locally and ships broken.
+  metadataBase: SITE_ORIGIN,
+
+  // The link preview. og:image itself is NOT listed here — `app/opengraph-image.tsx`
+  // is a file convention that emits it along with its width, height and alt;
+  // repeating it in this object would produce two og:image tags.
+  openGraph: {
+    type: 'website',
+    siteName: APP_NAME,
+    // Deliberately not the bare product name. A card titled "GENORRA" over a
+    // logo that also says GENORRA says one thing twice and answers nothing —
+    // the lead line is what tells someone what they have been sent.
+    title: `${APP_NAME} — ${APP_LEAD}`,
+    description: APP_DESCRIPTION,
+    url: '/',
+    locale: 'en_US',
+  },
+
+  twitter: {
+    // Without this the card renders as a small square thumbnail beside the text
+    // rather than the full-width image, which is the whole point of the artwork.
+    card: 'summary_large_image',
+    title: `${APP_NAME} — ${APP_LEAD}`,
+    description: APP_DESCRIPTION,
+  },
+
   // Icons are NOT declared here. `app/favicon.ico`, `app/icon.svg` and
   // `app/apple-icon.png` are file conventions Next discovers on its own and
   // emits the <link> tags for; listing them again here would produce duplicates.
