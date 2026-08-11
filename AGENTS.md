@@ -697,9 +697,18 @@ than retyping them, so adding a fourth is one edit.
 
 | Folder | What it is |
 |---|---|
-| `public/identity/` | **The only artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
+| `public/identity/` | **The only BRAND artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
 | `public/v1_1/` | The current vendor kit, exactly as delivered. |
 | `public/v1_0/` | The superseded kit, kept for reference. |
+
+**Product screenshots are not brand artwork and do not go here.** They are colocated
+with the component that renders them and pulled in with a **static import** —
+`components/marketing/screenshots/*.png`, imported by `FeatureShowcase.tsx`. That keeps
+this table at three rows, and it buys the thing a URL string cannot: `next/image` reads
+the intrinsic width, height and blur placeholder from the file, and a path that names
+nothing fails `next build` instead of rendering an empty box. The landing page shipped
+for a while with `image: '/features/events.png'` against a `public/features/` that did
+not exist, and nothing anywhere said so.
 
 **Serve from `identity/`, never from a kit folder.** Two reasons, both of which have
 bitten:

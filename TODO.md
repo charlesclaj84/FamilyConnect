@@ -4,8 +4,9 @@ Running list of things worth revisiting. Add an entry when you find something re
 but out of scope for the change you are making, so it does not get lost in a commit
 message.
 
-The first section is the active piece of work. Everything after it is a parked note,
-except GO LIVE, which is a checklist rather than a backlog.
+Everything here is open. Completed work is deleted rather than archived — the write-ups
+are in git history, and the lessons worth keeping have been promoted to AGENTS.md.
+GO LIVE is a checklist rather than a backlog.
 
 ## GO LIVE
 
@@ -61,213 +62,17 @@ describe the product as email-verified until this box is ticked.**
 including `site_url = "http://127.0.0.1:3000"` from the local config — production would
 start mailing people links to their own laptop.
 
-### [ ] Configure a real SMTP sender
-
-`[auth.email.smtp]` is commented out on both sides, so hosted falls back to Supabase's
-built-in sender and its low per-hour cap. With confirmations on, that cap is now in the
-signup path: the first symptom is a confirmation email that never arrives and a resend
-button that appears to do nothing. `[auth.rate_limit] email_sent = 2` is worth raising
-at the same time.
-
-**Decided 2026-08-10: Resend, from `noreply@genorra.com`.** `email_sent` is 30 in
-`config.toml`; set it in the dashboard as well, since hosted does not read that file.
-
-The block in `config.toml` stays **commented out** and that is deliberate rather than
-unfinished — see the comment above it. Uncommenting takes local development off Mailpit
-and starts mailing real addresses out of `db reset` and the RLS fixture.
+Sending itself is no longer the blocker: hosted has sent through Resend
+(`noreply@genorra.com`) since 2026-08-10, with `email_sent` raised in the dashboard. The
+`[auth.email.smtp]` block in `config.toml` stays **commented out** deliberately — see the
+comment above it; uncommenting takes local development off Mailpit and starts mailing
+real addresses out of `db reset` and the RLS fixture.
 
 ### [ ] Retire Claude's write access to the hosted database
 
-See the 2026-10-01 section below — it is dated rather than launch-gated, but shipping
-with an agent holding unprompted `db push` on production is a decision, not an
-oversight.
-
-## FIXED 2026-08-11: "Send Reset Link" led nowhere
-
-Closed by [`/update-password`](<app/(auth)/update-password/page.tsx>) plus a one-line
-change to [app/auth/confirm/route.ts](app/auth/confirm/route.ts). Kept because the shape
-of the bug — two halves of one flow disagreeing about a destination, both wrong, neither
-reachable from the other — is worth recognising again.
-
-The page is a server component whose whole job is the session check: reaching it without
-one means the link expired, was already used, or somebody typed the URL, and all three
-want the same answer. Deciding that on the server means nobody is shown a password form
-that was never going to work.
-
-**What it did NOT need:** a permission resource, a migration, or an RLS case. It acts on
-`auth.users` through the caller's own session — `updateUser({ password })` — and touches
-no family data, so there is no policy in the path and nothing for `tests/rls` to attack.
-
-### What it was
-
-Password reset was broken in two independent places, and each one alone was enough:
-
-* [ForgotPasswordForm](components/auth/ForgotPasswordForm.tsx) passes
-  `redirectTo: ${origin}/update-password`. **There is no `/update-password` route** —
-  `app/(auth)` holds `login`, `register` and `forgot-password`, and nothing else.
-* [app/auth/confirm/route.ts](app/auth/confirm/route.ts) sends `type=recovery` to
-  `/forgot-password?stage=reset` instead. That route exists, and its page ignores the
-  query entirely — it renders `ForgotPasswordForm`, which asks for an email address. So
-  the best case is a user who clicks the link in their email and is asked to request the
-  same email again.
-
-The two are not merely both wrong, they **disagree about the destination**, which is the
-tell that neither was ever walked end to end. Nobody hit it because `email_sent = 2` on a
-shared sender meant reset mail mostly did not arrive, and an email that never comes and an
-email that leads nowhere look identical from the sign-in page.
-
-### How it was fixed, and what is still owed
-
-1. `recovery.html` links with a `token_hash` to `/auth/confirm`, so the `redirectTo`
-   argument in `ForgotPasswordForm` is now belt-and-braces rather than the mechanism. It
-   is left pointing at `/update-password` on purpose: if anyone ever reverts the template
-   to GoTrue's stock one, that argument becomes load-bearing again and now names a route
-   that exists.
-2. `/update-password` renders the form against the session `/auth/confirm` established.
-   It requires 8 characters, matching `RegisterForm`; `minimum_password_length` in
-   `config.toml` is 6, so the UI is the stricter of the two, which is the safe direction.
-3. `https://genorra.com/**` already covered the route on the redirect allow-list.
-
-**Still owed:** `secure_password_change` is still `false`. The reauthentication nonce is
-verified whenever it is supplied, so the in-app password change is genuinely gated by the
-emailed code — but the flag is what would make a nonce *mandatory*, and turning it on may
-also demand one on the recovery path, where the user has no second code to type. The
-config carries the full note and the flow to test. Until then a caller driving the JS
-client directly can change a password without the code.
-
-**The same screen unblocks GoTrue invitations,** which create an account with no password
-and therefore need identical landing. `invite.html` remains unused, but it is no longer
-*blocked* — it is simply not needed while `family_invitations` does the job better.
-
-## FIXED 2026-08-06: every `public` function was callable by anon
-
-Closed by `20260806000015` (grants) and `20260806000016` (an internal guard on the one
-function that was actually exploitable), both applied to hosted. Written up as
-AGENTS.md §2b. Kept here because the shape of the mistake is worth remembering.
-
-**It was a live vulnerability, not a latent one.** `seed_family_system_groups()` had
-`REVOKE ALL … FROM PUBLIC` in its own migration and was granted to nobody. Called with
-the **anon** key against hosted it returned 204. Locally, as anon, it wrote 3
-`user_groups` + 155 `group_permissions` + 17 `resource_visibility` rows for a family
-code that had never existed — `user_groups.family_code` has no foreign key, so every
-random string wrote another 175 rows. And because its inserts are `ON CONFLICT DO
-NOTHING` — idempotent against re-insertion, no defence at all against a DELETE — an
-anonymous call **restored an `Administrators / admin/groups / delete = any` grant that
-an administrator had deliberately removed**. Unauthenticated re-grant of an
-administrative permission.
-
-**Why every REVOKE in the chain was worthless.** `supabase/seed.sql` ran
-`GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role`
-after every migration, and hosted did the equivalent. Three separate things had to be
-fixed or the lockdown would have been a no-op, and each was verified by testing rather
-than reasoning:
-
-1. Thirteen functions still carried the built-in `=X/postgres` PUBLIC grant. Revoking
-   from `anon, authenticated` and not PUBLIC changes nothing.
-2. A schema-scoped `ALTER DEFAULT PRIVILEGES` **cannot** remove PUBLIC's built-in
-   EXECUTE — only the schema-less form can. With just the schema-scoped revoke, a newly
-   created function still came out anon-executable.
-3. `seed.sql` itself. It now asserts the grant counts instead of setting them, so a
-   future CLI that grants by default fails the reset loudly.
-
-**What the audit established empirically**, and what the design now rests on:
-RLS policy evaluation requires the *querying* role to hold EXECUTE (revoke
-`auth_family_code()` and every authenticated query fails); trigger functions need no
-grant; a callee of a SECURITY DEFINER function needs no grant; and not one policy in
-`public` is `TO anon`, so anon needs exactly one function —
-`peek_family_invitation`, for `/invite/<token>` before the visitor has an account.
-
-**Still worth doing, and not done:**
-
-* `cancel_overdue_event_assignments()` keeps its `authenticated` grant although all
-  three call sites use the admin client. It is SECURITY INVOKER, so it is RLS-contained
-  and confers nothing a direct UPDATE would not — kept because removing a grant nothing
-  is *proven* to need was the worse trade at the time. Add a caller check, then revoke.
-* `get_my_family_code()` is granted on hosted only if a hosted policy references it,
-  because the lockdown derives policy-helper grants from `pg_policies` per database.
-  Confirm nothing depends on it, then drop it from both.
-* The suite still exercises `anon` through exactly one case. That is one more than
-  before, and fewer than the role deserves.
-
-## DONE 2026-08-08: Members can read the dues table — "what do I owe" works
-
-**The product call was made and it is the widest of the three on offer: every APPROVED
-member of a family may read that family's dues and donation schedules.** Reading what
-you owe and editing what everyone owes are different rights, and only the second one
-is an officer's. `20260808000002` adds a second, unwrapped SELECT policy saying exactly
-that; the `admin/account` policies stay untouched and still govern INSERT, UPDATE and
-DELETE.
-
-**Not re-pointed in `permission_table_map`, which is why it turned out not to need the
-policy surgery this entry feared.** The map is right about writes. Adding a permissive
-policy beside the composed ones is OR-ed with them, so members gain reads and nothing
-else moves — no literal rewritten, no existing policy dropped. The new policy carries a
-`perm:` prefix it did not earn, because the sweep rewrites any policy on a mapped table
-that lacks one and would wrap this back into `admin/account`, restoring the bug.
-
-**No `AND active`.** The narrower version was the intent and is wrong by one case:
-`getMyPaymentHistory` embeds `dues_schedules(label, kind)`, so restricting members to
-active rows means retiring a schedule silently blanks the label on every payment ever
-made against it — a one-off like "Cedar Point Trip" being deactivated after the event
-is the normal course of things. Nothing is protected by hiding it either; the label was
-visible to those same members while it ran, and whoever paid into it has the strongest
-claim to see it.
-
-**Found in production, from the outside.** An invitee's account was working perfectly —
-approved, linked, on General, holding view on all three `account-summary/*` keys — and
-her My Summary was empty. Every screen said she was entitled to see her dues and the one
-table behind them said no. Nobody had hit it in months of use because everyone testing
-was an administrator in every family they belonged to.
-
-**The suite now proves it, having been watched failing** (AGENTS.md §7):
-
-* `dues.getDuesSchedules` and `dues.getMyDuesSummary` run their positive control as a
-  plain member again. The `positiveActor: 'alphaAdmin'` pin those two carried was this
-  bug's shadow — an admin-only control passes whether or not members can see their own
-  dues. Do not put it back.
-* Two new `PENDING_CASES` assert an applicant still reads nothing. What refuses them is
-  `auth_person_id() IS NOT NULL`, not a grant, because there is no longer a grant in the
-  way — so this policy is one of the few places that conjunct is load-bearing on its own.
-* Mutation-checked both directions: dropping the policy fails the four controls;
-  replacing the approved conjunct with `true` fails the two pending attacks.
-
-The three sibling tables were already correct and are unchanged — `dues_member_plans`
-is own-row, `dues_payments` is own-row OR a `transactions/*` grant.
-
-### What it was, and how it stayed hidden
-
-`permission_table_map` maps `dues_schedules` to `admin/account`, with `own_expr` and
-`self_expr` both `'false'`, so the composed SELECT policy reduced to
-
-```
-base_qual AND auth_permission('admin/account', 'view') = 'any'
-```
-
-and `20260618000000` restricts every `category='admin'` resource per family. A member
-with no Accounting grant therefore read **zero** dues schedules, and
-[`getMyDuesSummary`](app/actions/dues.ts) — the member-facing call behind My Summary and
-the dashboard's "you owe" card — reads that table through the user client and returned
-`[]`. `dues_payments` and `dues_member_plans` were never affected.
-
-**Two separate things hid it, and both are worth remembering.**
-
-*In the fixture:* until `20260806000008` the RLS fixture wrote no `resource_visibility`
-rows at all, so `admin/account` fell through to `'any'` and both cases passed their
-positive controls against a permission configuration **no real family has** — the
-failure mode AGENTS.md §7 warns about, in its most literal form. Seeding the rows
-exposed it, and the response at the time was to pin `positiveActor: 'alphaAdmin'` and
-write this entry: it kept the isolation assertion meaningful and did nothing about the
-bug. That pin is now gone.
-
-*In use:* every person who had ever signed in was an administrator of every family they
-belonged to, so nobody had ever seen the member view of their own dues. The bug needed a
-plain member to exist before it could be observed, and the first one was an invitee.
-
-**On the fix being "not a one-liner", which is why it was parked:** that assessment
-assumed the table had to be re-pointed, and re-pointing means the policy surgery of
-`20260806000000` §6 because the sweep bakes the resource key in as a literal. Adding a
-policy alongside avoids all of it. The product question was the real blocker, and it was
-one question to the family, not a design problem.
+See "Claude may write to the hosted database unprompted" below — it is dated rather than
+launch-gated, but shipping with an agent holding unprompted `db push` on production is a
+decision, not an oversight.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
@@ -328,264 +133,72 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## DONE 2026-08-06: Invite into any family you belong to
+## Function grants: what the 2026-08-06 lockdown left behind
 
-`20260806000014`. `create_family_invitation()` takes a target family instead of always
-using `auth_family_code()`, so /my-families offers the button on every row rather than
-only the one being viewed. The caller's **approved** people row in the target family is
-both the membership test and the family-isolation test.
+`20260806000015` and `20260806000016` closed the anon-callable-function hole and the
+reasoning is now AGENTS.md §2b. Three loose ends survived it:
 
-**Pre-approval stays tied to the ACTIVE family, and that is the whole subtlety.**
-`auth_permission()` resolves groups, overrides and visibility against
-`auth_family_code()` and nothing else — so honouring a pre-approval request for some
-other family would let an administrator of A admit someone into B, where they are an
-ordinary member. Resolving permissions per family would mean a second copy of
-`auth_permission()`'s precedence rules, free to drift. Instead the request is downgraded
-unless target == active, which costs nothing: Member Approvals is always the active
-family, and My Families invitations are never pre-approved by design.
+* `cancel_overdue_event_assignments()` keeps its `authenticated` grant although all
+  three call sites use the admin client. It is SECURITY INVOKER, so it is RLS-contained
+  and confers nothing a direct UPDATE would not — kept because removing a grant nothing
+  is *proven* to need was the worse trade at the time. Add a caller check, then revoke.
+* `get_my_family_code()` is granted on hosted only if a hosted policy references it,
+  because the lockdown derives policy-helper grants from `pg_policies` per database.
+  Confirm nothing depends on it, then drop it from both.
+* The suite still exercises `anon` through exactly one case. That is one more than
+  before, and fewer than the role deserves.
 
-Verified with a user who administers A and is a plain member of B: pre-approved in A,
-downgraded in B, refused for a family they are not in. `tests/rls` covers BRAVO's
-administrator naming ALPHA as the target.
+## Password change still allows a nonce-free path for fresh sessions
 
-## DONE 2026-08-06: Invitations, and pre-approved invitations from Member Approvals
+`secure_password_change = true` since 2026-08-11, so an emailed reauthentication code is
+genuinely mandatory — but GoTrue only enforces it on sessions older than its freshness
+window. A member whose session is minutes old can change their password without the code,
+by design, and the config carries the full note and the probe to re-run if you touch it.
+[components/personal-info/SignInSecurity.tsx](components/personal-info/SignInSecurity.tsx)
+says so plainly rather than claiming the code is a gate in both cases; keep it that way.
 
-`20260806000013` adds `family_invitations` plus four RPCs; the UI is one shared
-[InviteMemberDialog](components/invitations/InviteMemberDialog.tsx) used twice, and
-[/invite/[token]](<app/invite/[token]/page.tsx>) is where the link lands.
+## Phase 3 leftovers
 
-* **From My Families** — the invitee joins the approvals queue like anyone else.
-* **From Member Approvals** — `preApproved`, so they are admitted on acceptance. The
-  person clicking it is the person who would otherwise approve them.
+Phase 3 (join a family by code, behind an approval gate) shipped and is on hosted. Three
+things it owed are still owed:
 
-**The gate is a token, not the email address**, and that is the whole design. Phase 3
-deleted claim-by-email because an address proves nothing while confirmation is off —
-which it still is on hosted. A pre-approving invitation keyed on email alone would
-reintroduce that hole with a bigger payoff, since it skips the only real review. So: 32
-random bytes, stored only as SHA-256, returned once; the address narrows who may redeem
-on top of the secret rather than being the secret.
-
-Pre-approval is granted by `create_family_invitation()` only to a caller holding
-admin/approvals:edit, and **silently downgraded** otherwise — verified in the suite by
-having a plain member ask for it and come back with `pre_approved = false`.
-
-**~~NO EMAIL IS SENT.~~ FIXED 2026-08-11.** `inviteMember` now composes and sends the
-invitation through [lib/email/](lib/email/README.md) over Resend's HTTP API — an
-application-level send, because GoTrue's own invite template cannot express a target
-family or pre-approval. Registration handles `?invite=` so a brand-new invitee is not
-asked for a family code they were never given.
-
-Two things about the fix worth keeping:
-
-* **The token no longer reaches the browser on the happy path.** It is the credential,
-  and once the email carrying it has gone the dialog has no use for it — a value that
-  never enters the RSC payload cannot be read out of it. `InviteResult.token` is now
-  present only when `emailed` is false.
-* **The copy-a-link flow survives as the FAILURE path.** `sendEmail()` fails soft by
-  design, so a provider outage would otherwise produce a success screen over an email
-  nobody received, leaving the inviter believing their cousin was contacted. When
-  delivery fails the dialog says so plainly and hands back the link.
-
-**FIXED 2026-08-08: nothing ever linked to `?invite=`.** The sentence above was true of
-the register page and false of the flow. `/invite/<token>` sent an unauthenticated
-visitor to a bare `/register`, which is the ordinary join form — so the invitation mode
-built for exactly this case was unreachable, and every invitee hit a required Family Code
-field answering a code an invitation exists to replace. A dead end, reported from a real
-invite off Members & Access.
-
-Both links on that page now carry the token, and so does each form's link to the other:
-
-| From | To | Carries |
-|---|---|---|
-| `/invite/<token>` | Create an account | `/register?invite=<token>` |
-| `/invite/<token>` | Sign in | `/login?next=/invite/<token>` |
-| `/register?invite=` | Sign in | `/login?next=/invite/<token>` |
-| `/login?next=/invite/` | Create one | `/register?invite=<token>` |
-
-The cross-links are the half worth keeping: an invitee who guesses wrong about whether
-they already have an account must not be dropped into the other form with the token
-stripped, which lands them right back on the family-code question.
-
-`?next=` is validated by [lib/safe-next.ts](lib/safe-next.ts) — same-origin absolute
-paths only, `//` and `/\` rejected. It is the rule that was already private to
-`/auth/confirm`, extracted rather than copied: two implementations of an open-redirect
-guard are two chances for one of them to be the lenient one, and both of these sit on
-URLs users are told by email to trust.
-
-Verified end to end against the local stack by calling the real `registerUser` with a
-token and no family code: pending for an ordinary invitation, approved for a
-pre-approved one, invitation spent, and a mismatched address refused against the email
-field with no account created.
-
-### The finding that came out of building it
-
-The first draft had a second RPC taking `(token, user_id)`, granted to `service_role`
-only, with a migration assertion that `authenticated` could not execute it. **The
-assertion passed and was worthless** — see the section at the top of this file. Anyone
-holding a token could have redeemed it onto another account. Replaced with one function
-that reads the role from the verified JWT and ignores `p_user_id` for everyone but the
-service role. Re-tested against hosted after deploying: an anon call passing another
-user's id is refused.
-
-## DONE 2026-08-06: Create a new family from My Families
-
-`20260806000012` adds `create_family()` (and `gen_family_code()`), called with the user
-client from `createFamily` in [app/actions/my-families.ts](app/actions/my-families.ts),
-behind [CreateFamilyDialog](components/my-families/CreateFamilyDialog.tsx).
-
-The function does almost nothing itself, which is the design: it inserts `families` and
-then `people`, **in that order**, and three existing triggers do the rest — seed the
-system groups, inherit the caller's profile onto the new row, stamp them `'approved'`
-(a founder has nobody to approve them), and put them in General *and* Administrators
-via `families.created_by`. Reverse the two inserts and the founder becomes an ordinary
-member of a family with no administrator, which is the bug `20260806000008` exists to
-prevent. That ordering is asserted by the migration's own verify block against a
-throwaway family, which ran on hosted — where there are real `auth.users` rows — and
-passed.
-
-Applied to hosted the same day. Verified afterwards that the smoke test left nothing
-behind: still two families, both members approved.
-
-**Two general lessons, now in AGENTS.md.** Extension functions must be qualified
-`extensions.`, not `public.` — Supabase installs pgcrypto there, and plpgsql resolves
-nothing until the body runs, so the first version applied cleanly and threw for its
-first caller. And a verify block that can skip must not be the only check: that same
-block needed an `auth.users` row and returned early without one, so a fresh local
-database reported success over a broken function.
-
-## DONE 2026-08-06: Phase 3 — join a family by code, behind an approval gate
-
-Built, and verified against a local database. Kept as a record because three of its
-findings are load-bearing for anyone touching `people` or the permission model, and
-because the follow-ups it leaves are listed at the end.
-
-### Applied to hosted 2026-08-06
-
-`20260806000010` and `20260806000011` are on the hosted project; `migration list
---linked` shows nothing pending. Verified afterwards with the service role: both live
-members still `approved` (nobody was pended by the deploy), `admin/approvals`
-registered with actions view+edit, a `'restricted'` visibility row for both families
-`23HAYW` and `ZZTEST`, and both Administrators groups holding view+edit at `'any'`.
-
-**`db push` needs stdin closed when run non-interactively.** Plain
-`npx supabase db push --linked` from a non-TTY does nothing at all — exit 0, no output,
-no migrations applied, because it is waiting on a confirmation prompt that never
-arrives. It is not a permissions problem and there is nothing in the output to say so.
-Redirecting stdin makes it proceed:
-
-```bash
-npx supabase db push --linked < /dev/null
-```
-
-### The app was deployed ahead of its migration, and every page 404'd
-
-**Action:** decide how code and schema land together. Nothing enforces it today.
-
-The dev server points at hosted (`.env.local`), and the Phase 3 app code shipped there
-while the migrations were still pending. `getMyFamilies` selects `membership_status`;
-hosted did not have the column; PostgREST answered **42703 and killed the whole query**,
-not just that column. So the resolver returned no memberships, `requireViewOrPending`
-called `notFound()`, and every page in the app answered 404 — including the dashboard.
-
-Two things made it expensive rather than obvious:
-
-* `const { data } = …` discarded the error, exactly as AGENTS.md §8 warns. `[]` means
-  "belongs to no family", which every caller correctly denies on — so the app failed
-  closed, which is right, and failed closed *silently*, which is not. Diagnosing it
-  took a direct query against hosted. `getMyFamilies` now reads the error, logs a
-  message naming the likely cause, and still denies.
-* A comment in that function claimed the missing column would coalesce to `'approved'`
-  and keep the app working on an older database. That is not how a missing column
-  behaves, and the claim made the real failure mode harder to suspect. Corrected.
-
-The general problem is unchanged and is the same one recorded under "Replaying an early
-migration…" below: there is no path that applies migrations and deploys code as one
-step. `db push` from a GitHub Action on merge to `master` fixes both, and is still not
-built.
-
-### What shipped
-
-| # | Where | What |
-|---|---|---|
-| 1 | `20260806000008` | System groups + `resource_visibility` for new families (shipped earlier, commit `47d49a3`). |
-| 2 | `20260806000010` | Registers `admin/approvals` ("Member Approvals", admin, 165, actions view+edit), with per-family backfills of BOTH the `'restricted'` visibility row and the Administrators grant. Also added to `20260618000000`'s seed, without the `actions` column — it does not exist that early in the chain. |
-| 3 | `20260806000011` | `membership_status` + the four decision columns, CHECK, partial index; the stamp trigger; the promotion guard; `auth_membership_approved()`; the `auth_person_id()` conjunct; the `people` SELECT rewrite; the sweep; and the three RPCs. |
-| 4 | `tests/rls` | Four applicant users, statuses stated by UPDATE after the insert loop with an assertion that they took, and 16 new cases — 13 pending-actor, 3 approvals, 1 join. |
-| 5 | `lib/auth/*` | `MembershipStatus`, `isApproved`, `getViewingMembership`, `isApprovedMember`, `PermissionSet.approved`, `resolveScope` denial above the legacy branch, `requireViewOrPending`, `requireMember` refusal. |
-| 6 | `app/actions/register.ts` | Claim-by-email deleted. |
-| 7 | `app/actions/link-person.ts` | Carries `membership_status` onto the target row; refuses a non-approved caller. |
-| 8 | `app/actions/my-families.ts` | `validateFamilyCode` / `joinFamilyByCode`, both on the user client, with a per-user rate limit on the lookup. |
-| 9 | `components/my-families/JoinFamilyDialog.tsx` | The two-step dialog; `MyFamiliesSection` badges pending and rejected memberships and withholds their switch controls. |
-| 10 | `admin/approvals` | Action, page, client, `lib/features.ts` entry, Sidebar row. |
-| 11 | dashboard, `/personal-info`, `/my-families` | `requireViewOrPending`; `PendingApproval` + `PendingApprovalScreen`; the dashboard's early return sits above its `Promise.all`. `/personal-info` deliberately renders in full for a pending member, withholding only the two family fetches. |
-| 12 | `Navbar`, `lib/notifications.ts` | Bell suppressed unless the active membership is approved; `FamilySwitcher` kept. `notifyAllMembers` filters to approved; `notifyApprovers` added, resolving recipients from the permission model rather than a group name. |
-
-### Three things found while building it that were not in the plan
-
-1. **Self-approval through the profile endpoint.** The `people` UPDATE policy admits a
-   member's write to their own row — it must, or nobody could edit their own profile —
-   and an RLS policy is a predicate over the ROW, with no opinion about which column
-   changed. `saveProfileSection` copied every key the caller sent, so
-   `saveProfileSection({ membership_status: 'approved' })` was a self-approval that
-   every policy was satisfied by. Closed twice: `lib/profile-columns.ts` allow-lists the
-   columns, and `people_guard_membership_status` refuses any change to the column from
-   the `authenticated` role. There is a regression case for the pair.
-2. **`updateUserProfile` had no family scoping.** `admin.from('people').update(data)
-   .eq('id', peopleId)` on the service role, with `data` mass-assigned from the client —
-   so a user manager in one family could rewrite a member of another, and could set
-   `user_id`, `family_code` or `membership_status` while doing it. Now family-scoped and
-   allow-listed.
-3. **The plan's "seven `auth.uid()` tables" was stale, and the bigger gap was
-   elsewhere.** Read from live `pg_policies` rather than the migration files, the mapped
-   set is four (`chat_participants`, `event_rsvp`, `event_assignments`, `user_roles` —
-   `adults` does not exist on a current chain). The set the plan missed entirely is the
-   tables with NO permission clause at all, scoped only by `auth_family_code()`:
-   `person_relationships` (the whole family tree), the `notifications` INSERT policy
-   (any member may notify any member), and the four "readable in family" SELECTs on the
-   permission tables. The sweep computes the first set from `permission_table_map` and
-   names the second explicitly.
-
-### Verified, and how
-
-`npx supabase db reset --local` then `npm run test:rls`: 71 actions, 142 assertions,
-all passing, 14 controls not applicable. `npx tsc --noEmit` and `npm run build` clean.
-
-The green was then **mutation-tested**, because a passing isolation suite proves nothing
-until you have seen it fail. Removing the single conjunct from `auth_person_id()` and
-changing nothing else fails ten of the new cases with real leaks and one real cast vote.
-The three that still pass under that mutation are labelled individually in `cases.mjs`
-as not being evidence for it — `chat.getMessages` is refused by room participation,
-`getNotifications` by the action's own recipient filter, and the self-approval case by
-the two fixes above. The exact commands are in the `PENDING_CASES` header.
-
-### What Phase 3 leaves owed
-
-1. ~~Email confirmation does not exist.~~ **Built and on locally; hosted is a GO LIVE
-   box at the top of this file.** `enable_confirmations = true`,
-   [app/auth/confirm/route.ts](app/auth/confirm/route.ts) is the landing route, and
-   [supabase/templates/confirmation.html](supabase/templates/confirmation.html) links to
-   it with a `token_hash` rather than letting GoTrue's default return the session in a
-   URL fragment a cookie-based app never sees. Verified against a local stack end to
-   end: signup returns no session, sign-in is refused `email_not_confirmed`, the link
-   confirms and grants one, and `join_family_by_code` refuses an unconfirmed account —
-   the Phase 3 check that had been inert since it was written.
-2. **The §6 sweep has no test through an action, by construction.** What it closes is
+1. **The §6 sweep has no test through an action, by construction.** What it closes is
    reachable only by calling PostgREST directly with an applicant's JWT, and `tests/rls`
    calls exported actions. Standing in for it: §8 of the migration recomputes the swept
    table list and RAISEs if any policy on any of them lacks the conjunct, so a sweep
    that matches nothing fails the deploy. A raw-query harness is the real answer and is
    not built — recorded in `UNCOVERED` in `cases.mjs`.
-3. **The fail-closed default for admin resources is still unbuilt.** Blocker 4's
+2. **The fail-closed default for admin resources is still unbuilt.** Blocker 4's
    stronger fix — deny `view` on an unregistered or unset `category='admin'` key rather
    than allowing it — needs `auth_permission()` and `resolveScope()` changed together,
    and would mean `admin/approvals` could not have been born world-readable in the first
    place instead of being backfilled out of it. Every admin key is currently correct by
    backfill, which is a state that has to be re-established by hand each time one is
    added.
-4. **A `people` row can still be moved between statuses by the service role.** By
+3. **A `people` row can still be moved between statuses by the service role.** By
    design — `link-person.ts` needs it and `tests/rls` seeds with it — but it means the
    guard is a boundary around the `authenticated` role, not around the column. Any new
    service-role write to `people` owes the same look `updateUserProfile` just got.
+
+## Nothing applies migrations and deploys code as one step
+
+**Action:** decide how code and schema land together. Nothing enforces it today.
+
+This has already cost an outage. The dev server points at hosted (`.env.local`), and the
+Phase 3 app code shipped there while its migrations were still pending. `getMyFamilies`
+selects `membership_status`; hosted did not have the column; PostgREST answered **42703
+and killed the whole query**, not just that column. So the resolver returned no
+memberships, `requireViewOrPending` called `notFound()`, and every page in the app
+answered 404 — including the dashboard.
+
+`const { data } = …` discarded the error, exactly as AGENTS.md §8 warns. `[]` means
+"belongs to no family", which every caller correctly denies on — so the app failed
+closed, which is right, and failed closed *silently*, which is not. `getMyFamilies` now
+reads the error, logs a message naming the likely cause, and still denies; that is a
+better symptom, not a fix for the ordering.
+
+`db push` from a GitHub Action on merge to `master` fixes this and the replay problem
+below, and is still not built.
 
 ## Expires 2026-10-01: Claude may write to the hosted database unprompted
 
@@ -608,6 +221,10 @@ read a single row of family data. Its password sits in plaintext in
 `supabase/.env.probe` (gitignored). Nothing needs doing when it lapses; verifying it
 lapsed is worth thirty seconds.
 
+Note that neither `.claude/settings.local.json` nor `supabase/.env.probe` is present in
+this checkout, so the local half may already be gone — the hosted `claude_probe` role is
+the part that still needs confirming.
+
 The durable replacement for both is `db push` from a GitHub Action on merge to
 `master` — reviewed, ordered, recorded, and nobody holding write credentials. Not
 built.
@@ -616,10 +233,8 @@ built.
 
 ### Everything below came out of building `tests/rls`
 
-(see AGENTS.md §7). The suite is green — 71 actions, 142 assertions, since Phase 3 —
-and none of the three below is an isolation failure or blocks anything today. The dues
-finding that used to head this section has been promoted to the active item at the top,
-because unlike these it is live on every family.
+(see AGENTS.md §7). The suite is green, and neither item below is an isolation failure
+or blocks anything today.
 
 ### Members without a grant are told their write succeeded when it did not
 
@@ -654,32 +269,6 @@ Two separable questions, and they have different answers:
 `tests/rls` currently runs these positive controls as an ALPHA administrator, so it
 stays green either way. If (1) changes, switch those cases back to `alphaMember` —
 that is the assertion that would then be meaningful.
-
-### `npm run test:rls` cannot run twice without a `db reset`
-
-**Action:** teach `teardown()` to get past the append-only ledger, or say in AGENTS.md
-that a reset is part of the loop.
-
-`20260806000002_dues_ledger_immutability` installs a `dues_payments_immutable` trigger
-that raises on DELETE. `teardown()` in `tests/rls/seed.mjs` deletes `dues_payments`, so
-the second run of the suite dies before it seeds:
-
-```
-Error: teardown dues_payments: dues_payments is append-only:
-payment … cannot be deleted
-```
-
-The first run after `npx supabase db reset` is fine, which is why this had not bitten
-anyone — AGENTS.md §7 gives the two commands in that order. But the file's own comment
-says teardown exists "so the suite is re-runnable", and it is not. A reversal row is
-the product-level answer to an unwanted payment; the harness wants a genuine delete, so
-this probably means dropping the trigger for the fixture's rows rather than working
-around it.
-
-**It did bite, during Phase 3.** Mutation-testing the new cases means reset → patch a
-function → run, repeatedly, and every iteration needs its own reset because of this. It
-turns a ten-second loop into a two-minute one, which is the kind of friction that stops
-people from checking whether a green suite can actually fail. Worth more than it looks.
 
 ### `tests/rls` does not cover the Storage-backed uploads
 

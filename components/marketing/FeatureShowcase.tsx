@@ -4,6 +4,7 @@
 // Only `Reveal` itself crosses to the client. Adding a hook or a handler here
 // would need the directive back; prefer putting it in a small client child.
 import type { ReactNode } from 'react'
+import Image, { type StaticImageData } from 'next/image'
 import {
   Calendar, Wallet, GitBranch, Vote, Megaphone, MessageCircle, Camera,
   FileText, ShieldCheck, BarChart3, Store, Check, ImageIcon, Sparkles,
@@ -12,6 +13,26 @@ import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
 import { Reveal } from '@/components/marketing/Reveal'
+
+// Screenshots are STATICALLY IMPORTED, not referenced by a `/public` URL string,
+// and the difference is the bug this replaced: the spotlights carried
+// `image: '/features/events.png'` as a plain string, nothing under `public/`
+// answered that path, and nothing anywhere said so — a string src that resolves
+// to nothing renders an empty box in silence. A static import of a file that is
+// not there fails `next build`.
+//
+// It also means the intrinsic width and height (and the blur placeholder) come
+// from the file rather than being restated here, so swapping in a screenshot of
+// a different shape needs no code change. These are 1200x1080; the frame follows
+// the image, which is why there is no aspect ratio on it.
+//
+// They live here rather than in `public/` deliberately. `public/` is the three
+// identity folders and nothing else (AGENTS.md, "Artwork paths"), and a static
+// import does not need to be there — colocating them with the only component
+// that renders them keeps both rules intact.
+import eventsShot from './screenshots/events.png'
+import financesShot from './screenshots/finances.png'
+import familyTreeShot from './screenshots/family-tree.png'
 
 // Whether to mark an entry "Coming Soon". Anything tied to a route reads its
 // status from lib/features.ts so the landing page can't drift from the app;
@@ -72,9 +93,40 @@ const PLACEHOLDER_GROUNDS = [
   'bg-gradient-to-r from-brand-hero via-brand-primary to-brand-hero',
 ] as const
 
-// ── Image placeholder (drop a real image at `src` in /public) ────────────────
+// ── The spotlight visual ─────────────────────────────────────────────────────
 
-function ImagePlaceholder({ src, accent }: { src: string; accent: string }) {
+/**
+ * A screenshot if the row has one, the animated brand ground if it does not.
+ *
+ * The placeholder is not dead code kept for sentiment: a spotlight added ahead
+ * of its screenshot should say so on the page rather than leave a hole, and
+ * `image` is optional for exactly that. It is also what `gn-shimmer` and the two
+ * `gn-float` keyframes in globals.css exist for.
+ */
+function SpotlightVisual({
+  image, alt, accent,
+}: { image?: StaticImageData; alt: string; accent: string }) {
+  if (image) {
+    return (
+      <div className="overflow-hidden rounded-3xl border shadow-sm">
+        {/*
+          `h-auto w-full` with the intrinsic size from the import: the box takes
+          the image's own ratio, so nothing is cropped and nothing is letterboxed.
+          `sizes` matters here — the column is half of a 6xl grid on large screens
+          (~34rem) and the full width below it, and without saying so Next serves
+          the whole-viewport candidate to every phone.
+        */}
+        <Image
+          src={image}
+          alt={alt}
+          placeholder="blur"
+          sizes="(min-width: 1024px) 34rem, 100vw"
+          className="h-auto w-full"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border shadow-sm">
       <div className={cn('absolute inset-0 opacity-95', accent)} />
@@ -86,8 +138,7 @@ function ImagePlaceholder({ src, accent }: { src: string; accent: string }) {
         <div className="rounded-2xl bg-white/20 p-3 backdrop-blur-sm">
           <ImageIcon className="h-7 w-7" />
         </div>
-        <p className="text-sm font-semibold">Add a screenshot here</p>
-        <code className="rounded-md bg-black/25 px-2 py-0.5 text-[11px] font-mono">{src}</code>
+        <p className="text-sm font-semibold">Screenshot coming soon</p>
       </div>
     </div>
   )
@@ -103,7 +154,8 @@ interface Spotlight {
   icon: ReactNode
   accent: string      // placeholder ground — one of PLACEHOLDER_GROUNDS
   badge: Tone         // icon chip tone
-  image: string
+  image?: StaticImageData   // omit and the row renders the placeholder instead
+  imageAlt: string    // what the screenshot SHOWS — the title is already on the page
   feature: string     // route this row is selling — drives its shipped/coming-soon state
 }
 
@@ -123,7 +175,8 @@ const spotlights: Spotlight[] = [
     icon: <Calendar className="h-5 w-5" />,
     accent: PLACEHOLDER_GROUNDS[0],
     badge: 'warmth',
-    image: '/features/events.png',
+    image: eventsShot,
+    imageAlt: 'The events screen: a multi-day reunion itinerary with its sub-events, RSVP counts and day-of check-in.',
     feature: '/events',
   },
   {
@@ -141,7 +194,8 @@ const spotlights: Spotlight[] = [
     icon: <Wallet className="h-5 w-5" />,
     accent: PLACEHOLDER_GROUNDS[1],
     badge: 'legacy',
-    image: '/features/finances.png',
+    image: financesShot,
+    imageAlt: 'The finances screen: fund balances, dues collected against outstanding, and the routing waterfall that fills each fund in priority order.',
     feature: '/family-finances',
   },
   {
@@ -159,7 +213,8 @@ const spotlights: Spotlight[] = [
     icon: <GitBranch className="h-5 w-5" />,
     accent: PLACEHOLDER_GROUNDS[2],
     badge: 'growth',
-    image: '/features/family-tree.png',
+    image: familyTreeShot,
+    imageAlt: 'The family tree screen: several generations laid out as connected cards, with spouses and children branching from each couple.',
     feature: '/family-tree',
   },
 ]
@@ -286,7 +341,7 @@ export function FeatureShowcase() {
                   </div>
                   {/* Visual */}
                   <div className={cn(reversed ? 'lg:order-1' : 'lg:order-2')}>
-                    <ImagePlaceholder src={s.image} accent={s.accent} />
+                    <SpotlightVisual image={s.image} alt={s.imageAlt} accent={s.accent} />
                   </div>
                 </div>
               </Reveal>
