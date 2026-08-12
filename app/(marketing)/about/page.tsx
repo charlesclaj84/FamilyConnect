@@ -1,14 +1,11 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
-import Link from 'next/link'
 import { ShieldCheck, EyeOff, Users, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/marketing/sections'
 import { marketingPageGraph } from '@/lib/structured-data'
-import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import {
   APP_NAME, APP_TAGLINE, APP_LEAD, APP_PUBLISHER,
   BRAND_MARK_SRC, APP_LOGO_ALT,
@@ -77,7 +74,7 @@ const PRINCIPLES: readonly {
     icon: Users,
     title: 'Built for the size families actually are',
     detail:
-      'A hundred and twenty adults in one extended family is an ordinary customer here, not an edge case. Every screen that lists members is designed for that — because holding a whole extended family is the entire premise, and a tool that degrades at forty people has missed it.',
+      'A hundred and twenty adults in one extended family is an ordinary family here, not an edge case. Every screen that lists members is designed for that — because holding a whole extended family is the entire premise, and a tool that degrades at forty people has missed it.',
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
   },
@@ -225,7 +222,7 @@ export default function AboutPage() {
       </section>
 
       {/* ── Principles ───────────────────────────────────────────────────── */}
-      <section aria-labelledby="principles-heading" className="bg-background px-4 py-16 sm:px-6 sm:py-20">
+      <section aria-labelledby="principles-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-5xl">
           <SectionHeading
             id="principles-heading"
@@ -257,7 +254,7 @@ export default function AboutPage() {
           footer and the Organization structured data use, so the three cannot disagree
           about who publishes this. A founding year and a team would belong here — see the
           file header for why neither is invented in the meantime. */}
-      <section aria-labelledby="publisher-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
+      <section aria-labelledby="publisher-heading" className="bg-background px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl">
           <Reveal>
             <div className="rounded-2xl border bg-card p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
@@ -272,24 +269,6 @@ export default function AboutPage() {
                 <MoreLink href="/features">What it does</MoreLink>
                 <MoreLink href="/why-us">Why families switch</MoreLink>
               </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="bg-background px-4 py-16 sm:px-6">
-        <div className="mx-auto max-w-2xl text-center">
-          <Reveal>
-            <h2 className="text-2xl">Come and see</h2>
-            <p className="mt-3 text-muted-foreground">
-              The fastest way to judge whether this is right for your family is to create
-              the family and look. It is free, and nothing is published to anyone until you
-              approve them.
-            </p>
-            <div className="mt-6 flex justify-center">
-              <Link href={ACCOUNT_ROUTES.register}>
-                <Button size="lg" className="px-8 text-base">Create Your Family</Button>
-              </Link>
             </div>
           </Reveal>
         </div>
