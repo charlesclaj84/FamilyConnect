@@ -16,12 +16,11 @@ export const PAY_CADENCES: readonly PayCadence[] = ['weekly', 'monthly', 'quarte
  *              never in anyone's balance.
  *
  * Lives here rather than beside DuesSchedule in app/actions/dues.ts because that file
- * is `'use server'`, and a server-action module may only export async functions — a
- * plain array export there fails the build.
+ * is `'use server'`, and a server-action module may only export async functions — the
+ * reason `PAY_CADENCES` above is here too, since a plain array export there fails the
+ * build.
  */
 export type ScheduleKind = 'dues' | 'donation'
-
-export const SCHEDULE_KINDS: readonly ScheduleKind[] = ['dues', 'donation']
 
 /** How many of the schedule's native period occur per year (for annualizing). */
 const FREQ_PER_YEAR: Record<string, number> = {

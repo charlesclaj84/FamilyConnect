@@ -9,6 +9,7 @@ import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import {
   can,
   getMyPermissionSet,
+  PERMISSION_ACTIONS,
   type PermissionAction,
   type PermissionScope,
 } from '@/lib/auth/permissions'
@@ -420,7 +421,7 @@ export async function getResources(): Promise<ResourceSummary[]> {
       subsection: r.subsection,
       sortOrder: r.sort_order,
       // Older rows predate the column; treat a missing value as "all four".
-      actions: (r.actions?.length ? r.actions : ['view', 'create', 'edit', 'delete']) as PermissionAction[],
+      actions: (r.actions?.length ? r.actions : [...PERMISSION_ACTIONS]) as PermissionAction[],
     }))
 }
 
@@ -504,7 +505,7 @@ export async function createTemplate(name: string, description: string): Promise
 
   const rows: { template_id: string; resource_key: string; action: string; scope: string }[] = []
   for (const r of (resources ?? []) as { key: string; actions: string[] | null }[]) {
-    for (const action of r.actions?.length ? r.actions : ['view', 'create', 'edit', 'delete']) {
+    for (const action of r.actions?.length ? r.actions : PERMISSION_ACTIONS) {
       rows.push({ template_id: created.id, resource_key: r.key, action, scope: 'none' })
     }
   }

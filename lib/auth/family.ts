@@ -210,11 +210,6 @@ export async function getMyActiveMembership(
   return { familyCode: active?.familyCode ?? '', personId: active?.personId ?? '' }
 }
 
-/** True when the caller belongs to more than one family (drives the switcher UI). */
-export async function hasMultipleFamilies(userId: string): Promise<boolean> {
-  return (await getMyFamilies(userId)).length > 1
-}
-
 /**
  * The membership the caller is currently viewing, whatever its state.
  *

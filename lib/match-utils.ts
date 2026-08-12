@@ -20,9 +20,15 @@ export interface MatchResult {
   isStrong: boolean
 }
 
-// A candidate qualifies as a "strong match" when its score clears this cutoff,
-// which any single exact identity signal (email/phone/dob) already exceeds.
-export const STRONG_MATCH_THRESHOLD = 25
+// `isStrong` is decided by SIGNALS, not by the score: any one exact identity match
+// (email, phone or date of birth), or a name similarity clearing the cutoff below. The
+// weights further down only rank candidates against each other.
+//
+// There was a `STRONG_MATCH_THRESHOLD = 25` here, described as the score a candidate had
+// to clear to be strong. Nothing read it — not even this file — and the rule it described
+// is not the rule `isStrong` implements, so it was documentation of a scoring behaviour
+// the code does not have. Removed rather than wired up; if a score cutoff is ever wanted,
+// it is a product decision to make deliberately.
 const NAME_MATCH_SIMILARITY = 0.85
 
 const EMAIL_WEIGHT = 50

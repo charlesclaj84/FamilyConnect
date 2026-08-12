@@ -234,8 +234,6 @@ Each gated feature owes these at flip time. AGENTS.md requires them; they are li
 - `/direct-lineage` and `/family-tree` have no permission row by design, so shipping them
   ships them to everyone with no switch.
 - The Coming Soon screen offers every member three administrator links they cannot use.
-- `AdminChaptersClient.tsx` (220 lines) is orphaned dead code duplicating the chapters client
-  actually in use.
 - The protected layout queries gated event-planning data on every request.
 - `cancel_overdue_event_assignments` holds an `authenticated` EXECUTE grant nothing needs.
 

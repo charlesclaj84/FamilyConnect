@@ -1,5 +1,5 @@
 import type { ResourceSummary } from '@/app/actions/admin/permissions'
-import type { PermissionAction, PermissionScope } from '@/lib/auth/permissions'
+import { PERMISSION_ACTIONS, type PermissionAction, type PermissionScope } from '@/lib/auth/permissions'
 
 /**
  * The vocabulary of the permission grid: how the resource catalog is ordered,
@@ -13,7 +13,13 @@ import type { PermissionAction, PermissionScope } from '@/lib/auth/permissions'
  * because `scopesFor` is a rule about the model rather than about the markup.
  */
 
-export const ACTIONS: PermissionAction[] = ['view', 'create', 'edit', 'delete']
+// DERIVED, not restated. The four actions are the permission model's, and this module's
+// own header explains what happens when a constant like this gets a second copy: the two
+// disagree about a family's permissions the moment one gains a level the other did not.
+// That is not hypothetical here — this list existed four times (twice inline in
+// app/actions/admin/permissions.ts) while `PERMISSION_ACTIONS`, declared beside the
+// `PermissionAction` type it enumerates, had no consumer at all.
+export const ACTIONS: PermissionAction[] = [...PERMISSION_ACTIONS]
 
 // 'create' has no own/any distinction — you cannot own a record you are about to
 // make — so it offers a plain allow/deny.

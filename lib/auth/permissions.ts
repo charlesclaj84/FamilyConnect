@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewingMembership, isApproved, type FamilyMembership } from '@/lib/auth/family'
-import { FEATURES, TAB_RESOURCES, getFeature } from '@/lib/features'
+import { FEATURES, TAB_RESOURCES } from '@/lib/features'
 
 /**
  * Authorization for the authenticated caller in their active family.
@@ -67,17 +67,6 @@ export interface PermissionSet {
 }
 
 const key = (resource: string, action: PermissionAction) => `${resource}:${action}`
-
-/**
- * Turn a route into a resource key. Resource keys are the feature registry's
- * hrefs without the leading slash, so `/admin/events/9/checkin` resolves to
- * `admin/events` via the registry's longest-prefix match.
- */
-export function resourceKeyFor(pathname: string): string {
-  const feature = getFeature(pathname.startsWith('/') ? pathname : `/${pathname}`)
-  if (feature) return feature.href.replace(/^\//, '')
-  return pathname.replace(/^\//, '')
-}
 
 const EMPTY: PermissionSet = {
   personId: '', familyCode: '', resolved: new Map(), restricted: new Set(),
