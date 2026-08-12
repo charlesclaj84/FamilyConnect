@@ -163,6 +163,73 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
+## A family cannot be renamed, and cannot be deleted at all
+
+**Action:** build a family settings surface for the rename. Decide what deleting a
+family *means* before building that half — the schema will not do it for you.
+
+There is no family settings page. The eighteen `admin/*` resources cover accounting,
+members, events, elections and reports; none of them is the family's own identity.
+`families` is INSERTed by [register.ts](app/actions/register.ts) and `create_family()`,
+SELECTed in half a dozen places, and **never updated or deleted by any code in the
+tree** — `git grep` for a write to it returns inserts only.
+
+Both halves need a new permissioned surface, so both owe a `permission_resources` row
+*and* the per-family `resource_visibility` backfill in the same migration, or the page
+can never be restricted by anyone (AGENTS.md §6).
+
+### Renaming is small, and blocked only by there being no path
+
+`families` carries exactly one policy — `perm:members can view own family`, SELECT.
+There is no UPDATE policy, so a rename cannot go through the user client at all. It
+wants an RPC beside `create_family()`, where the founder checks and the code generation
+already live, or the service role with family scoping re-applied by hand (AGENTS.md §3).
+
+The rename itself is safe, and worth stating because it is the reason this is the easy
+half: `family_code` is the join key, carried by 34 tables, and `family_name` is carried
+by **none** of them. Nothing joins on the name, so changing it cannot orphan anything.
+
+Who may do it is the only real question. Founder-only is the tempting answer and is
+probably wrong — `families.created_by` is `ON DELETE SET NULL`, so a family whose
+founder's account is gone would have nobody who could rename it. Gate it on the
+resource like everything else.
+
+### Deleting is the dangerous half, and the schema does not help
+
+**34 tables carry `family_code`, and not one of them has a foreign key to `families`.**
+So `DELETE FROM families WHERE family_code = …` removes exactly one row and orphans
+everything else — no cascade fires, because there is nothing to cascade from. The
+obvious implementation leaves every dues payment, fund, chat room and member row in the
+database, invisible to the app and belonging to a family that no longer exists.
+
+Two places the schema does anticipate it, both worth reading first:
+
+* `funds_protect_system` releases a system fund for deletion **only** once the
+  `families` row is gone. That is the intended order — family first, then the sweep —
+  and it is the one spot where family deletion is designed for rather than overlooked.
+* The append-only ledgers (`dues_payments`, `fund_disbursements`, `20260806000002`)
+  refuse a delete except as the cascade from a person or fund already gone. A sweep
+  either runs in dependency order or stands those guards down deliberately.
+
+[supabase/scripts/reset_families.sql](supabase/scripts/reset_families.sql) already
+carries that sweep for the data half and deliberately keeps the `families` row. A real
+delete is that list, plus the row, plus the family's templates, `resource_visibility`
+and system fund. Read it before writing a third copy of the list — and note its §11,
+which exists because a hand-written list of tables goes stale the moment a migration
+adds one. It already did: `donation_beneficiaries` (`20260811000000`) landed between
+that script being written and being run.
+
+Two product questions to settle before any of it is built:
+
+1. **Does deleting a family delete its members' accounts?** It must not. Membership is
+   many-to-many since `20260617000000`, so an account can belong to several families;
+   deleting one family has to delete its `people` rows and leave `auth.users` alone, or
+   removing a test family signs somebody out of their real one.
+2. **Is there an "archived" state, or only gone?** There is no half-way house today: a
+   family with no members is *unreachable*, not merely empty, because every page resolves
+   the caller through a people row and `families.created_by` nulls itself when that
+   account goes. Anything short of a full delete needs a state that does not exist yet.
+
 ## Function grants: what the 2026-08-06 lockdown left behind
 
 `20260806000015` and `20260806000016` closed the anon-callable-function hole and the
