@@ -32,7 +32,7 @@ function ResponseDisplay({ response, type, className = 'text-muted-foreground' }
       </ul>
     )
   }
-  return <p className={`text-sm italic ${className}`}>"{response}"</p>
+  return <p className={`text-sm italic ${className}`}>&ldquo;{response}&rdquo;</p>
 }
 
 function MembersInput({ value, onChange, familyMembers }: { value: string; onChange: (v: string) => void; familyMembers: FamilyMemberOption[] }) {

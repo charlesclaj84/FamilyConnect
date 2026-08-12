@@ -289,14 +289,30 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
     if (!form.name.trim()) { setError('Name is required'); return }
     setSaving(true)
     const isAllDay = form.is_all_day !== 'false'
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Listed field by field rather than spread. `form` is a Record<string, string>, so
+    // spreading it could only typecheck through an `as any` — and that cast switched off
+    // excess-property checking for the whole literal, which is how the
+    // `budget_amount_cents` below reached a function that has never accepted it. The
+    // sub-event budget was being collected by this form and thrown away. (The stale
+    // eslint-disable that used to sit here was a line too high to suppress anything.)
     const result = await createSubEvent(parentId, {
-      ...(form as any),
-      is_all_day: isAllDay,
-      start_time: isAllDay ? undefined : form.start_time || undefined,
-      end_time:   isAllDay ? undefined : form.end_time || undefined,
-      budget_amount_cents: form.budget_dollars ? Math.round(parseFloat(form.budget_dollars) * 100) : 0,
+      name:                 form.name,
+      description:          form.description || undefined,
       official_description: form.official_description || undefined,
+      event_type_id:        form.event_type_id || undefined,
+      start_date:           form.start_date || undefined,
+      end_date:             form.end_date || undefined,
+      is_all_day:           isAllDay,
+      start_time:           isAllDay ? undefined : form.start_time || undefined,
+      end_time:             isAllDay ? undefined : form.end_time || undefined,
+      location:             form.location || undefined,
+      street_address:       form.street_address || undefined,
+      suite:                form.suite || undefined,
+      city:                 form.city || undefined,
+      state:                form.state || undefined,
+      zip_code:             form.zip_code || undefined,
+      country:              form.country || undefined,
+      budget_amount_cents:  form.budget_dollars ? Math.round(parseFloat(form.budget_dollars) * 100) : 0,
     })
     if (!result.success) { setError(result.error ?? 'Error'); setSaving(false); return }
     setSaving(false)
@@ -1182,7 +1198,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
             />
           )}
           {subEvents.length === 0 && !showAddSub ? (
-            <p className="text-sm text-muted-foreground">No sub-events yet. Use "Add" to break this event into days or sessions.</p>
+            <p className="text-sm text-muted-foreground">No sub-events yet. Use &ldquo;Add&rdquo; to break this event into days or sessions.</p>
           ) : (
             subEvents.map((sub, i) => (
               <div key={sub.id} className="flex items-center justify-between border rounded-lg px-3 py-2.5">
@@ -1252,7 +1268,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                         <p className="text-xs font-medium">{a.assigned_to_name ?? 'Unknown'}</p>
                         {a.due_date && <p className="text-xs text-muted-foreground">Due: {formatDate(a.due_date)}</p>}
                         {a.response && (
-                          <p className="text-xs text-muted-foreground mt-0.5 italic">"{a.response}"</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 italic">&ldquo;{a.response}&rdquo;</p>
                         )}
                         <span className={`text-xs font-medium ${RESPONSE_STATUS_COLORS[a.response_status]}`}>
                           {a.response_status === 'pending' ? 'No response yet'

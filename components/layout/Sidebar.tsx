@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   LayoutDashboard,
   UserCircle,
@@ -351,9 +351,21 @@ function NavTree({ groups, pathname, onNavClick }: {
     })
 
   // Collapse every section when the user lands on the Dashboard.
-  useEffect(() => {
+  //
+  // Adjusted during render, not in an effect. React's documented pattern for "reset some
+  // state when a prop changes": compare against the value the state was computed for and
+  // set during render, which React handles by re-rendering before it commits anything. An
+  // effect instead paints one frame with the previous route's sections still open and then
+  // re-renders — the cascading render `react-hooks/set-state-in-effect` exists to stop.
+  const [seenPathname, setSeenPathname] = useState(pathname)
+  if (seenPathname !== pathname) {
+    setSeenPathname(pathname)
+    // Deliberately only /dashboard, matching the effect this replaced. Resetting on every
+    // navigation would also be defensible — arguably more so, since a section that does not
+    // contain the active route stays open today — but that is a behaviour change and does
+    // not belong in a lint fix.
     if (AUTO_COLLAPSE_SECTIONS && pathname === '/dashboard') setOpenSections(new Set())
-  }, [pathname])
+  }
 
   return (
     <>
@@ -379,9 +391,15 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
   const [mobileOpen, setMobileOpen] = useState(false)
   const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
 
-  useEffect(() => {
+  // Close the mobile drawer on navigation, during render rather than in an effect — same
+  // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)
+  // on click, so this is the backstop for a navigation the drawer did not initiate: a
+  // redirect, a browser Back, or the idle timeout sending the member to /login.
+  const [seenPathname, setSeenPathname] = useState(pathname)
+  if (seenPathname !== pathname) {
+    setSeenPathname(pathname)
     setMobileOpen(false)
-  }, [pathname])
+  }
 
   return (
     <>

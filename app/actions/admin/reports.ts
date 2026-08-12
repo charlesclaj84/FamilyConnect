@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedOne } from '@/lib/supabase/embed'
 
 export interface FinancialActivity {
   id: string
@@ -72,7 +73,7 @@ export async function getOrgStats(): Promise<OrgStats> {
   // Members by chapter
   const chapterCounts = new Map<string, number>()
   for (const p of chapterResult.data ?? []) {
-    const name = (p.chapters as any)?.name ?? 'No Chapter'
+    const name = embedOne<{ name: string }>(p.chapters)?.name ?? 'No Chapter'
     chapterCounts.set(name, (chapterCounts.get(name) ?? 0) + 1)
   }
   const membersByChapter = [...chapterCounts.entries()]
@@ -96,7 +97,7 @@ export async function getOrgStats(): Promise<OrgStats> {
   // T-shirt breakdown
   const shirtCounts = new Map<string, number>()
   for (const row of tshirtResult.data ?? []) {
-    const p = (row.people as any) ?? null
+    const p = embedOne<{ tshirt_category: string | null; tshirt_size: string | null }>(row.people)
     if (p?.tshirt_category && p.tshirt_size) {
       const key = `${p.tshirt_category}::${p.tshirt_size}`
       shirtCounts.set(key, (shirtCounts.get(key) ?? 0) + 1)

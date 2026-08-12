@@ -7,6 +7,16 @@ import { can } from '@/lib/auth/permissions'
 import { requireEdit, requireDelete } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
+import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
+
+/**
+ * Deliberately NOT `formatPersonName` from lib/name-utils: that appends a nickname, and
+ * a ballot showing "Martha Allen (Mim)" where it used to show "Martha Allen" is a product
+ * change, not a lint fix. (It may well be the right change — AGENTS.md lists BallotForm as
+ * a known gap for not disambiguating two members with the same name — but it belongs in its
+ * own commit.) This reproduces exactly what the `as any` version printed.
+ */
+const nameOf = (p: PersonNameRow | null) => (p ? `${p.first_name} ${p.last_name}` : 'Unknown')
 
 export interface Election {
   id: string
@@ -85,7 +95,7 @@ export async function getElectionDetail(id: string): Promise<{
   ])
 
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-  let myVotes: Record<string, string> = {}
+  const myVotes: Record<string, string> = {}
   if (myPerson) {
     const { data: votes } = await supabase
       .from('election_votes')
@@ -102,9 +112,7 @@ export async function getElectionDetail(id: string): Promise<{
       id: n.id,
       position_id: n.position_id,
       nominee_id: n.nominee_id,
-      nominee_name: n.people
-        ? `${(n.people as any).first_name} ${(n.people as any).last_name}`
-        : 'Unknown',
+      nominee_name: nameOf(embedOne<PersonNameRow>(n.people)),
       accepted: n.accepted,
     })),
     myVotes,
@@ -141,9 +149,7 @@ export async function getElectionResults(id: string): Promise<ElectionVoteCount[
   const counts = new Map<string, { nominee_name: string; count: number }>()
   for (const v of votes ?? []) {
     const key = `${v.position_id}::${v.nominee_id}`
-    const name = v.people
-      ? `${(v.people as any).first_name} ${(v.people as any).last_name}`
-      : 'Unknown'
+    const name = nameOf(embedOne<PersonNameRow>(v.people))
     const existing = counts.get(key)
     counts.set(key, { nominee_name: name, count: (existing?.count ?? 0) + 1 })
   }

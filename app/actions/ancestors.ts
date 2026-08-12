@@ -971,7 +971,7 @@ export async function buildPartnerGroups(
     .in('name', ['Son', 'Daughter'])
   const childTypeIds = (childTypes as { id: string }[] | null)?.map(t => t.id) ?? []
 
-  let childToPartner: Record<string, string> = {}
+  const childToPartner: Record<string, string> = {}
 
   if (partnerPersonIds.length && childTypeIds.length) {
     const { data: coParentRels } = await admin

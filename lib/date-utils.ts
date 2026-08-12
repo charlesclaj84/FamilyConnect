@@ -10,6 +10,29 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
  * at 6pm got a date the family had not reached yet, and dated the cheque accordingly.
  * A date input holds a local calendar date, so its default has to be one too.
  */
+/**
+ * Whole days from now until `date`, floored at 0, or null when there is no date.
+ *
+ * WHY THIS IS A FUNCTION HERE rather than a `Date.now()` inline where it is used. It was
+ * inline in the Dashboard, and `react-hooks/purity` is right to flag that: reading the
+ * clock during render makes a component's output depend on when it happened to render. It
+ * is *safe* on the Dashboard specifically, which is a server component rendered once per
+ * request — but "safe because of where it is" is exactly the kind of reasoning that stops
+ * being true when somebody adds `'use client'`. Putting the impurity behind a named call
+ * keeps the component readable as a pure function of its data, and makes the countdown
+ * reusable — Events and My Summary both want the same sentence.
+ *
+ * Compared on absolute time, not calendar days, so this answers "how long until" and not
+ * "how many dates away". Callers wanting the latter should compare YYYY-MM-DD strings, the
+ * way `getUpcomingEvents` filters past events.
+ */
+export function daysUntil(date: string | null | undefined): number | null {
+  if (!date) return null
+  const target = new Date(date).getTime()
+  if (Number.isNaN(target)) return null
+  return Math.max(0, Math.round((target - Date.now()) / 86400000))
+}
+
 export function todayLocal(): string {
   const now = new Date()
   return [

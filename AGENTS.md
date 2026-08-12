@@ -351,9 +351,14 @@ created without complaint and throws for the first caller — in production, if 
 run never called it. Two things follow:
 
 * **Schema-qualify extension functions with `extensions.`,** not `public.`. Supabase
-  installs pgcrypto (and the rest) into `extensions`, and every function here sets
+  installs pgcrypto (and the rest) into `extensions`, and functions here set
   `search_path = ''`, so `public.gen_random_bytes(...)` resolves to nothing.
   `20260806000012` shipped that exact mistake and applied cleanly.
+
+  **"Every function" was an overstatement, corrected 2026-08-12.** `db advisors` reports
+  seven in `public` with a mutable `search_path`, and one of them —
+  `auth_uid_is_room_participant` — is SECURITY DEFINER, which is the combination that
+  matters. Set it on any function you add, and see TODO.md for the seven.
 * **A verify block that can skip must not be the only check.** That same migration's
   assertion needed an `auth.users` row and returned early without one, so a fresh local
   database reported success over a function that could not run. Split it: assert what

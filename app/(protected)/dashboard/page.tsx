@@ -17,7 +17,7 @@ import { getMyDuesSummary } from '@/app/actions/dues'
 import { getUnreadCount } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { formatRoleTitle } from '@/lib/role-utils'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, daysUntil } from '@/lib/date-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
@@ -89,9 +89,7 @@ export default async function DashboardPage() {
   const myChapterName = (myPersonData?.chapters as { name: string } | null)?.name ?? null
   const needsChapter = !myChapterId && chapters.length > 0
   const nextEvent = upcomingEvents[0]
-  const daysToNextEvent = nextEvent
-    ? Math.max(0, Math.round((new Date(nextEvent.start_date ?? nextEvent.event_date ?? '').getTime() - Date.now()) / 86400000))
-    : null
+  const daysToNextEvent = daysUntil(nextEvent?.start_date ?? nextEvent?.event_date)
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-10">

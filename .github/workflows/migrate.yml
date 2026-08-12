@@ -178,13 +178,24 @@ jobs:
       - name: No superseded policy beside its replacement
         run: supabase db query --linked -f supabase/scripts/audit_policy_shadowing.sql
 
-      # REPORT ONLY, deliberately. This is the advisor that caught incident 2, and it
-      # should gate the release — but hosted's current advisor baseline has never been
-      # read, so switching it to `--fail-on error` unverified would hold the first release
-      # on findings that predate this workflow. Establish the baseline once by hand, then
-      # change `none` to `error` here. TODO.md tracks it.
-      - name: Security advisors (report only)
-        run: supabase db advisors --linked --type security --level warn --fail-on none
+      # GATING since 2026-08-12. This is the advisor that caught incident 2.
+      #
+      # `--level warn --fail-on error` is two decisions, not one: PRINT everything from warn
+      # up, so the 7 `function_search_path_mutable` findings stay visible in the log, but
+      # FAIL only on error.
+      #
+      # Flipped off `--fail-on none` on the strength of the local run rather than a hosted
+      # one, which is worth being straight about: `db advisors --local --type security
+      # --level error` reports **no issues**, and hosted runs the same migration chain, so
+      # its schema-level errors should be the same set — empty. What local cannot show is a
+      # project-level finding (leaked-password protection, MFA options), and those are WARN.
+      #
+      # If that inference is wrong, the failure is safe and self-diagnosing: this step runs
+      # AFTER `db push` and BEFORE the release, so hosted gets the schema, the build stays
+      # unaliased, the current production keeps serving, and the log names the finding.
+      # `Force Promote` in Vercel releases it anyway if the finding is one you accept.
+      - name: Security advisors
+        run: supabase db advisors --linked --type security --level warn --fail-on error
 
       # Nothing deploys from here. Vercel is already holding this commit's production
       # build; this job going green is what releases it. If you need to ship without the

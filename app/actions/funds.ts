@@ -6,6 +6,7 @@ import { canAny } from '@/lib/auth/permissions'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
+import { embedMany } from '@/lib/supabase/embed'
 
 export interface Fund {
   id: string
@@ -127,12 +128,14 @@ export async function getFunds(): Promise<FundWithStats[]> {
     rows.filter(f => !f.system_key).map(f => ({ id: f.id })),
     storedBps,
   )
-  const sum = (arr: any[] | null | undefined) => (arr ?? []).reduce((s: number, x: any) => s + (x.amount_cents ?? 0), 0)
+  const sum = (embedded: unknown) =>
+    embedMany<{ amount_cents: number | null }>(embedded)
+      .reduce((s, x) => s + (x.amount_cents ?? 0), 0)
 
   return rows.map(f => {
-    const disbursed = sum(f.fund_disbursements as any[])
-    const contributed = sum(f.fund_contributions as any[])
-    const expensed = sum(f.event_expenses as any[])
+    const disbursed = sum(f.fund_disbursements)
+    const contributed = sum(f.fund_contributions)
+    const expensed = sum(f.event_expenses)
     return {
       id: f.id,
       name: f.name,
@@ -148,7 +151,7 @@ export async function getFunds(): Promise<FundWithStats[]> {
       total_disbursed_cents: disbursed,
       total_contributed_cents: contributed,
       balance_cents: contributed - disbursed - expensed,
-      milestone_count: ((f.fund_milestones as any[]) ?? []).length,
+      milestone_count: embedMany(f.fund_milestones).length,
       allocation_bps: effective.get(f.id) ?? 0,
     }
   })

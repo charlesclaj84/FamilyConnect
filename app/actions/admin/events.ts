@@ -235,7 +235,12 @@ export async function createEvent(input: {
 
 export async function createSubEvent(
   parentId: string,
-  input: { name: string; description?: string; official_description?: string; start_date?: string; end_date?: string; is_all_day?: boolean; start_time?: string; end_time?: string; location?: string; event_type_id?: string } & AddressInput
+  // `budget_amount_cents` was missing here until 2026-08-12, and the caller had been
+  // passing it since the sub-event form was built — hidden because that call spread a
+  // `Record<string, string>` through `as any`, which switches off excess-property checking.
+  // So the Budget field on "Add sub-event" collected a number and silently dropped it,
+  // while the same field on the parent event saved correctly through `updateEvent`.
+  input: { name: string; description?: string; official_description?: string; budget_amount_cents?: number; start_date?: string; end_date?: string; is_all_day?: boolean; start_time?: string; end_time?: string; location?: string; event_type_id?: string } & AddressInput
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const { user, admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
@@ -271,6 +276,7 @@ export async function createSubEvent(
       zip_code:        input.zip_code?.trim() || null,
       country:              input.country?.trim() || null,
       official_description: input.official_description?.trim() || null,
+      budget_amount_cents:  input.budget_amount_cents ?? 0,
       status:               parent.status,
       created_by:           user!.id,
     })

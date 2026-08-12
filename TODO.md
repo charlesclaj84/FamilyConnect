@@ -300,6 +300,43 @@ Two product questions to settle before any of it is built:
    the caller through a people row and `families.created_by` nulls itself when that
    account goes. Anything short of a full delete needs a state that does not exist yet.
 
+## Seven functions have a mutable `search_path`, and one of them is SECURITY DEFINER
+
+**Action:** set `search_path = ''` on `auth_uid_is_room_participant` first — it is the only
+one of the seven where this is a privilege question rather than tidiness. Carefully: see the
+trap below.
+
+Found 2026-08-12 by `npx supabase db advisors --local --type security --level warn`, which
+`migrate.yml` now runs against hosted on every merge. Seven `function_search_path_mutable`
+findings, all WARN, so they do **not** fail the gate (`--fail-on error`). AGENTS.md claimed
+"every function here sets `search_path = ''`"; that line is now corrected.
+
+| Function | SECURITY DEFINER | Why it matters |
+|---|---|---|
+| `auth_uid_is_room_participant` | **yes** | Runs as its owner with RLS off, and is evaluated by **Realtime** as the subscribing role (AGENTS.md §2b). The escalation shape. |
+| `_perm_predicate` | no | Central to the composed policies, but SECURITY INVOKER — runs as the caller, so shadowing it buys the caller nothing they did not have. |
+| `fund_balance_cents`, `cancel_overdue_event_assignments`, `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. |
+
+**The exposure is real but currently narrow**, and worth stating precisely rather than as a
+severity label. With a mutable `search_path`, a caller who can CREATE objects in a schema
+that resolves earlier than the intended one can shadow a table or function the body
+references, and a DEFINER body then runs that shadow as the owner. What stops it today is
+that nothing grants `CREATE ON SCHEMA public` to `anon` or `authenticated` —
+`supabase/seed.sql` grants USAGE and table/sequence DML, not CREATE. So this is one missing
+grant away from mattering, which is exactly the kind of thing that should not depend on a
+grant nobody is watching.
+
+**The trap, which is why this is not a two-line fix.** `SET search_path = ''` means every
+reference in the body must be schema-qualified, and `20260806000012` is the worked example of
+getting that wrong: it used `public.gen_random_bytes(...)` where pgcrypto lives in
+`extensions`, the migration applied cleanly, and the function threw for its first caller.
+plpgsql does not resolve names until the body runs. So: qualify every reference, and call the
+function in the migration's verify block rather than trusting that it applied.
+
+`auth_uid_is_room_participant` has no call site in the tree — Realtime evaluates it through
+RLS — so a broken version would surface as chat silently delivering nothing, which is the
+worst way to find out. Exercise it directly in the verify block.
+
 ## Function grants: what the 2026-08-06 lockdown left behind
 
 `20260806000015` and `20260806000016` closed the anon-callable-function hole and the
@@ -671,39 +708,63 @@ Read it, fix or accept what it says, then change `--fail-on none` to `--fail-on 
 `migrate.yml`. The step is named "(report only)" so a green tick is not mistaken for a clean
 project.
 
-## `npm run lint` is red on master, so the PR gate cannot hold anyone to it
+## [x] Lint is clean and blocking — DONE 2026-08-12. 30 warnings remain
 
-**Action:** clear the 39 errors, then drop the `|| true` from the Lint step in
-`.github/workflows/verify.yml`.
+`npm run lint` reports **0 errors**, and the Lint step in `.github/workflows/verify.yml` is
+blocking; the `|| true` is gone. All 39 errors were cleared:
 
-Measured 2026-08-12 against a clean checkout of `HEAD`, not against work in progress:
-**39 errors and 31 warnings.** So this predates the workflow, and making the step blocking
-would have failed every pull request starting with the one that introduced it — which does
-not raise the bar, it just teaches everyone that a red tick is normal. It is `|| true` for
-that reason and no other, and the step is named "(report only)" so nobody reads the green
-as a clean tree.
+| Was | Rule | How |
+|---|---|---|
+| 26 | `@typescript-eslint/no-explicit-any` | Every one was a PostgREST embed cast. `lib/supabase/embed.ts` now names the shape — see below. |
+| 6 | `react/no-unescaped-entities` | Straight quotes around user content → `&ldquo;`/`&rdquo;`, which is better typography anyway. |
+| 3 | `react-hooks/set-state-in-effect` | Two in `Sidebar`, one in `PinnedAnnouncementsBanner`. |
+| 2 | `prefer-const` | `myVotes`, `childToPartner`. |
+| 1 | `react-hooks/purity` | `Date.now()` in the Dashboard's render → `daysUntil()` in `lib/date-utils.ts`. |
+| 1 | `react-hooks/preserve-manual-memoization` | A `useMemo` in `DuesDetailSection` that was costing the whole component its compilation. |
 
-Typecheck and build are **blocking**, because both are clean: `npm run typecheck` exits 0,
-and `next build` demonstrably passes on `master` — Vercel builds it on every deploy and
-genorra.com is serving.
+**An earlier version of this section got the breakdown wrong** — it listed
+`no-unused-vars` (22) and `incompatible-library` (4) as errors. Those are **warnings**; the
+table had mixed both severities under the heading "The errors, by rule". The real error set
+is the six rules above.
 
-The errors, by rule:
+### What the `any` sweep turned up, which is the part worth keeping
 
-| Count | Rule |
-|---|---|
-| 26 | `@typescript-eslint/no-explicit-any` |
-| 22 | `@typescript-eslint/no-unused-vars` |
-| 6 | `react/no-unescaped-entities` |
-| 4 | `react-hooks/incompatible-library` |
-| 3 | `react-hooks/set-state-in-effect` |
-| 3 | `@next/next/no-img-element` |
-| 1 each | `react-hooks/purity`, `react-hooks/preserve-manual-memoization`, `@typescript-eslint/no-unused-expressions` |
+**A form was discarding what it collected.** `AdminEventDetailClient`'s add-sub-event call
+spread a `Record<string, string>` through `as any`, and an `any` in an object literal
+switches off excess-property checking for the whole literal — so the
+`budget_amount_cents` it passed reached a `createSubEvent` that has never had that field in
+its input type or its INSERT. The Budget box on "Add sub-event" took a number and dropped
+it, silently, while the same box on the parent event saved fine through `updateEvent`. Both
+ends are fixed. That is the argument for `no-explicit-any` being an error rather than a
+style preference: the cast did not just describe a type loosely, it disabled a check three
+lines away.
 
-The two `react-hooks` families are worth reading rather than silencing. `incompatible-library`
-is React Compiler on react-hook-form's `watch()`, which genuinely cannot be memoized safely;
-`set-state-in-effect` is the pattern `lib/use-server-state.ts` exists to avoid and is
-flagged in three places that predate it. `no-unused-vars` is the cheap half — clearing those
-22 first would make the remainder legible.
+**`lib/supabase/embed.ts`** is where the other 25 went. `embedOne<T>` / `embedMany<T>`
+normalise PostgREST's array-vs-object cardinality, which is a real trap: the same to-one
+relationship comes back bare in one query and wrapped in a one-element array in another, and
+`(row.people as any).first_name` is `undefined` in the second case with no error anywhere.
+Read the header before adding a 27th cast.
+
+**Removing a `useMemo` made a component faster.** React Compiler could not prove
+`DuesDetailSection`'s `unpaid` was never mutated — `upcoming` reaches it via
+`.filter(...).sort(...)`, and `.sort` mutates its receiver (harmlessly: the receiver is the
+array `.filter` just made). Unable to vouch for the dependency, the compiler skipped
+optimizing the **entire component**. One hand-written memo was costing every other value in
+the file its automatic memoization.
+
+### Still owed: 30 warnings, and whether to fail on them
+
+`npm run lint` exits 0 on warnings and no `--max-warnings` is set, deliberately. Triage
+before tightening:
+
+* **`@typescript-eslint/no-unused-vars`** — the cheap half, and genuinely dead code.
+* **`react-hooks/incompatible-library` (4)** — React Compiler's correct objection to
+  react-hook-form's `watch()`, which cannot be memoized safely. Not ours to fix; needs
+  either a documented disable or a different form API.
+* **`@next/next/no-img-element` (3)** — `<img>` in the photo gallery. A real change:
+  `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
+
+`--max-warnings 0` is only honest once the middle group has an answer.
 
 ## Expires 2026-10-01: Claude may write to the hosted database unprompted
 

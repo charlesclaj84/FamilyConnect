@@ -15,6 +15,7 @@ import {
   type ScheduleKind,
 } from '@/lib/dues-utils'
 import { routeContribution, type RoutingFund } from '@/lib/fund-routing'
+import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 
 /**
  * A dues schedule or a donation drive — see `kind`.
@@ -283,15 +284,48 @@ function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined
     : { goal_cents: null }
 }
 
-function mapPayment(p: any): DuesPayment {
-  const schedule = p.dues_schedules as { label: string; kind?: string | null } | null
-  const recorder = p.recorder as { first_name: string; last_name: string } | null
+/**
+ * The columns and embeds `mapPayment` reads. Declared because the row it maps is whatever
+ * the untyped client handed back — see lib/supabase/embed.ts for why that is `any` and what
+ * naming the shape buys.
+ */
+type DuesPaymentRow = {
+  id: string
+  person_id: string
+  people: unknown
+  schedule_id: string | null
+  dues_schedules: unknown
+  amount_cents: number
+  status: string
+  payment_date: string
+  payment_method: string
+  payment_reference?: string | null
+  notes: string | null
+  created_at: string
+  recorder: unknown
+  reverses_id?: string | null
+}
+
+/**
+ * Takes `unknown` rather than `DuesPaymentRow` because its two callers hand it rows
+ * TypeScript has no useful type for, and both were previously absorbed by `p: any`:
+ * `getAllDuesPayments` gets a `GenericStringError` union, which is supabase-js reporting
+ * that it could not resolve the constraint-qualified select at the type level, and
+ * `computeDonationTotals` gets `Record<string, unknown>` from its empty-array fallback.
+ *
+ * One cast, at the top, from `unknown` — not `as unknown as` at each call site. The shape
+ * is asserted from the `.select()` string a few lines above each query, which is the only
+ * place that truth exists while the client is untyped. Same bargain as lib/supabase/embed.ts.
+ */
+function mapPayment(row: unknown): DuesPayment {
+  const p = row as DuesPaymentRow
+  const schedule = embedOne<{ label: string; kind?: string | null }>(p.dues_schedules)
+  const recorder = embedOne<PersonNameRow>(p.recorder)
+  const person = embedOne<PersonNameRow>(p.people)
   return {
     id: p.id,
     person_id: p.person_id,
-    person_name: p.people
-      ? `${(p.people as { first_name: string; last_name: string }).first_name} ${(p.people as { first_name: string; last_name: string }).last_name}`
-      : null,
+    person_name: person ? `${person.first_name} ${person.last_name}` : null,
     schedule_id: p.schedule_id,
     schedule_label: schedule?.label ?? null,
     schedule_kind: schedule ? (schedule.kind === 'donation' ? 'donation' : 'dues') : null,

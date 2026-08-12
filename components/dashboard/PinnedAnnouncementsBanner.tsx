@@ -1,26 +1,58 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useSyncExternalStore } from 'react'
 import { X, Pin } from 'lucide-react'
 import type { Announcement } from '@/app/actions/announcements'
 import { formatDate } from '@/lib/date-utils'
 
 const STORAGE_KEY = 'dismissed_announcements'
 
-function getDismissed(): string[] {
-  if (typeof window === 'undefined') return []
+/**
+ * The dismissed set lives in localStorage, which is outside React — so it is read with
+ * `useSyncExternalStore`, not with `useState` plus an effect.
+ *
+ * Same reasoning as `ThemeToggle`, and AGENTS.md states it for that file: reading
+ * localStorage during render is a hydration mismatch, and correcting it from an effect is
+ * a cascading render that React Compiler rejects as an error. This is the third option —
+ * React subscribes to the store and re-reads it when it changes.
+ *
+ * THE SNAPSHOT IS THE RAW STRING, deliberately. `useSyncExternalStore` compares snapshots
+ * by identity, so returning `JSON.parse(...)` would hand back a new array on every call and
+ * spin forever. The string is stable while the value is unchanged; parsing happens after.
+ */
+const listeners = new Set<() => void>()
+
+function subscribe(onChange: () => void): () => void {
+  listeners.add(onChange)
+  // `storage` fires in OTHER tabs, so a dismissal on one dashboard reaches the rest.
+  window.addEventListener('storage', onChange)
+  return () => {
+    listeners.delete(onChange)
+    window.removeEventListener('storage', onChange)
+  }
+}
+
+const getSnapshot = (): string => localStorage.getItem(STORAGE_KEY) ?? '[]'
+
+/** The server cannot know what this browser dismissed, so it renders everything. */
+const getServerSnapshot = (): string => '[]'
+
+function parseIds(raw: string): string[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as string[]
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as string[]) : []
   } catch {
     return []
   }
 }
 
 function addDismissed(id: string): void {
-  const current = getDismissed()
+  const current = parseIds(getSnapshot())
   if (!current.includes(id)) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...current, id]))
   }
+  // `storage` does not fire in the tab that wrote, so tell this one by hand.
+  for (const listener of listeners) listener()
 }
 
 function formatRelative(iso: string): string {
@@ -37,19 +69,13 @@ interface Props {
 }
 
 export function PinnedAnnouncementsBanner({ announcements }: Props) {
-  const [dismissed, setDismissed] = useState<string[]>([])
-
-  useEffect(() => {
-    setDismissed(getDismissed())
-  }, [])
+  const dismissed = parseIds(useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot))
 
   const visible = announcements.filter(a => !dismissed.includes(a.id))
   if (visible.length === 0) return null
 
-  function dismiss(id: string) {
-    addDismissed(id)
-    setDismissed(prev => [...prev, id])
-  }
+  // No setState: the store is the state, and addDismissed notifies this tab's subscriber.
+  const dismiss = (id: string) => addDismissed(id)
 
   return (
     <section className="space-y-3">

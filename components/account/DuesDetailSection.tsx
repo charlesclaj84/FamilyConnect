@@ -277,16 +277,27 @@ export function DuesDetailSection({
   // Declined rows go at the END, after everything still owed, and are sorted among
   // themselves by the same column. They belong in this table — it is the only place a
   // member can opt back in — but never above something they still have to pay.
-  const sortedDues = useMemo(() => {
-    return [...unpaid, ...declined].sort((a, b) => {
-      if (a.optedOut !== b.optedOut) return a.optedOut ? 1 : -1
-      let cmp = 0
-      if (duesSort.col === 'amount') cmp = a.installmentCents - b.installmentCents
-      else if (duesSort.col === 'due_date') cmp = (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? '')
-      else cmp = a.schedule.label.localeCompare(b.schedule.label)
-      return duesSort.dir === 'asc' ? cmp : -cmp
-    })
-  }, [unpaid, declined, duesSort])
+  //
+  // NOT a useMemo, deliberately, and removing it made this component FASTER rather than
+  // slower. React Compiler could not preserve the manual memoization — it cannot prove
+  // `unpaid` is never mutated, because `upcoming` above reaches it through
+  // `.filter(...).sort(...)` and `.sort` mutates its receiver (harmlessly here: the
+  // receiver is the array `.filter` just created). Faced with a `useMemo` whose dependency
+  // it cannot vouch for, the compiler bails out of optimizing the WHOLE component —
+  // "Compilation Skipped" — so the one hand-written memo was costing every other value in
+  // the file its automatic memoization. Computed plainly, the compiler memoizes this and
+  // everything around it.
+  //
+  // The spread is what makes it safe to sort: `[...unpaid, ...declined]` is a fresh array,
+  // so neither prop is touched.
+  const sortedDues = [...unpaid, ...declined].sort((a, b) => {
+    if (a.optedOut !== b.optedOut) return a.optedOut ? 1 : -1
+    let cmp = 0
+    if (duesSort.col === 'amount') cmp = a.installmentCents - b.installmentCents
+    else if (duesSort.col === 'due_date') cmp = (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? '')
+    else cmp = a.schedule.label.localeCompare(b.schedule.label)
+    return duesSort.dir === 'asc' ? cmp : -cmp
+  })
 
   // Reachable: `account-summary:view` opens the page, but each pane is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.

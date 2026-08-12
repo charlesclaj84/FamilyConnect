@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 
 export interface PhotoCollection {
   id: string
@@ -48,7 +49,7 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
     .order('created_at', { ascending: false })
 
   return (data ?? []).map(c => {
-    const photoArr = (c.photos as any[]) ?? []
+    const photoArr = embedMany<{ id: string; file_path: string }>(c.photos)
     const coverPath = photoArr[0]?.file_path ?? null
     const { data: { publicUrl } } = supabase.storage
       .from('photos')
@@ -58,7 +59,7 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
       id: c.id,
       family_code: c.family_code,
       event_id: c.event_id,
-      event_name: (c.events as any)?.name ?? null,
+      event_name: embedOne<{ name: string }>(c.events)?.name ?? null,
       name: c.name,
       description: c.description,
       cover_photo_url: coverPath ? publicUrl : null,
@@ -96,7 +97,7 @@ export async function getCollectionDetail(id: string): Promise<{
     id: c.id,
     family_code: c.family_code,
     event_id: c.event_id,
-    event_name: (c.events as any)?.name ?? null,
+    event_name: embedOne<{ name: string }>(c.events)?.name ?? null,
     name: c.name,
     description: c.description,
     cover_photo_url: null,
@@ -110,12 +111,15 @@ export async function getCollectionDetail(id: string): Promise<{
       .from('photos')
       .getPublicUrl(p.file_path)
 
-    const tags = ((p.photo_tags as any[]) ?? []).map((t: any) => ({
-      person_id: t.person_id,
-      person_name: t.people
-        ? `${t.people.first_name} ${t.people.last_name}`
-        : 'Unknown',
-    }))
+    const tags = embedMany<{ person_id: string; people: unknown }>(p.photo_tags).map(t => {
+      const tagged = embedOne<PersonNameRow>(t.people)
+      return {
+        person_id: t.person_id,
+        person_name: tagged ? `${tagged.first_name} ${tagged.last_name}` : 'Unknown',
+      }
+    })
+
+    const uploader = embedOne<PersonNameRow>(p.people)
 
     return {
       id: p.id,
@@ -125,9 +129,7 @@ export async function getCollectionDetail(id: string): Promise<{
       caption: p.caption,
       taken_at: p.taken_at,
       uploader_id: p.uploader_id,
-      uploader_name: p.people
-        ? `${(p.people as any).first_name} ${(p.people as any).last_name}`
-        : null,
+      uploader_name: uploader ? `${uploader.first_name} ${uploader.last_name}` : null,
       tags,
       created_at: p.created_at,
     }

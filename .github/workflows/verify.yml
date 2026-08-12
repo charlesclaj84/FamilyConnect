@@ -75,15 +75,19 @@ jobs:
       - name: RLS isolation suite
         run: npm run test:rls
 
-      # REPORT ONLY, and not by preference. `master` already carries 39 eslint errors and
-      # 31 warnings — measured on a clean checkout of HEAD, so this predates both this
-      # workflow and anything in flight. Blocking on it would fail every PR from the first
-      # one, which does not raise the bar, it just teaches everybody to merge past a red
-      # tick. The breakdown and the path to making this blocking are in TODO.md.
-      - name: Lint (report only)
-        run: npm run lint || true
+      # BLOCKING since 2026-08-12, when the 39 pre-existing errors were cleared. It was
+      # `|| true` before that, because blocking on a baseline of 39 fails every PR from the
+      # first one and teaches everybody that a red tick is normal.
+      #
+      # 30 WARNINGS REMAIN AND DO NOT FAIL THIS. eslint exits 0 on warnings, and no
+      # `--max-warnings` is set, deliberately: most are `no-unused-vars` and
+      # `react-hooks/incompatible-library`, the latter being React Compiler's correct
+      # objection to react-hook-form's `watch()`, which cannot be memoized safely and is not
+      # ours to fix. Tightening this to `--max-warnings 0` is a separate decision that needs
+      # those triaged first — TODO.md carries it.
+      - name: Lint
+        run: npm run lint
 
-      # Blocking: clean on master today, so it can be held to.
       - name: Typecheck
         run: npm run typecheck
 

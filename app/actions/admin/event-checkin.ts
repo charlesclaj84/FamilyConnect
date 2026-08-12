@@ -6,6 +6,10 @@ import { can } from '@/lib/auth/permissions'
 import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyPersonId, belongsToFamily } from '@/lib/auth/family'
+import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
+
+/** `event_rsvp` has no foreign key to `people` (AGENTS.md §8), so only the id comes back. */
+type RsvpSubmitter = { submitted_by: string | null }
 
 export interface CheckInAttendee {
   id: string
@@ -56,7 +60,9 @@ export async function getCheckInList(eventId: string): Promise<CheckInAttendee[]
   const rows = data ?? []
 
   const submitterIds = [...new Set(
-    rows.map(r => (r.event_rsvp as any)?.submitted_by).filter(Boolean) as string[],
+    rows
+      .map(r => embedOne<RsvpSubmitter>(r.event_rsvp)?.submitted_by)
+      .filter((id): id is string => Boolean(id)),
   )]
 
   const nameByUserId = new Map<string, string>()
@@ -75,8 +81,8 @@ export async function getCheckInList(eventId: string): Promise<CheckInAttendee[]
   }
 
   return rows.map(row => {
-    const attendeePerson = (row.people as any) ?? null
-    const submittedBy = (row.event_rsvp as any)?.submitted_by as string | null | undefined
+    const attendeePerson = embedOne<PersonNameRow>(row.people)
+    const submittedBy = embedOne<RsvpSubmitter>(row.event_rsvp)?.submitted_by
 
     return {
       id: row.id,
