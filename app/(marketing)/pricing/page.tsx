@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, Sparkles, HeartHandshake } from 'lucide-react'
+import { Check, HeartHandshake, Zap, Crown } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
@@ -81,6 +82,15 @@ interface Plan {
   available: boolean
   /** The one tier the eye should land on. Exactly one should be true. */
   featured: boolean
+  /**
+   * The bullet glyph, one per tier rather than one per state.
+   *
+   * Free and Plus both used to draw `Sparkles`, which made two different offers look like
+   * the same offer at a glance — and on a pricing page the glance is most of the decision.
+   * A tick for what you already have, a lift for the tier that adds the machinery, a crown
+   * for the one that puts your family on the public internet.
+   */
+  icon: LucideIcon
 }
 
 const PLUS_PRICE: Plan['price'] = null
@@ -108,6 +118,7 @@ const PLANS: readonly Plan[] = [
     tagline: 'Get your whole family in one place. All of them.',
     price: { amount: '$0', period: 'forever' },
     inheritsFrom: null,
+    icon: Check,
     adds: [
       {
         label: 'Every single relative, at no charge',
@@ -115,23 +126,23 @@ const PLANS: readonly Plan[] = [
       },
       {
         label: 'Never lose track of who is who again',
-        detail: 'The family tree, direct lineage back through the generations, and a directory you can actually search.',
+        detail: 'The family tree, direct lineage back through the generations, and a directory you can search.',
       },
       {
         label: 'News that reaches the whole family',
-        detail: 'Announcements pinned to everyone’s dashboard, so it is not buried in a group text.',
+        detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
       },
       {
         label: 'Keep talking between gatherings',
-        detail: 'Family-wide chat and private direct messages.',
+        detail: 'Family-wide chat and private messages.',
       },
       {
         label: 'Put the reunion on the calendar',
-        detail: 'Event planning with the date, the place and the details in one shared page.',
+        detail: 'The date, the place and the details in one shared page.',
       },
       {
         label: 'A real ledger for the money you collect',
-        detail: 'Dues plans and a contribution ledger — cash payments, recorded properly instead of remembered.',
+        detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
       },
     ],
     available: true,
@@ -139,41 +150,47 @@ const PLANS: readonly Plan[] = [
   },
   {
     name: 'Plus',
-    tagline: 'Run it like the organization it already is.',
+    tagline: 'For families with dues to collect and a reunion to run.',
     price: PLUS_PRICE,
     inheritsFrom: 'Free',
+    icon: Zap,
+    // ── DETAILS DELIBERATELY SHORT ────────────────────────────────────────────
+    // Eight items with two-line explanations each made this the tallest card by a wide
+    // margin, and height is not persuasion — a reader skims a pricing card, they do not
+    // study it. The benefit line does the selling and the detail names the mechanism in as
+    // few words as will carry it. The full story lives on /features, which is the page for it.
     adds: [
       {
         label: 'Get paid the way your family actually pays',
-        detail: 'Credit and debit cards, PayPal, Apple Pay, Google Pay and Cash App — with funds and a full contribution ledger behind them. No more chasing people for cash.',
+        detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds and a full ledger behind them.',
       },
       {
         label: 'Stop guessing the head count',
-        detail: 'RSVPs per household, t-shirt sizes and meal counts totalled automatically, and check-in on the day so you know who actually walked in.',
+        detail: 'RSVPs, t-shirt and meal totals, and check-in on the day.',
       },
       {
-        label: 'Hand your treasurer a real profit and loss',
-        detail: 'The statement the board asks for, produced from the ledger rather than assembled the night before.',
+        label: 'A profit and loss for your treasurer',
+        detail: 'The statement the board asks for, straight from the ledger.',
       },
       {
         label: 'Elect your officers properly',
-        detail: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.',
+        detail: 'Nominate, accept or decline, then vote family-wide.',
       },
       {
-        label: 'Separation of duties, not one admin switch',
-        detail: 'Per-feature permissions for every member: record dues without being able to pay money out, see the directory without seeing the accounts.',
+        label: 'Separation of duties',
+        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
       },
       {
         label: 'Every photograph, findable',
-        detail: 'Photo collections per event with tagging, so you can pull up every picture of one cousin out of a hundred.',
+        detail: 'Collections per event, with tagging.',
       },
       {
         label: 'The paperwork, and the structure to match',
-        detail: 'Bylaws, minutes and forms in one place — plus regions and chapters with their own leadership for a family spread across states.',
+        detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
       },
       {
         label: 'The numbers leadership keeps asking for',
-        detail: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts, at a glance.',
+        detail: 'Dues collected against outstanding, turnout, and t-shirt counts.',
       },
     ],
     available: false,
@@ -184,14 +201,15 @@ const PLANS: readonly Plan[] = [
     tagline: 'Let the rest of the world see your family.',
     price: PREMIUM_PRICE,
     inheritsFrom: 'Plus',
+    icon: Crown,
     adds: [
       {
         label: 'Your family’s own website, keeping itself current',
-        detail: 'It builds itself from what your family is already doing — the next gathering, the newest photographs, the latest announcement. Every other family site on the internet is abandoned by March, because somebody has to update it. This one nobody has to.',
+        detail: 'It builds itself from your next gathering, your newest photographs and your latest announcement. Every other family site is abandoned by March because somebody has to update it. This one nobody has to.',
       },
       {
         label: 'A proper address for it, ready to go',
-        detail: 'No hosting bill, no plugins, no relative who "knows computers" maintaining it. It is live the day you turn it on.',
+        detail: 'No hosting bill, no plugins, and no relative who "knows computers" maintaining it.',
       },
     ],
     available: false,
@@ -313,7 +331,7 @@ export default function PricingPage() {
                       <h3 className="text-2xl">{plan.name}</h3>
                       {!plan.available && <ComingSoonBadge />}
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
 
                     {/* NOTHING RENDERS HERE FOR AN UNPRICED TIER — no figure, and no
                         "price to be announced" standing in for one. The card already says
@@ -326,14 +344,16 @@ export default function PricingPage() {
                         and crawlers cache, and the cached result outlives the edit that was
                         going to fix it. Set `PRICING_IS_ANNOUNCED` and the price constants
                         and the real figure appears in this slot. */}
+                    <div className="mt-6 min-h-14">
                     {priced && plan.price && (
-                      <p className="mt-6 flex items-baseline gap-2">
+                      <p className="flex items-baseline gap-2">
                         <span className="text-5xl font-semibold text-brand-ink">
                           {plan.price.amount}
                         </span>
                         <span className="text-muted-foreground">{plan.price.period}</span>
                       </p>
                     )}
+                    </div>
 
                     {plan.available ? (
                       <>
@@ -381,11 +401,13 @@ export default function PricingPage() {
 
                         {plan.adds.map(item => (
                           <li key={item.label} className="flex gap-3">
-                            {plan.available ? (
-                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
-                            ) : (
-                              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
-                            )}
+                            <plan.icon
+                              className={cn(
+                                'mt-0.5 h-4 w-4 shrink-0',
+                                plan.available ? 'text-brand-affirm' : 'text-brand-accent',
+                              )}
+                              aria-hidden="true"
+                            />
                             <span className="leading-relaxed">
                               {/* The benefit is the scannable line and carries the
                                   weight; the mechanism sits under it in muted text for

@@ -10,7 +10,7 @@ import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/market
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import {
-  APP_NAME, APP_TAGLINE, APP_LEAD, APP_VALUES, APP_PUBLISHER,
+  APP_NAME, APP_TAGLINE, APP_LEAD, APP_PUBLISHER,
   BRAND_MARK_SRC, APP_LOGO_ALT,
 } from '@/lib/brand'
 
@@ -61,7 +61,7 @@ const PRINCIPLES: readonly {
     icon: EyeOff,
     title: 'We do not sell your family',
     detail:
-      'No advertising, no data brokerage, no "anonymised insights" sold on. The product makes money from families choosing to pay for extra capability, and from nothing else. Your relatives’ addresses and your children’s names are not inventory.',
+      'We do not make money from your relatives’ addresses or your children’s names. Your family is not inventory. No advertising, no data brokerage, nothing sold on to anybody. We earn from families who choose to pay for more, and from nothing else.',
     tone: 'text-brand-accent',
     chip: 'bg-brand-accent/12',
   },
@@ -90,12 +90,6 @@ const PRINCIPLES: readonly {
     chip: 'bg-brand-accent/12',
   },
 ]
-
-const VALUE_COPY: Record<(typeof APP_VALUES)[number], string> = {
-  Connect: 'Every branch in one private place — the directory, the chat, and the tree that ties them together.',
-  Plan: 'The gathering, from the first save-the-date to the day-of check-in.',
-  Celebrate: 'Photographs, milestones and stories, kept for the generations who come after.',
-}
 
 export default function AboutPage() {
   return (
@@ -227,30 +221,6 @@ export default function AboutPage() {
               </p>
             </div>
           </Reveal>
-        </div>
-      </section>
-
-      {/* ── The three values ─────────────────────────────────────────────── */}
-      <section aria-labelledby="values-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading
-            id="values-heading"
-            eyebrow="What the name stands for"
-            title="Connect, plan, celebrate"
-            lede="Three words, and the product is only allowed to do things that serve one of them."
-          />
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {APP_VALUES.map((value, i) => (
-              <Reveal key={value} delay={i * 170} className="h-full">
-                <div className="h-full rounded-2xl border bg-card p-6 text-center shadow-[var(--shadow-card)]">
-                  <h3 className="text-lg uppercase tracking-[0.14em]">{value}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {VALUE_COPY[value]}
-                  </p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
         </div>
       </section>
 

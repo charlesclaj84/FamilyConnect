@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Quote, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
+import { Quote, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Reveal } from '@/components/marketing/Reveal'
 import {
   TESTIMONIALS, TESTIMONIAL_DISPLAY_LIMIT, shuffleSeeded,
@@ -27,15 +27,20 @@ import {
  * It also degrades honestly. With JavaScript disabled the rail is still a scrollable list
  * of quotes; only the buttons and the drift stop working.
  *
- * ── THE MOVEMENT IS PAUSABLE, WHICH IS NOT OPTIONAL ──────────────────────────
- * WCAG 2.2.2 requires a mechanism to pause, stop or hide any motion that starts by itself
- * and runs for more than five seconds. That is what the pause button is — not a nicety —
- * and it is why the button renders whenever the rail is drifting. The rail additionally
- * stops on hover and on focus, so a reader is never fighting it, and a keyboard user is
- * never carried away from the card they just tabbed into.
+ * ── THE MOVEMENT IS STOPPABLE, WHICH IS NOT OPTIONAL ─────────────────────────
+ * WCAG 2.2.2 requires a mechanism to pause, stop or hide motion that starts by itself and
+ * runs past five seconds. There is no longer a pause button — the owner asked for it to go —
+ * so the mechanism is the rail itself: any deliberate gesture stops the drift for good, be
+ * that a swipe, a drag, a wheel, an arrow key, or either arrow button. Hover and focus
+ * additionally suspend it, so a reader who has simply stopped to read is never fought, and a
+ * keyboard user is never carried away from the card they just tabbed into.
  *
- * `prefers-reduced-motion` suppresses the auto-advance entirely and makes the buttons jump
- * rather than glide. The pause control then hides, because there is nothing to pause.
+ * See the note on the `stopped` state for the trade that makes: a better interaction and a
+ * slightly weaker compliance story, because the control is found by trying rather than by
+ * looking.
+ *
+ * `prefers-reduced-motion` suppresses the auto-advance entirely and makes the arrows jump
+ * rather than glide.
  *
  * ── NO setState IN AN EFFECT ─────────────────────────────────────────────────
  * The auto-advance moves the DOM, not React state: `scrollBy` on a ref inside the interval.
@@ -84,8 +89,25 @@ export function Testimonials({
   const seed = useSyncExternalStore(subscribeSeed, getClientSeed, getServerSeed)
   const reducedMotion = useSyncExternalStore(subscribeMotion, getMotion, getMotionOnServer)
 
-  // Set from a click, never from an effect.
-  const [playing, setPlaying] = useState(true)
+  /**
+   * THIS IS WHAT REPLACED THE PAUSE BUTTON, and it is not merely cosmetic.
+   *
+   * WCAG 2.2.2 requires a mechanism to pause, stop or hide motion that starts by itself and
+   * runs for more than five seconds. The owner asked for the pause button to go, so the
+   * mechanism is now the rail itself: ANY deliberate interaction stops the drift for good —
+   * a swipe, a drag, a wheel, an arrow key, or either of the two buttons. Touch the rail and
+   * it stops behaving like a carousel and starts behaving like a list.
+   *
+   * That is a better interaction than a pause button anyway, because it is what a visitor
+   * does instinctively when moving content gets in their way. It is a slightly weaker
+   * compliance story: the control is discoverable by trying rather than by looking, and a
+   * user who never touches the rail never learns it can be stopped. Hover and focus still
+   * suspend it, which covers the reader who has simply stopped to read. If strict conformance
+   * matters more than the cleaner header, the pause button is the way back.
+   *
+   * Set from event handlers only — never from an effect, which the React Compiler rejects.
+   */
+  const [stopped, setStopped] = useState(false)
   const rail = useRef<HTMLUListElement>(null)
 
   // Pure: same items, same seed, same order.
@@ -97,7 +119,7 @@ export function Testimonials({
     [seed],
   )
 
-  const drifting = playing && !reducedMotion && visible.length > 1
+  const drifting = !stopped && !reducedMotion && visible.length > 1
 
   useEffect(() => {
     if (!drifting) return
@@ -113,6 +135,16 @@ export function Testimonials({
     el.addEventListener('pointerleave', release)
     el.addEventListener('focusin', hold)
     el.addEventListener('focusout', release)
+
+    // ANY deliberate gesture on the rail stops the drift permanently — this is the
+    // pause mechanism now that the button is gone. Deliberately NOT the 'scroll' event:
+    // the auto-advance scrolls too, so listening for that would have the rail stop itself
+    // on its first tick. These four are things only a person does.
+    const takeOver = () => setStopped(true)
+    el.addEventListener('wheel', takeOver, { passive: true })
+    el.addEventListener('pointerdown', takeOver)
+    el.addEventListener('touchstart', takeOver, { passive: true })
+    el.addEventListener('keydown', takeOver)
 
     const id = window.setInterval(() => {
       if (held) return
@@ -135,6 +167,10 @@ export function Testimonials({
       el.removeEventListener('pointerleave', release)
       el.removeEventListener('focusin', hold)
       el.removeEventListener('focusout', release)
+      el.removeEventListener('wheel', takeOver)
+      el.removeEventListener('pointerdown', takeOver)
+      el.removeEventListener('touchstart', takeOver)
+      el.removeEventListener('keydown', takeOver)
     }
   }, [drifting])
 
@@ -177,30 +213,13 @@ export function Testimonials({
             {/* Controls sit with the heading rather than under the rail: at the top they
                 are visible before a visitor has scrolled past the cards, which is when
                 they are useful. */}
+            {/* Two controls, not four. The pause and play buttons are gone at the owner's
+                request — see the note on `stopped` for what replaced the pause, because the
+                requirement it satisfied did not go away just because the button did. */}
             <div className="flex shrink-0 items-center gap-2">
-              {drifting && (
-                <button
-                  type="button"
-                  onClick={() => setPlaying(false)}
-                  className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
-                  aria-label="Pause the moving quotes"
-                >
-                  <Pause className="h-4 w-4" aria-hidden="true" />
-                </button>
-              )}
-              {!playing && !reducedMotion && visible.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setPlaying(true)}
-                  className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
-                  aria-label="Resume the moving quotes"
-                >
-                  <Play className="h-4 w-4" aria-hidden="true" />
-                </button>
-              )}
               <button
                 type="button"
-                onClick={() => nudge(-1)}
+                onClick={() => { setStopped(true); nudge(-1) }}
                 className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
                 aria-label="Previous quote"
               >
@@ -208,7 +227,7 @@ export function Testimonials({
               </button>
               <button
                 type="button"
-                onClick={() => nudge(1)}
+                onClick={() => { setStopped(true); nudge(1) }}
                 className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
                 aria-label="Next quote"
               >
@@ -231,7 +250,7 @@ export function Testimonials({
           tabIndex={0}
           role="group"
           aria-label="Quotes from families, scrollable"
-          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-4 pb-4 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:thin]"
+          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-4 pb-2 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           {visible.map(t => (
             <li
