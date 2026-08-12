@@ -170,6 +170,16 @@ See "Claude may write to the hosted database unprompted" below — it is dated r
 launch-gated, but shipping with an agent holding unprompted `db push` on production is a
 decision, not an oversight.
 
+The local half is already gone (no `.claude/` in this checkout), and the replacement it was
+waiting for now exists — see "BUILT 2026-08-12, NOT YET ENABLED" below. What is left is
+confirming the hosted `claude_probe` role lapsed.
+
+### [ ] Enable the migration pipeline
+
+Four secrets and one Vercel toggle. It is the item immediately below the PARKED section —
+listed here too because until it is done **nothing deploys production**, which is a GO LIVE
+fact rather than a backlog one.
+
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
 **Action:** decide how a registrant proves they are the pre-entered person, then either
@@ -522,25 +532,129 @@ things it owed are still owed:
    guard is a boundary around the `authenticated` role, not around the column. Any new
    service-role write to `people` owes the same look `updateUserProfile` just got.
 
-## Nothing applies migrations and deploys code as one step
+## [ ] BUILT 2026-08-12, NOT YET ENABLED: migrations reach hosted from CI
 
-**Action:** decide how code and schema land together. Nothing enforces it today.
+**Action:** four settings, none of them code. Until they are done, `deploy.yml` fails on
+its own preflight step and **nothing deploys production at all** — so do these in the same
+sitting as merging the workflow, or merge the workflow last.
 
-This has already cost an outage. The dev server points at hosted (`.env.local`), and the
-Phase 3 app code shipped there while its migrations were still pending. `getMyFamilies`
-selects `membership_status`; hosted did not have the column; PostgREST answered **42703
-and killed the whole query**, not just that column. So the resolver returned no
-memberships, `requireViewOrPending` called `notFound()`, and every page in the app
-answered 404 — including the dashboard.
+The mechanism is `.github/workflows/deploy.yml`, and the rule is now AGENTS.md, "How
+migrations reach the hosted project". It closes both the ordering outage and the replay
+incident that used to be two separate entries in this file.
 
-`const { data } = …` discarded the error, exactly as AGENTS.md §8 warns. `[]` means
-"belongs to no family", which every caller correctly denies on — so the app failed
-closed, which is right, and failed closed *silently*, which is not. `getMyFamilies` now
-reads the error, logs a message naming the likely cause, and still denies; that is a
-better symptom, not a fix for the ordering.
+First create the environment: **GitHub → Settings → Environments → New environment**, named
+exactly `production` (`deploy.yml` says `environment: production`). Then, on that
+environment's own page:
 
-`db push` from a GitHub Action on merge to `master` fixes this and the replay problem
-below, and is still not built.
+| # | Where | What |
+|---|---|---|
+| 1 | `production` env → Environment secrets | `SUPABASE_ACCESS_TOKEN` — a Management API token (`sbp_…`). Not the service role key, not the DB password. |
+| 2 | same | `SUPABASE_DB_PASSWORD` — the hosted database password, read by `supabase link` and `db push`. |
+| 3 | same | `VERCEL_DEPLOY_HOOK_PROD` — Vercel → Settings → Git → Deploy Hooks, targeting `master`. |
+| 4 | `production` env → Deployment branch rules | **Selected branches → `master`.** Not optional; see below. |
+| 5 | Repo → Settings → Variables → Actions | `SUPABASE_PROJECT_ID` = `jdvzabunhchjetjddgdw`. Repository-level and a *variable*, not a secret — it is not sensitive and already appears in this file. |
+
+**Environment secrets, not repository secrets, and the reason is not tidiness.** A
+repository secret is readable by every workflow in the repo, and `verify.yml` runs on
+`pull_request` from any branch a collaborator can push — so the production database password
+would be one edited workflow file away from being echoed into a PR log. `verify.yml` needs
+no secret at all (zero `secrets.` references; it runs entirely against a local stack), so
+scoping these to the environment costs nothing and removes that path completely.
+
+**Row 4 closes the `workflow_dispatch` path.** A dispatch runs the workflow file from
+whatever ref you select, so without a branch rule a modified `deploy.yml` on a throwaway
+branch could be handed production credentials on request. Restricting the environment to
+`master` means the ref is the reviewed one or the job gets nothing. Dispatch from `master`
+still works, which is what it is there for — re-running a failed deploy without an empty
+commit.
+
+**Do not add a required reviewer** unless you want to revisit the decision made when this
+was built: applying migrations is automatic on merge, because the PR *is* the review. The
+option now sits one checkbox away on this same environment page if that ever changes — which
+is the other reason for using an environment rather than repo secrets, since switching later
+costs a click instead of a workflow rewrite.
+
+Every run also records a deployment against the environment, so the Environments tab becomes
+the history of what reached production and when — the "recorded" half of what this mechanism
+was for.
+
+**Then, and this is the step that makes ordering a guarantee rather than a race:** Vercel →
+Settings → Git → turn **off** production auto-deploy for `master`. The deploy hook becomes
+the only thing that builds production, so schema is always applied first. Leave it on and
+the two race — usually schema wins, because a `db push` is seconds and a Next build is
+minutes, and "usually" is what Phase 3 was.
+
+Do not turn off preview deploys. The `dev` branch preview on
+`genorra-kappa.vercel.app` is unaffected and should stay that way.
+
+### Two baselines to read before the first merge
+
+Both are commands, both read-only, and both exist because a check whose baseline nobody has
+looked at is a check that blocks the first deploy for reasons that predate it:
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_… npm run db:check -- --linked   # ledger: hosted vs this repo
+SUPABASE_ACCESS_TOKEN=sbp_… npm run db:audit -- --linked   # no superseded policy left behind
+```
+
+`db:check --linked` is the one that matters most, because **nobody knows what hosted's
+ledger contains.** Migrations were applied by hand, sometimes with `psql -f`, which records
+nothing — so hosted may well carry a version this repo does not, or be missing one it
+recorded. If it reports findings, resolve them before enabling the workflow; the first
+`db push` from CI is not the moment to discover it.
+
+`db:audit --linked` should be clean: the audit query returned exactly one row on hosted
+(`families`) and `20260806000009` removed it. Confirm rather than assume.
+
+### Still owed, and deliberately not done blind
+
+**`supabase db advisors` is report-only in `deploy.yml`.** It is the advisor that caught the
+replay incident and it *should* block deploys — but hosted's advisor baseline has never been
+read, and a project of this age will almost certainly have pre-existing `error`-level
+findings (mutable function `search_path` and friends). Setting `--fail-on error` unverified
+would block the first deploy on things this workflow did not cause. So:
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_… npx supabase db advisors --linked --type security --level error
+```
+
+Read it, fix or accept what it says, then change `--fail-on none` to `--fail-on error` in
+`deploy.yml`. The step is named "(report only)" so a green tick is not mistaken for a clean
+project.
+
+## `npm run lint` is red on master, so the PR gate cannot hold anyone to it
+
+**Action:** clear the 39 errors, then drop the `|| true` from the Lint step in
+`.github/workflows/verify.yml`.
+
+Measured 2026-08-12 against a clean checkout of `HEAD`, not against work in progress:
+**39 errors and 31 warnings.** So this predates the workflow, and making the step blocking
+would have failed every pull request starting with the one that introduced it — which does
+not raise the bar, it just teaches everyone that a red tick is normal. It is `|| true` for
+that reason and no other, and the step is named "(report only)" so nobody reads the green
+as a clean tree.
+
+Typecheck and build are **blocking**, because both are clean: `npm run typecheck` exits 0,
+and `next build` demonstrably passes on `master` — Vercel builds it on every deploy and
+genorra.com is serving.
+
+The errors, by rule:
+
+| Count | Rule |
+|---|---|
+| 26 | `@typescript-eslint/no-explicit-any` |
+| 22 | `@typescript-eslint/no-unused-vars` |
+| 6 | `react/no-unescaped-entities` |
+| 4 | `react-hooks/incompatible-library` |
+| 3 | `react-hooks/set-state-in-effect` |
+| 3 | `@next/next/no-img-element` |
+| 1 each | `react-hooks/purity`, `react-hooks/preserve-manual-memoization`, `@typescript-eslint/no-unused-expressions` |
+
+The two `react-hooks` families are worth reading rather than silencing. `incompatible-library`
+is React Compiler on react-hook-form's `watch()`, which genuinely cannot be memoized safely;
+`set-state-in-effect` is the pattern `lib/use-server-state.ts` exists to avoid and is
+flagged in three places that predate it. `no-unused-vars` is the cheap half — clearing those
+22 first would make the remainder legible.
 
 ## Expires 2026-10-01: Claude may write to the hosted database unprompted
 
@@ -563,13 +677,16 @@ read a single row of family data. Its password sits in plaintext in
 `supabase/.env.probe` (gitignored). Nothing needs doing when it lapses; verifying it
 lapsed is worth thirty seconds.
 
-Note that neither `.claude/settings.local.json` nor `supabase/.env.probe` is present in
-this checkout, so the local half may already be gone — the hosted `claude_probe` role is
-the part that still needs confirming.
+Neither `.claude/settings.local.json` nor `supabase/.env.probe` is present in this
+checkout — confirmed 2026-08-12, there is no `.claude/` directory at all — so the local
+half is already gone. The hosted `claude_probe` role is the part that still needs
+confirming.
 
-The durable replacement for both is `db push` from a GitHub Action on merge to
-`master` — reviewed, ordered, recorded, and nobody holding write credentials. Not
-built.
+**The durable replacement is built** (2026-08-12): `db push` from a GitHub Action on merge
+to `master` — reviewed, ordered, recorded, and nobody holding write credentials. See
+"BUILT 2026-08-12, NOT YET ENABLED" above; it needs its four secrets and the Vercel toggle
+before it is doing the job. Once it is, granting an agent `db push` on production has no
+remaining justification, because the reviewed path is strictly better at the same task.
 
 ## Authorization
 
@@ -629,41 +746,17 @@ object paths, which is a different harness rather than three more cases.
 
 ### Replaying an early migration can resurrect a policy a later one replaced
 
-**Action:** decide how migrations reach the hosted project, and stop applying them by
-hand out of order. Guarding all ~30 files individually is not the answer.
+**CLOSED 2026-08-12** by the CI mechanism above — `db push` consults
+`supabase_migrations.schema_migrations` and will not apply a version already recorded, so
+replay is not something a person can do by accident any more. Guarding ~30 files
+individually was the alternative and stays rejected.
 
-This already happened once, in production. `20260602000000_families.sql` was replayed
-against hosted after `20260618000001` had renamed its policy to `perm:…`, so its bare
-`CREATE POLICY` — no `DROP`, no `IF NOT EXISTS` — recreated the original
-`user_metadata` policy *alongside* the secure one. Permissive policies are OR-ed, so
-the spoofable one decided every read. Supabase's advisor caught it;
-`20260806000009` removed it and that one file now guards on `auth_family_code()`
-existing.
+What survives, because the ledger structurally cannot see it: a bare `psql -f` changes no
+version, so only the policies themselves reveal it. The audit query is therefore kept as
+`supabase/scripts/audit_policy_shadowing.sql` (`npm run db:audit -- --local|--linked`),
+runs in both workflows, and RAISEs with the offending table and policy named rather than
+just a count. **Run it against hosted after any hand intervention.**
 
-The shape is general, and only that one file is guarded. Every migration up to
-`20260610000007` creates policies with a bare `CREATE POLICY`, and the three sweeps
-(`20260615000004`, `20260618000001`, `20260618000003`) renamed or rewrote most of them
-— so replaying any of those files re-adds a legacy policy under a name nothing holds
-any more. `20260806000009` cleans up the `user_metadata` variety on sight and is
-re-runnable, which makes it a good thing to apply after any manual intervention, but it
-says nothing about the `is_admin` variety or about plain duplicates that widen access.
-
-Two things worth knowing before choosing a fix:
-
-- Every migration header says `USAGE: psql "$DATABASE_URL" -f <file>`, which invites
-  exactly this. `supabase db push` applies pending migrations in order and records them
-  in `supabase_migrations.schema_migrations`; hand-running `psql -f` records nothing, so
-  nothing can tell you afterwards what a database actually has.
-- The audit query that finds the damage is cheap and worth keeping:
-
-  ```sql
-  SELECT a.tablename, a.policyname
-    FROM pg_policies a
-   WHERE a.schemaname='public' AND a.policyname NOT LIKE 'perm:%'
-     AND EXISTS (SELECT 1 FROM pg_policies b
-                  WHERE b.schemaname='public' AND b.tablename=a.tablename
-                    AND b.policyname='perm:'||a.policyname);
-  ```
-
-  It returned exactly one row on hosted — `families` — which is how the blast radius
-  was bounded. On a correct database it returns none.
+The 18 `USAGE: psql "$DATABASE_URL" -f <file>` headers that invited this are gone, and
+`npm run db:check` fails if one comes back — including in files nobody has written yet,
+which is the part a one-time sweep could not do.

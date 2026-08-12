@@ -1,0 +1,103 @@
+# Everything that must be true before a merge is allowed to apply migrations to the
+# production database. Nothing here touches a hosted project.
+#
+# The point of this file is that deploy.yml applies migrations UNATTENDED on merge to
+# master. That is only safe if the chain has been proved to apply to an empty database
+# first, which AGENTS.md has always asked for ("Verify with `npx supabase db reset`, not
+# by reading") and which nothing has ever enforced.
+
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+# A second push to the same PR asks the same question again, so abandon the first run.
+# Production deploys are the opposite case — see the note in deploy.yml.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the version used locally, so a green run here and a green run on a
+          # laptop mean the same thing.
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # First, because it needs no database and no network, and it catches the two
+      # mistakes that would make everything below meaningless: a file the CLI silently
+      # skips, and a file that documents itself as a hand-run `psql` command.
+      - name: Migration chain checks
+        run: npm run db:check
+
+      - uses: supabase/setup-cli@v1
+        with:
+          # Pinned. This is the version that will also apply migrations to production in
+          # deploy.yml, and `npx supabase` without a pin fetches whatever npm served that
+          # day — an unreviewed CLI upgrade between two deploys is not a thing to discover
+          # from a schema change.
+          version: 2.114.0
+
+      # Applies every migration to an EMPTY database, in order, then runs seed.sql. A
+      # migration that only works against a database already carrying yesterday's schema
+      # fails right here. `20260618000002` is an empty file precisely because of this
+      # constraint; nothing but a real run from empty proves the chain still holds.
+      - name: Start the stack — applies the chain to an empty database
+        run: supabase start
+
+      # And again, with the command AGENTS.md tells a human to run.
+      - name: supabase db reset
+        run: supabase db reset
+
+      - name: Ledger is level with the repo
+        run: npm run db:check -- --local --expect-applied
+
+      # A superseded policy sitting beside its `perm:` replacement. Here this proves the
+      # REPO's chain cannot produce one; deploy.yml asks the same question of hosted,
+      # where the cause would be a hand-run file instead.
+      - name: No superseded policy beside its replacement
+        run: supabase db query --local -f supabase/scripts/audit_policy_shadowing.sql
+
+      # The family-isolation suite. It reads its keys from `supabase status`, so there is
+      # nothing to inject, and it refuses to run against a non-local URL.
+      - name: RLS isolation suite
+        run: npm run test:rls
+
+      # REPORT ONLY, and not by preference. `master` already carries 39 eslint errors and
+      # 31 warnings — measured on a clean checkout of HEAD, so this predates both this
+      # workflow and anything in flight. Blocking on it would fail every PR from the first
+      # one, which does not raise the bar, it just teaches everybody to merge past a red
+      # tick. The breakdown and the path to making this blocking are in TODO.md.
+      - name: Lint (report only)
+        run: npm run lint || true
+
+      # Blocking: clean on master today, so it can be held to.
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The build needs the three env vars the Supabase clients read. They come from the
+      # stack already running in this job rather than from placeholders, so a route that
+      # touches Supabase during prerender fails here rather than on Vercel.
+      #
+      # `eval` is scoped to three known keys by the grep, and `supabase status` exits
+      # non-zero when any optional container is down, which is not a build failure — hence
+      # the `|| true`.
+      - name: Build
+        run: |
+          eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' || true)"
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          npm run build

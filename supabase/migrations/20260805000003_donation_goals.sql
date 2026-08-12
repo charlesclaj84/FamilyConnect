@@ -26,8 +26,10 @@
 -- becomes the goal rather than being thrown away. Re-runnable: once amount_cents is
 -- 0 the NULLIF yields NULL and COALESCE keeps whatever goal is already there.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000003_donation_goals.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

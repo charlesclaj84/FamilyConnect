@@ -28,8 +28,10 @@
 -- permission_table_map ('admin/account'), and this column does not affect who may
 -- read or write a row.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000002_donation_schedules.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

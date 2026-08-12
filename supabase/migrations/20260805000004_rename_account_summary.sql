@@ -22,8 +22,10 @@
 -- migration is ever replayed after this one it would revert the name — its seed
 -- literal was updated to 'My Summary' as well to keep the two in step.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000004_rename_account_summary.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

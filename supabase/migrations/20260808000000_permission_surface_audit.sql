@@ -59,8 +59,10 @@
 -- policy is dropped and recreated, and every update is guarded on the value it sets.
 -- Safe on an empty database, where the backfill loops find no templates.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260808000000_permission_surface_audit.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

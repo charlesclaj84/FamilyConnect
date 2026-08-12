@@ -57,8 +57,10 @@
 -- IDEMPOTENT: the DELETE matches nothing on a second run, and the policy is
 -- recreated by name under DROP POLICY IF EXISTS.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000007_drop_notifications_resource.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

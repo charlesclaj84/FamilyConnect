@@ -360,9 +360,99 @@ run never called it. Two things follow:
   needs no fixture unconditionally, and `RAISE NOTICE` for the part that genuinely
   cannot run — a skip should be visible, never silent.
 
-`npx supabase db push --linked` **does nothing from a non-TTY** — exit 0, no output, no
-migrations applied — because it is waiting on a confirmation prompt. Redirect stdin:
-`npx supabase db push --linked < /dev/null`.
+# How migrations reach the hosted project
+
+**From CI on merge to `master`, and from nowhere else.** Not from a laptop, not with
+`psql`, not with `db push` from a terminal. `.github/workflows/deploy.yml` is the whole
+mechanism and nobody needs write credentials for production.
+
+This is not tidiness. Applying migrations by hand has cost two production incidents, and
+they are the two halves of the same missing mechanism:
+
+* **Code ahead of schema.** Phase 3's app code shipped to hosted while its migrations were
+  still pending. `getMyFamilies` selected `membership_status`, hosted did not have the
+  column, and PostgREST answered **42703 and killed the whole query** rather than that one
+  column. The resolver returned no memberships, `requireViewOrPending` called
+  `notFound()`, and every page in the app answered 404 — the dashboard included.
+* **A file replayed out of order.** `20260602000000_families.sql` was run against hosted
+  after `20260618000001` had renamed its policy to `perm:…`. Its bare `CREATE POLICY` — no
+  `DROP`, no `IF NOT EXISTS` — recreated the original *alongside* the secure one, and
+  because permissive policies are OR-ed, the spoofable `user_metadata` policy decided
+  every read until Supabase's advisor caught it.
+
+Every migration up to `20260610000007` creates policies with a bare `CREATE POLICY`, and
+three sweeps (`20260615000004`, `20260618000001`, `20260618000003`) renamed or rewrote most
+of them — so the second incident is available from about thirty files, not one. Guarding
+each of them individually was the alternative and was rejected: it is one edit per file
+forever, and only ever as complete as the last person's diligence.
+
+## What the mechanism actually is
+
+**Ordering is structural.** Vercel's git auto-deploy for `master` is **off**. The Vercel
+deploy hook at the end of `deploy.yml` is the only thing that builds production, and it
+cannot fire until `db push` and every check after it has passed. Schema precedes code
+always, rather than usually — a Next build merely being slower than a `db push` is a race,
+not a guarantee, and Phase 3 is what losing it looks like.
+
+**Replay is structural.** `supabase db push` records each version in
+`supabase_migrations.schema_migrations` and refuses one already there. Hand-running
+`psql -f` records nothing, which is why afterwards nothing can tell you what a database
+has. That is the real damage: not the bad policy, the *not knowing*.
+
+**Two flags on the push are load-bearing.** `supabase db push --linked` **does nothing
+from a non-TTY** — exit 0, no output, no migrations applied — because it is sitting on a
+confirmation prompt it cannot draw, and a CI runner is exactly that. Hence `--yes` and
+`< /dev/null`. Without them the job goes green having applied nothing and then deploys the
+code: Phase 3 reproduced by the automation built to prevent it. The `--expect-applied`
+check after the push exists to catch that class of silent no-op, and is not a formality.
+
+**`--include-all` is never passed.** `db push` refuses a pending migration that sorts
+before the newest applied one (`LegacyDbPushMissingRemoteError`), and that refusal is the
+guard: every file applied after it was written against a schema that did not include it.
+When it fires, the repair is a new migration with a current timestamp — not the override
+the CLI helpfully suggests.
+
+## Asking whether it held
+
+```bash
+npm run db:check                      # repo only: no database, no credentials
+npm run db:check -- --local           # ...and against the local stack
+npm run db:check -- --linked          # ...and against hosted (needs SUPABASE_ACCESS_TOKEN)
+npm run db:audit -- --linked          # no superseded policy left beside its replacement
+```
+
+`scripts/migrations.mjs` exits 1 on a finding, so it reads as a test — the same job
+`npm run email:check` does for the auth templates. It reports a version hosted has and
+this repo does not (a hand-applied file, or a `migration repair` stamp), a pending
+migration that sorts before an applied one, an unversioned `.sql` sitting in
+`supabase/migrations/`, and a migration that documents itself as a `psql` command.
+
+`supabase/scripts/audit_policy_shadowing.sql` is the detector for the one case the ledger
+cannot see: a bare `psql -f` changes no version, so only the policies themselves show it.
+Run it against hosted after **any** hand intervention.
+
+## Two things about editing migrations that follow from this
+
+**An unversioned `.sql` file in `supabase/migrations/` applies to nothing.** The CLI skips
+anything not matching `<14-digit timestamp>_name.sql`, with one line of output that scrolls
+past in a log. `chat_install.sql` and `chat_teardown.sql` sat there for months doing
+exactly that, and the teardown dropped `get_my_family_code()` and
+`auth_uid_is_room_participant()` — §2b's load-bearing pair. Hand-run SQL goes in
+`supabase/scripts/`, which is what that directory is for. `db:check` now fails on it.
+
+**Editing an applied migration changes fresh databases only.** `db push` keys off the
+version, so hosted will never see the edit. This is deliberate and load-bearing rather than
+a wart: `20260618000000_permissions_foundation.sql` carries the `permission_resources`
+seed, §6 tells you to keep it current, and it has been edited in ten commits since it was
+applied. That is why §6 says to add a row **in a new migration *and* in the seed** — the
+new migration is what reaches hosted, the seed edit is what makes a `db reset` match it.
+Never expect an edit to an applied file to deploy.
+
+Comments are the exception that proves the rule: rewriting a comment in an applied
+migration is safe precisely *because* the file is never re-read. That is what let the
+`USAGE: psql "$DATABASE_URL" -f …` header be swept out of all 18 files that carried it
+without touching a database — and it does not license sweeping migration comments
+generally, which "What is deliberately *not* in here" still forbids.
 
 # Switching family remounts the page
 
@@ -878,7 +968,12 @@ Changing it does not rename a running stack — it orphans it and builds a new o
 next `supabase start`.
 
 **Applied migrations.** Comments in `supabase/migrations/*` are a record of what ran and
-when. They were swept once, during the 2026-08-10 rename; do not make a habit of it.
+when. They have been swept twice — the 2026-08-10 rename, and the 2026-08-12 removal of the
+`USAGE: psql "$DATABASE_URL" -f …` header from the 18 files that carried it. Do not make a
+habit of it. The second sweep earned it on a narrow ground worth stating, because it is the
+only ground that qualifies: the line was not a record of anything, it was an *instruction*,
+it was false, and following it caused a production incident. See "How migrations reach the
+hosted project". Prose that merely reads oddly today does not qualify.
 
 # Page width is a component, not a per-page guess
 

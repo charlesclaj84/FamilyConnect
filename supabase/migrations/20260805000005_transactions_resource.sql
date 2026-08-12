@@ -28,8 +28,10 @@
 -- too — otherwise replaying that migration after this one would leave the two
 -- disagreeing about sort order.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000005_transactions_resource.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

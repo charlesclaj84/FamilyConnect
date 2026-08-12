@@ -43,8 +43,10 @@
 -- IDEMPOTENT. Policies are dropped by name and recreated; the deletes are unfiltered
 -- by state. Safe on an empty database, where the tables exist and hold no rows.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260808000001_retire_dues_records.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

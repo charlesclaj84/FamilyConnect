@@ -22,8 +22,10 @@
 -- 20260618000000 — whose insert was updated in the same commit so replaying it
 -- cannot drop this row back out.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000008_my_families_resource.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

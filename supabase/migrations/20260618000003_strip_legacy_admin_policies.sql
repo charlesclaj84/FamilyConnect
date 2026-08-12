@@ -36,8 +36,10 @@
 -- IDEMPOTENT: once no policy mentions is_admin, the rewrite loop is a no-op and
 -- the columns are already gone, so re-running does nothing.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260618000003_strip_legacy_admin_policies.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

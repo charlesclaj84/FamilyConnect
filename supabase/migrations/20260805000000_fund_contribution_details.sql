@@ -26,8 +26,10 @@
 -- routes through permission_table_map ('family-finances', own = recorded_by), and
 -- these columns do not affect who may read or write a row.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000000_fund_contribution_details.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

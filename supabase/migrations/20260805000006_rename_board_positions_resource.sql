@@ -39,8 +39,10 @@
 -- ON CONFLICT DO NOTHING so a re-run cannot collide with rows already moved, and
 -- the policy rewrite matches on the old literal, which is absent after pass one.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260805000006_rename_board_positions_resource.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;

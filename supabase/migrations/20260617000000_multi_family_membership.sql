@@ -32,8 +32,10 @@
 --
 -- IDEMPOTENT: safe to run more than once.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260617000000_multi_family_membership.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 --
 -- ROLLBACK (only valid while every user still has a single people row):
 --   DROP TRIGGER  IF EXISTS people_sync_shared_profile ON public.people;

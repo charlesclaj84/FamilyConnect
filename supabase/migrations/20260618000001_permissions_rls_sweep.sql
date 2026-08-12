@@ -33,8 +33,10 @@
 -- RE-RUNNABLE: recreated policies are prefixed 'perm:' and skipped on a second
 -- pass, so running this twice is a no-op rather than a double-wrap.
 --
--- USAGE
---   psql "$DATABASE_URL" -f 20260618000001_permissions_rls_sweep.sql
+-- HOW THIS REACHES A DATABASE
+--   `supabase db push`, from CI on merge to master — never `psql -f` by hand, which
+--   records nothing and can replay this file out of order. See AGENTS.md, "How
+--   migrations reach the hosted project".
 -- ============================================================================
 
 BEGIN;
