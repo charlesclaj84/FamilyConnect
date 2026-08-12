@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/site'
+import { MARKETING_ROUTES } from '@/lib/marketing-nav'
 
 /**
  * The crawlable surface of the site — which is a much smaller thing than the
@@ -33,7 +34,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // content changed when only the build did, and a lastModified that always
   // moves is one crawlers learn to ignore. Bump this when the copy actually
   // changes.
-  const lastModified = new Date('2026-08-11')
+  const lastModified = new Date('2026-08-12')
 
   return [
     {
@@ -42,6 +43,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 1,
     },
+    // The marketing pages, from the same list the header and footer render, so a page
+    // added to the nav cannot be missing from the sitemap — see lib/marketing-nav.ts.
+    // Mapped rather than restated for exactly that reason.
+    ...MARKETING_ROUTES.map(route => ({
+      url: `${SITE_URL}${route.href}`,
+      lastModified,
+      changeFrequency: route.changeFrequency,
+      priority: route.priority,
+    })),
     {
       // The page an interested visitor is actually looking for.
       url: `${SITE_URL}/register`,

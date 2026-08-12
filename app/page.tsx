@@ -1,17 +1,19 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
-import { User, Users, CalendarCheck, Sparkles } from 'lucide-react'
+import { Users, CalendarCheck, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { MarketingHeader } from '@/components/marketing/MarketingHeader'
+import { MarketingFooter } from '@/components/marketing/MarketingFooter'
+import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
+import { Testimonials } from '@/components/marketing/Testimonials'
 import { landingPageGraph } from '@/lib/structured-data'
 import {
-  APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT, APP_PUBLISHER,
-  BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
+  APP_NAME, APP_LEAD, APP_VALUES, APP_BANNER_ALT,
+  BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
 
 /**
@@ -115,43 +117,16 @@ export default function LandingPage() {
           where the entity is declared. Renders nothing. */}
       <StructuredData graph={landingPageGraph()} />
 
-      {/* Navbar */}
-      {/* z-30 is the app-wide header level — see the stacking note in
-          components/layout/Navbar.tsx. */}
-      <header className="border-b bg-brand-bar sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Image src={BRAND_MARK_SRC} alt={APP_LOGO_ALT} width={40} height={40} className="h-9 w-9 shrink-0" priority />
-            {/* The wordmark is set, not placed: `.gn-wordmark` is the brand board's
-                letterspaced Cormorant caps in CSS, so it stays crisp at any size and
-                follows the theme. An <img> of the wordmark would do neither.
+      {/* The shared public header. Extracted to components/marketing when the marketing
+          surface grew from this one page to six — it carries the nav for Features,
+          Pricing, How It Works, Why Us and About, all from lib/marketing-nav.ts, so a
+          page added there appears here, in the footer and in the sitemap at once.
 
-                Hidden below sm, for the reason the signed-in Navbar hides it: GENORRA
-                at text-xl with 0.18em tracking wants ~116px, and on a 375px screen the
-                mark, the appearance toggle and the two calls to action leave under 70.
-                `truncate` did not fix that — it MADE it, rendering "GENOR…", which reads
-                as broken rather than as tight. The mark keeps the brand present, its alt
-                text still announces the name, and the hero lockup directly below carries
-                the wordmark at full size. */}
-            <span className="gn-wordmark hidden truncate text-xl text-brand-ink sm:block">{APP_NAME}</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <ThemeToggle />
-            <Link href="/login">
-              {/* One button, not two: below sm it is the icon alone (hence the explicit
-                  aria-label, which is the accessible name once the word is gone), and
-                  from sm it grows back into a labelled button. */}
-              <Button variant="outline" size="icon" aria-label="Login" className="sm:w-auto sm:gap-1.5 sm:px-2.5">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Login</span>
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button>Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
+          This page is deliberately NOT inside app/(marketing): a route group cannot own
+          `/` without displacing the root layout, and the hero below needs the full-bleed
+          treatment the group's <main> wrapper does not give it. It imports the same two
+          components instead, which is what keeps the nav consistent. */}
+      <MarketingHeader />
 
       {/* ── HERO ──────────────────────────────────────────────────────────
           One band, not three. This used to be the artwork, then a values strip,
@@ -308,6 +283,16 @@ export default function LandingPage() {
       {/* Features */}
       <FeatureShowcase />
 
+      {/* The roadmap headline, badged as coming soon in three places inside the
+          component. It sits after the shipped features and before the closing ask, so a
+          visitor has seen what they get today before being shown what is next — the
+          reverse order reads as a product that is mostly promises. */}
+      <LivingSitePreview />
+
+      {/* Renders nothing in production until real, permissioned quotes exist — see the
+          header of Testimonials.tsx for why that is the design rather than a gap. */}
+      <Testimonials />
+
       {/* ── CLOSING CTA ───────────────────────────────────────────────────
           The second dark band, and the reason the page now has rhythm: it
           bookends the hero so the eye travels light → dark → light → dark
@@ -334,22 +319,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-8 px-4 bg-background">
-        <div className="max-w-6xl mx-auto flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span className="gn-wordmark text-base text-brand-ink">{APP_NAME}</span>
-            <span>{APP_LEAD}</span>
-            <div className="flex gap-4">
-              <Link href="/login" className="hover:text-foreground transition-colors">Sign In</Link>
-              <Link href="/register" className="hover:text-foreground transition-colors">Register</Link>
-            </div>
-          </div>
-          <div className="border-t pt-4 text-center text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} {APP_PUBLISHER}. All rights reserved.
-          </div>
-        </div>
-      </footer>
+      {/* The shared public footer — three link columns rather than the two this page
+          used to carry inline, because six marketing pages need reaching and a footer is
+          the one place a crawler reliably follows every internal link. */}
+      <MarketingFooter />
     </div>
   )
 }

@@ -187,6 +187,64 @@ export function landingPageGraph() {
  * other nodes reference `@id`s: two descriptions of one site can drift, and a consumer
  * reading both has no way to choose.
  */
+/** The `WebPage` node shared by every secondary page. Not exported: reach it through one
+ *  of the two wrappers below, so no caller can forget `isPartOf`. */
+function webPage(opts: { path: string; name: string; description: string }) {
+  const url = `${SITE_URL}${opts.path}`
+  return {
+    '@type': 'WebPage',
+    '@id': `${url}#webpage`,
+    url,
+    name: opts.name,
+    description: opts.description,
+    isPartOf: { '@id': WEBSITE_ID },
+    publisher: { '@id': ORGANIZATION_ID },
+    inLanguage: 'en-US',
+  }
+}
+
+/**
+ * A marketing page's graph: the brand's identity nodes plus this page.
+ *
+ * SAME `@id`s AS THE LANDING PAGE, which is the entire point. Six pages each declaring
+ * their own unrelated `Organization` is six organisations that happen to share a name;
+ * pointing at one node makes them one entity, and it is the `WebSite` node Google reads
+ * to decide what to print above a result instead of `genorra.com`.
+ *
+ * DELIBERATELY WITHOUT `webApplication()`. That node carries the feature list and the free
+ * `Offer`, both traceable to specific things the LANDING page shows. Repeating it on five
+ * more pages would be five more places for the claim to drift out of step with the page
+ * under it — see this file's header. `/pricing` is the one exception and says so itself.
+ *
+ * `faq` is optional and, when present, MUST be questions genuinely answered in the visible
+ * copy of that page. An FAQPage node whose answers are not on the page is the exact
+ * mismatch that gets rich results removed wholesale rather than ignored.
+ */
+export function marketingPageGraph(opts: {
+  path: string
+  name: string
+  description: string
+  faq?: readonly { question: string; answer: string }[]
+}) {
+  const url = `${SITE_URL}${opts.path}`
+  const nodes: object[] = [organization(), website(), webPage(opts)]
+
+  if (opts.faq?.length) {
+    nodes.push({
+      '@type': 'FAQPage',
+      '@id': `${url}#faq`,
+      isPartOf: { '@id': `${url}#webpage` },
+      mainEntity: opts.faq.map(entry => ({
+        '@type': 'Question',
+        name: entry.question,
+        acceptedAnswer: { '@type': 'Answer', text: entry.answer },
+      })),
+    })
+  }
+
+  return { '@context': 'https://schema.org', '@graph': nodes }
+}
+
 export function authPageGraph(opts: {
   /** Absolute-from-root, with no query string — `/login`, `/register`. */
   path: string
