@@ -256,6 +256,16 @@ async function teardown(db) {
     // RESTRICT, and the null-out above only covers rows in these families. Deleting the
     // people first means there is provably nothing left pointing here.
     'permission_templates',
+    // AFTER `people` for the same reason as the two above: `people.chapter_id`
+    // REFERENCES chapters(id), so the rows pointing here have to go first.
+    //
+    // Added 2026-08-12, and it is the third instance of the failure this list's own
+    // comment describes: the chapter seeded per family below has a UNIQUE
+    // (family_code, name), so leaving it behind made the suite single-use again —
+    // green on a fresh database, and dead in teardown on the very next run with
+    // "duplicate key value violates unique constraint chapters_family_code_name_key",
+    // before a single case executed. Seeding a row means sweeping it.
+    'chapters',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)
