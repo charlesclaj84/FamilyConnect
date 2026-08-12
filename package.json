@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs"
+    "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs",
+    "email:check": "node scripts/auth-templates.mjs check",
+    "email:push": "node scripts/auth-templates.mjs push",
+    "email:pull": "node scripts/auth-templates.mjs pull"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

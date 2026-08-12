@@ -1,8 +1,10 @@
 # Auth email templates
 
 The bodies GoTrue sends. Wired up in `supabase/config.toml` under
-`[auth.email.template.*]` — and, because hosted does not read that file, **pasted by
-hand** into Supabase → Authentication → Email Templates.
+`[auth.email.template.*]`, which is what the local stack reads — and pushed to hosted
+with `npm run email:push`, which is what production reads. See
+"[Keeping the two copies in step](#keeping-the-two-copies-in-step)"; they were pasted by
+hand until 2026-08-12 and no longer are.
 
 **The rationale lives here, not in the templates.** These files are the payload: every
 byte is transmitted to every recipient and is one "view source" away in any mail client.
@@ -46,10 +48,51 @@ just not something the product needs while the family flow does the job better.
 
 ## Keeping the two copies in step
 
-`config.toml` points at these files for **local** development only. Hosted renders
-whatever was last pasted into the dashboard, so an edit here does nothing to production
-until somebody pastes it. That is the one genuine drift risk in this directory — if you
-change a template, paste it, and send yourself a real message before calling it done.
+`config.toml` points at these files for **local** development only. Hosted keeps its own
+copy of every template body, so an edit here does nothing to production on its own. That
+is the one genuine drift risk in this directory, and it is now mechanical rather than
+remembered:
+
+```bash
+export SUPABASE_ACCESS_TOKEN=sbp_…      # a Management API token, see below
+npm run email:check                     # read-only. exit 1, with a diff, if hosted differs
+npm run email:push                      # make hosted match this directory
+npm run email:pull                      # overwrite this directory from hosted
+```
+
+[`scripts/auth-templates.mjs`](../../scripts/auth-templates.mjs) reads the same
+`[auth.email.template.*]` table the CLI reads, so **`config.toml` remains the single
+statement of which file is which template and what its subject is** — there is no second
+list to keep in step, which is the failure this replaced rather than repeated.
+
+**Why not `supabase config push`.** That command sends the entire `[auth]` block,
+`site_url` included. Pushing a one-word copy edit from a checkout pointed at a local
+stack would reconfigure production's redirect handling as a side effect — TODO.md's GO
+LIVE section has carried that warning since before the script existed, and it is exactly
+why these files were pasted by hand for two months. The Management API takes a partial
+body, so `email:push` sends **ten fields**: a subject and a body for each of the five
+templates, and nothing else. `assertOnlyMailerFields` refuses to transmit a key outside
+`mailer_subjects_*` / `mailer_templates_*_content`, so that stays true of the code as
+*run* rather than only of the code as written.
+
+Three practical notes:
+
+* **`SUPABASE_ACCESS_TOKEN` is a Management API personal access token** (`sbp_…`) from
+  <https://supabase.com/dashboard/account/tokens>. It is not the service role key and not
+  the database password. `supabase login` keeps its own copy in the OS keyring, which a
+  script cannot read, so being logged in to the CLI is not enough. Export it for the one
+  command rather than putting it in `.env.local` — it is an account-wide credential, far
+  broader than anything else this repo holds.
+* **The project ref** comes from `--project-ref=`, `SUPABASE_PROJECT_REF`, or
+  `supabase/.temp/project-ref` if the CLI is linked — in that order, and the script prints
+  which one it used, because the whole point is knowing what you just wrote to.
+* **A push is not a send.** It proves the bytes arrived, not that the mail renders. The
+  old advice survives intact: change a template, push it, and send yourself a real message
+  before calling it done.
+
+`email:pull` exists for the opposite direction — somebody edits a template in the
+dashboard and the repo needs to catch up. It writes only where hosted differs and never
+where hosted has no override, so it cannot blank a file against a stock GoTrue tab.
 
 ## The shared scaffold
 
@@ -100,8 +143,43 @@ So each template links to our own `/auth/confirm` with a `token_hash`, and
 through the same cookie plumbing every other request uses. The stock template *looks*
 like it works, which is what makes this worth a paragraph.
 
-`reauthentication.html` is the exception: GoTrue sends a 6-digit `{{ .Token }}` there,
-not a URL, so there is no link and no fragment to avoid.
+`reauthentication.html` is the exception: GoTrue sends an 8-character `{{ .Token }}`
+there, not a URL, so there is no link and no fragment to avoid.
+
+### The code block is sized for eight characters, at the worst case
+
+`auth.email.otp_length` is **8** (matched to hosted, 2026-08-12), which makes it a layout
+constant as much as a security one. The block has to fit on a 320px phone **with the
+`<style>` block stripped**, because that is what Gmail does for non-Gmail accounts — so
+the mobile `.gn-pad` override cannot be assumed and the inline size has to survive alone.
+
+That worst case leaves 182px for the code:
+
+```
+320  viewport
+-24  outer cell padding (12px each side)
+-2   card border
+-88  content cell padding — 44px each side, because .gn-pad did NOT apply
+-24  the code block's own padding (12px each side)
+=182px
+```
+
+A monospace advance is about `0.6em`, and letter-spacing adds to every character, so eight
+characters cost `8 × size × (0.6 + spacing)` plus one `text-indent` — which is there to
+undo the trailing letter-space that would otherwise throw the centring off by one slot.
+At **28px / 0.14em** that is `8 × 20.7 + 3.9 ≈ 170px`, leaving about 12px of slack:
+
+| size | spacing | 8 chars | fits 182px? |
+|---|---|---|---|
+| 38px | 0.26em | 271px | no — the old six-character setting |
+| 34px | 0.18em | 218px | no |
+| 30px | 0.12em | 176px | barely — inside the margin of error on the advance estimate |
+| **28px** | **0.14em** | **170px** | **yes** |
+
+The mobile `.gn-otp` size override was **removed** rather than retuned: it existed to pull
+38px down to 32px on a phone, and an inline value that already fits the phone makes it a
+second number to keep in step for no gain. Keep `letter-spacing` and `text-indent` equal
+if you retune.
 
 `{{ .SiteURL }}` comes from `auth.site_url` and must match the deployment the mail was
 sent from. It also builds the mark's `<img src>`, so the artwork follows the deployment
@@ -112,6 +190,25 @@ too, so a placeholder mentioned in passing renders a live token into every messa
 pointer comment in `confirmation.html` writes `.TokenHash` bare for this reason. The
 conditional comments around the VML button are the deliberate opposite case — the braces
 there *must* render.
+
+## The reauthentication code is not always checked
+
+Worth knowing before writing copy for `reauthentication.html`, because the honest wording
+depends on it. `secure_password_change = true`, but GoTrue reads its own setting as
+"reauthenticate **or have logged in recently**", and recently means the session was created
+within 24 hours. So on a session younger than that the code is composed, sent, typed in and
+**not verified** — a deliberately wrong one still changes the password. The measured matrix
+is in `config.toml` beside the flag.
+
+Two consequences for this template:
+
+* **The copy may not claim that entering the code proves anything.** It says what the code
+  is for and how to treat it, and stops there. `SignInSecurity.tsx` is written to the same
+  rule, and asks for the current password as well precisely because this email cannot be
+  relied on alone.
+* **A recipient who did not ask for this should be told what to do,** since the email is
+  the only signal they get that somebody is trying. That is what the fine print is for; it
+  is load-bearing rather than boilerplate.
 
 ## Size, and Gmail's clip
 

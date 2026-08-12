@@ -310,9 +310,22 @@ enable_confirmations = true
 # an old session tries to change a password.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
+#
+# DELIBERATELY DIFFERENT FROM HOSTED, which is 60s. This is the floor between two
+# confirmation or reset emails to the same address; 1s makes local iteration bearable and
+# 60s is the right production value. Recorded because the 2026-08-12 sweep found three
+# [auth] divergences and this was the only intended one — an unrecorded intentional
+# divergence is indistinguishable from the two that were bugs.
 max_frequency = "1s"
 # Number of characters used in the email OTP.
-otp_length = 6
+#
+# EIGHT, NOT SIX, and matched to hosted 2026-08-12. This is the length of the {{ .Token }}
+# in the reauthentication email, so it is a LAYOUT constant as much as a security one:
+# supabase/templates/reauthentication.html sets the code in monospace at a size chosen to
+# fit this many characters inside a 320px phone WITHOUT the <style> block, which Gmail
+# strips for non-Gmail accounts. Raising it again means re-measuring that block — the
+# arithmetic is in a comment beside it.
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
@@ -344,13 +357,38 @@ otp_expiry = 3600
 # admin_email = "support@genorra.com"
 # sender_name = "GENORRA"
 
+# THIS TABLE IS ALSO WHAT REACHES PRODUCTION. The five blocks below are read by the
+# local stack AND by `npm run email:push` (scripts/auth-templates.mjs), which sends each
+# subject and body to the hosted project through the Management API. So this stays the
+# one statement of which file is which template — adding a template here is what makes it
+# pushable, and `npm run email:check` reports any hosted template that has drifted from
+# its file.
+#
+# It is NOT `supabase config push`, deliberately: that sends this whole [auth] block,
+# site_url included. The script sends ten fields and refuses to transmit anything outside
+# mailer_subjects_* / mailer_templates_*_content. See supabase/templates/README.md.
+#
 # The sign-up confirmation email. Overridden rather than left to the default because
 # the default links to GoTrue's own /auth/v1/verify, which returns the session in a URL
 # fragment — never sent to the server, so a cookie-based app gets a confirmed account
 # and no session. Ours links to /auth/confirm with a token_hash instead. See
 # app/auth/confirm/route.ts for the full argument.
+#
+# ALL FIVE SUBJECTS BELOW WERE RECOVERED FROM THE DASHBOARD, 2026-08-12, on the first
+# real run of `npm run email:check` — which found every one of them drifted and the
+# bodies matching. That asymmetry is worth keeping in mind: the body is what gets edited
+# in the repo, and the SUBJECT is what gets edited in the dashboard, because it is the
+# field sitting right there in the form above it. Whoever pasted the templates rewrote
+# all five in passing, and those rewrites existed nowhere but production.
+#
+# They are better than what was here, which is why they were adopted rather than
+# overwritten: each leads with the product name, so the message is identifiable in a
+# crowded inbox before the preheader is read, and each carries the voice the README asks
+# for ("You're almost in" is the <h1> of the confirmation mail). The hyphen is a plain
+# ASCII "-" on purpose — an em dash in a Subject: header is one more thing to be mangled
+# by a client that gets the encoding wrong.
 [auth.email.template.confirmation]
-subject = "Confirm your GENORRA account"
+subject = "GENORRA - You're almost in"
 content_path = "./supabase/templates/confirmation.html"
 
 # The remaining four, added 2026-08-11. Every one of GoTrue's defaults links with
@@ -373,20 +411,24 @@ content_path = "./supabase/templates/confirmation.html"
 # default and reintroduce the fragment bug.
 
 [auth.email.template.recovery]
-subject = "Reset your GENORRA password"
+subject = "GENORRA - Reset your password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.invite]
-subject = "You are invited to join your family on GENORRA"
+subject = "GENORRA - Your family kept a place for you"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.email_change]
-subject = "Confirm your new GENORRA email address"
+subject = "GENORRA - Confirm your new address"
 content_path = "./supabase/templates/email-change.html"
 
-# No link in this one — GoTrue sends a 6-digit .Token, so the subject says "code".
+# No link in this one — GoTrue sends an 8-character .Token (otp_length above; the block
+# that renders it is sized for exactly that). The subject deliberately does NOT
+# say "code": it is the one of the five that can arrive unrequested, and "Just checking
+# it's you" reads as a question rather than as something to act on. The body carries the
+# warning that we never ask for it by phone, text or email.
 [auth.email.template.reauthentication]
-subject = "Your GENORRA confirmation code"
+subject = "GENORRA - Just checking it's you"
 content_path = "./supabase/templates/reauthentication.html"
 
 # Uncomment to customize notification email template
@@ -410,6 +452,26 @@ max_frequency = "5s"
 # 4152127777 = "123456"
 
 # Configure logged in session timeouts.
+#
+# BOTH OFF DELIBERATELY, and read the trap below before turning the first one on.
+#
+# A TIMEBOX AT OR UNDER 24h SILENTLY DISABLES `secure_password_change`. That flag (in
+# [auth.email], ~200 lines up) is enforced only on sessions GoTrue considers stale, and
+# its staleness test is `session.created_at + 24h`. Cap every session at 24h and no
+# session can ever reach that age — so the emailed reauthentication code stops being
+# checked for anybody, the flag becomes decoration, and nothing anywhere errors. The two
+# settings look unrelated and are a hundred lines apart; this is the note saying they
+# are not.
+#
+# So if a timebox is wanted, pick a duration comfortably OVER 24h. Do not reach for the
+# current-password field on the Password panel as the replacement: that check runs in the
+# browser and GoTrue's endpoint is reachable without it, so it raises the bar rather than
+# holding a line. TODO.md has the whole picture.
+#
+# `inactivity_timeout` does NOT have this problem — it does not cap `created_at`, so it
+# leaves the reauthentication window alone while still retiring an abandoned session, which
+# is the threat the code is aimed at in the first place.
+#
 # [auth.sessions]
 # Force log out after the specified duration.
 # timebox = "24h"

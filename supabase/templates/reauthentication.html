@@ -2,18 +2,21 @@
   Reauthentication code. Rationale is in supabase/templates/README.md, NOT here:
   this file is the payload, so every byte ships to every recipient.
 
-  THE ONE TEMPLATE WITH NO LINK. GoTrue sends a 6-digit .Token here, not a URL, because
-  the user is already signed in and is being asked to prove it is still them at the
-  keyboard. So there is no button, no /auth/confirm, and no fragment problem to avoid —
-  the code is typed back into the screen that asked for it.
+  THE ONE TEMPLATE WITH NO LINK. GoTrue sends an 8-character .Token here, not a URL,
+  because the user is already signed in and is being asked to prove it is still them at
+  the keyboard. So there is no button, no /auth/confirm, and no fragment problem to avoid
+  — the code is typed back into the screen that asked for it.
+
+  EIGHT is auth.email.otp_length in config.toml, and the code block below is sized for it
+  — at the worst case, which is a 320px phone with the style block stripped. Change one
+  and re-measure the other; the arithmetic is in the README.
 
   Consequently the copy must NOT say "click"; and the code has to survive being read off
   a phone, which is why it is set large, letterspaced and on its own line rather than
   inline in a sentence.
 
-  DORMANT: nothing in the app calls supabase.auth.reauthenticate(), and
-  secure_password_change is false in config.toml, so nothing triggers this today. It
-  exists so the flow is correct on the day one of those changes.
+  LIVE since 2026-08-11 — sent by auth.reauthenticate(). The code is not always checked;
+  read the README before writing copy that says typing it proves anything.
 -->
 <!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -37,7 +40,6 @@
   }
   @media only screen and (max-width: 620px) {
     .gn-pad { padding-left: 24px !important; padding-right: 24px !important; }
-    .gn-otp { font-size: 32px !important; letter-spacing: 0.18em !important; }
   }
 </style>
 </head>
@@ -90,7 +92,7 @@
 
         <tr>
           <td class="gn-pad" align="center" style="padding:24px 44px 4px 44px;">
-            <div class="gn-otp" style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:38px; line-height:48px; font-weight:600; letter-spacing:0.26em; text-indent:0.26em; color:#6b2d3a; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:10px; padding:18px 12px; mso-line-height-rule:exactly;">
+            <div class="gn-otp" style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:28px; line-height:38px; font-weight:600; letter-spacing:0.14em; text-indent:0.14em; color:#6b2d3a; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:10px; padding:18px 12px; mso-line-height-rule:exactly;">
               {{ .Token }}
             </div>
           </td>

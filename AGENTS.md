@@ -612,9 +612,14 @@ let me" do not — the second is a token that needs adding to `globals.css` firs
 Two things follow for the email templates specifically, because they are unlike every
 other file here. **The template is the payload:** every byte ships to every recipient and
 is one "view source" away, which is why the rationale lives in the README and the files
-keep a short pointer comment. And **`config.toml` only wires up the local stack** —
-hosted renders whatever was last pasted into the dashboard, so editing a template does
-nothing to production until somebody pastes it and sends themselves a real signup.
+keep a short pointer comment. And **editing a template does nothing to production until
+it is pushed** — `config.toml` wires up the local stack, while hosted keeps its own copy
+of every body. Since 2026-08-12 that push is `npm run email:push`
+([scripts/auth-templates.mjs](scripts/auth-templates.mjs)), which reads the same
+`[auth.email.template.*]` table and sends only the ten mailer fields; `npm run
+email:check` reports drift and exits non-zero. It is deliberately **not** `supabase
+config push`, which would send `site_url` along with the copy edit. Pushing still proves
+only that the bytes arrived — send yourself a real signup before calling it done.
 
 ## Dark mode is real, and the brand has a dark treatment
 
