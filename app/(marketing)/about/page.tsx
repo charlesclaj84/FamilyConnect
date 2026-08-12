@@ -29,22 +29,25 @@ export const metadata: Metadata = {
 }
 
 /**
- * ── WHAT IS DELIBERATELY NOT ON THIS PAGE ───────────────────────────────────
- * No founder biography, no founding date, no team photographs, no headcount, no "trusted
- * by N families". Every one of those is a checkable fact about real people and this file
- * has no source for any of them, and an About page is the single worst place to be caught
- * inventing one — it is the page a cautious customer reads specifically to decide whether
- * to trust the company with their family's private records.
+ * ── WHAT IS AND IS NOT SOURCED ON THIS PAGE ─────────────────────────────────
+ * The founder's letter below is the owner's own words, supplied 2026-08-12. It is the
+ * human half this page was missing, and it carries the two facts nothing else here could:
+ * six living generations and more than four hundred family members. Set verbatim — the only
+ * instructed change was resolving two em-dash asides into ordinary sentences.
  *
- * The page is instead built entirely from things that ARE true and verifiable: the brand's
- * own stated mission and values (`lib/brand.ts`), the publisher named in the footer and in
- * the `Organization` structured data, and the product commitments that are enforced in the
- * code rather than asserted in copy.
+ * STILL NOT SOURCED, so still absent: a founding year, a headcount, team photographs, and
+ * any "trusted by N families" figure. Each is a checkable fact about real people that this
+ * file has no source for, and an About page is the worst place to be caught inventing one —
+ * it is the page a cautious customer reads precisely to decide whether to trust us with
+ * their family's records.
  *
- * TO ADD THE HUMAN HALF: send the founder's story, the year, and whatever the team is
- * comfortable publishing, and it belongs in the section marked below. It will make this
- * page considerably better — an About page with no people on it is a real weakness, just a
- * smaller one than an About page with invented people on it.
+ * WORTH ASKING THE OWNER FOR: the letter is written in the first person ("that was the part
+ * that stayed with me") and is unsigned. A name under it would strengthen it considerably.
+ * Do not invent one.
+ *
+ * Everything else here is verifiable: the brand's stated mission and values
+ * (`lib/brand.ts`), the publisher named in the footer and in the `Organization` structured
+ * data, and product commitments that are enforced in code rather than asserted in copy.
  */
 
 const PRINCIPLES: readonly {
@@ -134,88 +137,95 @@ export default function AboutPage() {
                 Why we built it
               </h2>
 
-              {/* ── The three paragraphs, in this order for a reason ──────────────
-                  ROOTS, then the PROBLEM, then US. The founder's note asked for the
-                  brand sentence to read as inherited rather than declared — as
-                  something the elders taught rather than something a company decided —
-                  so it is attributed to them and phrased as teaching. It is the same
-                  commitment APP_DESCRIPTION states in `lib/brand.ts`; that constant
-                  stays the canonical wording for the manifest and anywhere the product
-                  is described in one sentence, and this is that wording given a voice.
+            </div>
 
-                  The middle paragraph is unchanged. The founder liked it, and it is the
-                  one that makes a stranger recognise their own family. */}
-              <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-                Our elders taught us that a family is something you keep on purpose. You
-                learn the names. You show up. You write it down, so the ones coming after
-                you know whose hands built what. That is the whole inheritance —{' '}
-                <span className="text-foreground">
-                  nurturing our roots, preserving the stories and the traditions,
-                  strengthening the relationships, and building a legacy that lives on
-                </span>{' '}
-                — and it was never meant to rest on one person&apos;s memory.
+            {/* ── THE FOUNDER'S LETTER, in the owner's own words ────────────────
+                Supplied 2026-08-12 and set verbatim, with one instructed change: the two
+                em-dash asides are resolved into ordinary sentences. "too much of that
+                history—and too much of the work—was living in someone's memory" becomes a
+                pair of commas, and "the reunion and the dues, yes—but also the names"
+                becomes two sentences, which keeps the emphasis the dash was carrying
+                instead of flattening it into a comma splice.
+
+                LEFT-ALIGNED, unlike the heading above it. Centred text is fine for three
+                lines and hostile at fourteen paragraphs: every line starts in a different
+                place, so the eye has to hunt for the beginning of each one. The mark, the
+                divider and the heading stay centred; the prose does not.
+
+                THE SHORT PARAGRAPHS ARE THE BEATS and are deliberately not merged into
+                their neighbours. "We could not find it." "So we built it." Each is a
+                paragraph because each is a pause, and joining them into one tidy sentence
+                would remove the reason they work. */}
+            <div className="mt-8 space-y-5 text-left text-lg leading-relaxed text-muted-foreground">
+              <p>
+                For years, our family did what so many families do. We planned reunions
+                through group messages, tracked dues in spreadsheets, kept addresses in
+                different places, passed photographs from person to person, and relied on a
+                handful of people to remember how everyone was connected.
               </p>
 
-              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-                Somewhere in most families there is one person holding the whole thing
-                together — the reunion, the dues, the addresses, the photographs, the
-                question of who is related to whom. They are doing it in a group text, a
-                spreadsheet and their own memory, and when they stop, most of it is lost.
-                {' '}{APP_NAME} exists so that the work survives the person doing it.
+              <p className="font-medium text-foreground">And our family is not small.</p>
+
+              <p>
+                We have six living generations and more than four hundred family members.
+                Every year brought the same questions: Who has paid their dues? Who is
+                coming to the reunion? Whose birthday did we just miss? Where is that old
+                family picture? And, every once in a while, who exactly is this cousin and
+                how are we related?
               </p>
 
-              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-                We know, because we are that family. Six living generations and more than
-                four hundred members — and every year the same scramble: who has paid their
-                dues, who is coming to the reunion, whose birthday we just missed, and who
-                is this cousin nobody can place. We went looking for something built to
-                hold a family that size and it did not exist. So we built it, for
-                ourselves first.
+              <p>Somehow, the answers usually lived with one or two people.</p>
+
+              <p className="font-medium text-foreground">That was the part that stayed with me.</p>
+
+              <p>
+                I was raised to understand that family is something you keep on purpose. You
+                learn the names. You show up. You preserve the stories and traditions. You
+                write things down so the generations coming behind you know who came before
+                them, where they came from, and whose hands helped build what they have
+                today.
+              </p>
+
+              <p>
+                But too much of that history, and too much of the work required to keep a
+                family connected, was living in someone’s memory.
+              </p>
+
+              <p className="font-medium text-foreground">
+                And memories should be part of the legacy, not the storage system for it.
+              </p>
+
+              <p>
+                We went looking for something that could help us organize our family, stay
+                connected across generations, manage the practical things, and preserve the
+                history at the same time.
+              </p>
+
+              <p className="font-medium text-foreground">We could not find it.</p>
+
+              <p className="font-medium text-foreground">So we built it.</p>
+
+              <p>
+                {APP_NAME} started with our own family because we needed a better way to
+                carry what our elders had given us forward. A place for the reunion and the
+                dues, yes. But also for the names, the relationships, the photographs, the
+                stories, the traditions, and the pieces of our family that deserve to
+                survive long after any one of us is gone.
+              </p>
+
+              <p>
+                Because keeping a family connected should never depend on one person holding
+                everything together.
+              </p>
+
+              {/* The closing line was bold in the owner's draft, and it earns it: it is the
+                  sentence the whole letter has been walking toward. Given its own rule and
+                  the display serif so it lands as a conclusion rather than as one more
+                  emphasised paragraph among five. */}
+              <p className="border-t pt-5 font-heading text-2xl font-semibold text-brand-ink">
+                That is why we built {APP_NAME}.
               </p>
             </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ── The family it was built for ───────────────────────────────────
-          THE LABEL IS DOING REAL WORK HERE. These numbers describe the founders' own
-          family, not the customer base, and a bare "400+ members" on a marketing page
-          reads as a platform total to every visitor. The heading says whose family it is
-          and the caption says it again, because a figure that invites the wrong reading
-          is a false claim whether or not the number is true. Do not restyle this into an
-          unlabelled stat strip. */}
-      <section aria-labelledby="our-family-heading" className="bg-brand-hero px-4 py-14 sm:px-6">
-        <div className="mx-auto max-w-4xl text-center">
-          <Reveal>
-            <h2
-              id="our-family-heading"
-              className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-legacy"
-            >
-              The family we built it for
-            </h2>
-            <dl className="mt-6 grid gap-8 sm:grid-cols-3">
-              {[
-                { figure: '6', label: 'living generations' },
-                { figure: '400+', label: 'family members' },
-                { figure: '1', label: 'place it all lives now' },
-              ].map(stat => (
-                <div key={stat.label}>
-                  <dt className="sr-only">{stat.label}</dt>
-                  <dd>
-                    <span className="block font-heading text-5xl font-semibold text-brand-on-primary">
-                      {stat.figure}
-                    </span>
-                    <span className="mt-1 block text-sm text-brand-on-primary/70">
-                      {stat.label}
-                    </span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <p className="mx-auto mt-8 max-w-xl text-sm text-brand-on-primary/70">
-              Our own family — not a customer count. {APP_NAME} was built to hold it, and
-              then opened up to other families who had the same problem.
-            </p>
           </Reveal>
         </div>
       </section>
@@ -272,12 +282,11 @@ export default function AboutPage() {
       </section>
 
       {/* ── Who is behind it ─────────────────────────────────────────────────
-          ADD THE FOUNDER STORY AND TEAM HERE. See the header of this file for why
-          there is no biography, date or headcount in it yet: they are checkable facts
-          about real people and inventing them on the one page a cautious customer reads
-          to decide whether to trust us would be the worst possible trade. The publisher
-          below is real — it is the entity in the footer and in the Organization
-          structured data. */}
+          The letter above is the story; this is the legal entity behind it, and the only
+          thing on the page that names a company. APP_PUBLISHER is the same constant the
+          footer and the Organization structured data use, so the three cannot disagree
+          about who publishes this. A founding year and a team would belong here — see the
+          file header for why neither is invented in the meantime. */}
       <section aria-labelledby="publisher-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl">
           <Reveal>

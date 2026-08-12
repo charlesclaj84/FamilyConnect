@@ -1,75 +1,79 @@
 'use client'
 
-import { useMemo, useSyncExternalStore } from 'react'
-import { Quote } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Quote, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
 import { Reveal } from '@/components/marketing/Reveal'
 import {
   TESTIMONIALS, TESTIMONIAL_DISPLAY_LIMIT, shuffleSeeded,
 } from '@/lib/testimonials'
 
 /**
- * One seed per page load, generated when this module is first evaluated in the browser.
+ * The testimonial carousel: a snap-scrolling rail that advances itself, and that a visitor
+ * can drag, swipe, arrow through or pause.
  *
- * Module scope rather than component scope so that `getSnapshot` returns the SAME value
- * every time React asks. A snapshot that changes on each call makes `useSyncExternalStore`
- * re-render forever, which is the one way to get this pattern badly wrong.
+ * ── WHY A SCROLLER AND NOT A GRID ────────────────────────────────────────────
+ * It was a three-column card wall, and with 28 quotes collected that reads as a slab of
+ * boxes rather than as people talking — the eye gives up before the second row. A rail
+ * shows two or three at a time, so each one gets read, and the movement is what tells a
+ * visitor there are more without a count having to say so.
  *
- * A full page load reshuffles; a client-side navigation between marketing pages does not,
- * because the module is already evaluated. That is the correct trade — reshuffling on every
- * soft navigation would rearrange cards under a reader who was mid-sentence.
+ * ── NATIVE SCROLL, NOT A TRANSFORM CAROUSEL ──────────────────────────────────
+ * The rail is a real overflow-x container with CSS scroll snapping, so touch swipe,
+ * trackpad, shift-wheel, drag and keyboard arrows all work for free and correctly on every
+ * platform — none of which a `translateX` implementation gets without reimplementing it,
+ * badly. The buttons and the auto-advance are `scrollBy` calls on the same element, so
+ * there is exactly one source of truth for where the rail is: its own `scrollLeft`.
+ *
+ * It also degrades honestly. With JavaScript disabled the rail is still a scrollable list
+ * of quotes; only the buttons and the drift stop working.
+ *
+ * ── THE MOVEMENT IS PAUSABLE, WHICH IS NOT OPTIONAL ──────────────────────────
+ * WCAG 2.2.2 requires a mechanism to pause, stop or hide any motion that starts by itself
+ * and runs for more than five seconds. That is what the pause button is — not a nicety —
+ * and it is why the button renders whenever the rail is drifting. The rail additionally
+ * stops on hover and on focus, so a reader is never fighting it, and a keyboard user is
+ * never carried away from the card they just tabbed into.
+ *
+ * `prefers-reduced-motion` suppresses the auto-advance entirely and makes the buttons jump
+ * rather than glide. The pause control then hides, because there is nothing to pause.
+ *
+ * ── NO setState IN AN EFFECT ─────────────────────────────────────────────────
+ * The auto-advance moves the DOM, not React state: `scrollBy` on a ref inside the interval.
+ * That is deliberate — the React Compiler rejects `setState` inside an effect as a
+ * cascading render (it caught an earlier version of this file), and a carousel that keeps
+ * its index in state has to keep that index in step with a scroll position the user can
+ * change by swiping. Reading `scrollLeft` when needed avoids both problems.
+ *
+ * The two values that genuinely live outside React — the motion preference and this page
+ * load's shuffle seed — come through `useSyncExternalStore`, the same escape `ThemeToggle`
+ * documents for the same reason.
  */
-const CLIENT_SEED = Math.floor(Math.random() * 2 ** 31) || 1
 
-/** Never changes, so the store never notifies. Stable identity, per the hook's contract. */
-const subscribe = () => () => {}
+/** How long a quote sits before the rail moves on. Long enough to read three lines. */
+const AUTO_ADVANCE_MS = 6000
+
+/* ── this page load's shuffle seed ──────────────────────────────────────────
+   Module scope so `getSnapshot` returns the same value every time React asks; a snapshot
+   that changes per call re-renders forever. A full page load reshuffles, a soft navigation
+   does not — which is correct, since reshuffling under a reader mid-sentence is worse than
+   showing them the same eight twice. */
+const CLIENT_SEED = Math.floor(Math.random() * 2 ** 31) || 1
+const subscribeSeed = () => () => {}
 const getClientSeed = () => CLIENT_SEED
-/** 0 means "leave the order alone" — see `shuffleSeeded`. */
+/** 0 means "leave the order alone" — so the server renders declaration order. */
 const getServerSeed = () => 0
 
-/**
- * The testimonial wall: up to eight cards, a different eight on each page load.
- *
- * ── WHY THE RANDOMISATION IS SEEDED THROUGH useSyncExternalStore ─────────────
- * These pages are statically prerendered, which is worth keeping — it is most of why they
- * answer in under 100ms and it is the right call for pages whose whole job is to be found
- * and read. Three consequences follow, and together they force this shape:
- *
- *  * Shuffling during render on the SERVER picks ONE order at BUILD time. Every visitor
- *    then sees the same eight until the next deploy, which is not what "random per page
- *    load" means.
- *  * Shuffling during render on the CLIENT makes the markup disagree with the server's,
- *    which React reports as a hydration mismatch and repairs by discarding the server's
- *    output.
- *  * Correcting it from an effect — render the first eight, then `setState` the shuffled
- *    eight — is a cascading render that the React Compiler rejects as an error. It was
- *    written that way first and the lint caught it.
- *
- * `useSyncExternalStore` is the escape, and it is the one this codebase already uses for
- * the identical problem: `ThemeToggle` reads a value that only exists on the client and
- * documents why neither render-time reads nor effect corrections work. The server snapshot
- * is 0, meaning "leave the order alone", so the initial HTML is the first eight in
- * declaration order — which is also exactly what a crawler should see, a stable set of
- * quotes. The client snapshot is this page load's seed, so React re-renders once after
- * hydration with a shuffled eight. Invisible in practice: the section is always below the
- * fold and `Reveal` is still holding the cards at zero opacity when it happens.
- *
- * THE ALTERNATIVE WAS A SEEDLESS `Math.random()` IN THE MEMO. That is impure — React is
- * free to re-run a render, and each run would produce a different order. Seeded, the memo
- * is a pure function of `[seed]`.
- *
- * THE ALTERNATIVE WAS MAKING THESE PAGES DYNAMIC so the server could shuffle per request.
- * That trades static rendering on five marketing pages for rotating a testimonial order,
- * which is the wrong way round.
- *
- * COST, STATED: this is a client component, so every quote in the array is serialised into
- * the page payload rather than only the eight on screen. At a few dozen short quotes that is
- * some kilobytes of text and worth it; at several hundred, move the selection to a route
- * handler or accept a build-time shuffle instead.
- *
- * RENDERS NOTHING while `TESTIMONIALS` is empty — see the header of `lib/testimonials.ts`.
- * An empty "In their words" heading over blank space advertises that nobody has said
- * anything, which is worse than the section's absence.
- */
+/* ── the motion preference ─────────────────────────────────────────────────── */
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+const subscribeMotion = (onChange: () => void) => {
+  const query = window.matchMedia(REDUCED_MOTION)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+const getMotion = () => window.matchMedia(REDUCED_MOTION).matches
+/** The server cannot know, and assuming motion is allowed matches the CSS default. */
+const getMotionOnServer = () => false
+
 export function Testimonials({
   heading = 'Families do not go back',
   lede,
@@ -77,15 +81,14 @@ export function Testimonials({
   heading?: string
   lede?: string
 }) {
-  // 0 during server render and hydration, the page's seed immediately after. React reads
-  // the server snapshot for the hydrating render and then re-renders with the client one,
-  // which is exactly the sanctioned way to have the two differ — no mismatch, and no
-  // setState inside an effect for the React Compiler to reject. `ThemeToggle` solves the
-  // same class of problem the same way, for the same reason.
-  const seed = useSyncExternalStore(subscribe, getClientSeed, getServerSeed)
+  const seed = useSyncExternalStore(subscribeSeed, getClientSeed, getServerSeed)
+  const reducedMotion = useSyncExternalStore(subscribeMotion, getMotion, getMotionOnServer)
 
-  // Pure: same items, same seed, same order. Only rotates when there is something to
-  // rotate — below the limit the shuffle would reorder the cards for no reason.
+  // Set from a click, never from an effect.
+  const [playing, setPlaying] = useState(true)
+  const rail = useRef<HTMLUListElement>(null)
+
+  // Pure: same items, same seed, same order.
   const visible = useMemo(
     () =>
       TESTIMONIALS.length > TESTIMONIAL_DISPLAY_LIMIT
@@ -94,41 +97,158 @@ export function Testimonials({
     [seed],
   )
 
+  const drifting = playing && !reducedMotion && visible.length > 1
+
+  useEffect(() => {
+    if (!drifting) return
+    const el = rail.current
+    if (!el) return
+
+    // Hover and focus suspend the drift without touching React state — a re-render here
+    // would restart the interval and reset the reader's place.
+    let held = false
+    const hold = () => { held = true }
+    const release = () => { held = false }
+    el.addEventListener('pointerenter', hold)
+    el.addEventListener('pointerleave', release)
+    el.addEventListener('focusin', hold)
+    el.addEventListener('focusout', release)
+
+    const id = window.setInterval(() => {
+      if (held) return
+      // One card plus its gap, measured rather than assumed, so the step stays correct
+      // across the three breakpoints without any of them being named here.
+      const first = el.firstElementChild as HTMLElement | null
+      const step = first ? first.getBoundingClientRect().width + 24 : el.clientWidth
+      // 8px of slack: sub-pixel scroll widths mean an exact comparison never matches, and
+      // the rail would stop one card short of wrapping.
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8
+      el.scrollTo({
+        left: atEnd ? 0 : el.scrollLeft + step,
+        behavior: 'smooth',
+      })
+    }, AUTO_ADVANCE_MS)
+
+    return () => {
+      window.clearInterval(id)
+      el.removeEventListener('pointerenter', hold)
+      el.removeEventListener('pointerleave', release)
+      el.removeEventListener('focusin', hold)
+      el.removeEventListener('focusout', release)
+    }
+  }, [drifting])
+
+  function nudge(direction: 1 | -1) {
+    const el = rail.current
+    if (!el) return
+    const first = el.firstElementChild as HTMLElement | null
+    const step = first ? first.getBoundingClientRect().width + 24 : el.clientWidth
+    const target = el.scrollLeft + direction * step
+    // Wrap in both directions, so neither button is ever a dead control at an end.
+    const max = el.scrollWidth - el.clientWidth
+    el.scrollTo({
+      left: target < -8 ? max : target > max + 8 ? 0 : target,
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    })
+  }
+
   if (TESTIMONIALS.length === 0) return null
 
   return (
     <section
       aria-labelledby="testimonials-heading"
-      className="bg-background px-4 py-16 sm:px-6 sm:py-20"
+      className="overflow-hidden bg-background py-16 sm:py-20"
     >
-      <div className="mx-auto max-w-6xl">
+      {/* The heading block keeps the page gutter; the rail below deliberately does not, so
+          cards can bleed to the edge of the screen and signal that it scrolls. */}
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal>
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
-              In their words
-            </p>
-            <h2 id="testimonials-heading" className="mt-3 text-3xl sm:text-4xl">
-              {heading}
-            </h2>
-            {lede && <p className="mt-4 text-lg text-muted-foreground">{lede}</p>}
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
+                In their words
+              </p>
+              <h2 id="testimonials-heading" className="mt-3 text-3xl sm:text-4xl">
+                {heading}
+              </h2>
+              {lede && <p className="mt-4 text-lg text-muted-foreground">{lede}</p>}
+            </div>
+
+            {/* Controls sit with the heading rather than under the rail: at the top they
+                are visible before a visitor has scrolled past the cards, which is when
+                they are useful. */}
+            <div className="flex shrink-0 items-center gap-2">
+              {drifting && (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(false)}
+                  className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
+                  aria-label="Pause the moving quotes"
+                >
+                  <Pause className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+              {!playing && !reducedMotion && visible.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(true)}
+                  className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
+                  aria-label="Resume the moving quotes"
+                >
+                  <Play className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => nudge(-1)}
+                className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
+                aria-label="Previous quote"
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => nudge(1)}
+                className="inline-flex size-10 items-center justify-center rounded-full border transition-colors hover:bg-muted"
+                aria-label="Next quote"
+              >
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </Reveal>
+      </div>
 
-        {/* A masonry-ish balance rather than a rigid grid: quotes vary from one line to a
-            paragraph, and equal-height cards would pad the short ones with dead space.
-            CSS columns keep the reading order (top to bottom, then across) because the
-            cards are independent — nothing here is a sequence. */}
-        <div className="mt-12 gap-6 sm:columns-2 lg:columns-3 [&>*]:mb-6">
-          {visible.map((t, i) => (
-            <Reveal key={`${t.name}-${t.quote.slice(0, 24)}`} delay={(i % 3) * 140}>
-              <figure className="relative break-inside-avoid rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
+      {/* THE RAIL.
+          `tabIndex={0}` with a label because a scrollable region needs to be reachable and
+          named for a keyboard user — that is what lets the arrow keys move it at all.
+          `scroll-pl/pr` keeps a snapped card off the very edge of the viewport. The
+          horizontal padding matches the page gutter so the first card lines up with the
+          heading above it. */}
+      <div className="mt-10">
+        <ul
+          ref={rail}
+          tabIndex={0}
+          role="group"
+          aria-label="Quotes from families, scrollable"
+          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-smooth px-4 pb-4 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:thin]"
+        >
+          {visible.map(t => (
+            <li
+              key={`${t.name}-${t.quote.slice(0, 24)}`}
+              className="flex shrink-0 basis-[85%] snap-start sm:basis-[48%] lg:basis-[32%]"
+            >
+              <figure className="relative flex w-full flex-col rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
                 {/* Gold as a wash behind a decorative glyph, never as a foreground that
                     carries meaning — Legacy is 2.30 on white (see globals.css). */}
                 <Quote
                   aria-hidden="true"
                   className="absolute right-5 top-5 h-8 w-8 text-brand-legacy/25"
                 />
-                <blockquote className="text-base leading-relaxed">
+                {/* pr-12 is the reason the glyph is always visible: without it a long first
+                    line runs underneath the mark and both become unreadable. The padding
+                    reserves the corner rather than hoping the text is short. */}
+                <blockquote className="flex-1 pr-12 text-base leading-relaxed">
                   &ldquo;{t.quote}&rdquo;
                 </blockquote>
                 <figcaption className="mt-5 border-t pt-4">
@@ -142,16 +262,9 @@ export function Testimonials({
                   )}
                 </figcaption>
               </figure>
-            </Reveal>
+            </li>
           ))}
-        </div>
-
-        {TESTIMONIALS.length > TESTIMONIAL_DISPLAY_LIMIT && (
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            Showing {TESTIMONIAL_DISPLAY_LIMIT} of {TESTIMONIALS.length} — refresh for
-            different families.
-          </p>
-        )}
+        </ul>
       </div>
     </section>
   )

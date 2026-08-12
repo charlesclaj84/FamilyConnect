@@ -227,8 +227,12 @@ const FAQ = [
   },
   {
     question: 'What will Plus and Premium cost?',
+    // Trimmed to the answer. The previous version explained WHY there is no figure — that
+    // we would rather show nothing than a number families might budget against — which is
+    // sound reasoning and none of the reader's business. They asked a price question; the
+    // honest answer is that there is not one yet and how to find out when there is.
     answer:
-      'Neither has been announced yet. Rather than print a placeholder figure that families might budget against, this page shows both tiers without a price until there is a real one. Create a free account and you will hear first.',
+      'Neither has been announced yet. Create a free account and you will hear first.',
   },
   {
     question: 'Do you sell our family’s data?',
@@ -311,26 +315,25 @@ export default function PricingPage() {
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
 
-                    <div className="mt-6">
-                      {priced && plan.price ? (
-                        <p className="flex items-baseline gap-2">
-                          <span className="text-5xl font-semibold text-brand-ink">
-                            {plan.price.amount}
-                          </span>
-                          <span className="text-muted-foreground">{plan.price.period}</span>
-                        </p>
-                      ) : (
-                        <>
-                          <p className="text-xl font-semibold text-brand-ink">
-                            Price to be announced
-                          </p>
-                          <p className="mt-1.5 text-sm text-muted-foreground">
-                            We would rather show you nothing than a number you might
-                            budget against and we might change.
-                          </p>
-                        </>
-                      )}
-                    </div>
+                    {/* NOTHING RENDERS HERE FOR AN UNPRICED TIER — no figure, and no
+                        "price to be announced" standing in for one. The card already says
+                        Coming soon beside its name and Not yet available on its button, so
+                        a third line saying the same thing was the over-explaining this site
+                        was asked to stop.
+
+                        The rule the absence protects is unchanged: no placeholder FIGURE.
+                        A number here is a commercial representation people budget against
+                        and crawlers cache, and the cached result outlives the edit that was
+                        going to fix it. Set `PRICING_IS_ANNOUNCED` and the price constants
+                        and the real figure appears in this slot. */}
+                    {priced && plan.price && (
+                      <p className="mt-6 flex items-baseline gap-2">
+                        <span className="text-5xl font-semibold text-brand-ink">
+                          {plan.price.amount}
+                        </span>
+                        <span className="text-muted-foreground">{plan.price.period}</span>
+                      </p>
+                    )}
 
                     {plan.available ? (
                       <>
