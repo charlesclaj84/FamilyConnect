@@ -42,6 +42,8 @@
   --color-card: var(--card);
   --color-brand-primary: var(--brand-primary);
   --color-brand-on-primary: var(--brand-on-primary);
+  --color-brand-warm: var(--brand-warm);
+  --color-brand-on-warm: var(--brand-on-warm);
   --color-brand-ink: var(--brand-ink);
   --color-brand-soft: var(--brand-soft);
   --color-brand-on-soft: var(--brand-on-soft);
@@ -104,6 +106,11 @@
   --genorra-growth-lift: #95966c;    /* dark mode: carries ink at 4.61 */
   --genorra-heritage-deep: #46232c;  /* banner hero — depth behind the lockup */
   --genorra-heritage-lift: #7d474f;  /* dark mode fill: carries light at 6.81 */
+  /* Warmth as a FILLED surface, which the palette had no answer for until the
+     dashboard needed a fourth accent tile. --brand-accent is a foreground token
+     (warmth-deep in light, GOLD in dark), so filling a chip with it would have
+     turned two of four tiles gold the moment the theme flipped. */
+  --genorra-warmth-lift: #d5825c;    /* dark mode: carries ink at 4.83 */
 
   /* Dark-mode grounds. Warm near-blacks mixed toward ink, never neutral
      grey — a grey ground under burgundy reads as a bruise. */
@@ -146,6 +153,8 @@
   --brand-accent: var(--genorra-warmth-deep);    /* links, h3–h6, unread markers — 4.78 */
   --brand-affirm: var(--genorra-growth-deep);    /* create, record, pay */
   --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
+  --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
+  --brand-on-warm: var(--genorra-light);         /* 4.78 on warm */
   --brand-legacy: var(--genorra-legacy);         /* premium accent — SURFACE ONLY, see below */
   --brand-on-legacy: var(--genorra-ink);         /* 6.99 on gold — dark in BOTH themes */
 
@@ -181,6 +190,11 @@
   --brand-accent: var(--genorra-legacy);         /* 7.91 on ground, 7.36 on card */
   --brand-affirm: var(--genorra-growth-lift);
   --brand-on-affirm: var(--genorra-ink);         /* 4.91 on affirm */
+  /* Flips like affirm does, and for the same reason: warmth-deep is a dark fill
+     that vanishes into a near-black ground (2.29 on card-dark). The lifted tone
+     reads as a chip at 5.79 against the card and still carries ink at 4.83. */
+  --brand-warm: var(--genorra-warmth-lift);
+  --brand-on-warm: var(--genorra-ink);           /* 4.83 on warm */
   --brand-legacy: var(--genorra-legacy);
   /* Ink here too, NOT --genorra-nurturing. Gold is the one surface whose
      foreground must not flip: cream on gold is 1.65. */

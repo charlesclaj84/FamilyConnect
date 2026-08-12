@@ -5,7 +5,7 @@ import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
 import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
-import { formatDate } from '@/lib/date-utils'
+import { timeAgo } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -17,16 +17,6 @@ interface Props {
    * never computes it for anyone else, so this component does not re-check it.
    */
   pendingApprovals?: number
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return formatDate(iso) ?? ''
 }
 
 export function NotificationBell({ initialNotifications, personId, pendingApprovals = 0 }: Props) {

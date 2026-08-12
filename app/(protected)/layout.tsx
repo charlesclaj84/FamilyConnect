@@ -75,7 +75,10 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     <ConfirmProvider>
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex flex-1 flex-col md:flex-row">
+        {/* Heritage, so the rail's colour is what shows through <main>'s rounded
+            corner below. The rail paints its own ground too — this is the backdrop
+            behind the cut, not a substitute for it. */}
+        <div className="flex flex-1 flex-col bg-brand-hero md:flex-row">
           <Sidebar hasAssignments={hasAssignments} viewable={viewable} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
               ─────────────────────────────────────────────────────────────────────
@@ -102,8 +105,26 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
               Chrome rendered OUTSIDE this main is not covered and keys itself; today
               that is NotificationBell in Navbar. Sidebar needs nothing: it takes
-              `viewable` as a prop and reads it directly rather than seeding state. */}
-          <main key={familyCode} className="flex-1 min-w-0">{children}</main>
+              `viewable` as a prop and reads it directly rather than seeding state.
+
+              ── THE SHELL CUTOUT ──────────────────────────────────────────────────
+              The workspace is a cream card tucked into the Heritage rail, which is the
+              Golden Master's `mainShellCutout` translated into the app's real layout:
+              the kit draws one rounded shell with the rail as its left third, and here
+              the rail is a sibling, so the corner belongs to this element.
+
+              `bg-background` is not redundant with the body's. The row above sets
+              `bg-brand-hero` so that something burgundy shows THROUGH the rounded
+              corner; without an opaque fill here the whole page would be burgundy.
+
+              Rounded only from `md`, because below it the rail is a horizontal bar
+              above the content rather than a column beside it, and a corner cut into
+              the top-left of a full-width strip reads as a rendering fault.
+
+              NO `overflow-hidden`. A rounded corner does not need it — nothing here is
+              painted into the corner — and adding it would clip `position: sticky`
+              inside every page, plus the RowMenu popovers that portal out. */}
+          <main key={familyCode} className="flex-1 min-w-0 bg-background md:rounded-l-[2rem]">{children}</main>
         </div>
       </div>
 

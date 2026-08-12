@@ -32,6 +32,7 @@ import {
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
+import { RailCurves, RailMotto } from '@/components/layout/RailDecor'
 
 // Should a section close on its own when the user clicks away from it — either by
 // opening a different section (accordion) or by landing on the Dashboard? When
@@ -178,28 +179,38 @@ function isActive(pathname: string, href: string) {
  * one that matters differs only in hue. A list of destinations should read as a list,
  * with exactly one thing standing out.
  *
- * So rows are now plain text with a hover well, and only the active row is filled — plus
- * a Legacy gold marker down its left edge, which is the same non-text-accent use the
- * header rule and the email dividers make of that colour.
+ * So rows are plain text with a hover well, and only the active row is filled.
  *
- * THE ACTIVE FILL IS `--brand-primary`, and it went back to burgundy when the rail became
- * a recessed surface. An intermediate version filled it with `--brand-soft`, which was
- * legible against the old page-coloured rail and is 1.19 against the sand one — sand on
- * sand, gone. Burgundy reads at 8.67 against the rail, and `--brand-primary`'s stated job
- * in AGENTS.md is literally "filled chips, buttons, active rail items".
+ * THE ACTIVE FILL IS `--brand-legacy`, and it is gold because the rail is now Heritage.
+ * It has been burgundy twice before, and both times for a rail that was a PALE surface:
+ * `--brand-soft` while the rail was page-coloured (1.19 against the sand one — sand on
+ * sand, gone), then `--brand-primary` when the rail became recessed muted sand (8.67,
+ * correct at the time). Burgundy on burgundy is that same mistake a third time, so the
+ * selected row takes the brand's signature pairing instead: `bg-brand-legacy` under
+ * `text-brand-on-legacy`, which is Ink in BOTH themes and the one `on-` token that does
+ * not flip. It is also exactly what the Golden Master draws.
  *
- * Worth being precise about what the original mistake was: not that the active row was
- * burgundy, but that the INACTIVE ones were filled too. One filled row among plain ones
- * is a selection; fourteen filled rows are wallpaper.
+ * Worth being precise about what the original mistake was: not the hue, but that the
+ * INACTIVE rows were filled too. One filled row among plain ones is a selection;
+ * fourteen filled rows are wallpaper.
+ *
+ * THE PILL BLEEDS OFF THE LEFT EDGE — `-ml-3` cancels the nav's `p-3`, and the left
+ * corners are square while the right ones are a full radius. That is the kit's own
+ * treatment (`Sidebar.svg` draws it `x="0" width="218" rx="24"`, running off the
+ * canvas), and it does a job beyond decoration: a pill that touches the rail's edge
+ * reads as attached to the rail rather than floating on it, which is what separates a
+ * selected destination from a button someone might press.
  *
  * BOTH BRANCHES SET AN EXPLICIT TEXT COLOUR, and neither may be dropped. `globals.css`
  * carries an unscoped `a { color: var(--brand-accent) }` in its base layer, so a nav link
- * without one comes out terracotta — the trap documented in AGENTS.md and commented at
- * every other rail in the codebase.
+ * without one comes out terracotta in light and GOLD in dark — the second of which would
+ * be indistinguishable from the active pill. This is the trap documented in AGENTS.md and
+ * commented at every other rail in the codebase.
  *
- * The marker is rendered on both branches in `transparent` rather than only when active,
- * so selecting a row changes a colour and never a size. Same reasoning as MainRail's
- * stacked variant.
+ * BOTH BRANCHES ALSO CARRY IDENTICAL BOX METRICS — same padding, same radii, same
+ * negative margin — so selecting a row changes colours and never a size. Same reasoning
+ * as MainRail's stacked variant, and the reason the old `transparent` left marker is
+ * gone rather than merely recoloured: the gold fill IS the marker now.
  */
 function NavLink({ href, label, icon: Icon, active, onClick }: {
   href: string
@@ -214,20 +225,13 @@ function NavLink({ href, label, icon: Icon, active, onClick }: {
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'group relative flex items-center gap-3 rounded-lg py-2 pl-4 pr-3 text-sm transition-colors',
+        'group relative -ml-3 flex items-center gap-3 rounded-l-none rounded-r-full py-2 pl-7 pr-3 text-sm transition-colors',
         active
-          ? 'bg-brand-primary font-semibold text-brand-on-primary shadow-sm'
-          : 'text-sidebar-foreground/70 hover:bg-brand-soft/60 hover:text-brand-on-soft',
+          ? 'bg-brand-legacy font-semibold text-brand-on-legacy shadow-sm'
+          : 'text-brand-on-hero/75 hover:bg-brand-primary hover:text-brand-on-primary',
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'absolute inset-y-1.5 left-0 w-[3px] rounded-full transition-colors',
-          active ? 'bg-brand-legacy' : 'bg-transparent',
-        )}
-      />
-      <Icon className={cn('h-4 w-4 shrink-0 transition-opacity', active ? 'opacity-100' : 'opacity-60 group-hover:opacity-100')} />
+      <Icon className={cn('h-4 w-4 shrink-0 transition-opacity', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
       {label}
     </Link>
   )
@@ -250,11 +254,11 @@ function SectionLabel({ label, icon: Icon }: {
 }) {
   return (
     <>
-      <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-ink/75">
+      <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-on-hero/70">
         <Icon className="h-3.5 w-3.5" /> {label}
       </span>
       {/* Legacy gold as a rule — a non-text accent, the one thing it may always be. */}
-      <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-brand-legacy/50 to-transparent" />
+      <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-brand-legacy/60 to-transparent" />
     </>
   )
 }
@@ -311,12 +315,12 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="group mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-brand-soft/40"
+        className="group mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-brand-primary/50"
       >
         <SectionLabel label={section.label} icon={Icon} />
         <ChevronDown
           className={cn(
-            'h-3.5 w-3.5 shrink-0 text-brand-ink/50 transition-transform group-hover:text-brand-ink',
+            'h-3.5 w-3.5 shrink-0 text-brand-on-hero/50 transition-transform group-hover:text-brand-on-hero',
             open ? '' : '-rotate-90',
           )}
         />
@@ -412,10 +416,29 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           Legacy gold rule that replaced its 1px border. Miss this and the nav sits two
           pixels under the rule, which shows as a sliver of page scrolling through the
           gap. If the header's edge changes thickness, these three numbers change with it. */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-        <nav className="sticky top-[calc(4rem_+_2px)] max-h-[calc(100vh_-_4rem_-_2px)] flex flex-col p-3 pt-6 overflow-y-auto overscroll-contain">
+      {/* THE RAIL IS HERITAGE, and it is the second half of an L-shaped brand frame — the
+          header above it is already `bg-brand-hero`, so signing in now lands you inside
+          the band rather than beside it. This is the Golden Master's burgundy rail; the
+          kit draws it as the left third of one rounded shell, and the app's equivalent is
+          this rail plus the cutout on <main> in app/(protected)/layout.tsx.
+
+          `relative` is for RailCurves and is SAFE for the two things that would otherwise
+          break here: `position: relative` does not create a containing block for `fixed`
+          (only transform/filter/will-change do — see components/layout/header-panel.ts,
+          which depends on that), and it does not disturb the `sticky` nav below.
+
+          NO `overflow-hidden` ON THIS ELEMENT, ever. The curves need clipping and get it
+          from their own absolutely-positioned layer; putting it here would compute the
+          nav's `overflow-y` to `auto` and kill its stickiness.
+
+          The `border-r` is gone: burgundy against the page is a 6.6:1 edge on its own,
+          and a sand hairline over it read as a seam. */}
+      <aside className="relative hidden md:flex w-56 shrink-0 flex-col bg-brand-hero">
+        <nav className="sticky top-[calc(4rem_+_2px)] z-10 max-h-[calc(100vh_-_4rem_-_2px)] flex flex-col p-3 pt-6 overflow-y-auto overscroll-contain">
           <NavTree groups={navGroups} pathname={pathname} />
+          <RailMotto />
         </nav>
+        <RailCurves />
       </aside>
 
       {/* ── Mobile: hamburger button ────────────────────────────────── */}
@@ -427,10 +450,10 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           notification panel where they hang past the header's edge. */}
       {/* Same rail surface as the desktop panel, so the mobile nav strip separates from
           the page for the same reason and by the same amount. */}
-      <div className="md:hidden sticky top-[calc(4rem_+_2px)] z-20 border-b border-sidebar-border bg-sidebar shrink-0 flex items-center px-3 py-2">
+      <div className="md:hidden sticky top-[calc(4rem_+_2px)] z-20 bg-brand-hero shrink-0 flex items-center px-3 py-2">
         <button
           onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-brand-soft px-3 py-1.5 text-sm font-medium text-brand-on-soft transition-opacity hover:opacity-90"
+          className="flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
           aria-label="Open navigation menu"
         >
           <Menu className="h-4 w-4" />
@@ -449,7 +472,12 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-sidebar border-r border-sidebar-border z-50 flex flex-col">
+          {/* No `relative` needed and none wanted — `fixed` is already a positioned
+              element, so RailCurves resolves against this box. Adding `relative` beside
+              it would be two `position` declarations fighting over one element.
+              `overflow-hidden` is forbidden here for the same reason as the desktop
+              rail: the nav below scrolls. */}
+          <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-brand-hero z-50 flex flex-col">
             {/* The drawer's own header takes the Heritage band and the gold rule, so
                 opening the menu on a phone lands on the same surface the app header
                 shows — rather than a plain white strip that belongs to no product. */}
@@ -466,9 +494,11 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
               </div>
               <div aria-hidden="true" className="h-0.5 w-full bg-brand-legacy" />
             </div>
-            <nav className="flex flex-col p-3 overflow-y-auto">
+            <nav className="relative z-10 flex flex-col p-3 overflow-y-auto">
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
+              <RailMotto />
             </nav>
+            <RailCurves />
           </div>
         </>
       )}

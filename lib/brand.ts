@@ -45,6 +45,23 @@ export const APP_VALUES = ['Connect', 'Plan', 'Celebrate'] as const
 /** The values as the brand board sets them, for running text and alt text. */
 export const APP_PROMISE = APP_VALUES.join(' • ')
 
+/**
+ * The motto, as two halves, because it is SET rather than printed.
+ *
+ * The Dashboard rail renders it as a quote card with "Our Roots" in Legacy gold and the
+ * rest in cream — the treatment the Golden Master specifies, and the reason this is a
+ * pair of strings and not one sentence. The first half is deliberately the same three
+ * words that sit inside `APP_TAGLINE` ("…Nurturing Our Roots…"); the motto is a play on
+ * the acronym, so if one is ever reworded the other has to be read again.
+ *
+ * Not interchangeable with `APP_LEAD`, which leads a marketing page and speaks to
+ * somebody who has not signed up. This one speaks to a member who is already inside.
+ */
+export const APP_MOTTO = {
+  lead: 'Our Roots',
+  rest: 'run deep, our bond runs deeper.',
+} as const
+
 /** Anywhere the product is described in a sentence: the manifest, prose, an about panel. */
 export const APP_DESCRIPTION =
   'Bringing generations together by nurturing our roots, preserving family stories and traditions, strengthening lifelong relationships, and building a legacy that lives on.'

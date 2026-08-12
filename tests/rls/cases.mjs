@@ -217,6 +217,45 @@ export const CASES = [
   read('dues.getScheduleUsage', 'app/actions/dues.ts', 'getScheduleUsage', {
     positiveActor: 'alphaAdmin',
   }),
+
+  // ── The Dashboard's "Dues Collected" tile ──────────────────────────────────
+  // BOTH ASSERTIONS ARE WRITTEN OUT, and they have to be. This action returns a
+  // NUMBER, and the harness's defaults are built for rows: the attack half scans the
+  // result for ALPHA's ids and a number contains none, so it would pass without the
+  // policy existing at all; the control half requires the owner to SEE one of their own
+  // markers, which a number can never satisfy, so it would fail while working perfectly.
+  // A bare `read(...)` here would have been one green tick meaning nothing beside one
+  // red tick meaning nothing.
+  //
+  // The two families are seeded identically — same $50.00 payment, same $250.00 gift to
+  // the hidden drive — so "the attacker's number differs from ALPHA's" is NOT available
+  // as an assertion and would be a trap. What separates leak from no-leak is the SIZE:
+  // BRAVO's administrator sees BRAVO's own payment and nothing else, and if ALPHA's rows
+  // reached them the total would carry ALPHA's two payments on top of it.
+  //
+  // Why the expected numbers are what they are, since neither is the naive sum:
+  //
+  //   attack   bravoAdmin is the BENEFICIARY of BRAVO's hidden donation drive, so
+  //            20260811000000's restrictive policy hides that $250.00 gift from them.
+  //            What is left is BRAVO's own $50.00 payment. A cross-family leak would
+  //            add ALPHA's $50.00 AND ALPHA's $250.00 — they are not ALPHA's
+  //            beneficiary — so a failure here is large and unmistakable.
+  //
+  //   control  alphaMember is nobody's beneficiary, so they see both of ALPHA's
+  //            payments. That the control's number is SIX TIMES the attack's is the
+  //            point: the two halves are reading genuinely different row sets.
+  //
+  // Derived from the fixture rather than typed as 5000/30000, so that changing a seeded
+  // amount moves the expectation with it instead of turning this red for no reason.
+  //
+  // TO SEE IT FAIL — required before treating any of this as evidence: drop the
+  // `family_code = auth_family_code()` conjunct from `perm:dues_payments:select`
+  // (20260808000001) and re-run. The attack half should jump to 35000.
+  read('dues.getFamilyDuesCollected', 'app/actions/dues.ts', 'getFamilyDuesCollected', {
+    expectAttack: (r, fx) => r === fx.bravo.payment.amount_cents,
+    expectPositive: (r, fx) =>
+      r === fx.alpha.payment.amount_cents + fx.alpha.hiddenDonationPayment.amount_cents,
+  }),
   read('dues.getDonationProgress', 'app/actions/dues.ts', 'getDonationProgress'),
 
   // ── A drive is hidden from the people it is FOR ───────────────────────────
@@ -871,6 +910,25 @@ export const PENDING_CASES = [
   }),
 
   // [crux] Tables covered by way of auth_permission() returning 'none'.
+  // The family's money, to somebody the family has not admitted. `getFamilyDuesCollected`
+  // gates on `canAny`, and a pending member resolves no template grants — so the honest
+  // answer is `null`, not `0`. The distinction is the whole design of that action: 0 would
+  // say "your family has collected nothing", which is a different and false claim.
+  //
+  // The default marker scan cannot judge a number (see the main case above), so this
+  // asserts the refusal directly.
+  //
+  // [not evidence for the family conjunct] Verified by removing it: the attack half of
+  // this case still passed at 35000-leak time, because `canAny` in the action refuses a
+  // pending caller before any policy is consulted. It is evidence for the GUARD, which is
+  // the layer it is aimed at — the conjunct is covered by the main case above, which does
+  // go red. Labelled here rather than deleted, so the gap stays visible.
+  read('dues.getFamilyDuesCollected (pending member)', 'app/actions/dues.ts', 'getFamilyDuesCollected', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r === null,
+    expectPositive: (r, fx) =>
+      r === fx.alpha.payment.amount_cents + fx.alpha.hiddenDonationPayment.amount_cents,
+  }),
   read('announcements.getAnnouncements (pending member)', 'app/actions/announcements.ts', 'getAnnouncements', {
     attacker: 'alphaPending',
   }),

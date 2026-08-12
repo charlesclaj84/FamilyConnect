@@ -807,7 +807,16 @@ worth understanding before touching a colour.
   | `--brand-hero` | `bg-brand-hero` | The banner band behind the lockup |
   | `--brand-accent` | `text-brand-accent` | Links, `h3`–`h6`, unread markers |
   | `--brand-affirm` / `--brand-on-affirm` | `bg-brand-affirm`, `text-brand-on-affirm` | Affirmative actions: create, record, pay |
+  | `--brand-warm` / `--brand-on-warm` | `bg-brand-warm`, `text-brand-on-warm` | Filled Warmth chip — the fourth accent surface |
   | `--brand-legacy` | `bg-brand-legacy` | Premium gold accent — **surface only** |
+
+  **`--brand-warm` is a surface; `--brand-accent` is a foreground. They are both
+  Warmth and they are not interchangeable.** The dashboard's At a Glance grid needed a
+  fourth filled accent beside primary, legacy and affirm, and reaching for
+  `--brand-accent` would have worked in light and broken in dark — that token resolves
+  to Legacy **gold** there, so two of the four tiles would have come out gold the
+  moment the theme flipped. Filling a chip is a job for a surface role with an `on-`
+  partner, which is what this pair is. Text and links stay on `--brand-accent`.
 
   **Why roles and not hues.** A token called `--brand-burgundy` would have to hold sand
   in dark mode to stay readable, and then its name is a lie. `--brand-ink` is burgundy
@@ -973,7 +982,7 @@ than retyping them, so adding a fourth is one edit.
 |---|---|
 | `public/identity/` | **The only BRAND artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
 | `public/home/` | The versioned vendor kits, exactly as delivered — `v1_1/` current, `v1_0/` superseded. Reference material; nothing is served out of it. |
-| `public/dashboard/` | Empty and reserved. Nothing references it; it carries a `.gitkeep` so the directory survives a clone. |
+| `public/dashboard/` | The Dashboard "Golden Master" handoff kit, exactly as delivered. Reference material on the same footing as `home/` — **nothing is served out of it.** |
 
 **Product screenshots are not brand artwork and do not go here.** They are colocated
 with the component that renders them and pulled in with a **static import** —

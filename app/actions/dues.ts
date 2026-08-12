@@ -1159,6 +1159,63 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
   return rows.map(r => ({ ...r, reversed_by_id: reversedBy.get(r.id) ?? null }))
 }
 
+/**
+ * What the family has actually collected, in cents — the Dashboard's "Dues Collected"
+ * tile and nothing else.
+ *
+ * RETURNS `null` FOR ANYONE WITHOUT A LEDGER GRANT, and that is the whole point of the
+ * function rather than an edge case. `dues_payments`'s SELECT policy opens with
+ * `person_id = auth_person_id()` — the clause that makes My Summary work regardless of
+ * every grant beneath it — so a plain sum through the user client returns a member their
+ * OWN payments when they hold nothing. Rendering that under the caption "Dues Collected"
+ * would tell a member their $50 was the family's entire year. So the grant is checked
+ * first and the query is not run at all without it.
+ *
+ * `canAny`, not `can`. A family-wide total has no coherent "own" version — the row a
+ * member would own is precisely the misreading above — which is the case AGENTS.md names
+ * for this helper. It also matches the policy, which tests `= 'any'` on both ledger keys
+ * for the same reason `components/admin/resource-groups.ts` drops the 'own' button for
+ * every `transactions/` key.
+ *
+ * EITHER ledger admits it, mirroring the policy exactly. dues_payments holds dues and
+ * donations together, split by `dues_schedules.kind`, and the policy cannot separate them
+ * — see 20260808000001, which explains why at length. So this total is dues AND donations
+ * collected, and the tile says "Dues Collected" because that is the caption on the screen
+ * it links to; if the two are ever split, they split here and in the policy together.
+ *
+ * THE USER CLIENT, DELIBERATELY, not the admin one. RLS already does the family isolation
+ * and the grant check, so reaching past it would mean re-implementing both by hand for no
+ * gain (AGENTS.md §3). There is no `.eq('family_code', …)` here because there must not be
+ * one: `auth_family_code()` in the policy is the authority, and a second copy in the query
+ * is a second thing to get wrong.
+ *
+ * `status = 'paid'` only. 'waived' settles an obligation without money arriving, and
+ * 'pending' has not arrived yet. Reversals need no special handling: the ledger is
+ * append-only and `reversePayment` writes `-original.amount_cents`, so they net out in the
+ * sum for free.
+ */
+export async function getFamilyDuesCollected(): Promise<number | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const entitled =
+    (await canAny(user.id, 'transactions/dues-payments', 'view'))
+    || (await canAny(user.id, 'transactions/donation-payments', 'view'))
+  if (!entitled) return null
+
+  // `error` is read rather than discarded. `const { data }` alone turns a refused query
+  // into `[]`, and `[]` sums to 0 — so a broken query would render "$0 collected" over a
+  // year of payments, which is worse than rendering nothing (AGENTS.md §8).
+  const { data, error } = await supabase
+    .from('dues_payments')
+    .select('amount_cents')
+    .eq('status', 'paid')
+
+  if (error) return null
+  return (data ?? []).reduce((sum, row) => sum + (row.amount_cents ?? 0), 0)
+}
+
 export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

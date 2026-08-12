@@ -33,6 +33,32 @@ export function daysUntil(date: string | null | undefined): number | null {
   return Math.max(0, Math.round((target - Date.now()) / 86400000))
 }
 
+/**
+ * "Just now" / "5m ago" / "3h ago", falling back to a full date past a day.
+ *
+ * HERE RATHER THAN IN A COMPONENT for the reason spelled out on `daysUntil` above: it
+ * reads the clock, and reading the clock during render makes a component's output depend
+ * on when it happened to render, which `react-hooks/purity` is right to flag. Putting the
+ * impurity behind a named call keeps the callers readable as pure functions of their data.
+ *
+ * It lived as a private helper inside `components/layout/NotificationBell.tsx` until the
+ * Dashboard's Recent Updates card needed the same sentence. Two copies of a relative-time
+ * formatter is how a bell starts saying "2h ago" beside a card saying "2 hours ago" about
+ * the same row — so there is one, and both import it.
+ *
+ * The handover to `formatDate` at 24h is deliberate. Past a day "yesterday" and "3d ago"
+ * stop being more useful than the date itself, and a member scanning a list wants
+ * something they can match against a calendar.
+ */
+export function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return formatDate(iso) ?? ''
+}
+
 export function todayLocal(): string {
   const now = new Date()
   return [

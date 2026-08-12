@@ -24,11 +24,15 @@ export function ChapterReminderBanner({ chapters }: Props) {
 
   if (dismissed) return null
 
+  // Filled affirm, not an affirm TINT. `--brand-affirm` as text on `--brand-soft` measures
+  // 3.69 in light — enough for an icon, not for a sentence — whereas the filled pair
+  // `bg-brand-affirm` / `text-brand-on-affirm` is checked at 4.81 light and 4.91 dark.
+  // Never cross the pairs to get a softer look; pick the pair that passes.
   if (saved) {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 px-4 py-3 flex items-center gap-3">
-        <MapPin className="h-4 w-4 text-green-600 shrink-0" />
-        <p className="text-sm text-green-800 dark:text-green-200 font-medium">Chapter saved successfully.</p>
+      <div className="flex items-center gap-3 rounded-xl bg-brand-affirm px-4 py-3 text-brand-on-affirm">
+        <MapPin className="h-4 w-4 shrink-0" />
+        <p className="text-sm font-medium">Chapter saved successfully.</p>
       </div>
     )
   }
@@ -55,17 +59,24 @@ export function ChapterReminderBanner({ chapters }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30 p-4 flex gap-3">
-      <div className="shrink-0 p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 self-start mt-0.5">
+    // WAS BLUE, in eight places, with a `dark:` variant on each. Nothing in GENORRA is
+    // blue — the palette is Heritage, Warmth, Growth, Legacy, Nurturing — so on a
+    // burgundy-and-gold dashboard this banner was the loudest thing on the screen and
+    // the only thing on it that belonged to no brand. It is now the standard resting
+    // surface: `bg-brand-soft` under `text-brand-on-soft`, a checked pair at 7.31 in
+    // light and 10.64 in dark, which is also why every `dark:` override here could go —
+    // the roles already resolve per theme.
+    <div className="flex gap-3 rounded-xl border border-brand-legacy/40 bg-brand-soft p-4">
+      <div className="mt-0.5 shrink-0 self-start rounded-lg bg-brand-primary p-1.5 text-brand-on-primary">
         <MapPin className="h-4 w-4" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-3">
         <div>
-          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+          <p className="text-sm font-medium text-brand-on-soft">
             Select your chapter
           </p>
-          <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+          <p className="mt-0.5 text-xs text-brand-on-soft/80">
             Assigning your chapter ensures you receive the right announcements and are grouped correctly within the family.
           </p>
         </div>
@@ -92,12 +103,14 @@ export function ChapterReminderBanner({ chapters }: Props) {
           </Button>
         </div>
 
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {/* `text-destructive` is the semantic token and already resolves per theme —
+            `text-red-600 dark:text-red-400` was a hand-rolled copy of it. */}
+        {error && <p className="text-xs font-medium text-destructive">{error}</p>}
       </div>
 
       <button
         onClick={() => setDismissed(true)}
-        className="shrink-0 self-start text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-300 transition-colors"
+        className="shrink-0 self-start text-brand-on-soft/60 transition-colors hover:text-brand-on-soft"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" />
