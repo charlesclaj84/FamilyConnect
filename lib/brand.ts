@@ -23,7 +23,8 @@ export const APP_TAGLINE =
   'Generations Embracing Nurturing Our Roots, Relationships & Ancestry'
 
 /**
- * The lead brand line, per the Premium Family identity (public/README.txt).
+ * The lead brand line, per the Premium Family identity
+ * (public/home/v1_0/README.txt).
  *
  * This is the line that leads a page — the hero, the sign-in panel. It is not
  * interchangeable with APP_TAGLINE, which is the acronym expansion and belongs
@@ -107,7 +108,7 @@ export const BRAND_SOCIAL_PROFILES: readonly string[] = []
  * Brand artwork, by role rather than by filename.
  *
  * These are copies under `public/identity/`, never references into the versioned
- * vendor kits beside it (`public/v1_1/` current, `public/v1_0/` superseded).
+ * vendor kits under `public/home/` (`v1_1` current, `v1_0` superseded).
  * Three reasons, and all three have bitten:
  *
  *  1. Kit folders are named for a design deliverable (`SVG_Masters`,

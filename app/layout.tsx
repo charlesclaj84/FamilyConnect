@@ -7,7 +7,7 @@ import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import './globals.css'
 
-// The brand's two faces, per public/README.txt: Cormorant Garamond for display,
+// The brand's two faces, per public/home/v1_0/README.txt: Cormorant Garamond for display,
 // Inter for UI and body. Both are loaded as VARIABLE fonts — no `weight` option —
 // which ships one file per family covering every weight the app uses, instead of
 // one file per weight. Cormorant in particular needs 400 and 600 together.
