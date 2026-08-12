@@ -58,11 +58,19 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     permission_table_map and the action uses canAny(), because the disbursement
  *     paying the caller IS the abuse case. Offering "Own" there would light up amber
  *     and grant nothing.
+ *
+ *     `admin/family` is the second: there is one family row and nobody owns it, so
+ *     renameFamily() uses canAny() and the policy 20260812000000 puts on `families`
+ *     tests `auth_permission(...) = 'any'` rather than auth_can(). Both halves have to
+ *     agree with this list — an 'own' set here would be a switch the database and the
+ *     action both read as a denial, which is worse than a switch wired to nothing.
  */
+const NO_OWNER_KEYS: readonly string[] = ['admin/family']
+
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []
   const scopes = SCOPES_FOR[action]
-  if (resource.key.startsWith('transactions/')) {
+  if (resource.key.startsWith('transactions/') || NO_OWNER_KEYS.includes(resource.key)) {
     return scopes.filter(s => s !== 'own')
   }
   return scopes

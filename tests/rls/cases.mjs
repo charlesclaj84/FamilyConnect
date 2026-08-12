@@ -23,6 +23,17 @@
  *   layer, and the test would pass without family scoping being involved at all.
  */
 
+// The family code itself, for the handful of cases whose subject is the family ROW
+// rather than something filed under it. Imported rather than retyped so a fixture
+// rename cannot leave a case quietly asserting about a family that no longer exists.
+//
+// This is the first import this file has ever had, and it makes the module unloadable
+// without the local stack: seed.mjs pulls in env.mjs, which shells out to
+// `supabase status` at load. That costs nothing today — run.mjs is the only importer
+// and it calls seed() regardless — but it is why `node -e "import('./cases.mjs')"`
+// now needs `npx supabase start` first.
+import { ALPHA } from './seed.mjs'
+
 /** Values that exist only in ALPHA. Finding one in a BRAVO response is a leak. */
 export function alphaMarkers(fx) {
   const a = fx.alpha
@@ -319,6 +330,21 @@ async function probeRead(db, ids) {
   return JSON.stringify(data)
 }
 
+/**
+ * Put ALPHA's family name back to what the fixture seeded.
+ *
+ * The runner calls `setup` before the attack's probe AND before the control's, so both
+ * halves of a rename case start from the same value and can pass the same argument.
+ * Service role, so it is not the thing under test — and it touches only family_name,
+ * which is the only column on `families` anything may change (families_guard_family_code
+ * refuses family_code for every role, including this one).
+ */
+const resetAlphaName = async (db) => {
+  const { error } = await db.from('families')
+    .update({ family_name: `${ALPHA} Family` }).eq('family_code', ALPHA)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
 /** Snapshot of a table's rows for a family — the ground truth a write test needs. */
 const snapshot = (table, cols, filter) => async (db) => {
   let q = db.from(table).select(cols).order('id')
@@ -448,6 +474,71 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'the resource catalog is global product data, identical for every family — the attack half is here so that stops being true loudly',
   }),
+
+  // ── Family Settings ───────────────────────────────────────────────────────
+  // renameFamily() takes NO family identifier — the target is derived from
+  // auth_family_code(), exactly as the policy derives it — so there is no ALPHA id for
+  // BRAVO to pass and the usual "attacker supplies the owner's id" shape does not apply.
+  // What these assert instead is that the derivation cannot be widened: a rename must
+  // move ONE family's row, and ALPHA's must be that row for nobody but ALPHA.
+  //
+  // WHAT EACH OF THESE IS EVIDENCE FOR, established by mutation rather than asserted.
+  // Three runs, 2026-08-12, each removing one layer and re-running the suite:
+  //
+  //   A. Every app-layer check deleted from renameFamily (requireEdit and the
+  //      `.eq('family_code', …)` both gone), policies untouched
+  //        → all three still PASS. The database alone refuses all of it.
+  //
+  //   B. A, plus the UPDATE policy stripped to `family_code = auth_family_code()`
+  //        → the two grant cases FAIL with ROW MUTATED; cross-family still passes.
+  //      So `auth_permission('admin/family','edit') = 'any'` is exactly what those two
+  //      are evidence for, and it is not shared with the cross-family one.
+  //
+  //   C. B, plus `family_code = auth_family_code()` removed from the UPDATE policy
+  //        → cross-family STILL passes. It only failed once the families SELECT policy
+  //      was opened too, which is the finding worth writing down: `.select()` on the
+  //      mutation is a scoping layer as well as an honesty one. Postgres ANDs the SELECT
+  //      policy into an UPDATE that carries a RETURNING clause, so the `.select()` added
+  //      to turn a silent no-op into a real failure ALSO confines the write to rows the
+  //      caller may read. Three independent things therefore have to be dismantled
+  //      before BRAVO can rename ALPHA — and the last of them cannot be removed without
+  //      taking down the policy every read of `families` in the app depends on.
+  read('admin/family.getFamilySettings', 'app/actions/admin/family.ts', 'getFamilySettings', {
+    // A family name is not in alphaMarkers and a bare object cannot carry one, so the
+    // default marker scan would pass here with no family filter at all. The codes are
+    // the assertion: BRAVO's administrator holds admin/family in their OWN family, so
+    // they get a perfectly legitimate answer — it just must not be ALPHA's.
+    expectAttack: r => r === null || r.familyCode !== ALPHA,
+    positiveActor: 'alphaAdmin',
+    expectPositive: r => r?.familyCode === ALPHA && r.canEdit === true,
+  }),
+  {
+    kind: 'write',
+    id: 'admin/family.renameFamily (cross-family)',
+    mod: 'app/actions/admin/family.ts', fn: 'renameFamily',
+    args: () => ['Renamed by an outsider'],
+    // Both halves start from the seeded name, so the same argument can be used for the
+    // attack and the control: without this the control would be renaming a family the
+    // attack had already left renamed, and "the probe did not move" would mean the
+    // fixture agreeing with itself rather than the write being refused.
+    setup: resetAlphaName,
+    probe: db => snapshot('families', 'id, family_code, family_name', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.renameFamily (same family, member with no grant)',
+    mod: 'app/actions/admin/family.ts', fn: 'renameFamily',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and
+    // approved; what has to refuse them is the grant — canAny() in the action, and
+    // `auth_permission('admin/family','edit') = 'any'` in the policy. Naming the family
+    // is family-wide configuration with no owner, so 'own' must not be a way in either.
+    attacker: 'alphaMember',
+    args: () => ['Renamed by a member with no grant'],
+    setup: resetAlphaName,
+    probe: db => snapshot('families', 'id, family_code, family_name', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
 
   // ── writes against ALPHA's rows ───────────────────────────────────────────
   {
@@ -790,6 +881,27 @@ export const PENDING_CASES = [
       { election_id: fx.alpha.election.id })(db),
     positive: 'not-applicable',
     why: 'the approved owner has already voted; a second call is an upsert no-op, and their vote is asserted by the cross-family castVote case above',
+  },
+
+  // NOT [crux], and labelled so rather than left looking like evidence. An applicant is
+  // refused a rename by holding no admin/family:edit grant — which is true of every
+  // ordinary member, approved or not — so neuter the approval conjunct and this still
+  // passes: alphaPending sits on the General template, whose grid states 'none' here.
+  //
+  // Kept because auth_family_code() resolves ALPHATEST for an applicant deliberately
+  // and permanently, so the family scoping inside renameFamily() would scope TO ALPHA
+  // quite happily; the grant check and the policy's `= 'any'` are the whole of what
+  // stands between somebody who has merely typed the family code and the name every
+  // member of that family sees.
+  {
+    kind: 'write',
+    id: 'admin/family.renameFamily (pending member)',
+    mod: 'app/actions/admin/family.ts', fn: 'renameFamily',
+    attacker: 'alphaPending',
+    args: () => ['Renamed by an applicant'],
+    setup: resetAlphaName,
+    probe: db => snapshot('families', 'id, family_code, family_name', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
   },
 
   // [crux] The family's access map, written by somebody who has joined by family code

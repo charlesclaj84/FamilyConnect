@@ -17,7 +17,8 @@ launch day without.
 
 ### [x] Turn on email confirmation — DONE 2026-08-12
 
-**On and working on hosted.** Confirm-email is enabled and all five templates are pasted.
+**On and working on hosted.** Confirm-email is enabled, and all five templates are pushed
+from this repo rather than pasted.
 
 Verified rather than asserted, because this box has been the difference between "we
 emailed them and they clicked it" meaning something and meaning nothing:
@@ -30,13 +31,27 @@ emailed them and they clicked it" meaning something and meaning nothing:
   `/login?error=That confirmation link is not valid…`, so the `token_hash` route is live
   on the real host and the fragment trap is not in play.
 
-The five templates are pasted (Charles, 2026-08-12). Keep
-[supabase/templates/](supabase/templates/) as the source of truth: `config.toml` wires
-them up **locally only**, hosted renders whatever was last pasted, so editing a file here
-does nothing to production until somebody pastes it again and sends themselves a real
-signup. The dormant three matter for the same reason they always did — every GoTrue
-default links with `{{ .ConfirmationURL }}`, which returns the session in a URL fragment
-this cookie-based app never sees.
+The five templates are pasted (Charles, 2026-08-12), and **pasting is no longer how they
+get there**: [scripts/auth-templates.mjs](scripts/auth-templates.mjs) pushes them over the
+Management API, so [supabase/templates/](supabase/templates/) is the source of truth in
+the mechanical sense rather than the aspirational one.
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_… npm run email:check   # exit 1, with a diff, if hosted drifted
+SUPABASE_ACCESS_TOKEN=sbp_… npm run email:push    # make hosted match the repo
+```
+
+It sends ten fields — a subject and a body per template — and refuses to transmit
+anything outside `mailer_subjects_*` / `mailer_templates_*_content`, which is what makes
+it safe against production where `supabase config push` is not (see below). `config.toml`
+still wires up the local stack and remains the one place a template is declared; the
+script reads that same table. Editing a file here still does nothing to production until
+somebody pushes it and sends themselves a real signup — the difference is that checking
+is now one command instead of a memory.
+
+The dormant three matter for the same reason they always did — every GoTrue default links
+with `{{ .ConfirmationURL }}`, which returns the session in a URL fragment this
+cookie-based app never sees.
 
 **The product may now be described as email-verified.** One consequence worth knowing,
 because it is now a live support case rather than a hypothetical: an account that
@@ -97,6 +112,31 @@ Sending itself is no longer the blocker: hosted has sent through Resend
 `[auth.email.smtp]` block in `config.toml` stays **commented out** deliberately — see the
 comment above it; uncommenting takes local development off Mailpit and starts mailing
 real addresses out of `db reset` and the RLS fixture.
+
+### [ ] `secure_password_change` is `false` on hosted — one dashboard switch
+
+**Action:** Authentication → Providers → Email → turn on "Secure password change" on the
+hosted project. No code change does this, and nothing in the repo can detect it.
+
+`config.toml` has said `true` since 2026-08-11, with a carefully measured matrix beside
+it; the whole of "Password change: what protects it" below is written on that premise.
+All of it describes the **local** stack. On hosted the flag is off, so no reauthentication
+code is required to change a password at **any** session age — not merely inside GoTrue's
+24-hour freshness window, which is the caveat the repo already knew about and took to be
+the whole story. `GET /v1/projects/<ref>/config/auth` answers
+`security_update_password_require_reauthentication: false`; re-read it after flipping.
+
+Found 2026-08-12 by a read-only sweep comparing every `[auth]` key `config.toml` declares
+against that endpoint. Eighteen keys, three divergences; the other two are closed —
+`otp_length` is now 8 in both, and `max_frequency`'s 1s/60s split is deliberate and now
+says so in `config.toml`. This one is the residue, and it is the same failure the template
+sync was built to stop, one field over: written in `config.toml`, verified locally, never
+applied to the project that serves real families.
+
+**`scripts/auth-templates.mjs` will not grow into a checker for this**, deliberately. It
+reads and writes nothing but the ten mailer fields; the moment it can write `site_url` it
+inherits every hazard `config push` has. A separate read-only auditor over the whole
+`[auth]` block is the right shape and is not built.
 
 ### [ ] Retire Claude's write access to the hosted database
 
@@ -163,36 +203,27 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## A family cannot be renamed, and cannot be deleted at all
+## A family cannot be deleted
 
-**Action:** build a family settings surface for the rename. Decide what deleting a
-family *means* before building that half — the schema will not do it for you.
+**Action:** decide what deleting a family *means* before building it — the schema will
+not do it for you.
 
-There is no family settings page. The eighteen `admin/*` resources cover accounting,
-members, events, elections and reports; none of them is the family's own identity.
-`families` is INSERTed by [register.ts](app/actions/register.ts) and `create_family()`,
-SELECTed in half a dozen places, and **never updated or deleted by any code in the
-tree** — `git grep` for a write to it returns inserts only.
+**The rename half shipped 2026-08-12** and is no longer open. What it left behind that
+this half will build on, so it is not rediscovered:
 
-Both halves need a new permissioned surface, so both owe a `permission_resources` row
-*and* the per-family `resource_visibility` backfill in the same migration, or the page
-can never be restricted by anyone (AGENTS.md §6).
-
-### Renaming is small, and blocked only by there being no path
-
-`families` carries exactly one policy — `perm:members can view own family`, SELECT.
-There is no UPDATE policy, so a rename cannot go through the user client at all. It
-wants an RPC beside `create_family()`, where the founder checks and the code generation
-already live, or the service role with family scoping re-applied by hand (AGENTS.md §3).
-
-The rename itself is safe, and worth stating because it is the reason this is the easy
-half: `family_code` is the join key, carried by 34 tables, and `family_name` is carried
-by **none** of them. Nothing joins on the name, so changing it cannot orphan anything.
-
-Who may do it is the only real question. Founder-only is the tempting answer and is
-probably wrong — `families.created_by` is `ON DELETE SET NULL`, so a family whose
-founder's account is gone would have nobody who could rename it. Gate it on the
-resource like everything else.
+* **A family settings surface exists.** `/admin/family`, registered by
+  `20260812000000` as the resource `admin/family` — `'restricted'` per family, `view`
+  and `edit` only. A delete would be a third action on that key (or a key of its own,
+  if the family wants to hand out renaming without handing out destruction, which is
+  probably the right call and is a product decision nobody has made).
+* **`families` now has an UPDATE policy**, `family renamed by settings admins` — the
+  second policy the table has ever carried. It tests
+  `auth_permission('admin/family','edit') = 'any'` rather than `auth_can()`, because a
+  family has no owner and `'own'` must not be a way in.
+* **`family_code` is immutable.** `families_guard_family_code` refuses any change to
+  it, for every role. That is the *rename* half of the same problem this section is
+  about: 34 tables carry the code and none has a foreign key back, so re-keying a
+  family would silently empty it. A delete has to reckon with the same absence.
 
 ### Deleting is the dangerous half, and the schema does not help
 
@@ -207,6 +238,9 @@ Two places the schema does anticipate it, both worth reading first:
 * `funds_protect_system` releases a system fund for deletion **only** once the
   `families` row is gone. That is the intended order — family first, then the sweep —
   and it is the one spot where family deletion is designed for rather than overlooked.
+  `20260812000000`'s verify block is that order run in miniature, against a throwaway
+  family it creates and removes: families, then funds, then the templates. It is four
+  lines and it is the only worked example of the sequence in the tree.
 * The append-only ledgers (`dues_payments`, `fund_disbursements`, `20260806000002`)
   refuse a delete except as the cascade from a person or fund already gone. A sweep
   either runs in dependency order or stands those guards down deliberately.
@@ -245,14 +279,86 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## Password change still allows a nonce-free path for fresh sessions
+## Password change: what protects it, and the part that cannot be protected
 
-`secure_password_change = true` since 2026-08-11, so an emailed reauthentication code is
-genuinely mandatory — but GoTrue only enforces it on sessions older than its freshness
-window. A member whose session is minutes old can change their password without the code,
-by design, and the config carries the full note and the probe to re-run if you touch it.
-[components/personal-info/SignInSecurity.tsx](components/personal-info/SignInSecurity.tsx)
-says so plainly rather than claiming the code is a gate in both cases; keep it that way.
+**Action:** run the two probes below when Docker is next up, and decide about
+`inactivity_timeout`. The app-side work is done.
+
+Filed as "a nonce-free path for fresh sessions", which described the mechanism accurately
+and pointed at the wrong repair. Reframed and mostly fixed 2026-08-12.
+
+### The window is real, there is no knob, and no app-side check can close it
+
+`secure_password_change = true` since 2026-08-11, and GoTrue reads its own setting as
+"reauthenticate **or have logged in recently**". Recently is `session.created_at + 24h`, a
+constant in GoTrue rather than a setting — nothing in `config.toml` exposes it, and the
+measured matrix beside the flag is what that constant looks like from outside. So for the
+first day of any session the emailed code is sent, typed in, and not checked; a
+deliberately wrong one still changes the password.
+
+**The part worth being clear about, because it was got wrong once already while writing
+this:** the current-password field added below does *not* close that window. `PUT
+/auth/v1/user` is a public GoTrue endpoint that accepts the browser's session token, so
+anybody who can open devtools can change the password without loading our form. A check
+that runs on the attacker's side of the wire is not a gate, and moving it into a server
+action would not help — GoTrue's endpoint stays reachable either way.
+
+So: within 24 hours of a session being created, a person holding that session can change
+the password, and that is a property of GoTrue we host rather than a bug we can patch.
+What is left is (a) making the realistic version of the attack harder, (b) not overclaiming
+on screen, and (c) making the change *recoverable* by evicting other sessions.
+
+### What was done, 2026-08-12
+
+* **A current-password field on the Password panel**
+  ([SignInSecurity.tsx](components/personal-info/SignInSecurity.tsx)). Verified against a
+  throwaway client (`createPasswordCheckClient` in [lib/supabase/client.ts](lib/supabase/client.ts))
+  so the live session is untouched — and specifically **not** against the app's own client,
+  because signing in on that one replaces the session, and a new session's `created_at`
+  resets the 24-hour clock, which would switch the emailed code off for good. Verifying the
+  password on the wrong client would have disabled the other half of the gate on the way
+  past. Browser-side on purpose: the password reaches GoTrue over TLS exactly as at
+  sign-in and never touches our server, and no new `'use server'` export means no new
+  endpoint that accepts password guesses.
+
+  What it buys, stated at its true worth: it stops somebody who sits at an unlocked screen
+  and uses the product, which is the realistic version of this threat. It stops nobody who
+  opens devtools.
+
+* **Other sessions revoked on a successful change** — `signOut({ scope: 'others' })`. This
+  is the one part of the screen that is genuinely enforced: refresh tokens are revoked
+  server-side and cannot be un-revoked from a browser. It also sweeps the throwaway session
+  the password check creates. `'others'` and not the default `'global'`, so the member stays
+  on the page they are reading the confirmation on.
+
+* **Copy that matches.** The panel used to promise "a password cannot be changed by someone
+  who simply found your screen unlocked", which is more than either proof delivers, and the
+  success message said "It applies the next time you sign in", which implied the opposite of
+  what the eviction now guarantees. Both replaced, and the success message has two branches
+  because the sign-out can fail on its own after the password has already changed.
+
+### Still owed
+
+1. **Two probes, both blocked on Docker being down on 2026-08-12.** Neither changes the
+   code — `signOut({ scope: 'others' })` is correct and idempotent either way — but both
+   turn an assumption into a fact:
+   * Does GoTrue already revoke other sessions on password change? If it does, our call is
+     redundant; keep it regardless, so the guarantee belongs to a line in our code rather
+     than to an internal that can change under us.
+   * Does the current-password check behave as expected at the boundary — wrong password
+     refused, right password accepted, and the resulting throwaway session actually swept
+     by the eviction rather than left behind?
+
+2. **Decide about `inactivity_timeout`.** This is the mitigation that actually addresses
+   "somebody found my screen unlocked", because a session that has aged out cannot be used
+   at all — by our form or by devtools. `[auth.sessions]` is commented out entirely today,
+   so sessions never expire on their own. Unlike `timebox` it does **not** cap
+   `session.created_at`, so it does not interfere with the 24-hour reauthentication window;
+   see the note now in `config.toml` beside the block for why `timebox = "24h"` would
+   silently disable `secure_password_change` altogether.
+
+   It is a product call, not a security one: a shorter timeout is a family being asked to
+   sign in more often.
 
 ## Phase 3 leftovers
 

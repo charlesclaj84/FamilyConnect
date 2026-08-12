@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ArrowRightLeft,
   Home,
+  Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -69,12 +70,18 @@ const adminItems: NavItem[] = [
   // tab. The queue is the reason for the position: it is the only admin surface with
   // PEOPLE waiting behind it, who can see nothing until somebody acts, so it is the
   // one an administrator should be prompted to look at rather than scroll to.
+  //
+  // Family Settings therefore sits SECOND rather than first, which is the one place
+  // this list and the permission grid disagree — the grid sorts it above Members &
+  // Access (sort_order 155) because "which family is this" reads first in a catalogue
+  // of switches. Nothing waits behind it, so it does not earn the top of a nav.
   {
     href: '/admin/users',
     label: 'Members & Access',
     icon: UsersRound,
     viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates'],
   },
+  { href: '/admin/family',         label: 'Family Settings',      icon: Settings },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },

@@ -77,6 +77,18 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('photos',              'Photos',                 'resources',  130),
   ('documents',           'Documents',              'resources',  140),
   ('elections',           'Elections',              'resources',  150),
+  -- Added by 20260812000000. Listed here for the reason admin/approvals is: the
+  -- visibility loop at the FOOT of this file is what gives a fresh database its
+  -- 'restricted' row for every admin key, and every loop between here and that
+  -- migration reads permission_resources rather than a literal list — so registering
+  -- it early is what carries it through the chain instead of leaving it to be
+  -- retro-fitted at the end.
+  --
+  -- Deliberately without the `actions` column: it does not exist until 20260806000000,
+  -- so naming it here would abort the chain on an empty database. The row is created
+  -- with the default four actions and narrowed to view+edit by 20260812000000 §1,
+  -- which also deletes the create/delete grants materialization handed out meanwhile.
+  ('admin/family',        'Family Settings',        'admin',      155),
   -- Renamed by 20260807000000, which merged Groups & Permissions into this page:
   -- one template per member replaced group membership plus per-person overrides, so
   -- the two screens became one. The label is updated here as well as there because

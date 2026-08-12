@@ -169,6 +169,21 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'The leadership toolkit for running your family organization.',
   },
+  // Family Settings is LIVE, and is the family's own identity rather than a tool for
+  // running it — the name every other admin page is about, and the code people join by.
+  // It has to be live for a second reason beyond being built: getResources() drops any
+  // resource key whose path resolves to a 'future' feature, and getFeature()
+  // longest-prefix-matches — so with no entry here `/admin/family` would resolve to the
+  // catch-all `/admin` above, and the row would vanish from the permission grid with no
+  // error anywhere. Who actually sees it is the permission model's business:
+  // 20260812000000 registers it 'restricted' per family, so it is administrators-only
+  // until a family says otherwise.
+  {
+    href: '/admin/family',
+    label: 'Family Settings',
+    status: 'live',
+    blurb: 'Your family’s name and the code relatives join with.',
+  },
   // Absorbed /admin/groups in 20260807000000. One template per member replaced group
   // membership plus per-person overrides, which left nothing for a second screen to
   // show — so the route is gone, and its resource key was merged into this one. A
