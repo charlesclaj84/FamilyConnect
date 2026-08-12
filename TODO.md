@@ -170,15 +170,15 @@ See "Claude may write to the hosted database unprompted" below — it is dated r
 launch-gated, but shipping with an agent holding unprompted `db push` on production is a
 decision, not an oversight.
 
-The local half is already gone (no `.claude/` in this checkout), and the replacement it was
-waiting for now exists — see "BUILT 2026-08-12, NOT YET ENABLED" below. What is left is
-confirming the hosted `claude_probe` role lapsed.
+The local half is already gone (no `.claude/` in this checkout), and the replacement is now
+live and verified — see "LIVE 2026-08-12" below. Nothing needs an agent to hold `db push` on
+production any more, because the reviewed path is strictly better at the same task. What is
+left is confirming the hosted `claude_probe` role lapsed.
 
-### [ ] Enable the migration pipeline
+### [x] Enable the migration pipeline — DONE 2026-08-12
 
-Four secrets and one Vercel toggle. It is the item immediately below the PARKED section —
-listed here too because until it is done **nothing deploys production**, which is a GO LIVE
-fact rather than a backlog one.
+Live and verified on a real run. See "LIVE 2026-08-12: migrations reach hosted from CI, and
+gate the release" below for the evidence and for what the run established about hosted.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
@@ -532,7 +532,44 @@ things it owed are still owed:
    guard is a boundary around the `authenticated` role, not around the column. Any new
    service-role write to `people` owes the same look `updateUserProfile` just got.
 
-## [ ] BUILT 2026-08-12, NOT YET ENABLED: migrations reach hosted from CI
+## [x] LIVE 2026-08-12: migrations reach hosted from CI, and gate the release
+
+**Working end to end, verified on a real run** — an empty commit (`c262278`) pushed to
+`master` with no file changes, so anything that broke would have been the pipeline rather
+than the code. Vercel's Deployment Summary for it:
+
+```
+Build Logs                    48s
+Deployment Checks   1 0 0 0 0
+  Database migrations  Required  43s
+Assigning Custom Domains       1s
+```
+
+**`Assigning Custom Domains` runs after the check, not before.** That ordering is the whole
+claim of this section, and it is now observed rather than reasoned: Vercel built the commit,
+held it unaliased, waited 43s for `Database migrations`, and only then attached the domain.
+`Required` confirms the check bound to the job name.
+
+### The two baselines are closed, by the run itself
+
+They were going to be read by hand before the first merge. A green `Database migrations` job
+establishes them more strongly than the commands would have, because every one of these had
+to hold for it to pass:
+
+| What had to be true of hosted | Which step proved it |
+|---|---|
+| Carries no version this repo lacks; nothing pending sorts before an applied one | `Ledger before` |
+| Exactly level with the repo — nothing pending after the push | `Ledger after — nothing may still be pending` |
+| No superseded policy beside its `perm:` replacement | `No superseded policy beside its replacement` |
+
+So the hand-application era did **not** leave the ledger corrupted, which was the largest
+unknown in this whole piece of work and the reason the first CI push was treated carefully.
+`20260806000009` really did clear the `families` policy, and nothing has re-added one.
+
+What is still unread is the **advisor** baseline — see "Still owed" below. That is the one
+remaining check running report-only.
+
+## Superseded, kept for the reasoning: what the setup involved
 
 **Action:** the settings below, none of them code. Until they are done, `migrate.yml` fails
 on its own preflight step — which does **not** block production, since Vercel deploys on
@@ -605,24 +642,18 @@ was for.
 Nothing to change on the Vercel **Git** page. Preview deploys are unaffected either way —
 the `dev` branch preview on `genorra-kappa.vercel.app` should stay exactly as it is.
 
-### Two baselines to read before the first merge
+### Reading hosted's state by hand, if you ever need to again
 
-Both are commands, both read-only, and both exist because a check whose baseline nobody has
-looked at is a check that blocks the first deploy for reasons that predate it:
+Both read-only, and both are what CI now runs on every merge. Useful after any hand
+intervention in the database, which is the one thing the ledger cannot detect:
 
 ```bash
 SUPABASE_ACCESS_TOKEN=sbp_… npm run db:check -- --linked   # ledger: hosted vs this repo
 SUPABASE_ACCESS_TOKEN=sbp_… npm run db:audit -- --linked   # no superseded policy left behind
 ```
 
-`db:check --linked` is the one that matters most, because **nobody knows what hosted's
-ledger contains.** Migrations were applied by hand, sometimes with `psql -f`, which records
-nothing — so hosted may well carry a version this repo does not, or be missing one it
-recorded. If it reports findings, resolve them before enabling the workflow; the first
-`db push` from CI is not the moment to discover it.
-
-`db:audit --linked` should be clean: the audit query returned exactly one row on hosted
-(`families`) and `20260806000009` removed it. Confirm rather than assume.
+Both were clean on 2026-08-12, established by the first CI run rather than by these commands
+— see the table above.
 
 ### Still owed, and deliberately not done blind
 
@@ -700,11 +731,11 @@ checkout — confirmed 2026-08-12, there is no `.claude/` directory at all — s
 half is already gone. The hosted `claude_probe` role is the part that still needs
 confirming.
 
-**The durable replacement is built** (2026-08-12): `db push` from a GitHub Action on merge
-to `master` — reviewed, ordered, recorded, and nobody holding write credentials. See
-"BUILT 2026-08-12, NOT YET ENABLED" above; it needs its four secrets and the Vercel toggle
-before it is doing the job. Once it is, granting an agent `db push` on production has no
-remaining justification, because the reviewed path is strictly better at the same task.
+**The durable replacement is live** (2026-08-12, verified on a real run): `db push` from a
+GitHub Action on merge to `master`, gating the Vercel release — reviewed, ordered, recorded,
+and nobody holding write credentials. See "LIVE 2026-08-12" above. Granting an agent
+`db push` on production therefore has no remaining justification, because the reviewed path
+is strictly better at the same task.
 
 ## Authorization
 
