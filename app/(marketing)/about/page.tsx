@@ -10,7 +10,7 @@ import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/market
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import {
-  APP_NAME, APP_TAGLINE, APP_LEAD, APP_VALUES, APP_DESCRIPTION, APP_PUBLISHER,
+  APP_NAME, APP_TAGLINE, APP_LEAD, APP_VALUES, APP_PUBLISHER,
   BRAND_MARK_SRC, APP_LOGO_ALT,
 } from '@/lib/brand'
 
@@ -133,9 +133,29 @@ export default function AboutPage() {
               <h2 id="mission-heading" className="mt-6 text-3xl sm:text-4xl">
                 Why we built it
               </h2>
+
+              {/* ── The three paragraphs, in this order for a reason ──────────────
+                  ROOTS, then the PROBLEM, then US. The founder's note asked for the
+                  brand sentence to read as inherited rather than declared — as
+                  something the elders taught rather than something a company decided —
+                  so it is attributed to them and phrased as teaching. It is the same
+                  commitment APP_DESCRIPTION states in `lib/brand.ts`; that constant
+                  stays the canonical wording for the manifest and anywhere the product
+                  is described in one sentence, and this is that wording given a voice.
+
+                  The middle paragraph is unchanged. The founder liked it, and it is the
+                  one that makes a stranger recognise their own family. */}
               <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-                {APP_DESCRIPTION}
+                Our elders taught us that a family is something you keep on purpose. You
+                learn the names. You show up. You write it down, so the ones coming after
+                you know whose hands built what. That is the whole inheritance —{' '}
+                <span className="text-foreground">
+                  nurturing our roots, preserving the stories and the traditions,
+                  strengthening the relationships, and building a legacy that lives on
+                </span>{' '}
+                — and it was never meant to rest on one person&apos;s memory.
               </p>
+
               <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
                 Somewhere in most families there is one person holding the whole thing
                 together — the reunion, the dues, the addresses, the photographs, the
@@ -143,7 +163,59 @@ export default function AboutPage() {
                 spreadsheet and their own memory, and when they stop, most of it is lost.
                 {' '}{APP_NAME} exists so that the work survives the person doing it.
               </p>
+
+              <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+                We know, because we are that family. Six living generations and more than
+                four hundred members — and every year the same scramble: who has paid their
+                dues, who is coming to the reunion, whose birthday we just missed, and who
+                is this cousin nobody can place. We went looking for something built to
+                hold a family that size and it did not exist. So we built it, for
+                ourselves first.
+              </p>
             </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── The family it was built for ───────────────────────────────────
+          THE LABEL IS DOING REAL WORK HERE. These numbers describe the founders' own
+          family, not the customer base, and a bare "400+ members" on a marketing page
+          reads as a platform total to every visitor. The heading says whose family it is
+          and the caption says it again, because a figure that invites the wrong reading
+          is a false claim whether or not the number is true. Do not restyle this into an
+          unlabelled stat strip. */}
+      <section aria-labelledby="our-family-heading" className="bg-brand-hero px-4 py-14 sm:px-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <Reveal>
+            <h2
+              id="our-family-heading"
+              className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-legacy"
+            >
+              The family we built it for
+            </h2>
+            <dl className="mt-6 grid gap-8 sm:grid-cols-3">
+              {[
+                { figure: '6', label: 'living generations' },
+                { figure: '400+', label: 'family members' },
+                { figure: '1', label: 'place it all lives now' },
+              ].map(stat => (
+                <div key={stat.label}>
+                  <dt className="sr-only">{stat.label}</dt>
+                  <dd>
+                    <span className="block font-heading text-5xl font-semibold text-brand-on-primary">
+                      {stat.figure}
+                    </span>
+                    <span className="mt-1 block text-sm text-brand-on-primary/70">
+                      {stat.label}
+                    </span>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mx-auto mt-8 max-w-xl text-sm text-brand-on-primary/70">
+              Our own family — not a customer count. {APP_NAME} was built to hold it, and
+              then opened up to other families who had the same problem.
+            </p>
           </Reveal>
         </div>
       </section>

@@ -9,6 +9,7 @@ import { PageHero, SectionHeading, CtaBand, ComingSoonBadge, MoreLink } from '@/
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { APP_NAME } from '@/lib/brand'
+import { cn } from '@/lib/utils'
 
 const PAGE_TITLE = 'Pricing — Free to Start, No Card Required'
 const PAGE_DESCRIPTION =
@@ -39,7 +40,44 @@ export const metadata: Metadata = {
  * file's header insists on.
  */
 const PRICING_IS_ANNOUNCED = false
-const PLUS_PRICE: { amount: string; period: string } | null = null
+
+/**
+ * ── THE PLAN TABLE — THIS IS WHAT YOU EDIT ──────────────────────────────────
+ *
+ * Three tiers, and each one INHERITS the tier below it rather than restating it. That is
+ * what `inheritsFrom` does: Plus renders "Everything in Free, plus:" and lists only what
+ * it adds; Premium does the same for Plus. Two reasons it is modelled rather than typed:
+ *
+ *  * A restated list drifts. Add a feature to Free and you have to remember to add it to
+ *    two other cards, and the day you forget, the expensive tier appears to offer LESS
+ *    than the free one. The inheritance line cannot go stale.
+ *  * It is also the honest shape of the offer. A customer reading Premium needs to know
+ *    they keep everything below it, and "Everything in Plus" says that in three words.
+ *
+ * `price: null` renders "Price to be announced" and disables the button. Set `PLUS_PRICE`
+ * / `PREMIUM_PRICE` and flip `PRICING_IS_ANNOUNCED` when the numbers are real — see the
+ * note above it for why there is no placeholder figure.
+ *
+ * `adds` is deliberately short on the two paid tiers, because those lists are yours to
+ * write. What is there now is only what has actually been discussed: the family website
+ * that `LivingSitePreview` describes. Add to them freely — the card grows.
+ */
+interface Plan {
+  name: string
+  tagline: string
+  /** null while the price is not announced. */
+  price: { amount: string; period: string } | null
+  /** Name of the tier this one contains, or null for the base tier. */
+  inheritsFrom: string | null
+  /** What THIS tier adds on top of the one it inherits. */
+  adds: readonly string[]
+  available: boolean
+  /** The one tier the eye should land on. Exactly one should be true. */
+  featured: boolean
+}
+
+const PLUS_PRICE: Plan['price'] = null
+const PREMIUM_PRICE: Plan['price'] = null
 
 /** Everything in the free account. All of it exists and is reachable today. */
 const FREE_INCLUDES = [
@@ -59,12 +97,44 @@ const FREE_INCLUDES = [
   'Per-feature permissions for every member',
 ] as const
 
-/** The roadmap tier. Names only what is genuinely planned, and promises no date. */
-const PLUS_INCLUDES = [
-  'Your family’s own public website, building itself from your events and photographs',
-  'A custom address for it',
-  'Everything in Free, unchanged',
-] as const
+const PLANS: readonly Plan[] = [
+  {
+    name: 'Free',
+    tagline: 'For every family, of any size.',
+    price: { amount: '$0', period: 'forever' },
+    inheritsFrom: null,
+    adds: FREE_INCLUDES,
+    available: true,
+    featured: false,
+  },
+  {
+    name: 'Plus',
+    tagline: 'For families who want the world to see them.',
+    price: PLUS_PRICE,
+    inheritsFrom: 'Free',
+    // ONLY WHAT HAS ACTUALLY BEEN DECIDED. The family website is real — it is the feature
+    // LivingSitePreview describes and the one item on the roadmap discussed publicly.
+    // Everything else on this tier is yours to add.
+    adds: [
+      'Your family’s own public website, building itself from your events and photographs',
+      'A custom address for it',
+    ],
+    available: false,
+    featured: true,
+  },
+  {
+    name: 'Premium',
+    tagline: 'For large families running a real organization.',
+    price: PREMIUM_PRICE,
+    inheritsFrom: 'Plus',
+    // Intentionally empty until you fill it in. An empty list renders the inheritance
+    // line and nothing else, which reads as "not specified yet" — the correct impression
+    // — rather than inventing capabilities to pad the card out.
+    adds: [],
+    available: false,
+    featured: false,
+  },
+]
 
 const FAQ = [
   {
@@ -129,93 +199,123 @@ export default function PricingPage() {
           <SectionHeading
             id="plans-heading"
             eyebrow="Plans"
-            title="One free plan that does the job"
-            lede="Everything a family organization runs on is in the free account. The tier below it is additive, and not out yet."
+            title="Three tiers. The free one is not a trial"
+            lede="Everything a family organization runs on is in the free account. Each tier above it adds to the one below rather than unlocking it."
           />
 
-          <div className="mt-12 grid items-start gap-6 lg:grid-cols-2">
-            {/* FREE — the real one, and given the visual weight to match */}
-            <Reveal>
-              <div className="relative overflow-hidden rounded-2xl border-2 border-brand-primary/30 bg-card p-6 shadow-[var(--shadow-card-hover)] sm:p-8">
-                <span className="absolute right-0 top-0 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
-                  Available now
-                </span>
-                <h3 className="text-2xl">Free</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  For every family, of any size.
-                </p>
-                <p className="mt-6 flex items-baseline gap-2">
-                  <span className="text-5xl font-semibold text-brand-ink">$0</span>
-                  <span className="text-muted-foreground">forever</span>
-                </p>
-                <Link href={ACCOUNT_ROUTES.register} className="mt-6 block">
-                  <Button size="lg" className="w-full text-base">
-                    Get Started Free
-                  </Button>
-                </Link>
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  No card. No trial period.
-                </p>
+          {/* Three tiers, each inheriting the one below it. `items-stretch` rather than
+              `items-start` so all three cards share a height — with different-length
+              lists, `items-start` left the two paid cards floating at different heights
+              and the row read as broken rather than as three options. */}
+          <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-3">
+            {PLANS.map((plan, i) => {
+              const priced = Boolean(plan.price) && (plan.available || PRICING_IS_ANNOUNCED)
+              return (
+                <Reveal key={plan.name} delay={i * 150} className="h-full">
+                  <div
+                    className={cn(
+                      'relative flex h-full flex-col overflow-hidden rounded-2xl p-6 sm:p-7',
+                      plan.available
+                        ? 'border-2 border-brand-primary/30 bg-card shadow-[var(--shadow-card-hover)]'
+                        : plan.featured
+                          // The featured roadmap tier gets a solid border and the card
+                          // surface, so the eye lands on it — but NOT the affirmative
+                          // fill, which would read as buyable.
+                          ? 'border-2 border-brand-legacy/50 bg-card shadow-[var(--shadow-card)]'
+                          : 'border border-dashed bg-brand-soft/30',
+                    )}
+                  >
+                    {plan.available && (
+                      <span className="absolute right-0 top-0 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
+                        Available now
+                      </span>
+                    )}
 
-                <ul className="mt-7 space-y-2.5 border-t pt-6 text-sm">
-                  {FREE_INCLUDES.map(item => (
-                    <li key={item} className="flex gap-3">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
-                      <span className="leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Reveal>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="text-2xl">{plan.name}</h3>
+                      {!plan.available && <ComingSoonBadge />}
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
 
-            {/* PLUS — the roadmap tier. Muted on purpose: it is not for sale, and a card
-                that looks purchasable but has no price reads as a broken page. */}
-            <Reveal delay={160}>
-              <div className="rounded-2xl border border-dashed bg-brand-soft/30 p-6 sm:p-8">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-2xl">Family Plus</h3>
-                  <ComingSoonBadge />
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  For families who want the world to see them.
-                </p>
+                    <div className="mt-6">
+                      {priced && plan.price ? (
+                        <p className="flex items-baseline gap-2">
+                          <span className="text-5xl font-semibold text-brand-ink">
+                            {plan.price.amount}
+                          </span>
+                          <span className="text-muted-foreground">{plan.price.period}</span>
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-xl font-semibold text-brand-ink">
+                            Price to be announced
+                          </p>
+                          <p className="mt-1.5 text-sm text-muted-foreground">
+                            We would rather show you nothing than a number you might
+                            budget against and we might change.
+                          </p>
+                        </>
+                      )}
+                    </div>
 
-                <div className="mt-6">
-                  {PRICING_IS_ANNOUNCED && PLUS_PRICE ? (
-                    <p className="flex items-baseline gap-2">
-                      <span className="text-5xl font-semibold text-brand-ink">{PLUS_PRICE.amount}</span>
-                      <span className="text-muted-foreground">{PLUS_PRICE.period}</span>
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-2xl font-semibold text-brand-ink">
-                        Price to be announced
-                      </p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        We would rather show you nothing than a number you might budget
-                        against and we might change.
-                      </p>
-                    </>
-                  )}
-                </div>
+                    {plan.available ? (
+                      <>
+                        <Link href={ACCOUNT_ROUTES.register} className="mt-6 block">
+                          <Button size="lg" className="w-full text-base">
+                            Get Started Free
+                          </Button>
+                        </Link>
+                        <p className="mt-3 text-center text-xs text-muted-foreground">
+                          No card. No trial period.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="lg" disabled className="mt-6 w-full text-base">
+                          Not yet available
+                        </Button>
+                        <p className="mt-3 text-center text-xs text-muted-foreground">
+                          Create a free account and you will hear about it first.
+                        </p>
+                      </>
+                    )}
 
-                <Button size="lg" disabled className="mt-6 w-full text-base">
-                  Not yet available
-                </Button>
-                <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Create a free account and you will hear about it first.
-                </p>
-
-                <ul className="mt-7 space-y-2.5 border-t pt-6 text-sm">
-                  {PLUS_INCLUDES.map(item => (
-                    <li key={item} className="flex gap-3">
-                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
-                      <span className="leading-relaxed">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Reveal>
+                    {/* THE INHERITANCE LINE. Three words that stop this card from having
+                        to restate the tier below it — and that cannot fall out of step
+                        with it the way a copied list would. */}
+                    <div className="mt-7 flex-1 border-t pt-6">
+                      {plan.inheritsFrom && (
+                        <p className="mb-3 text-sm font-semibold">
+                          Everything in {plan.inheritsFrom}, plus:
+                        </p>
+                      )}
+                      {plan.adds.length > 0 ? (
+                        <ul className="space-y-2.5 text-sm">
+                          {plan.adds.map(item => (
+                            <li key={item} className="flex gap-3">
+                              {plan.available ? (
+                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
+                              ) : (
+                                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
+                              )}
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        // Empty `adds` renders this rather than an empty list. It reads as
+                        // "not specified yet", which is true, instead of inventing
+                        // capabilities to pad the card out to match its neighbours.
+                        <p className="text-sm text-muted-foreground">
+                          What this tier adds is still being decided. Everything in{' '}
+                          {plan.inheritsFrom} is included.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Reveal>
+              )
+            })}
           </div>
 
           <Reveal delay={240}>
