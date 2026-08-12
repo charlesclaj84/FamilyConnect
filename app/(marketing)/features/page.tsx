@@ -1,18 +1,22 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
-  CalendarCheck, Wallet, Network, Vote, Megaphone, MessagesSquare,
-  Images, FileText, MapPinned, BarChart3, Store, ShieldCheck, Users,
+  Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
+  BarChart3, Store, ShieldCheck, Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
-import { Testimonials } from '@/components/marketing/Testimonials'
-import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/marketing/sections'
+import {
+  PageHero, SectionHeading, CtaBand, MoreLink, ComingSoonBadge,
+} from '@/components/marketing/sections'
+import { PILLARS } from '@/components/marketing/pillars'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
@@ -27,70 +31,36 @@ export const metadata: Metadata = {
 }
 
 /**
- * THE COPY HERE IS THE PRODUCT'S, NOT THE MARKETING TEAM'S.
+ * THIS IS THE CATALOGUE. The landing page argues; this page enumerates.
  *
- * Every capability below exists and is reachable by a signed-in member today. That is not
- * a stylistic preference — `lib/structured-data.ts` binds this codebase to a rule about
- * not claiming what the page cannot show, and a features page is where that rule is
- * easiest to break and most expensive to have broken. The one item still in development
- * is in its own section, badged, further down.
+ * The two used to describe the same eleven capabilities in two sets of words, with the
+ * LANDING page carrying the longer version — eighteen spotlight bullets and an eight-card
+ * grid, plus the only three product screenshots on the site. All of that detail belongs
+ * here, where somebody has already decided to evaluate the product, so it moved: the three
+ * pillars now render `bullets` and the screenshots, and the landing page renders one
+ * sentence each.
  *
- * Anything added here should be traceable to a route in `lib/features.ts` with
- * `status: 'live'`.
+ * The three pillars come from `components/marketing/pillars.ts` and are shared with the
+ * landing page, so the two surfaces cannot drift back into two descriptions of one product.
+ *
+ * ── THE COMING SOON BADGES ARE NOT DECORATION EITHER ─────────────────────────
+ * This header used to assert that every capability below "exists and is reachable by a
+ * signed-in member today", and that no badge was therefore needed. It was not true —
+ * `FutureFeature.md` records that seventeen of the twenty-seven routes in
+ * `lib/features.ts` are still gated, including all three pillars and seven of the eight
+ * cards below. `FeatureShowcase` had always derived a badge from the registry; this page
+ * had no mechanism at all, which made it the surface that would silently misrepresent
+ * every flip.
+ *
+ * So `isFeatureFuture(route)` decides the badge here too, from the same registry the
+ * `/coming-soon` gate reads. Flip a status in `lib/features.ts` and this page corrects
+ * itself with no edit. Do not replace a derived badge with a hand-set boolean — the one
+ * hand-set flag below (`soon`) exists only for a capability that has no route to derive
+ * from, and it is commented as such.
+ *
+ * None of these routes is LINKED from here. `ACCOUNT_ROUTES` is deliberately just login
+ * and register, so a visitor can never walk from a promise into a wall.
  */
-interface Pillar {
-  icon: LucideIcon
-  title: string
-  blurb: string
-  bullets: readonly string[]
-  tone: string
-  chip: string
-}
-
-const PILLARS: readonly Pillar[] = [
-  {
-    icon: CalendarCheck,
-    title: 'Reunions that run themselves',
-    blurb:
-      'From the first save-the-date to day-of check-in, the whole gathering lives in one place — and nobody is chasing a spreadsheet the week before.',
-    bullets: [
-      'RSVPs with a head count per household, not per email thread',
-      'T-shirt sizes and meal counts totalled for you',
-      'Day-of check-in, so you know who actually walked in',
-      'Event pages with the agenda, the venue and the details attached',
-    ],
-    tone: 'text-brand-affirm',
-    chip: 'bg-brand-affirm/15',
-  },
-  {
-    icon: Wallet,
-    title: 'A real treasury, not a shoebox',
-    blurb:
-      'Collect dues your members can actually afford, route every dollar to the right fund automatically, and answer "where did the money go" with a report instead of an argument.',
-    bullets: [
-      'Dues plans members can pay in installments',
-      'Funds, contributions and disbursements with a full ledger',
-      'Automatic routing rules, so money lands in the right place',
-      'Profit and loss your treasurer can hand to the board',
-    ],
-    tone: 'text-brand-accent',
-    chip: 'bg-brand-accent/12',
-  },
-  {
-    icon: Network,
-    title: 'The family record, kept properly',
-    blurb:
-      'Who is related to whom, how to reach them, and the lineage that ties every branch together — maintained by the family rather than by one exhausted historian.',
-    bullets: [
-      'A living family tree with spouses, children and ancestors',
-      'Direct lineage view for tracing a single line back',
-      'A member directory with search that handles real names',
-      'Profiles the family maintains themselves',
-    ],
-    tone: 'text-brand-ink',
-    chip: 'bg-brand-legacy/20',
-  },
-]
 
 /**
  * THE TIER TAG IS NOT DECORATION. This grid used to sit under a heading reading
@@ -112,16 +82,30 @@ const ALSO: readonly {
   title: string
   blurb: string
   tier: 'Free' | 'Plus' | null
+  /** Route in `lib/features.ts` whose status decides the badge. Never linked. */
+  route?: string
+  /**
+   * Hand-set, and ONLY for a capability with no route to derive from. Trusted Vendors is
+   * the only one — there is no code for it at all, which is also why it has no tier. An
+   * item with a `route` must not set this: the registry is the answer, and a boolean that
+   * disagrees with it is the drift the derived badge exists to prevent.
+   */
+  soon?: boolean
 }[] = [
-  { icon: MessagesSquare, tier: 'Free', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
-  { icon: Megaphone, tier: 'Free', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  { icon: Vote, tier: 'Plus', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
-  { icon: Images, tier: 'Plus', title: 'Photo collections', blurb: 'A gallery per event, captions, and tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, tier: 'Plus', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
-  { icon: MapPinned, tier: 'Plus', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
-  { icon: BarChart3, tier: 'Plus', title: 'Leadership reports', blurb: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts at a glance.' },
-  { icon: Store, tier: null, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
+  { icon: MessagesSquare, tier: 'Free', route: '/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
+  { icon: Megaphone, tier: 'Free', route: '/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
+  { icon: Vote, tier: 'Plus', route: '/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
+  { icon: Images, tier: 'Plus', route: '/photos', title: 'Photo collections', blurb: 'A gallery per event, captions, and tagging that finds the right cousin out of a hundred.' },
+  { icon: FileText, tier: 'Plus', route: '/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
+  { icon: MapPinned, tier: 'Plus', route: '/admin/chapters', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
+  { icon: BarChart3, tier: 'Plus', route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts at a glance.' },
+  { icon: Store, tier: null, soon: true, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
+
+/** One answer for both shapes: derived from the registry where there is a route to derive from. */
+function isComingSoon(item: { route?: string; soon?: boolean }) {
+  return item.soon === true || (item.route ? isFeatureFuture(item.route) : false)
+}
 
 export default function FeaturesPage() {
   return (
@@ -167,37 +151,76 @@ export default function FeaturesPage() {
             lede="Not thirty half-features. The three things a family organization actually lives or dies on."
           />
 
-          <div className="mt-12 space-y-6">
-            {PILLARS.map((pillar, i) => (
-              <Reveal key={pillar.title} delay={i * 120}>
-                <div className="grid gap-6 rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)] sm:p-8 lg:grid-cols-[1fr_1fr]">
-                  <div>
-                    <div className={`mb-4 inline-flex rounded-xl p-2.5 ${pillar.chip}`}>
-                      <pillar.icon className={`h-6 w-6 ${pillar.tone}`} aria-hidden="true" />
+          {/* Alternating rows rather than the three stacked cards this was, because the
+              screenshots moved here from the landing page and a 1200px-wide product shot
+              inside a half-width card column is texture rather than evidence. The
+              alternation is what stops three tall rows reading as one long column.
+
+              `items-center` and not `items-start`: the copy column is six bullets tall
+              and the image is roughly square, so aligning to the top leaves the shorter
+              one hanging in the middle of a lot of nothing. */}
+          <div className="mt-12 space-y-16 sm:space-y-20">
+            {PILLARS.map((pillar, i) => {
+              // Odd rows put the image on the LEFT at lg. Below lg the copy always
+              // leads, because a screenshot with no words yet explains nothing.
+              const reversed = i % 2 === 1
+              return (
+                <Reveal key={pillar.route}>
+                  <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+                    <div className={cn('space-y-4', reversed ? 'lg:order-2' : 'lg:order-1')}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={`inline-flex rounded-xl p-2.5 ${pillar.chip}`}>
+                          <pillar.icon className={`h-6 w-6 ${pillar.tone}`} aria-hidden="true" />
+                        </span>
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
+                          {pillar.eyebrow}
+                        </span>
+                        {isFeatureFuture(pillar.route) && <ComingSoonBadge />}
+                      </div>
+                      <h3 className="text-2xl sm:text-3xl">{pillar.title}</h3>
+                      <p className="text-base leading-relaxed text-muted-foreground">
+                        {pillar.blurb}
+                      </p>
+                      <ul className="grid gap-x-6 gap-y-2.5 pt-1 sm:grid-cols-2 lg:grid-cols-1">
+                        {pillar.bullets.map(bullet => (
+                          <li key={bullet} className="flex gap-3 text-sm">
+                            <span
+                              aria-hidden="true"
+                              className="mt-1.5 size-1.5 shrink-0 rotate-45 bg-brand-legacy"
+                            />
+                            <span className="leading-relaxed">{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <h3 className="text-2xl">{pillar.title}</h3>
-                    <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-                      {pillar.blurb}
-                    </p>
-                  </div>
-                  <ul className="space-y-2.5 lg:pt-14">
-                    {pillar.bullets.map(bullet => (
-                      <li key={bullet} className="flex gap-3 text-sm">
-                        <span
-                          aria-hidden="true"
-                          className="mt-1.5 size-1.5 shrink-0 rotate-45 bg-brand-legacy"
+
+                    {/* `h-auto w-full` with the intrinsic size from the static import, so
+                        the frame takes the image's own ratio — nothing cropped, nothing
+                        letterboxed. `sizes` matters: this column is half of a 6xl grid at
+                        lg (~34rem) and the full width below it, and without saying so
+                        Next serves the whole-viewport candidate to every phone. */}
+                    <div className={cn(reversed ? 'lg:order-1' : 'lg:order-2')}>
+                      <div className="overflow-hidden rounded-3xl border shadow-[var(--shadow-card)]">
+                        <Image
+                          src={pillar.image}
+                          alt={pillar.imageAlt}
+                          placeholder="blur"
+                          sizes="(min-width: 1024px) 34rem, 100vw"
+                          className="h-auto w-full"
                         />
-                        <span className="leading-relaxed">{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </Reveal>
-            ))}
+                      </div>
+                    </div>
+                  </div>
+                </Reveal>
+              )
+            })}
           </div>
 
+          {/* `mt-16` to match the rhythm the rows set. At the `mt-8` this had when the
+              pillars were three stacked cards it now reads as a caption on the last
+              pillar rather than as a note about all three. */}
           <Reveal delay={200}>
-            <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted-foreground">
+            <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
               Free covers the family tree, the directory, chat, announcements and putting
               the gathering on the calendar. RSVPs and head counts, card and digital
               payments, and the treasury reports are Plus.{' '}
@@ -217,7 +240,7 @@ export default function FeaturesPage() {
             id="also-heading"
             eyebrow="And the rest"
             title="Everything else it does"
-            lede="Chat and announcements come with the free account. The organizational machinery is Plus — and every card says which, because finding out at checkout is not a nice surprise."
+            lede="Chat and announcements come with the free account; the organizational machinery is Plus. Every card says which tier it belongs to, and which are still on the way — finding either out at checkout is not a nice surprise."
           />
 
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -248,6 +271,12 @@ export default function FeaturesPage() {
                     )}
                   </div>
                   <h3 className="text-base font-semibold">{item.title}</h3>
+                  {/* Its own line, under the title, rather than crowded into the header
+                      row beside the tier tag: at lg these cards are four across a 6xl
+                      grid, and an icon chip plus "Coming soon" plus "Plus" leaves the
+                      badges about 20px of slack. A wrap there would push the tier tag
+                      under the chip and break the row alignment across the grid. */}
+                  {isComingSoon(item) && <ComingSoonBadge className="mt-2" />}
                   <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                     {item.blurb}
                   </p>
@@ -300,9 +329,18 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <LivingSitePreview />
+      {/* Kept on this page AND on the landing page, deliberately. It is the strongest
+          thing on the roadmap and both audiences should meet it — a visitor forming a
+          first impression, and one who came here to check whether the product does a
+          specific thing. It is badged in three places inside the component, so repeating
+          it repeats the caveat too.
 
-      <Testimonials lede="Real quotes from real families, as soon as they have given us permission to print them." />
+          `Testimonials` is NOT here, and its absence is the point: it was on this page
+          and on the landing page, pricing, why-us and how-it-works — the same carousel
+          five times over. Somebody who has clicked through to read a feature list has
+          already been sold; quotes here are the page's least useful band and the one
+          most obviously repeated from the page they arrived from. */}
+      <LivingSitePreview />
 
       <CtaBand />
     </>

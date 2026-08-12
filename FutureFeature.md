@@ -253,14 +253,29 @@ reach today: the member directory, family chat, dues plans and the contribution 
 four transaction ledgers, `My Summary`, Members & Access with permission templates, member
 approvals, and Accounting — dues schedules, funds and payment routing.
 
-`FeatureShowcase` also already badges honestly: all **3 of 3** spotlights and **7 of 8**
-mini-cards carry a Coming Soon pill derived from `isFeatureFuture()`, so the landing page is
-the one surface that tells the truth automatically. Note the limit — `isComingSoon` is
-evaluated per spotlight, not per bullet, so a badged spotlight can still contain a bullet
-describing something live and vice versa.
+**Both product surfaces now badge honestly, as of 2026-08-12.** They did not when this file
+was written: `FeatureShowcase` derived a Coming Soon pill from `isFeatureFuture()`, and
+`/features` had no mechanism at all and asserted in its own header that it needed none — so
+it was the surface that would silently misrepresent every flip above.
 
-`/features` has **no** badging mechanism and asserts in its own header that it needs none. It
-is therefore the surface that will silently misrepresent every flip above.
+The landing page / `/features` split that closed the redundancy between them moved the
+detail — eighteen bullets and the eight-card grid — onto `/features`, which would have made
+that worse, so the badge moved with it. Both now read `lib/features.ts`:
+
+| Surface | Badged from the registry |
+|---|---|
+| Landing (`FeatureShowcase`) | 3 of 3 pillar cards |
+| `/features` pillars | 3 of 3 |
+| `/features` "and the rest" grid | 7 of 8 — the eighth, Trusted Vendors, has no route, so its `soon` flag is hand-set and commented |
+
+The three pillars are defined once, in `components/marketing/pillars.ts`, and both surfaces
+render from it — so a flip cannot correct one page and leave the other stale.
+
+Two limits worth keeping in view. `isComingSoon` is evaluated **per card, not per bullet**,
+so a badged pillar can still list a bullet describing something live and vice versa. And a
+capability with **no route at all** cannot be derived — the five claims with no code are
+still the most exposed items in this file, for exactly the reason `proxy.ts` cannot gate
+them either.
 
 ---
 
@@ -275,5 +290,7 @@ uncased-action count (~85) and the claim counts per feature. Both move every tim
 action lands.
 
 When a feature ships: flip its `status` in `lib/features.ts`, tick its supporting-work items,
-move its row from the gap register to **Already true**, and check whether `/features` now needs
-a badge it does not have a mechanism for.
+and move its row from the gap register to **Already true**. The marketing badges need no
+edit — both surfaces derive them from the registry — with one exception to check each time:
+a claim with **no route** has nothing to derive from, so if the thing that shipped is one of
+the five in that category, it needs a route in the registry or a hand-set flag removing.

@@ -1,18 +1,17 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Users, CalendarCheck, Sparkles } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
-import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
 import { MarketingFooter } from '@/components/marketing/MarketingFooter'
+import { FoundingFamily } from '@/components/marketing/FoundingFamily'
 import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
 import { Testimonials } from '@/components/marketing/Testimonials'
+import { CtaBand } from '@/components/marketing/sections'
 import { landingPageGraph } from '@/lib/structured-data'
 import {
-  APP_NAME, APP_LEAD, APP_VALUES, APP_BANNER_ALT,
+  APP_NAME, APP_LEAD, APP_BANNER_ALT,
   BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
 
@@ -68,44 +67,30 @@ export const metadata: Metadata = {
 }
 
 /**
- * The three values, expanded.
+ * ── WHAT THIS PAGE IS FOR, AFTER THE 2026-08-12 SPLIT ────────────────────────
+ * It argues; `/features` enumerates. Nearly everything in the middle of this page
+ * was also on `/features` in different words — the same three core jobs, the same
+ * eight secondary capabilities — and this page carried the LONGER of the two
+ * descriptions, which is backwards for the one page a visitor lands on before
+ * deciding whether to care.
  *
- * Keyed off APP_VALUES rather than restating the words, so the brand file stays
- * the single source: change a value there and this stops compiling until the
- * copy for it exists, instead of silently rendering two of the three.
+ * Three things went, and each went somewhere:
  *
- * This replaced `provides.png`, a bitmap of the same three words. As markup it
- * reflows on a phone, recolours in dark mode, and can be read aloud — none of
- * which the image could do.
+ *  * **The Connect / Plan / Celebrate cards.** They stated the same three jobs in
+ *    miniature that the band below then stated in full, so the proposition
+ *    appeared twice above the fold-and-a-half. The three values now lead that band
+ *    as its eyebrow, which is where the sentiment belongs and costs one line.
+ *  * **The eighteen spotlight bullets and the eight-card grid.** Both on
+ *    `/features` now. The grid in particular had to move: five of its eight cards
+ *    describe Plus capabilities and this page showed no tier at all, which
+ *    `/features` has a long comment about never doing.
+ *  * **A hand-rolled closing band,** replaced by the shared `CtaBand` that was
+ *    extracted from it. Same design, one definition.
+ *
+ * `LivingSitePreview` and `Testimonials` stay. The roadmap section appears on
+ * `/features` too, deliberately — it is the strongest thing on the roadmap and
+ * both audiences should meet it.
  */
-const VALUE_DETAIL: Record<(typeof APP_VALUES)[number], {
-  blurb: string
-  icon: LucideIcon
-  tone: string   // icon colour — must clear 3:1 on the card
-  chip: string   // the wash behind it
-}> = {
-  Connect: {
-    blurb: 'Every branch of the family in one private place — chat, directory, and the tree that ties them together.',
-    icon: Users,
-    tone: 'text-brand-accent',
-    chip: 'bg-brand-accent/12',
-  },
-  Plan: {
-    blurb: 'Family Reunions and events that practically run themselves, from the first save-the-date to day-of check-in.',
-    icon: CalendarCheck,
-    tone: 'text-brand-affirm',
-    chip: 'bg-brand-affirm/15',
-  },
-  Celebrate: {
-    blurb: 'Photos, milestones and stories, kept for the generations who come after you.',
-    icon: Sparkles,
-    // Ink, not Legacy gold. Gold is 2.30 on this card and an icon that carries
-    // meaning needs 3:1 — gold is the WASH here, never the foreground.
-    tone: 'text-brand-ink',
-    chip: 'bg-brand-legacy/20',
-  },
-}
-
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
@@ -243,45 +228,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── VALUES ────────────────────────────────────────────────────────
-          Real cards now. As flat text on a white band these were the worst of
-          the "washed" problem: white on cream is 1.069:1, so there was nothing
-          to see. Border plus an ink-tinted shadow gives them an actual edge. */}
-      <section aria-label={`What ${APP_NAME} is for`} className="bg-background px-4 py-16 sm:py-20">
-        <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-3">
-          {APP_VALUES.map((value, i) => {
-            const { blurb, icon: Icon, tone, chip } = VALUE_DETAIL[value]
-            return (
-              // Below the fold, so these use the observer rather than the CSS
-              // stagger. The delay walks left to right, which is the direction
-              // they are read; revealing all three at once wastes the sequence.
-              //
-              // 190ms apart, not the 110ms this started at. Around 100ms is the
-              // threshold where a sequence stops reading as one event and starts
-              // reading as a walk, so 110 sat right on it and the cascade was
-              // more inferred than seen. This is comfortably past it while still
-              // finishing inside a second — the last card begins at 380ms and
-              // lands at 1080ms, and much beyond that a visitor who has already
-              // read card one is waiting on card three.
-              <Reveal key={value} delay={i * 190} className="h-full">
-                <div className="group h-full rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
-                  {/* The chip scales, the card does not move. These cards are not
-                      links, and a card that lifts under the cursor promises a
-                      click that never happens — the icon is enough of a response. */}
-                  <div className={`mb-4 inline-flex rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100 ${chip}`}>
-                    <Icon className={`h-6 w-6 ${tone}`} aria-hidden="true" />
-                  </div>
-                  <h2 className="mb-2 text-lg uppercase tracking-[0.14em]">{value}</h2>
-                  <p className="text-sm leading-relaxed text-muted-foreground">{blurb}</p>
-                </div>
-              </Reveal>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Features */}
+      {/* The product band: the three core jobs, one sentence and one screenshot
+          each, with the three values leading it as the eyebrow. The catalogue
+          version of the same three — six bullets apiece — is on /features, from
+          the same data in components/marketing/pillars.ts. */}
       <FeatureShowcase />
+
+      {/* The founders' own family as three figures, with the "we would rather show you
+          how it works" pivot above them. Restored from /about, where it ran until
+          9a9e437. It goes HERE — after the product band, before the roadmap — for two
+          reasons: the pivot's second half ("everything above is what it actually does")
+          points at the screenshots immediately above it, and its Heritage ground keeps
+          the page alternating rather than running showcase → roadmap as two pale bands
+          in a row. */}
+      <FoundingFamily />
 
       {/* The roadmap headline, badged as coming soon in three places inside the
           component. It sits after the shipped features and before the closing ask, so a
@@ -294,30 +254,17 @@ export default function LandingPage() {
       <Testimonials />
 
       {/* ── CLOSING CTA ───────────────────────────────────────────────────
-          The second dark band, and the reason the page now has rhythm: it
-          bookends the hero so the eye travels light → dark → light → dark
-          instead of drifting through four consecutive pale washes. Gold button
-          again, because the closing ask should look identical to the opening
-          one — a visitor who scrolled past it the first time recognises it. */}
-      <section className="relative overflow-hidden bg-brand-hero px-4 py-20">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="gn-float-slow absolute -top-20 left-1/4 h-64 w-64 rounded-full bg-brand-legacy/10 blur-3xl" />
-        </div>
-        <div className="relative mx-auto max-w-2xl text-center">
-          <h2 className="mb-4 text-3xl text-brand-on-primary sm:text-4xl">Ready to connect?</h2>
-          <p className="mb-9 text-lg text-brand-on-primary/80">
-            Create your free account and bring your family together.
-          </p>
-          <Link href="/register">
-            <Button
-              size="lg"
-              className="bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90"
-            >
-              Create Your Account
-            </Button>
-          </Link>
-        </div>
-      </section>
+          The second dark band, and the reason the page has rhythm: it bookends
+          the hero so the eye travels light → dark → light → dark rather than
+          drifting through consecutive pale washes.
+
+          This was twenty lines of markup here, duplicating the `CtaBand` that
+          was EXTRACTED FROM IT for the other five marketing pages — so the band
+          this page originated had already drifted from the shared copy of
+          itself. It is the shared one now; only the heading is this page's, so
+          the closing ask still answers the hero's "Where every generation
+          belongs" in the same voice. */}
+      <CtaBand title="Ready to connect?" />
 
       {/* The shared public footer — three link columns rather than the two this page
           used to carry inline, because six marketing pages need reaching and a footer is
