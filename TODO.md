@@ -58,6 +58,19 @@ describe the product as email-verified until this box is ticked.**
   built from one origin, `/auth/confirm` writes the session cookie there, and a redirect
   mid-flight lands the user on the other one signed out.
 
+  **Done in code, 2026-08-11** — `next.config.ts` 308s every path on
+  `genorra-kappa.vercel.app` to `https://genorra.com`, path and query preserved.
+  Verified against `next start` on all four cases that matter: the alias redirects,
+  the apex does not (a rule that loops here is a total outage, so the config also
+  asserts the two hosts differ and fails the build if they ever stop differing), and
+  preview hosts are untouched because `has.host` is an exact match.
+
+  It ships with the deployment, so **confirm it on the real host after the next
+  deploy** — `curl -sI https://genorra-kappa.vercel.app/` should answer 308. Nothing
+  further is needed in the Vercel dashboard; detaching the alias there would also work
+  and would make the rule dead code, in which case delete it and `LEGACY_VERCEL_HOST`
+  together.
+
 **Do not do this with `npx supabase config push`.** It sends the whole `[auth]` block,
 including `site_url = "http://127.0.0.1:3000"` from the local config — production would
 start mailing people links to their own laptop.

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Cormorant_Garamond, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-import { APP_NAME, APP_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
+import { APP_NAME, APP_SEO_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
 import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
 import './globals.css'
@@ -38,7 +38,39 @@ export const metadata: Metadata = {
     default: APP_NAME,
     template: `%s — ${APP_NAME}`,
   },
-  description: APP_DESCRIPTION,
+  // APP_SEO_DESCRIPTION, not APP_DESCRIPTION. A meta description is snippet copy
+  // written to a ~155-character budget and to the words people actually search
+  // for; the brand sentence is 170 and was being truncated mid-clause. The reason
+  // they are two constants is spelled out beside them in lib/brand.ts.
+  description: APP_SEO_DESCRIPTION,
+
+  // ── What a result is allowed to show ────────────────────────────────────────
+  // The defaults are conservative in exactly the two ways that cost this site
+  // something, and both are opt-in:
+  //
+  //   * `max-image-preview: large` is what permits the full-width image thumbnail
+  //     beside a result and in Discover. Without it Google may show a small square
+  //     or none at all, and the opengraph artwork does nothing.
+  //   * `max-snippet: -1` lifts the cap on snippet length, so Google can quote as
+  //     much of the page as it judges useful rather than a truncated default.
+  //
+  // Both are permissions, not instructions — Google still decides. Declaring them
+  // costs nothing and withholding them can only ever show less.
+  //
+  // This is inherited by every route, including the signed-in app. That is fine
+  // and deliberate: `robots` is REPLACED wholesale by any segment that redeclares
+  // it, and `app/(protected)/layout.tsx` does exactly that with `index: false`.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
 
   // Every relative URL in this object — and the generated og:image — is resolved
   // against this. Open Graph has no notion of a relative path: a scraper that
@@ -57,7 +89,7 @@ export const metadata: Metadata = {
     // logo that also says GENORRA says one thing twice and answers nothing —
     // the lead line is what tells someone what they have been sent.
     title: `${APP_NAME} — ${APP_LEAD}`,
-    description: APP_DESCRIPTION,
+    description: APP_SEO_DESCRIPTION,
     url: '/',
     locale: 'en_US',
   },
@@ -67,7 +99,7 @@ export const metadata: Metadata = {
     // rather than the full-width image, which is the whole point of the artwork.
     card: 'summary_large_image',
     title: `${APP_NAME} — ${APP_LEAD}`,
-    description: APP_DESCRIPTION,
+    description: APP_SEO_DESCRIPTION,
   },
 
   // Icons are NOT declared here. `app/favicon.ico`, `app/icon.svg` and

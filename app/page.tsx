@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { User, Users, CalendarCheck, Sparkles } from 'lucide-react'
@@ -5,11 +6,64 @@ import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
 import { Reveal } from '@/components/marketing/Reveal'
+import { StructuredData } from '@/components/marketing/StructuredData'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { landingPageGraph } from '@/lib/structured-data'
 import {
-  APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT,
+  APP_NAME, APP_LEAD, APP_VALUES, APP_LOGO_ALT, APP_BANNER_ALT, APP_PUBLISHER,
   BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
+
+/**
+ * The only page on this site most people will ever see in a search result, so its
+ * title and description are the product's advertisement rather than a label.
+ *
+ * ── Why the title is written out in full here ────────────────────────────────
+ * `title.template` in the root layout appends " — GENORRA" to every CHILD segment,
+ * and `app/page.tsx` is not one: it is the same route segment as `app/layout.tsx`,
+ * and Next documents that a template does not apply to the segment defining it. So
+ * a bare `title: 'Family Reunion Planning'` here renders exactly that, with no
+ * brand on the end. The name is therefore part of the string, and this is the one
+ * page in the app where writing it out is correct rather than the mistake AGENTS.md
+ * warns about (twenty-seven pages once carried a hand-typed suffix). Adding one to
+ * any OTHER page still renders "X — GENORRA — GENORRA".
+ *
+ * ── Why it does not simply say "GENORRA" ─────────────────────────────────────
+ * It used to, by falling through to `title.default`. A title is the largest text
+ * in a search result and the single biggest influence on whether anyone clicks it,
+ * and a five-year-old brand can spend it on a name. A new one cannot: nobody
+ * types "genorra", so the only queries this page can win are descriptions of the
+ * job — planning a reunion, running a family association, keeping a family tree.
+ * Those words lead, and the brand closes. At 58 characters it also survives
+ * Google's ~60-character display budget without being cut.
+ */
+export const metadata: Metadata = {
+  title: `Family Reunion Planning & Private Family Website — ${APP_NAME}`,
+
+  // ── The canonical, and why every public page needs one ──────────────────────
+  // This production build answers on TWO public hostnames: genorra.com and the
+  // `<project>.vercel.app` alias Vercel assigns automatically. Same deployment,
+  // same bytes, two addresses — and to a crawler two addresses serving identical
+  // content are two pages competing with each other, with the links and authority
+  // earned by the real one split across both.
+  //
+  // robots.txt cannot fix that half (it is part of the same build and so identical
+  // on both hosts — see lib/site.ts). An absolute canonical can, because it names
+  // the winner in the markup: served from the alias, this page still points at
+  // genorra.com and consolidates onto it.
+  //
+  // It is declared PER PAGE and must stay that way. Metadata is inherited, so a
+  // canonical in the root layout would tell Google that /login and /register are
+  // duplicates of the homepage — which is the one mistake here worse than having
+  // no canonical at all.
+  alternates: { canonical: '/' },
+
+  // `description`, `openGraph` and `twitter` are deliberately NOT restated. The
+  // root layout's are already written for this page — it is the one they describe
+  // — and `openGraph` is REPLACED wholesale by the deepest segment that defines
+  // it rather than merged field by field, so redeclaring it here to change nothing
+  // would risk dropping `type`, `siteName` or `locale` on the next edit.
+}
 
 /**
  * The three values, expanded.
@@ -53,6 +107,14 @@ const VALUE_DETAIL: Record<(typeof APP_VALUES)[number], {
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
+      {/* The schema.org graph for the whole brand — organisation, site and product.
+          It sits on this page rather than in the root layout on purpose: every
+          other route is either behind a login or explicitly noindexed, so putting
+          it in the layout would repeat the same three nodes on ~30 pages nobody is
+          allowed to read, for no gain. This is the one indexable page, so this is
+          where the entity is declared. Renders nothing. */}
+      <StructuredData graph={landingPageGraph()} />
+
       {/* Navbar */}
       {/* z-30 is the app-wide header level — see the stacking note in
           components/layout/Navbar.tsx. */}
@@ -284,7 +346,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t pt-4 text-center text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} ClearPath Digital. All rights reserved.
+            &copy; {new Date().getFullYear()} {APP_PUBLISHER}. All rights reserved.
           </div>
         </div>
       </footer>

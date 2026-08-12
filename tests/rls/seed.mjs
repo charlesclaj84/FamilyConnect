@@ -95,6 +95,16 @@ export const BRAVO = 'BRAVOTEST'
 
 const PASSWORD = 'rls-harness-pw-2026!'
 
+/**
+ * When the declined applicants below were refused: an hour ago.
+ *
+ * One constant, because two things are compared against it and they must not drift — the
+ * re-open invitation is dated after it, the superseded one before it, and
+ * redeem_family_invitation permits a re-open only when the invitation postdates the
+ * refusal it would reverse (20260811000001).
+ */
+const DECLINED_AT = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
 export const USERS = {
   alphaMember: { email: 'alpha.member@rls.test', family: ALPHA, admin: false },
   alphaOther: { email: 'alpha.other@rls.test', family: ALPHA, admin: false },
@@ -124,6 +134,39 @@ export const USERS = {
   // and a later case asserting about a member whose access an earlier control revoked
   // would pass for the wrong reason. Nothing else in the fixture reads this row.
   alphaSpare: { email: 'alpha.spare@rls.test', family: ALPHA, admin: false },
+  // THREE DECLINED ALPHA APPLICANTS, for 20260811000001. They are separate rows for
+  // `deletableChild`'s reason — each is consumed by its own case, and a control that
+  // re-opened or re-admitted a row another case asserts about would turn that case into a
+  // vacuous pass. What each is for:
+  //
+  //   alphaDeclinedAsk    only ever an invite TARGET. Proves a PLAIN member (no
+  //                       admin/approvals grant) may ask a declined person back, which is
+  //                       the policy chosen for this change.
+  //   alphaDeclinedBack   redeems an invitation minted AFTER their refusal, and must land
+  //                       'pending' rather than 'approved' even though that invitation is
+  //                       pre_approved. That is the whole security property.
+  //   alphaDeclinedStale  holds an invitation minted BEFORE their refusal and must not be
+  //                       able to reverse it. The refused person is the ATTACKER here.
+  //
+  // 'rejected' is applied by the membership-status section below, keyed on `declined`.
+  alphaDeclinedAsk: { email: 'alpha.declined.ask@rls.test', family: ALPHA, admin: false, declined: true },
+  alphaDeclinedBack: { email: 'alpha.declined.back@rls.test', family: ALPHA, admin: false, declined: true },
+  alphaDeclinedStale: { email: 'alpha.declined.stale@rls.test', family: ALPHA, admin: false, declined: true },
+  // The one account that can give redeemInvitation a positive control, and the reason it
+  // is a BRAVO member rather than an ALPHA one: redemption is by definition an OUTSIDER
+  // joining, so the redeemer must have an auth.users row (or the email conjunct at
+  // 20260806000013:292 refuses them) and NO ALPHA people row (or the already-belongs
+  // check at :297 refuses them). Only somebody in the other family satisfies both.
+  //
+  // IT ENDS THE RUN HOLDING MEMBERSHIPS IN BOTH FAMILIES. A bridging account is the one
+  // fixture shape that can make a cross-family assertion pass for the wrong reason, so
+  // NEVER reuse it as an attacking actor or as a positive control for anything else —
+  // an "attacker in BRAVO" who is also in ALPHA proves nothing about isolation.
+  //
+  // Deliberately NOT in alphaMarkers (cases.mjs): the address belongs to a BRAVO people
+  // row, so BRAVO-side callers legitimately see it and marking it would report leaks
+  // that are not leaks.
+  outsideInvitee: { email: 'outside.invitee@rls.test', family: BRAVO, admin: false },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -285,6 +328,25 @@ export async function seed() {
     })
     .in('id', applicants))
 
+  // ...and the declined ones are refused, with a note and a DECIDED-AT IN THE PAST.
+  //
+  // The timestamp is load-bearing rather than decorative: redeem_family_invitation only
+  // lets an invitation re-open a refusal it POSTDATES, so a fixture that stamped
+  // membership_decided_at at NOW() would make the re-open case a coin-toss against the
+  // invitation seeded microseconds later. An hour back is unambiguous in both directions.
+  const declined = Object.values(fx.users).filter(u => u.declined).map(u => u.personId)
+  must('decline seeded applicants', await db.from('people')
+    .update({
+      membership_status: 'rejected',
+      membership_requested_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      membership_decided_at: DECLINED_AT,
+      membership_decided_by: fx.users.alphaAdmin.userId,
+      // Read by the re-open case's probe: it asserts the note SURVIVES being asked back,
+      // which is what stops the "erase the record while reversing it" regression.
+      membership_note: 'declined by the harness',
+    })
+    .in('id', declined))
+
   // Assert it, rather than trusting two UPDATEs to have matched. Getting this wrong in
   // either direction makes the whole suite meaningless and does so silently: everyone
   // approved erases the pending axis, and anyone accidentally pending makes their
@@ -292,7 +354,7 @@ export async function seed() {
   const statuses = must('verify statuses', await db.from('people')
     .select('id, membership_status').in('id', everyone))
   for (const [key, u] of Object.entries(fx.users)) {
-    const want = u.pending ? 'pending' : 'approved'
+    const want = u.pending ? 'pending' : u.declined ? 'rejected' : 'approved'
     const got = statuses.find(s => s.id === u.personId)?.membership_status
     if (got !== want) {
       throw new Error(`seed membership_status: ${key} is '${got}', expected '${want}'`)
@@ -605,6 +667,56 @@ export async function seed() {
       pre_approved: false,
       invited_by: familyAdmin.personId,
     }).select().single())
+
+    // A THIRD one, ALPHA only, addressed to somebody who actually has an account —
+    // see `outsideInvitee` in USERS. Both other invitations name addresses with no
+    // auth.users row, which is why redeemInvitation has never had a positive control
+    // and has been carrying `positive: 'not-applicable'` instead.
+    //
+    // pre_approved: false deliberately. The conjunct under test is the EMAIL binding,
+    // and a pre-approved invitation would additionally flip the new row to 'approved',
+    // putting a second mechanism inside the assertion for no gain.
+    if (side === 'alpha') {
+      f.outsideInvitation = must('outside invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: 'outside.invitee@rls.test',
+        token_hash: tokenHash(`rls-outside-invite-token-${code}`),
+        pre_approved: false,
+        invited_by: familyAdmin.personId,
+      }).select().single())
+
+      // ── the two re-invitation tokens (20260811000001) ────────────────────
+      //
+      // ONE OPEN INVITATION PER ADDRESS. family_invitations_open_uniq is a UNIQUE index
+      // on (family_code, email) WHERE accepted_at IS NULL AND revoked_at IS NULL, so two
+      // open rows for one address raise 23505 and the whole seed throws before a single
+      // case runs. Hence two addresses, one invitation each.
+      //
+      // pre_approved: TRUE, deliberately. The property under test is that a re-open
+      // IGNORES pre-approval and lands the person back in the queue — an invitation that
+      // asked for nothing could not tell that apart from the clamp being deleted.
+      f.reopenInvitation = must('reopen invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: fx.users.alphaDeclinedBack.email,
+        token_hash: tokenHash(`rls-reopen-token-${code}`),
+        pre_approved: true,
+        invited_by: familyAdmin.personId,
+      }).select().single())
+
+      // Minted BEFORE the refusal it would reverse, which is the sequence a hostile
+      // review used to refute the first draft of this change. created_at is set
+      // explicitly; expires_at is left to its default (NOW() + 14 days, NOT
+      // created_at + 14 days), so this row is stale WITHOUT being expired — otherwise the
+      // case would pass on the expiry branch and prove nothing about the guard.
+      f.staleInvitation = must('stale invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: fx.users.alphaDeclinedStale.email,
+        token_hash: tokenHash(`rls-stale-token-${code}`),
+        pre_approved: true,
+        invited_by: familyAdmin.personId,
+        created_at: new Date(Date.parse(DECLINED_AT) - 60 * 60 * 1000).toISOString(),
+      }).select().single())
+    }
 
     f.spouseRelId = rels.find(r => r.related_person_id === other.personId).id
     f.childRelId = rels.find(r => r.related_person_id === f.child.id).id

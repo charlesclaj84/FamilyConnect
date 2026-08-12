@@ -44,9 +44,64 @@ export const APP_VALUES = ['Connect', 'Plan', 'Celebrate'] as const
 /** The values as the brand board sets them, for running text and alt text. */
 export const APP_PROMISE = APP_VALUES.join(' • ')
 
-/** `<meta name="description">`, and anywhere the product is described in a sentence. */
+/** Anywhere the product is described in a sentence: the manifest, prose, an about panel. */
 export const APP_DESCRIPTION =
   'Bringing generations together by nurturing our roots, preserving family stories and traditions, strengthening lifelong relationships, and building a legacy that lives on.'
+
+/**
+ * `<meta name="description">`, and the Open Graph and Twitter descriptions with it.
+ *
+ * SEPARATE FROM `APP_DESCRIPTION` ON PURPOSE, and the distinction is not stylistic.
+ * A meta description is not a description of the product — it is ad copy in a search
+ * result, written to two hard constraints the brand sentence does not answer to:
+ *
+ *  * **It is truncated.** Google gives a snippet roughly 155–160 characters on
+ *    desktop and around 120 on a phone. `APP_DESCRIPTION` is 170, so it was being
+ *    cut mid-clause — the last thing a searcher saw was an ellipsis. This one is
+ *    156, which sits inside the desktop budget, so the sentence a visitor reads
+ *    is the sentence we wrote. Keep any rewrite under ~155 and put the load-
+ *    bearing words first, since the phone cut lands around 120 regardless.
+ *  * **It has to contain the words people type.** "Nurturing our roots" is the
+ *    brand's voice and belongs on the page; nobody searches for it. "Family
+ *    reunion", "dues", "family tree" and "family organization" are what somebody
+ *    looking for this product actually puts in the box, and a snippet that
+ *    contains the query gets those words bolded in the result — which is a
+ *    click-through difference, not a ranking one.
+ *
+ * The claim of a free account is not marketing licence: the landing page's own
+ * closing call to action says "Create your free account". Structured data and
+ * snippets must not promise anything the page does not — if the pricing changes,
+ * this sentence and that button change together.
+ */
+export const APP_SEO_DESCRIPTION =
+  'Plan family reunions, collect dues, build your family tree and share photos — one private site for your whole family organization. Create your free account.'
+
+/**
+ * The company behind the product.
+ *
+ * Here rather than typed into the landing-page footer, for the same reason
+ * `APP_NAME` is: it is now in two places (the footer and the `Organization`
+ * structured data in `lib/structured-data.ts`), and a legal entity that appears
+ * in a copyright line and a search engine's entity graph must not be able to
+ * disagree with itself.
+ */
+export const APP_PUBLISHER = 'ClearPath Digital'
+
+/**
+ * Official profiles for this brand, for `Organization.sameAs`.
+ *
+ * DELIBERATELY EMPTY, and worth a comment rather than a deletion. `sameAs` is how
+ * a search engine confirms that the GENORRA on this site is the same GENORRA on
+ * a social profile, and it is the main thing that turns a set of pages into a
+ * recognised entity. It is also the one field here that cannot be written by
+ * reasoning about the codebase: a URL that is not a real, live, brand-owned
+ * profile is a false claim, and an unverifiable one is worse than none.
+ *
+ * Fill this in with real profile URLs the moment they exist — the structured data
+ * picks them up with no other change, and omits the field entirely while it is
+ * empty rather than emitting `"sameAs": []`.
+ */
+export const BRAND_SOCIAL_PROFILES: readonly string[] = []
 
 /**
  * Brand artwork, by role rather than by filename.
@@ -117,6 +172,21 @@ export const BRAND_LOCKUP_DARK_SRC = '/identity/genorra-lockup-dark.svg'
  * because the problem is the composition and not the size.
  */
 export const BRAND_LOCKUP_STACKED_DARK_SRC = '/identity/genorra-lockup-stacked-dark.svg'
+
+/**
+ * The 512px app tile — the gold mark on a Heritage ground.
+ *
+ * Named here because it now has a SECOND consumer besides the web manifest: it is
+ * the `logo` on the `Organization` structured data, which is what a search engine
+ * shows beside the brand when it recognises one. Google requires that logo to be a
+ * real, crawlable raster of at least 112x112 and prefers a square — which is
+ * exactly what an app tile is, so there is no second file to keep in step.
+ *
+ * The SVG mark cannot do this job: the logo field wants a bitmap, and the mark is
+ * a stroked form with the heart cut out, so it has no ground of its own and would
+ * render as burgundy strokes on whatever a search result happens to sit on.
+ */
+export const BRAND_APP_ICON_SRC = '/identity/genorra-app-512.png'
 
 /**
  * Alt text for the mark, which is wordless.

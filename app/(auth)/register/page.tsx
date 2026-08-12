@@ -1,10 +1,45 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { RegisterForm } from '@/components/auth/RegisterForm'
 import { peekInvitation } from '@/app/actions/invitations'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/lib/brand'
 
-export const metadata = { title: 'Create Account' }
+/**
+ * `generateMetadata` rather than a static `metadata` export, because this route's
+ * indexability depends on its query string.
+ *
+ * `/register` is the conversion page and is in the sitemap deliberately. But it
+ * ALSO answers as `/register?invite=<token>` — the address in every invitation
+ * email — and that URL carries a credential. robots.txt disallows `/invite/` and
+ * says nothing about this one, because until now there was nothing to say: a
+ * static metadata export cannot see the parameter that makes the difference.
+ *
+ * So the two cases are separated here. Invited: `noindex`, and no canonical, since
+ * pointing at the bare page would invite a crawler to walk to it. Ordinary: a
+ * self-referencing canonical, which also folds any other stray parameter — a
+ * campaign tag, a referrer — back onto the one URL worth ranking.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>
+}): Promise<Metadata> {
+  const { invite } = await searchParams
+
+  if (invite) {
+    return {
+      title: 'Accept Your Invitation',
+      robots: { index: false, follow: false, nocache: true },
+    }
+  }
+
+  return {
+    title: 'Create Account',
+    description: `Create your free ${APP_NAME} account and bring your family together — reunions, dues, photos and your family tree in one private place.`,
+    alternates: { canonical: '/register' },
+  }
+}
 
 /**
  * `?invite=<token>` puts the form into invitation mode.

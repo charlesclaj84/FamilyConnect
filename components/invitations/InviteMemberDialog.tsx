@@ -244,6 +244,16 @@ export function InviteMemberDialog({
                   Treat it like a password — anyone who gets hold of it and has that email
                   address can use it. It is shown once.
                 </p>
+
+                {/* Opening it yourself is the obvious thing to do with a link you have just
+                    been handed, and it cannot work: redemption requires the session's
+                    address to match the invited one. The invitation is not spent by the
+                    attempt, but saying so here is cheaper than the trip to that screen. */}
+                <p className="text-sm text-muted-foreground">
+                  Opening it yourself won&apos;t accept it — only {result.email} can. Following
+                  it while signed in as you shows a page explaining that, and does not use
+                  the invitation up.
+                </p>
               </>
             )}
 

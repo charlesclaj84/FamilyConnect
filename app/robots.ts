@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { SITE_URL } from '@/lib/site'
+import { IS_INDEXABLE_DEPLOYMENT, SITE_URL } from '@/lib/site'
 
 /**
  * The companion to `app/sitemap.ts` — the same decision about what is public,
@@ -36,6 +36,19 @@ import { SITE_URL } from '@/lib/site'
  * fetch this and do not surface it", and whose names disclose nothing.
  */
 export default function robots(): MetadataRoute.Robots {
+  // ── Previews are not the site ────────────────────────────────────────────────
+  // A preview deployment is a byte-identical copy of the marketing pages on a
+  // different public hostname, and it used to publish `Allow: /` plus a sitemap
+  // exactly like production. That is a duplicate of the whole public surface
+  // offered to crawlers on every push, and the one Google keeps is not
+  // necessarily the one anybody deployed on purpose.
+  //
+  // No sitemap and no `host` on this branch either: both are invitations, and
+  // there is nothing here worth pointing at.
+  if (!IS_INDEXABLE_DEPLOYMENT) {
+    return { rules: { userAgent: '*', disallow: '/' } }
+  }
+
   return {
     rules: {
       userAgent: '*',

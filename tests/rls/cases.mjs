@@ -49,6 +49,15 @@ export function alphaMarkers(fx) {
     // pending-member case fail on the applicant seeing themselves.
     a.applicantPersonId, a.rejectablePersonId,
     'alpha.applicant@rls.test', 'alpha.rejectable@rls.test',
+    // A declined applicant's row is the same PII as a pending one, and it is now
+    // reachable by a new route (they can be asked back), so it is marked like any other.
+    //
+    // ONLY alphaDeclinedAsk, and the omissions are for the reason stated at
+    // fx.users.alphaPending above: alphaDeclinedBack and alphaDeclinedStale are both
+    // ACTORS in the cases below — one a positive control, one an attacker — and RLS
+    // correctly lets each read its own people row, so listing them would fail those
+    // cases on the person seeing themselves. alphaDeclinedAsk is only ever a TARGET.
+    'alpha.declined.ask@rls.test',
     // Invitations are a list of email addresses belonging to people who are not yet in
     // the family — PII that only an approver should see, and only for their own family.
     a.invitation.id, a.revocableInvitation.id,
@@ -1031,6 +1040,154 @@ export const APPROVAL_CASES = [
     positiveActor: 'alphaMember',
     positiveArgs: () => ['legit.invite@rls.test', false, 'ALPHATEST'],
   },
+  {
+    kind: 'write',
+    id: 'invitations.redeemInvitation (email conjunct, both halves)',
+    mod: 'app/actions/invitations.ts', fn: 'redeemInvitation',
+    // THE POSITIVE CONTROL THE EMAIL CONJUNCT HAS NEVER HAD, and the case above is why it
+    // is needed: `(ALPHA token, wrong person)` carries `positive: 'not-applicable'`, so
+    // until now nothing anywhere proved redemption WORKS for the invited person. A
+    // refusal that refuses everybody satisfies the attack assertion perfectly.
+    //
+    // Both halves run the same call with the same token. The only difference is who is
+    // signed in, which is exactly the axis the conjunct discriminates on:
+    //   attack   bravoAdmin — every grant BRAVO can confer, and the wrong address
+    //   control  outsideInvitee — the address it was actually sent to
+    //
+    // The control DEVIATES from AGENTS.md §7's "someone in ALPHA who is entitled to it",
+    // of necessity: a redeemer must NOT already be in ALPHA or :297 refuses them for
+    // belonging. See `outsideInvitee` in seed.mjs for why a BRAVO member is the only
+    // shape that satisfies both ends.
+    args: () => ['rls-outside-invite-token-ALPHATEST'],
+    // accepted_by is the ALPHA people id redemption creates, so this one projection
+    // proves both halves of the outcome: the invitation was spent, and a row in ALPHA
+    // now exists for the redeemer. A probe on `accepted_at` alone would not have.
+    probe: (db, fx) => snapshot('family_invitations', 'id, accepted_at, accepted_by',
+      { id: fx.alpha.outsideInvitation.id })(db),
+    positiveActor: 'outsideInvitee',
+  },
+
+  // ── asking a declined applicant back (20260811000001) ─────────────────────
+  {
+    kind: 'write',
+    id: 'invitations.inviteMember (a declined applicant can be asked back)',
+    mod: 'app/actions/invitations.ts', fn: 'inviteMember',
+    // THE REPORTED BUG. Declining keeps the people row at 'rejected', and the create-side
+    // collision test had no membership_status predicate — so a declined person read as
+    // "already in this family" for ever and no invitation could be minted for them again.
+    //
+    // THE CONTROL IS A PLAIN MEMBER, and that is the policy this change implements: any
+    // approved member may ask a declined person back, and re-entry then goes through the
+    // approvals queue (asserted by the next case). alphaMember holds no admin/approvals
+    // grant — the same actor whose pre_approved request is silently downgraded two cases
+    // up — so if this ever starts requiring one, this control goes red.
+    attacker: 'bravoAdmin',
+    args: () => ['alpha.declined.ask@rls.test', false, 'ALPHATEST'],
+    probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
+      { family_code: 'ALPHATEST', email: 'alpha.declined.ask@rls.test' })(db),
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'invitations.redeemInvitation (a re-invited applicant lands in the queue, not in the family)',
+    mod: 'app/actions/invitations.ts', fn: 'redeemInvitation',
+    // THE SECURITY PROPERTY OF THE WHOLE CHANGE, and the reason it is small: a re-open
+    // ignores pre-approval outright, so no invitation — however minted, by whom, or when —
+    // can turn a refusal into a membership without a fresh human decision.
+    //
+    // THE PROBE IS FILTERED ON 'pending' RATHER THAN PROJECTING THE STATUS, and that is
+    // what makes the control mean something. runWrite only asserts that the control MOVED
+    // the snapshot (run.mjs:136), and 'rejected' → 'approved' moves a projection just as
+    // well as 'rejected' → 'pending' does. Filtered, the row appears only if it landed
+    // where it should: delete `AND NOT v_reopen` from the migration and this control goes
+    // red because the person came back 'approved'.
+    //
+    // The seeded invitation is pre_approved: true precisely so that clamp is under test.
+    args: () => ['rls-reopen-token-ALPHATEST'],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.users.alphaDeclinedBack.personId, membership_status: 'pending' })(db),
+    positiveActor: 'alphaDeclinedBack',
+  },
+  {
+    kind: 'write',
+    id: 'invitations.redeemInvitation (an invitation minted before the decline cannot reverse it)',
+    mod: 'app/actions/invitations.ts', fn: 'redeemInvitation',
+    // THE ATTACKER IS THE REFUSED PERSON THEMSELVES, which is the only shape that tests
+    // this: the family re-opens a refusal, never the person who was refused, and never a
+    // token that predates the decision it would undo.
+    //
+    // The sequence this defends is the one that refuted the first draft — an invitation
+    // minted before a decline, still inside its 14 days, redeemed afterwards. The fixture
+    // dates this row an hour before membership_decided_at while leaving expires_at at its
+    // default, so it is stale WITHOUT being expired; otherwise the refusal would come from
+    // the expiry branch and prove nothing.
+    //
+    // Filtered on 'rejected': the row is there before and must still be there after. Drop
+    // the `v_inv.created_at > v_decided` guard and they re-open to 'pending', the filter
+    // stops matching, and this attack goes red.
+    attacker: 'alphaDeclinedStale',
+    args: () => ['rls-stale-token-ALPHATEST'],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.users.alphaDeclinedStale.personId, membership_status: 'rejected' })(db),
+    positive: 'not-applicable',
+    why: 'a superseded invitation has no legitimate redeemer by definition — the remedy is a NEW invitation, which the declined-applicant case above covers with a real control',
+  },
+  read('invitations.inviteMember (an in-family address discloses no status)',
+    'app/actions/invitations.ts', 'inviteMember', {
+    // THE ENUMERATION ORACLE THIS CHANGE HAD TO AVOID. A reviewer demonstrated against a
+    // live database that differentiating the refusal by status ("that person has already
+    // asked to join. Approve them from…") tells any signed-in caller whether an arbitrary
+    // address is pending, disabled or a member — over the public
+    // POST /rest/v1/rpc/create_family_invitation surface, to a caller who can see zero
+    // non-approved rows through RLS.
+    //
+    // alphaPending's address is a PENDING applicant, and alphaMember has no
+    // admin/approvals grant, so the correct answer is the same status-blind sentence a
+    // current member's address gets. Asserting the STRING is the assertion — a leak check
+    // would not catch it, because the address being probed is one the caller supplied.
+    attacker: 'alphaMember',
+    args: () => ['alpha.pending@rls.test', false, 'ALPHATEST'],
+    expectAttack: (r) => r?.success === false
+      && r.message === 'That person is already in this family.',
+    positive: 'not-applicable',
+    why: 'the assertion IS that no caller gets a more informative answer, so a more-entitled caller is not a comparison — an approver reads the queue itself, on a screen their grant already covers',
+  }),
+  read('invitations.inviteMember (a re-invitation is never pre-approved)',
+    'app/actions/invitations.ts', 'inviteMember', {
+    // WHAT THE INVITER IS TOLD. alphaAdmin holds admin/approvals:edit at 'any', so their
+    // pre_approved request is honoured for a stranger — and must NOT be for somebody the
+    // family already declined, because redemption is going to put that person back in the
+    // queue whatever the invitation says. Without the `AND v_rows = 0` conjunct the row
+    // stores true and InviteMemberDialog promises "they will not appear in the approvals
+    // queue" to the one person who most needs that to be accurate.
+    //
+    // Asserts the RETURN VALUE, which is why this is a read case over a write action: the
+    // write runner only compares a probe before and after (run.mjs:112-119), and an
+    // invitation is minted either way — it is `pre_approved` on the new row that differs.
+    attacker: 'alphaAdmin',
+    args: () => ['alpha.declined.ask@rls.test', true, 'ALPHATEST'],
+    expectAttack: (r) => r?.success === true && r.preApproved === false,
+    positive: 'not-applicable',
+    why: 'alphaAdmin IS the entitled caller — the assertion is that even a full approvals grant cannot pre-approve a re-invitation, so a more-entitled comparison does not exist',
+  }),
+  read('invitations.peekInvitation (a re-invitation promises no access)',
+    'app/actions/invitations.ts', 'peekInvitation', {
+    // WHAT THE INVITEE IS TOLD, before they have an account or a session — which is why
+    // this one matters most: they have no other way to find out, and /invite/<token> reads
+    // exactly this bit to choose between "you will have full access as soon as you accept"
+    // and "an administrator will review your request once you accept".
+    //
+    // Uses the STALE token rather than the re-open one on purpose. Both are seeded
+    // pre_approved: true against a declined address, but the re-open token is CONSUMED by
+    // its own case's positive control — so asserting on it here would make this case
+    // depend on running first, which is the fixture trap AGENTS.md §7 warns about. The
+    // stale invitation is never accepted by anything, so this holds at any position.
+    attacker: 'anon',
+    args: () => ['rls-stale-token-ALPHATEST'],
+    expectAttack: (r) => r?.valid === true && r.preApproved === false,
+    positive: 'not-applicable',
+    why: 'peek is anon by design and there is no more-entitled caller — the sibling case above asserts the same rule on the create side, where a control does exist',
+  }),
 
   // Creating a family is not a cross-family operation — there is no ALPHA id to pass —
   // so the usual attack/control split does not apply. What IS worth asserting, and what

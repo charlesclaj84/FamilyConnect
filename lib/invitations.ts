@@ -22,6 +22,38 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * does nothing.
  */
 
+/**
+ * Whether a signed-in session may redeem an invitation addressed to `invitedEmail`.
+ *
+ * A ROUTER, NOT A GATE, and the distinction is the only thing that makes this safe to
+ * exist. `redeem_family_invitation` compares the two addresses itself
+ * (20260806000013:292) and no caller can reach around it — this function only decides
+ * which SCREEN /invite/<token> renders, so that a visitor signed in as the wrong account
+ * is told what is wrong instead of being handed a button that cannot work. Relaxing this
+ * would show somebody an Accept button that then fails; relaxing it does NOT let anyone
+ * redeem anything. Do not turn it into the check.
+ *
+ * IT MIRRORS THE SQL EXACTLY, and each half of that is deliberate:
+ *
+ *   • `lower()` on the SESSION address only. The SQL reads `lower(u.email)` into v_email
+ *     (:287) and compares it against `v_inv.email`, which `create_family_invitation`
+ *     already stored as `lower(btrim(...))` (20260806000014:75). Lowering the invited side
+ *     again would be harmless; trimming it would not be, because the SQL does not trim
+ *     and a stored value with a stray space must fail on BOTH sides or the screen and the
+ *     database disagree about the same invitation.
+ *   • No `.trim()` on the session address either, for the same reason.
+ *   • A session with no address is a MISMATCH. `IS DISTINCT FROM` is true when v_email is
+ *     NULL, so the database refuses those callers, and this must agree rather than
+ *     offering them an Accept button.
+ */
+export function matchesInvitedAuthAddress(
+  sessionEmail: string | null | undefined,
+  invitedEmail: string,
+): boolean {
+  if (!sessionEmail) return false
+  return sessionEmail.toLowerCase() === invitedEmail
+}
+
 export interface RegistrationRedemption {
   ok: boolean
   family_code: string | null

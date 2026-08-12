@@ -3,7 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export const metadata = { title: 'Choose a New Password' }
+// `noindex` as well as the `Disallow: /update-password` in robots.txt — same
+// reasoning as /invite/[token]. This page is only reachable holding a live
+// recovery session, and a search result is never how anyone should arrive at it.
+export const metadata = {
+  title: 'Choose a New Password',
+  robots: { index: false, follow: false, nocache: true },
+}
 
 /**
  * Where a password-reset link lands, after `/auth/confirm` has exchanged its token_hash

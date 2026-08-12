@@ -47,6 +47,34 @@
  */
 export const PRODUCTION_ORIGIN = 'https://genorra.com'
 
+/**
+ * The `.vercel.app` host this project was served from before the domain was bought,
+ * and which Vercel keeps assigning to the production deployment forever.
+ *
+ * It is here to be REDIRECTED AWAY FROM, not to be used. `next.config.ts` turns every
+ * request arriving on it into a 308 to `PRODUCTION_ORIGIN`, which is the fix
+ * `supabase/config.toml` and TODO.md have both been asking for since 2026-08-10.
+ *
+ * WHY A REDIRECT AND NOT JUST A CANONICAL TAG. The search-engine half — two hosts
+ * serving identical bytes, authority split between them — is the milder of the two
+ * problems and a canonical does answer it. The other half is a session bug: the link
+ * in a confirmation email is built from one origin, `/auth/confirm` writes the session
+ * cookie on that origin, and a user who arrives on the other one is signed out on a
+ * dashboard with nothing explaining why. Cookies are per-origin, and no amount of
+ * markup fixes that. Only having one origin does.
+ *
+ * A STRING LITERAL, NOT `VERCEL_PROJECT_PRODUCTION_URL`, and this is the trap worth
+ * knowing about: that variable is documented as "a production domain name of the
+ * project", and once a custom domain is attached it can resolve to the custom domain
+ * rather than the `.vercel.app` one. Deriving the redirect's SOURCE from it would then
+ * match genorra.com and send genorra.com to genorra.com — an infinite loop taking the
+ * whole site down, on a config change nobody made. A literal cannot do that, and
+ * `next.config.ts` asserts the two are different anyway.
+ *
+ * Delete this and the redirect together if the alias is ever detached in Vercel.
+ */
+export const LEGACY_VERCEL_HOST = 'genorra-kappa.vercel.app'
+
 function resolveSiteUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim()
   if (explicit) return explicit.replace(/\/+$/, '')
@@ -68,3 +96,25 @@ export const SITE_URL = resolveSiteUrl()
 
 /** `metadataBase` wants a URL instance, not a string. */
 export const SITE_ORIGIN = new URL(SITE_URL)
+
+/**
+ * Whether this build is the one that belongs in a search index.
+ *
+ * Only the production deployment is. A preview build serves the SAME pages, the
+ * SAME copy and the SAME sitemap from a different hostname, and Vercel preview
+ * URLs are public — so without this, every push publishes a second crawlable
+ * copy of the marketing site, and Google is left to decide which of the two is
+ * the real one. It sometimes decides wrong, and the version it picks is a frozen
+ * build of a branch.
+ *
+ * `app/robots.ts` reads this and serves `Disallow: /` everywhere but production.
+ *
+ * WHAT THIS DOES NOT COVER, because it cannot: the production deployment answers
+ * on BOTH `genorra.com` and the `.vercel.app` alias Vercel assigns every project,
+ * and those two hosts are the same build serving the same bytes. robots.txt is
+ * part of that build, so it cannot say "allow" on one and "disallow" on the
+ * other. That half is the job of the canonical tags on the public pages — an
+ * absolute `<link rel="canonical" href="https://genorra.com/…">` is the same on
+ * both hosts and names the winner. See the note in `app/page.tsx`.
+ */
+export const IS_INDEXABLE_DEPLOYMENT = process.env.VERCEL_ENV === 'production'

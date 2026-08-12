@@ -81,6 +81,31 @@ export function AdminApprovalsClient({
     setRejecting(applicant)
   }
 
+  /**
+   * Reverse a decline from the Declined list.
+   *
+   * NO NEW SERVER ACTION, deliberately. `approveApplicant` already does exactly this —
+   * set_membership_status accepts 'rejected' → 'approved' (it refuses only a 'disabled'
+   * target and no-ops when the status is unchanged, 20260807000000:998-1029) — and it
+   * brings the notification and the approval email with it, which a re-admitted person
+   * needs just as much as a first-time one. Every export of a 'use server' file is a
+   * public endpoint, so a second action that resolves to the same RPC call would be new
+   * attack surface bought for a synonym.
+   *
+   * Until 2026-08-11 nothing in the app could do this at all: the Declined list rendered
+   * no controls, so a decline was permanent even though the RPC had always allowed it.
+   */
+  async function onReadmit(applicant: Applicant) {
+    const ok = await confirm({
+      title: `Admit ${name(applicant)} after all?`,
+      description:
+        'They were declined before. Admitting them now gives them immediate access to everything your family has made visible to members, and they will be told.',
+      confirmLabel: 'Admit',
+    })
+    if (!ok) return
+    run(applicant, () => approveApplicant(applicant.personId))
+  }
+
   function submitRejection() {
     const applicant = rejecting
     if (!applicant) return
@@ -149,6 +174,23 @@ export function AdminApprovalsClient({
                       )}
                       {applicant.requestedAt && (
                         <span>Asked {formatDate(applicant.requestedAt)}</span>
+                      )}
+                      {/* THIS PERSON HAS BEEN HERE BEFORE. Since 20260811000001 a declined
+                          person can be asked back, and accepting returns them to this
+                          queue — with membership_note, _decided_at and _decided_by
+                          deliberately preserved, so the administrator deciding again can
+                          see that somebody already said no once, and why.
+
+                          `decidedAt` is an exact test for it on a PENDING row: the stamp
+                          trigger nulls it for an ordinary joiner (20260806000011:139), the
+                          re-open leaves it alone, and nothing else in the app writes
+                          'pending' over a decided row. */}
+                      {applicant.decidedAt && (
+                        <span className="inline-flex items-center gap-1">
+                          <UserX className="h-3 w-3" />
+                          Previously declined {formatDate(applicant.decidedAt)}
+                          {applicant.note ? ` — ${applicant.note}` : ''}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -245,24 +287,47 @@ export function AdminApprovalsClient({
           <div>
             <h2 className="text-lg font-semibold">Declined</h2>
             <p className="text-sm text-muted-foreground">
-              Kept rather than deleted, so a request cannot be silently re-submitted and
-              so the record of the decision survives.
+              {canDecide
+                ? <>Kept rather than deleted, so the record of the decision survives. You can
+                    admit somebody after all, and any member can send them a fresh
+                    invitation.</>
+                : <>Kept rather than deleted, so the record of the decision survives.</>}
             </p>
           </div>
           <div className="space-y-2">
-            {decided.map(applicant => (
-              <div
-                key={applicant.personId}
-                className={cn('rounded-xl border px-4 py-3 text-sm', 'bg-muted/40')}
-              >
-                <p className="font-medium">{name(applicant)}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Declined{applicant.decidedAt ? ` ${formatDate(applicant.decidedAt)}` : ''}
-                  {applicant.decidedBy ? ` by ${applicant.decidedBy}` : ''}
-                  {applicant.note ? ` — ${applicant.note}` : ''}
-                </p>
-              </div>
-            ))}
+            {decided.map(applicant => {
+              const busy = isPending && busyId === applicant.personId
+              return (
+                <div
+                  key={applicant.personId}
+                  className={cn('flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm', 'bg-muted/40')}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{name(applicant)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Declined{applicant.decidedAt ? ` ${formatDate(applicant.decidedAt)}` : ''}
+                      {applicant.decidedBy ? ` by ${applicant.decidedBy}` : ''}
+                      {applicant.note ? ` — ${applicant.note}` : ''}
+                    </p>
+                  </div>
+
+                  {/* GATED SEPARATELY, because this SECTION is not. It renders for anyone
+                      holding admin/approvals:view, and only an editor may reverse a
+                      decision — the action and set_membership_status both check again. */}
+                  {canDecide && (
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => onReadmit(applicant)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                    >
+                      <UserCheck className="h-3 w-3" />
+                      {busy ? 'Saving…' : 'Admit after all'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </section>
       )}
