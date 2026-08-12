@@ -468,9 +468,50 @@ max_frequency = "5s"
 # browser and GoTrue's endpoint is reachable without it, so it raises the bar rather than
 # holding a line. TODO.md has the whole picture.
 #
-# `inactivity_timeout` does NOT have this problem — it does not cap `created_at`, so it
-# leaves the reauthentication window alone while still retiring an abandoned session, which
-# is the threat the code is aimed at in the first place.
+# `inactivity_timeout` does NOT have the timebox problem — it never caps `created_at`, so it
+# leaves the reauthentication window alone. What it does and does not buy was MEASURED
+# against a local stack on 2026-08-12, at a 60-second window so the experiment took a
+# minute; four results, and the last two are the ones that decide how to describe it.
+#
+#   A. A session nobody refreshed dies at the window, explicitly:
+#      "Invalid Refresh Token: Session Expired (Inactivity)".
+#   B. A client that keeps refreshing survives it indefinitely — three automatic refreshes
+#      inside a 60s window, no user activity whatever. It measures CLIENT activity, not the
+#      person's, and `autoRefreshToken` is on for every browser client we create.
+#   C. The access token issued BEFORE the window still works at GoTrue `/user` afterwards.
+#   D. And still reads data through PostgREST — HTTP 200. PostgREST verifies the JWT
+#      signature and knows nothing about GoTrue sessions.
+#
+# So it is a RENEWAL CUTOFF, not a kill switch: for up to `jwt_expiry` (an hour) after a
+# session dies of inactivity, the token already in hand keeps working everywhere. The only
+# thing that kills a session on the spot is an explicit signOut, which revokes.
+#
+# TWO CONSEQUENCES.
+#
+# 1. IT IS NOT THE APP'S INACTIVITY SIGN-OUT and cannot be. That is
+#    components/layout/IdleTimeout.tsx — a client timer, IDLE_LIMIT_MINUTES in
+#    lib/idle-timeout.ts. By result B an open tab keeps its session fresh however long the
+#    human has been gone, so this setting never fires for the case that component exists
+#    for; and it cannot navigate anybody to /login either. They are complements: the timer
+#    covers a person who walked away from an open tab, this covers a browser that is not
+#    running at all.
+#
+# 2. THE VALUE HAS A FLOOR, and it is about an hour. auth-js refreshes when the access
+#    token is within ~90s of expiry, so at `jwt_expiry = 3600` a live tab refreshes roughly
+#    every 58 minutes. Set this BELOW that and active members are signed out mid-sentence,
+#    because by result B the only clock it watches is the refresh. 75m — matching the idle
+#    timer — technically clears it, with about 16 minutes of headroom; hours clear it
+#    comfortably.
+#
+# WHAT IT IS ACTUALLY FOR, then: today a session cookie has no expiry at all, so a browser
+# closed while signed in stays signed in forever — the shared family computer somebody used
+# once. Any value here bounds that, and the choice is purely how often members must sign in
+# again versus how long an abandoned cookie stays renewable. 8h means most visits; 7d bounds
+# abandonment to a week while keeping "remember me" for regulars.
+#
+# Pro plan and up on hosted, and hosted does not read this file — set it in the dashboard
+# (Authentication -> Sessions).
+# https://supabase.com/docs/guides/auth/sessions
 #
 # [auth.sessions]
 # Force log out after the specified duration.

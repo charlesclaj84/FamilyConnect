@@ -6,6 +6,7 @@ import { getMyAssignmentCount } from '@/app/actions/event-planning'
 import Navbar from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
+import { IdleTimeout } from '@/components/layout/IdleTimeout'
 
 /**
  * The signed-in app says "do not index me", on every route beneath this layout.
@@ -38,11 +39,14 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let hasAssignments = false
   let viewable: string[] = []
   let familyCode = ''
+  /** Gates the idle timer — there is nothing to sign out if nobody resolved. */
+  let signedIn = false
 
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
+      signedIn = true
       // The sidebar shows a page only if the member may view it. There is no
       // is_admin branch any more — group policy is the single authority.
       // Count only outstanding items (shared with the Event Planning page) so the
@@ -102,6 +106,16 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           <main key={familyCode} className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
+
+      {/* AFTER the shell, and that is not cosmetic. Its warning is a `Dialog`, and every
+          dialog in the app is `fixed z-50` — so among equal z-indexes the later element in
+          the DOM paints on top. Mounted above `{children}`, the "still there?" warning
+          would appear BEHIND a form dialog a member already had open, which is precisely
+          the moment they most need to see it.
+
+          Not keyed on `familyCode` like `<main>` is: switching family must not restart the
+          idle clock, and the component holds no family data to go stale. */}
+      {signedIn && <IdleTimeout />}
     </ConfirmProvider>
   )
 }

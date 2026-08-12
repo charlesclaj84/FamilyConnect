@@ -110,8 +110,6 @@ export function SignInSecuritySection({ visible, signInEmail }: {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
   const [pwError, setPwError] = useState('')
-  /** Whether the other-devices sign-out actually succeeded — the success copy says which. */
-  const [othersSignedOut, setOthersSignedOut] = useState(false)
 
   async function requestCode() {
     setPwError('')
@@ -225,14 +223,19 @@ export function SignInSecuritySection({ visible, signInEmail }: {
     // `signOut()` defaults to `'global'` and would sign them out of the screen they are
     // reading the confirmation on.
     //
-    // Whether GoTrue already revokes on password change is UNMEASURED (Docker was down);
-    // this call is correct and idempotent either way. If it turns out to be redundant,
-    // keep it anyway — the guarantee then belongs to this line rather than to an internal
-    // of GoTrue that can change under us.
-    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' })
+    // MEASURED 2026-08-12 against a local stack: GoTrue ALREADY revokes every other
+    // session on a password change by itself, and leaves the changing session alive. So
+    // this call is redundant in the happy path — and kept deliberately, because the
+    // guarantee the copy below states should belong to a line in our code rather than to
+    // an undocumented internal that can change under us on a Supabase upgrade.
+    //
+    // The result is deliberately not surfaced, for the same reason: the eviction has
+    // already happened by the time this runs, so a failure here does not mean the other
+    // devices are still signed in, and copy that said so would be wrong in the common
+    // case. Nothing to tell the user either way.
+    await supabase.auth.signOut({ scope: 'others' })
 
     setPwBusy(false)
-    setOthersSignedOut(!signOutError)
     setPwStage('done')
     setCode(''); setCurrentPassword(''); setPassword(''); setConfirmPassword('')
   }
@@ -395,25 +398,16 @@ export function SignInSecuritySection({ visible, signInEmail }: {
         {pwStage === 'done' && (
           <div className="rounded-lg border bg-brand-soft/40 px-4 py-3 text-sm">
             {/*
-              SAY WHICH OF THE TWO THINGS HAPPENED. The password change is committed by the
-              time either branch renders, so neither may read as a failure — but the
-              sign-out is a separate call that can fail on its own, and somebody who came
-              here to lock an intruder out needs to know it did not happen. The old copy
-              ("It applies the next time you sign in") implied the opposite of what the
-              first branch now guarantees.
+              Stated flatly because it is now measured rather than hoped for: the eviction
+              is done by GoTrue as part of the change and again by our own `scope: 'others'`
+              call. The old copy — "It applies the next time you sign in" — implied the
+              opposite, which is the sentence somebody reads after changing their password
+              because they think a relative is in their account.
             */}
-            {othersSignedOut ? (
-              <p>
-                Your password has been changed, and every other device signed in to this
-                account has been signed out. They will need the new password.
-              </p>
-            ) : (
-              <p>
-                Your password has been changed — use it from now on. We could not sign out
-                your other devices, so any that were already signed in stay that way. Sign
-                out from each of those to be sure.
-              </p>
-            )}
+            <p>
+              Your password has been changed, and every other device signed in to this
+              account has been signed out. They will need the new password.
+            </p>
           </div>
         )}
       </Panel>

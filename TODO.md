@@ -281,11 +281,11 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 
 ## Password change: what protects it, and the part that cannot be protected
 
-**Action:** run the two probes below when Docker is next up, and decide about
-`inactivity_timeout`. The app-side work is done.
+**Action:** decide about `[auth.sessions] inactivity_timeout` for absolute staleness (item 2
+below). Everything else here is done and measured.
 
 Filed as "a nonce-free path for fresh sessions", which described the mechanism accurately
-and pointed at the wrong repair. Reframed and mostly fixed 2026-08-12.
+and pointed at the wrong repair. Reframed, fixed and measured 2026-08-12.
 
 ### The window is real, there is no knob, and no app-side check can close it
 
@@ -296,17 +296,17 @@ measured matrix beside the flag is what that constant looks like from outside. S
 first day of any session the emailed code is sent, typed in, and not checked; a
 deliberately wrong one still changes the password.
 
-**The part worth being clear about, because it was got wrong once already while writing
-this:** the current-password field added below does *not* close that window. `PUT
-/auth/v1/user` is a public GoTrue endpoint that accepts the browser's session token, so
-anybody who can open devtools can change the password without loading our form. A check
-that runs on the attacker's side of the wire is not a gate, and moving it into a server
-action would not help — GoTrue's endpoint stays reachable either way.
+**The part worth being clear about, because it was got wrong once while writing this:** the
+current-password field does *not* close that window. `PUT /auth/v1/user` is a public GoTrue
+endpoint that accepts the browser's session token, so anybody who can open devtools can
+change the password without loading our form. A check that runs on the attacker's side of
+the wire is not a gate, and moving it into a server action would not help — GoTrue's
+endpoint stays reachable either way.
 
-So: within 24 hours of a session being created, a person holding that session can change
-the password, and that is a property of GoTrue we host rather than a bug we can patch.
-What is left is (a) making the realistic version of the attack harder, (b) not overclaiming
-on screen, and (c) making the change *recoverable* by evicting other sessions.
+So: within 24 hours of a session being created, a person holding that session can change the
+password, and that is a property of GoTrue we host rather than a bug we can patch. What is
+left is making the realistic version of the attack harder, not overclaiming on screen, and
+making the change recoverable by evicting other sessions.
 
 ### What was done, 2026-08-12
 
@@ -317,48 +317,145 @@ on screen, and (c) making the change *recoverable* by evicting other sessions.
   because signing in on that one replaces the session, and a new session's `created_at`
   resets the 24-hour clock, which would switch the emailed code off for good. Verifying the
   password on the wrong client would have disabled the other half of the gate on the way
-  past. Browser-side on purpose: the password reaches GoTrue over TLS exactly as at
-  sign-in and never touches our server, and no new `'use server'` export means no new
-  endpoint that accepts password guesses.
+  past. Browser-side on purpose: the password reaches GoTrue over TLS exactly as at sign-in
+  and never touches our server, and no new `'use server'` export means no new endpoint that
+  accepts password guesses.
 
-  What it buys, stated at its true worth: it stops somebody who sits at an unlocked screen
-  and uses the product, which is the realistic version of this threat. It stops nobody who
-  opens devtools.
+  What it buys, at its true worth: it stops somebody who sits at an unlocked screen and uses
+  the product, which is the realistic version of this threat. It stops nobody who opens
+  devtools.
 
-* **Other sessions revoked on a successful change** — `signOut({ scope: 'others' })`. This
-  is the one part of the screen that is genuinely enforced: refresh tokens are revoked
-  server-side and cannot be un-revoked from a browser. It also sweeps the throwaway session
-  the password check creates. `'others'` and not the default `'global'`, so the member stays
-  on the page they are reading the confirmation on.
+* **Other sessions revoked** — `signOut({ scope: 'others' })`, kept although the probe below
+  proved it redundant, so the guarantee the copy states belongs to a line in our code rather
+  than to an undocumented GoTrue internal.
 
 * **Copy that matches.** The panel used to promise "a password cannot be changed by someone
   who simply found your screen unlocked", which is more than either proof delivers, and the
   success message said "It applies the next time you sign in", which implied the opposite of
-  what the eviction now guarantees. Both replaced, and the success message has two branches
-  because the sign-out can fail on its own after the password has already changed.
+  what the eviction guarantees.
+
+* **`SignOutButton` was signing members out of every device.** Plain `signOut()` defaults to
+  `scope: 'global'`, so Sign Out on a laptop also signed out the phone, with nothing on
+  screen suggesting it would. Now `'local'`. Same rule `InviteMismatchActions` already
+  stated; the password panel's `'others'` is the deliberate exception.
+
+* **A ten-minute inactivity sign-out** — see the next section, which is the mitigation that
+  actually addresses an unattended screen.
+
+### Measured 2026-08-12, local stack, 8/8 as expected
+
+The probe is not kept as a test — `tests/rls` is about family isolation and this is GoTrue
+behaviour — so the results are recorded here instead:
+
+| Question | Answer |
+|---|---|
+| Wrong current password refused, identifiably? | yes — `code=invalid_credentials`, status 400 |
+| Right current password accepted? | yes |
+| **Does GoTrue revoke other sessions on password change by itself?** | **yes**, unprompted |
+| Does the changing session survive its own change? | yes — the member is not bounced |
+| Does `scope: 'others'` sweep the throwaway check session? | yes |
+| Does it evict another device? | yes |
+| Does it leave this browser signed in? | yes |
+
+The third row is the one that changed code: because GoTrue already evicts, a failure of our
+own `signOut` call does **not** mean the other devices are still signed in — so the success
+message states the eviction flatly instead of branching on it, which would have been wrong
+in the common case.
 
 ### Still owed
 
-1. **Two probes, both blocked on Docker being down on 2026-08-12.** Neither changes the
-   code — `signOut({ scope: 'others' })` is correct and idempotent either way — but both
-   turn an assumption into a fact:
-   * Does GoTrue already revoke other sessions on password change? If it does, our call is
-     redundant; keep it regardless, so the guarantee belongs to a line in our code rather
-     than to an internal that can change under us.
-   * Does the current-password check behave as expected at the boundary — wrong password
-     refused, right password accepted, and the resulting throwaway session actually swept
-     by the eviction rather than left behind?
+1. **Nothing on the password change itself.** The residual exposure is the 24-hour window
+   described above, and it is not closable from here.
 
-2. **Decide about `inactivity_timeout`.** This is the mitigation that actually addresses
-   "somebody found my screen unlocked", because a session that has aged out cannot be used
-   at all — by our form or by devtools. `[auth.sessions]` is commented out entirely today,
-   so sessions never expire on their own. Unlike `timebox` it does **not** cap
-   `session.created_at`, so it does not interfere with the 24-hour reauthentication window;
-   see the note now in `config.toml` beside the block for why `timebox = "24h"` would
-   silently disable `secure_password_change` altogether.
+2. **`inactivity_timeout`** has its own section below, now that it has been measured. It is
+   worth setting, and it is not a substitute for either the reauthentication code or the
+   client-side idle timer.
 
-   It is a product call, not a security one: a shorter timeout is a family being asked to
-   sign in more often.
+3. **The two email templates changed** (`reauthentication.html`, `email-change.html` — both
+   carried a stale `DORMANT` comment claiming nothing called them). Comments in a template
+   are part of the shipped payload, so `npm run email:check` will report drift against
+   hosted until somebody runs `npm run email:push` with a `SUPABASE_ACCESS_TOKEN`. The
+   substance moved to [supabase/templates/README.md](supabase/templates/README.md), where
+   the directory's own rule says it belongs.
+
+## The inactivity sign-out has not been exercised in a browser
+
+**Action:** click through it once — idle a signed-in tab, watch the warning, let it fire.
+
+[components/layout/IdleTimeout.tsx](components/layout/IdleTimeout.tsx), added 2026-08-12:
+`IDLE_LIMIT_MINUTES` (75) without keyboard or pointer activity signs the member out with
+`signOut({ scope: 'local' })` — a real revocation, not just a cleared cookie — and sends
+them to `/login` with a notice and a `?next=` back to where they were. A warning dialog
+appears for the last minute with an "I'm still here" button.
+
+What **is** verified: the active/warn/expired boundary, as a pure function in
+[lib/idle-timeout.ts](lib/idle-timeout.ts), across 11 cases including the exact limit, the
+sub-second tail and a slept-through clock; and that `/login` server-renders the notice and
+carries the `next` parameter. Build, typecheck and lint are clean.
+
+What is **not** verified, because this checkout has no browser driver and adding one was not
+in scope: the event wiring, the cross-tab `localStorage` handshake, and the sign-out and
+redirect actually firing. Three things to watch for when somebody does click it through:
+
+* the warning appearing **on top of** a dialog a page already had open — it is mounted after
+  the shell for exactly this reason, and every dialog in the app shares `z-50`;
+* a second tab not signing itself out when the first one times out (`genorra:idle-signed-out`);
+* activity in one tab not keeping the other alive (`genorra:last-activity`, throttled to 5s).
+
+75 minutes is a product decision, not a derived number — one place, and the notice on
+`/login` interpolates it so the sentence and the timer cannot drift. It was 10 for the
+afternoon it was built, which was too aggressive for pages people genuinely sit and read.
+Worth revisiting once real families are using it, against complaints rather than taste.
+
+**One interaction to keep in mind if that number moves:** 75 is above `jwt_expiry` (3600s),
+so an access token expires partway through an idle stretch and `autoRefreshToken` renews it.
+That is why the page is still alive when the timer fires. It is also, measured, why
+`inactivity_timeout` can never do this job — see the next section.
+
+## Decide whether to set `[auth.sessions] inactivity_timeout`
+
+**Action:** pick a value and set it in the hosted dashboard, or record that unbounded
+sessions are accepted. Not a code change either way.
+
+**The gap it closes, which nothing closes today.** A session cookie has no expiry. Neither
+`timebox` nor `inactivity_timeout` is set, and refresh tokens do not expire on their own — so
+a browser closed while signed in is still signed in whenever it is next opened, indefinitely.
+The shared family computer somebody used once is the case. The client-side idle timer above
+cannot cover it: nothing is running to time anything out.
+
+**Measured 2026-08-12** against a local stack at a 60-second window (revert-checked; the
+repo's `[auth.sessions]` block is commented out as before):
+
+| Question | Answer |
+|---|---|
+| Does an unrefreshed session die at the window? | yes — `Invalid Refresh Token: Session Expired (Inactivity)` |
+| Does a client that keeps refreshing survive it, with no user activity? | **yes** — 3 automatic refreshes inside a 60s window |
+| Does the access token issued before the window still work at GoTrue `/user`? | **yes** |
+| Does it still read data through PostgREST? | **yes** — HTTP 200 |
+
+Rows 3 and 4 are why it must not be described as a kill switch: for up to `jwt_expiry` (an
+hour) after the session dies, the token in hand keeps working everywhere, because PostgREST
+verifies a signature and knows nothing about GoTrue sessions. The only thing that ends a
+session on the spot is an explicit `signOut`, which revokes — which is what the idle timer
+does.
+
+**The floor on the value is about an hour.** auth-js refreshes when the access token is
+within ~90s of expiry, so at `jwt_expiry = 3600` a live tab refreshes roughly every 58
+minutes; anything below that signs out members who are actively working, since by row 2 the
+only clock it watches is the refresh. 75m — matching the idle timer — clears it by about 16
+minutes. Hours clear it comfortably.
+
+**So the choice is one product question:** how long may an abandoned cookie stay renewable,
+against how often a member has to sign in again. 8h means most visits; 7d bounds abandonment
+to a week and keeps "remember me" for regulars. There is no security argument for the low end
+that the idle timer does not already make better.
+
+Pro plan and up, and hosted does not read `config.toml` — Authentication → Sessions in the
+dashboard. Do **not** reach for `config push` (GO LIVE explains why). And do not set
+`timebox` at or under 24h while `secure_password_change` matters: it caps `created_at`, so no
+session can reach the age at which GoTrue demands the reauthentication code, and the flag
+becomes decoration. The note is in `config.toml` beside the block.
+
 
 ## Phase 3 leftovers
 

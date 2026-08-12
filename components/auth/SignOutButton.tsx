@@ -9,7 +9,16 @@ export function SignOutButton() {
 
   async function handleSignOut() {
     const supabase = createClient()
-    await supabase.auth.signOut()
+    // `scope: 'local'` — THIS device, not the account. `signOut()` defaults to `'global'`,
+    // which revokes every session the account has: signing out on a laptop was also
+    // signing the member out of their phone, with nothing on screen suggesting it would.
+    // Same rule `InviteMismatchActions` states, and the same one the password panel
+    // deliberately breaks in the other direction with `'others'`, where evicting the
+    // other devices is the point.
+    //
+    // It still revokes this session server-side rather than only clearing the cookie, so
+    // the button remains a real sign-out.
+    await supabase.auth.signOut({ scope: 'local' })
     router.push('/')
     router.refresh()
   }
