@@ -1,0 +1,21 @@
+{
+  "officialReference": "01_REFERENCE/Dashboard_Golden_Master_OFFICIAL.png",
+  "masterVector": "03_VECTOR_ASSETS/Dashboard_Golden_Master_VECTOR.svg",
+  "approvedLogo": "02_BRAND/GENORRA_Mark_APPROVED.svg",
+  "exactVectorTree": "03_VECTOR_ASSETS/FamilyTree_Golden_ExactPixelVector.svg",
+  "semanticTraceTree": "03_VECTOR_ASSETS/FamilyTree_Golden_DirectTrace.svg",
+  "heroTree": "03_VECTOR_ASSETS/EventHero_TreeWatermark_DirectTrace.svg",
+  "components": [
+    "AtAGlance.svg",
+    "FamilyTreeHighlights.svg",
+    "QuickActions.svg",
+    "RecentActivity.svg",
+    "Sidebar.svg",
+    "UpcomingEvents.svg",
+    "Welcome_EventHero.svg"
+  ],
+  "photosAreRasterByDesign": true,
+  "reason": "The Golden Master contains real photography. UI, illustration, shapes, iconography and brand art are vectorized; photos remain photographic assets and are clipped with SVG masks to preserve fidelity.",
+  "brandRule": "Multicolor approved mark; white GENORRA wordmark on burgundy sidebar per official Golden Master",
+  "implementationTree": "03_VECTOR_ASSETS/FamilyTree_Golden_ExactPixelVector.svg"
+}

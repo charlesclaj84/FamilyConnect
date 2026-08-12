@@ -1,0 +1,95 @@
+{
+  "referenceCanvas": {
+    "width": 1536,
+    "height": 1024
+  },
+  "colors": {
+    "burgundy": "#681723",
+    "burgundy_dark": "#4B1018",
+    "burgundy_mid": "#741D2A",
+    "burgundy_soft": "#8E2D38",
+    "gold": "#D99714",
+    "gold_dark": "#B96F12",
+    "olive": "#62642F",
+    "orange": "#C56B14",
+    "cream": "#FBF7F1",
+    "paper": "#FFFDF9",
+    "card": "#FFFCF8",
+    "ink": "#261E1B",
+    "muted": "#706863",
+    "line": "#E8DED5",
+    "white": "#FFFFFF",
+    "tree_dark": "#491011"
+  },
+  "type": {
+    "display": "Cormorant Garamond, Georgia, serif",
+    "ui": "Inter, Segoe UI, Arial, sans-serif"
+  },
+  "radii": {
+    "shell": 34,
+    "panel": 25,
+    "card": 20,
+    "buttonPill": 999
+  },
+  "shadows": {
+    "panel": "0 8px 24px rgba(91,43,36,.08)",
+    "shell": "0 8px 28px rgba(91,43,36,.10)"
+  },
+  "spacing": {
+    "xs": 6,
+    "sm": 12,
+    "md": 18,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 48
+  },
+  "layout": {
+    "sidebar": {
+      "x": 12,
+      "y": 12,
+      "visualWidth": 248,
+      "height": 1000
+    },
+    "welcomeEvent": {
+      "x": 260,
+      "y": 34,
+      "w": 790,
+      "h": 515
+    },
+    "atAGlance": {
+      "x": 1040,
+      "y": 118,
+      "w": 458,
+      "h": 449
+    },
+    "recentActivity": {
+      "x": 272,
+      "y": 540,
+      "w": 338,
+      "h": 344
+    },
+    "familyTreeHighlights": {
+      "x": 620,
+      "y": 540,
+      "w": 304,
+      "h": 344
+    },
+    "quickActions": {
+      "x": 930,
+      "y": 575,
+      "w": 562,
+      "h": 200
+    },
+    "upcomingEvents": {
+      "x": 930,
+      "y": 790,
+      "w": 562,
+      "h": 184
+    }
+  },
+  "responsive": {
+    "desktop": 1280,
+    "tablet": 900,
+    "mobile": 768
+  }
+}

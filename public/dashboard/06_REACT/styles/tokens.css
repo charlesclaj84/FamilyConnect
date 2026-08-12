@@ -1,0 +1,4 @@
+:root{--g-burgundy:#681723;--g-burgundy-dark:#4B1018;--g-gold:#D99714;--g-olive:#62642F;--g-orange:#C56B14;--g-cream:#FBF7F1;--g-paper:#FFFDF9;--g-ink:#261E1B;--g-muted:#706863;--g-line:#E8DED5;--g-display:"Cormorant Garamond",Georgia,serif;--g-ui:Inter,"Segoe UI",Arial,sans-serif;--g-radius-panel:25px;--g-shadow:0 8px 24px rgba(91,43,36,.08)}
+.genorra-bo{background:var(--g-cream);color:var(--g-ink);font-family:var(--g-ui)}
+.genorra-display{font-family:var(--g-display);color:var(--g-burgundy)}
+.genorra-card{background:var(--g-paper);border:1px solid var(--g-line);border-radius:var(--g-radius-panel);box-shadow:var(--g-shadow)}

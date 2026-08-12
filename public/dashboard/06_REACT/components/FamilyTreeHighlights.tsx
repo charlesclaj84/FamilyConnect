@@ -1,0 +1,2 @@
+import React from "react";
+export function FamilyTreeHighlights(){return <section className="g-card g-tree-highlight"><h2>Family Tree Highlights</h2><div className="g-tree-stats"><strong>6</strong><span>Generations</span><strong>400+</strong><span>Members</span></div><img src="/genorra/vector/FamilyTree_Golden_ExactPixelVector.svg" alt="Decorative family tree"/><button>Explore Family Tree</button></section>}

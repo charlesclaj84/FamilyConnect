@@ -1,0 +1,2 @@
+import React from "react";
+export function WelcomeEventHero(){return <section className="g-hero" aria-labelledby="event-title"><div className="g-welcome"><span>Welcome back,</span><h1>Charles!</h1><p>Let's keep our family connected.</p></div><div className="g-hero-photo"><img src="/genorra/media/family_hero_source.jpg" alt="Family together" /></div><div className="g-event-copy"><div className="eyebrow">Upcoming Event</div><h2 id="event-title">Allen Family Reunion 2026</h2><p>June 12 – June 14, 2026</p><p>Fort Wayne, Indiana</p><button>View Details</button></div></section>}
