@@ -363,7 +363,7 @@ run never called it. Two things follow:
 # How migrations reach the hosted project
 
 **From CI on merge to `master`, and from nowhere else.** Not from a laptop, not with
-`psql`, not with `db push` from a terminal. `.github/workflows/deploy.yml` is the whole
+`psql`, not with `db push` from a terminal. `.github/workflows/migrate.yml` is the whole
 mechanism and nobody needs write credentials for production.
 
 This is not tidiness. Applying migrations by hand has cost two production incidents, and
@@ -388,11 +388,39 @@ forever, and only ever as complete as the last person's diligence.
 
 ## What the mechanism actually is
 
-**Ordering is structural.** Vercel's git auto-deploy for `master` is **off**. The Vercel
-deploy hook at the end of `deploy.yml` is the only thing that builds production, and it
-cannot fire until `db push` and every check after it has passed. Schema precedes code
-always, rather than usually — a Next build merely being slower than a `db push` is a race,
-not a guarantee, and Phase 3 is what losing it looks like.
+**Ordering is structural, and `migrate.yml` deploys nothing.** Vercel builds every push to
+`master` as usual, and a **Vercel Deployment Check** named `Database migrations` — the job
+name in `migrate.yml` — holds that build *unaliased* until the job passes:
+
+```
+push to master ─┬─> Vercel builds a production deployment (NOT serving traffic)
+                └─> migrate.yml: apply migrations, then audit
+                         │
+                    pass ├─> Vercel aliases the build to genorra.com, automatically
+                    fail └─> never aliased; the current production keeps serving
+```
+
+So the old code serves while migrations are applied — the safe direction, because a
+migration this repo ships is additive and the running code does not use it yet — and the
+new code is released only once the schema it needs is there. A Next build merely being
+slower than a `db push` is a race, not a guarantee, and Phase 3 is what losing it looks
+like.
+
+**Do not rebuild this as a deploy hook.** The first design fired a Vercel deploy hook from
+the end of the job with git auto-deploy for `master` turned off, and it cannot work:
+**deploy hooks are part of Vercel's git integration.** Turn git deployments off and the hook
+stops firing too, so the arrangement has only two states — auto-deploy on and the hook
+deploying a redundant second time, or auto-deploy off and nothing deploying at all. Vercel
+support says so for the feature generally and the docs say so for `github.enabled`.
+Deployment Checks are the supported way to gate a release, and they require automatic
+aliasing to stay **ON** — the opposite of what a hook needs, which is the detail that makes
+the two designs mutually exclusive rather than merely different.
+
+**The check is bound by the job's name, not the file's.** Vercel identifies a Deployment
+Check by the GitHub check-run name, so `name: Database migrations` in `migrate.yml` is
+load-bearing: rename it and the gate silently detaches, leaving every production build
+waiting on a check that no longer reports. `Force Promote` on the deployment is the
+deliberate override.
 
 **Replay is structural.** `supabase db push` records each version in
 `supabase_migrations.schema_migrations` and refuses one already there. Hand-running

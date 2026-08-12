@@ -534,25 +534,48 @@ things it owed are still owed:
 
 ## [ ] BUILT 2026-08-12, NOT YET ENABLED: migrations reach hosted from CI
 
-**Action:** four settings, none of them code. Until they are done, `deploy.yml` fails on
-its own preflight step and **nothing deploys production at all** — so do these in the same
-sitting as merging the workflow, or merge the workflow last.
+**Action:** the settings below, none of them code. Until they are done, `migrate.yml` fails
+on its own preflight step — which does **not** block production, since Vercel deploys on
+push by default and the gate is not connected until step 5.
 
-The mechanism is `.github/workflows/deploy.yml`, and the rule is now AGENTS.md, "How
+The mechanism is `.github/workflows/migrate.yml`, and the rule is now AGENTS.md, "How
 migrations reach the hosted project". It closes both the ordering outage and the replay
 incident that used to be two separate entries in this file.
 
+**Corrected 2026-08-12, after a real run.** The first design fired a Vercel **deploy hook**
+from the end of the job with git auto-deploy for `master` turned off. That cannot work:
+deploy hooks are part of Vercel's git integration, so turning git deployments off stops the
+hook too. The arrangement has only two states — auto-deploy on and the hook deploying a
+redundant second time (which is what the first run produced: two builds), or auto-deploy off
+and nothing deploying at all. **Vercel Deployment Checks** replace it, and they require
+automatic aliasing to stay **ON**. So there is no auto-deploy toggle to turn off, and
+`VERCEL_DEPLOY_HOOK_PROD` is no longer wanted — delete it if you created it.
+
 First create the environment: **GitHub → Settings → Environments → New environment**, named
-exactly `production` (`deploy.yml` says `environment: production`). Then, on that
-environment's own page:
+exactly `production` (`migrate.yml` says `environment: production`). Then:
 
 | # | Where | What |
 |---|---|---|
 | 1 | `production` env → Environment secrets | `SUPABASE_ACCESS_TOKEN` — a Management API token (`sbp_…`). Not the service role key, not the DB password. |
 | 2 | same | `SUPABASE_DB_PASSWORD` — the hosted database password, read by `supabase link` and `db push`. |
-| 3 | same | `VERCEL_DEPLOY_HOOK_PROD` — Vercel → Settings → Git → Deploy Hooks, targeting `master`. |
-| 4 | `production` env → Deployment branch rules | **Selected branches → `master`.** Not optional; see below. |
-| 5 | Repo → Settings → Variables → Actions | `SUPABASE_PROJECT_ID` = `jdvzabunhchjetjddgdw`. Repository-level and a *variable*, not a secret — it is not sensitive and already appears in this file. |
+| 3 | `production` env → Deployment branch rules | **Selected branches → `master`.** Not optional; see below. |
+| 4 | Repo → Settings → Variables → Actions | `SUPABASE_PROJECT_ID` = `jdvzabunhchjetjddgdw`. Repository-level and a *variable*, not a secret — it is not sensitive and already appears in this file. |
+| 5 | **Vercel** → Settings → Build and Deployment → Deployment Checks | **Add Checks → provider GitHub → select `Database migrations`.** This is what makes ordering a guarantee; everything above it only makes the job work. |
+
+**Step 5 is the whole ordering guarantee, and it is last on purpose.** Connect it only once
+you have seen `migrate.yml` go green on a real push, because until it passes once, every
+production build will sit unaliased waiting for a check that has never reported — and the
+site keeps serving whatever was current, which is safe but confusing if you did not expect
+it. `Force Promote` on the deployment is the deliberate override.
+
+**Two Vercel prerequisites for step 5, both of which are the default:** the project must be
+connected to GitHub via Vercel for GitHub, and **automatic aliasing for production must be
+ON** (Settings → Environments → Production). Do not turn it off — an earlier version of this
+section told you to, and that instruction was wrong.
+
+**`Database migrations` is the job's `name:` in `migrate.yml`, and Vercel binds the check to
+that string.** Rename the job and the gate silently detaches: production builds queue behind
+a check that no longer reports. The workflow says so beside the name.
 
 **Environment secrets, not repository secrets, and the reason is not tidiness.** A
 repository secret is readable by every workflow in the repo, and `verify.yml` runs on
@@ -562,11 +585,12 @@ no secret at all (zero `secrets.` references; it runs entirely against a local s
 scoping these to the environment costs nothing and removes that path completely.
 
 **Row 4 closes the `workflow_dispatch` path.** A dispatch runs the workflow file from
-whatever ref you select, so without a branch rule a modified `deploy.yml` on a throwaway
+whatever ref you select, so without a branch rule a modified `migrate.yml` on a throwaway
 branch could be handed production credentials on request. Restricting the environment to
 `master` means the ref is the reviewed one or the job gets nothing. Dispatch from `master`
-still works, which is what it is there for — re-running a failed deploy without an empty
-commit.
+still works, which is what it is there for — re-running after a failure without an empty
+commit, which writes a fresh status onto the same commit and is exactly what Vercel's check
+is watching.
 
 **Do not add a required reviewer** unless you want to revisit the decision made when this
 was built: applying migrations is automatic on merge, because the PR *is* the review. The
@@ -578,14 +602,8 @@ Every run also records a deployment against the environment, so the Environments
 the history of what reached production and when — the "recorded" half of what this mechanism
 was for.
 
-**Then, and this is the step that makes ordering a guarantee rather than a race:** Vercel →
-Settings → Git → turn **off** production auto-deploy for `master`. The deploy hook becomes
-the only thing that builds production, so schema is always applied first. Leave it on and
-the two race — usually schema wins, because a `db push` is seconds and a Next build is
-minutes, and "usually" is what Phase 3 was.
-
-Do not turn off preview deploys. The `dev` branch preview on
-`genorra-kappa.vercel.app` is unaffected and should stay that way.
+Nothing to change on the Vercel **Git** page. Preview deploys are unaffected either way —
+the `dev` branch preview on `genorra-kappa.vercel.app` should stay exactly as it is.
 
 ### Two baselines to read before the first merge
 
@@ -608,7 +626,7 @@ recorded. If it reports findings, resolve them before enabling the workflow; the
 
 ### Still owed, and deliberately not done blind
 
-**`supabase db advisors` is report-only in `deploy.yml`.** It is the advisor that caught the
+**`supabase db advisors` is report-only in `migrate.yml`.** It is the advisor that caught the
 replay incident and it *should* block deploys — but hosted's advisor baseline has never been
 read, and a project of this age will almost certainly have pre-existing `error`-level
 findings (mutable function `search_path` and friends). Setting `--fail-on error` unverified
@@ -619,7 +637,7 @@ SUPABASE_ACCESS_TOKEN=sbp_… npx supabase db advisors --linked --type security 
 ```
 
 Read it, fix or accept what it says, then change `--fail-on none` to `--fail-on error` in
-`deploy.yml`. The step is named "(report only)" so a green tick is not mistaken for a clean
+`migrate.yml`. The step is named "(report only)" so a green tick is not mistaken for a clean
 project.
 
 ## `npm run lint` is red on master, so the PR gate cannot hold anyone to it
