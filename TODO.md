@@ -63,7 +63,7 @@ including `site_url = "http://127.0.0.1:3000"` from the local config — product
 start mailing people links to their own laptop.
 
 Sending itself is no longer the blocker: hosted has sent through Resend
-(`noreply@genorra.com`) since 2026-08-10, with `email_sent` raised in the dashboard. The
+(`support@genorra.com`) since 2026-08-10, with `email_sent` raised in the dashboard. The
 `[auth.email.smtp]` block in `config.toml` stays **commented out** deliberately — see the
 comment above it; uncommenting takes local development off Mailpit and starts mailing
 real addresses out of `db reset` and the RLS fixture.

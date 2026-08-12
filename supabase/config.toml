@@ -341,7 +341,7 @@ otp_expiry = 3600
 # port = 587
 # user = "resend"                          # literally the word; Resend's SMTP username is fixed
 # pass = "env(RESEND_SMTP_PASSWORD)"       # the re_… API key — there is no separate password
-# admin_email = "noreply@genorra.com"
+# admin_email = "support@genorra.com"
 # sender_name = "GENORRA"
 
 # The sign-up confirmation email. Overridden rather than left to the default because

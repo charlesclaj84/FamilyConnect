@@ -19,7 +19,7 @@ Three variables, none of which has a safe fallback in production.
 |---|---|---|
 | `RESEND_API_KEY` | yes | Nothing is sent. Logged as a warning, never thrown — an approval still succeeds. |
 | `NEXT_PUBLIC_SITE_URL` | no | An override. Unset, `emailOrigin()` resolves through `lib/site.ts`: the custom domain on a production deployment, the stable `.vercel.app` host on a preview, `localhost:3000` in dev. Set it only to point somewhere else — `.env.local` uses it so a dev server's emails link to localhost. |
-| `EMAIL_FROM` | no | Defaults to `GENORRA <noreply@genorra.com>`. Must be on a Resend-verified domain or every send 403s. |
+| `EMAIL_FROM` | no | Defaults to `GENORRA <support@genorra.com>`. Must be on a Resend-verified domain or every send 403s. |
 
 `RESEND_API_KEY` is the **same** `re_…` key used as the SMTP password in the Supabase
 dashboard. One key, both paths — revoking it stops all mail, which is the correct blast

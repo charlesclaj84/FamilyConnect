@@ -35,12 +35,12 @@ export interface SendResult {
 /**
  * The From address.
  *
- * Must be on a domain verified in Resend, or every send 403s. `noreply@` is the default
+ * Must be on a domain verified in Resend, or every send 403s. `support@` is the default
  * rather than a decision — set EMAIL_FROM to a monitored mailbox if replies should reach
  * a human, which for a family product is worth considering.
  */
 function fromAddress(): string {
-  return process.env.EMAIL_FROM?.trim() || `${APP_NAME} <noreply@genorra.com>`
+  return process.env.EMAIL_FROM?.trim() || `${APP_NAME} <support@genorra.com>`
 }
 
 /**
