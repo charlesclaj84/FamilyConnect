@@ -466,7 +466,8 @@ max_frequency = "5s"
 # So if a timebox is wanted, pick a duration comfortably OVER 24h. Do not reach for the
 # current-password field on the Password panel as the replacement: that check runs in the
 # browser and GoTrue's endpoint is reachable without it, so it raises the bar rather than
-# holding a line. TODO.md has the whole picture.
+# holding a line. AGENTS.md, "A fresh session can change the password without the emailed
+# code", has the whole picture.
 #
 # `inactivity_timeout` does NOT have the timebox problem — it never caps `created_at`, so it
 # leaves the reauthentication window alone. What it does and does not buy was MEASURED

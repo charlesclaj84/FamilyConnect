@@ -571,6 +571,39 @@ out on a laptop. Use `'local'` for "this device" (sign out, idle timeout,
 `InviteMismatchActions`) and `'others'` only where evicting the rest is the point, which
 today is the password change in `SignInSecurity`.
 
+## A fresh session can change the password without the emailed code
+
+`secure_password_change = true` in `config.toml`, and GoTrue reads its own setting as
+"reauthenticate **or have logged in recently**". Recently is `session.created_at + 24h`, a
+constant inside GoTrue rather than a setting — nothing in `config.toml` exposes it. **So for
+the first day of any session the reauthentication code is sent, typed in, and not checked; a
+deliberately wrong one still changes the password.** Measured 2026-08-12, 8/8 as expected.
+
+Three things follow, and the first is the one that gets misread:
+
+* **The current-password field on the Password panel does not close that window, and is not
+  there to.** `PUT /auth/v1/user` is a public GoTrue endpoint that accepts the browser's
+  session token, so anyone who can open devtools changes the password without loading our
+  form. A check on the attacker's side of the wire is not a gate, and moving it into a server
+  action would not help — GoTrue's endpoint stays reachable either way. What it buys is real
+  but smaller: it stops somebody who sits at an unlocked screen and uses the product. Do not
+  let the copy promise more; it did once, and the panel now says what the proof supports.
+
+* **Verify the current password on a THROWAWAY client** (`createPasswordCheckClient` in
+  `lib/supabase/client.ts`), never the app's own. Signing in on the app's client replaces the
+  session, and a new session's `created_at` resets the 24-hour clock — so checking the
+  password on the wrong client would switch the emailed code off permanently, disabling the
+  other half of the gate on the way past.
+
+* **GoTrue already revokes other sessions on a password change, unprompted.** Our
+  `signOut({ scope: 'others' })` is kept anyway, so the guarantee the copy states belongs to a
+  line in our code rather than to an undocumented internal — but it means a failure of that
+  call does *not* mean the other devices are still signed in.
+
+`timebox` would cap `created_at` and so remove the window — and must not be set at or under
+24h for that reason: no session could then reach the age at which GoTrue demands the code, and
+the flag becomes decoration. The note is in `config.toml` beside the block.
+
 # Sending email is a plain module, never a server action
 
 `lib/email/` sends the mail the **app** composes — membership approved, family invitation.
@@ -727,7 +760,7 @@ worth understanding before touching a colour.
 * **Layer 1 — the palette.** `--genorra-*` in `:root`: Heritage burgundy, Warmth
   terracotta, Growth olive, Legacy gold, Nurturing sand, Light, Ink. Named exactly as
   the brand guide names them, identical in both themes, and taken verbatim from
-  `public/Web/genorra-colors.css`. **Do not use these in a component.** They answer
+  `public/home/v1_1/Web/genorra-colors.css`. **Do not use these in a component.** They answer
   "what colour is GENORRA?", not "what colour is this button?".
 
 * **Layer 2 — the roles.** `--brand-*`, surfaced as Tailwind utilities through
@@ -910,8 +943,8 @@ than retyping them, so adding a fourth is one edit.
 | Folder | What it is |
 |---|---|
 | `public/identity/` | **The only BRAND artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
-| `public/v1_1/` | The current vendor kit, exactly as delivered. |
-| `public/v1_0/` | The superseded kit, kept for reference. |
+| `public/home/` | The versioned vendor kits, exactly as delivered — `v1_1/` current, `v1_0/` superseded. Reference material; nothing is served out of it. |
+| `public/dashboard/` | Empty and reserved. Nothing references it; it carries a `.gitkeep` so the directory survives a clone. |
 
 **Product screenshots are not brand artwork and do not go here.** They are colocated
 with the component that renders them and pulled in with a **static import** —
@@ -935,7 +968,7 @@ bitten:
   direction. This was hit while doing the rebrand, not theorised.
 
 **Bumping the kit is a copy, not a reference change.** Drop the new kit in as
-`public/v1_N/`, then re-copy every file in `identity/` (and `app/favicon.ico`,
+`public/home/v1_N/`, then re-copy every file in `identity/` (and `app/favicon.ico`,
 `app/icon.svg`, `app/apple-icon.png`) from it and `cmp` each one. Skipping that leaves
 the site serving the *previous* kit's artwork with no error anywhere — which is exactly
 what happened: `identity/` held the v1.0 mark for a full round after v1.1 landed, and
@@ -958,7 +991,7 @@ one file works on both light and dark.
 
 ## Typography
 
-Two faces, per `public/README.txt`: **Cormorant Garamond** for display and **Inter** for
+Two faces, per `public/home/v1_0/README.txt`: **Cormorant Garamond** for display and **Inter** for
 UI and body, both loaded as variable fonts in `app/layout.tsx`.
 
 `h1`/`h2` take the serif automatically from the base layer. **`h3`–`h6` deliberately do

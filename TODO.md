@@ -15,118 +15,31 @@ are not code changes and none of them is done by `db push` — every one is a se
 a credential on the deployed environment, which is exactly why they are easy to reach
 launch day without.
 
-### [x] Turn on email confirmation — DONE 2026-08-12
-
-**On and working on hosted.** Confirm-email is enabled, and all five templates are pushed
-from this repo rather than pasted.
-
-Verified rather than asserted, because this box has been the difference between "we
-emailed them and they clicked it" meaning something and meaning nothing:
-
-* `GET /auth/v1/settings` on the hosted project answers `mailer_autoconfirm: false` —
-  i.e. confirmation is required. A real account created 2026-08-11 22:29:25Z carries
-  `confirmation_sent_at` stamped and `email_confirmed_at` null, which is the shape only a
-  confirming project produces.
-* `https://www.genorra.com/auth/confirm` with no token 307s to
-  `/login?error=That confirmation link is not valid…`, so the `token_hash` route is live
-  on the real host and the fragment trap is not in play.
-
-The five templates are pasted (Charles, 2026-08-12), and **pasting is no longer how they
-get there**: [scripts/auth-templates.mjs](scripts/auth-templates.mjs) pushes them over the
-Management API, so [supabase/templates/](supabase/templates/) is the source of truth in
-the mechanical sense rather than the aspirational one.
-
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_… npm run email:check   # exit 1, with a diff, if hosted drifted
-SUPABASE_ACCESS_TOKEN=sbp_… npm run email:push    # make hosted match the repo
-```
-
-It sends ten fields — a subject and a body per template — and refuses to transmit
-anything outside `mailer_subjects_*` / `mailer_templates_*_content`, which is what makes
-it safe against production where `supabase config push` is not (see below). `config.toml`
-still wires up the local stack and remains the one place a template is declared; the
-script reads that same table. Editing a file here still does nothing to production until
-somebody pushes it and sends themselves a real signup — the difference is that checking
-is now one command instead of a memory.
-
-The dormant three matter for the same reason they always did — every GoTrue default links
-with `{{ .ConfirmationURL }}`, which returns the session in a URL fragment this
-cookie-based app never sees.
-
-**The product may now be described as email-verified.** One consequence worth knowing,
-because it is now a live support case rather than a hypothetical: an account that
-registered and never clicked the link cannot sign in at all, and nothing in the app
-offers to resend the confirmation. See "An unconfirmed account is a dead end" below.
-
-* Authentication → URL Configuration → site URL and redirect allow-list set to the
-  **production** origin — `https://genorra.com` since 2026-08-10, with
-  `https://genorra.com/**` on the allow-list. `{{ .SiteURL }}` is what the link in the
-  email is built from.
-
-  The vercel.app host must **redirect** to the domain rather than keep serving the app.
-  Two live origins is the fragment bug in a different costume: the link in the email is
-  built from one origin, `/auth/confirm` writes the session cookie there, and a redirect
-  mid-flight lands the user on the other one signed out.
-
-  **Done in code, 2026-08-11** — `next.config.ts` 308s every path on
-  `genorra-kappa.vercel.app` to `https://genorra.com`, path and query preserved.
-  Verified against `next start` on all four cases that matter: the alias redirects,
-  the apex does not (a rule that loops here is a total outage, so the config also
-  asserts the two hosts differ and fails the build if they ever stop differing), and
-  preview hosts are untouched because `has.host` is an exact match.
-
-  **Settled 2026-08-12, and the arrangement changed — read this before touching a
-  redirect.** `https://genorra.com` is canonical and serves the app directly (verified:
-  200, no redirect). The two duplicate hosts are handled below the app:
-
-  | Host | What it does now |
-  |---|---|
-  | `genorra.com` | Canonical. Serves production. |
-  | `www.genorra.com` | 308 → `genorra.com`, in Vercel's domain config. Verified on the real host. |
-  | `genorra-kappa.vercel.app` | The **dev branch's** preview site. Not production. |
-
-  So `PRODUCTION_ORIGIN`, `site_url` in `supabase/config.toml`, the dashboard Site URL and
-  every canonical/OG URL all name the apex, and the apex is what visitors get. All four
-  agree, which is what this section was previously wrong about — for a while the apex 308'd
-  to **www**, so every one of them advertised a URL that redirected.
-
-  **The `next.config.ts` host redirect is GONE, deliberately, and must not come back.** It
-  used to 308 `genorra-kappa.vercel.app` to production. That config ships *inside the
-  build*, so once the alias started serving the dev branch the rule would have 308'd every
-  request away from the deployment it exists to let you test. A host redirect can only live
-  in `next.config.ts` while its source host serves no deployment of its own; once it does,
-  the rule belongs in Vercel. `LEGACY_VERCEL_HOST` went with it.
-
-  What still covers the search half: `IS_INDEXABLE_DEPLOYMENT` is false for anything that
-  is not the production deployment, so the dev site publishes `Disallow: /` and no sitemap.
-  Honest gap: a URL indexed under the old alias no longer 308s anywhere — it serves the dev
-  branch, which disallows crawling. Acceptable, because the alias was never advertised in
-  any email, sitemap or canonical.
-
-**Do not do this with `npx supabase config push`.** It sends the whole `[auth]` block,
-including `site_url = "http://127.0.0.1:3000"` from the local config — production would
-start mailing people links to their own laptop.
-
-Sending itself is no longer the blocker: hosted has sent through Resend
-(`support@genorra.com`) since 2026-08-10, with `email_sent` raised in the dashboard. The
-`[auth.email.smtp]` block in `config.toml` stays **commented out** deliberately — see the
-comment above it; uncommenting takes local development off Mailpit and starts mailing
-real addresses out of `db reset` and the RLS fixture.
-
 ### [ ] Two `[auth]` values are set in `config.toml` and not on hosted
 
 **Action:** one trip to the dashboard, or one PATCH. Both are settings, not code, and
-nothing in the repo can detect either.
+nothing in the repo can detect either. **Still open because no `SUPABASE_ACCESS_TOKEN`
+exists in this checkout** — not in `.env.local`, not in the Machine/User/Process
+environment, not in `supabase/.env.probe` (which is absent). Whoever has the token does
+this in about a minute.
 
 | Setting | `config.toml` | hosted | Where |
 |---|---|---|---|
 | `secure_password_change` | `true` | **false** | Authentication → Providers → Email → "Secure password change" |
 | `sessions_inactivity_timeout` | `168h` (7 days) | **unset** | Authentication → Sessions → "Inactivity timeout" (Pro plan and up) |
-| `otp_length` | `8` | 8 ✓ | closed 2026-08-12 by the sweep below |
+
+**Do not do any of this with `npx supabase config push`.** It sends the whole `[auth]`
+block, `site_url` included — so pushing one setting from a checkout whose config points
+anywhere but production reconfigures production's redirect handling as a side effect, and
+with `site_url = "http://127.0.0.1:3000"` in play it starts mailing people links to their own
+laptop. This is the warning `scripts/auth-templates.mjs`,
+[supabase/templates/README.md](supabase/templates/README.md) and `config.toml` all point back
+here for; it is why the auth email templates were pasted by hand for two months, and it is why
+`email:push` sends ten named fields and refuses everything else.
 
 A PATCH is safer than the dashboard is fiddly, and much safer than `config push` — it sends
-only the fields named, so it cannot touch the SMTP credentials that live on hosted and in no
-file here:
+only the fields named, so it can touch neither `site_url` nor the SMTP credentials that live
+on hosted and in no file here:
 
 ```bash
 # read first (read-only, and the only way to see any of this)
@@ -144,41 +57,94 @@ curl -s -X PATCH -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
 Re-read the GET afterwards. Neither value is visible from the app, from
 `/auth/v1/settings`, or from any test.
 
-`config.toml` has said `true` since 2026-08-11, with a carefully measured matrix beside
-it; the whole of "Password change: what protects it" below is written on that premise.
-All of it describes the **local** stack. On hosted the flag is off, so no reauthentication
-code is required to change a password at **any** session age — not merely inside GoTrue's
-24-hour freshness window, which is the caveat the repo already knew about and took to be
-the whole story. `GET /v1/projects/<ref>/config/auth` answers
-`security_update_password_require_reauthentication: false`; re-read it after flipping.
+**Why each matters.** `secure_password_change` is what AGENTS.md's "A fresh session can
+change the password without the emailed code" is written on — and on hosted the flag is
+*off*, so there is no reauthentication code at **any** session age, not merely inside
+GoTrue's 24-hour window. `sessions_inactivity_timeout` bounds how long an abandoned cookie
+stays renewable; 7 days was chosen because the floor is about an hour (auth-js refreshes a
+live tab roughly every 58 minutes at `jwt_expiry = 3600`, and by measurement the only clock
+that setting watches is the refresh, so anything lower signs out people who are working).
+The reasoning and the measured table live in `config.toml` beside the block.
+
+**Watch the unit — the two places disagree.** `config.toml` takes a Go duration and Go has
+no `d`, so seven days is `"168h"`; the Management API takes seconds, so the same value is
+`604800`. `"7d"` is a parse error and `7` is seven nanoseconds.
 
 Found 2026-08-12 by a read-only sweep comparing every `[auth]` key `config.toml` declares
-against that endpoint. Eighteen keys, three divergences; the other two are closed —
-`otp_length` is now 8 in both, and `max_frequency`'s 1s/60s split is deliberate and now
-says so in `config.toml`. This one is the residue, and it is the same failure the template
-sync was built to stop, one field over: written in `config.toml`, verified locally, never
-applied to the project that serves real families.
+against that endpoint. Eighteen keys, three divergences; `otp_length` is now 8 in both and
+`max_frequency`'s 1s/60s split is deliberate and says so in `config.toml`. These two are the
+residue, and they are the same failure the template sync was built to stop, one field over:
+written in `config.toml`, verified locally, never applied to the project that serves real
+families.
 
 **`scripts/auth-templates.mjs` will not grow into a checker for this**, deliberately. It
 reads and writes nothing but the ten mailer fields; the moment it can write `site_url` it
 inherits every hazard `config push` has. A separate read-only auditor over the whole
 `[auth]` block is the right shape and is not built.
 
-### [ ] Retire Claude's write access to the hosted database
+### [ ] Push the two changed auth email templates to hosted
 
-See "Claude may write to the hosted database unprompted" below — it is dated rather than
-launch-gated, but shipping with an agent holding unprompted `db push` on production is a
-decision, not an oversight.
+**Action:** `SUPABASE_ACCESS_TOKEN=sbp_… npm run email:push`. Same blocker as above — no
+token in this checkout.
 
-The local half is already gone (no `.claude/` in this checkout), and the replacement is now
-live and verified — see "LIVE 2026-08-12" below. Nothing needs an agent to hold `db push` on
-production any more, because the reviewed path is strictly better at the same task. What is
-left is confirming the hosted `claude_probe` role lapsed.
+`reauthentication.html` and `email-change.html` both carried a stale `DORMANT` comment
+claiming nothing called them. Comments in a template are part of the shipped payload, so
+`npm run email:check` reports drift against hosted until somebody pushes. The substance
+moved to [supabase/templates/README.md](supabase/templates/README.md), where that
+directory's own rule says it belongs.
 
-### [x] Enable the migration pipeline — DONE 2026-08-12
+Pushing proves the bytes arrived, not that the mail renders — send yourself a real signup
+before calling it done.
 
-Live and verified on a real run. See "LIVE 2026-08-12: migrations reach hosted from CI, and
-gate the release" below for the evidence and for what the run established about hosted.
+### [ ] An unconfirmed account is a dead end
+
+**Action:** decide whether the app offers to resend a confirmation, or whether this is a
+support case handled by hand.
+
+Email confirmation is on and working on hosted, which is what makes this live rather than
+hypothetical: an account that registered and never clicked the link **cannot sign in at
+all**, and nothing in the app offers to resend. The member sees a failure with no route
+out, and the only fix today is somebody with dashboard access.
+
+`/login` is where they end up, so that is where the offer belongs. Two things to decide
+before building it: whether an unauthenticated "resend to this address" endpoint is
+acceptable (it discloses whether an address has an account, and it is a mail-sending
+endpoint reachable by anyone — rate limiting is not optional), and whether it should
+instead be surfaced only after a failed sign-in, which narrows both problems.
+
+### [ ] Confirm the hosted `claude_probe` role has lapsed
+
+**Action on or after 2026-10-01:** thirty seconds of verification.
+
+The `claude_probe` Postgres role is `VALID UNTIL 2026-10-01`. It holds `LOGIN` and no
+grants — enough to read `pg_policies` and `pg_catalog`, not enough to read a single row of
+family data. Nothing needs doing when it lapses; verifying it lapsed is the item.
+
+The local half of this is already gone: neither `.claude/settings.local.json` nor
+`supabase/.env.probe` is present in this checkout — confirmed 2026-08-12, there is no
+`.claude/` directory at all. And the durable replacement is live, so granting an agent
+`db push` on production has no remaining justification: migrations reach hosted from CI on
+merge and gate the Vercel release, reviewed and recorded, with nobody holding write
+credentials. See AGENTS.md, "How migrations reach the hosted project".
+
+## The migration pipeline's `workflow_dispatch` path has never been exercised
+
+**Action:** run it once from Actions → Migrate → Run workflow on `master`, and watch what
+Vercel does with the build.
+
+`migrate.yml` offers `workflow_dispatch` so a failed run can be retried without an empty
+commit. The reasoning is that a re-run writes a fresh commit status, and a fresh status is
+what Vercel's `Database migrations` Deployment Check is watching — so a held build should
+release. **That is reasoned from the docs, not observed.** The normal push path is verified
+end to end; this one is not.
+
+Worth knowing before you need it during an incident, which is the only time anybody reaches
+for it. If a dispatch does *not* release a held build, `Force Promote` on the deployment is
+the escape hatch, and this section should be rewritten to say so.
+
+Two things to check while doing it: that the environment's deployment branch rule still lets
+`master` through (a dispatch from any other ref should get no credentials at all, which is
+the point of that rule), and that the run appears in the Environments tab like a push does.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
@@ -352,105 +318,6 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## Password change: what protects it, and the part that cannot be protected
-
-**Action:** decide about `[auth.sessions] inactivity_timeout` for absolute staleness (item 2
-below). Everything else here is done and measured.
-
-Filed as "a nonce-free path for fresh sessions", which described the mechanism accurately
-and pointed at the wrong repair. Reframed, fixed and measured 2026-08-12.
-
-### The window is real, there is no knob, and no app-side check can close it
-
-`secure_password_change = true` since 2026-08-11, and GoTrue reads its own setting as
-"reauthenticate **or have logged in recently**". Recently is `session.created_at + 24h`, a
-constant in GoTrue rather than a setting — nothing in `config.toml` exposes it, and the
-measured matrix beside the flag is what that constant looks like from outside. So for the
-first day of any session the emailed code is sent, typed in, and not checked; a
-deliberately wrong one still changes the password.
-
-**The part worth being clear about, because it was got wrong once while writing this:** the
-current-password field does *not* close that window. `PUT /auth/v1/user` is a public GoTrue
-endpoint that accepts the browser's session token, so anybody who can open devtools can
-change the password without loading our form. A check that runs on the attacker's side of
-the wire is not a gate, and moving it into a server action would not help — GoTrue's
-endpoint stays reachable either way.
-
-So: within 24 hours of a session being created, a person holding that session can change the
-password, and that is a property of GoTrue we host rather than a bug we can patch. What is
-left is making the realistic version of the attack harder, not overclaiming on screen, and
-making the change recoverable by evicting other sessions.
-
-### What was done, 2026-08-12
-
-* **A current-password field on the Password panel**
-  ([SignInSecurity.tsx](components/personal-info/SignInSecurity.tsx)). Verified against a
-  throwaway client (`createPasswordCheckClient` in [lib/supabase/client.ts](lib/supabase/client.ts))
-  so the live session is untouched — and specifically **not** against the app's own client,
-  because signing in on that one replaces the session, and a new session's `created_at`
-  resets the 24-hour clock, which would switch the emailed code off for good. Verifying the
-  password on the wrong client would have disabled the other half of the gate on the way
-  past. Browser-side on purpose: the password reaches GoTrue over TLS exactly as at sign-in
-  and never touches our server, and no new `'use server'` export means no new endpoint that
-  accepts password guesses.
-
-  What it buys, at its true worth: it stops somebody who sits at an unlocked screen and uses
-  the product, which is the realistic version of this threat. It stops nobody who opens
-  devtools.
-
-* **Other sessions revoked** — `signOut({ scope: 'others' })`, kept although the probe below
-  proved it redundant, so the guarantee the copy states belongs to a line in our code rather
-  than to an undocumented GoTrue internal.
-
-* **Copy that matches.** The panel used to promise "a password cannot be changed by someone
-  who simply found your screen unlocked", which is more than either proof delivers, and the
-  success message said "It applies the next time you sign in", which implied the opposite of
-  what the eviction guarantees.
-
-* **`SignOutButton` was signing members out of every device.** Plain `signOut()` defaults to
-  `scope: 'global'`, so Sign Out on a laptop also signed out the phone, with nothing on
-  screen suggesting it would. Now `'local'`. Same rule `InviteMismatchActions` already
-  stated; the password panel's `'others'` is the deliberate exception.
-
-* **A ten-minute inactivity sign-out** — see the next section, which is the mitigation that
-  actually addresses an unattended screen.
-
-### Measured 2026-08-12, local stack, 8/8 as expected
-
-The probe is not kept as a test — `tests/rls` is about family isolation and this is GoTrue
-behaviour — so the results are recorded here instead:
-
-| Question | Answer |
-|---|---|
-| Wrong current password refused, identifiably? | yes — `code=invalid_credentials`, status 400 |
-| Right current password accepted? | yes |
-| **Does GoTrue revoke other sessions on password change by itself?** | **yes**, unprompted |
-| Does the changing session survive its own change? | yes — the member is not bounced |
-| Does `scope: 'others'` sweep the throwaway check session? | yes |
-| Does it evict another device? | yes |
-| Does it leave this browser signed in? | yes |
-
-The third row is the one that changed code: because GoTrue already evicts, a failure of our
-own `signOut` call does **not** mean the other devices are still signed in — so the success
-message states the eviction flatly instead of branching on it, which would have been wrong
-in the common case.
-
-### Still owed
-
-1. **Nothing on the password change itself.** The residual exposure is the 24-hour window
-   described above, and it is not closable from here.
-
-2. **`inactivity_timeout`** has its own section below, now that it has been measured. It is
-   worth setting, and it is not a substitute for either the reauthentication code or the
-   client-side idle timer.
-
-3. **The two email templates changed** (`reauthentication.html`, `email-change.html` — both
-   carried a stale `DORMANT` comment claiming nothing called them). Comments in a template
-   are part of the shipped payload, so `npm run email:check` will report drift against
-   hosted until somebody runs `npm run email:push` with a `SUPABASE_ACCESS_TOKEN`. The
-   substance moved to [supabase/templates/README.md](supabase/templates/README.md), where
-   the directory's own rule says it belongs.
-
 ## The inactivity sign-out has not been exercised in a browser
 
 **Action:** click through it once — idle a signed-in tab, watch the warning, let it fire.
@@ -483,68 +350,8 @@ Worth revisiting once real families are using it, against complaints rather than
 **One interaction to keep in mind if that number moves:** 75 is above `jwt_expiry` (3600s),
 so an access token expires partway through an idle stretch and `autoRefreshToken` renews it.
 That is why the page is still alive when the timer fires. It is also, measured, why
-`inactivity_timeout` can never do this job — see the next section.
-
-## DECIDED 2026-08-12: `inactivity_timeout` is 7 days. Hosted still needs it
-
-**Action:** the hosted half only — it is one of the two rows in the GO LIVE table above.
-`inactivity_timeout = "168h"` is set in `config.toml`, which is the local stack; GoTrue
-there reports `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT=168h0m0s`.
-
-Seven days because it has to clear the refresh cadence (see the floor below) and because the
-threat is an abandoned cookie rather than an idle human — the idle human is the client timer's
-job. A week keeps "remember me" working for anybody who visits regularly and still stops a
-cookie left on a shared machine from being renewable indefinitely.
-
-**Watch the unit in two places, they disagree.** `config.toml` takes a Go duration and Go
-has no `d`, so seven days is `"168h"`; the Management API takes an integer of **seconds**, so
-the same value is `604800`. `"7d"` is a parse error and `7` is seven nanoseconds.
-
-`timebox` stays off — it caps `created_at` and would disable `secure_password_change`. The
-note is in `config.toml` beside it.
-
-The reasoning that produced the number, kept because the floor is the one way to get this
-wrong:
-
-**The gap it closes, which nothing closed before today.** A session cookie has no expiry.
-`timebox` is unset and refresh tokens do not expire on their own — so
-a browser closed while signed in is still signed in whenever it is next opened, indefinitely.
-The shared family computer somebody used once is the case. The client-side idle timer above
-cannot cover it: nothing is running to time anything out.
-
-**Measured 2026-08-12** against a local stack at a 60-second window (revert-checked; the
-repo's `[auth.sessions]` block is commented out as before):
-
-| Question | Answer |
-|---|---|
-| Does an unrefreshed session die at the window? | yes — `Invalid Refresh Token: Session Expired (Inactivity)` |
-| Does a client that keeps refreshing survive it, with no user activity? | **yes** — 3 automatic refreshes inside a 60s window |
-| Does the access token issued before the window still work at GoTrue `/user`? | **yes** |
-| Does it still read data through PostgREST? | **yes** — HTTP 200 |
-
-Rows 3 and 4 are why it must not be described as a kill switch: for up to `jwt_expiry` (an
-hour) after the session dies, the token in hand keeps working everywhere, because PostgREST
-verifies a signature and knows nothing about GoTrue sessions. The only thing that ends a
-session on the spot is an explicit `signOut`, which revokes — which is what the idle timer
-does.
-
-**The floor on the value is about an hour.** auth-js refreshes when the access token is
-within ~90s of expiry, so at `jwt_expiry = 3600` a live tab refreshes roughly every 58
-minutes; anything below that signs out members who are actively working, since by row 2 the
-only clock it watches is the refresh. 75m — matching the idle timer — clears it by about 16
-minutes. Hours clear it comfortably.
-
-**So the choice is one product question:** how long may an abandoned cookie stay renewable,
-against how often a member has to sign in again. 8h means most visits; 7d bounds abandonment
-to a week and keeps "remember me" for regulars. There is no security argument for the low end
-that the idle timer does not already make better.
-
-Pro plan and up, and hosted does not read `config.toml` — Authentication → Sessions in the
-dashboard. Do **not** reach for `config push` (GO LIVE explains why). And do not set
-`timebox` at or under 24h while `secure_password_change` matters: it caps `created_at`, so no
-session can reach the age at which GoTrue demands the reauthentication code, and the flag
-becomes decoration. The note is in `config.toml` beside the block.
-
+`[auth.sessions] inactivity_timeout` can never do this job — AGENTS.md's idle-timeout
+section states it and the full results are in `config.toml` beside the block.
 
 ## Phase 3 leftovers
 
@@ -569,234 +376,23 @@ things it owed are still owed:
    guard is a boundary around the `authenticated` role, not around the column. Any new
    service-role write to `people` owes the same look `updateUserProfile` just got.
 
-## [x] LIVE 2026-08-12: migrations reach hosted from CI, and gate the release
+## 30 eslint warnings, and whether the gate should fail on them
 
-**Working end to end, verified on a real run** — an empty commit (`c262278`) pushed to
-`master` with no file changes, so anything that broke would have been the pipeline rather
-than the code. Vercel's Deployment Summary for it:
+**Action:** triage the three groups below, then decide about `--max-warnings 0`.
 
-```
-Build Logs                    48s
-Deployment Checks   1 0 0 0 0
-  Database migrations  Required  43s
-Assigning Custom Domains       1s
-```
+The 39 **errors** are gone and the Lint step in `verify.yml` is blocking. Warnings are not,
+deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
 
-**`Assigning Custom Domains` runs after the check, not before.** That ordering is the whole
-claim of this section, and it is now observed rather than reasoned: Vercel built the commit,
-held it unaliased, waited 43s for `Database migrations`, and only then attached the domain.
-`Required` confirms the check bound to the job name.
-
-### The two baselines are closed, by the run itself
-
-They were going to be read by hand before the first merge. A green `Database migrations` job
-establishes them more strongly than the commands would have, because every one of these had
-to hold for it to pass:
-
-| What had to be true of hosted | Which step proved it |
-|---|---|
-| Carries no version this repo lacks; nothing pending sorts before an applied one | `Ledger before` |
-| Exactly level with the repo — nothing pending after the push | `Ledger after — nothing may still be pending` |
-| No superseded policy beside its `perm:` replacement | `No superseded policy beside its replacement` |
-
-So the hand-application era did **not** leave the ledger corrupted, which was the largest
-unknown in this whole piece of work and the reason the first CI push was treated carefully.
-`20260806000009` really did clear the `families` policy, and nothing has re-added one.
-
-What is still unread is the **advisor** baseline — see "Still owed" below. That is the one
-remaining check running report-only.
-
-## Superseded, kept for the reasoning: what the setup involved
-
-**Action:** the settings below, none of them code. Until they are done, `migrate.yml` fails
-on its own preflight step — which does **not** block production, since Vercel deploys on
-push by default and the gate is not connected until step 5.
-
-The mechanism is `.github/workflows/migrate.yml`, and the rule is now AGENTS.md, "How
-migrations reach the hosted project". It closes both the ordering outage and the replay
-incident that used to be two separate entries in this file.
-
-**Corrected 2026-08-12, after a real run.** The first design fired a Vercel **deploy hook**
-from the end of the job with git auto-deploy for `master` turned off. That cannot work:
-deploy hooks are part of Vercel's git integration, so turning git deployments off stops the
-hook too. The arrangement has only two states — auto-deploy on and the hook deploying a
-redundant second time (which is what the first run produced: two builds), or auto-deploy off
-and nothing deploying at all. **Vercel Deployment Checks** replace it, and they require
-automatic aliasing to stay **ON**. So there is no auto-deploy toggle to turn off, and
-`VERCEL_DEPLOY_HOOK_PROD` is no longer wanted — delete it if you created it.
-
-First create the environment: **GitHub → Settings → Environments → New environment**, named
-exactly `production` (`migrate.yml` says `environment: production`). Then:
-
-| # | Where | What |
-|---|---|---|
-| 1 | `production` env → Environment secrets | `SUPABASE_ACCESS_TOKEN` — a Management API token (`sbp_…`). Not the service role key, not the DB password. |
-| 2 | same | `SUPABASE_DB_PASSWORD` — the hosted database password, read by `supabase link` and `db push`. |
-| 3 | `production` env → Deployment branch rules | **Selected branches → `master`.** Not optional; see below. |
-| 4 | Repo → Settings → Variables → Actions | `SUPABASE_PROJECT_ID` = `jdvzabunhchjetjddgdw`. Repository-level and a *variable*, not a secret — it is not sensitive and already appears in this file. |
-| 5 | **Vercel** → Settings → Build and Deployment → Deployment Checks | **Add Checks → provider GitHub → select `Database migrations`.** This is what makes ordering a guarantee; everything above it only makes the job work. |
-
-**Step 5 is the whole ordering guarantee, and it is last on purpose.** Connect it only once
-you have seen `migrate.yml` go green on a real push, because until it passes once, every
-production build will sit unaliased waiting for a check that has never reported — and the
-site keeps serving whatever was current, which is safe but confusing if you did not expect
-it. `Force Promote` on the deployment is the deliberate override.
-
-**Two Vercel prerequisites for step 5, both of which are the default:** the project must be
-connected to GitHub via Vercel for GitHub, and **automatic aliasing for production must be
-ON** (Settings → Environments → Production). Do not turn it off — an earlier version of this
-section told you to, and that instruction was wrong.
-
-**`Database migrations` is the job's `name:` in `migrate.yml`, and Vercel binds the check to
-that string.** Rename the job and the gate silently detaches: production builds queue behind
-a check that no longer reports. The workflow says so beside the name.
-
-**Environment secrets, not repository secrets, and the reason is not tidiness.** A
-repository secret is readable by every workflow in the repo, and `verify.yml` runs on
-`pull_request` from any branch a collaborator can push — so the production database password
-would be one edited workflow file away from being echoed into a PR log. `verify.yml` needs
-no secret at all (zero `secrets.` references; it runs entirely against a local stack), so
-scoping these to the environment costs nothing and removes that path completely.
-
-**Row 4 closes the `workflow_dispatch` path.** A dispatch runs the workflow file from
-whatever ref you select, so without a branch rule a modified `migrate.yml` on a throwaway
-branch could be handed production credentials on request. Restricting the environment to
-`master` means the ref is the reviewed one or the job gets nothing. Dispatch from `master`
-still works, which is what it is there for — re-running after a failure without an empty
-commit, which writes a fresh status onto the same commit and is exactly what Vercel's check
-is watching.
-
-**Do not add a required reviewer** unless you want to revisit the decision made when this
-was built: applying migrations is automatic on merge, because the PR *is* the review. The
-option now sits one checkbox away on this same environment page if that ever changes — which
-is the other reason for using an environment rather than repo secrets, since switching later
-costs a click instead of a workflow rewrite.
-
-Every run also records a deployment against the environment, so the Environments tab becomes
-the history of what reached production and when — the "recorded" half of what this mechanism
-was for.
-
-Nothing to change on the Vercel **Git** page. Preview deploys are unaffected either way —
-the `dev` branch preview on `genorra-kappa.vercel.app` should stay exactly as it is.
-
-### Reading hosted's state by hand, if you ever need to again
-
-Both read-only, and both are what CI now runs on every merge. Useful after any hand
-intervention in the database, which is the one thing the ledger cannot detect:
-
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_… npm run db:check -- --linked   # ledger: hosted vs this repo
-SUPABASE_ACCESS_TOKEN=sbp_… npm run db:audit -- --linked   # no superseded policy left behind
-```
-
-Both were clean on 2026-08-12, established by the first CI run rather than by these commands
-— see the table above.
-
-### Still owed, and deliberately not done blind
-
-**`supabase db advisors` is report-only in `migrate.yml`.** It is the advisor that caught the
-replay incident and it *should* block deploys — but hosted's advisor baseline has never been
-read, and a project of this age will almost certainly have pre-existing `error`-level
-findings (mutable function `search_path` and friends). Setting `--fail-on error` unverified
-would block the first deploy on things this workflow did not cause. So:
-
-```bash
-SUPABASE_ACCESS_TOKEN=sbp_… npx supabase db advisors --linked --type security --level error
-```
-
-Read it, fix or accept what it says, then change `--fail-on none` to `--fail-on error` in
-`migrate.yml`. The step is named "(report only)" so a green tick is not mistaken for a clean
-project.
-
-## [x] Lint is clean and blocking — DONE 2026-08-12. 30 warnings remain
-
-`npm run lint` reports **0 errors**, and the Lint step in `.github/workflows/verify.yml` is
-blocking; the `|| true` is gone. All 39 errors were cleared:
-
-| Was | Rule | How |
-|---|---|---|
-| 26 | `@typescript-eslint/no-explicit-any` | Every one was a PostgREST embed cast. `lib/supabase/embed.ts` now names the shape — see below. |
-| 6 | `react/no-unescaped-entities` | Straight quotes around user content → `&ldquo;`/`&rdquo;`, which is better typography anyway. |
-| 3 | `react-hooks/set-state-in-effect` | Two in `Sidebar`, one in `PinnedAnnouncementsBanner`. |
-| 2 | `prefer-const` | `myVotes`, `childToPartner`. |
-| 1 | `react-hooks/purity` | `Date.now()` in the Dashboard's render → `daysUntil()` in `lib/date-utils.ts`. |
-| 1 | `react-hooks/preserve-manual-memoization` | A `useMemo` in `DuesDetailSection` that was costing the whole component its compilation. |
-
-**An earlier version of this section got the breakdown wrong** — it listed
-`no-unused-vars` (22) and `incompatible-library` (4) as errors. Those are **warnings**; the
-table had mixed both severities under the heading "The errors, by rule". The real error set
-is the six rules above.
-
-### What the `any` sweep turned up, which is the part worth keeping
-
-**A form was discarding what it collected.** `AdminEventDetailClient`'s add-sub-event call
-spread a `Record<string, string>` through `as any`, and an `any` in an object literal
-switches off excess-property checking for the whole literal — so the
-`budget_amount_cents` it passed reached a `createSubEvent` that has never had that field in
-its input type or its INSERT. The Budget box on "Add sub-event" took a number and dropped
-it, silently, while the same box on the parent event saved fine through `updateEvent`. Both
-ends are fixed. That is the argument for `no-explicit-any` being an error rather than a
-style preference: the cast did not just describe a type loosely, it disabled a check three
-lines away.
-
-**`lib/supabase/embed.ts`** is where the other 25 went. `embedOne<T>` / `embedMany<T>`
-normalise PostgREST's array-vs-object cardinality, which is a real trap: the same to-one
-relationship comes back bare in one query and wrapped in a one-element array in another, and
-`(row.people as any).first_name` is `undefined` in the second case with no error anywhere.
-Read the header before adding a 27th cast.
-
-**Removing a `useMemo` made a component faster.** React Compiler could not prove
-`DuesDetailSection`'s `unpaid` was never mutated — `upcoming` reaches it via
-`.filter(...).sort(...)`, and `.sort` mutates its receiver (harmlessly: the receiver is the
-array `.filter` just made). Unable to vouch for the dependency, the compiler skipped
-optimizing the **entire component**. One hand-written memo was costing every other value in
-the file its automatic memoization.
-
-### Still owed: 30 warnings, and whether to fail on them
-
-`npm run lint` exits 0 on warnings and no `--max-warnings` is set, deliberately. Triage
-before tightening:
-
-* **`@typescript-eslint/no-unused-vars`** — the cheap half, and genuinely dead code.
+* **`@typescript-eslint/no-unused-vars` (22)** — the cheap half, and genuinely dead code.
+  Clearing these first would make the remainder legible.
 * **`react-hooks/incompatible-library` (4)** — React Compiler's correct objection to
   react-hook-form's `watch()`, which cannot be memoized safely. Not ours to fix; needs
-  either a documented disable or a different form API.
+  either a documented disable or a different form API. This is the group that decides the
+  question, because it is the one that cannot simply be cleared.
 * **`@next/next/no-img-element` (3)** — `<img>` in the photo gallery. A real change:
   `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
 
 `--max-warnings 0` is only honest once the middle group has an answer.
-
-## Expires 2026-10-01: Claude may write to the hosted database unprompted
-
-**Action on 2026-10-01:** delete the `npx supabase` rules from
-`.claude/settings.local.json`, and confirm the `claude_probe` role has expired.
-
-Granted 2026-08-06 for the pre-launch window. `.claude/settings.local.json`
-auto-approves `db push`, `migration repair`, `db dump`, `db diff` and `db pull`
-against the linked project, so migrations get applied to production without a
-prompt. **Permission rules have no expiry field — nothing removes this on the date.**
-The file is gitignored, so it affects only this machine.
-
-`db reset` is deliberately NOT wildcarded: `--linked` and `--db-url` reset the
-*remote* database, so only the bare and `--local` forms are allowed, and both
-dangerous forms are in `deny` (which takes precedence) as a second layer.
-
-Also expiring: the `claude_probe` Postgres role, `VALID UNTIL 2026-10-01`. It holds
-`LOGIN` and no grants — enough to read `pg_policies` and `pg_catalog`, not enough to
-read a single row of family data. Its password sits in plaintext in
-`supabase/.env.probe` (gitignored). Nothing needs doing when it lapses; verifying it
-lapsed is worth thirty seconds.
-
-Neither `.claude/settings.local.json` nor `supabase/.env.probe` is present in this
-checkout — confirmed 2026-08-12, there is no `.claude/` directory at all — so the local
-half is already gone. The hosted `claude_probe` role is the part that still needs
-confirming.
-
-**The durable replacement is live** (2026-08-12, verified on a real run): `db push` from a
-GitHub Action on merge to `master`, gating the Vercel release — reviewed, ordered, recorded,
-and nobody holding write credentials. See "LIVE 2026-08-12" above. Granting an agent
-`db push` on production therefore has no remaining justification, because the reviewed path
-is strictly better at the same task.
 
 ## Authorization
 
@@ -851,22 +447,3 @@ policies are a **separate access-control system** from the RLS policies the suit
 exercises. Nothing in this work says anything about whether one family can read or
 overwrite another's objects. Doing it properly means seeding buckets and asserting on
 object paths, which is a different harness rather than three more cases.
-
-## Review
-
-### Replaying an early migration can resurrect a policy a later one replaced
-
-**CLOSED 2026-08-12** by the CI mechanism above — `db push` consults
-`supabase_migrations.schema_migrations` and will not apply a version already recorded, so
-replay is not something a person can do by accident any more. Guarding ~30 files
-individually was the alternative and stays rejected.
-
-What survives, because the ledger structurally cannot see it: a bare `psql -f` changes no
-version, so only the policies themselves reveal it. The audit query is therefore kept as
-`supabase/scripts/audit_policy_shadowing.sql` (`npm run db:audit -- --local|--linked`),
-runs in both workflows, and RAISEs with the offending table and policy named rather than
-just a count. **Run it against hosted after any hand intervention.**
-
-The 18 `USAGE: psql "$DATABASE_URL" -f <file>` headers that invited this are gone, and
-`npm run db:check` fails if one comes back — including in files nobody has written yet,
-which is the part a one-time sweep could not do.
