@@ -62,6 +62,13 @@ const PRICING_IS_ANNOUNCED = false
  * write. What is there now is only what has actually been discussed: the family website
  * that `LivingSitePreview` describes. Add to them freely — the card grows.
  */
+interface PlanFeature {
+  /** The benefit, in the fewest words that land it. This is what gets scanned. */
+  label: string
+  /** The proof, for the reader who slowed down. Optional. */
+  detail?: string
+}
+
 interface Plan {
   name: string
   tagline: string
@@ -70,7 +77,7 @@ interface Plan {
   /** Name of the tier this one contains, or null for the base tier. */
   inheritsFrom: string | null
   /** What THIS tier adds on top of the one it inherits. */
-  adds: readonly string[]
+  adds: readonly PlanFeature[]
   available: boolean
   /** The one tier the eye should land on. Exactly one should be true. */
   featured: boolean
@@ -79,58 +86,114 @@ interface Plan {
 const PLUS_PRICE: Plan['price'] = null
 const PREMIUM_PRICE: Plan['price'] = null
 
-/** Everything in the free account. All of it exists and is reachable today. */
-const FREE_INCLUDES = [
-  'Unlimited family members',
-  'Reunion and event planning, with RSVPs and head counts',
-  'T-shirt and meal totals collected automatically',
-  'Day-of check-in',
-  'Dues plans, funds and a full contribution ledger',
-  'Profit and loss for your treasurer',
-  'Family tree, direct lineage and member directory',
-  'Photo collections with tagging',
-  'Family chat and direct messages',
-  'Announcements pinned to everyone’s dashboard',
-  'Officer elections',
-  'Documents, regions and chapters',
-  'Leadership reports',
-  'Per-feature permissions for every member',
-] as const
-
+/**
+ * ── HOW THIS COPY IS WRITTEN, so the next edit keeps doing it ────────────────
+ * Every `label` names the OUTCOME and every `detail` names the mechanism. "Stop guessing
+ * the head count" then "RSVPs, t-shirt sizes and meal counts totalled for you" — not
+ * "RSVP module". A feature list that reads like a changelog makes the buyer do the
+ * translation into their own problem, and most of them will not bother.
+ *
+ * The order inside each tier is deliberate too: the thing that hurts most goes first.
+ * On Free that is getting everybody in at all; on Plus it is the head count and getting
+ * paid; on Premium there is only one thing.
+ *
+ * WHAT IS NOT CLAIMED. Free's ledger is cash only, and that is stated rather than
+ * softened — a family that signs up expecting to take card payments and finds they
+ * cannot has been misled, and that is a refund and a review. Naming the limit is also
+ * what makes Plus obviously worth paying for.
+ */
 const PLANS: readonly Plan[] = [
   {
     name: 'Free',
-    tagline: 'For every family, of any size.',
+    tagline: 'Get your whole family in one place. All of them.',
     price: { amount: '$0', period: 'forever' },
     inheritsFrom: null,
-    adds: FREE_INCLUDES,
+    adds: [
+      {
+        label: 'Every single relative, at no charge',
+        detail: 'Unlimited members. No per-person fee, so nobody gets left out to keep a bill down.',
+      },
+      {
+        label: 'Never lose track of who is who again',
+        detail: 'The family tree, direct lineage back through the generations, and a directory you can actually search.',
+      },
+      {
+        label: 'News that reaches the whole family',
+        detail: 'Announcements pinned to everyone’s dashboard, so it is not buried in a group text.',
+      },
+      {
+        label: 'Keep talking between gatherings',
+        detail: 'Family-wide chat and private direct messages.',
+      },
+      {
+        label: 'Put the reunion on the calendar',
+        detail: 'Event planning with the date, the place and the details in one shared page.',
+      },
+      {
+        label: 'A real ledger for the money you collect',
+        detail: 'Dues plans and a contribution ledger — cash payments, recorded properly instead of remembered.',
+      },
+    ],
     available: true,
     featured: false,
   },
   {
     name: 'Plus',
-    tagline: 'For families who want the world to see them.',
+    tagline: 'Run it like the organization it already is.',
     price: PLUS_PRICE,
     inheritsFrom: 'Free',
-    // ONLY WHAT HAS ACTUALLY BEEN DECIDED. The family website is real — it is the feature
-    // LivingSitePreview describes and the one item on the roadmap discussed publicly.
-    // Everything else on this tier is yours to add.
     adds: [
-      'Your family’s own public website, building itself from your events and photographs',
-      'A custom address for it',
+      {
+        label: 'Get paid the way your family actually pays',
+        detail: 'Credit and debit cards, PayPal, Apple Pay, Google Pay and Cash App — with funds and a full contribution ledger behind them. No more chasing people for cash.',
+      },
+      {
+        label: 'Stop guessing the head count',
+        detail: 'RSVPs per household, t-shirt sizes and meal counts totalled automatically, and check-in on the day so you know who actually walked in.',
+      },
+      {
+        label: 'Hand your treasurer a real profit and loss',
+        detail: 'The statement the board asks for, produced from the ledger rather than assembled the night before.',
+      },
+      {
+        label: 'Elect your officers properly',
+        detail: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.',
+      },
+      {
+        label: 'Separation of duties, not one admin switch',
+        detail: 'Per-feature permissions for every member: record dues without being able to pay money out, see the directory without seeing the accounts.',
+      },
+      {
+        label: 'Every photograph, findable',
+        detail: 'Photo collections per event with tagging, so you can pull up every picture of one cousin out of a hundred.',
+      },
+      {
+        label: 'The paperwork, and the structure to match',
+        detail: 'Bylaws, minutes and forms in one place — plus regions and chapters with their own leadership for a family spread across states.',
+      },
+      {
+        label: 'The numbers leadership keeps asking for',
+        detail: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts, at a glance.',
+      },
     ],
     available: false,
     featured: true,
   },
   {
     name: 'Premium',
-    tagline: 'For large families running a real organization.',
+    tagline: 'Let the rest of the world see your family.',
     price: PREMIUM_PRICE,
     inheritsFrom: 'Plus',
-    // Intentionally empty until you fill it in. An empty list renders the inheritance
-    // line and nothing else, which reads as "not specified yet" — the correct impression
-    // — rather than inventing capabilities to pad the card out.
-    adds: [],
+    adds: [
+      {
+        label: 'Your family’s own website, keeping itself current',
+        detail: 'It builds itself from what your family is already doing — the next gathering, the newest photographs, the latest announcement. Every other family site on the internet is abandoned by March, because somebody has to update it. This one nobody has to.',
+      },
+      {
+        label: 'A proper address for it, ready to go',
+        detail: 'No hosting bill, no plugins, no relative who "knows computers" maintaining it. It is live the day you turn it on.',
+      },
+    ],
     available: false,
     featured: false,
   },
@@ -140,29 +203,40 @@ const FAQ = [
   {
     question: `Is ${APP_NAME} really free?`,
     answer:
-      'Yes. Creating your family, inviting every relative, running reunions and using the treasury costs nothing today, and no credit card is required to start.',
+      'Yes, and not as a trial. Unlimited family members, the family tree and lineage, the member directory, family chat, announcements, event planning and a dues ledger for cash contributions cost nothing, with no card required and no expiry date.',
   },
   {
     question: 'Is there a limit on how many family members we can add?',
     answer:
-      'No. The product is built for a family with a hundred or more adults in it — that is the ordinary case rather than the exception — and there is no per-member charge.',
+      'No, on any tier including Free. The product is built for a family with a hundred or more adults in it — that is the ordinary case rather than the exception — and there is never a per-member charge. A price that grows with your family is a price that keeps relatives out, which defeats the point.',
   },
   {
-    question: 'Will the free features I use today start costing money?',
+    question: 'What is the difference between Free and Plus?',
     answer:
-      'The features listed under Free on this page are what a family gets for nothing. When a paid tier is announced it will be for additional capability, such as the public family website that is currently in development.',
+      'Free gets your whole family in one place. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, collecting RSVPs and head counts with t-shirt and meal totals, day-of check-in, officer elections, per-feature permissions, photo collections with tagging, documents, regions and chapters, a profit and loss statement and leadership reports.',
   },
   {
-    question: 'What will the paid tier cost?',
+    question: 'Can we only take cash payments on the free plan?',
     answer:
-      'It has not been announced. Rather than print a placeholder figure that people might budget against, this page shows the premium tier without a price until there is a real one.',
+      'Yes. Free includes dues plans and a contribution ledger, and you record cash payments into it. Accepting card, debit, PayPal, Apple Pay, Google Pay and Cash App payments — with funds and automatic routing behind them — is part of Plus.',
+  },
+  {
+    question: 'Will the free features we use today start costing money?',
+    answer:
+      'No. What is listed under Free on this page stays free. Paid tiers are for capability added on top, not for taking away what your family already relies on.',
+  },
+  {
+    question: 'What will Plus and Premium cost?',
+    answer:
+      'Neither has been announced yet. Rather than print a placeholder figure that families might budget against, this page shows both tiers without a price until there is a real one. Create a free account and you will hear first.',
   },
   {
     question: 'Do you sell our family’s data?',
     answer:
-      'No. There is no advertising in the product and family data is never shared or sold. One family cannot see another’s data at all — that separation is enforced by the database on every query.',
+      'No. There is no advertising in the product and family data is never shared or sold, on any tier. One family cannot see another’s data at all — that separation is enforced by the database on every query rather than by a setting.',
   },
 ] as const
+
 
 export default function PricingPage() {
   return (
@@ -200,7 +274,7 @@ export default function PricingPage() {
             id="plans-heading"
             eyebrow="Plans"
             title="Three tiers. The free one is not a trial"
-            lede="Everything a family organization runs on is in the free account. Each tier above it adds to the one below rather than unlocking it."
+            lede="Get every relative in, keep the family tree and talk to each other — free, forever. Pay only when you start running it like an organization."
           />
 
           {/* Three tiers, each inheriting the one below it. `items-stretch` rather than
@@ -280,37 +354,61 @@ export default function PricingPage() {
                       </>
                     )}
 
-                    {/* THE INHERITANCE LINE. Three words that stop this card from having
-                        to restate the tier below it — and that cannot fall out of step
-                        with it the way a copied list would. */}
+                    {/* ── THE INHERITED TIER IS THE FIRST LIST ITEM ──────────────
+                        It used to be a sentence above the list reading "Everything in
+                        Plus, plus:", which says "plus" twice and reads as a stutter —
+                        made worse by one of the tiers being NAMED Plus. As a checked
+                        row at the top of the list it needs no connecting words at all:
+                        the list is what you get, and the first thing you get is
+                        everything below. It also stops the two paid cards drifting out
+                        of step with Free the way a copied list would. */}
                     <div className="mt-7 flex-1 border-t pt-6">
-                      {plan.inheritsFrom && (
-                        <p className="mb-3 text-sm font-semibold">
-                          Everything in {plan.inheritsFrom}, plus:
-                        </p>
-                      )}
-                      {plan.adds.length > 0 ? (
-                        <ul className="space-y-2.5 text-sm">
-                          {plan.adds.map(item => (
-                            <li key={item} className="flex gap-3">
-                              {plan.available ? (
-                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
-                              ) : (
-                                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
+                      <ul className="space-y-3.5 text-sm">
+                        {plan.inheritsFrom && (
+                          <li className="flex gap-3 border-b pb-3.5">
+                            <Check
+                              className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm"
+                              aria-hidden="true"
+                            />
+                            <span className="font-semibold">
+                              Everything in {plan.inheritsFrom}
+                            </span>
+                          </li>
+                        )}
+
+                        {plan.adds.map(item => (
+                          <li key={item.label} className="flex gap-3">
+                            {plan.available ? (
+                              <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
+                            ) : (
+                              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
+                            )}
+                            <span className="leading-relaxed">
+                              {/* The benefit is the scannable line and carries the
+                                  weight; the mechanism sits under it in muted text for
+                                  whoever slowed down. A single run of body text makes
+                                  the reader find the point themselves. */}
+                              <span className="block font-medium text-foreground">
+                                {item.label}
+                              </span>
+                              {item.detail && (
+                                <span className="mt-0.5 block text-muted-foreground">
+                                  {item.detail}
+                                </span>
                               )}
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        // Empty `adds` renders this rather than an empty list. It reads as
-                        // "not specified yet", which is true, instead of inventing
-                        // capabilities to pad the card out to match its neighbours.
-                        <p className="text-sm text-muted-foreground">
-                          What this tier adds is still being decided. Everything in{' '}
-                          {plan.inheritsFrom} is included.
-                        </p>
-                      )}
+                            </span>
+                          </li>
+                        ))}
+
+                        {plan.adds.length === 0 && (
+                          // Renders instead of an empty list, so the card reads as "not
+                          // specified yet" — which is true — rather than inventing
+                          // capabilities to pad it out to match its neighbours.
+                          <li className="text-muted-foreground">
+                            What this tier adds is still being decided.
+                          </li>
+                        )}
+                      </ul>
                     </div>
                   </div>
                 </Reveal>
@@ -326,9 +424,11 @@ export default function PricingPage() {
               <h3 className="text-xl">Why give the whole product away?</h3>
               <p className="max-w-2xl text-muted-foreground">
                 Because a family portal with half the family in it is worth nothing, and a
-                per-member price guarantees half the family stays out. We would rather have
-                your whole family using it and earn money later from the things that are
-                genuinely extra.
+                per-member price guarantees half the family stays out. So getting everyone
+                in is free and always will be — the tree, the directory, the chat, the
+                announcements and your first reunion. We charge when a family starts
+                needing the machinery of an organization: taking card payments, tallying a
+                head count, electing officers, answering to a board.
               </p>
               <MoreLink href="/why-us">See how that compares to the alternatives</MoreLink>
             </div>

@@ -14,6 +14,7 @@ import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/market
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { APP_NAME } from '@/lib/brand'
+import { cn } from '@/lib/utils'
 
 const PAGE_TITLE = 'Everything Your Family Organization Runs On'
 const PAGE_DESCRIPTION =
@@ -91,15 +92,35 @@ const PILLARS: readonly Pillar[] = [
   },
 ]
 
-const ALSO: readonly { icon: LucideIcon; title: string; blurb: string }[] = [
-  { icon: Vote, title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
-  { icon: Megaphone, title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  { icon: MessagesSquare, title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
-  { icon: Images, title: 'Photo collections', blurb: 'A gallery per event, captions, and tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
-  { icon: MapPinned, title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
-  { icon: BarChart3, title: 'Leadership reports', blurb: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts at a glance.' },
-  { icon: Store, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
+/**
+ * THE TIER TAG IS NOT DECORATION. This grid used to sit under a heading reading
+ * "Included, not upsold — every one of these ships in the same account", which was true
+ * when it was written and stopped being true the moment the tiers were set: photo
+ * collections, elections, documents, chapters, permissions and reports are Plus.
+ *
+ * A features page that implies a paid capability is free is the most expensive kind of
+ * marketing error — the customer discovers it at the exact moment they were ready to
+ * commit, and what they learn is that we were not straight with them. So each card says
+ * which tier it belongs to, and the tags link to /pricing.
+ *
+ * `tier: null` means NOT YET ASSIGNED and renders no tag at all. Trusted Vendors is the
+ * only one, because it was not in the tier breakdown — do not guess it into a tier to make
+ * the grid look tidy.
+ */
+const ALSO: readonly {
+  icon: LucideIcon
+  title: string
+  blurb: string
+  tier: 'Free' | 'Plus' | null
+}[] = [
+  { icon: MessagesSquare, tier: 'Free', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
+  { icon: Megaphone, tier: 'Free', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
+  { icon: Vote, tier: 'Plus', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
+  { icon: Images, tier: 'Plus', title: 'Photo collections', blurb: 'A gallery per event, captions, and tagging that finds the right cousin out of a hundred.' },
+  { icon: FileText, tier: 'Plus', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
+  { icon: MapPinned, tier: 'Plus', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
+  { icon: BarChart3, tier: 'Plus', title: 'Leadership reports', blurb: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts at a glance.' },
+  { icon: Store, tier: null, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
 
 export default function FeaturesPage() {
@@ -174,6 +195,18 @@ export default function FeaturesPage() {
               </Reveal>
             ))}
           </div>
+
+          <Reveal delay={200}>
+            <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted-foreground">
+              Free covers the family tree, the directory, chat, announcements and putting
+              the gathering on the calendar. RSVPs and head counts, card and digital
+              payments, and the treasury reports are Plus.{' '}
+              <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
+                See what is in each tier
+              </Link>
+              .
+            </p>
+          </Reveal>
         </div>
       </section>
 
@@ -183,16 +216,36 @@ export default function FeaturesPage() {
           <SectionHeading
             id="also-heading"
             eyebrow="And the rest"
-            title="Included, not upsold"
-            lede="Every one of these ships in the same account. There is no tier where chat is extra."
+            title="Everything else it does"
+            lede="Chat and announcements come with the free account. The organizational machinery is Plus — and every card says which, because finding out at checkout is not a nice surprise."
           />
 
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {ALSO.map((item, i) => (
               <Reveal key={item.title} delay={(i % 4) * 120} className="h-full">
-                <div className="group h-full rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
-                  <div className="mb-3 inline-flex rounded-lg bg-brand-soft p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                    <item.icon className="h-5 w-5 text-brand-on-soft" aria-hidden="true" />
+                <div className="group flex h-full flex-col rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="inline-flex rounded-lg bg-brand-soft p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                      <item.icon className="h-5 w-5 text-brand-on-soft" aria-hidden="true" />
+                    </div>
+                    {/* A LINK, not a label. Somebody reading "Plus" wants to know what
+                        that costs, and the answer is one tap away rather than a scroll
+                        back up to the nav. `tier: null` renders nothing — see the note
+                        on ALSO about not guessing an unassigned feature into a tier. */}
+                    {item.tier && (
+                      <Link
+                        href="/pricing"
+                        aria-label={`${item.title} is included in the ${item.tier} plan — see pricing`}
+                        className={cn(
+                          'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-opacity hover:opacity-80',
+                          item.tier === 'Free'
+                            ? 'bg-brand-affirm/15 text-brand-affirm'
+                            : 'bg-brand-legacy/20 text-brand-ink',
+                        )}
+                      >
+                        {item.tier}
+                      </Link>
+                    )}
                   </div>
                   <h3 className="text-base font-semibold">{item.title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
@@ -204,7 +257,6 @@ export default function FeaturesPage() {
           </div>
         </div>
       </section>
-
       {/* ── Privacy, which is a feature ──────────────────────────────────── */}
       <section aria-labelledby="privacy-heading" className="bg-background px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-4xl">
@@ -227,7 +279,7 @@ export default function FeaturesPage() {
                   </p>
                   <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     {[
-                      'Per-feature permissions, not one blunt admin switch',
+                      'Per-feature permissions, not one blunt admin switch (Plus)',
                       'New members reviewed before they see anything',
                       'Email-verified accounts',
                       'Never shared, never sold, no advertising',
