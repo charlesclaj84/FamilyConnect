@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatRoleTitle } from '@/lib/role-utils'
@@ -256,6 +256,19 @@ export async function updateUserProfile(
 
   const fields = pickProfileColumns(data)
   if (Object.keys(fields).length === 0) return { success: true }
+
+  //   3. A REFERENCE CHECK on chapter_id (AGENTS.md §4) — the SECOND layer, and today a
+  //      no-op: `chapter_id` came off the profile allow-list, so `fields` cannot carry
+  //      it. Kept because re-adding a column to that list is a one-line change nobody
+  //      would think of as a security decision, and this path has no RLS underneath it
+  //      at all — `people.chapter_id` is `REFERENCES chapters(id)`, which constrains
+  //      existence and not ownership, so nothing else here would notice.
+  if (fields.chapter_id != null && fields.chapter_id !== '') {
+    if (typeof fields.chapter_id !== 'string'
+      || !(await belongsToFamily('chapters', fields.chapter_id, familyCode))) {
+      return { success: false, error: 'Chapter not found' }
+    }
+  }
 
   const admin = createAdminClient()
   const { error } = await admin

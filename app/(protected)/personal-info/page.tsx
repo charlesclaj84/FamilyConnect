@@ -7,6 +7,7 @@ import { getPersonalInfo } from '@/app/actions/personal-info'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
+import { getViewingMembership } from '@/lib/auth/family'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
@@ -41,10 +42,17 @@ export default async function PersonalInfoPage({
   const pending = gate.pending
 
   // My Families moved to its own page (/my-families) — it is no longer fetched here.
-  const [existing, myRoles, chapters] = await Promise.all([
+  // The active family's NAME, which the chapter block is headed with — chapter is the
+  // one field on this page that is per-family rather than shared, so it says which
+  // family it means. Free: getViewingMembership reads getMyFamilies(), which is
+  // cache()-wrapped and already resolved for this request by the layout and the navbar.
+  // Fetched for a pending member too, unlike the two below: they are family data, and
+  // this is the name of the family they are waiting on.
+  const [existing, myRoles, chapters, membership] = await Promise.all([
     getPersonalInfo(),
     pending ? Promise.resolve([]) : getMyRoles(),
     pending ? Promise.resolve([]) : getChapters(),
+    getViewingMembership(user.id),
   ])
 
   return (
@@ -82,6 +90,7 @@ export default async function PersonalInfoPage({
       <PersonalInfoForm
         existing={existing}
         chapters={chapters}
+        familyName={membership?.familyName ?? ''}
         initialSection={initialSection}
         signInEmail={user.email ?? ''}
       />

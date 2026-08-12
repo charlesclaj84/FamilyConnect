@@ -120,8 +120,22 @@ export default async function Navbar() {
               burgundy on burgundy — invisible in light mode. It merges `className` last
               through `cn` (tailwind-merge), so these win. */}
           <ThemeToggle className="text-brand-on-hero hover:bg-brand-primary" />
+          {/* KEYED, for the reason the <main> in app/(protected)/layout.tsx is keyed:
+              a family switch is a `router.refresh()`, which merges new server props
+              without discarding client state, and this bell holds `initialNotifications`
+              in plain `useState`. It sits OUTSIDE that main — it is chrome, rendered by
+              the layout itself — so the page-level key does not reach it, and without
+              this one the bell kept showing the previous family's notifications on every
+              page in the app.
+
+              `personId` rather than the family code because it is already the per-family
+              value here (one `people` row per family, resolved above) and it is what the
+              bell's real-time subscription filters on. Keying on the same thing the
+              subscription keys on means the list and the channel can never disagree
+              about which member's notifications are on screen. */}
           {personId && (
             <NotificationBell
+              key={personId}
               initialNotifications={notifications}
               personId={personId}
               pendingApprovals={pendingApprovals}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
+import { getMyFamilyCode } from '@/lib/auth/family'
 import { getMyAssignmentCount } from '@/app/actions/event-planning'
 import Navbar from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -36,6 +37,7 @@ export const metadata: Metadata = {
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   let hasAssignments = false
   let viewable: string[] = []
+  let familyCode = ''
 
   try {
     const supabase = await createClient()
@@ -46,12 +48,17 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       // Count only outstanding items (shared with the Event Planning page) so the
       // nav link hides once everything is completed or cancelled. This also sweeps
       // overdue tasks into the 'cancelled' state.
-      const [resources, assignmentCount] = await Promise.all([
+      //
+      // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
+      // cache()-wrapped, and Navbar below already calls it in this same request.
+      const [resources, assignmentCount, code] = await Promise.all([
         viewableResources(user.id),
         getMyAssignmentCount(),
+        getMyFamilyCode(user.id),
       ])
       viewable = [...resources]
       hasAssignments = assignmentCount > 0
+      familyCode = code
     }
   } catch {
     // Non-fatal
@@ -66,7 +73,33 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         <Navbar />
         <div className="flex flex-1 flex-col md:flex-row">
           <Sidebar hasAssignments={hasAssignments} viewable={viewable} />
-          <main className="flex-1 min-w-0">{children}</main>
+          {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
+              ─────────────────────────────────────────────────────────────────────
+              FamilySwitcher lands its change with `router.refresh()`, and a refresh
+              deliberately merges the new server payload WITHOUT discarding client
+              state (see lib/use-server-state.ts). Every page under here holds
+              family-scoped server data in `useState`, so without this key the page
+              keeps rendering the family you just LEFT — and the ones whose state is
+              writable will then post it back under the family you switched TO.
+
+              Family Settings was the worked example and is worth keeping in mind as
+              the shape of the bug: its box kept the old name while the server value
+              beside it updated, so the form read as dirty, offered Save, and taking
+              it renamed the new family with the old one's name. Same shape in
+              ChatShell (rooms + activeRoomId), PersonalInfoForm (a multi-family user
+              has one `people` row PER FAMILY, so this is a different profile) and
+              AdminFundsClient (`alloc`, carrying the other family's fund_ids).
+
+              Keyed at the layout so a page cannot forget it, and so the rule holds
+              for pages not yet written. `family_code` is the right key because it is
+              immutable after insert (families_guard_family_code, 20260812000000): it
+              changes when the FAMILY changes and at no other time, so a rename — or
+              any other `router.refresh()` — does not remount anything.
+
+              Chrome rendered OUTSIDE this main is not covered and keys itself; today
+              that is NotificationBell in Navbar. Sidebar needs nothing: it takes
+              `viewable` as a prop and reads it directly rather than seeding state. */}
+          <main key={familyCode} className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
     </ConfirmProvider>

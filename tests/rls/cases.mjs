@@ -38,6 +38,7 @@ import { ALPHA } from './seed.mjs'
 export function alphaMarkers(fx) {
   const a = fx.alpha
   return [
+    a.chapter.id, 'ALPHATEST chapter',
     a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
@@ -119,9 +120,20 @@ export const CASES = [
   read('announcements.getAnnouncements', 'app/actions/announcements.ts', 'getAnnouncements'),
   read('announcements.getMyAnnouncements', 'app/actions/announcements.ts', 'getMyAnnouncements'),
   read('announcements.getPinnedAnnouncements', 'app/actions/announcements.ts', 'getPinnedAnnouncements'),
+  // A REAL CONTROL SINCE THE FIXTURE SEEDS CHAPTERS. This carried
+  // `positive: 'not-applicable'` for as long as there were none — an honest note that
+  // the isolation half was asserting over an empty list. The chapter rows the
+  // `people.chapter_id` cases below need make it testable, so it is a full case now.
+  //
+  // THE CONTROL RUNS AS ALPHA'S ADMINISTRATOR, not as the default member, and that is
+  // the policy being honest rather than the fixture being bent: the composed SELECT
+  // policy on `chapters` is
+  //     family_code = auth_family_code() AND auth_permission('admin/chapters','view') = 'any'
+  // so a plain member reads no chapters at all and `[]` is their correct answer. Using
+  // the default actor here would have failed the control for a reason that is not a bug.
   read('announcements.getChapters', 'app/actions/announcements.ts', 'getChapters', {
-    positive: 'not-applicable',
-    why: 'no chapters seeded; the action is included so a future chapter leak is caught',
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(c => c.id === fx.alpha.chapter.id),
   }),
   read('documents.getDocuments', 'app/actions/documents.ts', 'getDocuments'),
   read('photos.getPhotoCollections', 'app/actions/photos.ts', 'getPhotoCollections'),
@@ -711,6 +723,98 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'the owner already has this ancestor; re-linking is a no-op',
   },
+
+  // ── people.chapter_id — §4 on the ONE table a member may write themselves ──
+  //
+  // The purest form of the §4 shape in the codebase, and the reason it survived so
+  // long unnoticed: there is no cross-family row to point at. The attacker writes
+  // ALPHA's chapter id onto THEIR OWN BRAVO people row. That row is genuinely theirs,
+  // its family_code is genuinely BRAVO, and so every policy on `people` is satisfied —
+  // while `chapter_id` now references a family they are not in. The FK is
+  // `REFERENCES chapters(id)` and constrains existence, not ownership, so the database
+  // is content too. Nothing but the action can catch it.
+  //
+  // These are NOT evidence about a policy, and should not be read as such: no conjunct
+  // anywhere refuses them and none ever could. They are evidence about the
+  // `chapterIsOurs` / `belongsToFamily('chapters', …)` guard in each action, which is
+  // the whole of the defence. To see them fail, delete the guard from the action named
+  // in `mod`/`fn` and re-run.
+  //
+  // The probe covers BOTH rows because attacker and control are different people and
+  // the run does attack-then-control: the attack must leave both untouched, and the
+  // control must move alphaMember's.
+  ...[
+    ['upsertPersonalInfo', fx => [{ first_name: 'Chap', last_name: 'Test', chapter_id: fx.alpha.chapter.id }]],
+    ['saveChapterAndPropagate', fx => [fx.alpha.chapter.id]],
+  ].map(([fn, args]) => ({
+    kind: 'write',
+    id: `personal-info.${fn} (chapter_id from another family)`,
+    mod: 'app/actions/personal-info.ts', fn,
+    args,
+    // Cleared before each half so the control has somewhere to move from — without
+    // this the attack's own reset would leave the value already set and the control's
+    // write would read as a no-op.
+    setup: async (db, fx) => {
+      const { error } = await db.from('people').update({ chapter_id: null })
+        .in('id', [fx.users.bravoAdmin.personId, fx.users.alphaMember.personId])
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => {
+      const { data, error } = await db.from('people').select('id, chapter_id')
+        .in('id', [fx.users.bravoAdmin.personId, fx.users.alphaMember.personId]).order('id')
+      if (error) throw new Error(`probe: ${error.message}`)
+      return JSON.stringify(data)
+    },
+  })),
+
+  // THE TWO ALLOW-LIST CASES. These assert something stronger and narrower than the
+  // pair above: that `chapter_id` cannot reach a `people` row through these endpoints
+  // AT ALL — not in another family, and not in the caller's own either. The column
+  // came off lib/profile-columns.ts, so pickProfileColumns drops the key before either
+  // action sees it, and saveChapterAndPropagate is the only way in.
+  //
+  // Both halves are therefore no-ops and the control is not applicable — the same
+  // shape, and the same reason, as the membership_status self-approval case further
+  // down: there is no more-entitled caller who may do this, because nobody may.
+  // The §4 guard in each action survives as a second layer and is deliberately NOT
+  // what these cases are aimed at; the guarded paths are covered above.
+  //
+  // To see them fail, put 'chapter_id' back on WRITABLE_PROFILE_COLUMNS and delete the
+  // guard from the action — with the guard alone restored, the attack still passes and
+  // only the control changes, which is the point of testing the two layers separately.
+  ...[
+    // THE PROBE WATCHES THE ATTACKER'S OWN ROW, not ALPHA's, and that is the whole
+    // case: saveProfileSection takes no id and always writes the CALLER's row, so
+    // bravoAdmin naming ALPHA's chapter corrupts bravoAdmin. Pointed at alphaMember
+    // this passed while the mutation was in place — the write happened, in a row the
+    // probe was not looking at. Exactly the vacuous-probe failure mode AGENTS.md §7
+    // warns about, found by mutating rather than by reading.
+    ['personal-info.saveProfileSection', 'app/actions/personal-info.ts', 'saveProfileSection',
+      fx => [{ chapter_id: fx.alpha.chapter.id }], 'bravoAdmin'],
+    // The admin route, and the worse of the two: it writes through the service-role
+    // client, so there is no RLS underneath it and the allow-list is the whole of the
+    // defence. BRAVO's admin updating their OWN family's member with ALPHA's chapter —
+    // the target is legitimately theirs, so only the column check can refuse it.
+    ['admin/users.updateUserProfile', 'app/actions/admin/users.ts', 'updateUserProfile',
+      fx => [fx.users.bravoMember.personId, { chapter_id: fx.alpha.chapter.id }], 'bravoMember'],
+  ].map(([id, mod, fn, args, target]) => ({
+    kind: 'write',
+    id: `${id} (chapter_id is not a profile column)`,
+    mod, fn, args,
+    setup: async (db, fx) => {
+      const { error } = await db.from('people').update({ chapter_id: null })
+        .eq('id', fx.users[target].personId)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => {
+      const { data, error } = await db.from('people').select('id, chapter_id')
+        .eq('id', fx.users[target].personId)
+      if (error) throw new Error(`probe: ${error.message}`)
+      return JSON.stringify(data)
+    },
+    positive: 'not-applicable',
+    why: 'chapter_id is not on WRITABLE_PROFILE_COLUMNS, so no caller may set it here — saveChapterAndPropagate is the only way in and has its own case above',
+  })),
 ]
 
 /**

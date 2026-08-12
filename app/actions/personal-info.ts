@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
 
 export async function uploadAvatar(
@@ -97,6 +97,23 @@ export async function getPersonalInfo(): Promise<PersonalInfoRecord | null> {
   return data ?? null
 }
 
+/**
+ * Is this `chapters.id` one of ours? The §4 check every `chapter_id` write owes.
+ *
+ * NOT EXPORTED, deliberately: this file is `'use server'`, so an export would publish
+ * it at a URL of its own — and a helper that answers questions about another family's
+ * ids is not something to hand out, even though the answer is a boolean.
+ *
+ * Absent means "this write is not touching the column"; null and '' mean "clear it".
+ * None of the three reference a row, so all three pass — the same shape as the optional
+ * `milestone_id` guard in recordDisbursement.
+ */
+async function chapterIsOurs(chapterId: unknown, familyCode: string): Promise<boolean> {
+  if (chapterId === undefined || chapterId === null || chapterId === '') return true
+  if (typeof chapterId !== 'string') return false
+  return belongsToFamily('chapters', chapterId, familyCode)
+}
+
 // Saves only the supplied fields — used by the section-level edit cards.
 // On conflict (existing record) Supabase updates ONLY the columns provided,
 // leaving all other columns unchanged.
@@ -129,6 +146,16 @@ export async function saveProfileSection(
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
   if (!familyCode) return { success: false, message: 'No family associated with account' }
 
+  // THE SECOND LAYER, not the only one, and today not the one doing the work:
+  // `chapter_id` is no longer on the profile allow-list, so `cleaned` cannot carry it
+  // and this is a no-op. Kept anyway, for the reason AGENTS.md gives about grants —
+  // the outer layer has been re-opened before, and re-adding a column to a list is a
+  // one-line change nobody would think of as a security decision. If it ever comes
+  // back, the §4 check is already here rather than needing to be remembered.
+  if (!(await chapterIsOurs(cleaned.chapter_id, familyCode))) {
+    return { success: false, message: 'Chapter not found' }
+  }
+
   const { error } = await supabase
     .from('people')
     .upsert(
@@ -158,6 +185,11 @@ export async function upsertPersonalInfo(
   // The family being viewed, not the one the account was created in.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code
   if (!familyCode) return { success: false, message: 'No family code associated with account' }
+
+  // §4 — chapter_id is a client-supplied reference written onto the caller's own row.
+  if (!(await chapterIsOurs(input.chapter_id, familyCode))) {
+    return { success: false, message: 'Chapter not found' }
+  }
 
   const normalize = (v?: string) => v?.trim() || null
 
@@ -210,6 +242,14 @@ export async function saveChapterAndPropagate(
   // chapters themselves belong to a single family.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
   if (!familyCode) return { success: false, message: 'No family associated with account' }
+
+  // The comment above already knew chapters belong to a single family; it scoped the
+  // people ROW to this family and never checked the CHAPTER. That is exactly §4 — the
+  // row is the caller's, so RLS is satisfied, while the id it carries is not theirs.
+  // This one also propagates to every minor child below, so an unchecked id spread.
+  if (!(await chapterIsOurs(chapterId, familyCode))) {
+    return { success: false, message: 'Chapter not found' }
+  }
 
   // Update own record
   const { data: myRecord, error: myError } = await supabase

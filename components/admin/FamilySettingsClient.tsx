@@ -32,7 +32,12 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
   //              value revalidatePath sends back — a plain initializer reads its
   //              argument once and would stay deaf to every later render.
   //   name       what is in the box. Deliberately NOT adopted: a server render
-  //              arriving mid-edit must not overwrite what someone is typing.
+  //              arriving mid-edit must not overwrite what someone is typing. That is
+  //              safe only because switching family REMOUNTS this page — see the key on
+  //              <main> in app/(protected)/layout.tsx, which this form is the worked
+  //              example for. Without it the box kept the previous family's name while
+  //              `savedName` adopted the new one, so the form read as dirty and Save
+  //              renamed the family you switched TO with the name of the one you left.
   //
   // Both are set on a successful save, so the button greys out and the badge appears
   // immediately rather than waiting for the revalidation to come back.

@@ -158,8 +158,60 @@ function FormActions({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SECTION 1 — General Information (name + contact + chapter)
+// SECTION 1 — General Information (name + contact, then chapter)
 // ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The chapter field, in a bordered block of its own headed by the family's name.
+ *
+ * WHY IT IS NOT IN THE GRID ABOVE, which is where it used to sit. Every other field on
+ * this page is the SAME VALUE in every family the member belongs to — the sync trigger
+ * propagates them, which is what makes "My Profile" one thing that floats. `chapter_id`
+ * is the exception: a chapter belongs to exactly one family, so the column is per-family
+ * and is excluded from both directions of the sync (20260617000000, 20260617000001).
+ *
+ * The data was always right — getPersonalInfo() reads the active family's `people` row
+ * and getChapters() returns that family's chapters. What was wrong is that nothing said
+ * so. One cell in a grid of global fields, labelled just "Chapter", changed value when
+ * you used the family switcher and gave no reason; in a family with no chapters it
+ * disappeared from the section altogether, which reads as a bug rather than as an
+ * answer. Naming the family in the heading makes the scope structural instead of
+ * something the reader has to already know.
+ *
+ * IT KEEPS ITS PLACE ON THIS PAGE rather than moving to an admin screen: which branch of
+ * the family you are part of is the member's own statement about themselves, like the
+ * rest of the profile, and ChapterReminderBanner on the dashboard already asks them for
+ * it directly.
+ */
+function ChapterBlock({
+  familyName, chapters, children,
+}: {
+  familyName: string
+  chapters: Chapter[]
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mt-6 rounded-lg border bg-muted/30 p-4">
+      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {familyName ? `In ${familyName}` : 'In this family'}
+      </p>
+      {/* The empty case says so instead of rendering nothing. A family that has not
+          created any chapters is the common case, not an error, and a member who was
+          told about chapters elsewhere should find the answer here rather than a gap. */}
+      {chapters.length > 0 ? (
+        <div className="space-y-1.5">{children}</div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          This family has no chapters, so there is nothing to choose.
+        </p>
+      )}
+      <p className="mt-3 text-xs text-muted-foreground">
+        Your chapter applies to this family only — the rest of your profile is shared
+        across every family you belong to. Changing it moves your household with you.
+      </p>
+    </div>
+  )
+}
 
 const generalSchema = z.object({
   prefix:         z.string().optional(),
@@ -182,6 +234,7 @@ type GeneralData = z.infer<typeof generalSchema>
 function GeneralSection({
   existing,
   chapters,
+  familyName,
   onSaved,
   visible,
   editing,
@@ -189,6 +242,8 @@ function GeneralSection({
 }: {
   existing: PersonalInfoRecord | null
   chapters: Chapter[]
+  /** Names the chapter block's scope. See ChapterBlock. */
+  familyName: string
   onSaved: () => void
   visible: boolean
   /** Owned by PersonalInfoForm now, because the Edit trigger lives in the rail. */
@@ -254,10 +309,23 @@ function GeneralSection({
     })
     if (!ok) return
     setServerError('')
-    const result = await saveProfileSection({ ...data, chapter_id: chapterId || null })
+    // NO chapter_id IN THIS PAYLOAD. It used to be sent here as well as through
+    // saveChapterAndPropagate below, so the column was written twice on every submit —
+    // and that redundancy was the only reason it had to sit on the profile allow-list
+    // (lib/profile-columns.ts). saveChapterAndPropagate is the real path: it is the only
+    // one that also moves the member's minor children.
+    const result = await saveProfileSection(data)
     if (!result.success) { setServerError(result.message ?? 'Something went wrong'); return }
     if (chapterChanged) {
-      await saveChapterAndPropagate(chapterId || null)
+      const chapterResult = await saveChapterAndPropagate(chapterId || null)
+      // Reported rather than swallowed. The chapter is now a SEPARATE write, so it can
+      // fail on its own — and it is the half that moves the household, which is the last
+      // thing to report success over silently.
+      if (!chapterResult.success) {
+        setServerError(chapterResult.message ?? 'Your details were saved, but the chapter could not be changed.')
+        onSaved()
+        return
+      }
     }
     onEditDone()
     onSaved()
@@ -273,21 +341,28 @@ function GeneralSection({
   return (
     <SectionCard headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} />}>
       {!editing ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
-          <Field label="Prefix"         value={existing?.prefix} />
-          <Field label="First Name"     value={existing?.first_name} />
-          <Field label="Middle Name"    value={existing?.middle_name} />
-          <Field label="Last Name"      value={existing?.last_name} />
-          <Field label="Nickname"       value={existing?.nick_name ?? null} />
-          <Field label="Suffix"         value={existing?.suffix} />
-          <Field label="Email"          value={existing?.primary_email} />
-          <Field label="Phone"          value={existing?.primary_phone} />
-          {/* genderLabel() rather than the raw column: the row holds 'male', the
-              screen says Male. It returns '' for a value it does not recognise, so
-              Field falls through to "Not set" instead of printing a token. */}
-          <Field label="Gender"         value={genderLabel(existing?.gender)} />
-          <Field label="Chapter"        value={currentChapter?.name} />
-        </div>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
+            <Field label="Prefix"         value={existing?.prefix} />
+            <Field label="First Name"     value={existing?.first_name} />
+            <Field label="Middle Name"    value={existing?.middle_name} />
+            <Field label="Last Name"      value={existing?.last_name} />
+            <Field label="Nickname"       value={existing?.nick_name ?? null} />
+            <Field label="Suffix"         value={existing?.suffix} />
+            <Field label="Email"          value={existing?.primary_email} />
+            <Field label="Phone"          value={existing?.primary_phone} />
+            {/* genderLabel() rather than the raw column: the row holds 'male', the
+                screen says Male. It returns '' for a value it does not recognise, so
+                Field falls through to "Not set" instead of printing a token. */}
+            <Field label="Gender"         value={genderLabel(existing?.gender)} />
+          </div>
+          <ChapterBlock familyName={familyName} chapters={chapters}>
+            <p className="text-xs text-muted-foreground">Chapter</p>
+            <p className="text-sm">
+              {currentChapter?.name ?? <span className="text-muted-foreground">Not set</span>}
+            </p>
+          </ChapterBlock>
+        </>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -341,21 +416,19 @@ function GeneralSection({
                 {GENDERS.map(g => <option key={g} value={g}>{GENDER_LABELS[g]}</option>)}
               </Select>
             </div>
-            {chapters.length > 0 && (
-              <div className="space-y-1.5">
-                <Label htmlFor="chapter_id">Chapter</Label>
-                <select
-                  id="chapter_id"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={chapterId}
-                  onChange={e => setChapterId(e.target.value)}
-                >
-                  <option value="">— None —</option>
-                  {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            )}
           </div>
+          <ChapterBlock familyName={familyName} chapters={chapters}>
+            <Label htmlFor="chapter_id">Chapter</Label>
+            <select
+              id="chapter_id"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:max-w-xs"
+              value={chapterId}
+              onChange={e => setChapterId(e.target.value)}
+            >
+              <option value="">— None —</option>
+              {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </ChapterBlock>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
         </form>
       )}
@@ -648,9 +721,10 @@ const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
  */
 const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> = new Set<ProfileSection>(['security'])
 
-export function PersonalInfoForm({ existing, chapters = [], initialSection, signInEmail }: {
+export function PersonalInfoForm({ existing, chapters = [], familyName = '', initialSection, signInEmail }: {
   existing: PersonalInfoRecord | null
   chapters?: Chapter[]
+  familyName?: string
   /** Resolved from `?section=` on the server, so the first paint is already right. */
   initialSection: ProfileSection
   /** `auth.users.email` — the address the account signs in with, not `primary_email`. */
@@ -703,7 +777,7 @@ export function PersonalInfoForm({ existing, chapters = [], initialSection, sign
       />
       {/* All three stay MOUNTED and hide themselves — see GeneralSection on why. */}
       <GeneralSection
-        existing={existing} chapters={chapters} onSaved={handleSaved}
+        existing={existing} chapters={chapters} familyName={familyName} onSaved={handleSaved}
         visible={section === 'general'}
         editing={editingSection === 'general'}
         onEditDone={() => setEditingSection(null)}

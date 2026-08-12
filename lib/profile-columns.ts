@@ -34,7 +34,25 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   // form cannot get past. See lib/gender.ts.
   'gender',
   'tshirt_category', 'tshirt_size',
-  'chapter_id', 'time_zone',
+  'time_zone',
+  // NO `chapter_id`, deliberately, and it is the one column here that was removed
+  // rather than never added.
+  //
+  // Every other column on this list is the SAME VALUE in every family the user belongs
+  // to — the sync trigger propagates them, which is what makes "the profile" a single
+  // thing that floats. `chapter_id` is the opposite: a chapter belongs to exactly one
+  // family, so the column is per-family and is excluded from both directions of
+  // people_sync_shared_profile (20260617000000) and inherit_shared_person_profile
+  // (20260617000001).
+  //
+  // It has its own action for that reason — saveChapterAndPropagate, which also carries
+  // the member's minor children across with them, something a profile save has no
+  // business doing. The profile form used to send the column BOTH ways on one submit,
+  // and that redundancy was the only thing keeping it on this list.
+  //
+  // Taking it off closes two of the four write paths that needed the §4 reference check
+  // outright: `saveProfileSection` and `updateUserProfile` can no longer name a chapter
+  // at all, in any family. Both keep their guard as a second layer — see the note there.
 ]
 
 const ALLOWED = new Set<string>(WRITABLE_PROFILE_COLUMNS)

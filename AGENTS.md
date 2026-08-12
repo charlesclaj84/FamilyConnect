@@ -364,6 +364,90 @@ run never called it. Two things follow:
 migrations applied — because it is waiting on a confirmation prompt. Redirect stdin:
 `npx supabase db push --linked < /dev/null`.
 
+# Switching family remounts the page
+
+Family isolation has a client-side half, and §3 and §4 do not cover it. `FamilySwitcher`
+lands its change with `router.refresh()`, and a refresh **deliberately merges the new
+server payload without discarding client state** — that is the same behaviour
+`lib/use-server-state.ts` exists to work around. So every `useState` seeded from a
+family-scoped prop keeps rendering the family the user just *left*.
+
+That is not a cosmetic staleness. Where the stale value is writable it is a
+cross-family write with every server-side check satisfied, because by the time it is
+submitted the caller genuinely *is* in the new family and the row genuinely *is* theirs
+— the same shape as §4, arriving from the client's own memory rather than from a
+parameter. **Family Settings is the worked example:** the name box kept the old family's
+name while the server value beside it updated, so the form read as dirty, offered Save,
+and taking it renamed the family you had switched *to* with the name of the one you left.
+
+The fix is one key, in one place:
+
+```tsx
+<main key={familyCode} className="flex-1 min-w-0">{children}</main>
+```
+
+`app/(protected)/layout.tsx`. Four things about it are load-bearing:
+
+* **It is keyed at the layout, not per page,** so a page cannot forget it and the rule
+  holds for pages not yet written. Do not re-key a page underneath it; one mechanism.
+* **`family_code` is the key** because it is immutable after insert
+  (`families_guard_family_code`, `20260812000000`). It changes when the family changes
+  and at no other time, so a rename — or any other `router.refresh()` — remounts
+  nothing, and an optimistic row or a half-filled form survives its own revalidation.
+* **Chrome rendered outside that `<main>` is not covered and keys itself.** Today that is
+  `NotificationBell`, which the layout renders through `Navbar`; it keys on `personId`,
+  already per-family and already what its realtime subscription filters on, so the list
+  and the channel cannot disagree. Anything new added to the navbar or sidebar that holds
+  family data in state owes the same.
+* **A list keyed by row id is already safe.** `AssignmentRow`, `AcceptChildRow`,
+  `BlueprintItemRow` and `EventTypeCard` all seed state from a row prop, and all are
+  keyed by a per-family id, so a switch replaces the ids and React remounts them anyway.
+  Pages on `[id]` routes are safe for a different reason: they `notFound()` when the
+  entity is not in the caller's family, so the client unmounts.
+
+Genuinely UI-local state is *not* what this is about and does not need keying — which
+nav section is expanded (`Sidebar`), which dialog is open, a search string. The test is
+whether the value came from, or will be written back to, one particular family.
+
+# The signed-in app signs itself out when left idle
+
+`components/layout/IdleTimeout.tsx`, mounted once by `app/(protected)/layout.tsx`. 75
+minutes with no keyboard or pointer activity and the member is signed out — a real
+`signOut({ scope: 'local' })`, which revokes the session server-side — and sent to `/login`
+with a notice and a `?next=` back. The last minute is a warning dialog.
+
+Four things about it are load-bearing, and the first is the one that gets undone:
+
+* **The number is `IDLE_LIMIT_MINUTES` in `lib/idle-timeout.ts`,** with the phase boundary
+  and the storage keys. Nothing else may hold a copy — the notice shown on `/login`
+  interpolates it, so the sentence a member reads cannot disagree with the timer. That file
+  is plain TypeScript with no JSX precisely so the boundary can be checked without a
+  browser.
+* **`[auth.sessions] inactivity_timeout` is NOT this feature** and cannot replace it.
+  Measured: GoTrue's window is time since the last token *refresh*, and `autoRefreshToken`
+  renews on a timer with nobody at the keyboard — so an open tab never trips it however long
+  the person has been gone. It is also a renewal cutoff rather than a kill switch, since the
+  token already issued keeps working at GoTrue *and* PostgREST until `jwt_expiry`. The two
+  are complements: the timer covers a person who walked away from an open tab, the setting
+  covers a browser that is not running. Full results are in `config.toml` beside the block;
+  read them before "moving this into config where it belongs".
+* **It is mounted AFTER the shell in the layout, deliberately.** Every dialog in the app is
+  `fixed z-50`, so among equal z-indexes the later DOM node wins — mounted above
+  `{children}` the warning renders *behind* a form dialog the member already had open,
+  which is the moment they most need to see it. It is also not keyed on `familyCode` like
+  `<main>` is: switching family must not restart the clock.
+* **Activity is pointer and keyboard only.** Not `mousemove`, not `scroll` — those fire
+  from momentum scrolling, a nudged desk and animated content, so including them makes the
+  timeout fail in the only direction that matters, which is never firing. A chat message
+  arriving is not activity either; the point is somebody at the keyboard.
+
+**Session scope is a decision every `signOut` call owes.** The default is `'global'`, which
+revokes every session the *account* has, and that is almost never what a button means:
+`SignOutButton` shipped with it and was signing members out of their phone when they signed
+out on a laptop. Use `'local'` for "this device" (sign out, idle timeout,
+`InviteMismatchActions`) and `'others'` only where evicting the rest is the point, which
+today is the password change in `SignInSecurity`.
+
 # Sending email is a plain module, never a server action
 
 `lib/email/` sends the mail the **app** composes — membership approved, family invitation.

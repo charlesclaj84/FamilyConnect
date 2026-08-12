@@ -444,6 +444,15 @@ export async function seed() {
       throw new Error(`seed ${code}: the families trigger did not seed both templates`)
     }
 
+    // A CHAPTER IN EACH FAMILY. Seeded for the `people.chapter_id` cases: that column
+    // is `REFERENCES chapters(id)`, which constrains existence and not ownership, so
+    // every action writing it owes the §4 reference check and the suite needs a real
+    // foreign id to hand them. Before this the fixture had none, and
+    // `announcements.getChapters` was carrying `positive: 'not-applicable'` saying so.
+    f.chapter = must('chapter', await db.from('chapters').insert({
+      family_code: code, name: `${code} chapter`,
+    }).select().single())
+
     f.announcement = must('announcement', await db.from('announcements').insert({
       family_code: code, title: `${code} announcement`, body: `secret body ${code}`,
       author_id: owner.personId, pinned: true,
