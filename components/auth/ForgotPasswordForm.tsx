@@ -40,13 +40,38 @@ export function ForgotPasswordForm() {
 
   if (success) {
     return (
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
           <CardTitle as="h1" className="text-2xl text-primary">Email sent</CardTitle>
           <CardDescription>
             If that address is in our system, you&apos;ll receive a password reset link shortly.
           </CardDescription>
         </CardHeader>
+        {/* ── "If" is doing real work in that sentence, so it gets explained ──────
+            The same screen appears whether or not the address has an account, and that
+            is deliberate rather than vague: a form that answered honestly would let
+            anyone holding a family code — which is public by design, it is meant to be
+            shared — check which of their relatives is registered here, one address at a
+            time. Saying so out loud costs nothing and stops the wording reading as a
+            system that does not know what it did.
+
+            The rest is the support email this page otherwise generates. Nothing here is
+            invented: the link goes to /update-password (see onSubmit above), and a
+            recovery token is single-use and expires. */}
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            You will see this message whichever address you enter. We do not say whether
+            an account exists, because the family code needed to reach this site is meant
+            to be shared — and a form that answered would let anyone holding one work out
+            which of your relatives has registered.
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Nothing arrived?</span> Check the
+            spam folder first, then try the address you registered with rather than the one
+            your family usually reaches you on. The link works once and expires, so ask for
+            a fresh one rather than reusing an old email.
+          </p>
+        </CardContent>
         <CardFooter className="justify-center">
           <Link href="/login" className="text-primary font-medium hover:underline text-sm">
             Back to sign in
@@ -91,7 +116,20 @@ export function ForgotPasswordForm() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="justify-center text-sm">
+      <CardFooter className="flex-col items-start gap-3 text-sm">
+        {/* Two states this page cannot detect and therefore has to name. A reset link
+            can only ever reach an address that already has an account, so somebody who
+            never finished registering, or who is signed up under a different address,
+            will wait for an email that is never coming — and the screen after this one
+            deliberately will not tell them which case they are in. */}
+        <p className="text-muted-foreground">
+          Use the address you registered with. If you never finished creating an account,
+          there is nothing to reset —{' '}
+          <Link href="/register" className="font-medium text-primary hover:underline">
+            sign up
+          </Link>{' '}
+          instead, and ask your family for their code if you are joining an existing family.
+        </p>
         <Link href="/login" className="text-primary font-medium hover:underline">
           Back to sign in
         </Link>

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_LEAD, APP_NAME } from '@/lib/brand'
+import { APP_NAME } from '@/lib/brand'
 
 type Mode = 'join' | 'create'
 
@@ -337,7 +337,20 @@ export function RegisterForm({
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex-col items-start gap-4 text-sm">
+      {/* ── The "what the account is for" block MOVED OUT on 2026-08-12 ─────────
+          It is now `AuthAside` in app/(auth)/register/page.tsx, with the three steps
+          that follow registration added to it. Two things were wrong with it here.
+          It is static text inside a `'use client'` component, so it shipped in the
+          JavaScript bundle as well as the HTML; and it was conditional on
+          `!inviteToken`, which the page can now answer structurally — the aside is
+          rendered only by the branch that has no invitation, so there is no flag to
+          get wrong.
+
+          The card keeps only what belongs to the task. `inviteToken` is the reason
+          the sign-in link stays here: it carries the token into `?next=`, so an
+          invited person who turns out to have an account already comes back to the
+          invitation instead of being stranded on the dashboard. */}
+      <CardFooter className="text-sm">
         <p>
           <span className="text-muted-foreground">Already have an account?&nbsp;</span>
           {/* An invited visitor who turns out to have an account already must come back to
@@ -354,45 +367,6 @@ export function RegisterForm({
             Sign in
           </Link>
         </p>
-
-        {/* ── What the account is for ────────────────────────────────────────────
-            NOT RENDERED FOR AN INVITED VISITOR, and that is the whole reason this is
-            conditional. Someone arriving from an invitation email already knows which
-            family they are joining — the card above names it — so explaining the
-            product to them pushes the fields they came to fill down the page to
-            answer a question they did not ask. `/register?invite=` is also `noindex`,
-            so there is no crawler to serve here either. Both reasons point the same
-            way.
-
-            For the bare `/register` it is the opposite: this is the conversion page,
-            the highest-priority URL in the sitemap after the landing page, and it was
-            ~30 words of visible text. Every capability named below is one the landing
-            page's value cards and APP_SEO_DESCRIPTION already claim — the rule from
-            lib/structured-data.ts, applied to prose: say nothing here the product does
-            not say where it can be checked. */}
-        {!inviteToken && (
-          <div className="text-muted-foreground">
-            <p>
-              {APP_NAME} gives one extended family a private place of its own —{' '}
-              {APP_LEAD.toLowerCase()} There is no public profile and nothing is shared
-              outside the family you join.
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Plan reunions and events, and see who is coming.</li>
-              <li>Track dues and contributions, so nobody is chasing receipts.</li>
-              <li>Share photographs in collections the whole family can add to.</li>
-              <li>Build the family tree, and keep the record of who belongs to whom.</li>
-            </ul>
-            <p className="mt-2">
-              Joining an existing family needs its family code — ask whoever invited you,
-              or{' '}
-              <Link href="/" className="font-medium text-primary hover:underline">
-                read more about how it works
-              </Link>
-              {' '}first.
-            </p>
-          </div>
-        )}
       </CardFooter>
     </Card>
   )

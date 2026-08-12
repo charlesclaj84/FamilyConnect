@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_LEAD, APP_NAME } from '@/lib/brand'
+import { APP_NAME } from '@/lib/brand'
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -158,37 +158,24 @@ export function LoginForm({
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex-col items-start gap-4 text-sm">
+      {/* ── The orientation prose MOVED OUT on 2026-08-12 ───────────────────────
+          It is now `AuthAside` in app/(auth)/login/page.tsx, along with the four
+          reasons a sign-in fails. Two things were wrong with it here. It is static
+          text inside a `'use client'` component, so it shipped in the JavaScript
+          bundle as well as the HTML for no reason; and it was growing, which inside
+          the card means pushing the Sign In button down a phone screen to court a
+          crawler — a real user's task traded for an imagined one.
+
+          The card keeps ONLY what belongs to the task: the fields, and the way out
+          for somebody who has no account. `registerHref` is the reason that link
+          stays here rather than joining the rest — it carries the invitation token
+          across, which the page-level copy knows nothing about. */}
+      <CardFooter className="text-sm">
         <p>
           <span className="text-muted-foreground">Don&apos;t have an account?&nbsp;</span>
           <Link href={registerHref} className="text-primary font-medium hover:underline">
             Create one
           </Link>
-        </p>
-
-        {/* ── Orientation, for whoever arrives here without context ──────────────
-            Two audiences, one paragraph. A person who followed a link from a
-            relative and has never heard of the product needs to know what they are
-            signing in TO before typing a password; and a search result for a bare
-            form has nothing to describe, which is what the audit meant by "~2 words
-            of visible text".
-
-            It is deliberately BELOW the form and deliberately short. The job of this
-            page is to let a member in, and pushing the fields down the screen to
-            court a crawler would trade a real user's task for an imagined one. No
-            keyword list, and no claim the product does not make elsewhere: the three
-            capabilities named are the same ones in APP_SEO_DESCRIPTION and on the
-            landing page's value cards, which is the rule lib/structured-data.ts is
-            written to and applies just as well to prose. */}
-        <p className="text-muted-foreground">
-          {APP_NAME} is a private site for one extended family — {APP_LEAD.toLowerCase()}{' '}
-          Members plan reunions and events together, keep track of dues and
-          contributions, share photographs, and build out the family tree in a place
-          only the family can see.{' '}
-          <Link href="/" className="text-primary font-medium hover:underline">
-            See what it does
-          </Link>
-          {' '}if you were sent here and are not sure what this is.
         </p>
       </CardFooter>
     </Card>
