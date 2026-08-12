@@ -80,17 +80,25 @@ function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl
         onClick={() => fileRef.current?.click()}
         disabled={isPending}
         className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
-        title="Upload photo"
+        aria-label="Upload profile photo"
       >
         {isPending
           ? <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
           : <Camera className="h-3 w-3 text-muted-foreground" />}
       </button>
+      {/* `hidden`, NOT `sr-only`. Both hide it from the eye; only `display: none` takes
+          it out of the tab order and the accessibility tree. Under `sr-only` this was a
+          second, UNNAMED "choose file" control sitting immediately after the camera
+          button that already does the job — a keyboard or screen-reader user tabbed
+          into it and was told nothing about what it was for.
+
+          The button above is the real control and `.click()` still reaches a
+          `display: none` input in every browser this app supports. */}
       <input
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
-        className="sr-only"
+        className="hidden"
         onChange={handleChange}
       />
     </div>

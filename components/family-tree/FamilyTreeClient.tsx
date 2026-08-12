@@ -601,7 +601,9 @@ function PersonBox({ name, sublabel, highlight, titles = [], isDashed, icon = 'u
         <button
           onClick={e => { e.stopPropagation(); onEdit() }}
           className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 hover:bg-muted/60"
-          title="Edit"
+          // The tree renders one of these per person, so a bare "Edit" would announce
+          // identically on every box on the canvas.
+          aria-label={`Edit ${name}`}
         >
           <Pencil className="h-3 w-3 text-muted-foreground" />
         </button>

@@ -126,7 +126,12 @@ export function DocumentList({ initialDocuments, isAdmin }: Props) {
               </Button>
               {selectedFile && <span className="text-xs text-muted-foreground">{formatSize(selectedFile.size)}</span>}
             </div>
-            <input ref={fileRef} type="file" className="sr-only" onChange={handleFileChange} />
+            {/* `hidden`, NOT `sr-only`. Both hide it visually; only `display: none` takes
+                it out of the tab order and the accessibility tree. Under `sr-only` this
+                was a second, unnamed "choose file" control immediately after the button
+                that already opens the picker. `.click()` still reaches a `display: none`
+                input. */}
+            <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
           </div>
           <div className="space-y-1.5">
             <Label>Name</Label>

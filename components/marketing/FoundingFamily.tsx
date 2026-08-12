@@ -16,21 +16,31 @@ import { APP_NAME } from '@/lib/brand'
  * **Do not restyle this into an unlabelled stat strip.** That is the one change that would
  * turn an honest section into a dishonest one without altering a single digit.
  *
- * ── WHY THE LEAD-IN IS PHRASED AS A DECLINE RATHER THAN A BOAST ──────────────
- * The brief was the familiar pivot: *we could tell you how many families trust us, but we
- * would rather show you how it works for yours.* The pivot is here and the second half is
- * literal — the three screenshots immediately above are the showing.
+ * ── TWO DIFFERENT NUMBERS SHARE THIS BAND. KEEP THEM APART ───────────────────
+ * The lede states a customer total; the figures below state the founders' household. They
+ * are unrelated quantities sitting eight lines apart on one Heritage ground, which is the
+ * single thing most likely to go wrong here — a later edit that tightens the copy, drops
+ * the caption, or promotes "400+" into the lede turns the founders' family into a platform
+ * metric, or the platform metric into a family. Every one of the three restatements above
+ * exists to hold that line. None of them is padding.
  *
- * What is deliberately absent is the first half's number. A sentence that declines to print
- * a customer count still ASSERTS one — "we could tell you about the thousands of families"
- * is a claim about thousands of families, and a deniable one, which is worse than printing
- * it plainly. Nothing in this repo can substantiate a platform total: `lib/testimonials.ts`
- * holds the quotes the owner has actually collected and its rules exist because fabricated
- * testimonials are separately regulated. So the copy makes the same rhetorical move against
- * the IDEA of a counter rather than against a figure we would be inventing.
+ * ── THE CUSTOMER FIGURE IS THE OWNER'S CLAIM, ON THE OWNER'S AUTHORITY ───────
+ * *"Thousands of families run on GENORRA"* was asserted by the business owner on
+ * 2026-08-12 and is published here at their direction. Nothing in this repository
+ * substantiates it and nothing here could — it is a fact about the business, not about the
+ * code, and the owner is the only person positioned to state it.
  *
- * If the owner can stand behind a specific number, it belongs in the lede as a plain
- * statement of fact — not smuggled in through a sentence pretending not to say it.
+ * It is written as a PLAIN CLAIM and not as the more usual "we could tell you about the
+ * thousands of families who trust us…". That construction asserts the same number while
+ * appearing not to, which is the worse of the two: deniable, and unfalsifiable by the
+ * reader. If a figure is going to be published it should be published, so that it can be
+ * held to and corrected.
+ *
+ * Two things follow for anyone editing it. **Do not inflate or round it up** to fit a
+ * rhythm — the number is the owner's to change and nobody else's. And **do not repeat it
+ * elsewhere on the site** without checking it is still current; one place to correct is the
+ * reason `lib/brand.ts` and `lib/testimonials.ts` are shaped the way they are, and a
+ * customer count restated on four pages is four things to remember on the day it moves.
  *
  * ── PLACEMENT AND GROUND ─────────────────────────────────────────────────────
  * `bg-brand-hero`, the same ground it had on `/about`, sitting between the product band and
@@ -50,7 +60,7 @@ export function FoundingFamily() {
       <div className="mx-auto max-w-3xl text-center">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-legacy">
-            Instead of a counter
+            About that number
           </p>
           {/* Explicit colour: the base layer paints h1/h2 with --brand-ink, which is
               burgundy in light mode and invisible on this ground. */}
@@ -60,12 +70,14 @@ export function FoundingFamily() {
           >
             We would rather show you how it works
           </h2>
+          {/* The customer figure is the owner's claim — see the note at the top of this
+              file before changing it. `<em>your</em>` is the hinge of the whole paragraph:
+              it is what turns a boast into an offer, so keep the emphasis. */}
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-brand-on-primary/80">
-            Plenty of products open with a number — families served, members onboarded, a
-            figure ticking up in the corner. It is the easiest thing to print on a marketing
-            page and the least useful thing on it to read, because none of it tells you
-            whether the product will hold <em>your</em> family. Everything above is what{' '}
-            {APP_NAME} actually does. Below is the only count that shaped it.
+            Thousands of families run on {APP_NAME}. We could open with that figure and
+            leave it there, but it tells you nothing about whether the product will hold{' '}
+            <em>your</em> family. Everything above is what it actually does. Below is the
+            only count that shaped it.
           </p>
         </Reveal>
       </div>
@@ -88,24 +100,31 @@ export function FoundingFamily() {
             The family we built it for
           </h3>
 
+          {/* THE VISIBLE CAPTION IS THE `dt`. It reads as a caption under the figure and it
+              is also, semantically, the term that figure defines — so it is one element,
+              not two.
+
+              The original had an `sr-only` <dt> above a <dd> that then rendered the label
+              AGAIN as a plain <span>. `sr-only` hides from the eye and not from the
+              accessibility tree, so every figure was announced as "living generations, 6,
+              living generations". One element cannot drift from itself, and cannot be read
+              twice.
+
+              `order` rather than `flex-col-reverse`: a <dl> requires each <dt> to precede
+              its <dd> in the DOM, and the design wants the figure on top — so the pair is
+              swapped visually and left correct structurally. */}
           <dl className="mt-6 grid gap-8 sm:grid-cols-3">
             {[
               { figure: '6', label: 'living generations' },
               { figure: '400+', label: 'family members' },
               { figure: '1', label: 'place it all lives now' },
             ].map(stat => (
-              <div key={stat.label}>
-                {/* The visible caption under each figure IS the term, so the real `dt` is
-                    hidden rather than duplicated — otherwise a screen reader reads every
-                    label twice. */}
-                <dt className="sr-only">{stat.label}</dt>
-                <dd>
-                  <span className="block font-heading text-5xl font-semibold text-brand-on-primary">
-                    {stat.figure}
-                  </span>
-                  <span className="mt-1 block text-sm text-brand-on-primary/70">
-                    {stat.label}
-                  </span>
+              <div key={stat.label} className="flex flex-col">
+                <dt className="order-2 mt-1 text-sm text-brand-on-primary/70">
+                  {stat.label}
+                </dt>
+                <dd className="order-1 font-heading text-5xl font-semibold text-brand-on-primary">
+                  {stat.figure}
                 </dd>
               </div>
             ))}

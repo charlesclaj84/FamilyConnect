@@ -23,7 +23,9 @@ function ChapterRow({ chapter, onDelete }: { chapter: Chapter; onDelete: () => v
   return (
     <div className="flex items-center justify-between px-3 py-2 border-b last:border-0">
       <span className="text-sm">{chapter.name}</span>
-      <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors">
+      {/* Icon-only, and one of many identical rows — the chapter name is the only thing
+          that distinguishes this control from the delete button three rows down. */}
+      <button onClick={onDelete} aria-label={`Delete ${chapter.name} chapter`} className="text-muted-foreground hover:text-destructive transition-colors">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
@@ -75,7 +77,7 @@ function RegionGroup({
           <button
             onClick={onDeleteRegion}
             className="text-muted-foreground hover:text-destructive transition-colors ml-2"
-            title={`Delete ${label} region`}
+            aria-label={`Delete ${label} region`}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

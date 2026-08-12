@@ -161,6 +161,18 @@ export function PersonMultiSelect({
                     type="button"
                     onClick={() => toggle(person.id)}
                     disabled={disabled}
+                    // `aria-label` RATHER THAN an sr-only span, and the difference is not
+                    // stylistic. A button's accessible name is computed from its whole
+                    // subtree, so `{name}` plus a hidden "Remove {name}" concatenated into
+                    // "José Álvarez Remove José Álvarez" — the name was announced twice, on
+                    // the control whose entire job is to be unambiguous about WHICH person
+                    // it removes. `aria-label` replaces the subtree instead of adding to it.
+                    //
+                    // It still contains the visible text, which WCAG 2.5.3 (Label in Name)
+                    // requires: a voice-control user says "click José Álvarez" and the
+                    // match succeeds. An aria-label of just "Remove" would announce
+                    // correctly and break that, which is the trap on this fix.
+                    aria-label={`Remove ${name}`}
                     // The whole chip is the remove control. A tiny × beside a name is a
                     // 12px target on the screen where a mis-tap is most expensive.
                     className={cn(
@@ -172,7 +184,6 @@ export function PersonMultiSelect({
                   >
                     {name}
                     <X className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    <span className="sr-only">Remove {name}</span>
                   </button>
                 </li>
               ))}

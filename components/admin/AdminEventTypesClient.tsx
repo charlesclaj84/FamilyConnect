@@ -44,9 +44,11 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
 
   if (editing) return (
     <div className="flex items-center gap-2 py-1.5">
-      <Input value={value} onChange={e => setValue(e.target.value)} className="h-7 text-sm flex-1" autoFocus onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }} />
-      <button onClick={save} disabled={saving} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
-      <button onClick={() => setEditing(false)} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+      {/* The input is the only thing naming this row while it is being edited, so it
+          carries the item title rather than a bare "Name". */}
+      <Input aria-label={`Rename checklist item ${item.title}`} value={value} onChange={e => setValue(e.target.value)} className="h-7 text-sm flex-1" autoFocus onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }} />
+      <button onClick={save} disabled={saving} aria-label="Save name" className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+      <button onClick={() => setEditing(false)} aria-label="Cancel renaming" className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
     </div>
   )
 
@@ -59,11 +61,17 @@ function BlueprintItemRow({ item, onDelete, onUpdate, onMove }: { item: Blueprin
           {item.due_date && <span className="text-xs text-muted-foreground">Due: {formatDate(item.due_date)}</span>}
         </div>
       </div>
+      {/* `aria-label` NAMES THESE, NOT `title`. Every one of them is icon-only, so
+          without a label the whole row reads as four unnamed buttons — and `title` is
+          not a fix: it is never surfaced by a touch screen reader and is announced
+          inconsistently by the desktop ones, so it was a tooltip pretending to be a
+          name. Each label carries the ITEM, because a list of these rows otherwise
+          offers a dozen identical "Delete" buttons with nothing to tell them apart. */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-all">
-        <button onClick={() => onMove('up')} className="text-muted-foreground hover:text-foreground p-0.5" title="Move up"><ArrowUp className="h-3 w-3" /></button>
-        <button onClick={() => onMove('down')} className="text-muted-foreground hover:text-foreground p-0.5" title="Move down"><ArrowDown className="h-3 w-3" /></button>
-        <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground p-0.5"><Pencil className="h-3.5 w-3.5" /></button>
-        <button onClick={onDelete} className="text-muted-foreground hover:text-destructive p-0.5"><Trash2 className="h-3.5 w-3.5" /></button>
+        <button onClick={() => onMove('up')} aria-label={`Move ${item.title} up`} className="text-muted-foreground hover:text-foreground p-0.5"><ArrowUp className="h-3 w-3" /></button>
+        <button onClick={() => onMove('down')} aria-label={`Move ${item.title} down`} className="text-muted-foreground hover:text-foreground p-0.5"><ArrowDown className="h-3 w-3" /></button>
+        <button onClick={() => setEditing(true)} aria-label={`Rename ${item.title}`} className="text-muted-foreground hover:text-foreground p-0.5"><Pencil className="h-3.5 w-3.5" /></button>
+        <button onClick={onDelete} aria-label={`Delete ${item.title}`} className="text-muted-foreground hover:text-destructive p-0.5"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
     </div>
   )
@@ -182,25 +190,31 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <button onClick={handleExpand} className="flex items-center gap-2 text-left shrink-0">
+          {/* The chevron and the title below are two triggers for one disclosure, so
+              both carry `aria-expanded`. This one is icon-only and needs the name; the
+              other is named by the title it renders. */}
+          <button onClick={handleExpand} aria-expanded={expanded} aria-label={`${expanded ? 'Collapse' : 'Expand'} ${nameValue}`} className="flex items-center gap-2 text-left shrink-0">
             {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           </button>
           {editingName ? (
             <div className="flex items-center gap-2 flex-1">
-              <Input value={nameValue} onChange={e => setNameValue(e.target.value)} className="h-7 text-sm" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }} />
-              <button onClick={handleSaveName} disabled={savingName} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
-              <button onClick={() => { setEditingName(false); setNameValue(eventType.name) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+              <Input aria-label={`Rename event type ${eventType.name}`} value={nameValue} onChange={e => setNameValue(e.target.value)} className="h-7 text-sm" autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }} />
+              <button onClick={handleSaveName} disabled={savingName} aria-label="Save name" className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+              <button onClick={() => { setEditingName(false); setNameValue(eventType.name) }} aria-label="Cancel renaming" className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
             </div>
           ) : (
-            <button onClick={handleExpand} className="flex-1 text-left">
+            <button onClick={handleExpand} aria-expanded={expanded} className="flex-1 text-left">
               <CardTitle className="text-base">{nameValue}</CardTitle>
             </button>
           )}
+          {/* See the note on BlueprintItemRow's controls: `aria-label`, not `title`, and
+              each one names the event type so a page of these cards does not present a
+              column of identical unlabelled buttons. */}
           <div className="flex items-center gap-1.5 shrink-0">
-            <button onClick={() => onMove('up')} disabled={isFirst} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
-            <button onClick={() => onMove('down')} disabled={isLast} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
-            {!editingName && <button onClick={() => setEditingName(true)} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>}
-            <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button>
+            <button onClick={() => onMove('up')} disabled={isFirst} aria-label={`Move ${nameValue} up`} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default"><ArrowUp className="h-3.5 w-3.5" /></button>
+            <button onClick={() => onMove('down')} disabled={isLast} aria-label={`Move ${nameValue} down`} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default"><ArrowDown className="h-3.5 w-3.5" /></button>
+            {!editingName && <button onClick={() => setEditingName(true)} aria-label={`Rename ${nameValue}`} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>}
+            <button onClick={onDelete} aria-label={`Delete ${nameValue}`} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-4 w-4" /></button>
           </div>
         </div>
         {eventType.description && <p className="text-xs text-muted-foreground pl-6">{eventType.description}</p>}
@@ -248,7 +262,7 @@ function EventTypeCard({ eventType, allEventTypes, onDelete, onMove, isFirst, is
                 {subTemplates.map(s => (
                   <div key={s.link_id} className="group/sub flex items-center gap-2 py-1.5 border-b last:border-0">
                     <span className="text-sm flex-1 min-w-0 truncate">{s.name}</span>
-                    <button onClick={() => handleRemoveSubTemplate(s.link_id)} className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover/sub:opacity-100 transition-all" title="Remove sub-event template">
+                    <button onClick={() => handleRemoveSubTemplate(s.link_id)} aria-label={`Remove sub-event template ${s.name}`} className="text-muted-foreground hover:text-destructive p-0.5 opacity-0 group-hover/sub:opacity-100 transition-all">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>

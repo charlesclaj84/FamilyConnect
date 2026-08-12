@@ -161,7 +161,7 @@ export function PhotoCollectionGallery({
       {lightbox !== null && currentPhoto && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={closeLightbox}>
           <div className="relative max-w-4xl max-h-full p-4 w-full" onClick={e => e.stopPropagation()}>
-            <button onClick={closeLightbox} className="absolute top-2 right-2 text-white hover:text-gray-300 z-10">
+            <button onClick={closeLightbox} aria-label="Close photo" className="absolute top-2 right-2 text-white hover:text-gray-300 z-10">
               <X className="h-6 w-6" />
             </button>
             <img src={currentPhoto.url} alt={currentPhoto.caption ?? ''} className="max-h-[70vh] mx-auto rounded-lg object-contain" />
@@ -177,7 +177,7 @@ export function PhotoCollectionGallery({
                 <span key={t.person_id} className="bg-white/20 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                   {t.person_name}
                   {currentPersonId && (
-                    <button onClick={() => handleUntag(currentPhoto.id, t.person_id)} className="hover:text-red-400 ml-0.5">
+                    <button onClick={() => handleUntag(currentPhoto.id, t.person_id)} aria-label={`Remove tag ${t.person_name}`} className="hover:text-red-400 ml-0.5">
                       <X className="h-3 w-3" />
                     </button>
                   )}
@@ -229,12 +229,12 @@ export function PhotoCollectionGallery({
 
             {/* Nav arrows */}
             {lightbox > 0 && (
-              <button onClick={prevPhoto} className="absolute left-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+              <button onClick={prevPhoto} aria-label="Previous photo" className="absolute left-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
                 <ChevronLeft className="h-8 w-8" />
               </button>
             )}
             {lightbox < photos.length - 1 && (
-              <button onClick={nextPhoto} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+              <button onClick={nextPhoto} aria-label="Next photo" className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
                 <ChevronRight className="h-8 w-8" />
               </button>
             )}

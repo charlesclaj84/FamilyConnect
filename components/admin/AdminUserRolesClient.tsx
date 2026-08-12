@@ -212,6 +212,7 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
                     <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{SCOPE_LABELS[r.scope]}</span>
                     <button
                       onClick={() => handleDelete(r.id, r.name)}
+                      aria-label={`Delete ${r.name} role`}
                       className="text-muted-foreground hover:text-destructive transition-colors ml-1"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

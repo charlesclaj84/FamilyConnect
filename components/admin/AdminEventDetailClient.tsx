@@ -488,7 +488,7 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
               </div>
               {!readOnly && (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => { setEditingHotelId(hotel.id); setEditForm({ hotel_name: hotel.hotel_name, phone: hotel.phone ?? '', website: hotel.website ?? '', booking_code: hotel.booking_code ?? '', booking_deadline: hotel.booking_deadline ?? '', country: hotel.country ?? '', street_address: hotel.street_address ?? '', suite: hotel.suite ?? '', city: hotel.city ?? '', state: hotel.state ?? '', zip_code: hotel.zip_code ?? '' }) }} aria-label={`Edit ${hotel.hotel_name}`} className="text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
                   <button onClick={async () => {
                     const ok = await confirm({
                       title: 'Delete hotel booking',
@@ -499,7 +499,7 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
                     if (!ok) return
                     await deleteHotelBooking(hotel.id)
                     onDelete(hotel.id)
-                  }} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
+                  }} aria-label={`Delete ${hotel.hotel_name}`} className="text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               )}
             </div>
@@ -574,8 +574,8 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
                 <div className="flex gap-2 items-center">
                   <Input placeholder="Room type" value={estForm.room_type} onChange={e => setEstForm(f => ({ ...f, room_type: e.target.value }))} className="h-7 text-sm" />
                   <Input placeholder="Amount" type="number" min="0" step="0.01" value={estForm.amount} onChange={e => setEstForm(f => ({ ...f, amount: e.target.value }))} className="h-7 text-sm w-28" />
-                  <button onClick={() => handleAddEstimate(hotel.id)} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
-                  <button onClick={() => { setAddingEst(null); setEstForm({ room_type: '', amount: '' }) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+                  <button onClick={() => handleAddEstimate(hotel.id)} aria-label="Save rate estimate" className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { setAddingEst(null); setEstForm({ room_type: '', amount: '' }) }} aria-label="Cancel rate estimate" className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
                 </div>
               ) : (
                 <button onClick={() => { setAddingEst(hotel.id); setEstForm({ room_type: '', amount: '' }) }} className="text-xs text-primary hover:opacity-70 flex items-center gap-1">
@@ -612,8 +612,8 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
                 <div className="flex gap-2 items-center">
                   <Input placeholder="Key (e.g. Check-in)" value={detailForm.key} onChange={e => setDetailForm(f => ({ ...f, key: e.target.value }))} className="h-7 text-sm" />
                   <Input placeholder="Value (e.g. 3:00 PM)" value={detailForm.value} onChange={e => setDetailForm(f => ({ ...f, value: e.target.value }))} className="h-7 text-sm" />
-                  <button onClick={() => handleAddDetail(hotel.id)} className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
-                  <button onClick={() => { setAddingDetail(null); setDetailForm({ key: '', value: '' }) }} className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
+                  <button onClick={() => handleAddDetail(hotel.id)} aria-label="Save detail" className="text-primary hover:opacity-70"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { setAddingDetail(null); setDetailForm({ key: '', value: '' }) }} aria-label="Cancel detail" className="text-muted-foreground hover:opacity-70"><X className="h-4 w-4" /></button>
                 </div>
               ) : (
                 <button onClick={() => { setAddingDetail(hotel.id); setDetailForm({ key: '', value: '' }) }} className="text-xs text-primary hover:opacity-70 flex items-center gap-1">
@@ -1196,10 +1196,14 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                   <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>{sub.status}</span>
                   {!isPast && (
                     <>
-                      <button onClick={() => handleMoveSub(sub.id, 'up')} disabled={i === 0} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move up">
+                      {/* `aria-label`, not `title`: these are icon-only, one set per
+                          sub-event, so `title` gave a mouse tooltip and left every
+                          screen reader with a row of unnamed buttons. The sub-event name
+                          is in each label because the list repeats them. */}
+                      <button onClick={() => handleMoveSub(sub.id, 'up')} disabled={i === 0} aria-label={`Move ${sub.name} up`} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default">
                         <ArrowUp className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => handleMoveSub(sub.id, 'down')} disabled={i === subEvents.length - 1} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default" title="Move down">
+                      <button onClick={() => handleMoveSub(sub.id, 'down')} disabled={i === subEvents.length - 1} aria-label={`Move ${sub.name} down`} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-default">
                         <ArrowDown className="h-3.5 w-3.5" />
                       </button>
                       <button
@@ -1215,7 +1219,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                           setSubEvents(prev => prev.filter(s => s.id !== sub.id))
                         }}
                         className="text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete sub-event"
+                        aria-label={`Delete sub-event ${sub.name}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1264,7 +1268,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                               <Check className="h-3.5 w-3.5" /> Approve
                             </button>
                           )}
-                          <button onClick={() => handleUnassign(a.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                          <button onClick={() => handleUnassign(a.id)} aria-label={`Unassign ${a.assigned_to_name ?? 'member'}`} className="text-muted-foreground hover:text-destructive transition-colors">
                             <UserMinus className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -1276,6 +1280,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                   {isPast ? null : addMemberForItem === item.id ? (
                     <div className="flex flex-wrap gap-2 items-center">
                       <select
+                        aria-label="Assign member"
                         className="flex-1 text-xs rounded border border-input bg-background px-2 py-1.5 min-w-[140px]"
                         value={newAssigneeId}
                         onChange={e => setNewAssigneeId(e.target.value)}
@@ -1292,16 +1297,17 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                         value={newAssigneeDue}
                         onChange={e => setNewAssigneeDue(e.target.value)}
                         className="text-xs rounded border border-input bg-background px-2 py-1.5 w-32"
-                        title="Due date (optional)"
+                        aria-label="Due date (optional)"
                       />
                       <button
                         onClick={() => handleAddAssignee(item.id)}
                         disabled={!newAssigneeId || assignLoading === item.id}
+                        aria-label="Assign member"
                         className="text-primary hover:opacity-70 transition-opacity"
                       >
                         <Check className="h-4 w-4" />
                       </button>
-                      <button onClick={() => { setAddMemberForItem(null); setNewAssigneeId(''); setNewAssigneeDue('') }} className="text-muted-foreground hover:opacity-70">
+                      <button onClick={() => { setAddMemberForItem(null); setNewAssigneeId(''); setNewAssigneeDue('') }} aria-label="Cancel assigning member" className="text-muted-foreground hover:opacity-70">
                         <X className="h-4 w-4" />
                       </button>
                     </div>

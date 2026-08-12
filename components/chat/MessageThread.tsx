@@ -183,7 +183,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
           <button
             onClick={handleShowMembers}
             className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground shrink-0"
-            title="Manage members"
+            aria-label="Manage members"
           >
             <Settings className="h-4 w-4" />
           </button>
