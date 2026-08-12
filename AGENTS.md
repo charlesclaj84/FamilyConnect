@@ -4,6 +4,35 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Two words that name two different products
+
+When an instruction here says **Home** or **Dashboard**, it means one of these and never
+the other. They are not two views of one app — they are two apps, with different
+audiences, different routers and different rules.
+
+| Word | Who is looking at it | Where it lives |
+|---|---|---|
+| **Home** | Somebody **not** signed in. The public marketing site at genorra.com — the landing page and everything around it that sells the product. | `app/page.tsx`, `app/(marketing)/*`, `components/marketing/*` |
+| **Dashboard** | A signed-in **member**, working with their family. The whole product behind the login. | `app/(protected)/*`, and `app/(protected)/dashboard` specifically when the landing screen is meant |
+
+The distinction is load-bearing, not vocabulary policing, because the two halves are
+governed by opposite rules and a change aimed at one is usually wrong in the other:
+
+* **Home is indexed; Dashboard is not.** `app/(protected)/layout.tsx` sets
+  `robots: { index: false }` for everything beneath it, and `app/robots.ts` deliberately
+  declines to name those routes at all. A page title, a meta description or an
+  OpenGraph image is an advertisement on Home and a leak on the Dashboard.
+* **Home has no caller to authorize; the Dashboard authorizes every one.** Nothing on
+  Home reads family data, so §1's `requireView` preamble does not apply there — and its
+  absence on a Dashboard page is the bug that section exists to prevent.
+* **Home shows the same bytes to everyone; the Dashboard is different for every
+  member.** Marketing copy can be a literal. Dashboard content is whatever the caller's
+  one permission template says it is, fetched (never merely hidden) accordingly (§5).
+* **"Dashboard" has a narrow sense too** — `/dashboard`, the screen a member lands on.
+  Which one is meant is usually plain from the instruction; when it is not, ask.
+
+"Back Office" in a vendor design handoff means Dashboard.
+
 # Authorization is not optional
 
 Every page, sub-page, feature and server action checks the caller's permissions
