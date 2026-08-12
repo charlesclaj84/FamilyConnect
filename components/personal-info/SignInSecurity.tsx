@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { KeyRound, Mail, ShieldCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, createPasswordCheckClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +22,18 @@ import { Label } from '@/components/ui/label'
  * existed with nothing calling them, which meant GoTrue's stock versions were what any
  * future flow would have used — and those link with `{{ .ConfirmationURL }}`, the
  * fragment bug `/auth/confirm` exists to avoid.
+ *
+ * WHAT PROTECTS THE PASSWORD CHANGE, in one place because it is asked three ways. Three
+ * things happen on submit, and only the third is enforced:
+ *
+ *   1. the current password, checked by us — stops somebody using this form, and nothing
+ *      more, since GoTrue's own endpoint takes the session token directly;
+ *   2. the emailed code, checked by GoTrue — but only on sessions older than 24 hours;
+ *   3. every other session revoked, server-side and irreversibly.
+ *
+ * Neither (1) nor (2) is a gate on its own and the copy on screen promises neither. The
+ * reasoning, and the reason the check does not run on the app's own client, is in
+ * `submitPassword` and in `createPasswordCheckClient`.
  *
  * NEITHER TOUCHES `people`. The sign-in address is `auth.users.email`; the profile's
  * `primary_email` is a separate, self-asserted field and is edited in the General
@@ -93,18 +105,23 @@ export function SignInSecuritySection({ visible, signInEmail }: {
   // ── Password ─────────────────────────────────────────────────────────────────
   const [pwStage, setPwStage] = useState<PasswordStage>('idle')
   const [code, setCode] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
   const [pwError, setPwError] = useState('')
+  /** Whether the other-devices sign-out actually succeeded — the success copy says which. */
+  const [othersSignedOut, setOthersSignedOut] = useState(false)
 
   async function requestCode() {
     setPwError('')
     setPwBusy(true)
     const supabase = createClient()
-    // Sends the reauthentication email — the one GoTrue template that carries a 6-digit
-    // code instead of a link, because the user is already signed in and is proving it is
-    // still them at the keyboard.
+    // Sends the reauthentication email — the one GoTrue template that carries a code
+    // instead of a link, because the user is already signed in and is proving it is
+    // still them at the keyboard. Eight digits: auth.email.otp_length in config.toml,
+    // which the copy and placeholder below both restate. It was 6 in all three places
+    // and 8 on hosted until 2026-08-12.
     const { error } = await supabase.auth.reauthenticate()
     setPwBusy(false)
 
@@ -114,43 +131,110 @@ export function SignInSecuritySection({ visible, signInEmail }: {
 
   async function submitPassword() {
     setPwError('')
-    if (password.length < 8) {
-      setPwError('Password must be at least 8 characters')
-      return
-    }
-    if (password !== confirmPassword) {
-      setPwError('Passwords do not match')
-      return
-    }
     if (!code.trim()) {
       setPwError('Enter the code from your email')
       return
     }
+    if (!currentPassword) {
+      setPwError('Enter your current password')
+      return
+    }
+    if (password.length < 8) {
+      setPwError('New password must be at least 8 characters')
+      return
+    }
+    if (password !== confirmPassword) {
+      setPwError('New passwords do not match')
+      return
+    }
+    if (password === currentPassword) {
+      setPwError('That is already your password. Choose a different one.')
+      return
+    }
 
     setPwBusy(true)
-    const supabase = createClient()
-    // HOW MUCH THE CODE ACTUALLY PROTECTS, measured rather than assumed — the matrix is
-    // in config.toml beside `secure_password_change`. Short version: GoTrue enforces the
-    // nonce only when the session is older than its recent-login window (24h). Below
-    // that it skips reauthentication entirely and a wrong code is accepted.
+
+    // ── 1. Check the current password ────────────────────────────────────────────
     //
-    // So this gate is real against an unattended session someone sits down at days later,
-    // and is a formality for a member who signed in this morning — who had to know the
-    // password to be here at all. That is a reasonable place to land; what would not be
-    // reasonable is copy promising more, which is why the panel says "so a password cannot
-    // be changed by someone who simply found your screen unlocked" and not "we verify it
-    // is you".
+    // WHAT THIS IS AND IS NOT. It is not a gate, and must never be described as one:
+    // `PUT /auth/v1/user` is a public GoTrue endpoint that accepts this browser's session
+    // token, so anyone able to open devtools can change the password without ever loading
+    // this form. No check we write here can prevent that, because the check runs on the
+    // attacker's side of the wire.
+    //
+    // It is still worth the field, for the one attacker it does stop: somebody who sits
+    // down at an unlocked screen and uses the product. That is the realistic version of
+    // this threat, and until now the screen asked such a person for nothing they did not
+    // already have — because the emailed code below is not checked either on a session
+    // less than 24 hours old (matrix in config.toml beside `secure_password_change`), and
+    // the mailbox it goes to is usually signed in on the same machine.
+    //
+    // The two proofs cover each other's blind spot, which is why both are asked for. The
+    // code catches somebody who knows a password leaked from somewhere else and has no
+    // access to the mailbox; the field catches somebody at the session who knows neither.
+    //
+    // `createPasswordCheckClient()` and not `createClient()` — signing in on the app's own
+    // client would replace the live session and reset the 24-hour clock that decides
+    // whether the code gets checked at all, disabling the other half of this on the way
+    // past. Its doc comment has the rest.
+    const probe = createPasswordCheckClient()
+    const { error: currentPwError } = await probe.auth.signInWithPassword({
+      email: signInEmail,
+      password: currentPassword,
+    })
+
+    if (currentPwError) {
+      setPwBusy(false)
+      const wrongPassword =
+        currentPwError.code === 'invalid_credentials' ||
+        /invalid login credentials/i.test(currentPwError.message)
+      // Anything else is a rate limit (each check spends a `sign_in_sign_ups` slot) or an
+      // outage, and telling someone their password is wrong when it is not sends them to
+      // the recovery flow for no reason.
+      setPwError(wrongPassword
+        ? 'That is not your current password.'
+        : `We could not check your current password just now: ${currentPwError.message}`)
+      return
+    }
+
+    // ── 2. Change it ─────────────────────────────────────────────────────────────
+    const supabase = createClient()
     const { error } = await supabase.auth.updateUser({
       password,
       nonce: code.trim(),
     })
-    setPwBusy(false)
 
-    if (error) setPwError(error.message)
-    else {
-      setPwStage('done')
-      setCode(''); setPassword(''); setConfirmPassword('')
+    if (error) {
+      setPwBusy(false)
+      setPwError(error.message)
+      return
     }
+
+    // ── 3. Evict every other session ─────────────────────────────────────────────
+    //
+    // THE COMMONEST REASON ANYONE IS ON THIS SCREEN is believing somebody else is in their
+    // account, and a password change that leaves the intruder's session live does not
+    // accomplish that. This is also the one part of the screen that IS enforced rather
+    // than advisory: the refresh tokens are revoked server-side and cannot be un-revoked
+    // from a browser.
+    //
+    // It also sweeps the throwaway session step 1 just created.
+    //
+    // `scope: 'others'` keeps THIS browser signed in — the member stays where they are
+    // and every other device has to sign in again with the new password. A plain
+    // `signOut()` defaults to `'global'` and would sign them out of the screen they are
+    // reading the confirmation on.
+    //
+    // Whether GoTrue already revokes on password change is UNMEASURED (Docker was down);
+    // this call is correct and idempotent either way. If it turns out to be redundant,
+    // keep it anyway — the guarantee then belongs to this line rather than to an internal
+    // of GoTrue that can change under us.
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' })
+
+    setPwBusy(false)
+    setOthersSignedOut(!signOutError)
+    setPwStage('done')
+    setCode(''); setCurrentPassword(''); setPassword(''); setConfirmPassword('')
   }
 
   if (!visible) return null
@@ -215,7 +299,10 @@ export function SignInSecuritySection({ visible, signInEmail }: {
       <Panel
         icon={<KeyRound className="h-5 w-5" />}
         title="Password"
-        description="We email you a short code first, so a password cannot be changed by someone who simply found your screen unlocked."
+        // Deliberately states what is REQUIRED rather than what is prevented. An earlier
+        // version promised "a password cannot be changed by someone who simply found your
+        // screen unlocked", which is more than either proof delivers — see submitPassword.
+        description="Changing it takes your current password and a short code we email you. Your other devices are signed out afterwards."
       >
         {pwStage === 'idle' && (
           <Button size="sm" variant="outline" onClick={requestCode} disabled={pwBusy}>
@@ -227,7 +314,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
           <form className="space-y-3" onSubmit={e => { e.preventDefault(); submitPassword() }}>
             <div className="flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>We sent a 6-digit code to {signInEmail}. It expires in an hour.</p>
+              <p>We sent an 8-digit code to {signInEmail}. It expires in an hour.</p>
             </div>
 
             <div className="space-y-1.5">
@@ -238,8 +325,20 @@ export function SignInSecuritySection({ visible, signInEmail }: {
                 onChange={e => setCode(e.target.value)}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="123456"
+                placeholder="12345678"
                 className="font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="current-password">Current password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••••••"
               />
             </div>
 
@@ -275,7 +374,18 @@ export function SignInSecuritySection({ visible, signInEmail }: {
               <Button size="sm" type="submit" disabled={pwBusy}>
                 {pwBusy ? 'Saving…' : 'Save new password'}
               </Button>
-              <Button size="sm" type="button" variant="ghost" onClick={() => { setPwStage('idle'); setPwError('') }}>
+              <Button
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setPwStage('idle')
+                  setPwError('')
+                  // Do not leave a typed password sitting in component state for the rest
+                  // of the page's life just because they changed their mind.
+                  setCode(''); setCurrentPassword(''); setPassword(''); setConfirmPassword('')
+                }}
+              >
                 Cancel
               </Button>
             </div>
@@ -284,7 +394,26 @@ export function SignInSecuritySection({ visible, signInEmail }: {
 
         {pwStage === 'done' && (
           <div className="rounded-lg border bg-brand-soft/40 px-4 py-3 text-sm">
-            <p>Your password has been changed. It applies the next time you sign in.</p>
+            {/*
+              SAY WHICH OF THE TWO THINGS HAPPENED. The password change is committed by the
+              time either branch renders, so neither may read as a failure — but the
+              sign-out is a separate call that can fail on its own, and somebody who came
+              here to lock an intruder out needs to know it did not happen. The old copy
+              ("It applies the next time you sign in") implied the opposite of what the
+              first branch now guarantees.
+            */}
+            {othersSignedOut ? (
+              <p>
+                Your password has been changed, and every other device signed in to this
+                account has been signed out. They will need the new password.
+              </p>
+            ) : (
+              <p>
+                Your password has been changed — use it from now on. We could not sign out
+                your other devices, so any that were already signed in stay that way. Sign
+                out from each of those to be sure.
+              </p>
+            )}
           </div>
         )}
       </Panel>
