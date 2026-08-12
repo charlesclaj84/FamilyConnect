@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 export type ResendResult =
@@ -26,6 +27,54 @@ export type ResendResult =
  * checking against `[auth.rate_limit] email_sent` before assuming this is broken.
  * Whatever GoTrue says is reported verbatim rather than dressed up as success.
  */
+export type AppealResult =
+  | { success: true }
+  | { success: false; message: string }
+
+/**
+ * Ask a family to reconsider a declined request.
+ *
+ * NO PERMISSION CHECK, and that is correct rather than an omission — the same category as
+ * editing your own profile or submitting an RSVP. `create` and `edit` default to scope
+ * 'none', so demanding a grant would mean nobody could ever appeal; and the caller is by
+ * definition NOT an approved member, so `requireMember()` would refuse every one of them.
+ *
+ * What replaces it is ownership, enforced in the database rather than here.
+ * `appeal_membership_decision()` resolves the row from `auth.uid()` and takes no person or
+ * user id (AGENTS.md §2b), so the only membership this endpoint can touch is the caller's
+ * own — `familyCode` chooses WHICH of their own, and a code they have no row in matches
+ * nothing. It also refuses any row that is not 'rejected', which is what makes a second
+ * appeal impossible until a human has declined them again.
+ *
+ * The USER client, necessarily: the whole authorization is auth.uid(), and the service role
+ * has none.
+ */
+export async function appealMembershipDecision(
+  familyCode: string,
+  note: string,
+): Promise<AppealResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  const { data, error } = await supabase
+    .rpc('appeal_membership_decision', {
+      p_family_code: familyCode,
+      p_note: note,
+    })
+    .maybeSingle<{ ok: boolean; message: string | null }>()
+
+  if (error) return { success: false, message: 'Could not send that just now. Please try again.' }
+  if (!data?.ok) return { success: false, message: data?.message ?? 'Could not send that.' }
+
+  // The dashboard renders the waiting screen from this status, and Members & Access shows
+  // the row in its queue.
+  revalidatePath('/dashboard')
+  revalidatePath('/admin/users')
+  revalidatePath('/my-families')
+  return { success: true }
+}
+
 export async function resendConfirmationEmail(): Promise<ResendResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

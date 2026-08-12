@@ -46,7 +46,13 @@ export interface Applicant {
   decidedAt: string | null
   /** Display name of the administrator who decided, when known. */
   decidedBy: string | null
+  /** The administrator's reason for declining, shown to the applicant. */
   note: string | null
+  /**
+   * What the applicant said when asking for the decision to be looked at again. Their
+   * words, not the family's — never render it as though the family wrote it.
+   */
+  appeal: string | null
 }
 
 export type ApprovalResult =
@@ -75,7 +81,7 @@ export async function getApplicants(): Promise<{
     // One string literal, not a concatenation: the typed client infers the row shape
     // from the literal, and a computed select string degrades every column to
     // GenericStringError.
-    .select('id, first_name, last_name, primary_email, primary_phone, membership_status, membership_requested_at, membership_decided_at, membership_decided_by, membership_note')
+    .select('id, first_name, last_name, primary_email, primary_phone, membership_status, membership_requested_at, membership_decided_at, membership_decided_by, membership_note, membership_appeal')
     .eq('family_code', g.familyCode)
     .not('user_id', 'is', null)
     .in('membership_status', ['pending', 'rejected'])
@@ -115,6 +121,10 @@ export async function getApplicants(): Promise<{
     decidedAt: (r.membership_decided_at as string) ?? null,
     decidedBy: names.get(r.membership_decided_by as string) ?? null,
     note: (r.membership_note as string) ?? null,
+    // The applicant's own words, when they have asked a refusal to be looked at again
+    // (20260811000002). Distinct from `note`, which is the administrator's reason for the
+    // refusal — two authors, and the queue renders them as such.
+    appeal: (r.membership_appeal as string) ?? null,
   })
 
   return {

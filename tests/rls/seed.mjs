@@ -152,6 +152,10 @@ export const USERS = {
   alphaDeclinedAsk: { email: 'alpha.declined.ask@rls.test', family: ALPHA, admin: false, declined: true },
   alphaDeclinedBack: { email: 'alpha.declined.back@rls.test', family: ALPHA, admin: false, declined: true },
   alphaDeclinedStale: { email: 'alpha.declined.stale@rls.test', family: ALPHA, admin: false, declined: true },
+  // A fourth, for 20260811000002's appeal. Its own row because the appeal control really
+  // does move the row to 'pending', and the three above must stay 'rejected' for their own
+  // cases — an appeal that consumed one of them would make those pass for the wrong reason.
+  alphaDeclinedAppeal: { email: 'alpha.declined.appeal@rls.test', family: ALPHA, admin: false, declined: true },
   // The one account that can give redeemInvitation a positive control, and the reason it
   // is a BRAVO member rather than an ALPHA one: redemption is by definition an OUTSIDER
   // joining, so the redeemer must have an auth.users row (or the email conjunct at
@@ -700,6 +704,19 @@ export async function seed() {
         email: fx.users.alphaDeclinedBack.email,
         token_hash: tokenHash(`rls-reopen-token-${code}`),
         pre_approved: true,
+        invited_by: familyAdmin.personId,
+      }).select().single())
+
+      // Its own invitation for resendInvitation to re-mint, addressed to somebody with no
+      // account and no people row. Separate from the two above for `deletableChild`'s
+      // reason twice over: a resend REVOKES the row it resends and inserts a replacement,
+      // so pointing it at f.invitation would break the peek case (which needs that token
+      // valid) and at f.revocableInvitation would collide with the revoke case.
+      f.resendInvitation = must('resend invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: 'resend.alpha@rls.test',
+        token_hash: tokenHash(`rls-resend-token-${code}`),
+        pre_approved: false,
         invited_by: familyAdmin.personId,
       }).select().single())
 

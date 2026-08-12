@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Clock, Ban, Mail, Home } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { resendConfirmationEmail } from '@/app/actions/membership'
+import { Textarea } from '@/components/ui/textarea'
+import { resendConfirmationEmail, appealMembershipDecision } from '@/app/actions/membership'
 import type { MembershipStatus } from '@/lib/auth/family'
 
 /**
@@ -63,8 +65,17 @@ export function PendingApprovalScreen({
   /** Approved memberships elsewhere, so a multi-family account is not stranded. */
   otherFamilies: { familyCode: string; familyName: string }[]
 }) {
+  const router = useRouter()
   const [message, setMessage] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  // Which declined family the appeal box is open for, and what it says. Keyed by family
+  // code rather than a boolean: an account can be declined by more than one family at
+  // once, and each refusal is its own conversation with its own administrators.
+  const [appealing, setAppealing] = useState('')
+  const [appealNote, setAppealNote] = useState('')
+  const [appealError, setAppealError] = useState('')
+  const [appealed, setAppealed] = useState<string[]>([])
 
   function resend() {
     setMessage('')
@@ -76,12 +87,37 @@ export function PendingApprovalScreen({
     })
   }
 
+  function submitAppeal(familyCode: string) {
+    setAppealError('')
+    startTransition(async () => {
+      const result = await appealMembershipDecision(familyCode, appealNote)
+      if (result.success) {
+        // Recorded locally as well as revalidated, because the row this screen was
+        // rendered from is now 'pending' and the server will re-render it as a waiting
+        // family — this keeps the confirmation on screen through that transition rather
+        // than having the panel vanish with nothing said.
+        setAppealed(current => [...current, familyCode])
+        setAppealing('')
+        setAppealNote('')
+        router.refresh()
+      } else {
+        setAppealError(result.message)
+      }
+    })
+  }
+
   // A decision is still outstanding somewhere. Drives the two panels that are only
   // useful while one is: filling in a profile the reviewers will read, and confirming
   // an address the approval waits on. Telling someone whose access was declined or
   // switched off to confirm their email advertises a route back in that confirming an
   // address does not open — so with nothing pending, neither panel renders.
   const waiting = pending.some(f => f.status === 'pending')
+
+  // Positively 'rejected', never "not pending": 'disabled' also reaches this screen and an
+  // appeal must not be offered for it — that exclusion was made under a different grant
+  // (set_member_enabled, admin/users) and the RPC refuses it, so offering the button would
+  // advertise a route back that does not open. Same rule as everywhere else here.
+  const declined = pending.filter(f => f.status === 'rejected')
 
   const single = pending.length === 1 ? pending[0] : null
 
@@ -139,6 +175,92 @@ export function PendingApprovalScreen({
             ))}
           </ul>
         )}
+
+        {/* ASKING THEM TO LOOK AGAIN — one panel per declined family.
+            A refusal is not always final and is quite often a misidentification: a large
+            family reviewing a name nobody on the committee recognises is the ordinary way
+            this goes wrong. So a declined applicant may reply once, in writing, and that
+            reply puts them back in the queue with the note attached.
+
+            Once per refusal, enforced in the database rather than here: the RPC requires
+            the row to BE 'rejected' and its own success makes it 'pending', so the button
+            cannot be used twice until a human has declined them again. This panel simply
+            stops rendering, because the family's status is no longer 'rejected'. */}
+        {declined.map(family => (
+          <div key={family.familyCode} className="rounded-xl border px-4 py-3">
+            {appealed.includes(family.familyCode) ? (
+              <>
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4" /> Sent to {family.familyName}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your request is back with their administrators, with your note attached.
+                  They will see who declined it before and what you have said about it.
+                </p>
+              </>
+            ) : appealing === family.familyCode ? (
+              <>
+                <label
+                  htmlFor={`appeal-${family.familyCode}`}
+                  className="text-sm font-medium"
+                >
+                  Ask {family.familyName} to look again
+                </label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Say who you are and how you are related, so whoever reviews it can place
+                  you. This goes to the family&apos;s administrators.
+                </p>
+                <Textarea
+                  id={`appeal-${family.familyCode}`}
+                  value={appealNote}
+                  onChange={e => setAppealNote(e.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                  className="mt-3"
+                  placeholder="I'm Martha's youngest — my mother was born in Bastrop and my cousin Ada is already a member."
+                />
+                {appealError && (
+                  <p className="mt-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {appealError}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => submitAppeal(family.familyCode)}
+                    disabled={isPending || !appealNote.trim()}
+                    className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {isPending ? 'Sending…' : 'Send to the administrators'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAppealing(''); setAppealError('') }}
+                    className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium">Think that was a mistake?</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  You can send {family.familyName}&apos;s administrators a note and ask them
+                  to look at your request again. You get one reply per decision, so it is
+                  worth saying how you are related.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setAppealing(family.familyCode); setAppealNote(''); setAppealError('') }}
+                  className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  Ask them to look again
+                </button>
+              </>
+            )}
+          </div>
+        ))}
 
         {waiting && (
           <p className="text-sm text-muted-foreground">

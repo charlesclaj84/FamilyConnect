@@ -1152,6 +1152,36 @@ export const APPROVAL_CASES = [
     positive: 'not-applicable',
     why: 'the assertion IS that no caller gets a more informative answer, so a more-entitled caller is not a comparison — an approver reads the queue itself, on a screen their grant already covers',
   }),
+  {
+    kind: 'write',
+    id: 'invitations.resendInvitation',
+    mod: 'app/actions/invitations.ts', fn: 'resendInvitation',
+    // THE ID IS THE ONLY ARGUMENT, and the address it mails is read from the row — so the
+    // whole of the isolation is whether RLS releases that row. BRAVO's administrator holds
+    // scope 'any' on every resource in BRAVO, and the policy on family_invitations is
+    // family-scoped, so they read nothing and cannot name an address to mail.
+    //
+    // NOT EVIDENCE FOR THE RLS READ ON ITS OWN, and saying so here rather than letting it
+    // look like it is. Mutation-tested 2026-08-12: swapping the read to createAdminClient()
+    // — deleting the family scoping entirely — leaves this case GREEN, because
+    // `inviteMember` then refuses BRAVO's administrator independently
+    // (create_family_invitation looks for the CALLER's approved people row in the target
+    // family, 20260806000014:96-107). Two layers, and this case cannot tell you which one
+    // held.
+    //
+    // It is not vacuous either: removing BOTH — admin-client read plus a fail-open family
+    // lookup — turns the attack red, with BRAVO's administrator successfully re-minting and
+    // mailing an ALPHA invitation. So the pair is under test, the layers are not
+    // individually. If you narrow either one, re-run that double mutation rather than
+    // trusting this green.
+    args: fx => [fx.alpha.resendInvitation.id],
+    // A resend revokes the row it resends and inserts a replacement, so ALPHA's own list
+    // for that address goes from one open row to one revoked plus one open. Filtered to
+    // the address, because that is the only part of the table this case owns.
+    probe: (db) => snapshot('family_invitations', 'id, email, revoked_at',
+      { family_code: 'ALPHATEST', email: 'resend.alpha@rls.test' })(db),
+    positiveActor: 'alphaAdmin',
+  },
   read('invitations.inviteMember (a re-invitation is never pre-approved)',
     'app/actions/invitations.ts', 'inviteMember', {
     // WHAT THE INVITER IS TOLD. alphaAdmin holds admin/approvals:edit at 'any', so their
@@ -1170,6 +1200,49 @@ export const APPROVAL_CASES = [
     positive: 'not-applicable',
     why: 'alphaAdmin IS the entitled caller — the assertion is that even a full approvals grant cannot pre-approve a re-invitation, so a more-entitled comparison does not exist',
   }),
+  {
+    kind: 'write',
+    id: 'membership.appealMembershipDecision (acts only on the caller\'s own row)',
+    mod: 'app/actions/membership.ts', fn: 'appealMembershipDecision',
+    // The action takes a FAMILY CODE and a note, never a person id — so the only thing
+    // stopping it touching somebody else's membership is that the RPC resolves the row from
+    // auth.uid(). BRAVO's administrator naming ALPHATEST is the test of exactly that: they
+    // hold every grant BRAVO can confer, and ALPHATEST is a real family whose declined rows
+    // are real, and they must still change nothing.
+    //
+    // This is the shape AGENTS.md §2b warns about from the other direction: the moment
+    // somebody "helpfully" adds a p_person_id so an administrator can appeal on behalf of a
+    // relative, this becomes a way to move an arbitrary row into the approvals queue.
+    args: () => ['ALPHATEST', 'Please reconsider — I am family.'],
+    // THE PROBE IS THE WHOLE SET OF ALPHA'S DECLINED ROWS, not just the one the control
+    // moves, and that is the result of mutation-testing this case rather than assuming it.
+    // Scoped to a single id it was blind: replacing `p.user_id = v_user` with an unscoped
+    // `… AND membership_status = 'rejected' LIMIT 1` lets the attacker move SOME declined
+    // ALPHA row, and with no ORDER BY it is arbitrary which — so a one-row probe passed the
+    // attack while the protection was gone. Watching the set, any row leaving 'rejected'
+    // moves the snapshot whichever one the mutation happens to pick.
+    probe: (db) => snapshot('people', 'id, membership_status, membership_appeal',
+      { family_code: 'ALPHATEST', membership_status: 'rejected' })(db),
+    positiveActor: 'alphaDeclinedAppeal',
+  },
+  {
+    kind: 'write',
+    id: 'membership.appealMembershipDecision (only a declined row may appeal)',
+    mod: 'app/actions/membership.ts', fn: 'appealMembershipDecision',
+    // THE ATTACKER IS A PENDING APPLICANT OF THE SAME FAMILY — inside the boundary by every
+    // test the cross-family cases apply, and refused here by state rather than by scoping.
+    // Without the `<> 'rejected'` guard this would be a way for anyone already in the queue
+    // to keep bumping themselves up it (membership_requested_at is refreshed) and to attach
+    // arbitrary text to their own row, which the approvals screen renders.
+    attacker: 'alphaPending',
+    args: () => ['ALPHATEST', 'Bumping myself up the queue.'],
+    // Filtered to the ATTACKER's own row and projecting the column the guard protects: if
+    // the guard failed open, their note would land here and the snapshot would move.
+    probe: (db, fx) => snapshot('people', 'id, membership_status, membership_appeal',
+      { id: fx.users.alphaPending.personId })(db),
+    positive: 'not-applicable',
+    why: 'a pending applicant has no legitimate appeal — the state exists for declined rows, and the case above supplies the real control with a declined actor',
+  },
   read('invitations.peekInvitation (a re-invitation promises no access)',
     'app/actions/invitations.ts', 'peekInvitation', {
     // WHAT THE INVITEE IS TOLD, before they have an account or a session — which is why

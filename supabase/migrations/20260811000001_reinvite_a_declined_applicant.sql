@@ -440,6 +440,12 @@ $$;
 -- who was refused. Note this is also why the create-side check above cannot be dropped
 -- as redundant — it is the only thing that mints the invitation which makes that
 -- possible.
+--
+-- REVISED BY 20260811000002, which gives the refused person a way back after all — but a
+-- purpose-built one that carries a written appeal and can be used only once per refusal,
+-- rather than by relaxing the code path. `join_family_by_code` is still untouched, and the
+-- objection recorded above (silent, repeatable self-re-queueing) is still the reason. Read
+-- that migration's header before changing either.
 
 -- ── verify ─────────────────────────────────────────────────────────────────
 DO $$

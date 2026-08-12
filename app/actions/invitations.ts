@@ -7,6 +7,10 @@ import { requireRead } from '@/lib/auth/guard'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { familyInvitationEmail } from '@/lib/email/templates'
+// Plain modules, never re-exported from here: one takes an email address and answers
+// whether it has an account, which as an endpoint is an enumeration oracle. See the
+// header of lib/auth/account-state.ts.
+import { accountStateForEmail, requestConfirmationResend } from '@/lib/auth/account-state'
 
 /**
  * Invitations to join a family.
@@ -236,6 +240,122 @@ export async function getInvitations(): Promise<FamilyInvitation[]> {
       invitedBy: inviter ? `${inviter.first_name} ${inviter.last_name}`.trim() : null,
     }
   })
+}
+
+/** What resending decided to do, so the UI can say it rather than guess. */
+export type ResendResult =
+  | { success: false; message: string }
+  | {
+      success: true
+      email: string
+      /** The invitation email reached Resend. */
+      emailed: boolean
+      /** A sign-up confirmation was also requested, because the account needs one. */
+      confirmationRequested: boolean
+      /**
+       * The recipient's account, as GoTrue reports it. 'unknown' means the lookup failed
+       * and is NOT the same as 'none' — the UI must not advise on a guess.
+       */
+      account: 'none' | 'unconfirmed' | 'confirmed' | 'unknown'
+      /** The raw token, present ONLY when the invitation email did not go. Same rule as InviteResult. */
+      token?: string
+    }
+
+/**
+ * Send an invitation again.
+ *
+ * A RESEND IS A NEW INVITATION, and it cannot be anything else: the token is returned by
+ * `create_family_invitation` exactly once and stored only as a SHA-256, so there is no
+ * "the same link" to send twice. This delegates to `inviteMember`, whose RPC revokes any
+ * open invitation for that address before minting the next one — so the old link stops
+ * working the moment a new one is sent. That is the right behaviour for a credential
+ * anyway: resending rotates it.
+ *
+ * WHY IT ALSO LOOKS AT THE ACCOUNT. Resending the invitation is frequently NOT the thing
+ * that unblocks the invitee, and the case that taught us is the ordinary one: they
+ * registered, never clicked the confirmation email, and therefore cannot sign in at all.
+ * The invitation link then correctly sends them to sign-in (peek reports `has_account`),
+ * sign-in correctly refuses an unconfirmed address, and a fresh invitation changes nothing
+ * — the administrator resends three times and the invitee stays stuck. So this reads the
+ * account state and, for an unconfirmed one, asks GoTrue to resend the confirmation too.
+ *
+ * WHO MAY. There is no `can*()` call here on purpose: the invitation is READ THROUGH THE
+ * USER CLIENT, and the policy on `family_invitations` shows a row to whoever can view
+ * admin/approvals in that family or to the person who sent it. A caller who is entitled to
+ * neither reads no row and therefore cannot name an address to mail — which is the check,
+ * expressed once, in the same place `revokeInvitation` expresses it. `inviteMember` then
+ * re-derives the caller's right to invite into that family independently.
+ *
+ * That ordering matters: the email address handed to the mail layer comes from a row RLS
+ * released, never from the caller. Otherwise this would be the open relay AGENTS.md warns
+ * about, wearing an invitation id as a disguise.
+ */
+export async function resendInvitation(invitationId: string): Promise<ResendResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  const { data: invitation, error } = await supabase
+    .from('family_invitations')
+    .select('id, email, family_code, pre_approved, accepted_at, revoked_at, expires_at')
+    .eq('id', invitationId)
+    .maybeSingle()
+
+  // A refused query and a missing row are different things and `data` cannot tell them
+  // apart — AGENTS.md §8. Both end here, but the error must not be discarded silently.
+  if (error) return { success: false, message: 'Could not resend that invitation.' }
+  if (!invitation) return { success: false, message: 'Invitation not found' }
+
+  // Deliberately specific, unlike the redemption messages. The person reading this is an
+  // administrator looking at their own family's list, so "which of these three happened"
+  // is information they already hold and can act on — the reticence that governs
+  // redeem_family_invitation is about a stranger holding a token, not about this screen.
+  if (invitation.accepted_at) {
+    return { success: false, message: 'That invitation has already been accepted.' }
+  }
+  if (invitation.revoked_at) {
+    return { success: false, message: 'That invitation was cancelled. Send a new one instead.' }
+  }
+  // EXPIRY IS NOT CHECKED, deliberately. Resending is precisely the remedy for a lapsed
+  // invitation, and the replacement carries a fresh 14 days — refusing here would leave an
+  // administrator with a dead row and no button that does anything to it. Accepted and
+  // revoked are different: those rows are finished, and re-minting from them would quietly
+  // resurrect a decision somebody made.
+  const email = invitation.email as string
+
+  // Before re-minting, so that a failure here cannot leave the caller told nothing about
+  // an account that needs confirming.
+  const state = await accountStateForEmail(email)
+
+  const sent = await inviteMember(
+    email,
+    Boolean(invitation.pre_approved),
+    invitation.family_code as string,
+  )
+  if (!sent.success) return { success: false, message: sent.message }
+
+  // ONLY for an account that exists and has not confirmed. Asking for any other state
+  // would either do nothing (no account, or already confirmed) or send somebody a
+  // confirmation they do not need, and in both cases the UI would be reporting a send
+  // that GoTrue's uniform 200 cannot substantiate.
+  const needsConfirmation = state?.exists === true && state.confirmed === false
+  const confirmationRequested = needsConfirmation
+    ? await requestConfirmationResend(email)
+    : false
+
+  revalidatePath('/admin/users')
+  revalidatePath('/my-families')
+
+  return {
+    success: true,
+    email: sent.email,
+    emailed: sent.emailed,
+    confirmationRequested,
+    account: state === null
+      ? 'unknown'
+      : !state.exists ? 'none' : state.confirmed ? 'confirmed' : 'unconfirmed',
+    ...(sent.token ? { token: sent.token } : {}),
+  }
 }
 
 /** Cancel an invitation that has not been used. The sender or an approver may. */

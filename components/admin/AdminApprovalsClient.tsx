@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { UserCheck, UserX, Clock, Mail, Phone, ShieldCheck } from 'lucide-react'
+import { UserCheck, UserX, Clock, Mail, Phone, ShieldCheck, Send } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { useServerState } from '@/lib/use-server-state'
 import { approveApplicant, rejectApplicant, type Applicant } from '@/app/actions/admin/approvals'
-import { revokeInvitation, type FamilyInvitation } from '@/app/actions/invitations'
+import { revokeInvitation, resendInvitation, type FamilyInvitation, type ResendResult } from '@/app/actions/invitations'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { formatDate } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
@@ -40,6 +40,9 @@ export function AdminApprovalsClient({
   const [busyId, setBusyId] = useState('')
   const [rejecting, setRejecting] = useState<Applicant | null>(null)
   const [reason, setReason] = useState('')
+  // The outcome of the last resend, kept so the panel below the list can say what was
+  // actually sent. Narrowed to the success shape — a failure goes to `error` like any other.
+  const [resent, setResent] = useState<Extract<ResendResult, { success: true }> | null>(null)
   const [isPending, startTransition] = useTransition()
 
   // Accepted and revoked invitations are history, not work. An accepted one has already
@@ -95,6 +98,31 @@ export function AdminApprovalsClient({
    * Until 2026-08-11 nothing in the app could do this at all: the Declined list rendered
    * no controls, so a decline was permanent even though the RPC had always allowed it.
    */
+  /**
+   * Resend an invitation, and say what that turned out to mean.
+   *
+   * No confirmation dialog: it is not destructive in any way a person would want to stop,
+   * and the one side effect worth knowing — the old link stops working — is stated in the
+   * panel afterwards rather than guarded in front.
+   */
+  function onResend(invitation: FamilyInvitation) {
+    setError('')
+    setResent(null)
+    setBusyId(invitation.id)
+    startTransition(async () => {
+      const r = await resendInvitation(invitation.id)
+      setBusyId('')
+      if (r.success) {
+        setResent(r)
+        // The RPC revoked the old row and minted a new one, so the list this is rendered
+        // from is stale by exactly one row in each direction.
+        router.refresh()
+      } else {
+        setError(r.message)
+      }
+    })
+  }
+
   async function onReadmit(applicant: Applicant) {
     const ok = await confirm({
       title: `Admit ${name(applicant)} after all?`,
@@ -193,6 +221,19 @@ export function AdminApprovalsClient({
                         </span>
                       )}
                     </div>
+
+                    {/* THEIR REPLY, attributed and visually separated, because it is the
+                        one thing on this screen the applicant wrote. Rendering it in the
+                        same muted run as the family's own metadata would read as the
+                        family's words — and this is text a stranger supplied. */}
+                    {applicant.appeal && (
+                      <blockquote className="mt-2 border-l-2 border-brand-primary/40 bg-brand-soft/40 px-3 py-2 text-xs">
+                        <p className="font-medium">They asked you to look again:</p>
+                        <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+                          {applicant.appeal}
+                        </p>
+                      </blockquote>
+                    )}
                   </div>
 
                   {canDecide && (
@@ -257,28 +298,72 @@ export function AdminApprovalsClient({
                     </p>
                   </div>
                   {canDecide && (
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => {
-                        setError('')
-                        setBusyId(invitation.id)
-                        startTransition(async () => {
-                          const r = await revokeInvitation(invitation.id)
-                          setBusyId('')
-                          if (r.success) router.refresh()
-                          else setError(r.message ?? 'Something went wrong.')
-                        })
-                      }}
-                      className="shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
-                    >
-                      {busy ? 'Cancelling…' : 'Cancel'}
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => onResend(invitation)}
+                        className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                      >
+                        <Send className="h-3 w-3" />
+                        {busy ? 'Sending…' : 'Resend'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => {
+                          setError('')
+                          setBusyId(invitation.id)
+                          startTransition(async () => {
+                            const r = await revokeInvitation(invitation.id)
+                            setBusyId('')
+                            if (r.success) router.refresh()
+                            else setError(r.message ?? 'Something went wrong.')
+                          })
+                        }}
+                        className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                      >
+                        {busy ? 'Cancelling…' : 'Cancel'}
+                      </button>
+                    </div>
                   )}
                 </div>
               )
             })}
           </div>
+
+          {/* WHAT THE RESEND ACTUALLY DID, in the administrator's words rather than ours.
+              A bare "sent" is the failure mode this whole flow exists to remove: the case
+              that prompted it was an invitee who could not sign in, where three resends of
+              the invitation changed nothing and nobody was told why. */}
+          {resent && (
+            <div className="rounded-xl border border-brand-primary/30 bg-brand-soft/50 px-4 py-3 text-sm">
+              <p className="font-medium">
+                {resent.emailed
+                  ? <>A new invitation is on its way to {resent.email}.</>
+                  : <>A new invitation was created for {resent.email}, but we could not email it.</>}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {resent.confirmationRequested
+                  ? <>They already have an account but never confirmed their email address, so
+                      they could not have signed in to accept. We have asked for the
+                      confirmation email to be sent again as well — they need to click that
+                      one first.</>
+                  : resent.account === 'confirmed'
+                    ? <>Their account is confirmed, so the link will take them straight to
+                        sign-in and join.</>
+                    : resent.account === 'none'
+                      ? <>There is no account for that address yet, so the link will take them
+                          to create one. They will not need the family code.</>
+                      : <>We could not check whether that address has an account, so if they
+                          still cannot get in, it is worth asking whether they ever confirmed
+                          their email.</>}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The previous link has stopped working — a resend always issues a new one.
+              </p>
+            </div>
+          )}
         </section>
       )}
 
