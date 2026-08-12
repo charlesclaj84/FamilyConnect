@@ -510,14 +510,27 @@ max_frequency = "5s"
 # abandonment to a week while keeping "remember me" for regulars.
 #
 # Pro plan and up on hosted, and hosted does not read this file — set it in the dashboard
-# (Authentication -> Sessions).
+# (Authentication -> Sessions). See TODO.md's GO LIVE list, which tracks it as a hosted
+# setting rather than a code change.
 # https://supabase.com/docs/guides/auth/sessions
+[auth.sessions]
+# SEVEN DAYS, chosen 2026-08-12. A member who has not been near the product for a week
+# signs in again; an abandoned cookie on a shared machine stops being renewable after one.
 #
-# [auth.sessions]
+# NOTE THE UNIT: Go's duration parser has no `d`, so seven days is written as hours. `168d`
+# is not a long timeout, it is a parse error, and `7` on its own is 7 nanoseconds.
+#
+# Comfortably above the ~58-minute refresh cadence this has to clear (jwt_expiry / 3600s,
+# less auth-js's ~90s margin), so it cannot sign out somebody who is actively working —
+# which is the one way to get this wrong. The measured reasoning is above.
+inactivity_timeout = "168h"
 # Force log out after the specified duration.
+#
+# LEFT OFF DELIBERATELY. Unlike the setting above, this one caps `session.created_at`, and
+# any value at or under 24h means no session can reach the age at which GoTrue starts
+# demanding the reauthentication code — `secure_password_change` becomes decoration with
+# nothing anywhere reporting it. If a timebox is ever wanted, pick a duration well over 24h.
 # timebox = "24h"
-# Force log out if the user has been inactive longer than the specified duration.
-# inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
 # [auth.hook.before_user_created]

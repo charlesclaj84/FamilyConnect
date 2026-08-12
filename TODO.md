@@ -113,10 +113,36 @@ Sending itself is no longer the blocker: hosted has sent through Resend
 comment above it; uncommenting takes local development off Mailpit and starts mailing
 real addresses out of `db reset` and the RLS fixture.
 
-### [ ] `secure_password_change` is `false` on hosted — one dashboard switch
+### [ ] Two `[auth]` values are set in `config.toml` and not on hosted
 
-**Action:** Authentication → Providers → Email → turn on "Secure password change" on the
-hosted project. No code change does this, and nothing in the repo can detect it.
+**Action:** one trip to the dashboard, or one PATCH. Both are settings, not code, and
+nothing in the repo can detect either.
+
+| Setting | `config.toml` | hosted | Where |
+|---|---|---|---|
+| `secure_password_change` | `true` | **false** | Authentication → Providers → Email → "Secure password change" |
+| `sessions_inactivity_timeout` | `168h` (7 days) | **unset** | Authentication → Sessions → "Inactivity timeout" (Pro plan and up) |
+| `otp_length` | `8` | 8 ✓ | closed 2026-08-12 by the sweep below |
+
+A PATCH is safer than the dashboard is fiddly, and much safer than `config push` — it sends
+only the fields named, so it cannot touch the SMTP credentials that live on hosted and in no
+file here:
+
+```bash
+# read first (read-only, and the only way to see any of this)
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  https://api.supabase.com/v1/projects/jdvzabunhchjetjddgdw/config/auth
+
+# then set both. sessions_inactivity_timeout is an INTEGER OF SECONDS here, not a
+# Go duration string like config.toml's — 7 days is 604800.
+curl -s -X PATCH -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  https://api.supabase.com/v1/projects/jdvzabunhchjetjddgdw/config/auth \
+  -d '{"security_update_password_require_reauthentication":true,"sessions_inactivity_timeout":604800}'
+```
+
+Re-read the GET afterwards. Neither value is visible from the app, from
+`/auth/v1/settings`, or from any test.
 
 `config.toml` has said `true` since 2026-08-11, with a carefully measured matrix beside
 it; the whole of "Password change: what protects it" below is written on that premise.
@@ -412,13 +438,29 @@ so an access token expires partway through an idle stretch and `autoRefreshToken
 That is why the page is still alive when the timer fires. It is also, measured, why
 `inactivity_timeout` can never do this job — see the next section.
 
-## Decide whether to set `[auth.sessions] inactivity_timeout`
+## DECIDED 2026-08-12: `inactivity_timeout` is 7 days. Hosted still needs it
 
-**Action:** pick a value and set it in the hosted dashboard, or record that unbounded
-sessions are accepted. Not a code change either way.
+**Action:** the hosted half only — it is one of the two rows in the GO LIVE table above.
+`inactivity_timeout = "168h"` is set in `config.toml`, which is the local stack; GoTrue
+there reports `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT=168h0m0s`.
 
-**The gap it closes, which nothing closes today.** A session cookie has no expiry. Neither
-`timebox` nor `inactivity_timeout` is set, and refresh tokens do not expire on their own — so
+Seven days because it has to clear the refresh cadence (see the floor below) and because the
+threat is an abandoned cookie rather than an idle human — the idle human is the client timer's
+job. A week keeps "remember me" working for anybody who visits regularly and still stops a
+cookie left on a shared machine from being renewable indefinitely.
+
+**Watch the unit in two places, they disagree.** `config.toml` takes a Go duration and Go
+has no `d`, so seven days is `"168h"`; the Management API takes an integer of **seconds**, so
+the same value is `604800`. `"7d"` is a parse error and `7` is seven nanoseconds.
+
+`timebox` stays off — it caps `created_at` and would disable `secure_password_change`. The
+note is in `config.toml` beside it.
+
+The reasoning that produced the number, kept because the floor is the one way to get this
+wrong:
+
+**The gap it closes, which nothing closed before today.** A session cookie has no expiry.
+`timebox` is unset and refresh tokens do not expire on their own — so
 a browser closed while signed in is still signed in whenever it is next opened, indefinitely.
 The shared family computer somebody used once is the case. The client-side idle timer above
 cannot cover it: nothing is running to time anything out.
@@ -625,31 +667,3 @@ Two things worth knowing before choosing a fix:
 
   It returned exactly one row on hosted — `families` — which is how the blast radius
   was bounded. On a correct database it returns none.
-
-### Dead code: `components/admin/AdminChaptersClient.tsx`
-
-**Action:** review, then most likely delete.
-
-Nothing imports it — the only match for `AdminChaptersClient` in the repo is its own
-definition. It was superseded by two components that split its job:
-
-- [AdminRegionsChaptersClient.tsx](components/admin/AdminRegionsChaptersClient.tsx) —
-  rendered by [admin/chapters/page.tsx](<app/(protected)/admin/chapters/page.tsx>)
-- [AdminUserRolesClient.tsx](components/admin/AdminUserRolesClient.tsx) —
-  rendered by [admin/boardpositions/page.tsx](<app/(protected)/admin/boardpositions/page.tsx>)
-  (the route was `/admin/user-roles` until `20260805000006` renamed it and its
-  permission key together)
-
-Before deleting, confirm neither live component is missing anything the dead one does
-— the chapter and custom-role forms look equivalent, but that has not been diffed
-carefully.
-
-Two notes if it is instead kept and wired up:
-
-- Its role form calls `createCustomRole`, which revalidates `/admin/boardpositions`
-  only — not `/admin/chapters`. Harmless today because the create handler calls
-  `router.refresh()` explicitly, which refetches the current route regardless.
-- It was included in the server-data-freshness sweep (it uses `useServerState` and
-  `router.refresh()` like its live siblings), so it is not stale in that respect.
-
-Found while auditing the site for lists that ignored newly created rows.
