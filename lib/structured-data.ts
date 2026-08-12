@@ -164,3 +164,53 @@ export function landingPageGraph() {
     '@graph': [organization(), website(), webApplication()],
   }
 }
+
+/**
+ * The graph for a page that is a DOOR rather than a description: `/login`, `/register`.
+ *
+ * WHY THESE GET ONE AT ALL. They are in the sitemap — `/register` is the conversion page
+ * and deliberately the highest-priority URL after the landing page — so they are pages a
+ * search engine will show. Without a graph they are two anonymous documents that happen
+ * to share a word with the brand: nothing connects them to the `Organization`, and
+ * nothing tells Google the site name to print above the result instead of `genorra.com`.
+ * Attaching them to the SAME `@id`s the landing page uses is what makes three pages one
+ * entity rather than three.
+ *
+ * WHY IT IS NOT THE LANDING PAGE'S GRAPH. `webApplication()` carries the feature list and
+ * the free `Offer`, and both are traceable to things the LANDING page shows — its value
+ * cards and its closing button. A sign-in form shows neither. Repeating them here would
+ * break the one rule this file is written to (see the header): structured data must not
+ * claim anything the page does not show. So an auth page gets the identity nodes, which
+ * are true everywhere, plus a `WebPage` describing itself — and nothing else.
+ *
+ * `isPartOf` points at the website node rather than restating it, for the same reason the
+ * other nodes reference `@id`s: two descriptions of one site can drift, and a consumer
+ * reading both has no way to choose.
+ */
+export function authPageGraph(opts: {
+  /** Absolute-from-root, with no query string — `/login`, `/register`. */
+  path: string
+  /** The page's own name. Match the visible `h1`, not the `<title>`. */
+  name: string
+  /** One sentence. Match the meta description. */
+  description: string
+}) {
+  const url = `${SITE_URL}${opts.path}`
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      organization(),
+      website(),
+      {
+        '@type': 'WebPage',
+        '@id': `${url}#webpage`,
+        url,
+        name: opts.name,
+        description: opts.description,
+        isPartOf: { '@id': WEBSITE_ID },
+        publisher: { '@id': ORGANIZATION_ID },
+        inLanguage: 'en-US',
+      },
+    ],
+  }
+}

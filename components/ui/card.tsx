@@ -33,9 +33,30 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `as` exists so a card that IS the page can say so.
+ *
+ * The default `div` is right for a card inside a page — a dashboard tile's title is not
+ * the page's heading, and marking six of them `h2` would invent an outline nobody
+ * designed. But on `/login`, `/register` and the rest of `app/(auth)`, the card is the
+ * entire page and its title is the only thing that could be the `h1`. Without one those
+ * pages had NO h1 at all: nothing for a screen-reader user to jump to, and an SEO audit
+ * flagging both of them for it.
+ *
+ * The heading keeps `data-slot="card-title"` either way, which is what `CardHeader`'s
+ * grid and the `sm` size variant key off — so this changes the element and nothing else.
+ * One visual consequence, from the base layer in `globals.css` rather than from here:
+ * `h1`/`h2` take `--brand-ink` and weight 600, so a title rendered as one comes out
+ * burgundy and slightly bolder than the `div`. That is a heading looking like a heading;
+ * do not override it back.
+ */
+function CardTitle({
+  className,
+  as: Tag = "div",
+  ...props
+}: React.ComponentProps<"div"> & { as?: "div" | "h1" | "h2" | "h3" }) {
   return (
-    <div
+    <Tag
       data-slot="card-title"
       className={cn(
         "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",

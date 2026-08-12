@@ -42,7 +42,7 @@ export function ForgotPasswordForm() {
     return (
       <Card className="w-full max-w-md text-center">
         <CardHeader>
-          <CardTitle className="text-2xl text-primary">Email sent</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">Email sent</CardTitle>
           <CardDescription>
             If that address is in our system, you&apos;ll receive a password reset link shortly.
           </CardDescription>
@@ -59,7 +59,7 @@ export function ForgotPasswordForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-2xl">Forgot your password?</CardTitle>
+        <CardTitle as="h1" className="text-2xl">Forgot your password?</CardTitle>
         <CardDescription>
           Enter your email and we&apos;ll send you a reset link.
         </CardDescription>

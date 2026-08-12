@@ -2,8 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { RegisterForm } from '@/components/auth/RegisterForm'
 import { peekInvitation } from '@/app/actions/invitations'
+import { StructuredData } from '@/components/marketing/StructuredData'
+import { authPageGraph } from '@/lib/structured-data'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/lib/brand'
+
+const REGISTER_PAGE_NAME = 'Create Your Free Family Account'
+const REGISTER_PAGE_DESCRIPTION =
+  `Create your free ${APP_NAME} account and bring your family together — reunions, dues, photos and your family tree in one private place.`
 
 /**
  * `generateMetadata` rather than a static `metadata` export, because this route's
@@ -35,8 +41,14 @@ export async function generateMetadata({
   }
 
   return {
-    title: 'Create Account',
-    description: `Create your free ${APP_NAME} account and bring your family together — reunions, dues, photos and your family tree in one private place.`,
+    // LENGTHENED 2026-08-12. 'Create Account' rendered as 24 characters once the
+    // template appended the product name — too short to fill a search result and
+    // missing the words somebody looking for this actually types. This renders at 41
+    // against the ~60 Google displays. The word "Free" is not marketing licence: the
+    // landing page's closing button says "Create your free account", and a title must
+    // not promise what the page does not (same rule as lib/structured-data.ts).
+    title: REGISTER_PAGE_NAME,
+    description: REGISTER_PAGE_DESCRIPTION,
     alternates: { canonical: '/register' },
   }
 }
@@ -72,7 +84,7 @@ export default async function RegisterPage({
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">You already have an account</CardTitle>
+          <CardTitle as="h1" className="text-2xl">You already have an account</CardTitle>
           <CardDescription>
             <span className="font-medium">{invitation.email}</span> is already registered
             with {APP_NAME}, so there is nothing to create. Sign in and you will come
@@ -102,5 +114,20 @@ export default async function RegisterPage({
     )
   }
 
-  return <RegisterForm />
+  // The ORDINARY page, and the only one of the three that is indexable — so the only one
+  // that gets a graph. The two invited branches above are `noindex` and their URL carries
+  // a credential; describing them to a search engine is the opposite of the intent.
+  return (
+    <>
+      <StructuredData
+        graph={authPageGraph({
+          path: '/register',
+          // The visible h1 in RegisterForm, not the <title>. See the note in login/page.tsx.
+          name: 'Create your account',
+          description: REGISTER_PAGE_DESCRIPTION,
+        })}
+      />
+      <RegisterForm />
+    </>
+  )
 }

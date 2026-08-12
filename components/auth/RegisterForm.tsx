@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_NAME } from '@/lib/brand'
+import { APP_LEAD, APP_NAME } from '@/lib/brand'
 
 type Mode = 'join' | 'create'
 
@@ -136,7 +136,7 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-primary">Family created!</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">Family created!</CardTitle>
           <CardDescription>
             Share this code with family members so they can join.
           </CardDescription>
@@ -147,7 +147,7 @@ export function RegisterForm({
             <p className="text-4xl font-bold tracking-widest text-primary">{newFamilyCode}</p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            Write this down — you'll need it to invite family members.
+            Write this down — you&apos;ll need it to invite family members.
           </p>
           {!autoSignedIn && (
             <p className="text-center text-sm text-muted-foreground">
@@ -177,7 +177,7 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md text-center">
         <CardHeader>
-          <CardTitle className="text-2xl text-primary">Check your email</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">Check your email</CardTitle>
           <CardDescription>
             We sent a confirmation link to your inbox. Click it to activate your account, then sign in.
           </CardDescription>
@@ -194,7 +194,7 @@ export function RegisterForm({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-2xl">Create your account</CardTitle>
+        <CardTitle as="h1" className="text-2xl">Create your account</CardTitle>
         <CardDescription>
           {inviteToken
             ? <>You have been invited to join{' '}
@@ -337,21 +337,62 @@ export function RegisterForm({
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="justify-center text-sm">
-        <span className="text-muted-foreground">Already have an account?&nbsp;</span>
-        {/* An invited visitor who turns out to have an account already must come back to
-            the invitation after signing in, or the token is simply lost and they are in
-            no family. Plain /login would strand them on the dashboard. */}
-        <Link
-          href={
-            inviteToken
-              ? `/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
-              : '/login'
-          }
-          className="font-medium text-primary hover:underline"
-        >
-          Sign in
-        </Link>
+      <CardFooter className="flex-col items-start gap-4 text-sm">
+        <p>
+          <span className="text-muted-foreground">Already have an account?&nbsp;</span>
+          {/* An invited visitor who turns out to have an account already must come back to
+              the invitation after signing in, or the token is simply lost and they are in
+              no family. Plain /login would strand them on the dashboard. */}
+          <Link
+            href={
+              inviteToken
+                ? `/login?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
+                : '/login'
+            }
+            className="font-medium text-primary hover:underline"
+          >
+            Sign in
+          </Link>
+        </p>
+
+        {/* ── What the account is for ────────────────────────────────────────────
+            NOT RENDERED FOR AN INVITED VISITOR, and that is the whole reason this is
+            conditional. Someone arriving from an invitation email already knows which
+            family they are joining — the card above names it — so explaining the
+            product to them pushes the fields they came to fill down the page to
+            answer a question they did not ask. `/register?invite=` is also `noindex`,
+            so there is no crawler to serve here either. Both reasons point the same
+            way.
+
+            For the bare `/register` it is the opposite: this is the conversion page,
+            the highest-priority URL in the sitemap after the landing page, and it was
+            ~30 words of visible text. Every capability named below is one the landing
+            page's value cards and APP_SEO_DESCRIPTION already claim — the rule from
+            lib/structured-data.ts, applied to prose: say nothing here the product does
+            not say where it can be checked. */}
+        {!inviteToken && (
+          <div className="text-muted-foreground">
+            <p>
+              {APP_NAME} gives one extended family a private place of its own —{' '}
+              {APP_LEAD.toLowerCase()} There is no public profile and nothing is shared
+              outside the family you join.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>Plan reunions and events, and see who is coming.</li>
+              <li>Track dues and contributions, so nobody is chasing receipts.</li>
+              <li>Share photographs in collections the whole family can add to.</li>
+              <li>Build the family tree, and keep the record of who belongs to whom.</li>
+            </ul>
+            <p className="mt-2">
+              Joining an existing family needs its family code — ask whoever invited you,
+              or{' '}
+              <Link href="/" className="font-medium text-primary hover:underline">
+                read more about how it works
+              </Link>
+              {' '}first.
+            </p>
+          </div>
+        )}
       </CardFooter>
     </Card>
   )

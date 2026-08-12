@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_NAME } from '@/lib/brand'
+import { APP_LEAD, APP_NAME } from '@/lib/brand'
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -21,19 +21,49 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-export function LoginForm() {
+/**
+ * THE QUERY STRING ARRIVES AS PROPS, read on the server by the page.
+ *
+ * It used to be read here with `useSearchParams()`, and that had a cost nobody could see
+ * in the browser: the hook opts a client component out of the static prerender, so the
+ * page had to wrap this in `<Suspense fallback={null}>` — and `null` is what the SERVER
+ * therefore sent. The initial HTML of /login was an empty shell. Everything below,
+ * including the heading, reached the page only after React hydrated.
+ *
+ * That is invisible to a user on a normal connection and total to anything that reads
+ * HTML without running scripts. An SEO audit on 2026-08-12 scored the page for having no
+ * `h1` and "~2 words of visible text" — both were there in the component and neither was
+ * in the response. Reading the parameters on the server and passing them down puts the
+ * whole page in the first byte.
+ *
+ * The trade, stated because it is real: /login is now server-rendered per request rather
+ * than static, since reading `searchParams` is a dynamic operation. For a sign-in form
+ * that is the right side of the trade — the page is cheap, and an empty shell ranks and
+ * reads as nothing.
+ */
+export function LoginForm({
+  /**
+   * /auth/confirm redirects here with ?error=… when a confirmation link is invalid,
+   * expired or already used. Without it the user lands on a bare sign-in form with no
+   * hint that the link they just clicked did anything at all.
+   */
+  linkError = '',
+  /**
+   * Raw `?next=`. Still validated here rather than at the call site: it arrives in a URL
+   * and is therefore attacker-controlled, and keeping `safeNext` next to its use is what
+   * stops a future caller passing it through unchecked — lib/safe-next.ts, shared with
+   * /auth/confirm.
+   */
+  nextParam,
+}: {
+  linkError?: string
+  nextParam?: string
+}) {
   const router = useRouter()
-  // /auth/confirm redirects here with ?error=… when a confirmation link is invalid,
-  // expired or already used. Without this the user lands on a bare sign-in form with no
-  // hint that the link they just clicked did anything at all.
-  const searchParams = useSearchParams()
-  const linkError = searchParams.get('error') ?? ''
   // Where to go after signing in. /invite/<token> sends people here with one, so an
   // invitee who already has an account lands back on the invitation and has it redeemed,
   // instead of arriving at the dashboard and being told to go find the email again.
-  // Validated because it arrives in a URL and is therefore attacker-controlled —
-  // lib/safe-next.ts, shared with /auth/confirm.
-  const next = safeNext(searchParams.get('next'))
+  const next = safeNext(nextParam)
   // Someone who came from an invitation, then found they have no account, must not be
   // handed the ordinary register form — it asks for a family code they were never told,
   // which is the dead end this whole flow exists to close. Carry the token across.
@@ -70,7 +100,10 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
+        {/* THE PAGE'S h1. This card is the whole page, so its title is the only thing
+            that could be — and until 2026-08-12 there was no h1 here at all, which
+            leaves a screen-reader user nothing to jump to. See CardTitle's `as`. */}
+        <CardTitle as="h1" className="text-2xl">Welcome back</CardTitle>
         <CardDescription>Sign in to your {APP_NAME} account</CardDescription>
       </CardHeader>
       <CardContent>
@@ -125,11 +158,38 @@ export function LoginForm() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="justify-center text-sm">
-        <span className="text-muted-foreground">Don&apos;t have an account?&nbsp;</span>
-        <Link href={registerHref} className="text-primary font-medium hover:underline">
-          Create one
-        </Link>
+      <CardFooter className="flex-col items-start gap-4 text-sm">
+        <p>
+          <span className="text-muted-foreground">Don&apos;t have an account?&nbsp;</span>
+          <Link href={registerHref} className="text-primary font-medium hover:underline">
+            Create one
+          </Link>
+        </p>
+
+        {/* ── Orientation, for whoever arrives here without context ──────────────
+            Two audiences, one paragraph. A person who followed a link from a
+            relative and has never heard of the product needs to know what they are
+            signing in TO before typing a password; and a search result for a bare
+            form has nothing to describe, which is what the audit meant by "~2 words
+            of visible text".
+
+            It is deliberately BELOW the form and deliberately short. The job of this
+            page is to let a member in, and pushing the fields down the screen to
+            court a crawler would trade a real user's task for an imagined one. No
+            keyword list, and no claim the product does not make elsewhere: the three
+            capabilities named are the same ones in APP_SEO_DESCRIPTION and on the
+            landing page's value cards, which is the rule lib/structured-data.ts is
+            written to and applies just as well to prose. */}
+        <p className="text-muted-foreground">
+          {APP_NAME} is a private site for one extended family — {APP_LEAD.toLowerCase()}{' '}
+          Members plan reunions and events together, keep track of dues and
+          contributions, share photographs, and build out the family tree in a place
+          only the family can see.{' '}
+          <Link href="/" className="text-primary font-medium hover:underline">
+            See what it does
+          </Link>
+          {' '}if you were sent here and are not sure what this is.
+        </p>
       </CardFooter>
     </Card>
   )

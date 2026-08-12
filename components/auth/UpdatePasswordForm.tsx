@@ -77,7 +77,7 @@ export function UpdatePasswordForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-2xl">Choose a new password</CardTitle>
+        <CardTitle as="h1" className="text-2xl">Choose a new password</CardTitle>
         <CardDescription>
           Pick something you have not used here before. You will be signed in as soon as
           it is saved.
