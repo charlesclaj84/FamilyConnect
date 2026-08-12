@@ -133,7 +133,13 @@ export function Testimonials({
                 </blockquote>
                 <figcaption className="mt-5 border-t pt-4">
                   <span className="block text-sm font-semibold">{t.name}</span>
-                  <span className="block text-sm text-muted-foreground">{t.attribution}</span>
+                  {/* Rendered only when the family actually gave one. Every current entry
+                      is a family name alone, and an empty line here is the correct output —
+                      see rule 3 in lib/testimonials.ts about not inventing a role or a
+                      city to balance the card. */}
+                  {t.attribution && (
+                    <span className="block text-sm text-muted-foreground">{t.attribution}</span>
+                  )}
                 </figcaption>
               </figure>
             </Reveal>
