@@ -15,39 +15,34 @@ are not code changes and none of them is done by `db push` — every one is a se
 a credential on the deployed environment, which is exactly why they are easy to reach
 launch day without.
 
-### [ ] Turn on email confirmation
+### [x] Turn on email confirmation — DONE 2026-08-12
 
-Built and verified locally; **off on hosted**, where it is the half that matters.
+**On and working on hosted.** Confirm-email is enabled and all five templates are pasted.
 
-Until it is on, GoTrue stamps `email_confirmed_at` at signup, so the address on an
-account is unproven. Concretely, for a live family: `join_family_by_code()` accepts an
-applicant who never demonstrated they own the address they signed up with, so the
-Member Approvals queue shows an administrator an email that means nothing. Admin
-approval still gates access — nobody gets in un-reviewed — but "we emailed them and
-they clicked it" is not among the things the administrator can rely on. **Do not
-describe the product as email-verified until this box is ticked.**
+Verified rather than asserted, because this box has been the difference between "we
+emailed them and they clicked it" meaning something and meaning nothing:
 
-* Authentication → Providers → Email → **Confirm email: on**
-* Authentication → Email Templates → paste **all five** bodies from
-  [supabase/templates/](supabase/templates/), subject lines included. `config.toml` wires
-  them up locally only; hosted renders whatever was last pasted, so this step is the
-  whole deployment. See [supabase/templates/README.md](supabase/templates/README.md).
+* `GET /auth/v1/settings` on the hosted project answers `mailer_autoconfirm: false` —
+  i.e. confirmation is required. A real account created 2026-08-11 22:29:25Z carries
+  `confirmation_sent_at` stamped and `email_confirmed_at` null, which is the shape only a
+  confirming project produces.
+* `https://www.genorra.com/auth/confirm` with no token 307s to
+  `/login?error=That confirmation link is not valid…`, so the `token_hash` route is live
+  on the real host and the fragment trap is not in play.
 
-  | Dashboard tab | File |
-  |---|---|
-  | Confirm signup | `confirmation.html` |
-  | Reset password | `recovery.html` |
-  | Invite user | `invite.html` |
-  | Change email address | `email-change.html` |
-  | Reauthentication | `reauthentication.html` |
+The five templates are pasted (Charles, 2026-08-12). Keep
+[supabase/templates/](supabase/templates/) as the source of truth: `config.toml` wires
+them up **locally only**, hosted renders whatever was last pasted, so editing a file here
+does nothing to production until somebody pastes it again and sends themselves a real
+signup. The dormant three matter for the same reason they always did — every GoTrue
+default links with `{{ .ConfirmationURL }}`, which returns the session in a URL fragment
+this cookie-based app never sees.
 
-  **Paste the dormant three as well.** Every GoTrue default links with
-  `{{ .ConfirmationURL }}`, so any tab left stock is a trap set for whoever later enables
-  that flow. The `token_hash` link is the load-bearing part: the stock template confirms
-  the account and then returns the session in a URL **fragment**, which the browser never
-  sends to the server — so this app, which is cookie-based via `@supabase/ssr`, would
-  leave the user signed out with nothing explaining why. See
-  [app/auth/confirm/route.ts](app/auth/confirm/route.ts).
+**The product may now be described as email-verified.** One consequence worth knowing,
+because it is now a live support case rather than a hypothetical: an account that
+registered and never clicked the link cannot sign in at all, and nothing in the app
+offers to resend the confirmation. See "An unconfirmed account is a dead end" below.
+
 * Authentication → URL Configuration → site URL and redirect allow-list set to the
   **production** origin — `https://genorra.com` since 2026-08-10, with
   `https://genorra.com/**` on the allow-list. `{{ .SiteURL }}` is what the link in the
@@ -65,11 +60,33 @@ describe the product as email-verified until this box is ticked.**
   asserts the two hosts differ and fails the build if they ever stop differing), and
   preview hosts are untouched because `has.host` is an exact match.
 
-  It ships with the deployment, so **confirm it on the real host after the next
-  deploy** — `curl -sI https://genorra-kappa.vercel.app/` should answer 308. Nothing
-  further is needed in the Vercel dashboard; detaching the alias there would also work
-  and would make the rule dead code, in which case delete it and `LEGACY_VERCEL_HOST`
-  together.
+  **Settled 2026-08-12, and the arrangement changed — read this before touching a
+  redirect.** `https://genorra.com` is canonical and serves the app directly (verified:
+  200, no redirect). The two duplicate hosts are handled below the app:
+
+  | Host | What it does now |
+  |---|---|
+  | `genorra.com` | Canonical. Serves production. |
+  | `www.genorra.com` | 308 → `genorra.com`, in Vercel's domain config. Verified on the real host. |
+  | `genorra-kappa.vercel.app` | The **dev branch's** preview site. Not production. |
+
+  So `PRODUCTION_ORIGIN`, `site_url` in `supabase/config.toml`, the dashboard Site URL and
+  every canonical/OG URL all name the apex, and the apex is what visitors get. All four
+  agree, which is what this section was previously wrong about — for a while the apex 308'd
+  to **www**, so every one of them advertised a URL that redirected.
+
+  **The `next.config.ts` host redirect is GONE, deliberately, and must not come back.** It
+  used to 308 `genorra-kappa.vercel.app` to production. That config ships *inside the
+  build*, so once the alias started serving the dev branch the rule would have 308'd every
+  request away from the deployment it exists to let you test. A host redirect can only live
+  in `next.config.ts` while its source host serves no deployment of its own; once it does,
+  the rule belongs in Vercel. `LEGACY_VERCEL_HOST` went with it.
+
+  What still covers the search half: `IS_INDEXABLE_DEPLOYMENT` is false for anything that
+  is not the production deployment, so the dev site publishes `Disallow: /` and no sitemap.
+  Honest gap: a URL indexed under the old alias no longer 308s anywhere — it serves the dev
+  branch, which disallows crawling. Acceptable, because the alias was never advertised in
+  any email, sitemap or canonical.
 
 **Do not do this with `npx supabase config push`.** It sends the whole `[auth]` block,
 including `site_url = "http://127.0.0.1:3000"` from the local config — production would

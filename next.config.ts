@@ -1,68 +1,37 @@
 import type { NextConfig } from "next";
-import { LEGACY_VERCEL_HOST, PRODUCTION_ORIGIN } from "./lib/site";
 
 /**
- * One origin, enforced at the edge.
+ * Deliberately empty of redirects.
  *
- * The production deployment answers on two public hostnames — the purchased domain
- * and the `.vercel.app` alias Vercel assigns every project — and until this rule
- * existed both SERVED the app rather than one deferring to the other. That is two
- * bugs wearing one costume:
+ * ONE ORIGIN IS STILL THE RULE. `genorra.com` is canonical: every email link, canonical
+ * tag, Open Graph URL and sitemap entry names it, and `PRODUCTION_ORIGIN` in
+ * [lib/site.ts](lib/site.ts) is the single place that says so. Cookies are per-origin, so a
+ * confirmation link built from one host and opened on another leaves the user signed out on
+ * a dashboard with nothing explaining why — that is the failure one-origin prevents, and it
+ * has not stopped mattering.
  *
- *   * **Sessions.** Cookies are scoped to an origin. A confirmation link is built
- *     from `{{ .SiteURL }}`, `/auth/confirm` writes the session cookie on whatever
- *     origin served it, and a user who crosses to the other host mid-flow is signed
- *     out on a dashboard with nothing on screen explaining why. This is the reason
- *     `supabase/config.toml` and TODO.md have both carried "the vercel.app host must
- *     REDIRECT here" since 2026-08-10.
- *   * **Search.** Two hosts serving identical bytes are two competing copies of the
- *     site, and the links each earns accrue to a different one.
+ * WHAT ENFORCES IT NOW, AND WHY NOT HERE. Both duplicate hosts are handled a layer below
+ * this file:
  *
- * A 308 answers both at once, and answers them for every client rather than only for
- * the ones that read `<link rel="canonical">`. The canonical tags on the public pages
- * stay: they are what covers anything already indexed under the old host while Google
- * works through the redirects.
+ *   www.genorra.com          308 → genorra.com, in Vercel's domain config. At the edge,
+ *                            so the app never renders the duplicate at all.
+ *   genorra-kappa.vercel.app the DEV BRANCH's preview site — no longer a second face of
+ *                            production, so there is nothing to collapse.
  *
- * WHY THIS DOES NOT CATCH PREVIEW DEPLOYMENTS. `has.host` is an exact match against
- * one hostname. Preview builds are served from generated hosts
- * (`genorra-git-<branch>-<team>.vercel.app`, `genorra-<hash>-<team>.vercel.app`) and
- * never equal this literal, so they keep working normally — which is what you want,
- * since a preview redirecting to production would make previews untestable. Previews
- * are kept out of the index by `app/robots.ts` instead.
+ * This file used to 308 the `.vercel.app` alias to production, and that rule was REMOVED on
+ * 2026-08-12 rather than repointed, for a reason worth keeping in front of whoever is
+ * tempted to add it back: **`next.config.ts` ships inside the build.** A host rule naming
+ * the alias is therefore present in the DEV build that the alias now serves, so it would
+ * 308 every request away from the deployment you were trying to test. A redirect can only
+ * live here if its source host serves no deployment of its own; once it does, the rule
+ * belongs in Vercel.
  *
- * `permanent: true` is a 308, deliberately: it preserves the method and body, and it
- * is the status that tells a search engine to transfer authority and retire the old
- * URL rather than keep checking back. It is also cached hard by browsers, which is
- * the usual argument for starting with a 307 — it does not apply here, because the
- * alias is being retired rather than trialled.
+ * Preview deployments on generated hosts (`genorra-git-<branch>-<team>.vercel.app`) were
+ * never caught by the old rule either — `has.host` is an exact match — and are kept out of
+ * the index by `app/robots.ts`, which reads `IS_INDEXABLE_DEPLOYMENT` and serves
+ * `Disallow: /` for anything that is not the production deployment. That is what covers the
+ * search half of the argument now.
  */
-
-// A redirect whose source host equals its destination host is an infinite loop and a
-// site outage. That cannot happen with the literal above, but it CAN if someone later
-// rewrites either constant — so it fails the build instead of the site. Cheap, and the
-// failure it prevents is total.
-if (new URL(PRODUCTION_ORIGIN).host === LEGACY_VERCEL_HOST) {
-  throw new Error(
-    `next.config.ts: the legacy host redirect would loop — LEGACY_VERCEL_HOST ` +
-    `(${LEGACY_VERCEL_HOST}) is the host of PRODUCTION_ORIGIN (${PRODUCTION_ORIGIN}). ` +
-    `Delete the redirect rather than pointing it at itself.`,
-  );
-}
-
-const nextConfig: NextConfig = {
-  async redirects() {
-    return [
-      {
-        // Every path, including `/` — `:path*` matches zero or more segments. The
-        // query string is carried over by Next without being named here; naming it
-        // would replace it instead.
-        source: "/:path*",
-        has: [{ type: "host", value: LEGACY_VERCEL_HOST }],
-        destination: `${PRODUCTION_ORIGIN}/:path*`,
-        permanent: true,
-      },
-    ];
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

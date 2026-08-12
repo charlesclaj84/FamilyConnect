@@ -47,33 +47,39 @@
  */
 export const PRODUCTION_ORIGIN = 'https://genorra.com'
 
-/**
- * The `.vercel.app` host this project was served from before the domain was bought,
- * and which Vercel keeps assigning to the production deployment forever.
+/*
+ * `LEGACY_VERCEL_HOST` USED TO LIVE HERE, and its removal on 2026-08-12 is worth a note
+ * because the problem it solved is still real and the solution moved rather than lapsed.
  *
- * It is here to be REDIRECTED AWAY FROM, not to be used. `next.config.ts` turns every
- * request arriving on it into a 308 to `PRODUCTION_ORIGIN`, which is the fix
- * `supabase/config.toml` and TODO.md have both been asking for since 2026-08-10.
+ * The production deployment answered on two public hostnames — `genorra.com` and the
+ * `.vercel.app` alias Vercel assigns every project — and both SERVED the app. That was two
+ * bugs in one costume: cookies are per-origin, so a confirmation link built from one host
+ * and opened on the other left the user signed out with nothing explaining why; and two
+ * hosts serving identical bytes are two competing copies of the site in search. A 308 in
+ * `next.config.ts` collapsed them.
  *
- * WHY A REDIRECT AND NOT JUST A CANONICAL TAG. The search-engine half — two hosts
- * serving identical bytes, authority split between them — is the milder of the two
- * problems and a canonical does answer it. The other half is a session bug: the link
- * in a confirmation email is built from one origin, `/auth/confirm` writes the session
- * cookie on that origin, and a user who arrives on the other one is signed out on a
- * dashboard with nothing explaining why. Cookies are per-origin, and no amount of
- * markup fixes that. Only having one origin does.
+ * WHAT REPLACED IT. The redirect now happens ONE LAYER DOWN, in Vercel: `www.genorra.com`
+ * 308s to `genorra.com` at the edge, so the app never sees the duplicate at all. And
+ * `genorra-kappa.vercel.app` is no longer a second face of production — it is the DEV
+ * BRANCH's preview site. Redirecting it would have made that preview untestable, which is
+ * precisely why the rule had to go rather than be repointed.
  *
- * A STRING LITERAL, NOT `VERCEL_PROJECT_PRODUCTION_URL`, and this is the trap worth
- * knowing about: that variable is documented as "a production domain name of the
- * project", and once a custom domain is attached it can resolve to the custom domain
- * rather than the `.vercel.app` one. Deriving the redirect's SOURCE from it would then
- * match genorra.com and send genorra.com to genorra.com — an infinite loop taking the
- * whole site down, on a config change nobody made. A literal cannot do that, and
- * `next.config.ts` asserts the two are different anyway.
+ * WHAT STILL COVERS THE SEARCH HALF: `IS_INDEXABLE_DEPLOYMENT` below is false for any
+ * non-production build, so the dev site publishes `Disallow: /` and offers no sitemap. The
+ * absolute canonical tags on the public pages cover anything already indexed under the old
+ * alias while Google works through it.
  *
- * Delete this and the redirect together if the alias is ever detached in Vercel.
+ * WHAT IS NO LONGER COVERED, honestly: a URL indexed under `genorra-kappa.vercel.app`
+ * before today no longer 308s to production — it now serves the dev branch, which
+ * disallows crawling. That is a weaker answer than a redirect and an acceptable one,
+ * because the alias was never advertised anywhere; no email, sitemap or canonical has ever
+ * named it.
+ *
+ * DO NOT reintroduce a host-based redirect in `next.config.ts` without dealing with this:
+ * the config ships INSIDE the build, so a rule naming the alias applies to the dev
+ * deployment served on it and 308s every request away from the thing you are trying to
+ * test. Host redirects for a host that serves a real deployment belong in Vercel, not here.
  */
-export const LEGACY_VERCEL_HOST = 'genorra-kappa.vercel.app'
 
 function resolveSiteUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim()
@@ -109,12 +115,16 @@ export const SITE_ORIGIN = new URL(SITE_URL)
  *
  * `app/robots.ts` reads this and serves `Disallow: /` everywhere but production.
  *
- * WHAT THIS DOES NOT COVER, because it cannot: the production deployment answers
- * on BOTH `genorra.com` and the `.vercel.app` alias Vercel assigns every project,
- * and those two hosts are the same build serving the same bytes. robots.txt is
- * part of that build, so it cannot say "allow" on one and "disallow" on the
- * other. That half is the job of the canonical tags on the public pages — an
- * absolute `<link rel="canonical" href="https://genorra.com/…">` is the same on
- * both hosts and names the winner. See the note in `app/page.tsx`.
+ * THIS NOW COVERS THE WHOLE PROBLEM, which it did not until 2026-08-12. The
+ * production deployment used to answer on BOTH `genorra.com` and the `.vercel.app`
+ * alias — the same build serving the same bytes, so robots.txt, being part of that
+ * build, could not say "allow" on one host and "disallow" on the other. That gap is
+ * closed by the arrangement, not by this flag: `www` is 308'd at the edge, and the
+ * alias serves the DEV branch, which reports `VERCEL_ENV=preview` and therefore
+ * disallows everything through this constant.
+ *
+ * The absolute canonical tags on the public pages stay regardless — they are what
+ * covers anything already indexed under the old alias while Google works through it.
+ * See the note in `app/page.tsx`.
  */
 export const IS_INDEXABLE_DEPLOYMENT = process.env.VERCEL_ENV === 'production'
