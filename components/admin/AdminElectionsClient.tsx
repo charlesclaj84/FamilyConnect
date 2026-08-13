@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
+import { ELECTION_STATUS_PILL } from '@/components/elections/status'
 import Link from 'next/link'
 
 const STATUS_NEXT: Record<Election['status'], Election['status'] | null> = {
@@ -32,13 +33,6 @@ const STATUS_ACTION: Record<Election['status'], string> = {
   nominations: 'Start Voting',
   voting: 'Close Election',
   closed: '',
-}
-
-const STATUS_COLOR: Record<Election['status'], string> = {
-  draft: 'bg-blue-100 text-blue-700',
-  nominations: 'bg-amber-100 text-amber-700',
-  voting: 'bg-green-100 text-green-700',
-  closed: 'bg-muted text-muted-foreground',
 }
 
 const fmtDate = (s: string) => formatDate(s) ?? ''
@@ -158,8 +152,8 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
           </div>
 
           {/* Nomination window */}
-          <div className="space-y-2 rounded-lg border bg-amber-50/60 p-3">
-            <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
+          <div className="space-y-2 rounded-lg border bg-brand-legacy/10 p-3">
+            <p className="text-xs font-semibold text-brand-accent uppercase tracking-wide flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" /> Nominations Window
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -175,8 +169,8 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
           </div>
 
           {/* Voting window */}
-          <div className="space-y-2 rounded-lg border bg-green-50/60 p-3">
-            <p className="text-xs font-semibold text-green-800 uppercase tracking-wide flex items-center gap-1.5">
+          <div className="space-y-2 rounded-lg border bg-brand-affirm/10 p-3">
+            <p className="text-xs font-semibold text-brand-affirm uppercase tracking-wide flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" /> Voting Window
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -249,7 +243,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium truncate">{e.title}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLOR[e.status]}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${ELECTION_STATUS_PILL[e.status]}`}>
                         {STATUS_LABEL[e.status]}
                       </span>
                     </div>

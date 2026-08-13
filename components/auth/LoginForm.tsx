@@ -149,7 +149,7 @@ export function LoginForm({
           {/* A failed confirmation link, until they try to sign in and get a live
               answer — at which point the sign-in error is the more useful one. */}
           {linkError && !serverError && (
-            <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <div className="rounded-md bg-brand-soft px-3 py-2 text-sm text-brand-on-soft">
               {linkError}
             </div>
           )}

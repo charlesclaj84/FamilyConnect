@@ -370,7 +370,7 @@ export function AdminFundsClient({
                             </span>
                           )}
                           {SHOW_OPEN_CONTRIBUTIONS && f.open_contributions && (
-                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Open</span>
+                            <span className="shrink-0 rounded-full bg-brand-affirm px-2 py-0.5 text-[11px] font-medium text-brand-on-affirm">Open</span>
                           )}
                         </div>
                         {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
@@ -403,7 +403,7 @@ export function AdminFundsClient({
                           : `${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
                       </td>
                       <td className={cn('px-3 py-2.5 text-right font-medium whitespace-nowrap',
-                        f.balance_cents >= 0 ? 'text-green-600' : 'text-destructive')}>
+                        f.balance_cents >= 0 ? 'text-brand-affirm' : 'text-destructive')}>
                         {fmt(f.balance_cents)}
                       </td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_contributed_cents)}</td>
@@ -676,7 +676,7 @@ export function AdminFundsClient({
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    pctValid ? 'bg-green-100 text-green-700' : 'bg-destructive/10 text-destructive'
+                    pctValid ? 'bg-brand-affirm text-brand-on-affirm' : 'bg-destructive/10 text-destructive'
                   }`}>
                     Total: {totalPct.toFixed(2)}%
                   </span>

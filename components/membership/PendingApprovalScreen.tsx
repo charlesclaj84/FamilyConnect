@@ -160,7 +160,7 @@ export function PendingApprovalScreen({
               >
                 <span className="text-sm font-medium">{family.familyName}</span>
                 {family.status === 'pending' ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-legacy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-legacy">
                     <Clock className="h-3 w-3" /> Pending
                   </span>
                 ) : (

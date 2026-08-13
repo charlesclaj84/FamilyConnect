@@ -41,12 +41,12 @@ interface Props {
  *   * The headline is REQUIRED money — the figure with a consequence attached. Optional is
  *     a separate, quieter line, so "you owe $50" can never silently include $200 of things
  *     nobody is asking for.
- *   * Amber is for required money outstanding and nothing else. An optional due left
- *     unpaid is not a problem to flag, and colouring the card for one would make the
- *     signal meaningless.
+ *   * The attention colour — the gold chip, the accent bullets — is for required money
+ *     outstanding and nothing else. An optional due left unpaid is not a problem to
+ *     flag, and colouring the card for one would make the signal meaningless.
  *   * The figure is always a figure, including when it is `$0.00`. A KPI whose number
  *     disappears on the good news is a KPI you cannot compare with yesterday's; the good
- *     news goes on the line underneath, where the green tick is.
+ *     news goes on the line underneath, where the affirming tick is.
  *   * Opted-out dues appear in neither total. `isOutstanding` excludes them: a member who
  *     has declined an optional due is not carrying a balance on it, and listing it as
  *     "optional, unpaid" would re-ask a question they have already answered. They are
@@ -64,8 +64,8 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
   return (
     <div className={cn('space-y-3 rounded-2xl border bg-card p-5', className)}>
       <div className="flex items-center gap-2.5">
-        <div className={cn('rounded-full p-1.5', requiredCents > 0 ? 'bg-amber-100' : 'bg-green-100')}>
-          <Clock className={cn('h-4 w-4', requiredCents > 0 ? 'text-amber-600' : 'text-green-600')} />
+        <div className={cn('rounded-full p-1.5', requiredCents > 0 ? 'bg-brand-legacy' : 'bg-brand-affirm')}>
+          <Clock className={cn('h-4 w-4', requiredCents > 0 ? 'text-brand-on-legacy' : 'text-brand-on-affirm')} />
         </div>
         <span className="text-sm font-medium text-muted-foreground">Remaining Balance</span>
       </div>
@@ -80,7 +80,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
           </div>
 
           {requiredCents === 0 ? (
-            <p className="flex items-center gap-1.5 text-sm font-medium text-green-700">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-brand-affirm">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {/* "Required dues", not "All dues": with an optional due outstanding on the
                   next line, a bare "all dues paid" would contradict it. */}
@@ -90,7 +90,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
             <ul className="space-y-1">
               {requiredDue.map(s => (
                 <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <AlertCircle className="h-3 w-3 shrink-0 text-amber-500" />
+                  <AlertCircle className="h-3 w-3 shrink-0 text-brand-accent" />
                   {s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}
                 </li>
               ))}

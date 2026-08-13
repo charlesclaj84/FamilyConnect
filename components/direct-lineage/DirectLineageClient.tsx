@@ -224,9 +224,9 @@ function EditChildForm({ child, onDone }: { child: ChildRecord; onDone: () => vo
   }
 
   return (
-    <Card className="border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20">
+    <Card className="border-brand-legacy/50 bg-brand-legacy/10">
       <CardContent className="pt-4">
-        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <p className="text-xs font-semibold text-brand-accent uppercase tracking-wide mb-3 flex items-center gap-1.5">
           <Pencil className="h-3 w-3" /> Editing — {fullName}
         </p>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -330,7 +330,7 @@ function ChildRow({
     ? <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Adult</span>
     : null
   const joinedBadge = child.has_account
-    ? <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-2 py-0.5 rounded-full">Joined</span>
+    ? <span className="text-xs bg-brand-affirm text-brand-on-affirm px-2 py-0.5 rounded-full">Joined</span>
     : null
 
   async function handleDelete() {
@@ -415,7 +415,7 @@ function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefr
         <div>
           <div className="flex items-center gap-2">
             <p className="font-medium">{fullName}</p>
-            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pending</span>
+            <span className="text-xs bg-brand-legacy text-brand-on-legacy px-1.5 py-0.5 rounded">Pending</span>
           </div>
           <p className="text-sm text-muted-foreground">Born: {dob}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Added by your spouse</p>
@@ -523,7 +523,7 @@ export function DirectLineageClient({
         <div>
           <div className="flex items-center gap-2 mb-3">
             <h3 className="text-sm font-semibold">Pending from Your Spouse</h3>
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-brand-legacy text-brand-on-legacy px-2 py-0.5 rounded-full">
               {spouseChildren.length} pending
             </span>
           </div>

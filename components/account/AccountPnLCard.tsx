@@ -17,7 +17,7 @@ export function AccountPnLCard({ data }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-full bg-green-100"><TrendingUp className="h-4 w-4 text-green-600" /></div>
+            <div className="p-1.5 rounded-full bg-brand-affirm"><TrendingUp className="h-4 w-4 text-brand-on-affirm" /></div>
             <span className="text-sm text-muted-foreground font-medium">Total Collected</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalCollectedCents)}</p>
@@ -31,7 +31,10 @@ export function AccountPnLCard({ data }: Props) {
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-full bg-rose-100"><TrendingDown className="h-4 w-4 text-rose-600" /></div>
+            {/* Warm, not destructive: spending a fund down is what the fund is FOR, and a
+                red chip on a normal state spends the alarm colour where nothing is wrong.
+                Only the deficit arms below are destructive. */}
+            <div className="p-1.5 rounded-full bg-brand-warm"><TrendingDown className="h-4 w-4 text-brand-on-warm" /></div>
             <span className="text-sm text-muted-foreground font-medium">Total Spent</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalExpenseCents)}</p>
@@ -42,12 +45,12 @@ export function AccountPnLCard({ data }: Props) {
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className={`p-1.5 rounded-full ${isPositive ? 'bg-green-100' : 'bg-rose-100'}`}>
-              <Scale className={`h-4 w-4 ${isPositive ? 'text-green-600' : 'text-rose-600'}`} />
+            <div className={`p-1.5 rounded-full ${isPositive ? 'bg-brand-affirm' : 'bg-destructive/10'}`}>
+              <Scale className={`h-4 w-4 ${isPositive ? 'text-brand-on-affirm' : 'text-destructive'}`} />
             </div>
             <span className="text-sm text-muted-foreground font-medium">Net Balance</span>
           </div>
-          <p className={`text-3xl font-bold ${isPositive ? 'text-green-600' : 'text-rose-600'}`}>
+          <p className={`text-3xl font-bold ${isPositive ? 'text-brand-affirm' : 'text-destructive'}`}>
             {isPositive ? '+' : ''}{formatCurrency(net)}
           </p>
           <p className="text-xs text-muted-foreground">{isPositive ? 'Running a surplus' : 'Running a deficit'}</p>
@@ -70,7 +73,7 @@ export function AccountPnLCard({ data }: Props) {
                 <details key={r.fundId} className="px-4 py-2.5">
                   <summary className="flex items-center justify-between cursor-pointer">
                     <span className="text-sm font-medium">{r.fundName}</span>
-                    <span className="text-sm font-semibold text-green-600">{formatCurrency(r.contributedCents)}</span>
+                    <span className="text-sm font-semibold text-brand-affirm">{formatCurrency(r.contributedCents)}</span>
                   </summary>
                   <ul className="mt-2 space-y-0.5 pl-1">
                     {r.bySource.map((s, i) => (
@@ -105,7 +108,7 @@ export function AccountPnLCard({ data }: Props) {
                       In {formatCurrency(f.contributedCents)} · Disbursed {formatCurrency(f.disbursedCents)} · Spent {formatCurrency(f.expensedCents)}
                     </p>
                   </div>
-                  <span className={`text-sm font-semibold shrink-0 ${f.balanceCents >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
+                  <span className={`text-sm font-semibold shrink-0 ${f.balanceCents >= 0 ? 'text-brand-affirm' : 'text-destructive'}`}>
                     {formatCurrency(f.balanceCents)}
                   </span>
                 </div>
@@ -143,7 +146,7 @@ export function AccountPnLCard({ data }: Props) {
 
                   {ev.totalBudgetedCents > 0 && (
                     <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div className={`h-full ${over ? 'bg-rose-500' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+                      <div className={`h-full ${over ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
                     </div>
                   )}
 
@@ -156,7 +159,7 @@ export function AccountPnLCard({ data }: Props) {
                             <span className="font-medium">{li.title}</span>
                             <span className="text-muted-foreground">
                               {formatCurrency(li.spentCents)} / {formatCurrency(li.budgetedCents)} ·{' '}
-                              <span className={liRemaining < 0 ? 'text-rose-600' : 'text-green-600'}>
+                              <span className={liRemaining < 0 ? 'text-destructive' : 'text-brand-affirm'}>
                                 {liRemaining < 0 ? `${formatCurrency(-liRemaining)} over` : `${formatCurrency(liRemaining)} left`}
                               </span>
                             </span>
@@ -169,7 +172,7 @@ export function AccountPnLCard({ data }: Props) {
                   {ev.unbudgetedSpentCents > 0 && (
                     <p className="text-xs text-muted-foreground">Unbudgeted spend: {formatCurrency(ev.unbudgetedSpentCents)}</p>
                   )}
-                  <p className={`text-xs font-medium ${remaining < 0 ? 'text-rose-600' : 'text-green-600'}`}>
+                  <p className={`text-xs font-medium ${remaining < 0 ? 'text-destructive' : 'text-brand-affirm'}`}>
                     {remaining < 0 ? `${formatCurrency(-remaining)} over budget` : `${formatCurrency(remaining)} remaining`}
                   </p>
                 </div>

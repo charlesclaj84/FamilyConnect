@@ -32,10 +32,15 @@ export const SCOPES_FOR: Record<PermissionAction, PermissionScope[]> = {
 
 export const SCOPE_LABEL: Record<PermissionScope, string> = { none: '—', own: 'Own', any: 'All' }
 
+// Own and All must be told apart at a glance on the one screen where picking the wrong
+// row hands somebody authority they should not have. Gold against olive is a bigger
+// separation than the two pale washes this replaced — different lightness AND different
+// hue, so it survives a bad monitor and a colour-blind reader, neither of which could
+// separate a pastel amber from a pastel green.
 export const SCOPE_STYLE: Record<PermissionScope, string> = {
   none: 'bg-muted text-muted-foreground',
-  own:  'bg-amber-100 text-amber-800',
-  any:  'bg-green-100 text-green-800',
+  own:  'bg-brand-legacy text-brand-on-legacy',
+  any:  'bg-brand-affirm text-brand-on-affirm',
 }
 
 // Presentation order for the category list; anything unlisted falls to the end.
@@ -62,8 +67,8 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *   * 'own' is dropped where the resource has no coherent owner. Disbursements is the
  *     case that forces this: `transactions/fund-disbursements` has own_expr 'false' in
  *     permission_table_map and the action uses canAny(), because the disbursement
- *     paying the caller IS the abuse case. Offering "Own" there would light up amber
- *     and grant nothing.
+ *     paying the caller IS the abuse case. Offering "Own" there would light the cell up
+ *     as a grant and grant nothing.
  *
  *     `admin/family` is the second: there is one family row and nobody owns it, so
  *     renameFamily() uses canAny() and the policy 20260812000000 puts on `families`

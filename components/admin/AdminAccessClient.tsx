@@ -140,7 +140,7 @@ export function AdminAccessClient({
   return (
     <div className="space-y-5">
       {legacy && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft px-4 py-3 text-sm text-brand-on-soft">
           <span className="font-medium">Permission tables not found.</span> Run the migrations in
           {' '}<code>supabase/migrations</code>. Until then access falls back to the old
           {' '}<code>is_admin</code> flag and nothing changed here takes effect.
@@ -205,7 +205,7 @@ export function AdminAccessClient({
 
 const STATUS_BADGE: Record<string, { label: string; className: string } | null> = {
   approved: null,
-  pending:  { label: 'Awaiting approval', className: 'bg-amber-100 text-amber-800' },
+  pending:  { label: 'Awaiting approval', className: 'bg-brand-legacy text-brand-on-legacy' },
   disabled: { label: 'Disabled',          className: 'bg-destructive/10 text-destructive' },
   rejected: { label: 'Declined',          className: 'bg-muted text-muted-foreground' },
 }

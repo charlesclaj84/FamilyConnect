@@ -5,15 +5,9 @@ import { requireView } from '@/lib/auth/permissions'
 import { getAllElections } from '@/app/actions/elections'
 import { ChevronRight, Vote } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { ELECTION_STATUS_PILL } from '@/components/elections/status'
 
 export const metadata = { title: 'Elections' }
-
-const STATUS_BADGE: Record<string, string> = {
-  draft: 'bg-blue-100 text-blue-700',
-  nominations: 'bg-amber-100 text-amber-700',
-  voting: 'bg-green-100 text-green-700',
-  closed: 'bg-muted text-muted-foreground',
-}
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft', nominations: 'Nominations Open', voting: 'Voting Open', closed: 'Closed',
@@ -57,7 +51,7 @@ export default async function ElectionsPage() {
                         <p className="font-medium text-sm">{e.title}</p>
                         {e.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.description}</p>}
                       </div>
-                      <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${STATUS_BADGE[e.status]}`}>
+                      <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_STATUS_PILL[e.status]}`}>
                         {STATUS_LABEL[e.status]}
                       </span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -78,7 +72,7 @@ export default async function ElectionsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{e.title}</p>
                       </div>
-                      <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${STATUS_BADGE[e.status]}`}>
+                      <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_STATUS_PILL[e.status]}`}>
                         {STATUS_LABEL[e.status]}
                       </span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />

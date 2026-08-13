@@ -718,7 +718,7 @@ export function AdminIncomeClient({
                                 'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
                                 s.required
                                   ? 'bg-brand-soft text-brand-on-soft'
-                                  : 'bg-amber-100 text-amber-800',
+                                  : 'bg-brand-warm text-brand-on-warm',
                               )}>
                                 {s.required ? 'Required' : 'Optional'}
                               </span>
@@ -744,14 +744,16 @@ export function AdminIncomeClient({
                           </td>
                           <td className={cn('px-3 py-2.5 capitalize text-muted-foreground', COLLAPSING_CELL)}>{s.frequency}</td>
                           <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
-                            {/* Required is the plain badge and Optional the coloured one,
-                                because optional is the exception worth spotting — it is
-                                the row a member can decline. */}
+                            {/* Required takes the resting pill and Optional the filled
+                                Warmth chip, because optional is the exception worth
+                                spotting — it is the row a member can decline. Warmth
+                                and not gold: this is a category the schedule belongs
+                                to, not a state anybody has to act on. */}
                             <span className={cn(
                               'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
                               s.required
                                 ? 'bg-brand-soft text-brand-on-soft'
-                                : 'bg-amber-100 text-amber-800',
+                                : 'bg-brand-warm text-brand-on-warm',
                             )}>
                               {s.required ? 'Required' : 'Optional'}
                             </span>

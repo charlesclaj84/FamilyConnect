@@ -106,7 +106,7 @@ export function MemberDirectoryClient({ members }: Props) {
                               {displayName}
                             </span>
                             {member.is_minor && (
-                              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                              <span className="shrink-0 rounded-full bg-brand-warm px-1.5 py-0.5 text-[10px] font-medium text-brand-on-warm">
                                 Minor
                               </span>
                             )}

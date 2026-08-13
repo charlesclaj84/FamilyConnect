@@ -28,6 +28,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -243,6 +244,16 @@
   --accent: var(--genorra-nurturing);
   --accent-foreground: var(--genorra-heritage);
   --destructive: oklch(0.577 0.245 27.325);
+  /* THE SHADCN RAMP WAS INCOMPLETE, AND THE APP HAD ALREADY NOTICED.
+     `text-destructive-foreground` ships in AdminApprovalsClient on a `bg-destructive`
+     button, and until this line existed it resolved to NOTHING — so the label fell back
+     to `--foreground` and rendered near-black ink on saturated red at 2.96, and 2.71 in
+     dark. Both fail. That is the only pairing in this file that has ever been below AA
+     in the theme it shipped in.
+     White rather than `--genorra-light`, which is the obvious brand choice and measures
+     4.46 — AA-large, not AA, and this is a button label. #ffffff is 4.76. A literal is
+     permitted here and only here, and `--card` above already takes one. */
+  --destructive-foreground: #ffffff;             /* 4.76 on destructive */
   --border: var(--genorra-border-light);
   --input: var(--genorra-border-light);
   --ring: var(--genorra-heritage);
@@ -287,6 +298,10 @@
   --accent: var(--genorra-soft-dark);
   --accent-foreground: var(--genorra-nurturing);
   --destructive: oklch(0.704 0.191 22.216);
+  /* Flips, because --destructive LIGHTENS in dark (#ff6467 against #e7000b) and white on
+     it is 2.89. Ink is 4.88. This is the same shape as --brand-on-legacy: the surface is
+     bright enough in one theme that its foreground has to go dark. */
+  --destructive-foreground: var(--genorra-ink);  /* 4.88 on destructive */
   --border: var(--genorra-border-dark);
   --input: var(--genorra-border-dark);
   --ring: var(--genorra-legacy);

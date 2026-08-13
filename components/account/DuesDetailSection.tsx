@@ -331,7 +331,7 @@ export function DuesDetailSection({
         {showHistory && (
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-full bg-green-100"><CheckCircle2 className="h-4 w-4 text-green-600" /></div>
+            <div className="p-1.5 rounded-full bg-brand-affirm"><CheckCircle2 className="h-4 w-4 text-brand-on-affirm" /></div>
             <span className="text-sm text-muted-foreground font-medium">Paid This Year</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(totalPaidCents)}</p>
@@ -366,7 +366,7 @@ export function DuesDetailSection({
         {showDues && (
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-full bg-green-100"><DollarSign className="h-4 w-4 text-green-600" /></div>
+            <div className="p-1.5 rounded-full bg-brand-affirm"><DollarSign className="h-4 w-4 text-brand-on-affirm" /></div>
             {/* Plural only when it is plural. One schedule and this card is about one
                 payment; five and the figure below is a sum, which the title has to admit
                 or the number reads as a single installment five times too large. */}
@@ -541,7 +541,7 @@ export function DuesDetailSection({
                   ) : filteredHistory.map(p => {
                     const statusPill = (
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                        p.status === 'paid' ? 'bg-green-100 text-green-700' : p.status === 'waived' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        p.status === 'paid' ? 'bg-brand-affirm text-brand-on-affirm' : p.status === 'waived' ? 'bg-muted text-muted-foreground' : 'bg-brand-legacy text-brand-on-legacy'
                       }`}>{p.status}</span>
                     )
                     return (
@@ -572,8 +572,12 @@ export function DuesDetailSection({
                         </RowMeta>
                       </td>
                       <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date)}</td>
+                      {/* Waived now reads exactly as pending does — muted. Neither is money
+                          that moved, the arm is kept apart from the fallback only because
+                          the status it names is, and the pill beside the figure is what
+                          tells them apart (muted there too, as in TransactionsClient). */}
                       <td className={`py-2.5 pr-3 text-right font-semibold whitespace-nowrap ${
-                        p.status === 'paid' ? 'text-green-600' : p.status === 'waived' ? 'text-blue-600' : 'text-muted-foreground'
+                        p.status === 'paid' ? 'text-brand-affirm' : p.status === 'waived' ? 'text-muted-foreground' : 'text-muted-foreground'
                       }`}>
                         {/* The figure, on a waived row too. It used to read "Waived"
                             here, which was honest while waiving changed nothing —
@@ -635,7 +639,9 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
       'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
       declined ? 'bg-muted text-muted-foreground'
         : row.required ? 'bg-brand-soft text-brand-on-soft'
-          : 'bg-amber-100 text-amber-800',
+          // Warm, not the gold the status pills use: Optional is a CATEGORY of due, not
+          // a state needing attention. Gold here would flag a row nobody is chasing.
+          : 'bg-brand-warm text-brand-on-warm',
     )}>
       {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}
     </span>
@@ -762,7 +768,7 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
         {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
       </td>
       <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
-        declined ? 'text-muted-foreground' : 'text-amber-600', COLLAPSING_CELL)}>
+        declined ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
         {declined ? '—' : formatCurrency(row.remainingBalanceCents)}
       </td>
       <td className={cn('py-2.5 text-right', COLLAPSING_CELL)}>

@@ -83,7 +83,7 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
       >
         <Bell className="h-5 w-5" />
         {badgeCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
             {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
@@ -130,14 +130,14 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
                     <a
                       href="/admin/approvals"
                       onClick={() => setOpen(false)}
-                      className="flex items-start gap-2 px-4 py-3 hover:bg-muted/50 transition-colors bg-amber-50/60"
+                      className="flex items-start gap-2 px-4 py-3 hover:bg-muted/50 transition-colors bg-brand-soft"
                     >
-                      <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" />
+                      <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-accent" />
                       <div>
-                        <p className="text-xs font-medium leading-snug text-amber-900">
+                        <p className="text-xs font-medium leading-snug text-brand-on-soft">
                           Members Pending Approval - {pendingApprovals}
                         </p>
-                        <p className="text-[10px] text-amber-900/70 mt-1">
+                        <p className="text-[10px] text-brand-on-soft/80 mt-1">
                           Review {pendingApprovals === 1 ? 'the request' : 'the requests'}
                         </p>
                       </div>

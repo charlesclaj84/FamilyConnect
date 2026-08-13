@@ -708,7 +708,7 @@ export function FamilyTreeClient({
     <>
       {/* View mode banner */}
       {isViewMode && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-4 text-sm text-blue-800">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-brand-soft px-4 py-3 mb-4 text-sm text-brand-on-soft">
           <Info className="h-4 w-4 shrink-0" />
           <span>You are viewing <strong>{viewSubjectName ?? 'this member'}&apos;s</strong> tree.</span>
           <Link href="/family-tree" className="ml-auto flex items-center gap-1 font-medium hover:underline whitespace-nowrap">

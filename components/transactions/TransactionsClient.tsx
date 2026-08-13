@@ -735,7 +735,7 @@ export function TransactionsClient({
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? 'Unknown fund'}</td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date)}</td>
-                    <td className="px-3 py-2.5 text-right align-top font-medium text-green-600 whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
+                    <td className="px-3 py-2.5 text-right align-top font-medium text-brand-affirm whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -781,7 +781,12 @@ export function TransactionsClient({
                       {d.milestone_name && <span className="text-muted-foreground/60"> · {d.milestone_name}</span>}
                     </td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(d.disbursed_date)}</td>
-                    <td className="px-3 py-2.5 text-right align-top font-medium text-green-600 whitespace-nowrap sm:align-middle">{fmt(d.amount_cents)}</td>
+                    {/* Plain foreground, deliberately, and the one place this column
+                        changed meaning: --brand-affirm is the "money in" role, and
+                        a disbursement is money OUT. Both ledgers painted the same
+                        green before the tokens landed, which made the colour mean
+                        "a currency figure" rather than a direction. */}
+                    <td className="px-3 py-2.5 text-right align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{fmt(d.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -1065,10 +1070,10 @@ function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
   return (
     <span className={cn(
       'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-      isReversed || isReversal ? 'bg-amber-100 text-amber-800'
-        : payment.status === 'paid' ? 'bg-green-100 text-green-700'
+      isReversed || isReversal ? 'bg-brand-legacy text-brand-on-legacy'
+        : payment.status === 'paid' ? 'bg-brand-affirm text-brand-on-affirm'
           : payment.status === 'waived' ? 'bg-muted text-muted-foreground'
-            : 'bg-amber-100 text-amber-800',
+            : 'bg-brand-legacy text-brand-on-legacy',
     )}>
       {isReversed ? 'Reversed'
         : isReversal ? 'Correcting entry'
@@ -1089,7 +1094,7 @@ function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
  *
  * THE TWO LEDGERS NO LONGER SHOW THE SAME COLUMNS. Donations has no Status column,
  * because a donation has one status: the record form does not offer Waived (nobody owed
- * the gift) and forces `paid`, so the column was a page of identical green pills.
+ * the gift) and forces `paid`, so the column was a page of identical Paid pills.
  *
  * But `status` is not the only thing that pill was carrying — Reversed and Correcting
  * entry rode in the same cell, and those DO happen to donations. Dropping the column
@@ -1175,10 +1180,13 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
             )}
             <td className={cn(
               'px-3 py-2.5 text-right align-top font-medium whitespace-nowrap sm:align-middle',
+              // In step with PaymentStatusPill, one role apart by necessity: the pill's
+              // attention arms are the gold SURFACE, and gold cannot carry text on a pale
+              // ground, so the figure states the same thing as accent text.
               isReversed ? 'text-muted-foreground line-through'
-                : isReversal ? 'text-amber-700'
-                  : p.status === 'paid' ? 'text-green-600'
-                    : p.status === 'waived' ? 'text-muted-foreground' : 'text-amber-600',
+                : isReversal ? 'text-brand-accent'
+                  : p.status === 'paid' ? 'text-brand-affirm'
+                    : p.status === 'waived' ? 'text-muted-foreground' : 'text-brand-accent',
             )}>
               {/* Waived rows print their figure like every other row: it is what
                   came off that member's balance, and the amount column going blank
@@ -1192,7 +1200,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                 // stopPropagation, or this click opens the detail dialog on its way up
                 // through the row. See LedgerRow.
                 <Button size="sm" variant="ghost" disabled={pending}
-                  className="h-7 shrink-0 px-2 text-xs text-amber-700 hover:text-amber-800"
+                  className="h-7 shrink-0 px-2 text-xs text-brand-accent hover:opacity-80"
                   onClick={e => { e.stopPropagation(); onReverse(p) }}>
                   <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
                 </Button>

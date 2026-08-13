@@ -12,8 +12,9 @@ import type { DonationSummary } from '@/app/actions/dues'
  * can do about a donation yet except give in person and have an admin record it.
  *
  * Deliberately NOT modelled on the dues card above it. No installment, no next-due
- * date, no remaining balance, no amber — a goal not yet reached is not a debt, and
- * framing it that way would turn an invitation into a bill. Hence a progress bar:
+ * date, no remaining balance, none of the attention colouring that marks money owed —
+ * a goal not yet reached is not a debt, and framing it that way would turn an
+ * invitation into a bill. Hence a progress bar:
  * it reads as "how far along" rather than "how much you are short".
  *
  * Every figure shown is either a family total or the reader's own. Nothing here
@@ -62,7 +63,7 @@ function DonationRow({ donation: d }: { donation: DonationSummary }) {
               {schedule.label}
             </span>
             {goalMet && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-affirm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-affirm">
                 <Check className="h-3 w-3" /> Goal met
               </span>
             )}
@@ -133,13 +134,13 @@ function GoalBar({ goalCents, raisedCents }: { goalCents: number; raisedCents: n
   return (
     <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex" aria-hidden="true">
       <div
-        className={cn('h-full', over || raisedCents >= goalCents ? 'bg-green-500' : 'bg-primary')}
+        className={cn('h-full', over || raisedCents >= goalCents ? 'bg-brand-affirm' : 'bg-primary')}
         style={{ width: `${goalWidth}%` }}
       />
       {over && (
-        // The excess, in a lighter green so the goal line reads as the boundary
-        // between the two segments rather than needing a marker of its own.
-        <div className="h-full bg-green-300" style={{ width: `${100 - goalWidth}%` }} />
+        // The excess, in a lighter wash of the same colour so the goal line reads as the
+        // boundary between the two segments rather than needing a marker of its own.
+        <div className="h-full bg-brand-affirm/50" style={{ width: `${100 - goalWidth}%` }} />
       )}
     </div>
   )

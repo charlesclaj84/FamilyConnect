@@ -77,7 +77,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
     const isThisLinking = isPending && linkingId === person.id
 
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-amber-950/40 px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
         <Avatar initials={initials} size="sm" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-foreground truncate">
@@ -90,7 +90,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
               {person.reasons.map(r => (
                 <span
                   key={r}
-                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-warm text-brand-on-warm"
                 >
                   {REASON_LABELS[r]} match
                 </span>
@@ -112,17 +112,21 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 flex gap-3">
-      <div className="shrink-0 p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 self-start mt-0.5">
+    // Same banner shape as ChapterReminderBanner, and now the same roles: the resting
+    // surface is `bg-brand-soft` under `text-brand-on-soft`, a checked pair in both
+    // themes. That is why every `dark:` override here could go — the roles already
+    // resolve per theme, so a `dark:` colour would only fight the token.
+    <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft p-4 flex gap-3">
+      <div className="shrink-0 p-1.5 rounded-lg bg-brand-primary text-brand-on-primary self-start mt-0.5">
         <UserCheck className="h-4 w-4" />
       </div>
 
       <div className="flex-1 min-w-0 space-y-3">
         <div>
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+          <p className="text-sm font-medium text-brand-on-soft">
             Were you already added to the family?
           </p>
-          <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+          <p className="text-xs text-brand-on-soft/80 mt-0.5">
             A family member may have already added you. Find yourself below and link your
             account to the existing record.
           </p>
@@ -134,7 +138,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name…"
-            className="pl-8 bg-white dark:bg-amber-950/40"
+            className="pl-8 bg-background"
             disabled={isPending}
           />
         </div>
@@ -142,7 +146,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
         {/* Strong matches — the records most likely to be the current user */}
         {strongMatches.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+            <p className="text-xs font-semibold text-brand-on-soft">
               {strongMatches.length === 1 ? 'Is this you?' : 'These might be you'}
             </p>
             {strongMatches.map(p => (
@@ -157,7 +161,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-amber-800 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand-on-soft hover:opacity-80"
             >
               <ChevronDown className="h-3.5 w-3.5" />
               Don&apos;t see yourself? Browse everyone ({others.length})
@@ -165,7 +169,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
           ) : (
             <div className="space-y-2">
               {strongMatches.length > 0 && (
-                <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                <p className="text-xs font-semibold text-brand-on-soft">
                   Everyone else
                 </p>
               )}
@@ -177,16 +181,16 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
         )}
 
         {strongMatches.length === 0 && others.length === 0 && (
-          <p className="text-xs text-amber-700 dark:text-amber-300">No matching family members found.</p>
+          <p className="text-xs text-brand-on-soft/80">No matching family members found.</p>
         )}
 
-        {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
 
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="shrink-0 self-start text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+        className="shrink-0 self-start text-brand-on-soft/70 hover:text-brand-on-soft transition-colors"
         aria-label="Dismiss"
       >
         <X className="h-4 w-4" />

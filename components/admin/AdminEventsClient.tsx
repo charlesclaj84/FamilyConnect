@@ -14,19 +14,13 @@ import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
 import { formatDate, todayLocal } from '@/lib/date-utils'
+import { EVENT_STATUS_PILL } from '@/components/events/status'
 
 const STATUS_LABELS: Record<AdminEvent['status'], string> = {
   draft:     'Draft',
   published: 'Published',
   approved:  'Approved',
   cancelled: 'Cancelled',
-}
-
-const STATUS_COLORS: Record<AdminEvent['status'], string> = {
-  draft:     'bg-muted text-muted-foreground',
-  published: 'bg-blue-100 text-blue-700',
-  approved:  'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
 }
 
 interface Props {
@@ -247,7 +241,7 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium truncate">{event.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status]}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${EVENT_STATUS_PILL[event.status]}`}>
                       {STATUS_LABELS[event.status]}
                     </span>
                     {event.event_type_name && (

@@ -156,7 +156,7 @@ export function AdminReportsClient({ stats }: Props) {
                           {a.recordedBy && <><MetaDot /><span>{a.recordedBy}</span></>}
                         </RowMeta>
                       </td>
-                      <td className={`py-2 pr-3 text-right font-medium whitespace-nowrap ${a.amountCents < 0 ? 'text-rose-600' : 'text-green-600'}`}>
+                      <td className={`py-2 pr-3 text-right font-medium whitespace-nowrap ${a.amountCents < 0 ? 'text-destructive' : 'text-brand-affirm'}`}>
                         {a.amountCents < 0 ? '−' : ''}{formatDollars(Math.abs(a.amountCents))}
                       </td>
                       <td className={cn('py-2 text-muted-foreground', COLLAPSING_CELL)}>{a.recordedBy ?? '—'}</td>
