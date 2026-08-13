@@ -88,6 +88,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # `npm run typecheck` GENERATES BEFORE IT CHECKS — `next typegen && tsc --noEmit`
+      # — and that first half is what makes this step mean anything here.
+      #
+      # `next-env.d.ts` is gitignored, on Next's own recommendation, and it is the file
+      # carrying `/// <reference types="next/image-types/global" />`. So in a fresh
+      # checkout it does not exist, non-code imports have no declarations, and the three
+      # static PNG imports in components/marketing/pillars.ts fail with TS2307 — while a
+      # laptop that has ever run `next dev` or `next build` passes, because both commands
+      # write that file. This step was red on every push to dev for four commits for
+      # exactly that reason, and nobody could reproduce it locally.
+      #
+      # `next typegen` writes `next-env.d.ts` and `.next/types/` without a full build, in
+      # about a second. It lives in the npm script rather than in a step of its own so the
+      # command a person runs on a laptop and the command CI runs are the same command —
+      # which is the only arrangement in which a green run here and a green run there mean
+      # the same thing.
+      #
+      # This step can therefore stay ABOVE Build, which is where it belongs: a type error
+      # should be reported by the step named Typecheck, not by a build failing four
+      # minutes later.
       - name: Typecheck
         run: npm run typecheck
 

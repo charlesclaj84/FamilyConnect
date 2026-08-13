@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs",
     "db:check": "node scripts/migrations.mjs check",
     "db:audit": "npx supabase db query -f supabase/scripts/audit_policy_shadowing.sql",
