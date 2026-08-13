@@ -88,7 +88,7 @@ export function IdleTimeout() {
     await supabase.auth.signOut({ scope: 'local' })
 
     // DROP THIS SESSION'S MARKER. Without it the sign-out is unrecoverable: the marker is
-    // 75 minutes old by definition, it survives the redirect, and the first signed-in page
+    // `IDLE_LIMIT_MINUTES` old by definition, it survives the redirect, and the first page
     // the member reaches after signing back in adopts it and expires on its first tick.
     // `inheritedActivity` refuses an expired marker as well — belt and braces, because
     // this call cannot run when the browser is simply closed and that path leaves one too.

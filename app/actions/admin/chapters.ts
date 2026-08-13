@@ -198,7 +198,7 @@ export async function createCustomRole(input: {
   category: 'executive_officer' | 'appointed_position'
   scope: 'national' | 'regional' | 'chapter'
 }): Promise<{ success: boolean; error?: string }> {
-  const { user, admin, familyCode } = await getAuthenticatedAdmin()
+  const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
 
   const adminClient = createAdminClient()

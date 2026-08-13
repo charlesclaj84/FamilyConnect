@@ -583,7 +583,7 @@ whether the value came from, or will be written back to, one particular family.
 
 # The signed-in app signs itself out when left idle
 
-`components/layout/IdleTimeout.tsx`, mounted once by `app/(protected)/layout.tsx`. 75
+`components/layout/IdleTimeout.tsx`, mounted once by `app/(protected)/layout.tsx`. 60
 minutes with no keyboard or pointer activity and the member is signed out — a real
 `signOut({ scope: 'local' })`, which revokes the session server-side — and sent to `/login`
 with a notice and a `?next=` back. The last minute is a warning dialog.
@@ -594,7 +594,11 @@ Four things about it are load-bearing, and the first is the one that gets undone
   and the storage keys. Nothing else may hold a copy — the notice shown on `/login`
   interpolates it, so the sentence a member reads cannot disagree with the timer. That file
   is plain TypeScript with no JSX precisely so the boundary can be checked without a
-  browser.
+  browser. **It is 60 to match `jwt_expiry` (3600s), deliberately** — an idle stretch and
+  the life of an access token are one number rather than two that nearly agree. That is an
+  alignment, not a dependency: auth-js renews at about t+58.5m, so the tab is still alive
+  at t+60m and the sign-out has a valid token to revoke with. The reasoning, and the floor
+  to know about if the number moves again, are in the comment above the constant.
 * **`[auth.sessions] inactivity_timeout` is NOT this feature** and cannot replace it.
   Measured: GoTrue's window is time since the last token *refresh*, and `autoRefreshToken`
   renews on a timer with nobody at the keyboard — so an open tab never trips it however long
@@ -621,7 +625,7 @@ instead of resetting it. It is also the one piece of this feature that **survive
 it is timing** — the sign-out, the redirect, and the browser being closed altogether.
 
 Adopted unconditionally it made the sign-out unrecoverable, which is the bug that shipped:
-the timer fired, left a 75-minute-old marker behind, and the first signed-in page after
+the timer fired, left a marker as old as the limit behind, and the first signed-in page after
 signing back in mounted already expired and bounced to `/login` on its first tick — forever.
 The same bounce met anyone returning the next morning, because `localStorage` does not care
 that the tab is gone.
@@ -635,7 +639,7 @@ Three rules hold it now, and they are three because no one of them is sufficient
   browser, where no code of ours runs to clean up.
 * **Every sign-out that ends *this* browser's session calls `clearIdleActivity()`** — the
   timeout, `SignOutButton`, `InviteMismatchActions`. Needed on top of the above because a
-  marker 74 minutes old is *inside* the window and still residue. The one `signOut` that
+  marker a minute short of the limit is *inside* the window and still residue. The one `signOut` that
   must **not** call it is `SignInSecurity`'s `scope: 'others'`: that leaves this browser
   signed in, with somebody demonstrably at the keyboard.
 * **Every sign-in calls `markIdleActivity()`** — `LoginForm`, `RegisterForm`. Signing in is
@@ -936,8 +940,20 @@ worth understanding before touching a colour.
   | `--brand-hero` | `bg-brand-hero` | The banner band behind the lockup |
   | `--brand-accent` | `text-brand-accent` | Links, `h3`–`h6`, unread markers |
   | `--brand-affirm` / `--brand-on-affirm` | `bg-brand-affirm`, `text-brand-on-affirm` | Affirmative actions: create, record, pay |
+  | `--brand-withheld` | `text-brand-withheld` | A capability being **withheld** — foreground only |
   | `--brand-warm` / `--brand-on-warm` | `bg-brand-warm`, `text-brand-on-warm` | Filled Warmth chip — the fourth accent surface |
   | `--brand-legacy` | `bg-brand-legacy` | Premium gold accent — **surface only** |
+
+  **`--brand-withheld` is the counterpart to affirm, and it is not `--destructive`.** A
+  capability going away — the pages a family stops being able to open when it downgrades —
+  is not a deletion, not a failure and not an error, and affirm had no opposite, so the
+  only thing to reach for was the one non-brand hue in the file: shadcn's `#e7000b`. It
+  reads as alarm because it *is* alarm, which is right for deleting a chapter and wrong for
+  a reversible billing change that removes no rows. This is Warmth again rather than a new
+  hue — the same two tones `--brand-warm` fills a chip with, consumed as a foreground and
+  as a tint under one, which is why it has no `on-` partner. `--destructive` still owns
+  errors and deletions; reporting a failure is
+  `components/ui/form-message.tsx`'s job, not this token's.
 
   **`--brand-warm` is a surface; `--brand-accent` is a foreground. They are both
   Warmth and they are not interchangeable.** The dashboard's At a Glance grid needed a
@@ -1136,6 +1152,30 @@ nothing fails `next build` instead of rendering an empty box. The landing page s
 for a while with `image: '/features/events.png'` against a `public/features/` that did
 not exist, and nothing anywhere said so.
 
+**Nor are the kits' decorative illustrations, and one of them is DERIVED rather than
+copied.** `components/dashboard/illustrations/family-tree.png` — the tree beside the
+figures on the Dashboard's Family Tree card — is colocated and statically imported for
+the reasons above, and it is not any file the kit ships. The kit's two candidates are
+both unusable: `FamilyTree_Golden_ExactPixelVector.svg` is 10,490 one-pixel `<rect>`s,
+i.e. a 180×205 bitmap wearing an SVG hat at 608 KB, and `FamilyTree_Golden_DirectTrace.svg`
+is a broken trace with severed branches (its own preview PNG shows them). So
+`scripts/kit-illustration.mjs` takes the kit's reference bitmap, checks it pixel-for-pixel
+against that rect-per-pixel SVG, and lifts the cream matte into an alpha channel so the
+artwork composites onto the card's own ground in either theme.
+
+Two things follow, and the second is the one a kit bump gets wrong:
+
+* **`npm run art:check` is a test, not a formality.** It exits 1 when the committed PNG is
+  no longer what the kit derives to, so it reads like one — and `art:build` regenerates it.
+  It is deliberately **not** a step in `verify.yml`, on the same footing as `email:check`:
+  it runs on `sharp`, which reaches the tree as an *optional* dependency of Next, and a
+  gate that a legitimate `npm ci --omit=optional` turns red is a gate people learn to
+  ignore.
+* **A derived asset cannot be verified by `cmp` against the kit,** which is the whole
+  procedure the kit-bump rule below relies on. `identity/` silently held the v1.0 mark for
+  a round after v1.1 landed; a derived file fails the same way with nothing even to compare.
+  Re-run `art:build` as part of any bump, and let `art:check` be what says you did.
+
 **Serve from `identity/`, never from a kit folder.** Two reasons, both of which have
 bitten:
 
@@ -1251,15 +1291,48 @@ of inventing a sixth width.
 
 **Applied everywhere since 2026-08-13.** Every page under `app/(protected)` uses it,
 `loading.tsx` included — so a navigation no longer starts at one measure and jumps to
-another. `grep "mx-auto max-w-"` over that directory returns exactly three things, and
-none of them is a page container: `/chat`'s empty-state card, and `error.tsx` and
-`not-found.tsx`, which are centred `max-w-md` messages. Those two are deliberate — an
-apology in a 6xl column reads as a layout failure rather than as a message — and they are
-the exception list. If a fourth appears, it belongs here or it belongs in `PageShell`.
+another. Three centred `max-w-*` containers remain in that directory and none is a page
+container: `/chat`'s empty-state card, and `error.tsx` and `not-found.tsx`, which are
+`max-w-md` messages. Those two are deliberate — an apology in a 6xl column reads as a
+layout failure rather than as a message — and the three are the whole exception list. If a
+fourth appears, it belongs here or it belongs in `PageShell`. (Grep for both orderings:
+those two write `max-w-md mx-auto`.)
 
-**Four pages are `reading`; the rest are `wide`.** The four are the ones whose content is
-a single column of prose read start to finish: Announcements, an event, an election
-ballot, and Settings.
+**Two pages are `reading`; the rest are `wide`.** An event and an election ballot — both
+`[id]` detail pages a member arrives at from a list and reads down.
+
+**The test is not "does this page contain sentences."** Announcements and Settings were
+`reading` until 2026-08-13 and neither should have been. Announcements is a *board* — a
+stack of cards with pills and controls in their corners, and a composer above them — not an
+announcement. Settings' case was really about one input: the Save button sits under the
+name field rather than beside it, so what the wide measure stretched was the box, and the
+box is capped in `FamilySettingsClient` now, which is where a constraint on a field belongs.
+The question `reading` answers is whether the CONTENT is one column read start to finish. A
+page whose content is cards, controls or a form is `wide` however much text is in it.
+
+**Both measures start at the same left edge.** `reading` narrows the *column*, not the
+container: the outer element is the 6xl measure on every page and the content inside it is
+constrained flush left. Centring the narrower container was the first reading of this rule
+and it put a `reading` page's `h1` about 190px right of every other page's — so nothing
+lined up across a navigation, the heading did not line up with the TopBar controls above
+it, and `loading.tsx` (which is `wide`, being what most pages resolve to) jumped sideways
+on every load of Announcements and Settings. The narrow measure was the decision worth
+keeping; the column moving was not part of it.
+
+**The measure itself is `PAGE_MEASURE`, exported from `PageShell`.** Three files need it —
+the page, the TopBar's controls, and `/chat`, which cannot use `PageShell` because it sizes
+itself against the viewport — and all three held a hand-matched copy of `max-w-6xl px-4
+sm:px-6` with a comment saying it must equal the other two. The whole value of the number is
+that they agree on it, so it is imported.
+
+**`/chat` owes the vertical half by hand, and owes it for its BODY as well as its heading.**
+`pt-10 … pb-10` to start and stop where `PageShell`'s `py-10` does, and the measure on both
+elements: the two panes used to run to the edges of the window under a heading that stopped
+at 6xl, which is what made the page read as a different app rather than a different screen.
+`ChatShell`'s pane row carries `rounded-xl border bg-card` so the panes read as a panel on
+the cream, the same as every other page's sections. Its `h-[calc(100vh-4rem)]` arithmetic is
+what absorbs all of it — the heading and the padding are `shrink-0`, the panes are `flex-1
+min-h-0`.
 
 **Accounting and Transactions lost an `xl:max-w-6xl` step** in that sweep, and it reads
 like a regression until you know why. Both were `max-w-4xl … xl:max-w-6xl` — narrower
@@ -1355,6 +1428,49 @@ The tables no longer scroll, so the containers are `overflow-visible` (or
 but keep the portal. It costs nothing and the clipping ancestor is one careless
 `overflow-x-auto` away from coming back. If you add another row-level popover anywhere,
 it needs the same treatment.
+
+# Telling somebody something went wrong is a component
+
+`components/ui/form-message.tsx`. **Never write a line of red text by hand** — not
+`text-sm text-destructive`, not a hand-rolled `role="alert"`, not a tinted `bg-destructive/10`
+box. Two components own this job and there is no third treatment:
+
+```tsx
+<FormError message={error} />     {/* the OPERATION was refused */}
+<FieldError message={error} />    {/* ONE INPUT is wrong */}
+```
+
+The rule exists because the tree had **four** treatments for one job and nobody had chosen
+any of them — 38 sites of bare `text-sm text-destructive`, 14 of the same a size smaller,
+12 tinted boxes and one more box with different metrics. The same failure looked like a
+footnote on one screen and an alert on the next. That is the same drift, and the same fix,
+as the required-field asterisk in `components/ui/label.tsx` and the two "text on navy"
+tokens the rebrand collapsed: styling repeated by hand at forty call sites is invisible
+until you put two screens side by side.
+
+Five things follow, and the first is the one that gets got wrong:
+
+* **Pick by what failed, not by size.** `FormError` is a refused *operation* — a save the
+  server declined, a sign-in that failed, a password check that came back wrong. One per
+  form, beside the button that caused it, with the full alert treatment. `FieldError` is
+  one *input*, directly under it, deliberately quieter: a tinted box under each of
+  RegisterForm's seven fields turns two mistakes into a wall of red.
+* **Neither renders anything for an empty message,** so the call site is
+  `<FormError message={error} />` and never `{error && <FormError … />}`. That is what
+  keeps the `useState('')` every form in this codebase starts from painting an empty box.
+* **Both are `role="alert"`,** an assertive live region, because both appear in response
+  to something somebody just did and neither moves focus. Do not reach for either to
+  render an ordinary hint — a hint that interrupts a screen reader is worse than no hint.
+* **Spacing comes from `className`, never a fork.** `confirm.tsx` passes
+  `className="mx-6 mt-4 shrink-0"` to sit its refusal in a flex column; that is the whole
+  supported way to place one.
+* **A message inside a scrolling panel belongs with the buttons, not with the field.**
+  The body of a dialog scrolls and its footer does not, so a message rendered beside the
+  input it is about can be off-screen at the moment somebody presses the button again.
+
+This is a rule about *reporting a failure*, and it is not a licence to use `--destructive`
+for anything else — see "Colours live in one place", and `--brand-withheld` for the case
+that looks like an error and is not.
 
 # Build every member list for a hundred-member family
 

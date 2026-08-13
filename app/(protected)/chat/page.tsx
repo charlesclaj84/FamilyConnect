@@ -7,6 +7,8 @@ import {
   getFamilyMembersWithAccounts,
 } from '@/app/actions/chat'
 import { ChatShell } from '@/components/chat/ChatShell'
+import { PAGE_MEASURE } from '@/components/layout/PageShell'
+import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Chat' }
 
@@ -30,9 +32,18 @@ export const metadata = { title: 'Chat' }
  * `4rem` is the TopBar's `h-16`, and it is the same number `components/layout/
  * header-panel.ts` measures its `top-[4.25rem]` against — see the note in TopBar.
  *
- * NOT `PageShell`. The room list and the thread are a two-pane workspace that runs to the
- * edges of the window; only the heading is inset, and it uses the same `max-w-6xl px-4
- * sm:px-6` measure the TopBar does so it lines up with the controls above it.
+ * NOT `PageShell`, and that is the one thing about this page worth re-reading before
+ * touching the heading. The room list and the thread are a two-pane workspace that runs to
+ * the edges of the window, so the shell that centres and pads a page is wrong here — only
+ * the HEADING is inset, and it takes `PAGE_MEASURE` from that file rather than restating
+ * the classes, so it cannot drift from the page beside it or the TopBar above it.
+ *
+ * `pt-10 pb-6` IS THE OTHER HALF OF THAT, and it is what the measure alone did not buy.
+ * This heading had no top padding at all, so it sat flush under the bar while every other
+ * page's h1 began `PageShell`'s `py-10` below it: same x, 2.5rem higher, which read as chat
+ * having a different header rather than the same one. The bottom is `pb-6` to match the
+ * `space-y-6` the list pages put between their heading and their content. Both come out of
+ * the thread's height, which is exactly what the arithmetic above is arranged to allow.
  */
 export default async function ChatPage() {
   const supabase = await createClient()
@@ -49,33 +60,46 @@ export default async function ChatPage() {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <div className="mx-auto w-full max-w-6xl shrink-0 px-4 pb-4 sm:px-6">
+      <div className={cn(PAGE_MEASURE, 'shrink-0 pb-6 pt-10')}>
         <h1 className="mb-1 text-3xl font-bold">Chat</h1>
         <p className="text-muted-foreground">
           Group threads and private messages with your family.
         </p>
       </div>
 
-      {familyRoom ? (
-        <ChatShell
-          initialRooms={rooms}
-          familyRoomId={familyRoom.id}
-          currentUserId={user.id}
-          familyMembers={familyMembers}
-        />
-      ) : (
-        <div className="mx-auto max-w-lg space-y-2 px-4 py-16 text-center">
-          <p className="text-sm font-medium text-destructive">Unable to load chat</p>
-          {chatError && (
-            <p className="rounded bg-muted px-3 py-2 text-left font-mono text-xs text-muted-foreground">
-              {chatError}
+      {/* THE BODY IS INSET TO THE SAME MEASURE AS THE HEADING, and until 2026-08-13 it was
+          not — the two panes ran to the edges of the window while the h1 above them and
+          every other page in the app stopped at 6xl. That is what made this page read as a
+          different app rather than a different screen. `pb-10` finishes it: `PageShell`
+          gives every page `py-10`, so without it the panel jammed into the bottom of the
+          viewport where every other page's content stops short of it.
+
+          `flex-col` because ChatShell's pane row is a `flex-1` child and this is now its
+          parent; `min-h-0` for the reason the row's own comment gives, which is that a flex
+          child will not shrink below its content height without it and the panes would
+          scroll the page instead of themselves. */}
+      <div className={cn(PAGE_MEASURE, 'flex min-h-0 flex-1 flex-col pb-10')}>
+        {familyRoom ? (
+          <ChatShell
+            initialRooms={rooms}
+            familyRoomId={familyRoom.id}
+            currentUserId={user.id}
+            familyMembers={familyMembers}
+          />
+        ) : (
+          <div className="mx-auto max-w-lg space-y-2 py-16 text-center">
+            <p className="text-sm font-medium text-destructive">Unable to load chat</p>
+            {chatError && (
+              <p className="rounded bg-muted px-3 py-2 text-left font-mono text-xs text-muted-foreground">
+                {chatError}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Make sure the chat migration has been applied in your Supabase project.
             </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Make sure the chat migration has been applied in your Supabase project.
-          </p>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

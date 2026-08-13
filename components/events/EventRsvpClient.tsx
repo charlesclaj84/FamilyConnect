@@ -53,9 +53,9 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
     setError('')
   }
 
-  function togglePerson(personId: string) {
-    setEditStatuses(prev => ({ ...prev, [personId]: !prev[personId] }))
-  }
+  // NO `togglePerson`. There was one, unreferenced: the row offers an explicit Yes and an
+  // explicit No rather than one control that flips, so nothing ever needed to negate the
+  // current value. Both buttons set the answer they name (see the row below).
 
   async function handleSave() {
     const personStatuses = familyMembers.map(m => ({

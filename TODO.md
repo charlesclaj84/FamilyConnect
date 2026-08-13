@@ -498,48 +498,48 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## The inactivity sign-out is only half exercised in a browser
+## The idle sign-out's three cross-tab behaviours are still unconfirmed
 
-**Action:** the three unverified behaviours below, each about two tabs or a dialog.
+**Action:** twenty minutes with two tabs, after temporarily dropping the timer — see below.
 
-[components/layout/IdleTimeout.tsx](components/layout/IdleTimeout.tsx), added 2026-08-12:
-`IDLE_LIMIT_MINUTES` (75) without keyboard or pointer activity signs the member out with
-`signOut({ scope: 'local' })` — a real revocation, not just a cleared cookie — and sends
-them to `/login` with a notice and a `?next=` back to where they were. A warning dialog
-appears for the last minute with an "I'm still here" button.
+The single-tab path is **confirmed working in a browser on 2026-08-13**: the timer fires,
+the warning dialog appears for the last minute, the sign-out redirects to `/login` with its
+notice, and signing back in works — which is the half that had actually shipped broken once
+(`genorra:last-activity` outliving the session that wrote it). That is why the larger entry
+this replaces is gone. The number is now `IDLE_LIMIT_MINUTES = 60` in
+[lib/idle-timeout.ts](lib/idle-timeout.ts), matching `jwt_expiry`.
 
-**A first click-through on 2026-08-12 fired the timeout correctly and then could not sign
-back in** — every attempt bounced straight back to `/login` about a second later. The cause
-was `genorra:last-activity` outliving the session that wrote it: the timeout left a
-75-minute-old marker in `localStorage`, and the next signed-in page adopted it at mount and
-expired on its first tick. Fixed by `inheritedActivity()` refusing an expired marker, plus
-`clearIdleActivity()` on every sign-out and `markIdleActivity()` on every sign-in; the
-reasoning is in AGENTS.md under "The shared marker belongs to one session". **That fix is
-verified as a boundary function (13 cases) and not yet in a browser** — re-idling a tab and
-signing back in is the first thing to check.
+What is **not** confirmed is everything that needs a second tab or an already-open dialog,
+which is exactly why the first pass and the click-through both missed it:
 
-What **is** verified: the timeout firing and redirecting, with the notice on `/login`; the
-active/warn/expired boundary and the marker-adoption rule, both as pure functions in
-[lib/idle-timeout.ts](lib/idle-timeout.ts). Build, typecheck and lint are clean.
+* **The warning renders on top of a dialog the page already had open.** Every dialog in the
+  app is `fixed z-50`, so this rests entirely on `IdleTimeout` being mounted *after*
+  `{children}` in `app/(protected)/layout.tsx` — among equal z-indexes the later DOM node
+  wins. Open any form dialog, wait, and watch which one is in front. Getting this wrong
+  hides the warning at the one moment it is worth showing.
+* **A second tab signs itself out when the first one times out** (`genorra:idle-signed-out`).
+  The sign-out revokes the shared session, so a tab that does not follow is left rendering a
+  signed-in page over a dead session until something fails.
+* **Activity in one tab keeps the other alive** (`genorra:last-activity`, written at most
+  every `WRITE_THROTTLE_MS` = 5s). Without this, reading in one tab signs you out of both.
 
-What is **not**, because this checkout has no browser driver and adding one was not in
-scope — all three need two tabs or an open dialog, which is why the first pass missed them:
+**Drop the timer to validate, and put it back.** At 60 minutes these are untestable in
+practice — the third one alone needs an hour of not touching the other tab. Set
+`IDLE_LIMIT_MINUTES` to **2** for the session: `WARN_BEFORE_MS` comes *out of* the limit
+rather than being added to it, so 2 gives a minute of normal idling and then the last-minute
+warning, and anything below 2 is a page that warns from the moment it loads. Three things
+that make this safe and are worth knowing before doing it:
 
-* the warning appearing **on top of** a dialog a page already had open — it is mounted after
-  the shell for exactly this reason, and every dialog in the app shares `z-50`;
-* a second tab not signing itself out when the first one times out (`genorra:idle-signed-out`);
-* activity in one tab not keeping the other alive (`genorra:last-activity`, throttled to 5s).
+* **Everything derives from that one constant**, `inheritedActivity()`'s expiry rule
+  included, so nothing else needs touching and nothing goes inconsistent while it is lowered.
+* **The `/login` notice interpolates it**, so it will read "signed out after 2 minutes" —
+  which is also the cheapest confirmation that the edit took effect at all rather than a
+  stale bundle being served.
+* **Revert before committing.** The value is a product decision and its comment explains the
+  `jwt_expiry` tie; a 2 left in place would sign real families out mid-sentence, and neither
+  typecheck nor lint has any opinion about it.
 
-75 minutes is a product decision, not a derived number — one place, and the notice on
-`/login` interpolates it so the sentence and the timer cannot drift. It was 10 for the
-afternoon it was built, which was too aggressive for pages people genuinely sit and read.
-Worth revisiting once real families are using it, against complaints rather than taste.
-
-**One interaction to keep in mind if that number moves:** 75 is above `jwt_expiry` (3600s),
-so an access token expires partway through an idle stretch and `autoRefreshToken` renews it.
-That is why the page is still alive when the timer fires. It is also, measured, why
-`[auth.sessions] inactivity_timeout` can never do this job — AGENTS.md's idle-timeout
-section states it and the full results are in `config.toml` beside the block.
+Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60.
 
 ## Phase 3 leftovers
 

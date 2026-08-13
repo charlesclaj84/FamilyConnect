@@ -13,7 +13,7 @@ import { useServerState } from '@/lib/use-server-state'
 import {
   createEventType, updateEventType, deleteEventType, moveEventType,
   getBlueprintItems, addBlueprintItem, updateBlueprintItem, deleteBlueprintItem,
-  updateBlueprintItemFull, moveBlueprintItem,
+  moveBlueprintItem,
   getSubTemplates, addSubTemplate, removeSubTemplate,
   type EventType, type BlueprintItem, type SubTemplate,
 } from '@/app/actions/admin/event-types'

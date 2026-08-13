@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { KeyRound, Mail, ShieldCheck } from 'lucide-react'
-import { createClient, createPasswordCheckClient } from '@/lib/supabase/client'
+import { createClient, verifyCurrentPassword } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -172,27 +172,25 @@ export function SignInSecuritySection({ visible, signInEmail }: {
     // code catches somebody who knows a password leaked from somewhere else and has no
     // access to the mailbox; the field catches somebody at the session who knows neither.
     //
-    // `createPasswordCheckClient()` and not `createClient()` — signing in on the app's own
-    // client would replace the live session and reset the 24-hour clock that decides
-    // whether the code gets checked at all, disabling the other half of this on the way
-    // past. Its doc comment has the rest.
-    const probe = createPasswordCheckClient()
-    const { error: currentPwError } = await probe.auth.signInWithPassword({
-      email: signInEmail,
-      password: currentPassword,
-    })
+    // `verifyCurrentPassword` is the shared probe, and it is shared because the plan
+    // panel needed the same question asked before a downgrade. What is worth having one
+    // copy of is not the sign-in call but the branch under it: a failure here is EITHER a
+    // wrong password OR a rate limit (each check spends a `sign_in_sign_ups` slot) or an
+    // outage, and reporting the second as the first sends somebody who typed their
+    // password correctly off to the recovery flow. Hence `reason` rather than a message
+    // alone — the wording below is this screen's, the distinction is not.
+    //
+    // It probes on `createPasswordCheckClient()` and not `createClient()`: signing in on
+    // the app's own client would replace the live session and reset the 24-hour clock
+    // that decides whether the code gets checked at all, disabling the other half of this
+    // on the way past. That reasoning now lives with the helper.
+    const check = await verifyCurrentPassword(currentPassword)
 
-    if (currentPwError) {
+    if (!check.ok) {
       setPwBusy(false)
-      const wrongPassword =
-        currentPwError.code === 'invalid_credentials' ||
-        /invalid login credentials/i.test(currentPwError.message)
-      // Anything else is a rate limit (each check spends a `sign_in_sign_ups` slot) or an
-      // outage, and telling someone their password is wrong when it is not sends them to
-      // the recovery flow for no reason.
-      setPwError(wrongPassword
+      setPwError(check.reason === 'wrong'
         ? 'That is not your current password.'
-        : `We could not check your current password just now: ${currentPwError.message}`)
+        : check.message)
       return
     }
 

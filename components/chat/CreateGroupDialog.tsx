@@ -24,7 +24,11 @@ export function CreateGroupDialog({ open, onClose, familyMembers, onRoomCreated 
   function toggleMember(userId: string) {
     setSelected(prev => {
       const next = new Set(prev)
-      next.has(userId) ? next.delete(userId) : next.add(userId)
+      // An `if`, not a ternary. The ternary this replaced worked — both branches mutate
+      // `next` — but a conditional evaluated for its side effects and its result thrown
+      // away reads as a value somebody forgot to use, which is why the linter says so.
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
       return next
     })
   }

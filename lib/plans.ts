@@ -32,7 +32,7 @@
  * `lib/tiers.ts` and `lib/features.ts` both state.
  */
 
-import { TIERS, type FamilyTier } from '@/lib/tiers'
+import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
 
 export interface PlanHighlight {
   /** The benefit, in the fewest words that land it. */
@@ -151,3 +151,73 @@ export const TIER_IS_SOLD: Record<FamilyTier, boolean> = {
 
 /** The three tiers, cheapest first — re-exported so a UI need not import two modules. */
 export const PLAN_ORDER: readonly FamilyTier[] = TIERS
+
+/** What moving from one plan to another does, in both directions. See `planChange()`. */
+export interface PlanChange {
+  /** True when the destination is above the origin — pages open up rather than close. */
+  up: boolean
+  /**
+   * The benefits that MOVE: gained on the way up, withheld on the way down. Every tier
+   * strictly between the two, inclusive of the higher one, flattened in plan order.
+   */
+  changing: readonly PlanHighlight[]
+  /**
+   * The benefits that do NOT move — everything the LOWER of the two tiers carries. On the
+   * way up that is what the family already has; on the way down it is what survives, and
+   * that is the reassuring half of a downgrade rather than a footnote to it.
+   */
+  keeping: readonly PlanHighlight[]
+}
+
+/**
+ * Everything added by the tiers ABOVE `after`, up to and including `through`.
+ *
+ * The one range operation the panel needs, and both dialogs cut somewhere different with
+ * it: a plan change cuts at the tier the family is leaving, and the feature dialog cuts at
+ * whichever of "what you have" or "the rung below this plan" is the honest boundary. Doing
+ * that arithmetic at a call site is how Free-to-Premium came to be answered with Premium's
+ * five benefits and no mention of the seven on Plus that arrive with them.
+ *
+ * `after` is `undefined` for "from the bottom", which is not an edge case — it is how the
+ * whole of a plan's stack is asked for, and Free has nothing beneath it.
+ */
+export function planAddsBetween(
+  after: FamilyTier | undefined,
+  through: FamilyTier,
+): readonly PlanHighlight[] {
+  const floor = after ? TIER_RANK[after] : -1
+  return TIERS
+    .filter(t => TIER_RANK[t] > floor && TIER_RANK[t] <= TIER_RANK[through])
+    .flatMap(t => PLAN_ADDS[t])
+}
+
+/**
+ * The difference between two plans, as two lists.
+ *
+ * ── WHY A DIFF, WHEN `PLAN_ADDS` IS ALREADY A DIFF ─────────────────────────────────
+ * `PLAN_ADDS` is a diff against the tier immediately BELOW, which is the right thing to
+ * store and the wrong answer to "what changes if I do this?" — Free to Premium skips a
+ * rung, so reading `PLAN_ADDS.premium` alone names five things and silently omits the
+ * seven on Plus that come with them. This walks the rungs, so a two-step move states
+ * both.
+ *
+ * It is symmetric on purpose: the same call answers an upgrade and a downgrade, and the
+ * caller reads `up` to decide whether `changing` is a list of gains or of losses. A
+ * separate downgrade path would be a second place for the ordering to be got wrong, and
+ * a downgrade shown as "nothing happens" is exactly the screen this exists to prevent.
+ *
+ * `from === to` is not an error — it yields an empty `changing`, since nothing moves.
+ *
+ * PURE, like everything else here: no React, no database. `tests` need no fixture.
+ */
+export function planChange(from: FamilyTier, to: FamilyTier): PlanChange {
+  const up = tierMeets(to, from)
+  const lower = up ? from : to
+  const higher = up ? to : from
+
+  return {
+    up,
+    changing: planAddsBetween(lower, higher),
+    keeping: planAddsBetween(undefined, lower),
+  }
+}

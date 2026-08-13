@@ -28,6 +28,13 @@ export const metadata = { title: 'Announcements' }
  * THE LIST IS NOT GATED PER ROW and does not need to be — `getAnnouncements()` runs on
  * the user's client, so the SELECT policy on `announcements` is what decides which rows
  * exist for this caller. What is decided here is only what may be DONE to them.
+ *
+ * `wide`, NOT `reading`. This was the reading measure on the argument that an announcement
+ * is prose — which is true of one announcement and not of this screen. What is here is a
+ * BOARD: a stack of cards, each with a chapter pill, a pin control and a delete control in
+ * its corners, and the post composer above them. A narrower column bought nothing for that
+ * and cost the one thing a page in a shell owes its neighbours, which is starting where
+ * they start. See the note on `reading` in components/layout/PageShell.tsx.
  */
 export default async function AnnouncementsPage() {
   const supabase = await createClient()
@@ -51,7 +58,7 @@ export default async function AnnouncementsPage() {
   ])
 
   return (
-    <PageShell width="reading" className="space-y-6">
+    <PageShell className="space-y-6">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Announcements</h1>
         <p className="text-muted-foreground">

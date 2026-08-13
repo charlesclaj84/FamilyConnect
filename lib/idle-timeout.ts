@@ -13,20 +13,34 @@
  * milliseconds, the notice on /login — derives from this, so the number and the sentence
  * telling a member what happened cannot drift apart.
  *
- * 75 minutes: long enough that reading a long announcement, filling in a family tree or
+ * 60 minutes: long enough that reading a long announcement, filling in a family tree or
  * watching a chat room is not mistaken for absence, short enough that a signed-in tab left
  * on a shared screen does not stay open all afternoon. Was 10 briefly, which was too
- * aggressive for pages people genuinely sit and read.
+ * aggressive for pages people genuinely sit and read, then 75 for a day — verified in a
+ * browser at that value and lowered to 60 on 2026-08-13 to MATCH `jwt_expiry` (3600s in
+ * `supabase/config.toml`), so an idle stretch and the life of an access token are one
+ * number rather than two that nearly agree.
  *
- * ONE INTERACTION TO KNOW ABOUT: this is longer than `jwt_expiry` (3600s in
- * `supabase/config.toml`), so an access token expires partway through an idle stretch and
- * the client's `autoRefreshToken` renews it. That is fine and is why the page is still
- * alive when the timer fires — but it also means an open tab keeps its session fresh from
- * GoTrue's point of view no matter how idle the human is, which is exactly why
- * `[auth.sessions] inactivity_timeout` cannot do this component's job. See the note beside
- * that setting.
+ * WHAT MATCHING BUYS, and what it does not. It does not make GoTrue do the signing out —
+ * nothing here depends on the token expiring, and by measurement it could not: auth-js
+ * refreshes when the access token is within ~90s of expiry, so a live tab renews at about
+ * t+58.5m and is still perfectly alive when this timer fires at t+60m. That is deliberate,
+ * because the sign-out is a real `signOut({ scope: 'local' })` and wants a valid token to
+ * revoke with. What it buys is that the window in which a walked-away tab holds a usable
+ * token no longer outlives the token itself by a quarter of an hour.
+ *
+ * The same measurement is why `[auth.sessions] inactivity_timeout` cannot do this
+ * component's job at any value: that automatic refresh is client activity, not the
+ * person's, so an open tab keeps its session fresh from GoTrue's point of view however
+ * long the human has been gone. See the note beside that setting.
+ *
+ * IF THIS NUMBER MOVES AGAIN, the floor worth knowing is that ~58.5-minute refresh: below
+ * it, an idle tab is signed out before auth-js has renewed even once, so the revocation
+ * goes out on a token near the end of its life. Nothing breaks — the local session is
+ * cleared and the redirect happens either way — but the tie to `jwt_expiry` is gone and
+ * this paragraph stops being true.
  */
-export const IDLE_LIMIT_MINUTES = 75
+export const IDLE_LIMIT_MINUTES = 60
 
 export const IDLE_LIMIT_MS = IDLE_LIMIT_MINUTES * 60 * 1000
 
@@ -92,7 +106,7 @@ export function idlePhase(idleMs: number): IdlePhase {
  * A tab adopts the stored marker on mount so that opening a second tab during an idle
  * stretch inherits the clock instead of resetting it. Adopted unconditionally, it also
  * signs the member out one tick after they sign back IN: the timeout fires, leaves its own
- * 75-minute-old marker in `localStorage`, and the first signed-in page they reach mounts
+ * hour-old marker in `localStorage`, and the first signed-in page they reach mounts
  * already expired. That was shipped, and it made the sign-out unrecoverable — every
  * sign-in bounced straight back to /login. `localStorage` survives the browser closing
  * too, so the same bounce met anybody returning the next morning.

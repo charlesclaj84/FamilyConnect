@@ -7,6 +7,8 @@ import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { getMyFamilies, getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PAGE_MEASURE } from '@/components/layout/PageShell'
+import { cn } from '@/lib/utils'
 
 /**
  * The controls at the top of the workspace — and, as of the Golden Master, NOT a header
@@ -25,9 +27,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * THREE THINGS ABOUT HOW IT IS BUILT.
  *
  *   * **It lives INSIDE `<main>`, not above the row.** That is what lets the rail run to
- *     the top of the shell with the logo in it, and it is why the bar's container matches
- *     `PageShell` (`max-w-6xl`, `px-4 sm:px-6`) — the controls align with the right edge
- *     of the page's own content instead of the viewport's.
+ *     the top of the shell with the logo in it, and it is why the bar's container is
+ *     `PAGE_MEASURE` — the same element `PageShell` builds its pages on, so the controls
+ *     align with the right edge of the page's own content instead of the viewport's. That
+ *     was three hand-matched copies of `max-w-6xl px-4 sm:px-6` until 2026-08-13; it is
+ *     now imported, because the whole value of the number is that three files agree on it.
  *   * **It is `h-16`, and that number is load-bearing in three other files.**
  *     `ChatShell`'s `h-[calc(100vh-4rem)]` and `header-panel.ts`'s `top-[4.25rem]` both
  *     measure against it. Keeping 4rem is why removing an entire band cost no arithmetic
@@ -123,7 +127,7 @@ export default async function TopBar({
   // lives in this bar now, so there is no second sticky element under it to rank against.
   return (
     <header className="sticky top-0 z-30 bg-background">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
+      <div className={cn(PAGE_MEASURE, 'flex h-16 items-center gap-2')}>
         {/* Left: the drawer trigger, below md only. */}
         <MobileNav hasAssignments={hasAssignments} viewable={viewable} />
 

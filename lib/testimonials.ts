@@ -160,15 +160,24 @@ export const TESTIMONIALS: readonly Testimonial[] = [
 ]
 
 /**
- * How many appear at once, however many are in the array.
+ * How many go into the rail, however many are in the array.
  *
- * Eight, because a testimonial wall stops being read at about that point — past it the
- * cards become texture rather than evidence, and the visitor scrolls. With 28 collected,
- * the component shows a random eight per page load, so a returning visitor meets different
- * families and the whole collection eventually gets read, instead of the last twenty
- * entries never being seen by anybody.
+ * TWELVE, raised from eight on 2026-08-13 at the owner's request — and what the number
+ * controls is not what it was when it was eight. That was a wall of cards, where the count
+ * was "how many will be read before the grid becomes texture rather than evidence". The rail
+ * shows two or three at a time, so the count is now its PERIOD: how far a visitor can watch
+ * before a quote they have already seen comes round again. Twelve at eight seconds is a
+ * minute and a half of new families.
+ *
+ * It is also the DOM cost, doubled: the rail is continuous, so it renders this many cards
+ * twice and folds back at the seam — 24 `<li>` at twelve. See the header of
+ * `components/marketing/Testimonials.tsx` for why that is how the seam is hidden.
+ *
+ * With 28 collected, the component still draws a random subset per page load, so a returning
+ * visitor meets different families and the whole collection eventually gets read instead of
+ * the last sixteen entries never being seen by anybody.
  */
-export const TESTIMONIAL_DISPLAY_LIMIT = 8
+export const TESTIMONIAL_DISPLAY_LIMIT = 12
 
 /**
  * mulberry32 — a small, fast PRNG that is DETERMINISTIC given its seed.

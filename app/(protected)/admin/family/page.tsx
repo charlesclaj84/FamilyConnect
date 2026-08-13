@@ -17,9 +17,12 @@ export const metadata = { title: 'Settings' }
  * than about running it. Registered by 20260812000000 as 'restricted' per family, so
  * it is administrators-only until a family says otherwise.
  *
- * `reading`, not `wide`. One field and three facts about the family is a single column
- * of content — a 6xl measure would put the Save button most of a screen away from the
- * input it belongs to.
+ * `wide`, like every other page. This was `reading` on the argument that a 6xl measure
+ * would put the Save button most of a screen away from the input it belongs to — and that
+ * turned out to be an argument about the FIELD rather than about the page. The button sits
+ * under the input, not beside it, so what the wide measure actually stretched was the name
+ * box itself; `FamilySettingsClient` caps that box instead, which is where the constraint
+ * belongs. The page starts where its neighbours start.
  */
 export default async function FamilySettingsPage() {
   const supabase = await createClient()
@@ -34,7 +37,7 @@ export default async function FamilySettingsPage() {
   const settings = await getFamilySettings()
 
   return (
-    <PageShell width="reading" className="space-y-8">
+    <PageShell className="space-y-8">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+// `useWatch`, never the `watch()` the same hook returns — see the note below the imports.
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Pencil, Camera, Loader2, User, MapPin, Info, ShieldCheck } from 'lucide-react'
@@ -26,6 +27,26 @@ import {
   PROFILE_SECTION_LABELS, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
 
+// ── `useWatch`, never `watch()` ────────────────────────────────────────────────
+//
+// The reason is bigger than the lint warning that surfaces it. React Compiler knows
+// `useForm().watch` by name and refuses to memoize a component that calls it — `watch` is a
+// mutable function returning a value that changes without React being told, so anything
+// derived from it could be memoized to a stale result. The compiler's response is not to
+// skip the call: it is to SKIP COMPILING THE WHOLE COMPONENT, which
+// `react-hooks/incompatible-library` reports as "Compilation Skipped". Two of the sections
+// below were paying that, so the cost of `watch()` was every other memoization in
+// `AddressSection` and `AdditionalInfoSection`, not the one line it appeared on.
+//
+// `useWatch({ control, name })` is a real hook that subscribes and returns a value, so it is
+// memoization-safe and the compiler proceeds. Same value, same re-render on change;
+// `control` comes off the same `useForm()` in place of `watch`.
+//
+// The knowledge is in the compiler's own `defaultModuleTypeProvider` for `react-hook-form`
+// (`node_modules/eslint-plugin-react-hooks`), which lists `watch` and nothing else — so this
+// is the whole of what the library owes here, and a new form needing a live field value
+// should reach for `useWatch` from the start.
+//
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
 const tv = (v: string | null | undefined) => v ?? ''
@@ -475,13 +496,14 @@ function AddressSection({
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<AddressData>({
+  const { register, handleSubmit, reset, control, setValue, formState: { isSubmitting } } = useForm<AddressData>({
     resolver: zodResolver(addressSchema),
     defaultValues: { country: tv(existing?.country), street_address: tv(existing?.street_address), apartment: tv(existing?.apartment), city: tv(existing?.city), state: tv(existing?.state), zip_code: tv(existing?.zip_code) },
   })
 
-  const selectedCountry  = watch('country') as Country | ''
-  const selectedState    = watch('state') ?? ''
+  // `useWatch`, NOT `watch()` — see the note below the imports.
+  const selectedCountry  = (useWatch({ control, name: 'country' }) ?? '') as Country | ''
+  const selectedState    = useWatch({ control, name: 'state' }) ?? ''
   const availableRegions = selectedCountry && selectedCountry in REGIONS ? REGIONS[selectedCountry as Country] : []
 
   const stateLabel = selectedCountry === 'Canada' ? 'Province' : 'State'
@@ -512,12 +534,9 @@ function AddressSection({
     else setServerError(result.message ?? 'Something went wrong')
   }
 
-  const fullAddress = [
-    existing?.street_address,
-    existing?.apartment,
-    [existing?.city, existing?.state, existing?.zip_code].filter(Boolean).join(', '),
-    existing?.country,
-  ].filter(Boolean).join('\n')
+  // NO `fullAddress`. A newline-joined one-block address was built here and never rendered:
+  // the read-only view below prints each part under its own `<Field>` label, which is the
+  // same six-column treatment the rest of this page uses. Nothing wanted it as one string.
 
   // After the hooks — see GeneralSection.
   if (!visible) return null
@@ -607,7 +626,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<AdditionalData>({
+  const { register, handleSubmit, reset, control, setValue, formState: { isSubmitting } } = useForm<AdditionalData>({
     resolver: zodResolver(additionalSchema),
     defaultValues: {
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
@@ -616,7 +635,12 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
     },
   })
 
-  const selectedCategory = watch('tshirt_category') as TshirtCategory | ''
+  // `useWatch`, NOT `watch()` — see the note below the imports. Both are read in the JSX
+  // below; the size one was an inline `watch()` call in the `<Select>`'s `value`, which the
+  // linter never reported separately because the compiler had already given up on the
+  // component at the line above it.
+  const selectedCategory = (useWatch({ control, name: 'tshirt_category' }) ?? '') as TshirtCategory | ''
+  const selectedSize     = useWatch({ control, name: 'tshirt_size' }) ?? ''
   const availableSizes   = selectedCategory && selectedCategory in TSHIRT_SIZES ? TSHIRT_SIZES[selectedCategory as TshirtCategory] : []
 
   // Resets to the CURRENT `existing` — see GeneralSection.
@@ -684,7 +708,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tshirt_size">T-Shirt Size</Label>
-              <Select id="tshirt_size" disabled={availableSizes.length === 0} value={watch('tshirt_size') ?? ''} onChange={e => setValue('tshirt_size', e.target.value)}>
+              <Select id="tshirt_size" disabled={availableSizes.length === 0} value={selectedSize} onChange={e => setValue('tshirt_size', e.target.value)}>
                 <option value="">— Select —</option>
                 {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>

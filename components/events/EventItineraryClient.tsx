@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Calendar, MapPin, ListOrdered, Clock } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { formatDate, formatTime, formatDateRange } from '@/lib/date-utils'
+import { formatTime, formatDateRange } from '@/lib/date-utils'
 import type { AdminEvent } from '@/app/actions/admin/events'
 
 function SubEventEntry({ sub }: { sub: AdminEvent }) {

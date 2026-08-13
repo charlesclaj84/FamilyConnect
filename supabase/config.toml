@@ -500,9 +500,10 @@ max_frequency = "5s"
 # 2. THE VALUE HAS A FLOOR, and it is about an hour. auth-js refreshes when the access
 #    token is within ~90s of expiry, so at `jwt_expiry = 3600` a live tab refreshes roughly
 #    every 58 minutes. Set this BELOW that and active members are signed out mid-sentence,
-#    because by result B the only clock it watches is the refresh. 75m — matching the idle
-#    timer — technically clears it, with about 16 minutes of headroom; hours clear it
-#    comfortably.
+#    because by result B the only clock it watches is the refresh. Note that the idle timer
+#    is no help in picking a value here — it is 60m, matching `jwt_expiry`, which leaves
+#    only ~90s over that refresh cadence and so clears the floor by nothing worth relying
+#    on. Hours clear it comfortably; that is what this setting is for.
 #
 # WHAT IT IS ACTUALLY FOR, then: today a session cookie has no expiry at all, so a browser
 # closed while signed in stays signed in forever — the shared family computer somebody used

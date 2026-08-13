@@ -416,7 +416,7 @@ shipped with a documented obligation still open and a tick would hide that.
 | Feature | Route | Tier | Claims | Notes |
 |---|---|---|---|---|
 | Family finances — fund balances, P&L | `/family-finances` | Plus | 12 | Admin counterpart already live. **The dues half ships today** (`/transactions`, `/account-summary`, dues schedules under `/admin/account`) — only balances and the P&L are gated, so do not attribute the whole "dues and fund accounting" claim here. |
-| Photos — galleries, captions, tagging | `/photos` | Plus | 11 | Storage rework + a **live `PGRST201`** that makes every gallery render empty + `deletePhoto` trusting a client-supplied path + the hand-rolled tag search that `/features` explicitly sells |
+| Photos — galleries, captions, tagging | `/photos` | Plus | 11 | Storage rework + a **live `PGRST201`** that makes every gallery render empty + `deletePhoto` trusting a client-supplied path + the hand-rolled tag search that `/features` explicitly sells + **no resizing anywhere in the upload or render path**, so a grid of thumbnails downloads the originals (see the consideration under §1) |
 | Documents — bylaws, forms, minutes | `/documents` | Plus | 7 | Worst bucket; `getPublicUrl` against a private bucket |
 | Elections — nominate, accept/decline, vote | `/elections` | Plus | 6 | `BallotForm` member-picker defect must land with it |
 | Election management | `/admin/elections` | Plus | 3 | After board positions |
@@ -490,6 +490,39 @@ of the schema with no attacker case anywhere.
 > nobody could reach; since 2026-08-12 it is false of the storage behind a **shipped**
 > feature. That is the whole change in this item's character — the work did not get bigger,
 > it got later.
+
+#### A consideration to settle with it: photos are served at full resolution
+
+Raised 2026-08-13, from the three `@next/next/no-img-element` warnings that are the only
+lint findings left in the repo. They are a symptom rather than the item; the item is that
+**nothing in the upload or the render path ever resizes a photograph.**
+
+`uploadPhoto` stores the file exactly as the browser hands it over
+([app/actions/photos.ts](app/actions/photos.ts)) — no downscale, no re-encode, `accept`
+allowing JPEG, PNG and WebP at any dimension. `getPublicUrl` then hands that same object
+back, and `PhotoCollectionGallery` renders it into a 200px square, four across. So a
+gallery of twenty photographs off a modern phone is **60–100 MB over the wire to draw a
+grid of thumbnails**, and the lightbox that genuinely wants the original is the one place
+the full file is justified. `PhotoCollectionCard`'s cover image is the same shape.
+
+It belongs with this item rather than beside it, because the fix and the rework touch the
+same objects and the same buckets, and two of the three candidates change what is *stored*:
+
+| | What it does | Cost | Depends on |
+|---|---|---|---|
+| **Resize on upload** | Downscale in the browser before `FormData` — cap the long edge, re-encode WebP — and store a ~400px thumbnail beside the original. Grid reads the thumb, lightbox reads the original. `<img>` then needs no optimizer and the lint rule is disabled at three lines with that as the stated reason. | none | nothing |
+| **Supabase render endpoint** | `next/image` with a per-image custom `loader` rewriting `/storage/v1/object/public/` to `/storage/v1/render/image/public/` with `width`/`quality`/`resize`. Resizing happens on Supabase's own CDN. | none beyond the plan | **Supabase Pro** — Storage image transformations are not on Free |
+| **Vercel image optimization** | The stock answer: `images.remotePatterns` for the Supabase host, plain `next/image`. Works on any Supabase plan. | billed transformations, per photo per size, and a family reunion is a lot of both | nothing |
+
+Two things to decide rather than assume. **Whether the originals are wanted at all** — a
+family archive probably does want the full-resolution file kept, which argues for storing
+both rather than downscaling destructively. And **whether `avatars` is in scope**: it has
+the same defect on a live, free page, at a size where it matters less per image and far
+more per pageview, since a portrait is drawn on every card in the directory and the tree.
+
+The three warnings are deliberately **left visible** in the meantime. Suppressing them
+would be the one move that makes this invisible again, and it is the resize decision that
+earns the disable comment, not the other way round.
 
 ### 2. Per-feature launch obligations
 

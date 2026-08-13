@@ -54,6 +54,7 @@
   --color-brand-accent: var(--brand-accent);
   --color-brand-affirm: var(--brand-affirm);
   --color-brand-on-affirm: var(--brand-on-affirm);
+  --color-brand-withheld: var(--brand-withheld);
   --color-brand-legacy: var(--brand-legacy);
   --color-brand-on-legacy: var(--brand-on-legacy);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -165,6 +166,24 @@
      semantic covers both, which is why the sweep needed no separate success role. */
   --brand-affirm: var(--genorra-growth-deep);
   --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
+  /* THE COUNTERPART TO AFFIRM, and the gap that made this token necessary: a capability
+     being WITHHELD. Not deleted, not failed, not an error — a page this family will stop
+     being able to open, which is the whole of what a plan downgrade does (AGENTS.md, "it
+     withholds SCREENS, never rows"). Affirm had no opposite, so the only thing to reach for
+     was `--destructive`, and that token is the single non-brand hue in this file: pure
+     shadcn red (#e7000b) beside burgundy, terracotta, olive and gold. It reads as alarm
+     because it IS alarm — it is right for deleting a chapter and wrong for a reversible
+     billing change that removes nothing.
+
+     Warmth is the brand's own answer to "warm caution", and it is deliberately NOT a new
+     hue: this is the same pair of tones `--brand-warm` fills a chip with, consumed here as
+     a FOREGROUND and as a tint under one. That is why there is no `--brand-on-withheld` —
+     like `--brand-accent` and `--brand-ink`, this is a foreground role, and nothing fills a
+     surface with it that then has to carry text.
+
+     Do not reach for this for errors or deletions. `--destructive` still owns those, and
+     the 38 call sites that use it are correct. */
+  --brand-withheld: var(--genorra-warmth-deep);  /* 5.10 on the card, 4.78 on the page */
   --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
   --brand-on-warm: var(--genorra-light);         /* 4.78 on warm */
   /* Premium accent — SURFACE ONLY, see below. Its second job since the 2026-08-12 sweep
@@ -214,6 +233,9 @@
   --brand-accent: var(--genorra-legacy);         /* 7.91 on ground, 7.36 on card */
   --brand-affirm: var(--genorra-growth-lift);
   --brand-on-affirm: var(--genorra-ink);         /* 4.91 on affirm */
+  /* Flips with the same tone `--brand-warm` flips to, for the same reason: warmth-deep is
+     a dark fill that disappears into a near-black ground (2.29 on card-dark). */
+  --brand-withheld: var(--genorra-warmth-lift);  /* 5.78 on the card, 6.22 on the ground */
   /* Flips like affirm does, and for the same reason: warmth-deep is a dark fill
      that vanishes into a near-black ground (2.29 on card-dark). The lifted tone
      reads as a chip at 5.79 against the card and still carries ink at 4.83. */

@@ -7,9 +7,14 @@ import { PageShell } from '@/components/layout/PageShell'
 //
 // PageShell, at the default `wide`, for exactly that reason: the skeleton has to be the
 // same measure as the page replacing it, and hand-rolling a fourth-of-five max-w here
-// was the one that made every navigation start narrow and then jump. It is `wide`
-// because that is the default and so what most pages resolve to; the `reading` pages
-// will still shift, which is a smaller and rarer jump than the one this removes.
+// was the one that made every navigation start narrow and then jump.
+//
+// `wide` NOW COVERS THE `reading` PAGES TOO, and this comment used to say otherwise —
+// "the reading pages will still shift, which is a smaller and rarer jump". They do not,
+// since PageShell stopped centring the narrower measure: both widths are the same 6xl
+// container, so this skeleton's heading starts where the real h1 will on every page in the
+// app. A `reading` page's content column is narrower than these skeletons; its left edge
+// is the same one, and there are only two such pages left in any case.
 export default function Loading() {
   return (
     <PageShell>

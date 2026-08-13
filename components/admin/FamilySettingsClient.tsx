@@ -109,7 +109,12 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           className="mt-4 space-y-4"
           onSubmit={e => { e.preventDefault(); if (dirty) submit() }}
         >
-          <div className="space-y-1.5">
+          {/* THE FIELD IS CAPPED, NOT THE PAGE. This page used to be `PageShell`'s
+              `reading` measure so that this box would not run the width of the screen —
+              which narrowed the whole page, and everything else on it, to solve a problem
+              belonging to one input. A family name is a few words; `max-w-md` is the size
+              of the thing being typed. */}
+          <div className="max-w-md space-y-1.5">
             <Label htmlFor="family-name">Name</Label>
             <Input
               id="family-name"

@@ -13,7 +13,9 @@
     "db:audit": "npx supabase db query -f supabase/scripts/audit_policy_shadowing.sql",
     "email:check": "node scripts/auth-templates.mjs check",
     "email:push": "node scripts/auth-templates.mjs push",
-    "email:pull": "node scripts/auth-templates.mjs pull"
+    "email:pull": "node scripts/auth-templates.mjs pull",
+    "art:check": "node scripts/kit-illustration.mjs check",
+    "art:build": "node scripts/kit-illustration.mjs build"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

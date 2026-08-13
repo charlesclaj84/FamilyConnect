@@ -92,8 +92,17 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
           claimed the whole screen and nothing could be rendered above it without pushing
           the composer off the bottom. `app/(protected)/chat/page.tsx` now owns that
           measurement and puts the page's h1 above this; `min-h-0` is what lets a flex
-          child shrink below its content height so the panes scroll instead of the page. */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+          child shrink below its content height so the panes scroll instead of the page.
+
+          THE MEASURE IS THE PAGE'S TOO, and the border is what makes this look like one of
+          the app's pages rather than a full-bleed app pinned inside one. The page insets
+          this to `PAGE_MEASURE`; `rounded-xl border bg-card` is the same treatment every
+          section on every other page gets, so the two panes read as a panel on the cream
+          instead of as the window's own edges. The room list keeps its `bg-background`,
+          which now reads as a tinted list beside a white thread rather than as the page
+          ground running underneath both. `overflow-hidden` was already here for the panes
+          and is what clips them to the round. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border bg-card">
         {/* Left panel */}
         <aside className={cn('w-full md:w-64 shrink-0 border-r bg-background flex-col', showThread ? 'hidden md:flex' : 'flex')}>
           <RoomList
