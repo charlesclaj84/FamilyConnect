@@ -26,6 +26,19 @@ import {
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
 
+/**
+ * A transfer figure, with its direction on the front.
+ *
+ * Every other currency figure on this screen is a magnitude whose direction is the
+ * column it sits in — Collected is in, Disbursed is out. Net transfers is the one that
+ * can point either way for the same fund, so "$300" alone would be unreadable and
+ * `formatCurrency(-30000)` renders "-$300.00", which reads as a negative amount of
+ * money rather than money going the other way.
+ */
+function signedFmt(cents: number): string {
+  return `${cents < 0 ? '−' : '+'}${fmt(Math.abs(cents))}`
+}
+
 interface Props {
   /** Which section the shell is showing. This component renders only its own. */
   section: AccountSection
@@ -186,6 +199,7 @@ export function AdminFundsClient({
         system_key: null,
         total_disbursed_cents: 0,
         total_contributed_cents: 0,
+        net_transfers_cents: 0,
         balance_cents: 0,
         milestone_count: 0,
         allocation_bps: funds.length === 0 ? 10000 : 0,
@@ -332,17 +346,17 @@ export function AdminFundsClient({
             </div>
           </Dialog>
 
-          {/* A table, matching Member Directory: these are seven parallel figures per
+          {/* A table, matching Member Directory: these are eight parallel figures per
               fund, and reading "Balance: X · Collected Y · Disbursed Z" as prose meant
               re-finding the same word on every row to compare two funds. */}
           {funds.length > 0 && (
-            /* Five of the seven columns fold below `sm`; see
+            /* Six of the eight columns fold below `sm`; see
                components/ui/table-collapse.tsx. BALANCE is the one figure that stays,
-               because it is the answer this screen exists to give — Collected and
-               Disbursed are how it got there, and the share and the minimum are
-               configuration rather than position. All five are on the meta line, and
-               labelled: six currency amounts in a row with no captions is exactly the
-               prose this table replaced. */
+               because it is the answer this screen exists to give — Collected,
+               Disbursed and Transferred are how it got there, and the share and the
+               minimum are configuration rather than position. All six are on the meta
+               line, and labelled: six currency amounts in a row with no captions is
+               exactly the prose this table replaced. */
             <div className="overflow-visible rounded-xl border">
               <table className="w-full border-collapse text-sm">
                 <thead>
@@ -352,6 +366,7 @@ export function AdminFundsClient({
                     <th scope="col" className="px-3 py-2 text-right font-semibold">Balance</th>
                     <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Collected</th>
                     <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Disbursed</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Transferred</th>
                     <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Minimum</th>
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
                   </tr>
@@ -379,6 +394,16 @@ export function AdminFundsClient({
                           <MetaIf value={fmt(f.total_contributed_cents)} prefix="Collected" />
                           <MetaDot />
                           <MetaIf value={fmt(f.total_disbursed_cents)} prefix="Disbursed" />
+                          {/* Only when there is one. On a fund that has never taken part
+                              in a transfer this line would be a zero explaining nothing;
+                              on one that has, its absence is the reason Collected minus
+                              Disbursed no longer reaches the Balance beside it. */}
+                          {f.net_transfers_cents !== 0 && (
+                            <>
+                              <MetaDot />
+                              <MetaIf value={signedFmt(f.net_transfers_cents)} prefix="Transferred" />
+                            </>
+                          )}
                           {!f.system_key && (
                             <>
                               <MetaDot />
@@ -409,6 +434,12 @@ export function AdminFundsClient({
                       </td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_contributed_cents)}</td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_disbursed_cents)}</td>
+                      {/* An em-dash for zero rather than "+$0.00": a fund that has never
+                          taken part in a transfer has nothing to say here, and a column
+                          of signed zeroes would drown the two rows that do. */}
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
+                        {f.net_transfers_cents === 0 ? '—' : signedFmt(f.net_transfers_cents)}
+                      </td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {f.minimum_cents > 0 ? fmt(f.minimum_cents) : '—'}
                       </td>

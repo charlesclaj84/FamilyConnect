@@ -152,8 +152,17 @@ END $$;
 -- ── 4. Who may reverse ──────────────────────────────────────────────────────
 -- Its own key, so reversing is separable from recording: the person who posts
 -- payments need not be the person who can undo one.
+--
+-- sort_order 121 since 20260812000002, which took 120 for Transfers. That file moves
+-- this row with an UPDATE; the literal here is edited to match because this insert is
+-- ON CONFLICT DO UPDATE ... SET sort_order and would otherwise put the two back on top
+-- of each other on a replay — which 20260806000005's no-duplicates assertion then
+-- fails (AGENTS.md §6). The order is deliberate rather than cosmetic: the four rows
+-- above 120 are the ledger TABS on /transactions, in rail order, and Transfers is a
+-- fifth. Reversals is not a tab — it is the Reverse button on the Dues ledger — so it
+-- sits after them.
 INSERT INTO public.permission_resources (key, label, category, subsection, sort_order, actions)
-VALUES ('transactions/reversals', 'Payment Reversals', 'accounting', 'Transactions', 120, ARRAY['create']::TEXT[])
+VALUES ('transactions/reversals', 'Payment Reversals', 'accounting', 'Transactions', 121, ARRAY['create']::TEXT[])
 ON CONFLICT (key) DO UPDATE
   SET label = EXCLUDED.label, category = EXCLUDED.category,
       subsection = EXCLUDED.subsection, sort_order = EXCLUDED.sort_order,

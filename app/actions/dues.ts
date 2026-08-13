@@ -386,21 +386,34 @@ async function loadScheduleUsage(
  * in Donations.
  */
 async function getActiveFundsForRouting(admin: AdminClient, familyCode: string): Promise<RoutingFund[]> {
-  const [fundsRes, allocRes, contribRes, disbRes, expRes] = await Promise.all([
+  const [fundsRes, allocRes, contribRes, disbRes, expRes, xferRes] = await Promise.all([
     admin.from('funds').select('id, priority, minimum_cents, created_at')
       .eq('family_code', familyCode).eq('active', true).is('system_key', null),
     admin.from('fund_allocations').select('fund_id, basis_points').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('event_expenses').select('fund_id, amount_cents').eq('family_code', familyCode),
+    admin.from('fund_transfers').select('from_fund_id, to_fund_id, amount_cents').eq('family_code', familyCode),
   ])
 
+  // THE BALANCE THE WATERFALL SEES IS THE FUND'S ACTUAL BALANCE, TODAY — the same sum
+  // fund_balance_cents() and getFunds() compute, on the admin client so it cannot vary
+  // with who is looking. That is what makes minimums behave the way a family expects:
+  // money that routed into a fund STAYS there, a payout reduces that fund alone, and
+  // the gap the payout opened is refilled by the NEXT payment, ahead of everything
+  // below it. Nothing here re-derives where past money should have gone.
+  //
+  // Transfers are the fifth term and the only one that moves money BETWEEN funds after
+  // routing, so leaving them out would make the waterfall refill a fund that has
+  // already been topped up by hand — and drain past a minimum that has already been
+  // emptied by hand.
   const bpsByFund = new Map<string, number>((allocRes.data ?? []).map(a => [a.fund_id, a.basis_points]))
   const balByFund = new Map<string, number>()
   const add = (id: string | null, delta: number) => { if (id) balByFund.set(id, (balByFund.get(id) ?? 0) + delta) }
   for (const c of contribRes.data ?? []) add(c.fund_id, c.amount_cents)
   for (const d of disbRes.data ?? []) add(d.fund_id, -d.amount_cents)
   for (const e of expRes.data ?? []) add(e.fund_id, -e.amount_cents)
+  for (const t of xferRes.data ?? []) { add(t.to_fund_id, t.amount_cents); add(t.from_fund_id, -t.amount_cents) }
 
   return (fundsRes.data ?? [])
     .sort((a, b) =>

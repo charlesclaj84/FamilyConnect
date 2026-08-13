@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
-import { getFunds, getAllDisbursements, getFundContributions } from '@/app/actions/funds'
+import { getFunds, getAllDisbursements, getFundContributions, getFundTransfers } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
 import {
   LEDGERS, resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE, type Ledger,
@@ -14,7 +14,7 @@ export const metadata = { title: 'Transactions' }
 
 /**
  * Every transaction the family has recorded: dues in, donations in, contributions
- * into funds, disbursements out.
+ * into funds, disbursements out, and transfers between one fund and another.
  *
  * NOT an admin page — that was the point of moving it off /admin/account. Four
  * separate gates, because "can see the page", "can see this ledger" and "can move
@@ -88,19 +88,21 @@ export default async function TransactionsPage({
   // it runs when either is visible and the client splits it by schedule kind.
   const wantPayments = canSee('dues') || canSee('donations')
   const [
-    schedules, payments, fundsData, disbursements, contributions,
+    schedules, payments, fundsData, disbursements, contributions, transfers,
     canRecordDues, canRecordDonations, canRecordContributions,
-    canRecordDisbursements, canReverse,
+    canRecordDisbursements, canRecordTransfers, canReverse,
   ] = await Promise.all([
     getDuesSchedules(),
     wantPayments ? getAllDuesPayments() : [],
     getFunds(),
     canSee('disbursements') ? getAllDisbursements() : [],
     canSee('contributions') ? getFundContributions() : [],
+    canSee('transfers') ? getFundTransfers() : [],
     canAny(user.id, LEDGER_RESOURCE.dues, 'create'),
     canAny(user.id, LEDGER_RESOURCE.donations, 'create'),
     canAny(user.id, LEDGER_RESOURCE.contributions, 'create'),
     canAny(user.id, LEDGER_RESOURCE.disbursements, 'create'),
+    canAny(user.id, LEDGER_RESOURCE.transfers, 'create'),
     canAny(user.id, REVERSAL_RESOURCE, 'create'),
   ])
 
@@ -113,9 +115,22 @@ export default async function TransactionsPage({
   // record their own payment — which is precisely what basic accounting forbids, since
   // it lets the person who owes the money attest that they paid it. Recording is now a
   // treasurer act, so the roster is all-or-nothing.
+  //
+  // canRecordTransfers is deliberately NOT in this list. A transfer names two funds and
+  // nobody else — there is no recipient, no giver and no member to pick — so the roster
+  // would be PII fetched for a form that has no field to put it in.
   const roster: 'all' | 'none' =
     canRecordDues || canRecordDonations || canRecordContributions || canRecordDisbursements
       ? 'all' : 'none'
+
+  // Balances go to the browser ONLY for someone who may move money, and for the same
+  // reason the roster does not go to everyone. The transfer form needs them — it is the
+  // one form whose main failure mode is asking for more than a fund holds, and being
+  // told that before typing beats being told after. Every other consumer of `funds` on
+  // this page wants a name and an id, which is all the prop below carries.
+  const transferFunds = canRecordTransfers
+    ? fundsData.map(f => ({ id: f.id, name: f.name, balance_cents: f.balance_cents }))
+    : []
 
   // Adults only, matching every other member picker. Family-scoped explicitly: the
   // service-role client does not apply RLS.
@@ -177,14 +192,17 @@ export default async function TransactionsPage({
         initialPayments={visiblePayments}
         initialContributions={contributions}
         initialDisbursements={disbursements}
+        initialTransfers={transfers}
         schedules={visibleSchedules}
         funds={fundsData.map(f => ({ id: f.id, name: f.name }))}
+        transferFunds={transferFunds}
         milestones={milestonesResult.data ?? []}
         members={members}
         canRecordDues={canRecordDues}
         canRecordDonations={canRecordDonations}
         canRecordContributions={canRecordContributions}
         canRecordDisbursements={canRecordDisbursements}
+        canRecordTransfers={canRecordTransfers}
         canReverse={canReverse}
         myName={[meResult.data?.first_name, meResult.data?.last_name].filter(Boolean).join(' ')}
       />

@@ -87,8 +87,17 @@ export function FundsSection({ funds, isAdmin }: Props) {
                       Receives {pctLabel(fund.allocation_bps)} of routed dues.
                       {fund.minimum_cents > 0 && ` Minimum balance ${fmt(fund.minimum_cents)}.`}
                     </p>
+                    {/* Transferred appears only when there is one, and it has to appear
+                        then: without it these three stop adding up for any fund that has
+                        taken part in a transfer, and a reader has no way to tell that
+                        from an arithmetic bug. Signed, because it is the one figure here
+                        that can point either way. */}
                     <p className="text-xs text-muted-foreground">
-                      Contributed {fmt(fund.total_contributed_cents)} · Disbursed {fmt(fund.total_disbursed_cents)} · Balance {fmt(fund.balance_cents)}
+                      Contributed {fmt(fund.total_contributed_cents)} · Disbursed {fmt(fund.total_disbursed_cents)}
+                      {fund.net_transfers_cents !== 0 && (
+                        <> · Transferred {fund.net_transfers_cents < 0 ? '−' : '+'}{fmt(Math.abs(fund.net_transfers_cents))}</>
+                      )}
+                      {' '}· Balance {fmt(fund.balance_cents)}
                     </p>
                   </div>
                 )}

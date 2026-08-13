@@ -1,10 +1,15 @@
 /**
- * The four ledgers on the Transactions page.
+ * The five ledgers on the Transactions page.
  *
  * Same split as the money itself: two ways it comes in from members (dues and
  * donations, both rows of dues_payments), one way it reaches a fund
- * (fund_contributions — routed automatically or recorded by hand), and one way it
- * leaves (fund_disbursements).
+ * (fund_contributions — routed automatically or recorded by hand), one way it leaves
+ * (fund_disbursements), and one way it moves WITHIN the family (fund_transfers).
+ *
+ * Transfers is last, and not merely because it shipped last: the first four are the
+ * family's boundary — money arriving and money leaving — while a transfer crosses no
+ * boundary at all. It nets to zero family-wide and appears in no P&L; what it changes
+ * is which pot holds what.
  *
  * Deliberately free of React and lucide imports, for the same reason
  * components/admin/account-sections.ts is: the server component resolves the initial
@@ -12,7 +17,7 @@
  * boundary or an icon set into its module graph.
  */
 
-export const LEDGERS = ['dues', 'donations', 'contributions', 'disbursements'] as const
+export const LEDGERS = ['dues', 'donations', 'contributions', 'disbursements', 'transfers'] as const
 
 export type Ledger = (typeof LEDGERS)[number]
 
@@ -21,6 +26,7 @@ export const LEDGER_LABELS: Record<Ledger, string> = {
   donations: 'Donations',
   contributions: 'Contributions',
   disbursements: 'Disbursements',
+  transfers: 'Transfers',
 }
 
 /** Landing ledger when `?ledger=` is absent or unreadable. */
@@ -43,6 +49,9 @@ export const DEFAULT_LEDGER: Ledger = 'dues'
  *   contributions, disbursements   permission_table_map points fund_contributions and
  *                                  fund_disbursements at these keys, so the view IS the
  *                                  RLS SELECT predicate as well as the tab gate.
+ *   transfers                      the same, and written by hand rather than composed:
+ *                                  fund_transfers carries its own `perm:` policies from
+ *                                  20260812000002, both naming this key.
  *   dues, donations                dues_payments is mapped to `dues` and stays there —
  *                                  a member's own history behind My Summary must not
  *                                  depend on a ledger grant. So the view gates the tab
@@ -63,6 +72,11 @@ export const LEDGER_RESOURCE: Record<Ledger, string> = {
   donations:      'transactions/donation-payments',
   contributions:  'transactions/fund-contributions',
   disbursements:  'transactions/fund-disbursements',
+  // Its own key, deliberately not folded into disbursements. Paying a member what they
+  // are owed and re-deciding what the family saved FOR are different judgements — and a
+  // transfer can empty a fund whose minimum balance dues spent a year filling. Added by
+  // 20260812000002, which also declines to carry the disbursement grant across.
+  transfers:      'transactions/fund-transfers',
 }
 
 // DISBURSEMENT_RESOURCE was here, aliasing LEDGER_RESOURCE.disbursements for the delete
@@ -89,6 +103,9 @@ const LEDGER_ALIASES: Record<string, Ledger> = {
   contribution: 'contributions',
   disbursement: 'disbursements',
   'disbursements-history': 'disbursements',
+  transfer: 'transfers',
+  'fund-transfer': 'transfers',
+  'fund-transfers': 'transfers',
   // Retired record-form ids from the Manual Recording era.
   record: 'dues',
   'record-payment': 'dues',
@@ -96,6 +113,7 @@ const LEDGER_ALIASES: Record<string, Ledger> = {
   'record-donation': 'donations',
   'record-contribution': 'contributions',
   'record-disbursement': 'disbursements',
+  'record-transfer': 'transfers',
 }
 
 export function isLedger(value: string): value is Ledger {

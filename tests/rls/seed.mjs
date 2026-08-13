@@ -235,6 +235,13 @@ async function teardown(db) {
     // loudly on a fresh database — the sweep matches zero rows and passes — it fails on
     // the SECOND run, in teardown, before a single case executes.
     'fund_disbursements',
+    // AFTER `funds`, for the reason stated above it: fund_transfers is append-only
+    // (20260812000002) and the one delete its trigger permits is the cascade from a
+    // fund that is already gone. Both of its foreign keys point at `funds`, so deleting
+    // the funds first does the work and leaves this a documented no-op. Listed BEFORE
+    // `people`, because a transfer's only other foreign key is recorded_by and that one
+    // is ON DELETE SET NULL — it would leave the row behind rather than remove it.
+    'fund_transfers',
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
@@ -581,6 +588,25 @@ export async function seed() {
 
     f.allocation = must('allocation', await db.from('fund_allocations').insert({
       family_code: code, fund_id: f.fund.id, basis_points: 10000, created_by: owner.personId,
+    }).select().single())
+
+    // A SECOND FUND, and it exists only so there is somewhere to transfer TO. It takes
+    // no share of dues — fund_allocations gives 100% to f.fund above, and a fund with
+    // no allocation row is 0% — so adding it changes nothing about routing.
+    f.secondFund = must('second fund', await db.from('funds').insert({
+      family_code: code, name: `${code} second fund`,
+      created_by: owner.personId, active: true,
+    }).select().single())
+
+    // THE AMOUNT IS LOAD-BEARING, small as it is. The fund holds 7500 contributed less
+    // 2500 disbursed; moving 2000 leaves it at 3000, which is what lets the write case
+    // for transferBetweenFunds have a positive control at all — that action refuses to
+    // move money a fund does not have, so a fixture transfer large enough to empty the
+    // source would make the control fail for a reason that is not a bug.
+    f.transfer = must('fund transfer', await db.from('fund_transfers').insert({
+      family_code: code, from_fund_id: f.fund.id, to_fund_id: f.secondFund.id,
+      amount_cents: 2000, transferred_date: '2026-07-05',
+      reason: `${code} transfer`, recorded_by: owner.personId,
     }).select().single())
 
     f.election = must('election', await db.from('elections').insert({

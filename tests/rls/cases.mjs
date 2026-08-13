@@ -42,6 +42,10 @@ export function alphaMarkers(fx) {
     a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
+    // The transfer, and the fund it exists to move money into. `reason` is the one
+    // free-text field on a transfer row, so it is the string that would show up in a
+    // leaked ledger — marked like every other piece of ALPHA prose below.
+    a.secondFund.id, a.transfer.id, 'ALPHATEST transfer', 'ALPHATEST second fund',
     // The beneficiary-hidden drive and the gift to it. These are markers like any
     // other — a BRAVO caller must not see them because they are ALPHA's. That they are
     // ALSO hidden from one caller INSIDE Alpha is a separate claim, asserted by the
@@ -318,6 +322,22 @@ export const CASES = [
   read('funds.getAllDisbursements', 'app/actions/funds.ts', 'getAllDisbursements'),
   read('funds.getFundContributions', 'app/actions/funds.ts', 'getFundContributions'),
   read('funds.getFundAllocations', 'app/actions/funds.ts', 'getFundAllocations'),
+  // fund_transfers carries HAND-WRITTEN policies (20260812000002 §6) rather than ones
+  // composed by 20260618000001's sweep, which is exactly why it needs a case of its
+  // own: nothing else in the chain would notice if the family conjunct were dropped
+  // from a policy that no other file generates. The control is the ADMIN, because the
+  // SELECT policy demands `auth_permission('transactions/fund-transfers','view') =
+  // 'any'` — a plain member holds none, and `[]` is their correct answer.
+  //
+  // [crux], and verified as such: rebuild the policy without its
+  // `family_code = public.auth_family_code()` conjunct and the attack half goes red,
+  // with BRAVO's administrator reading ALPHA's transfer ledger. Nothing else stands in
+  // the way — the two remaining conjuncts are a grant BRAVO holds in its OWN family and
+  // an approval BRAVO's administrator genuinely has.
+  read('funds.getFundTransfers', 'app/actions/funds.ts', 'getFundTransfers', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(t => t.id === fx.alpha.transfer.id),
+  }),
 
   // ── elections ─────────────────────────────────────────────────────────────
   read('elections.getActiveElections', 'app/actions/elections.ts', 'getActiveElections'),
@@ -664,6 +684,106 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'the owner clearing their own plan is exercised by setMyDuesPlan; here only ALPHA\'s row surviving matters',
   },
+
+  // ── moving money between funds ────────────────────────────────────────────
+  // NOT an RLS-path write: transferBetweenFunds inserts through the service-role
+  // client, like every other accounting action. Included for the reason
+  // getElectionResults is — the family scoping RLS would have applied has to be
+  // written by hand there, and these are the assertions that prove it was. There are
+  // three, because there are three distinct ways to get at another family's money and
+  // a different line of code stops each one.
+  //
+  // ALL THREE WERE RUN AGAINST A MUTATED BUILD before being called evidence, and the
+  // second one turned up something worth writing down. Commands, from repo root, each
+  // followed by `npm run test:rls` and then `npx supabase db reset`:
+  //
+  //   1. Drop `.eq('family_code', familyCode)` from the SOURCE fund lookup in
+  //      transferBetweenFunds  → (cross-family) goes red.
+  //   2. Drop `canAny(user.id, 'transactions/fund-transfers', 'create')`
+  //                            → (member with no grant) goes red.
+  //   3. Drop `.eq('family_code', familyCode)` from the DESTINATION lookup
+  //                            → (one fund from each family) STAYS GREEN.
+  //   4. As 3, plus
+  //      `DROP TRIGGER fund_transfers_same_family ON public.fund_transfers;`
+  //                            → it goes red, and BRAVO moves money into ALPHA's fund.
+  //
+  // So the §4 case is evidence for a PAIR — the action's check and 20260812000002 §4's
+  // trigger — and either alone is sufficient. That is the intended design rather than a
+  // gap (the trigger exists precisely because every accounting write runs through the
+  // service role), but it means step 3 on its own proves nothing, and anyone re-running
+  // this needs step 4 to see the case fail.
+  {
+    kind: 'write',
+    id: 'funds.transferBetweenFunds (cross-family)',
+    mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
+    // Both ends are ALPHA's. What must refuse this is the `.eq('family_code', …)` on
+    // each fund lookup; without it the ids alone would be enough.
+    args: fx => [{
+      from_fund_id: fx.alpha.fund.id,
+      to_fund_id: fx.alpha.secondFund.id,
+      amount_cents: 1000,
+      transferred_date: '2026-07-06',
+      reason: 'attacker transfer',
+    }],
+    probe: db => snapshot('fund_transfers', 'id, from_fund_id, to_fund_id, amount_cents',
+      { family_code: ALPHA })(db),
+    // The control moves a DIFFERENT amount, so its row cannot be mistaken for the
+    // attacker's having landed — and 1000 is well inside what the fixture leaves in
+    // the source fund, which the action checks before it writes anything.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      from_fund_id: fx.alpha.fund.id,
+      to_fund_id: fx.alpha.secondFund.id,
+      amount_cents: 1100,
+      transferred_date: '2026-07-06',
+      reason: 'control transfer',
+    }],
+  },
+  {
+    kind: 'write',
+    id: 'funds.transferBetweenFunds (one fund from each family)',
+    mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
+    // THE §4 SHAPE, and the only case here that tests it. BRAVO's administrator moves
+    // money out of their OWN fund and into ALPHA's — so the row is genuinely theirs,
+    // its family_code is genuinely BRAVO, and every policy on the table is satisfied.
+    // Nothing but the second `.eq('family_code', …)` in the action, and the trigger
+    // 20260812000002 §4 puts behind it, decides this. Drop either and BRAVO can move
+    // money into a fund it does not own — or, with the ids swapped, out of one.
+    args: fx => [{
+      from_fund_id: fx.bravo.fund.id,
+      to_fund_id: fx.alpha.fund.id,
+      amount_cents: 500,
+      transferred_date: '2026-07-06',
+      reason: 'cross-family transfer',
+    }],
+    // Probed on BOTH families: the row this attack would write is stamped BRAVO, so a
+    // probe scoped to ALPHA would not see it land. That is the trap this case exists to
+    // avoid — the damage is to ALPHA's balance, but the evidence is in BRAVO's ledger.
+    probe: db => snapshot('fund_transfers', 'id, family_code, from_fund_id, to_fund_id', {})(db),
+    positive: 'not-applicable',
+    why: 'the arguments name a fund from each family by construction, so there is no caller for whom this call is legitimate; the cross-family case above carries the control that proves the action works at all',
+  },
+  {
+    kind: 'write',
+    id: 'funds.transferBetweenFunds (same family, member with no grant)',
+    mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and
+    // approved; what has to refuse them is the grant — canAny() in the action, and
+    // `auth_permission('transactions/fund-transfers','create') = 'any'` in the INSERT
+    // policy beneath it. A transfer has no owner, so 'own' must not be a way in either.
+    attacker: 'alphaMember',
+    args: fx => [{
+      from_fund_id: fx.alpha.fund.id,
+      to_fund_id: fx.alpha.secondFund.id,
+      amount_cents: 700,
+      transferred_date: '2026-07-06',
+      reason: 'ungranted transfer',
+    }],
+    probe: db => snapshot('fund_transfers', 'id, from_fund_id, to_fund_id, amount_cents',
+      { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
   {
     kind: 'write',
     id: 'dues.setMyDuesOptOut',
@@ -940,6 +1060,26 @@ export const PENDING_CASES = [
   }),
   read('funds.getFunds (pending member)', 'app/actions/funds.ts', 'getFunds', {
     attacker: 'alphaPending',
+  }),
+  // NOT [crux], and labelled so rather than left looking like evidence. The SELECT
+  // policy on fund_transfers does carry `auth_membership_approved()` (20260812000002
+  // §6), but neutering it changes nothing here: the conjunct beside it demands
+  // `auth_permission('transactions/fund-transfers','view') = 'any'`, auth_permission()
+  // resolves through auth_person_id(), and auth_person_id() already returns NULL for
+  // anyone not approved. The applicant is refused twice over and this case cannot tell
+  // which refusal did it.
+  //
+  // Kept because it is the regression guard on the pair holding together — a later
+  // migration that rewrites this policy and drops one of the two would have the other
+  // still standing, and the case that notices is the one that runs the whole path.
+  //
+  // Control is the ADMIN: a plain member holds no view grant either and would get [],
+  // making the case assert nothing. Same substitution, same reason, as
+  // dues.getScheduleUsage below.
+  read('funds.getFundTransfers (pending member)', 'app/actions/funds.ts', 'getFundTransfers', {
+    attacker: 'alphaPending',
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(t => t.id === fx.alpha.transfer.id),
   }),
   read('elections.getActiveElections (pending member)', 'app/actions/elections.ts', 'getActiveElections', {
     attacker: 'alphaPending',

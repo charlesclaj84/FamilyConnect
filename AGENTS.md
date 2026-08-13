@@ -350,7 +350,9 @@ of tables, `people(first_name)` is refused with **PGRST201** and the whole query
 `fund_disbursements`, `fund_contributions`, `dues_payments`, `election_votes`,
 `election_nominations`, `photo_tags`, `event_rsvp_attendees` and
 `person_relationships` all have two paths to `people`; `photo_collections` has two to
-`photos` (its rows, and its cover). Name the constraint. And check the relationship
+`photos` (its rows, and its cover); `fund_transfers` has two to `funds` — where the
+money left and where it landed, which is the whole content of the row. Name the
+constraint. And check the relationship
 exists at all before embedding it — `event_rsvp` has no foreign key to `people`, so
 `event_rsvp(people(...))` is PGRST200, equally silent.
 

@@ -7,6 +7,7 @@ import {
   HeartHandshake,
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowLeftRight,
   CirclePlus,
   Undo2,
 } from 'lucide-react'
@@ -26,8 +27,8 @@ import { PAYMENT_STATUS_LABELS, type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
-  recordDisbursement, recordFundContribution,
-  type FundMilestone, type FundDisbursement, type FundContribution,
+  recordDisbursement, recordFundContribution, transferBetweenFunds,
+  type FundMilestone, type FundDisbursement, type FundContribution, type FundTransfer,
 } from '@/app/actions/funds'
 import { LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
@@ -36,6 +37,15 @@ import { FormError } from '@/components/ui/form-message'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 interface FundOption { id: string; name: string }
+/**
+ * A fund the caller may move money out of, with what it actually holds.
+ *
+ * A SECOND, RICHER LIST rather than a balance added to FundOption, because the page
+ * only sends these to someone holding the transfer grant (AGENTS.md §5 — a prop
+ * reaches the browser whether or not a component renders it). Everything else on this
+ * page needs a name and an id.
+ */
+interface TransferFundOption extends FundOption { balance_cents: number }
 
 interface Props {
   initialLedger: Ledger
@@ -57,20 +67,25 @@ interface Props {
   initialPayments: DuesPayment[]
   initialContributions: FundContribution[]
   initialDisbursements: FundDisbursement[]
+  initialTransfers: FundTransfer[]
   schedules: DuesSchedule[]
   funds: FundOption[]
+  /** Empty unless `canRecordTransfers`. See TransferFundOption. */
+  transferFunds: TransferFundOption[]
   milestones: FundMilestone[]
   members: Person[]
   /**
-   * One grant per add button, resolved on the server from LEDGER_RESOURCE. Four
+   * One grant per add button, resolved on the server from LEDGER_RESOURCE. Five
    * separate booleans rather than the old two, so a treasurer can be allowed to
    * record dues without also being allowed to record donations, and someone can log
-   * a contribution without being able to pay money out.
+   * a contribution without being able to pay money out — or move the family's savings
+   * from the pot it was collected for into another one.
    */
   canRecordDues: boolean
   canRecordDonations: boolean
   canRecordContributions: boolean
   canRecordDisbursements: boolean
+  canRecordTransfers: boolean
   /** May post a correcting entry against an existing payment. */
   canReverse: boolean
   /**
@@ -92,6 +107,9 @@ const LEDGER_ICONS: Record<Ledger, IconComponent> = {
   donations: HeartHandshake,
   contributions: ArrowDownLeft,
   disbursements: ArrowUpRight,
+  // Neither in nor out. The other three money icons point across the family's
+  // boundary; this one points both ways inside it, which is what a transfer is.
+  transfers: ArrowLeftRight,
 }
 
 /** The button that opens each ledger's record form. */
@@ -100,6 +118,7 @@ const RECORD_LABELS: Record<Ledger, string> = {
   donations: 'New Donation Payment',
   contributions: 'New Contribution',
   disbursements: 'New Disbursement',
+  transfers: 'New Transfer',
 }
 
 /** Sentinel for "the giver is not a member" — reveals the free-text name field. */
@@ -209,7 +228,28 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
 }
 
 /**
- * The chrome every ledger table shares: the header row and the classes that keep four
+ * A transfer has no counterparty to head the row with, so the two funds do the job:
+ * the title is the movement itself and the subtitle says it changed no total.
+ */
+function viewOfTransfer(t: FundTransfer | undefined): TransactionView | null {
+  if (!t) return null
+  return {
+    title: `${t.from_fund_name ?? 'Unknown fund'} → ${t.to_fund_name ?? 'Unknown fund'}`,
+    subtitle: 'Fund transfer — money moved within the family',
+    fields: [
+      { label: 'Amount', value: fmt(t.amount_cents) },
+      { label: 'From', value: t.from_fund_name ?? 'Unknown fund' },
+      { label: 'To', value: t.to_fund_name ?? 'Unknown fund' },
+      { label: 'Date', value: formatDate(t.transferred_date) },
+      { label: 'Reason', value: t.reason },
+      recorderField(t.recorded_by_name),
+      { label: 'Entered', value: formatDate(t.created_at) },
+    ],
+  }
+}
+
+/**
+ * The chrome every ledger table shares: the header row and the classes that keep five
  * tables looking like one.
  *
  * WHAT EACH LEDGER SHOWS IS THE ANSWER TO ITS OWN QUESTION, and nothing else. Method,
@@ -334,14 +374,17 @@ export function TransactionsClient({
   initialPayments,
   initialContributions,
   initialDisbursements,
+  initialTransfers,
   schedules,
   funds,
+  transferFunds,
   milestones,
   members,
   canRecordDues,
   canRecordDonations,
   canRecordContributions,
   canRecordDisbursements,
+  canRecordTransfers,
   canReverse,
   myName,
 }: Props) {
@@ -362,6 +405,7 @@ export function TransactionsClient({
   const [payments, setPayments] = useServerState(initialPayments)
   const [contributions, setContributions] = useServerState(initialContributions)
   const [disbursements, setDisbursements] = useServerState(initialDisbursements)
+  const [transfers, setTransfers] = useServerState(initialTransfers)
 
   // ── Record payment (dues or donation, decided by the ledger it opened from) ──
   // 'pending' is gone from this union: a treasurer typing an entry in is recording
@@ -396,6 +440,16 @@ export function TransactionsClient({
   const [rdReference, setRdReference] = useState('')
   const [rdNotes, setRdNotes] = useState('')
 
+  // ── Transfer between funds ──
+  // No method and no reference: nothing left the family, so there is no instrument to
+  // point at. `reason` carries the whole justification and is required — see
+  // transferBetweenFunds.
+  const [tfFromId, setTfFromId] = useState('')
+  const [tfToId, setTfToId] = useState('')
+  const [tfAmount, setTfAmount] = useState('')
+  const [tfDate, setTfDate] = useState(todayLocal())
+  const [tfReason, setTfReason] = useState('')
+
   // Adjusted during render rather than in an effect: an effect runs after paint,
   // which would flash one form's validation message inside another for a frame.
   const [prevLedger, setPrevLedger] = useState(ledger)
@@ -414,7 +468,7 @@ export function TransactionsClient({
       // today is the rule that was asked for; a batch dated other than today now needs
       // the date set once per cheque.
       const today = todayLocal()
-      setRpDate(today); setFcDate(today); setRdDate(today)
+      setRpDate(today); setFcDate(today); setRdDate(today); setTfDate(today)
       // Status resets with them. It is hidden for a donation and must be 'paid' there,
       // so a 'waived' left behind by a dues entry would be both invisible and wrong.
       setRpStatus('paid')
@@ -449,8 +503,15 @@ export function TransactionsClient({
     donations:     canRecordDonations,
     contributions: canRecordContributions,
     disbursements: canRecordDisbursements,
+    transfers:     canRecordTransfers,
   }
   const canRecord = RECORD_BY_LEDGER[ledger]
+
+  // The source fund's balance, live, so the form can say what is available before the
+  // server does. It is a hint and not the gate: transferBetweenFunds asks the database
+  // for the same figure, on the service-role client, and this list is whatever the
+  // last server render sent.
+  const tfFrom = transferFunds.find(f => f.id === tfFromId)
 
   /**
    * Reverse a posted payment.
@@ -630,6 +691,52 @@ export function TransactionsClient({
     })
   }
 
+  function handleTransfer() {
+    if (!tfFromId || !tfToId || !tfAmount) { setError('Both funds and an amount are required'); return }
+    if (tfFromId === tfToId) { setError('Choose two different funds'); return }
+    if (!tfReason.trim()) { setError('Say why the money is being moved'); return }
+    const cents = dollarsToCents(tfAmount)
+    if (cents <= 0) { setError('Enter an amount greater than zero'); return }
+    // Checked here as well as in the action, because being told before typing the rest
+    // of the form is the difference between a hint and a rejection. The action is still
+    // the gate — this list is as fresh as the last server render.
+    if (tfFrom && cents > tfFrom.balance_cents) {
+      setError(`${tfFrom.name} holds ${fmt(tfFrom.balance_cents)}. Transfer that or less.`)
+      return
+    }
+    setError('')
+    const fromId = tfFromId, toId = tfToId, date = tfDate, reason = tfReason.trim()
+    startTransition(async () => {
+      const result = await transferBetweenFunds({
+        from_fund_id: fromId,
+        to_fund_id: toId,
+        amount_cents: cents,
+        transferred_date: date,
+        reason,
+      })
+      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      setTransfers(prev => [{
+        id: `temp-${Date.now()}`,
+        from_fund_id: fromId,
+        from_fund_name: transferFunds.find(f => f.id === fromId)?.name ?? null,
+        to_fund_id: toId,
+        to_fund_name: transferFunds.find(f => f.id === toId)?.name ?? null,
+        amount_cents: cents,
+        transferred_date: date,
+        reason,
+        created_at: new Date().toISOString(),
+        recorded_by_name: myName,
+      }, ...prev])
+      // Everything clears, the two funds included. A transfer is a deliberate one-off,
+      // not a batch like the cheques the contribution form remembers a fund for — and
+      // leaving the pair set is how the second click moves the money twice.
+      setTfFromId(''); setTfToId(''); setTfAmount(''); setTfReason('')
+      setRecording(null)
+      // Both balances just changed, and the picker prints them.
+      router.refresh()
+    })
+  }
+
   // handleDeleteDisbursement was removed with the action behind it. fund_disbursements is
   // append-only as of 20260807000002 — trigger, no DELETE policy, and the resource no
   // longer declares a delete action — so there is nothing for a button to call.
@@ -643,7 +750,9 @@ export function TransactionsClient({
       ? viewOfContribution(contributions.find(c => c.id === viewing.id))
       : viewing.ledger === 'disbursements'
         ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id))
-        : viewOfPayment(payments.find(p => p.id === viewing.id))
+        : viewing.ledger === 'transfers'
+          ? viewOfTransfer(transfers.find(t => t.id === viewing.id))
+          : viewOfPayment(payments.find(p => p.id === viewing.id))
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.
@@ -654,7 +763,7 @@ export function TransactionsClient({
       <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
         You can open Transactions, but none of its ledgers have been shared with you.
         Ask an administrator for access to the ones you need — dues, donations,
-        contributions and disbursements are each granted separately.
+        contributions, disbursements and transfers are each granted separately.
       </div>
     )
   }
@@ -785,6 +894,53 @@ export function TransactionsClient({
                         green before the tokens landed, which made the colour mean
                         "a currency figure" rather than a direction. */}
                     <td className="px-3 py-2.5 text-right align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{fmt(d.amount_cents)}</td>
+                  </LedgerRow>
+                ))}
+              </LedgerTable>
+            )
+        )}
+
+        {ledger === 'transfers' && (
+          transfers.length === 0
+            ? <p className="text-sm text-muted-foreground">No transfers between funds yet.</p>
+            : (
+              /* The row's subject is the MOVEMENT, so both funds share the first cell
+                 and neither gets a column of its own — "Reunion → College" is one fact
+                 and splitting it across two columns made the arrow the only thing
+                 saying which way the money went.
+
+                 Reason rides under it as the row's second line, the way Notes does on
+                 the other four ledgers. It is required here, so unlike Notes it is
+                 always there to read. */
+              <LedgerTable
+                columns={[
+                  { label: 'From → To' },
+                  { label: 'Date', collapse: true },
+                  { label: 'Amount', right: true },
+                ]}
+              >
+                {transfers.map(t => (
+                  <LedgerRow key={t.id} onOpen={() => setViewing({ ledger: 'transfers', id: t.id })}>
+                    <td className="px-3 py-2.5">
+                      <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'transfers', id: t.id })}>
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          {t.from_fund_name ?? 'Unknown fund'}
+                          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                          {t.to_fund_name ?? 'Unknown fund'}
+                        </span>
+                      </LedgerRowTrigger>
+                      <p className="text-xs text-muted-foreground">{t.reason}</p>
+                      <RowMeta>
+                        <span>{formatDate(t.transferred_date)}</span>
+                      </RowMeta>
+                    </td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(t.transferred_date)}</td>
+                    {/* Plain foreground, like Disbursements and for a related reason:
+                        --brand-affirm is the "money in" role, and no money came in.
+                        Nothing came out either — the family holds exactly what it held
+                        a moment ago — so a direction colour would be claiming something
+                        that did not happen. */}
+                    <td className="px-3 py-2.5 text-right align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{fmt(t.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -1050,6 +1206,81 @@ export function TransactionsClient({
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordDisbursement} disabled={isPending}>
               {isPending ? 'Recording…' : 'Record Disbursement'}
+            </Button>
+            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* ── Move money between funds ── */}
+      <Dialog
+        open={recording === 'transfers'}
+        onClose={() => setRecording(null)}
+        title="New Transfer"
+        description="Move money from one fund to another. Nothing leaves the family."
+        className="max-w-lg"
+      >
+        <div className="space-y-3 mt-2">
+          {/* Balances are printed in both pickers, which is the point of sending them:
+              the only way to get this form wrong is to ask for more than a fund holds,
+              and the answer is on screen before the question is asked. */}
+          <div className="space-y-1.5">
+            <Label required>From</Label>
+            <Select value={tfFromId} onChange={e => setTfFromId(e.target.value)} autoFocus>
+              <option value="">— Select fund —</option>
+              {transferFunds.map(f => (
+                <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label required>To</Label>
+            {/* The source is filtered OUT rather than left in and rejected. Money cannot
+                move to where it already is, the database refuses it
+                (fund_transfers_distinct_funds), and an option that can only ever produce
+                an error is not a choice. */}
+            <Select value={tfToId} onChange={e => setTfToId(e.target.value)}>
+              <option value="">— Select fund —</option>
+              {transferFunds.filter(f => f.id !== tfFromId).map(f => (
+                <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
+              ))}
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label required>Amount ($)</Label>
+              <Input
+                type="number" min="0" step="0.01"
+                value={tfAmount} onChange={e => setTfAmount(e.target.value)}
+              />
+              {tfFrom && (
+                <p className="text-xs text-muted-foreground">{tfFrom.name} holds {fmt(tfFrom.balance_cents)}.</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label required>Date</Label>
+              <Input type="date" value={tfDate} onChange={e => setTfDate(e.target.value)} />
+            </div>
+          </div>
+          {/* REQUIRED, and the only free-text field. The other three forms ask for a
+              check number because something crossed the family's boundary; nothing did
+              here, so the one thing worth recording is why the money moved. */}
+          <div className="space-y-1.5">
+            <Label required>Reason</Label>
+            <Textarea
+              autoGrow rows={1}
+              value={tfReason} onChange={e => setTfReason(e.target.value)}
+              placeholder="Board vote 2026-08-12 — surplus moved to the scholarship fund"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A transfer cannot be edited or deleted. If it is wrong, move the money back —
+            both entries stay on the ledger.
+          </p>
+          <FormError message={error} />
+          <div className="flex gap-2 pt-1">
+            <Button className="flex-1" onClick={handleTransfer} disabled={isPending}>
+              {isPending ? 'Transferring…' : 'Transfer Funds'}
             </Button>
             <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
           </div>

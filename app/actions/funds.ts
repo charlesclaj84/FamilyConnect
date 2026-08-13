@@ -7,6 +7,7 @@ import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/fami
 import { createAdminClient } from '@/lib/supabase/admin'
 import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
+import { formatCurrency } from '@/lib/currency-utils'
 
 export interface Fund {
   id: string
@@ -94,9 +95,40 @@ export interface FundContribution {
   recorded_by_name: string | null
 }
 
+/**
+ * One movement of money between two of the family's own funds.
+ *
+ * Internal, so it is neither income nor expense: it nets to zero family-wide and
+ * appears in no P&L. What it does change is which pot the money is in — which is the
+ * only thing that ever moves money between funds once dues have routed. See
+ * `transferBetweenFunds` for why that matters and 20260812000002 for why it is a
+ * table of its own rather than a disbursement paired with a contribution.
+ */
+export interface FundTransfer {
+  id: string
+  from_fund_id: string
+  from_fund_name: string | null
+  to_fund_id: string
+  to_fund_name: string | null
+  amount_cents: number
+  transferred_date: string
+  /** Why the money moved. Required — it is the only free-text field on the row. */
+  reason: string
+  created_at: string
+  /** Who entered it. Null only where the recorder's `people` row has since been deleted. */
+  recorded_by_name: string | null
+}
+
 export interface FundWithStats extends Fund {
   total_disbursed_cents: number
   total_contributed_cents: number
+  /**
+   * Transfers IN minus transfers OUT. Signed, and shown wherever the three figures
+   * above are shown together — without it `contributed − disbursed` stops reconciling
+   * to `balance_cents` for any fund that has ever taken part in a transfer, and a
+   * reader has no way to tell that from an arithmetic bug.
+   */
+  net_transfers_cents: number
   balance_cents: number
   milestone_count: number
   allocation_bps: number
@@ -108,12 +140,39 @@ export interface FundWithStats extends Fund {
 
 export async function getFunds(): Promise<FundWithStats[]> {
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('funds')
-    .select('*, fund_milestones(id), fund_disbursements(amount_cents), fund_allocations(basis_points), fund_contributions(amount_cents), event_expenses(amount_cents)')
-    .eq('active', true)
-    .order('priority')
-    .order('name')
+  // TRANSFERS ARE A SECOND QUERY, NOT A SIXTH EMBED, and the reason is the one
+  // DISBURSEMENT_SELECT records below: fund_transfers has TWO foreign keys to `funds`
+  // — the source and the destination — so both embeds would need
+  // `alias:fund_transfers!constraint(...)`, and supabase-js's type-LEVEL select parser
+  // collapses the WHOLE result to GenericStringError the moment it meets that form
+  // inline. Rescuing this select would mean hoisting it to a named const and casting
+  // every field access on a row that is otherwise inferred correctly. One more
+  // round-trip, run concurrently, buys all of that back.
+  //
+  // Same client, so the same RLS: like the disbursement and contribution embeds beside
+  // it, a caller without `transactions/fund-transfers:view` sees no transfer rows and
+  // the balances they are shown are computed without them. That is the behaviour every
+  // term of this sum already has, not something transfers introduce — and it is why
+  // getActiveFundsForRouting (app/actions/dues.ts) computes the routing balance on the
+  // ADMIN client instead, where the answer cannot depend on who is looking.
+  const [{ data }, { data: transfers }] = await Promise.all([
+    supabase
+      .from('funds')
+      .select('*, fund_milestones(id), fund_disbursements(amount_cents), fund_allocations(basis_points), fund_contributions(amount_cents), event_expenses(amount_cents)')
+      .eq('active', true)
+      .order('priority')
+      .order('name'),
+    supabase.from('fund_transfers').select('from_fund_id, to_fund_id, amount_cents'),
+  ])
+
+  // Signed, per fund: in is positive, out is negative, and a fund on both sides of the
+  // same transfer is impossible (fund_transfers_distinct_funds).
+  const netTransfers = new Map<string, number>()
+  const bump = (id: string, delta: number) => netTransfers.set(id, (netTransfers.get(id) ?? 0) + delta)
+  for (const t of transfers ?? []) {
+    bump(t.to_fund_id, t.amount_cents)
+    bump(t.from_fund_id, -t.amount_cents)
+  }
 
   const rows = data ?? []
   const storedBps = new Map<string, number>(
@@ -136,6 +195,7 @@ export async function getFunds(): Promise<FundWithStats[]> {
     const disbursed = sum(f.fund_disbursements)
     const contributed = sum(f.fund_contributions)
     const expensed = sum(f.event_expenses)
+    const transferred = netTransfers.get(f.id) ?? 0
     return {
       id: f.id,
       name: f.name,
@@ -150,7 +210,14 @@ export async function getFunds(): Promise<FundWithStats[]> {
       system_key: f.system_key ?? null,
       total_disbursed_cents: disbursed,
       total_contributed_cents: contributed,
-      balance_cents: contributed - disbursed - expensed,
+      net_transfers_cents: transferred,
+      // The one definition of a fund balance, and it is the database's too — see
+      // fund_balance_cents() in 20260812000002, which is what transferBetweenFunds
+      // asks before letting money leave a fund. Money that routed here STAYS here:
+      // a disbursement reduces this fund and no other, and nothing re-runs the dues
+      // waterfall over history. The only way an amount leaves for another fund is a
+      // fund_transfers row, which is why the term is here rather than implied.
+      balance_cents: contributed - disbursed - expensed + transferred,
       milestone_count: embedMany(f.fund_milestones).length,
       allocation_bps: effective.get(f.id) ?? 0,
     }
@@ -309,6 +376,65 @@ export async function getFundContributions(): Promise<FundContribution[]> {
   }))
 }
 
+/**
+ * BOTH fund embeds are constraint-qualified, and both have to be: fund_transfers has
+ * TWO foreign keys to `funds` — where the money left and where it landed — so a bare
+ * `funds(name)` is PGRST201 and PostgREST refuses the WHOLE query, which this codebase
+ * surfaces as an empty ledger rather than an error (AGENTS.md §8). They are aliased so
+ * the two arrive under different keys instead of one overwriting the other.
+ *
+ * `recorder:` is qualified too. There is only one people foreign key here today, so it
+ * is not strictly needed — it is written this way so that adding a second one is a
+ * schema change rather than a silent PGRST201 in a ledger nobody is watching.
+ */
+const TRANSFER_SELECT =
+  '*'
+  + ', source:funds!fund_transfers_from_fund_id_fkey(name)'
+  + ', destination:funds!fund_transfers_to_fund_id_fkey(name)'
+  + ', recorder:people!fund_transfers_recorded_by_fkey(first_name, last_name)'
+
+interface TransferRow {
+  id: string
+  from_fund_id: string
+  to_fund_id: string
+  amount_cents: number
+  transferred_date: string
+  reason: string
+  created_at: string
+  source: { name: string } | null
+  destination: { name: string } | null
+  recorder: EmbeddedPerson | null
+}
+
+/**
+ * The transfers ledger, newest first.
+ *
+ * Read through the user's client so RLS does the family scoping and
+ * `transactions/fund-transfers:view` decides who sees it — this is a page, not a
+ * background job.
+ */
+export async function getFundTransfers(): Promise<FundTransfer[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('fund_transfers')
+    .select(TRANSFER_SELECT)
+    .order('transferred_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  return ((data ?? []) as unknown as TransferRow[]).map(t => ({
+    id: t.id,
+    from_fund_id: t.from_fund_id,
+    from_fund_name: t.source?.name ?? null,
+    to_fund_id: t.to_fund_id,
+    to_fund_name: t.destination?.name ?? null,
+    amount_cents: t.amount_cents,
+    transferred_date: t.transferred_date,
+    reason: t.reason,
+    created_at: t.created_at,
+    recorded_by_name: fullName(t.recorder),
+  }))
+}
+
 /** As getAllDisbursements, narrowed to one fund — same select, same embed trap. */
 export async function getDisbursementsForFund(fundId: string): Promise<FundDisbursement[]> {
   const supabase = await createClient()
@@ -414,6 +540,32 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
     return {
       success: false,
       message: `${existing.name} is built in and cannot be deleted. Every donation the family receives is held here.`,
+    }
+  }
+
+  // A fund that has taken part in a transfer is not deletable, and this is the gate
+  // rather than a database constraint on purpose.
+  //
+  // Both foreign keys on fund_transfers are ON DELETE CASCADE, matching every other
+  // money table — which here would mean deleting THIS fund silently erases the record
+  // of the OTHER one receiving money it still holds, changing a balance nobody asked
+  // to change. RESTRICT was the alternative and is worse: it would make a fund
+  // permanently undeletable with a bare 23503 for a message, and it would deadlock the
+  // RLS fixture's teardown against the append-only trigger, whose only permitted
+  // delete path is precisely that cascade.
+  //
+  // So the cascade stays as the cleanup path of last resort, and the decision is made
+  // here, in words, where the person clicking Delete can read it.
+  const { data: entangled } = await admin
+    .from('fund_transfers')
+    .select('id')
+    .eq('family_code', familyCode)
+    .or(`from_fund_id.eq.${id},to_fund_id.eq.${id}`)
+    .limit(1)
+  if (entangled && entangled.length > 0) {
+    return {
+      success: false,
+      message: `${existing.name} has transfers recorded against it. Deleting it would rewrite the balance of the fund on the other side, so it cannot be removed.`,
     }
   }
 
@@ -766,6 +918,135 @@ export async function recordFundContribution(input: {
   revalidatePath('/family-finances')
   return { success: true }
 }
+
+// -------------------------------------------------------
+// Fund transfers
+// -------------------------------------------------------
+
+/**
+ * Move money from one of the family's funds to another.
+ *
+ * THIS IS THE ONLY WAY MONEY CHANGES FUNDS after it has been routed, and that is the
+ * whole point of the feature. A dues payment is split across funds ONCE, by
+ * routePaidPayment, using the priorities and minimums in force at the time; the
+ * fund_contributions rows it writes are then permanent. Paying $300 out of the Reunion
+ * fund reduces the Reunion fund by $300 and touches no other — and the next dues
+ * payment refills Reunion toward its minimum ahead of everything below it, because
+ * getActiveFundsForRouting reads the same per-fund balance this action does. Nothing
+ * re-runs the waterfall over history; reversePayment says so in as many words, and
+ * this action is what a family reaches for when they genuinely DO want money moved.
+ *
+ * WHAT IS CHECKED, and why each one is here rather than assumed:
+ *
+ *   canAny, not can          There is no personal copy of a movement between the
+ *                            family's pots, so scope 'own' would be a narrowed grant
+ *                            that means exactly what the unrestricted one means. Its
+ *                            own resource key, separate from disbursements: paying a
+ *                            member what they are owed and re-deciding what the family
+ *                            saved for are different judgements.
+ *   both funds re-scoped     AGENTS.md §4. The insert below runs on the service-role
+ *                            client, and even on the user client a row stamped with
+ *                            the caller's own family_code satisfies every policy while
+ *                            pointing at another family's fund. 20260812000002's
+ *                            trigger states the same rule in the database, where the
+ *                            service role cannot step around it; this is what turns
+ *                            that exception into a sentence.
+ *   sufficient balance       Asked of fund_balance_cents() in the database rather than
+ *                            recomputed here, so the guard and the figure on screen
+ *                            cannot drift apart. Unlike a disbursement — which records
+ *                            something that already happened outside the system, and
+ *                            so may legitimately be back-dated into an overdraft — a
+ *                            transfer IS the event. Moving money a fund does not have
+ *                            invents it.
+ *
+ * The Donations fund is deliberately NOT excluded from either end. It takes no share
+ * of dues (20260807000003), but the money in it is real, and moving a gift into the
+ * fund it was given for is the most obvious use this feature has.
+ */
+export async function transferBetweenFunds(input: {
+  from_fund_id: string
+  to_fund_id: string
+  amount_cents: number
+  transferred_date: string
+  reason: string
+}): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!(await canAny(user.id, 'transactions/fund-transfers', 'create'))) {
+    return { success: false, message: 'Not authorized' }
+  }
+
+  // WHO MOVED IT. Checked rather than assumed: getMyPersonId returns '' when it cannot
+  // resolve a row, the database refuses an unattributed transfer, and an empty string
+  // is not a uuid — so the unchecked version would surface `invalid input syntax for
+  // type uuid: ""` to a treasurer as the whole error message.
+  const myPersonId = await getMyPersonId(user.id)
+  if (!myPersonId) return { success: false, message: 'Profile not found' }
+
+  if (input.from_fund_id === input.to_fund_id) {
+    return { success: false, message: 'Choose two different funds' }
+  }
+  const amount = Math.round(input.amount_cents)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, message: 'Enter an amount greater than zero' }
+  }
+  const reason = input.reason?.trim() || null
+  if (!reason) {
+    return { success: false, message: 'Record why the money is being moved' }
+  }
+
+  // Both ends, both family-scoped. `.eq('id', …)` alone would let one family move
+  // another's money.
+  const [{ data: from }, { data: to }] = await Promise.all([
+    admin.from('funds').select('id, name').eq('id', input.from_fund_id).eq('family_code', familyCode).maybeSingle(),
+    admin.from('funds').select('id, name').eq('id', input.to_fund_id).eq('family_code', familyCode).maybeSingle(),
+  ])
+  if (!from) return { success: false, message: 'Fund not found' }
+  if (!to) return { success: false, message: 'Destination fund not found' }
+
+  // The database's own definition of a balance, on the service-role client so the
+  // answer does not depend on what this caller may see. An error here is fatal rather
+  // than permissive: a balance we could not read is not a balance we may spend.
+  const { data: balance, error: balanceError } = await admin
+    .rpc('fund_balance_cents', { p_fund_id: input.from_fund_id })
+  if (balanceError) {
+    return { success: false, message: `Could not read the balance of ${from.name}` }
+  }
+  const available = typeof balance === 'number' ? balance : 0
+  if (amount > available) {
+    return {
+      success: false,
+      message: `${from.name} holds ${formatCurrency(available)}. Transfer that or less.`,
+    }
+  }
+
+  const { error } = await admin.from('fund_transfers').insert({
+    family_code: familyCode,
+    from_fund_id: input.from_fund_id,
+    to_fund_id: input.to_fund_id,
+    amount_cents: amount,
+    transferred_date: input.transferred_date,
+    reason,
+    recorded_by: myPersonId,
+  })
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath('/account-summary')
+  revalidatePath('/admin/account')
+  revalidatePath('/transactions')
+  revalidatePath('/family-finances')
+  return { success: true }
+}
+
+// There is no updateTransfer and no deleteTransfer, and 20260812000002 enforces that
+// with a trigger the service role cannot bypass. This table needs neither: unlike a
+// disbursement — whose known gap is that a mis-keyed payout is permanent — the inverse
+// of a transfer is a transfer, so a mistake is corrected by moving the money back and
+// both rows stand.
 
 // contributeToFund was removed here. It was an exported 'use server' function that
 // inserted into fund_contributions through the service role with no permission check
