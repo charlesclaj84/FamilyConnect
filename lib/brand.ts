@@ -105,21 +105,65 @@ export const APP_SEO_DESCRIPTION =
  */
 export const APP_PUBLISHER = 'ClearPath Digital'
 
+/** The platforms the brand has a presence on, in the order the footer prints them. */
+export type SocialPlatform = 'facebook' | 'instagram' | 'x'
+
+export interface BrandSocialProfile {
+  id: SocialPlatform
+  /** The platform's own name, for the icon's accessible label. */
+  label: string
+  /**
+   * The live profile URL — or `null` while the account does not exist yet.
+   *
+   * `null` is a state the whole feature is built around rather than a placeholder:
+   * it renders the glyph inert instead of guessing a handle, and it keeps the
+   * profile out of `sameAs`. Do not put a hoped-for URL here.
+   */
+  href: string | null
+}
+
 /**
- * Official profiles for this brand, for `Organization.sameAs`.
+ * Official profiles for this brand — the footer's icons and `Organization.sameAs`,
+ * declared once.
  *
- * DELIBERATELY EMPTY, and worth a comment rather than a deletion. `sameAs` is how
- * a search engine confirms that the GENORRA on this site is the same GENORRA on
- * a social profile, and it is the main thing that turns a set of pages into a
- * recognised entity. It is also the one field here that cannot be written by
- * reasoning about the codebase: a URL that is not a real, live, brand-owned
- * profile is a false claim, and an unverifiable one is worse than none.
+ * ── WHY ONE LIST AND NOT TWO ─────────────────────────────────────────────────
+ * These two consumers make the same claim to different audiences: the footer tells a
+ * visitor "this is our Facebook", and `sameAs` tells a search engine the same thing.
+ * Kept apart they can disagree — a footer link live for a month before the structured
+ * data hears about it, or worse, a `sameAs` pointing at a profile the site does not
+ * show. Both are cured by there being nowhere for a second copy to live, which is the
+ * same argument `APP_PUBLISHER` is written to.
  *
- * Fill this in with real profile URLs the moment they exist — the structured data
- * picks them up with no other change, and omits the field entirely while it is
- * empty rather than emitting `"sameAs": []`.
+ * ── EVERY `href` IS NULL TODAY, DELIBERATELY ─────────────────────────────────
+ * The accounts are being created; the URLs are not known yet. This is the one field
+ * here that cannot be written by reasoning about the codebase — a URL that is not a
+ * real, live, brand-owned profile is a false claim, and an unverifiable one is worse
+ * than none. So the glyphs land now as non-clickable marks and the entity graph stays
+ * silent, which is honest in both directions.
+ *
+ * **Turning one on is this one edit.** Fill in the `href` and the footer renders a real
+ * link, the structured data starts claiming it, and nothing else changes.
  */
-export const BRAND_SOCIAL_PROFILES: readonly string[] = []
+export const BRAND_SOCIAL: readonly BrandSocialProfile[] = [
+  { id: 'facebook',  label: 'Facebook',  href: null },
+  { id: 'instagram', label: 'Instagram', href: null },
+  { id: 'x',         label: 'X',         href: null },
+]
+
+/**
+ * The live profile URLs, for `Organization.sameAs`.
+ *
+ * DERIVED, never hand-written: `sameAs` is how a search engine confirms that the
+ * GENORRA on this site is the same GENORRA on a social profile, and it is the main
+ * thing that turns a set of pages into a recognised entity. Deriving it means it can
+ * only ever name a profile the footer is also showing.
+ *
+ * Empty while every `href` is `null`, and `lib/structured-data.ts` omits the field
+ * entirely rather than emitting `"sameAs": []` — see the note there.
+ */
+export const BRAND_SOCIAL_PROFILES: readonly string[] = BRAND_SOCIAL
+  .map(profile => profile.href)
+  .filter((href): href is string => href !== null)
 
 /**
  * Brand artwork, by role rather than by filename.

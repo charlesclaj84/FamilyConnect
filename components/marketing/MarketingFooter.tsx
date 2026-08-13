@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { MARKETING_ROUTES, ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import { SocialProfiles } from '@/components/marketing/SocialProfiles'
 import { APP_NAME, APP_LEAD, APP_PUBLISHER } from '@/lib/brand'
 
 /**
@@ -15,6 +16,12 @@ import { APP_NAME, APP_LEAD, APP_PUBLISHER } from '@/lib/brand'
  * compactness. The year is computed at render — this is a static page, so it is stamped
  * at build, which is correct for a copyright line and wrong for a `lastModified` (see
  * the note in `app/sitemap.ts`).
+ *
+ * The social profiles sit UNDER THE BLURB, inside the brand cell, rather than as a
+ * fourth column. Three glyphs do not fill a column, and the grid is `lg:grid-cols-4`
+ * with the brand spanning two of them — a fifth child would wrap to a second row on
+ * its own. They belong with the brand anyway: they are the same voice as the wordmark
+ * and the lead line, not a third list of destinations.
  */
 export function MarketingFooter() {
   return (
@@ -27,6 +34,9 @@ export function MarketingFooter() {
               {APP_LEAD} One private place for your whole family — the reunion, the
               treasury, the photographs and the family tree.
             </p>
+            <div className="mt-6">
+              <SocialProfiles />
+            </div>
           </div>
 
           <nav aria-label="Product">
