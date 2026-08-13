@@ -81,11 +81,15 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           cream. `TopBar` is those controls, rendered INSIDE <main> — which is what lets
           the rail run to the very top of the shell with the logo in it.
 
-          Heritage on this row, so the rail's colour is what shows through the cutout on
-          <main> below. The rail paints its own ground too — this is the backdrop behind
-          the cut, not a substitute for it. */}
+          THE ROW'S GROUND IS THE PAGE'S, not Heritage. It was `bg-brand-hero` back when
+          the cut was a `rounded-l-[2rem]` on <main> and the row had to supply the colour
+          showing through it; ShellSwoop paints both sides of that boundary itself now, so
+          the burgundy here was doing nothing — the rail and <main> between them cover this
+          element completely. Nothing, that is, except the ONE place it is visible: the
+          rail's rounded top-left corner, where a burgundy backdrop behind a burgundy card
+          hides the round entirely. Cream is what the kit puts outside that corner. */}
       <div className="min-h-screen flex flex-col">
-        <div className="flex flex-1 flex-col bg-brand-hero md:flex-row">
+        <div className="flex flex-1 flex-col bg-background md:flex-row">
           <Sidebar hasAssignments={hasAssignments} viewable={viewable} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
               ─────────────────────────────────────────────────────────────────────
@@ -116,21 +120,25 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               takes `viewable` as a prop and reads it directly rather than seeding state.
 
               ── THE SHELL DECORATION ──────────────────────────────────────────────
-              Both pieces are rendered HERE, as children of <main>, and that placement is
-              the whole trick. Each has to paint ON TOP of the workspace's cream ground —
-              so it cannot be a sibling, which would put it underneath — while staying
-              BENEATH everything on the page, which is what `z-0` against the content's
-              `z-10` buys. Being children of <main> also lets them reach LEFT across the
-              rail, because <aside> precedes <main> in the DOM and so paints below its
-              whole subtree.
+              Both pieces are rendered under <main>, and that is what lets them reach LEFT
+              across the rail: <aside> precedes <main> in the DOM, so it paints below this
+              whole subtree. Each also has to paint ON TOP of the workspace's cream ground,
+              so neither can be a sibling of <main>, which would put it underneath.
+
+              THEY SIT AT DIFFERENT LEVELS, for a reason particular to each. ShellHill is
+              here at `z-0`, beneath the content's `z-10` — it is a page-foot decoration and
+              belongs behind whatever the page puts over it. ShellSwoop is inside the z-10
+              wrapper and level with TopBar, because TopBar's opaque `bg-background` runs the
+              full width of <main> and was painting out the only part of that shape which
+              reaches into the workspace. Its own comment carries the arithmetic.
 
               This replaced a `rounded-l-[2rem]` on this element, which was wrong in the
               way the kit's PATCH 01 describes: a curve at the top AND the bottom, running
               the full height, is the "narrow sidebar carried down the page" it corrects.
               The bite belongs to the logo area and the rail is straight below it.
 
-              `bg-background` is not redundant with the body's — the row above is
-              `bg-brand-hero`, so without an opaque fill here the whole page is burgundy.
+              `bg-background` here is what makes the workspace opaque, and it is the only
+              opaque fill in the row now that the row itself carries the page ground.
 
               NO `overflow-hidden`, ever. The hill is deliberately wider than this element
               and gets its own clipping layer; putting it here would also break
@@ -141,14 +149,18 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               or display of its own — /chat measures itself against the viewport and would
               notice any of the three. */}
           <main key={familyCode} className="relative isolate flex-1 min-w-0 bg-background">
-            <ShellSwoop />
             <ShellHill />
             {/* TopBar sits inside the z-10 wrapper with the page, not outside it, so the
                 decoration behind them both stays behind them both. It is `sticky top-0`
                 within this column and the column is the full page height, which is why it
-                pins to the viewport without being `fixed`. */}
+                pins to the viewport without being `fixed`.
+
+                ShellSwoop follows it, and the order is load-bearing: both are level 30, so
+                what puts the shape over the bar's background is tree order alone. Moving
+                this line above TopBar hides the top third of the bite again. */}
             <div className="relative z-10">
               <TopBar hasAssignments={hasAssignments} viewable={viewable} />
+              <ShellSwoop />
               {children}
             </div>
           </main>

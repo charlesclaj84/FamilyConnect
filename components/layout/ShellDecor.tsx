@@ -43,42 +43,108 @@ import { APP_MOTTO } from '@/lib/brand'
 //
 //   1 kit unit = 14rem / 246 = 0.056910rem
 //
-// Keep these in step with `w-56` on the <aside> in Sidebar.tsx. They are the only place
-// the two are coupled, and getting it wrong shows up as the hill's left edge sliding off
-// the rail rather than as anything breaking.
-const UNIT_REM = 14 / 246
+// `RAIL_REM` is `w-56` on the <aside> in Sidebar.tsx and must be kept in step with it.
+// This is the only place the two are coupled, and getting it wrong shows up as the hill's
+// left edge sliding off the rail rather than as anything breaking.
+const RAIL_REM = 14
+const UNIT_REM = RAIL_REM / 246
 
 /** rem for a span of kit units, to 4dp. */
 const u = (units: number) => `${(units * UNIT_REM).toFixed(4)}rem`
 
 /**
+ * A kit x coordinate as a rem offset from the VIEWPORT's left edge rather than from
+ * `<main>`'s — which is what a `fixed` element needs, since `fixed` resolves against the
+ * viewport and knows nothing about the column it is written inside.
+ */
+const fromViewport = (kitX: number) => `${(RAIL_REM - (258 - kitX) * UNIT_REM).toFixed(4)}rem`
+
+/**
+ * The rail's top-left corner radius, consumed by the <aside> in Sidebar.tsx. It lives here
+ * because this is the file that owns the conversion from kit units to rem.
+ *
+ * 36 UNITS, NOT THE KIT'S 22. This is the one measurement in the shell deliberately off
+ * the kit, and the reason is that the two corners are not in the same situation. The kit's
+ * sidebar is a card floating on a canvas with a 12-unit margin all round, so its round is
+ * read against three visible edges and 22 units is plenty. Ours meets the corner of the
+ * browser window, where the same round is a 20px nick in the corner of the screen that
+ * reads as an artifact rather than a shape. 36 units is ~33px, which reads as intended.
+ */
+export const RAIL_CORNER_REM = u(36)
+
+/**
  * The cream bite at the top of the rail, and the burgundy bulge beside it.
  *
  * ONE ELEMENT PAINTS BOTH, which is why it straddles the boundary. The window is
- * x=244..286 — 14 units left of the rail's edge and 28 to the right of it — filled first
+ * x=240..286 — 18 units left of the rail's edge and 28 to the right of it — filled first
  * with the page ground and then with the burgundy shape on top. Over the rail (x<258)
  * the ground shows through wherever the shape has pulled away: that is the bite. Over
  * the workspace (x>258) the shape paints burgundy past the edge: that is the bulge.
  * Everywhere else it is cream on cream or burgundy on burgundy, and invisible.
  *
- * Rendered as a child of `<main>` so it paints ON TOP of the workspace's own background;
- * as a sibling it would sit underneath and only half of it would show.
+ * THE WINDOW HAS TO CLEAR THE CURVE'S DEEPEST POINT, and the first version did not —
+ * it started at x=244, which is where the kit's first cubic *ends* and looks like the
+ * left extreme. It is not. The second cubic's x is `244 - 15t + 36t² - 7t³`, whose
+ * derivative vanishes at t=0.2228: the curve keeps travelling left to x=242.368 at
+ * y=112 before turning back. An `<svg>` clips to its own viewport, so a window starting
+ * at 244 threw that away and replaced 46 units of curve — y=91 to y=137.1, where the
+ * cubic is left of 244 — with a dead-straight vertical at the window's edge. At this
+ * scale that is a ~42px flat running down the boundary, and it lands beside the wordmark,
+ * which is what made it read as the brand block being oversized rather than as a clip.
  *
- * `md:` only. Below that breakpoint the rail is a horizontal bar above the content rather
- * than a column beside it, and there is no vertical boundary for this to straddle.
+ * SO THE PATH'S OWN LEFT EDGE MOVES WITH THE WINDOW. It closes at x=240, not 244: the
+ * fill is bounded on the left by that closing line, so leaving it at 244 while widening
+ * the window would make the region between the curve and x=244 a burgundy sliver floating
+ * in the cream, with the real rail starting again 2 units further left. Widening one
+ * without the other is worse than the clip.
+ *
+ * IT IS PINNED TO THE VIEWPORT, not to the top of the document. The rail's own contents
+ * are `sticky top-0`, so on a long page the brand block stays where it is while the page
+ * moves under it — and an `absolute top-0` bite scrolled away from the logo it belongs to,
+ * leaving the rail a plain straight column a screenful down. `fixed` is what keeps the two
+ * halves of one shape together. That is also why `left` comes from `fromViewport()` rather
+ * than being an offset from `<main>`: a fixed element resolves against the viewport, so the
+ * rail's width has to enter the arithmetic explicitly.
+ *
+ * `fixed` surviving here is the same invariant `components/layout/header-panel.ts` depends
+ * on — no ancestor of this element may take a `transform`, `filter`, `will-change` or
+ * `backdrop-filter`, any of which would make itself the containing block and drop this
+ * shape to wherever `<main>` happens to start. TopBar's comment forbids frosted glass for
+ * exactly this reason; the same prohibition now protects this.
+ *
+ * IT SITS AT LEVEL 30 WITH TOPBAR, AND AFTER IT IN THE DOM — which is what makes it
+ * visible at all. TopBar is `sticky top-0 z-30 bg-background` across the whole width of
+ * `<main>`, and this shape reaches into the workspace only in its top ~34px (above kit
+ * y=48.9 the boundary is right of x=258; below it the whole figure is over the rail). So
+ * at `z-0` the bar's opaque cream erased precisely the bulge, and nothing else — leaving a
+ * straight vertical edge for 34px and a bite that looked like it began a third of the way
+ * down the logo. Sharing the bar's level and following it in tree order paints over the
+ * bar's background without adding a rung to the ladder TopBar documents.
+ *
+ * Level 30 is also deliberately BELOW the dialogs. `components/ui/dialog.tsx` is
+ * `fixed inset-0 z-50` rendered in place rather than portalled, so it lives inside the
+ * `relative z-10` wrapper this shape is rendered into: anything raised above that wrapper
+ * would notch every modal scrim in the app at the top left. The mobile drawer's backdrop
+ * is also 40/50 and cannot collide with this — that is `md:hidden` where this is `md:` only.
+ *
+ * Rendered inside that wrapper rather than as a bare child of `<main>` so it paints ON TOP
+ * of the workspace's background AND the bar's; before `<main>` it would sit under both.
+ *
+ * `md:` only. Below that breakpoint the rail is a drawer rather than a column beside the
+ * content, and there is no vertical boundary for this to straddle.
  */
 export function ShellSwoop() {
   return (
     <svg
       aria-hidden="true"
-      viewBox="244 12 42 189"
+      viewBox="240 12 46 189"
       preserveAspectRatio="none"
-      className="pointer-events-none absolute top-0 z-0 hidden md:block"
-      style={{ left: u(-14), width: u(42), height: u(189) }}
+      className="pointer-events-none fixed top-0 z-30 hidden md:block"
+      style={{ left: fromViewport(240), width: u(46), height: u(189) }}
     >
-      <rect x="244" y="12" width="42" height="189" className="fill-background" />
+      <rect x="240" y="12" width="46" height="189" className="fill-background" />
       <path
-        d="M244 12 L286 12 C263 34 249 62 244 91 C239 121 246 160 258 201 L244 201 Z"
+        d="M240 12 L286 12 C263 34 249 62 244 91 C239 121 246 160 258 201 L240 201 Z"
         className="fill-brand-hero"
       />
     </svg>
