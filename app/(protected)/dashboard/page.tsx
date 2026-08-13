@@ -41,19 +41,32 @@ const RECENT_UPDATES_LIMIT = 5
  * The kit (`public/dashboard/`) composes nine panels. Four of them are omitted here and
  * every omission is a fact about the product rather than a shortcut:
  *
- *   Event hero + Upcoming Events   `/events` is `status: 'future'` in lib/features.ts.
- *                                  The data and the actions exist; flip the flag and the
- *                                  band under the greeting is where they go.
- *   Family Tree Highlights         `/family-tree` is 'future', and nothing computes a
- *                                  family-wide generation depth.
+ *   Event hero + Upcoming Events   `/events` IS live now, so this omission has changed
+ *                                  character: it is no longer waiting on a flag, it is
+ *                                  waiting on a panel nobody has written. The data and the
+ *                                  actions exist; the band under the greeting is where they
+ *                                  go. Do not read this row as "blocked" any more.
+ *   Family Tree Highlights         `/family-tree` is live but is the beta scaffold — no
+ *                                  data behind it at all — and nothing computes a
+ *                                  family-wide generation depth either. Two things missing,
+ *                                  not one; the lineage view at `/members/family-tree`
+ *                                  answers for one person and cannot fill a family panel.
  *   Family hero photograph         No column, no bucket, no schema. The kit's own image
  *                                  is stock photography with the design burnt into it.
  *   Recent Activity (a feed)       No table records who did what. See RecentUpdates,
  *                                  which answers the question the data can answer.
  *
- * Nothing renders a placeholder for these. That is the policy this page already held —
- * "Omitted entirely until Events ships, no placeholder, no badge" — and the layout
- * narrows to what is real rather than advertising what is not.
+ * Nothing renders a placeholder for these, and the policy outlived the sentence that used
+ * to state it: "omitted entirely until Events ships, no placeholder, no badge" was written
+ * when Events was gated, and Events has now shipped without these panels arriving with it.
+ * The rule that survives is the useful half — the layout narrows to what is real rather
+ * than advertising what is not, whatever the registry says about the route.
+ *
+ * ONE PANEL DOES SWITCH ITSELF ON, and it is the model for how the rest should arrive:
+ * `announcementsLive` below is read from the registry, so flipping `/announcements` to live
+ * both un-gated the page and started fetching the pinned news for this screen. No edit here
+ * was needed. That is what a panel wired to the registry looks like, and it is precisely
+ * what the two rows above do not have.
  *
  * ── THE ORDER OF THIS FUNCTION IS THE SECURITY MODEL ─────────────────────────────────
  * Read top to bottom, it is: resolve the caller, refuse a pending one, resolve every

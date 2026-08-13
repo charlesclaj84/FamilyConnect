@@ -280,6 +280,6 @@ export async function upsertSpouse(
     }
   }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/members/family-tree')
   return { success: true }
 }

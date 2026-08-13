@@ -451,7 +451,7 @@ export async function upsertAncestor(
     }
   }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/members/family-tree')
   return { success: true }
 }
 

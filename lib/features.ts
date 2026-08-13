@@ -2,10 +2,20 @@
  * Single source of truth for which features have shipped and which are still on
  * the roadmap.
  *
- * Everything reads from this one registry — the route gate in `proxy.ts`, the
- * "Soon" badges in the sidebar, the dashboard widgets, and the marketing
- * showcase. Launching a feature is a one-line change: flip its `status` to
- * `'live'` and every one of those surfaces updates with it.
+ * Everything reads from this one registry — the route gate in `proxy.ts`, the sidebar,
+ * the dashboard widgets, and the marketing showcase, which derives its Coming Soon pills
+ * from `isFeatureFuture()` on both the landing page and `/features`.
+ *
+ * THE SIDEBAR DOES NOT BADGE A GATED ITEM, it drops it, and drops a whole section once
+ * that empties it (see `buildNavGroups`). This comment said "Soon badges in the sidebar"
+ * for a while after that changed. The badge that does exist in the rail is `BetaBadge`,
+ * which is hand-set and marks the opposite case — a route that is live and unfinished.
+ *
+ * FLIPPING `status` IS USUALLY THE WHOLE JOB, and it is worth knowing where it is not.
+ * Every surface above updates itself, but nothing here can conjure a rail item that was
+ * never written: `/admin/announcements` was gated before the Admin rail existed, so its
+ * flip needed an `adminItems` entry as well or the page would have come back working,
+ * permissioned and linked from nowhere. Check the rail when you flip an admin route.
  *
  * Two rules keep this file safe to import from anywhere:
  *   1. Keep it pure — data and pure functions only. No React, no `server-only`,
@@ -76,7 +86,41 @@ export const FEATURES: readonly Feature[] = [
     href: '/transactions',
     label: 'Transactions',
     status: 'live',
-    blurb: 'Every payment, donation, contribution and disbursement the family has recorded.',
+    blurb: 'Every payment, donation, contribution, disbursement and fund transfer the family has recorded.',
+  },
+
+  // Announcements is LIVE, with its admin counterpart. Both were on the roadmap and
+  // neither needed a migration to come back: `announcements` and `admin/announcements`
+  // have been registered in `permission_resources` since 20260618000000, the system
+  // templates carry grants for them, and `resource_visibility` already answers for both —
+  // 'everyone' for the member-facing page, 'restricted' for the admin one, which every
+  // `category = 'admin'` resource gets from the same migration. So the flip changes who can
+  // REACH them and nothing about who may do what once there.
+  {
+    href: '/announcements',
+    label: 'Announcements',
+    status: 'live',
+    blurb: 'Family-wide news, with the important updates pinned to the top.',
+  },
+  // The family-wide tree, being rebuilt — and the one entry here that is 'live' with
+  // nothing behind it yet. See app/(protected)/family-tree/page.tsx: it renders a beta
+  // notice and a sketch of the layout, deliberately rather than being gated, because a
+  // member who can see the rail item should be told where the work stands instead of
+  // meeting the Coming Soon wall.
+  //
+  // THE `BetaBadge` IS NOT DERIVED FROM THIS FILE, and cannot be: `status` has two values
+  // and "live but unfinished" is a property of one of them. The badge is hand-set on the
+  // page and on the rail item, and both come off by hand when the real tree lands.
+  //
+  // The per-member LINEAGE view is not this route. It moved to `/members/family-tree`,
+  // which resolves to the `/members` entry above by prefix — so it is live because the
+  // Directory is. Its permission key stays `family-tree` and so is answered by THIS entry;
+  // the page comment explains why that is deliberate rather than an oversight.
+  {
+    href: '/family-tree',
+    label: 'Family Tree',
+    status: 'live',
+    blurb: 'A multi-generation tree of parents, grandparents, children, and spouses.',
   },
 
   // ── On the roadmap: personal ────────────────────────────────────────────────
@@ -86,32 +130,31 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'Add and manage your kids, then convert them to full members as they grow up.',
   },
-  {
-    href: '/family-tree',
-    label: 'Family Tree',
-    status: 'future',
-    blurb: 'A multi-generation tree of parents, grandparents, children, and spouses.',
-  },
 
-  // ── On the roadmap: community ───────────────────────────────────────────────
-  {
-    href: '/announcements',
-    label: 'Announcements',
-    status: 'future',
-    blurb: 'Family-wide news, with the important updates pinned to the top.',
-  },
-
-  // ── On the roadmap: events ──────────────────────────────────────────────────
+  // ── Events: LIVE ────────────────────────────────────────────────────────────
+  // All four event routes came back together, and they have to: `/events` cannot show a
+  // reunion that `/admin/events` is not there to create, and `/event-planning` lists
+  // assignments that only `/admin/event-types` and `/admin/events` hand out. Shipping the
+  // member-facing half alone would have been an empty page with no way to fill it.
+  //
+  // Same as announcements, no migration was needed — all four keys are registered, the
+  // two admin ones are 'restricted' per family, and `events` and `event-planning` default
+  // to 'everyone' for view.
+  //
+  // WHAT DID NOT COME BACK WITH THEM: the storage rework. `event-photos` is a `public`
+  // bucket whose policies carry no family predicate, and `deleteEventPhoto` takes its
+  // object path from the client. Those were queued behind this flip and are now ahead of
+  // it — see FutureFeature.md, where the item moved out of the Free list for that reason.
   {
     href: '/events',
     label: 'Events',
-    status: 'future',
+    status: 'live',
     blurb: 'Reunion itineraries, hotel room blocks, and RSVPs for your whole household.',
   },
   {
     href: '/event-planning',
     label: 'Event Planning',
-    status: 'future',
+    status: 'live',
     blurb: 'Your assigned planning tasks, with deadlines and completion tracking.',
   },
 
@@ -259,10 +302,15 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'Open nominations, launch the ballot, and publish the results.',
   },
+  // Live with `/announcements` — the two ship as one feature, because pinning is half of
+  // what announcements are and lives only here. The flip also needed a `Sidebar.tsx`
+  // `adminItems` entry, which it never had: this page was gated before the rail was built,
+  // so a status flip on its own would have left it working, permissioned and linked from
+  // nowhere.
   {
     href: '/admin/announcements',
     label: 'Announcement Management',
-    status: 'future',
+    status: 'live',
     blurb: 'Post family-wide news and pin the updates that matter most.',
   },
   {
@@ -271,16 +319,18 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'Membership, dues collected vs. outstanding, RSVP turnout, and t-shirt counts.',
   },
+  // Both live with `/events` — see the note there for why the four move together, and for
+  // the storage work that did NOT come with them.
   {
     href: '/admin/events',
     label: 'Event Management',
-    status: 'future',
+    status: 'live',
     blurb: 'Build events, assign the to-do list, and run day-of check-in.',
   },
   {
     href: '/admin/event-types',
     label: 'Event Templates',
-    status: 'future',
+    status: 'live',
     blurb: 'Reusable event blueprints that auto-assign the planning checklist.',
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded

@@ -31,8 +31,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
+import { BetaBadge } from '@/components/ui/beta-badge'
 import { APP_NAME, BRAND_MARK_SRC } from '@/lib/brand'
-import { RailFootDecor, RailMotto } from '@/components/layout/ShellDecor'
+import { RAIL_CORNER_REM, RailFootDecor, RailMotto } from '@/components/layout/ShellDecor'
 
 // Should a section close on its own when the user clicks away from it — either by
 // opening a different section (accordion) or by landing on the Dashboard? When
@@ -54,6 +55,14 @@ interface NavItem {
    * one of them, so someone holding only one still needs the link.
    */
   viewKeys?: string[]
+  /**
+   * Marks a route that is live but unfinished. HAND-SET, and it cannot be otherwise:
+   * `lib/features.ts` has two states and this is a property of one of them. It is the
+   * opposite of the gated case — a gated item is removed from this list entirely by the
+   * filter at the bottom of `buildNavGroups`, so anything wearing this badge is a page
+   * the member can actually open.
+   */
+  beta?: boolean
 }
 
 interface NavGroup {
@@ -87,6 +96,12 @@ const adminItems: NavItem[] = [
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
+  // Announcement Management had no entry here at all until its route came back — it was
+  // gated before this rail was written, so the page was built, permissioned and reachable
+  // by URL while appearing in no navigation anywhere. It sits with the other periodic
+  // tasks rather than with the setup screens above: posting news is something a family
+  // does continuously, like running an election.
+  { href: '/admin/announcements',  label: 'Announcement Management', icon: Megaphone },
   { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
   // SETTINGS IS LAST, and the permission grid agrees with it — 20260812000001 moved its
@@ -123,25 +138,35 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       // than about the family being viewed, which is the same distinction that put the
       // family switcher in the bar and left it out of the menu.
       //
-      // THE SECTION SURVIVES ANYWAY, and deleting it would have been the mistake. Its
-      // other two items are both `status: 'future'`, so the filter at the bottom of this
-      // function drops them, the group empties, and no Personal heading renders today —
-      // which is the outcome asked for. When My Children or Family Tree ships, the
-      // section comes back on its own with the items that are NOT in the account menu.
-      // Removing the group instead would have left those two with nowhere to appear and
-      // nothing to say so.
+      // THE SECTION SURVIVES ANYWAY, and deleting it would have been the mistake. Its one
+      // remaining item is `status: 'future'`, so the filter at the bottom of this function
+      // drops it, the group empties, and no Personal heading renders today — which is the
+      // outcome asked for. When My Children ships, the section comes back on its own.
+      // Removing the group instead would have left it with nowhere to appear and nothing
+      // to say so.
+      //
+      // FAMILY TREE USED TO BE HERE and is now under Community, which is a change of
+      // meaning rather than of filing: the tree being built is the WHOLE family's, not the
+      // caller's own line, so it no longer belongs beside My Children in the half of the
+      // product that is about you. The per-member lineage view — which genuinely was
+      // personal — is still here in spirit, at `/members/family-tree`, reached from the
+      // Directory rather than from a rail item of its own.
       section: { label: 'Personal', icon: UserCircle },
       items: [
         { href: '/direct-lineage',  label: 'My Children',  icon: Users },
-        { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
       ],
     },
     {
+      // Family Tree LAST, and directly after Directory on purpose: the two answer the same
+      // question — who is in this family and how are they related — and the lineage view
+      // behind the Directory is the thing this tree is being built to replace. Chat and
+      // Announcements are conversation; these two are the roster.
       section: { label: 'Community', icon: UsersRound },
       items: [
         { href: '/chat',          label: 'Chat',             icon: MessageCircle },
         { href: '/announcements', label: 'Announcements',    icon: Megaphone },
         { href: '/members',       label: 'Directory',        icon: UsersRound },
+        { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch, beta: true },
       ],
     },
   ]
@@ -230,11 +255,12 @@ function isActive(pathname: string, href: string) {
  * as MainRail's stacked variant, and the reason the old `transparent` left marker is
  * gone rather than merely recoloured: the gold fill IS the marker now.
  */
-function NavLink({ href, label, icon: Icon, active, onClick }: {
+function NavLink({ href, label, icon: Icon, active, beta, onClick }: {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
   active: boolean
+  beta?: boolean
   onClick?: () => void
 }) {
   return (
@@ -251,6 +277,13 @@ function NavLink({ href, label, icon: Icon, active, onClick }: {
     >
       <Icon className={cn('h-4 w-4 shrink-0 transition-opacity', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
       {label}
+      {/* THE OUTLINE VARIANT, WHICH INHERITS THIS ROW'S COLOUR — and that is the whole
+          reason it exists. A row sits on Heritage when inactive and on Legacy gold when
+          active, and those grounds take different `on-` partners: naming either here would
+          be wrong half the time, and borrowing one across pairs is what AGENTS.md forbids.
+          Both branches above already set the correct partner as the text colour, so a
+          `currentColor` badge is right on both without knowing which it is on. */}
+      {beta && <BetaBadge variant="outline" className="ml-auto" />}
     </Link>
   )
 }
@@ -468,13 +501,51 @@ function RailBrand() {
  *
  * The `border-r` is gone: burgundy against the page is a 6.6:1 edge on its own, and a sand
  * hairline over it read as a seam.
+ *
+ * THE BURGUNDY IS A FIXED LAYER, NOT THIS ELEMENT'S BACKGROUND — and the rounded top-left
+ * corner is why. A radius on the <aside> rounds the top of the ASIDE, which is the top of
+ * the document; scroll a long page and the corner travels up out of the viewport, leaving a
+ * square burgundy edge in the corner of the window. The rail is a full-height column whose
+ * contents are pinned to the viewport anyway, so its ground may as well be pinned too: then
+ * the corner is at the corner of the screen by construction, at every scroll position.
+ *
+ * Three things about that layer:
+ *
+ *   * **The <aside> stays,** transparent, and keeps `w-56 shrink-0`. It is what claims the
+ *     14rem column from the flex row — a fixed element is out of flow and would leave the
+ *     workspace to fill the whole width with the rail painted over the top of it.
+ *   * **It needs no breakpoint of its own.** `hidden` on this element is `display: none`,
+ *     which removes the entire subtree from rendering, fixed descendants included — so the
+ *     ground appears and disappears with the rail it belongs to.
+ *   * **Something has to be behind it.** The shell row was `bg-brand-hero`, so a round on a
+ *     burgundy layer over a burgundy ground is invisible. It carries the page ground now
+ *     (app/(protected)/layout.tsx), which is what the kit puts outside this corner.
+ *
+ * NO `overflow-hidden` to clip the round, and this element may never have it — it would
+ * compute the sticky block's `overflow-y` to `auto` and kill its stickiness. A radius clips
+ * its own element's background without help, and nothing of the rail's reaches that corner:
+ * the only thing that could is a nav pill bleeding off the left edge, and the first of those
+ * sits ~150px down.
+ *
+ * Only the top-left. The kit rounds its bottom corners too, but its sidebar is a card on a
+ * canvas; this one runs to the bottom of a page of unknown length.
  */
 export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
   const pathname = usePathname()
   const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
 
   return (
-    <aside className="relative hidden md:flex w-56 shrink-0 flex-col bg-brand-hero">
+    <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
+      {/* The rail's ground. `inset-y-0` on a fixed element is the VIEWPORT's height, not
+          the column's, so this is always exactly the visible rail — which is the whole
+          point: the corner cannot scroll away from a corner it is measured against.
+          `w-56` twice is the one duplication here, and it is unavoidable: the layer is out
+          of flow and cannot inherit the width of the box it fills. */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-y-0 left-0 w-56 bg-brand-hero"
+        style={{ borderTopLeftRadius: RAIL_CORNER_REM }}
+      />
       {/* THE PADDING IS ASYMMETRIC, AND THE RIGHT NUMBER IS FROM THE KIT.
           `Sidebar.svg` draws the active pill as `x=0 width=218` on a canvas whose rail
           spans x=12..258 — so it covers 83.7% of the rail and leaves 16.3% clear on the
@@ -484,7 +555,7 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           were wrong with that at once: the pill read as almost-full-bleed rather than as
           a shape sitting on a rail, the row had no breathing room for the chevron on a
           collapsible section, and — the visible one — the inward swoosh at the top of the
-          rail runs through the rightmost ~13px, so a 212px pill overlapped the bite and
+          rail runs through the rightmost ~14px, so a 212px pill overlapped the bite and
           cut it off just where it is deepest.
 
           `pr-9` is 36px. The kit's motto card arrives at the same answer independently

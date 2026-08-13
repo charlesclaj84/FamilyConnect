@@ -13,7 +13,38 @@ import { getPersonPartners } from '@/app/actions/spouse'
 import { getMyRoles, getFamilyMemberRoles } from '@/app/actions/admin/users'
 import { FamilyTreeClient } from '@/components/family-tree/FamilyTreeClient'
 
-export const metadata = { title: 'Family Tree' }
+/**
+ * The per-member lineage view — Community > Directory, at `/members/family-tree`.
+ *
+ * IT MOVED HERE FROM `/family-tree`, which is now the family-wide tree being rebuilt. The
+ * nesting is not filing: this page has only ever shown ONE person's line, opened for
+ * whoever `?view=` names and walked outwards from there, which is a drill-down from a
+ * directory row rather than a destination of its own. It has no rail item for that reason —
+ * the Directory is the way in, and `FamilyTreeClient` handles person-to-person from then on.
+ *
+ * CAPTIONED "LINEAGE", NOT "FAMILY TREE", and that is the whole reason to rename anything:
+ * Community now has a rail item called Family Tree pointing at the rebuild, and two pages
+ * answering to one name in one section is worse than a slightly duller word. It is one word
+ * in three places if the decision goes the other way.
+ *
+ * THE RESOURCE KEY STAYS `family-tree`, deliberately, and does NOT become `members`:
+ *
+ *   * `20260806000006` removed the `permission_resources` row for it on purpose — a
+ *     member's own things are unrestrictable — so this resolves to viewable for everybody,
+ *     which is what it did at the old path too. Keying it to `members` instead would let a
+ *     family that restricts its Directory break its own family tree, which AGENTS.md §4
+ *     names as the reason `belongsToFamily` uses the service role in the first place.
+ *   * Every action behind this page already checks `requireRead('family-tree')` —
+ *     `ancestors.ts`, `spouse.ts` — so changing the page's key would put the page and its
+ *     writes on two different grants.
+ *
+ * The route no longer matches the key, which is the one place this page departs from §1's
+ * "the resource key is the route without its leading slash". The key still names a
+ * registered feature (`/family-tree`, the rebuild), so `viewableResources()` still resolves
+ * it; it is the same arrangement `/admin/approvals` has, where the path and the thing the
+ * key governs stopped being the same page.
+ */
+export const metadata = { title: 'Lineage' }
 
 export default async function FamilyTreePage({
   searchParams,
@@ -87,10 +118,10 @@ export default async function FamilyTreePage({
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Family Tree</h1>
+        <h1 className="text-3xl font-bold mb-1">Lineage</h1>
         <p className="text-muted-foreground">
           {isViewMode
-            ? `Viewing ${viewSubjectName ?? 'member'}'s family tree.`
+            ? `Viewing ${viewSubjectName ?? 'member'}'s lineage.`
             : 'Your full lineage — as many generations as available.'}
         </p>
       </div>

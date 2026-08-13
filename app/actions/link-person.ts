@@ -304,6 +304,6 @@ export async function linkPersonToCurrentUser(
   }
 
   revalidatePath('/dashboard')
-  revalidatePath('/family-tree')
+  revalidatePath('/members/family-tree')
   return { success: true }
 }

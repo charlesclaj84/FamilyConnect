@@ -681,8 +681,11 @@ export function FamilyTreeClient({
 
   function viewPersonTree(personId: string | null) {
     if (!personId) return
-    if (personId === myPersonId) router.push('/family-tree')
-    else router.push(`/family-tree?view=${personId}`)
+    // `/members/family-tree`, under the Directory, since the family-wide rebuild took
+    // `/family-tree`. Both branches have to move together — pushing the bare route while
+    // `?view=` still pointed at the old one would land on the beta scaffold half the time.
+    if (personId === myPersonId) router.push('/members/family-tree')
+    else router.push(`/members/family-tree?view=${personId}`)
   }
 
   function handleClose() {
@@ -700,7 +703,7 @@ export function FamilyTreeClient({
         <div className="flex items-center gap-3 rounded-lg border border-border bg-brand-soft px-4 py-3 mb-4 text-sm text-brand-on-soft">
           <Info className="h-4 w-4 shrink-0" />
           <span>You are viewing <strong>{viewSubjectName ?? 'this member'}&apos;s</strong> tree.</span>
-          <Link href="/family-tree" className="ml-auto flex items-center gap-1 font-medium hover:underline whitespace-nowrap">
+          <Link href="/members/family-tree" className="ml-auto flex items-center gap-1 font-medium hover:underline whitespace-nowrap">
             <ArrowLeft className="h-3.5 w-3.5" />
             View Your Tree
           </Link>
