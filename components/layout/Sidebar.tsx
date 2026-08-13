@@ -32,7 +32,7 @@ import {
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
 import { APP_NAME } from '@/lib/brand'
-import { RailCurves, RailMotto } from '@/components/layout/RailDecor'
+import { RailFootDecor, RailMotto } from '@/components/layout/ShellDecor'
 
 // Should a section close on its own when the user clicks away from it — either by
 // opening a different section (accordion) or by landing on the Dashboard? When
@@ -422,14 +422,20 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           kit draws it as the left third of one rounded shell, and the app's equivalent is
           this rail plus the cutout on <main> in app/(protected)/layout.tsx.
 
-          `relative` is for RailCurves and is SAFE for the two things that would otherwise
-          break here: `position: relative` does not create a containing block for `fixed`
-          (only transform/filter/will-change do — see components/layout/header-panel.ts,
-          which depends on that), and it does not disturb the `sticky` nav below.
+          `relative` is SAFE for the two things that would otherwise break here:
+          `position: relative` does not create a containing block for `fixed` (only
+          transform/filter/will-change do — see components/layout/header-panel.ts, which
+          depends on that), and it does not disturb the `sticky` nav below.
 
-          NO `overflow-hidden` ON THIS ELEMENT, ever. The curves need clipping and get it
-          from their own absolutely-positioned layer; putting it here would compute the
-          nav's `overflow-y` to `auto` and kill its stickiness.
+          NO `overflow-hidden` ON THIS ELEMENT, ever. It would compute the nav's
+          `overflow-y` to `auto` and kill its stickiness.
+
+          THE LOWER DECORATION IS NOT RENDERED HERE, and that is the substance of the
+          kit's PATCH 01. The olive hill runs from x=132 to x=664 in kit coordinates while
+          the rail ends at 258, so more than half of it belongs to the workspace — it is
+          drawn from `<main>` in app/(protected)/layout.tsx, where it can cross the
+          boundary. Putting it back in this element clips it, which is the bug the patch
+          was issued to correct.
 
           The `border-r` is gone: burgundy against the page is a 6.6:1 edge on its own,
           and a sand hairline over it read as a seam. */}
@@ -438,7 +444,6 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
           <NavTree groups={navGroups} pathname={pathname} />
           <RailMotto />
         </nav>
-        <RailCurves />
       </aside>
 
       {/* ── Mobile: hamburger button ────────────────────────────────── */}
@@ -498,7 +503,10 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
               <RailMotto />
             </nav>
-            <RailCurves />
+            {/* The rail-windowed variant, not the shell one: a drawer is a 16rem panel
+                with nothing beside it, so a hill drawn to run 400 units past the rail
+                would simply be cut off at the panel's edge. */}
+            <RailFootDecor />
           </div>
         </>
       )}

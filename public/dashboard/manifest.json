@@ -17,5 +17,13 @@
   "photosAreRasterByDesign": true,
   "reason": "The Golden Master contains real photography. UI, illustration, shapes, iconography and brand art are vectorized; photos remain photographic assets and are clipped with SVG masks to preserve fidelity.",
   "brandRule": "Multicolor approved mark; white GENORRA wordmark on burgundy sidebar per official Golden Master",
-  "implementationTree": "03_VECTOR_ASSETS/FamilyTree_Golden_ExactPixelVector.svg"
+  "implementationTree": "03_VECTOR_ASSETS/FamilyTree_Golden_ExactPixelVector.svg",
+  "patchLevel": "01-sidebar-fidelity",
+  "sidebarComponent": "03_VECTOR_ASSETS/components/Sidebar.svg",
+  "sidebarArtboard": {
+    "width": 700,
+    "height": 1024,
+    "functionalColumnWidth": 258,
+    "reason": "Allows Golden Master olive hill and top header bulge to extend outside the navigation column without raster clipping."
+  }
 }

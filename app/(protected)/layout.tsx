@@ -7,6 +7,7 @@ import Navbar from '@/components/layout/Navbar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
+import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
 
 /**
  * The signed-in app says "do not index me", on every route beneath this layout.
@@ -107,24 +108,36 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               that is NotificationBell in Navbar. Sidebar needs nothing: it takes
               `viewable` as a prop and reads it directly rather than seeding state.
 
-              ── THE SHELL CUTOUT ──────────────────────────────────────────────────
-              The workspace is a cream card tucked into the Heritage rail, which is the
-              Golden Master's `mainShellCutout` translated into the app's real layout:
-              the kit draws one rounded shell with the rail as its left third, and here
-              the rail is a sibling, so the corner belongs to this element.
+              ── THE SHELL DECORATION ──────────────────────────────────────────────
+              Both pieces are rendered HERE, as children of <main>, and that placement is
+              the whole trick. Each has to paint ON TOP of the workspace's cream ground —
+              so it cannot be a sibling, which would put it underneath — while staying
+              BENEATH everything on the page, which is what `z-0` against the content's
+              `z-10` buys. Being children of <main> also lets them reach LEFT across the
+              rail, because <aside> precedes <main> in the DOM and so paints below its
+              whole subtree.
 
-              `bg-background` is not redundant with the body's. The row above sets
-              `bg-brand-hero` so that something burgundy shows THROUGH the rounded
-              corner; without an opaque fill here the whole page would be burgundy.
+              This replaced a `rounded-l-[2rem]` on this element, which was wrong in the
+              way the kit's PATCH 01 describes: a curve at the top AND the bottom, running
+              the full height, is the "narrow sidebar carried down the page" it corrects.
+              The bite belongs to the logo area and the rail is straight below it.
 
-              Rounded only from `md`, because below it the rail is a horizontal bar
-              above the content rather than a column beside it, and a corner cut into
-              the top-left of a full-width strip reads as a rendering fault.
+              `bg-background` is not redundant with the body's — the row above is
+              `bg-brand-hero`, so without an opaque fill here the whole page is burgundy.
 
-              NO `overflow-hidden`. A rounded corner does not need it — nothing here is
-              painted into the corner — and adding it would clip `position: sticky`
-              inside every page, plus the RowMenu popovers that portal out. */}
-          <main key={familyCode} className="flex-1 min-w-0 bg-background md:rounded-l-[2rem]">{children}</main>
+              NO `overflow-hidden`, ever. The hill is deliberately wider than this element
+              and gets its own clipping layer; putting it here would also break
+              `position: sticky` inside every page and clip the RowMenu popovers.
+
+              The wrapper around {children} exists only to hold `z-10`. Every page in the
+              app renders inside it, so it must stay a plain block with no width, height
+              or display of its own — /chat measures itself against the viewport and would
+              notice any of the three. */}
+          <main key={familyCode} className="relative isolate flex-1 min-w-0 bg-background">
+            <ShellSwoop />
+            <ShellHill />
+            <div className="relative z-10">{children}</div>
+          </main>
         </div>
       </div>
 
