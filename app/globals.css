@@ -151,12 +151,29 @@
   --brand-bar: var(--genorra-nurturing);         /* header bars */
   --brand-hero: var(--genorra-heritage-deep);    /* the banner band */
   --brand-on-hero: var(--genorra-nurturing);     /* 9.80 on hero */
-  --brand-accent: var(--genorra-warmth-deep);    /* links, h3–h6, unread markers — 4.78 */
-  --brand-affirm: var(--genorra-growth-deep);    /* create, record, pay */
+  /* links, h3–h6, unread markers — and, since the 2026-08-12 sweep, ATTENTION TEXT:
+     "remaining", "past due", "pending", the amounts beside them. Gold cannot do that job
+     on a pale ground (2.30), so attention splits by shape rather than by hue — a PILL is
+     `--brand-legacy`, a FOREGROUND is this. The cost of that is real and worth knowing:
+     in dark mode this token IS gold, which is also the link colour, so an attention word
+     and a link look alike. It is tolerable because every attention foreground in the tree
+     is a short label or an icon next to a figure, never prose among links — and where a
+     warning sits inside a dense table beside links, the pill form is used instead. */
+  --brand-accent: var(--genorra-warmth-deep);    /* 4.78 */
+  /* Affirmative: an action you may take — create, record, pay — OR a state that has been
+     reached: paid, approved, confirmed, attending, checked in, joined, open. Growth's
+     semantic covers both, which is why the sweep needed no separate success role. */
+  --brand-affirm: var(--genorra-growth-deep);
   --brand-on-affirm: var(--genorra-light);       /* 4.81 on affirm */
   --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
   --brand-on-warm: var(--genorra-light);         /* 4.78 on warm */
-  --brand-legacy: var(--genorra-legacy);         /* premium accent — SURFACE ONLY, see below */
+  /* Premium accent — SURFACE ONLY, see below. Its second job since the 2026-08-12 sweep
+     is the ATTENTION PILL: `bg-brand-legacy text-brand-on-legacy` is what "Pending",
+     "Nominations open", "Own scope" and every other look-at-this badge wears. Gold was
+     chosen over inventing a warning role because a colour between gold and terracotta,
+     distinguishable from both, does not exist in this palette — it would simply be gold
+     again with another name. */
+  --brand-legacy: var(--genorra-legacy);
   /* 6.14, not the 6.99 this said until 2026-08-12. That figure was measured against the
      v1.0 ink (#2e1c22); kit v1.1 lightened Ink to #3c2528 and the pair moved with it.
      Still comfortably AA, so nothing had to change but the number — and it is the only

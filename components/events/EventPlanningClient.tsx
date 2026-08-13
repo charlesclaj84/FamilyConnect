@@ -7,13 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
 import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
 import { formatDate, todayLocal } from '@/lib/date-utils'
-
-const STATUS_COLORS = {
-  pending:   'bg-muted text-muted-foreground',
-  submitted: 'bg-blue-100 text-blue-700',
-  approved:  'bg-green-100 text-green-700',
-  cancelled: 'bg-destructive/10 text-destructive',
-}
+import { ASSIGNMENT_STATUS_PILL } from '@/components/events/status'
 
 const STATUS_LABELS = {
   pending:   'No response yet',
@@ -141,8 +135,8 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium">{assignment.blueprint_item_title}</p>
             {isPastDue && (
-              <span className="inline-flex items-center gap-0.5 text-xs font-medium text-red-600">
-                <Flag className="h-3 w-3 fill-red-600" /> Past Due
+              <span className="inline-flex items-center gap-0.5 text-xs font-medium text-destructive">
+                <Flag className="h-3 w-3 fill-destructive" /> Past Due
               </span>
             )}
           </div>
@@ -151,13 +145,13 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
             {assignment.event_date ? ` · ${formatDate(assignment.event_date)}` : ''}
             {assignment.event_time ? ` at ${assignment.event_time}` : ''}
             {assignment.due_date && (
-              <span className={isPastDue ? 'text-red-600 font-medium' : ''}>
+              <span className={isPastDue ? 'text-destructive font-medium' : ''}>
                 {` · Due: ${formatDate(assignment.due_date)}`}
               </span>
             )}
           </p>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[status]}`}>
+        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${ASSIGNMENT_STATUS_PILL[status]}`}>
           {status === 'pending' ? 'Pending' : status === 'submitted' ? 'Submitted' : 'Approved'}
         </span>
       </div>
@@ -222,9 +216,9 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
         <ResponseDisplay response={response} type={assignment.response_type} />
       )}
       {isLocked && response && (
-        <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2">
-          <ResponseDisplay response={response} type={assignment.response_type} className="text-green-800" />
-          <p className="text-xs text-green-600 mt-1">Approved — response is locked.</p>
+        <div className="rounded-lg border border-brand-affirm/40 bg-brand-affirm/10 px-3 py-2">
+          <ResponseDisplay response={response} type={assignment.response_type} className="text-brand-affirm" />
+          <p className="text-xs text-brand-affirm mt-1">Approved — response is locked.</p>
         </div>
       )}
     </div>

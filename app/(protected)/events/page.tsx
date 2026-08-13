@@ -45,7 +45,7 @@ export default async function EventsPage() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {event.status === 'approved' && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Confirmed</span>
+                        <span className="text-xs bg-brand-affirm text-brand-on-affirm px-2 py-0.5 rounded-full">Confirmed</span>
                       )}
                       {event.rsvp_count > 0 && (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">

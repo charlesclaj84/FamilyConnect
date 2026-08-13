@@ -99,7 +99,7 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
                   <p className="text-sm font-medium">{name}</p>
                   <p className="text-xs text-muted-foreground">{person.relationship}</p>
                 </div>
-                <span className={`text-sm font-medium ${attending ? 'text-green-600' : 'text-muted-foreground'}`}>
+                <span className={`text-sm font-medium ${attending ? 'text-brand-affirm' : 'text-muted-foreground'}`}>
                   {attending ? '✓ Attending' : '✗ Not attending'}
                 </span>
               </div>

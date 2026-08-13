@@ -54,7 +54,7 @@ export const SIGNED_OUT_KEY = 'genorra:idle-signed-out'
 export const WRITE_THROTTLE_MS = 5_000
 
 /**
- * Shown on /login through its existing `?error=` channel, which renders as an amber notice
+ * Shown on /login through its existing `?error=` channel, which renders as the brand-soft notice
  * rather than a red failure — the right register for "this is expected, sign in again".
  */
 export const TIMEOUT_NOTICE =

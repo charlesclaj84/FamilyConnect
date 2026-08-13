@@ -180,6 +180,14 @@ function HillPaths() {
  * that TypeScript-consumed brand strings live in one file — the rule that keeps
  * `APP_NAME` out of components applies here too.
  */
+/*
+ * ONE MEASURED NOTE, because this card is the only place in the app where text sits on a
+ * BLEND rather than on a token value: `bg-brand-primary/60` over the rail's
+ * `bg-brand-hero` composites to #5c2934 in light and #5c3239 in dark. Gold on that is
+ * 5.00 and 4.63; the cream half is 8.26 and 9.96. Both pass AA, and the dark gold figure
+ * is the tightest pairing in the shell — so if the tint ever gets heavier, re-measure
+ * rather than assume. Dropping the tint entirely would take gold to 5.94 / 7.57.
+ */
 export function RailMotto() {
   return (
     <div className="relative mt-6 overflow-hidden rounded-3xl border border-brand-legacy/25 bg-brand-primary/60 px-4 py-4">

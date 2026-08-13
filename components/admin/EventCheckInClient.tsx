@@ -70,11 +70,11 @@ export function EventCheckInClient({ eventId, initialAttendees }: Props) {
           {filtered.map(a => (
             <li
               key={a.id}
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${a.checked_in_at ? 'bg-green-50 dark:bg-green-950/20' : ''}`}
+              className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${a.checked_in_at ? 'bg-brand-affirm/10' : ''}`}
               onClick={() => !isPending && handleToggle(a.id, !!a.checked_in_at)}
             >
               {a.checked_in_at ? (
-                <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                <CheckCircle className="h-5 w-5 text-brand-affirm shrink-0" />
               ) : (
                 <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
               )}
@@ -85,7 +85,7 @@ export function EventCheckInClient({ eventId, initialAttendees }: Props) {
                 )}
               </div>
               {a.checked_in_at && (
-                <span className="text-xs text-green-600">
+                <span className="text-xs text-brand-affirm">
                   {new Date(a.checked_in_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </span>
               )}

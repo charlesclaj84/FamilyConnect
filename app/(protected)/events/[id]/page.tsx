@@ -52,7 +52,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             {event.event_type_name && <p className="text-sm text-muted-foreground">{event.event_type_name}</p>}
           </div>
           {event.status === 'approved' && (
-            <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full shrink-0">Confirmed</span>
+            <span className="text-xs bg-brand-affirm text-brand-on-affirm px-2.5 py-1 rounded-full shrink-0">Confirmed</span>
           )}
         </div>
 

@@ -909,8 +909,15 @@ The same goes for `style={{ color: … }}` and any SVG `fill`/`stroke`. There ar
 the tree today. If a chart or an illustration ever genuinely needs a colour in JS, read
 it from the custom property (`var(--brand-accent)`) rather than restating the hex.
 
-**There are exactly two sanctioned exceptions, and they earn it the same way: the thing
-consuming the colour is not a stylesheet of ours, so a custom property cannot resolve.**
+**There are exactly four sanctioned exceptions, and they all earn it the same way: the
+thing consuming the colour is not a stylesheet of ours, so a custom property cannot
+resolve.**
+
+This said "two" until 2026-08-12, and it was wrong by two — `app/opengraph-image.tsx` and
+`lib/email/layout.ts` had been carrying literals for months, both for the same good reason
+as the pair that *was* listed. An exception list that does not match the tree teaches
+whoever reads it next that the rule is approximate, which is the one thing this rule
+cannot afford. If you add a fifth, add it here in the same commit.
 
 * **`BRAND_THEME_COLOR` in `lib/brand.ts`.** Those two hexes are consumed by the
   *browser* as document metadata — `viewport.themeColor` and the web manifest paint the
@@ -921,6 +928,13 @@ consuming the colour is not a stylesheet of ours, so a custom property cannot re
   Gmail strips it for non-Gmail accounts in its app. Every colour that matters is
   therefore inline, and inline means literal. The hex→token mapping and the reasoning
   are in [supabase/templates/README.md](supabase/templates/README.md).
+* **`lib/email/layout.ts`,** the chrome those templates and the app's own mail share.
+  Same argument as the templates it wraps, and its ~35 hexes are the reason that argument
+  exists — this file is where the inline styling is actually assembled.
+* **`app/opengraph-image.tsx`.** Rendered by Satori into a PNG at build time, not by a
+  browser. There is no cascade and no `:root` for a custom property to resolve against, so
+  the three brand colours it draws with have to be values. Keep them in step with
+  `--genorra-heritage-deep`, `--genorra-heritage` and `--genorra-legacy` by hand.
 
 Nothing else earns this. In particular, "it's just one component" and "Tailwind won't
 let me" do not — the second is a token that needs adding to `globals.css` first.

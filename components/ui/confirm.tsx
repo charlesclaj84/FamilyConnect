@@ -170,8 +170,14 @@ function ConfirmDialog({
               // The foreground moved into the branches: `--brand-on-primary` is
               // the tone guaranteed to meet AA on `--brand-primary` in BOTH
               // themes, which plain white is not once primary lifts in the dark.
+              //
+              // The destructive branch made exactly the mistake the line above
+              // describes, two lines below writing it: `text-white` on
+              // `--destructive`, which LIGHTENS in dark (#e7000b -> #ff6467) and
+              // took white to 2.89 there. `--destructive-foreground` is the pair
+              // that flips with it — white at 4.76 in light, ink at 4.88 in dark.
               destructive
-                ? 'bg-destructive text-white focus-visible:ring-destructive'
+                ? 'bg-destructive text-destructive-foreground focus-visible:ring-destructive'
                 : 'bg-brand-primary text-brand-on-primary focus-visible:ring-brand-primary'
             )}
           >

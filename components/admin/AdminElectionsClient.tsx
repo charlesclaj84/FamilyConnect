@@ -11,7 +11,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
-import { ELECTION_STATUS_PILL } from '@/components/elections/status'
+import { ELECTION_STATUS_PILL, ELECTION_WINDOW } from '@/components/elections/status'
 import Link from 'next/link'
 
 const STATUS_NEXT: Record<Election['status'], Election['status'] | null> = {
@@ -152,8 +152,8 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
           </div>
 
           {/* Nomination window */}
-          <div className="space-y-2 rounded-lg border bg-brand-legacy/10 p-3">
-            <p className="text-xs font-semibold text-brand-accent uppercase tracking-wide flex items-center gap-1.5">
+          <div className={`space-y-2 rounded-lg border p-3 ${ELECTION_WINDOW.nominations.well}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${ELECTION_WINDOW.nominations.label}`}>
               <Calendar className="h-3.5 w-3.5" /> Nominations Window
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -169,8 +169,8 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
           </div>
 
           {/* Voting window */}
-          <div className="space-y-2 rounded-lg border bg-brand-affirm/10 p-3">
-            <p className="text-xs font-semibold text-brand-affirm uppercase tracking-wide flex items-center gap-1.5">
+          <div className={`space-y-2 rounded-lg border p-3 ${ELECTION_WINDOW.voting.well}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${ELECTION_WINDOW.voting.label}`}>
               <Calendar className="h-3.5 w-3.5" /> Voting Window
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

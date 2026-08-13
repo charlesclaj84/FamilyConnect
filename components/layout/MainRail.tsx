@@ -66,7 +66,7 @@ interface Props<T extends string> {
  *
  * The explicit text colours on every branch are required, not stylistic: globals.css
  * carries an unscoped `a { color: var(--brand-accent) }` in its base layer that would
- * otherwise paint every item in this rail teal.
+ * otherwise paint every item in this rail terracotta.
  */
 export function MainRail<T extends string>({ label, items, active, onSelect, action }: Props<T>) {
   return (

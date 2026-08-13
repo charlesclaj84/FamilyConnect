@@ -252,9 +252,9 @@ export function AdminAccountShell({
             ))}
           </nav>
           {CREATE_ACTIONS[section] && rights[section].create && (
-            // Right-aligned, ruled off from the links at xl, and green: the navy of
+            // Right-aligned, ruled off from the links at xl, and olive: the burgundy of
             // the default button is exactly what the ACTIVE link looks like, so a
-            // solid navy trigger read as a further page that was selected.
+            // solid burgundy trigger read as a further page that was selected.
             <div className="ml-auto flex justify-end xl:ml-0 xl:mt-3 xl:w-full xl:border-t xl:pt-3">
               {/* CirclePlus, not a bare Plus: the glyph carries weight against the
                   green fill, and it is not the Pencil this page already uses for
@@ -332,7 +332,7 @@ function SectionLink({ id, icon: Icon, active, onSelect }: {
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
         active
           // The explicit text colours are required: globals.css has an unscoped
-          // `a { color: var(--brand-accent) }` that would otherwise paint every item teal.
+          // `a { color: var(--brand-accent) }` that would otherwise paint every item terracotta.
           ? 'bg-brand-primary text-brand-on-primary font-medium'
           : 'bg-brand-soft text-brand-on-soft hover:opacity-90',
       )}

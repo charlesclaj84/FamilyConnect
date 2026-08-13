@@ -9,6 +9,7 @@ import { getMembers } from '@/app/actions/members'
 import { formatDate } from '@/lib/date-utils'
 import { BallotForm } from '@/components/elections/BallotForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ELECTION_WINDOW } from '@/components/elections/status'
 
 export const metadata = { title: 'Election' }
 
@@ -58,8 +59,8 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
         {(election.nominations_open_at || election.voting_open_at) && (
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
             {election.nominations_open_at && (
-              <div className="flex-1 rounded-lg border bg-brand-legacy/10 px-3 py-2.5">
-                <p className="text-xs font-semibold text-brand-accent uppercase tracking-wide mb-0.5">Nominations</p>
+              <div className={`flex-1 rounded-lg border px-3 py-2.5 ${ELECTION_WINDOW.nominations.well}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-0.5 ${ELECTION_WINDOW.nominations.label}`}>Nominations</p>
                 <p className="text-sm">
                   {formatDate(election.nominations_open_at)}
                   {election.nominations_close_at && ` – ${formatDate(election.nominations_close_at)}`}
@@ -67,8 +68,8 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
               </div>
             )}
             {election.voting_open_at && (
-              <div className="flex-1 rounded-lg border bg-brand-affirm/10 px-3 py-2.5">
-                <p className="text-xs font-semibold text-brand-affirm uppercase tracking-wide mb-0.5">Voting</p>
+              <div className={`flex-1 rounded-lg border px-3 py-2.5 ${ELECTION_WINDOW.voting.well}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-0.5 ${ELECTION_WINDOW.voting.label}`}>Voting</p>
                 <p className="text-sm">
                   {formatDate(election.voting_open_at)}
                   {election.voting_close_at && ` – ${formatDate(election.voting_close_at)}`}

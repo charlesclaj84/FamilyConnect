@@ -572,12 +572,17 @@ export function DuesDetailSection({
                         </RowMeta>
                       </td>
                       <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date)}</td>
-                      {/* Waived now reads exactly as pending does — muted. Neither is money
-                          that moved, the arm is kept apart from the fallback only because
-                          the status it names is, and the pill beside the figure is what
-                          tells them apart (muted there too, as in TransactionsClient). */}
+                      {/* TWO ARMS, NOT THREE. Waived used to be blue here and pending
+                          muted; both are now muted, because neither is money that moved
+                          and the figure's colour should say only that. The third arm
+                          survived the sweep with both branches identical, which is a
+                          thing a reader has to stop and diff — so it is gone, and what it
+                          was trying to preserve is written down instead: waived and
+                          pending are DIFFERENT statuses that deliberately share a colour,
+                          and the pill beside the figure is what separates them (muted
+                          there too, matching TransactionsClient). */}
                       <td className={`py-2.5 pr-3 text-right font-semibold whitespace-nowrap ${
-                        p.status === 'paid' ? 'text-brand-affirm' : p.status === 'waived' ? 'text-muted-foreground' : 'text-muted-foreground'
+                        p.status === 'paid' ? 'text-brand-affirm' : 'text-muted-foreground'
                       }`}>
                         {/* The figure, on a waived row too. It used to read "Waived"
                             here, which was honest while waiving changed nothing —
