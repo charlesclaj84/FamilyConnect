@@ -59,9 +59,11 @@ const PRICING_IS_ANNOUNCED = false
  * / `PREMIUM_PRICE` and flip `PRICING_IS_ANNOUNCED` when the numbers are real — see the
  * note above it for why there is no placeholder figure.
  *
- * `adds` is deliberately short on the two paid tiers, because those lists are yours to
- * write. What is there now is only what has actually been discussed: the family website
- * that `LivingSitePreview` describes. Add to them freely — the card grows.
+ * `adds` carries only what has actually been decided. Add to them freely — the card grows.
+ * Premium is the one to watch: it began as the family website `LivingSitePreview`
+ * describes and has since taken on the reach features too — the apps, notifications,
+ * email distributions and automatic dues reminders — so its tagline names both halves
+ * rather than the website alone.
  */
 interface PlanFeature {
   /** The benefit, in the fewest words that land it. This is what gets scanned. */
@@ -88,7 +90,7 @@ interface Plan {
    * Free and Plus both used to draw `Sparkles`, which made two different offers look like
    * the same offer at a glance — and on a pricing page the glance is most of the decision.
    * A tick for what you already have, a lift for the tier that adds the machinery, a crown
-   * for the one that puts your family on the public internet.
+   * for the one that reaches every relative and puts the family on the public internet.
    */
   icon: LucideIcon
 }
@@ -103,9 +105,24 @@ const PREMIUM_PRICE: Plan['price'] = null
  * "RSVP module". A feature list that reads like a changelog makes the buyer do the
  * translation into their own problem, and most of them will not bother.
  *
- * The order inside each tier is deliberate too: the thing that hurts most goes first.
- * On Free that is getting everybody in at all; on Plus it is the head count and getting
- * paid; on Premium there is only one thing.
+ * The order inside each tier is a RANKING, not a grouping: the thing that hurts most goes
+ * first and the weakest line goes last, so a reader who stops after two bullets has still
+ * met the tier's best argument. Adding a feature means deciding where it ranks — appending
+ * it is what turns a ranked list back into a changelog.
+ *
+ * Where the tie-breaker is needed it is GAIN OVER THE STATUS QUO, not usage. What each card
+ * leads with, and why its tail is where it is:
+ *
+ *  * FREE opens on getting everybody in at all, because a per-member price is the objection
+ *    that keeps half a family out, and closes on chat — the one thing here a family already
+ *    has, in the group text they are probably reading this on. Heavily used, least gained.
+ *  * PLUS opens on taking a payment that is not cash, which is the limit Free names out
+ *    loud, then the head count. It ends on the photographs and the profile pictures: loved,
+ *    opened daily, and not the machinery this tier is sold as.
+ *  * PREMIUM opens on chasing relatives for money they already agreed to pay. Notifications
+ *    outrank the apps deliberately — nobody has ever complained about the absence of an app,
+ *    whereas "half the family says they never saw it" is a sentence every organizer has
+ *    said — and the website, the tier's signature, does not lead at all.
  *
  * WHAT IS NOT CLAIMED. Free's ledger is cash only, and that is stated rather than
  * softened — a family that signs up expecting to take card payments and finds they
@@ -129,20 +146,24 @@ const PLANS: readonly Plan[] = [
         detail: 'The family tree, direct lineage back through the generations, and a directory you can search.',
       },
       {
-        label: 'News that reaches the whole family',
-        detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
-      },
-      {
-        label: 'Keep talking between gatherings',
-        detail: 'Family-wide chat and private messages.',
-      },
-      {
         label: 'Put the reunion on the calendar',
         detail: 'The date, the place and the details in one shared page.',
       },
       {
+        label: 'News that reaches the whole family',
+        detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
+      },
+      {
         label: 'A real ledger for the money you collect',
         detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
+      },
+      {
+        label: 'Separation of duties',
+        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
+      },
+      {
+        label: 'Keep talking between gatherings',
+        detail: 'Family-wide chat and private messages.',
       },
     ],
     available: true,
@@ -173,24 +194,24 @@ const PLANS: readonly Plan[] = [
         detail: 'The statement the board asks for, straight from the ledger.',
       },
       {
+        label: 'The numbers leadership keeps asking for',
+        detail: 'Dues collected against outstanding, turnout, and t-shirt counts.',
+      },
+      {
         label: 'Elect your officers properly',
         detail: 'Nominate, accept or decline, then vote family-wide.',
-      },
-      {
-        label: 'Separation of duties',
-        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
-      },
-      {
-        label: 'Every photograph, findable',
-        detail: 'Collections per event, with tagging.',
       },
       {
         label: 'The paperwork, and the structure to match',
         detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
       },
       {
-        label: 'The numbers leadership keeps asking for',
-        detail: 'Dues collected against outstanding, turnout, and t-shirt counts.',
+        label: 'Every photograph, findable',
+        detail: 'Collections per event, with tagging.',
+      },
+      {
+        label: 'A face against every name',
+        detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
       },
     ],
     available: false,
@@ -198,11 +219,27 @@ const PLANS: readonly Plan[] = [
   },
   {
     name: 'Premium',
-    tagline: 'Let the rest of the world see your family.',
+    tagline: 'In every relative’s pocket, and out in the world.',
     price: PREMIUM_PRICE,
     inheritsFrom: 'Plus',
     icon: Crown,
     adds: [
+      {
+        label: 'Stop chasing relatives for their dues',
+        detail: 'Reminders go out as each installment falls due, and stop the moment it is paid.',
+      },
+      {
+        label: 'News that arrives, instead of waiting to be found',
+        detail: 'Notifications on the phone and in the browser for events, announcements and messages.',
+      },
+      {
+        label: 'The family in everybody’s pocket',
+        detail: 'Apps for iPhone and Android, signed in to the same family account.',
+      },
+      {
+        label: 'Email the whole family without building a list',
+        detail: 'Distributions that draw straight from your membership, so nobody is missed and nobody is on it twice.',
+      },
       {
         label: 'Your family’s own website, keeping itself current',
         detail: 'It builds itself from your next gathering, your newest photographs and your latest announcement. Every other family site is abandoned by March because somebody has to update it. This one nobody has to.',
@@ -231,7 +268,7 @@ const FAQ = [
   {
     question: 'What is the difference between Free and Plus?',
     answer:
-      'Free gets your whole family in one place. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, collecting RSVPs and head counts with t-shirt and meal totals, day-of check-in, officer elections, per-feature permissions, photo collections with tagging, documents, regions and chapters, a profit and loss statement and leadership reports.',
+      'Free gets your whole family in one place, with per-feature permissions so nobody has more authority than their job needs. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, collecting RSVPs and head counts with t-shirt and meal totals, day-of check-in, officer elections, photo collections with tagging, profile pictures, documents, regions and chapters, a profit and loss statement and leadership reports.',
   },
   {
     question: 'Can we only take cash payments on the free plan?',

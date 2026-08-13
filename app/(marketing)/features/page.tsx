@@ -66,7 +66,9 @@ export const metadata: Metadata = {
  * THE TIER TAG IS NOT DECORATION. This grid used to sit under a heading reading
  * "Included, not upsold — every one of these ships in the same account", which was true
  * when it was written and stopped being true the moment the tiers were set: photo
- * collections, elections, documents, chapters, permissions and reports are Plus.
+ * collections, elections, documents, chapters and reports are Plus. Per-feature
+ * permissions were on that list and are now Free — the privacy section below says so
+ * without a tier tag, and that omission is the current answer rather than an oversight.
  *
  * A features page that implies a paid capability is free is the most expensive kind of
  * marketing error — the customer discovers it at the exact moment they were ready to
@@ -308,7 +310,7 @@ export default function FeaturesPage() {
                   </p>
                   <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     {[
-                      'Per-feature permissions, not one blunt admin switch (Plus)',
+                      'Per-feature permissions, not one blunt admin switch',
                       'New members reviewed before they see anything',
                       'Email-verified accounts',
                       'Never shared, never sold, no advertising',
