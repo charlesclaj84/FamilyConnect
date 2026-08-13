@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -31,7 +32,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
-import { APP_NAME } from '@/lib/brand'
+import { APP_NAME, BRAND_MARK_SRC } from '@/lib/brand'
 import { RailFootDecor, RailMotto } from '@/components/layout/ShellDecor'
 
 // Should a section close on its own when the user clicks away from it — either by
@@ -390,12 +391,103 @@ function NavTree({ groups, pathname, onNavClick }: {
   )
 }
 
+/**
+ * The brand block at the top of the rail — the multicolour mark over the wordmark.
+ *
+ * IT MOVED HERE FROM THE HEADER, and that is the Golden Master's whole top-left
+ * composition: the kit places the mark at x=83..168, y=50..135 and the wordmark centred
+ * beneath it at y=158, inside the burgundy. There is no header band in the master to put
+ * it in.
+ *
+ * `BRAND_MARK_SRC`, not `BRAND_MARK_GOLD_SRC`. The gold mark exists for the Heritage
+ * header bar that this change deletes; the master draws the full-colour mark here, and it
+ * survives burgundy for the reason `lib/brand.ts` gives — it is stroked with the heart cut
+ * out, so the ground shows through, and its gold, terracotta and olive strokes carry
+ * against Heritage on their own.
+ *
+ * The wordmark is SET, not placed: `.gn-wordmark` reproduces the brand board's
+ * letterspaced Cormorant caps in CSS, so it stays crisp at any size, recolours per theme
+ * and is selectable. The kit draws it at 18px with 8 units of tracking; `text-lg` and the
+ * class's own `0.18em` are that.
+ *
+ * A link to /dashboard, because a logo in the top-left corner of an app is one, and
+ * removing the header removed the only other thing that was.
+ */
+function RailBrand() {
+  return (
+    <Link
+      href="/dashboard"
+      className="flex flex-col items-center gap-2 rounded-2xl px-3 pb-2 pt-4 transition-opacity hover:opacity-90"
+    >
+      <Image src={BRAND_MARK_SRC} alt="" aria-hidden="true" width={96} height={96} className="h-16 w-16" />
+      <span className="gn-wordmark text-lg text-brand-on-hero">{APP_NAME}</span>
+    </Link>
+  )
+}
+
+/**
+ * The desktop rail: brand, nav, motto, on Heritage.
+ *
+ * THE STICKY BLOCK NOW STARTS AT `top-0`. It used to be `top-[calc(4rem + 2px)]`, pinned
+ * under a header that no longer exists — the rail runs to the top of the shell now and
+ * carries the logo itself. Its cap moved with it, from `calc(100vh - 4rem - 2px)` to the
+ * full viewport, for the same reason. That cap is what makes `overflow-y-auto` mean
+ * anything: without a max-height the nav grows to its content and scrolls away with the
+ * page instead of scrolling within itself.
+ *
+ * `relative` is SAFE for the two things that would otherwise break here: it does not
+ * create a containing block for `fixed` (only transform/filter/will-change do — see
+ * components/layout/header-panel.ts, which depends on that), and it does not disturb the
+ * `sticky` block inside it.
+ *
+ * NO `overflow-hidden` ON THE ASIDE, ever. It would compute the sticky block's
+ * `overflow-y` to `auto` and kill its stickiness.
+ *
+ * THE LOWER DECORATION IS NOT RENDERED HERE, and that is the substance of the kit's
+ * PATCH 01. The olive hill runs from x=132 to x=664 in kit coordinates while the rail ends
+ * at 258, so more than half of it belongs to the workspace — it is drawn from `<main>` in
+ * app/(protected)/layout.tsx, where it can cross the boundary. Putting it back in this
+ * element clips it, which is the bug the patch was issued to correct.
+ *
+ * The `border-r` is gone: burgundy against the page is a 6.6:1 edge on its own, and a sand
+ * hairline over it read as a seam.
+ */
 export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
+  const pathname = usePathname()
+  const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
+
+  return (
+    <aside className="relative hidden md:flex w-56 shrink-0 flex-col bg-brand-hero">
+      <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain p-3">
+        <RailBrand />
+        <nav className="mt-4 flex flex-col">
+          <NavTree groups={navGroups} pathname={pathname} />
+        </nav>
+        <RailMotto />
+      </div>
+    </aside>
+  )
+}
+
+/**
+ * The same nav as a drawer, plus the trigger that opens it — rendered by `TopBar` into
+ * the left of the bar below `md`.
+ *
+ * WHY IT IS ITS OWN EXPORT. The trigger used to be a second sticky strip of its own,
+ * pinned under the header at `z-20`, which meant a phone showed two horizontal bands
+ * before any content. With the header gone there is one bar, and the trigger belongs in
+ * it — so the component that owns `mobileOpen` has to be the one the bar renders. Lifting
+ * the state into a context to keep the old split would have been more machinery for a
+ * worse result.
+ *
+ * `Sidebar` above is now desktop-only and holds no state at all.
+ */
+export function MobileNav({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
 
-  // Close the mobile drawer on navigation, during render rather than in an effect — same
+  // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)
   // on click, so this is the backstop for a navigation the drawer did not initiate: a
   // redirect, a browser Back, or the idle timeout sending the member to /login.
@@ -407,97 +499,44 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
 
   return (
     <>
-      {/* ── Desktop: sticky left panel ─────────────────────────────── */}
-      {/* The nav pins below the navbar (h-16 + its 1px border) and is capped to
-          the space left underneath it. The cap is what makes overflow-y-auto
-          mean anything: without a max-height the nav simply grows to its content
-          and scrolls away with the page instead of scrolling within itself. */}
-      {/* The offsets below are 4rem + 2px, not + 1px: the header is h-16 plus the 2px
-          Legacy gold rule that replaced its 1px border. Miss this and the nav sits two
-          pixels under the rule, which shows as a sliver of page scrolling through the
-          gap. If the header's edge changes thickness, these three numbers change with it. */}
-      {/* THE RAIL IS HERITAGE, and it is the second half of an L-shaped brand frame — the
-          header above it is already `bg-brand-hero`, so signing in now lands you inside
-          the band rather than beside it. This is the Golden Master's burgundy rail; the
-          kit draws it as the left third of one rounded shell, and the app's equivalent is
-          this rail plus the cutout on <main> in app/(protected)/layout.tsx.
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
+        aria-label="Open navigation menu"
+        aria-expanded={mobileOpen ? 'true' : 'false'}
+      >
+        <Menu className="h-4 w-4" />
+        Menu
+      </button>
 
-          `relative` is SAFE for the two things that would otherwise break here:
-          `position: relative` does not create a containing block for `fixed` (only
-          transform/filter/will-change do — see components/layout/header-panel.ts, which
-          depends on that), and it does not disturb the `sticky` nav below.
-
-          NO `overflow-hidden` ON THIS ELEMENT, ever. It would compute the nav's
-          `overflow-y` to `auto` and kill its stickiness.
-
-          THE LOWER DECORATION IS NOT RENDERED HERE, and that is the substance of the
-          kit's PATCH 01. The olive hill runs from x=132 to x=664 in kit coordinates while
-          the rail ends at 258, so more than half of it belongs to the workspace — it is
-          drawn from `<main>` in app/(protected)/layout.tsx, where it can cross the
-          boundary. Putting it back in this element clips it, which is the bug the patch
-          was issued to correct.
-
-          The `border-r` is gone: burgundy against the page is a 6.6:1 edge on its own,
-          and a sand hairline over it read as a seam. */}
-      <aside className="relative hidden md:flex w-56 shrink-0 flex-col bg-brand-hero">
-        <nav className="sticky top-[calc(4rem_+_2px)] z-10 max-h-[calc(100vh_-_4rem_-_2px)] flex flex-col p-3 pt-6 overflow-y-auto overscroll-contain">
-          <NavTree groups={navGroups} pathname={pathname} />
-          <RailMotto />
-        </nav>
-      </aside>
-
-      {/* ── Mobile: hamburger button ────────────────────────────────── */}
-      {/* Pinned directly under the navbar for the same reason as the desktop
-          panel — the nav should stay reachable however far the page has scrolled. */}
-      {/* z-20, which is BELOW the navbar's z-30 — see the stacking table in Navbar.
-          This bar and the header used to share z-10, and because it is rendered after
-          the header it won, swallowing the top of the family switcher and the
-          notification panel where they hang past the header's edge. */}
-      {/* Same rail surface as the desktop panel, so the mobile nav strip separates from
-          the page for the same reason and by the same amount. */}
-      <div className="md:hidden sticky top-[calc(4rem_+_2px)] z-20 bg-brand-hero shrink-0 flex items-center px-3 py-2">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="h-4 w-4" />
-          Menu
-        </button>
-      </div>
-
-      {/* ── Mobile: slide-out drawer ────────────────────────────────── */}
       {mobileOpen && (
         <>
-          {/* Above the header (z-30), not below it: this is a modal drawer, and a
-              backdrop that leaves the navbar live lets someone sign out through the
-              scrim they just tapped to dismiss. */}
+          {/* Above the bar (z-30), not below it: this is a modal drawer, and a backdrop
+              that leaves the bar live lets someone sign out through the scrim they just
+              tapped to dismiss. */}
           <div
             className="md:hidden fixed inset-0 bg-black/50 z-40"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
           {/* No `relative` needed and none wanted — `fixed` is already a positioned
-              element, so RailCurves resolves against this box. Adding `relative` beside
+              element, so RailFootDecor resolves against this box. Adding `relative` beside
               it would be two `position` declarations fighting over one element.
-              `overflow-hidden` is forbidden here for the same reason as the desktop
-              rail: the nav below scrolls. */}
+              `overflow-hidden` is forbidden here for the same reason as the desktop rail:
+              the nav below scrolls. */}
           <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-brand-hero z-50 flex flex-col">
-            {/* The drawer's own header takes the Heritage band and the gold rule, so
-                opening the menu on a phone lands on the same surface the app header
-                shows — rather than a plain white strip that belongs to no product. */}
-            <div className="shrink-0 bg-brand-hero">
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="gn-wordmark text-lg text-brand-on-hero">{APP_NAME}</span>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
-                  aria-label="Close navigation menu"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div aria-hidden="true" className="h-0.5 w-full bg-brand-legacy" />
+            {/* The drawer leads with the same brand block the desktop rail does, so
+                opening the menu on a phone lands somewhere that is recognisably the same
+                rail rather than a plain strip that belongs to no product. */}
+            <div className="shrink-0 flex items-start justify-between gap-2 pr-2">
+              <RailBrand />
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="mt-4 rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
+                aria-label="Close navigation menu"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <nav className="relative z-10 flex flex-col p-3 overflow-y-auto">
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />

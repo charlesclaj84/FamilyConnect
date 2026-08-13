@@ -18,7 +18,7 @@
  * `position: sticky` does not create a containing block for fixed descendants — only
  * transform, filter and will-change do, and the header has none of them. It does stay
  * inside the header's stacking context, which is what keeps it above the sidebar's
- * mobile menu bar; see the stacking table in Navbar.
+ * drawer; see the stacking table in TopBar.
  *
  * Height is capped in `dvh`, not `vh`. On a phone `vh` is the LARGE viewport — the one
  * you get with the address bar scrolled away — so a `vh` cap lets the bottom of a full

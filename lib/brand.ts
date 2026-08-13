@@ -147,15 +147,22 @@ export const BRAND_MARK_SRC = '/identity/genorra-mark.svg'
 /**
  * The mark in Legacy gold, for a Heritage ground.
  *
- * `BRAND_MARK_SRC` is the full-colour mark, and it is built to survive either ground —
- * stroked, with the heart cut out, so the page shows through. That is what makes it right
- * for the pale headers on the landing and auth pages, and what makes it *weak* on deep
- * burgundy, where its own burgundy strokes have nothing to separate them from the band.
+ * **NOTHING CONSUMES THIS TODAY**, and that is worth a note rather than a deletion. It
+ * existed for one caller — the signed-in header, a 4rem Heritage band with a 36px mark in
+ * it — and the Golden Master shell deleted that band: the brand moved into the rail, where
+ * `components/layout/Sidebar.tsx` renders the FULL-COLOUR mark at 64px instead.
  *
- * Gold on Heritage is not a new idea invented here: it is the brand's own dark app-icon
- * treatment, straight from the kit (`SVG_Masters/GENORRA_Mark_Gold.svg`). Because the
- * signed-in header is Heritage in BOTH themes — see the note in `components/layout/
- * Navbar.tsx` — one file serves both and there is no theme swap to keep in step.
+ * THE CHOICE BETWEEN THEM IS ABOUT SIZE, not about the ground, and the paragraph this
+ * replaces got that wrong. It said the full-colour mark is "weak on deep burgundy, where
+ * its own burgundy strokes have nothing to separate them from the band" — true at 36px,
+ * where the burgundy strokes are most of what you can resolve. At 64px the gold, terracotta
+ * and olive strokes are legible as themselves and the mark reads as the mark; that is what
+ * the Golden Master draws in the rail, and it is why the swap was safe.
+ *
+ * Keep the file. Gold on Heritage is the brand's own dark app-icon treatment, straight from
+ * the kit (`SVG_Masters/GENORRA_Mark_Gold.svg`), and the next small mark on a burgundy
+ * ground — a favicon-scale badge, a compact bar — should reach for it rather than shrink
+ * the full-colour one.
  */
 export const BRAND_MARK_GOLD_SRC = '/identity/genorra-mark-gold.svg'
 

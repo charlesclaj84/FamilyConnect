@@ -75,10 +75,12 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        // Sits on the Heritage band — see the note at the top of Navbar. `hover:bg-
-        // foreground/10` was a generic-ramp wash that read as grey smudge on burgundy;
-        // --brand-primary is the band's own lighter sibling, so the well reads as a lift.
-        className="relative rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
+        // ON CREAM NOW, not on the Heritage band. The bar this sits in stopped being a
+        // burgundy header when the Golden Master's shell landed — the brand moved into
+        // the rail — so `text-brand-on-hero` here would be sand on cream, i.e. gone.
+        // `--brand-ink` is the strong brand text role and the sand well is the same
+        // resting surface the account menu beside it hovers to.
+        className="relative rounded-lg p-1.5 text-brand-ink transition-colors hover:bg-brand-soft/60"
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />

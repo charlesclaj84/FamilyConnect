@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getMyAssignmentCount } from '@/app/actions/event-planning'
-import Navbar from '@/components/layout/Navbar'
+import TopBar from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
@@ -55,7 +55,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       // overdue tasks into the 'cancelled' state.
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
-      // cache()-wrapped, and Navbar below already calls it in this same request.
+      // cache()-wrapped, and TopBar calls it again in this same request.
       const [resources, assignmentCount, code] = await Promise.all([
         viewableResources(user.id),
         getMyAssignmentCount(),
@@ -70,15 +70,21 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   }
 
   // Every edit and delete in the signed-in app gates itself on useConfirm(), so
-  // the provider has to sit above the whole shell — the navbar and sidebar
+  // the provider has to sit above the whole shell — the top bar and the rail
   // mutate state too.
   return (
     <ConfirmProvider>
+      {/* ONE ROW, NO HEADER ABOVE IT. There used to be a full-width `bg-brand-hero`
+          Navbar here carrying the mark, the wordmark and four controls. The Golden
+          Master has no such band: the brand lives at the top of the RAIL and the
+          workspace simply begins, with its controls floating at the top right of the
+          cream. `TopBar` is those controls, rendered INSIDE <main> — which is what lets
+          the rail run to the very top of the shell with the logo in it.
+
+          Heritage on this row, so the rail's colour is what shows through the cutout on
+          <main> below. The rail paints its own ground too — this is the backdrop behind
+          the cut, not a substitute for it. */}
       <div className="min-h-screen flex flex-col">
-        <Navbar />
-        {/* Heritage, so the rail's colour is what shows through <main>'s rounded
-            corner below. The rail paints its own ground too — this is the backdrop
-            behind the cut, not a substitute for it. */}
         <div className="flex flex-1 flex-col bg-brand-hero md:flex-row">
           <Sidebar hasAssignments={hasAssignments} viewable={viewable} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
@@ -104,9 +110,10 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               changes when the FAMILY changes and at no other time, so a rename — or
               any other `router.refresh()` — does not remount anything.
 
-              Chrome rendered OUTSIDE this main is not covered and keys itself; today
-              that is NotificationBell in Navbar. Sidebar needs nothing: it takes
-              `viewable` as a prop and reads it directly rather than seeding state.
+              TopBar renders INSIDE this main but is not a child of the keyed element —
+              the key is on <main> itself and TopBar is rendered by this layout, so the
+              NotificationBell it holds keys itself on personId. Sidebar needs nothing: it
+              takes `viewable` as a prop and reads it directly rather than seeding state.
 
               ── THE SHELL DECORATION ──────────────────────────────────────────────
               Both pieces are rendered HERE, as children of <main>, and that placement is
@@ -136,7 +143,14 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           <main key={familyCode} className="relative isolate flex-1 min-w-0 bg-background">
             <ShellSwoop />
             <ShellHill />
-            <div className="relative z-10">{children}</div>
+            {/* TopBar sits inside the z-10 wrapper with the page, not outside it, so the
+                decoration behind them both stays behind them both. It is `sticky top-0`
+                within this column and the column is the full page height, which is why it
+                pins to the viewport without being `fixed`. */}
+            <div className="relative z-10">
+              <TopBar hasAssignments={hasAssignments} viewable={viewable} />
+              {children}
+            </div>
           </main>
         </div>
       </div>

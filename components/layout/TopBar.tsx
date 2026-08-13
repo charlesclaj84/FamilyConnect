@@ -1,0 +1,164 @@
+import { createClient } from '@/lib/supabase/server'
+import { NotificationBell } from '@/components/layout/NotificationBell'
+import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
+import { AccountMenu } from '@/components/layout/AccountMenu'
+import { MobileNav } from '@/components/layout/Sidebar'
+import { getNotifications } from '@/app/actions/notifications'
+import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
+import { getMyFamilies, getMyFamilyCode } from '@/lib/auth/family'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * The controls at the top of the workspace — and, as of the Golden Master, NOT a header
+ * band.
+ *
+ * WHAT CHANGED AND WHY IT IS STRUCTURAL. This was `Navbar`: a full-width `bg-brand-hero`
+ * bar across the top of the app carrying the mark and wordmark on the left and four
+ * controls on the right. The Golden Master has no such bar. The brand lives in the RAIL —
+ * mark and wordmark at its top, where a member's eye lands first — and the workspace
+ * simply begins, with its controls floating at the top right of the cream.
+ *
+ * That is not a smaller header, it is one fewer horizontal band. The old arrangement
+ * charged every page a 4rem burgundy strip to say the product's name a second time, on
+ * the one screen where the name is least in doubt.
+ *
+ * THREE THINGS ABOUT HOW IT IS BUILT.
+ *
+ *   * **It lives INSIDE `<main>`, not above the row.** That is what lets the rail run to
+ *     the top of the shell with the logo in it, and it is why the bar's container matches
+ *     `PageShell` (`max-w-6xl`, `px-4 sm:px-6`) — the controls align with the right edge
+ *     of the page's own content instead of the viewport's.
+ *   * **It is `h-16`, and that number is load-bearing in three other files.**
+ *     `ChatShell`'s `h-[calc(100vh-4rem)]` and `header-panel.ts`'s `top-[4.25rem]` both
+ *     measure against it. Keeping 4rem is why removing an entire band cost no arithmetic
+ *     anywhere else. If it ever changes, those two change with it — and the Sidebar's
+ *     sticky offsets no longer do, because the rail now starts at the top of the viewport
+ *     rather than underneath a header.
+ *   * **`bg-background`, never a translucent blur.** A `backdrop-filter` would create a
+ *     containing block for `position: fixed`, and both panels that hang off this bar
+ *     resolve `fixed` against the viewport through it (see header-panel.ts). Frosted
+ *     glass here would drop them behind the page on a phone.
+ *
+ * THERE IS NO SEARCH ICON, and the Golden Master draws one. Nothing in the app searches
+ * across families, events and documents; the only search that exists is the filter box on
+ * Member Directory, which is on that page. A magnifier in the permanent chrome that opens
+ * nothing is the same dead affordance the dashboard refuses everywhere else — when a real
+ * search ships, this is where it goes.
+ */
+export default async function TopBar({
+  hasAssignments,
+  viewable,
+}: {
+  hasAssignments: boolean
+  viewable: string[]
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let notifications: Awaited<ReturnType<typeof getNotifications>> = []
+  let personId = ''
+  let families: Awaited<ReturnType<typeof getMyFamilies>> = []
+  // The approvals queue depth, for the bell's standing "Members Pending Approval" row.
+  // getPendingApprovalCount() runs requireRead('admin/approvals') itself and returns 0
+  // without it, so a member who cannot work the queue never has the number computed and
+  // never receives it — the count is a fetch that is gated, not a row that is hidden
+  // (AGENTS.md §5). It is a COUNT, so nothing about any applicant crosses the boundary
+  // even for someone who can see it.
+  let pendingApprovals = 0
+  let name = ''
+  let initials = ''
+  let avatarUrl: string | null = null
+
+  if (user) {
+    const familyCode = await getMyFamilyCode(user.id)
+    const [notifResult, familyResult, pendingResult, personResult] = await Promise.all([
+      getNotifications(),
+      getMyFamilies(user.id),
+      getPendingApprovalCount(),
+      // The caller's own row in the ACTIVE family, for the portrait. Admin client because
+      // a pending member has no `auth_person_id()` and would read nothing through RLS —
+      // and they still have a face and a name. Scoped by family_code AND user_id, which
+      // is the whole of §3's obligation here: it can only ever return the caller's own row.
+      createAdminClient()
+        .from('people')
+        .select('first_name, last_name, avatar_url')
+        .eq('user_id', user.id)
+        .eq('family_code', familyCode)
+        .maybeSingle(),
+    ])
+    notifications = notifResult
+    families = familyResult
+    pendingApprovals = pendingResult
+
+    const person = personResult.data as { first_name: string | null; last_name: string | null; avatar_url: string | null } | null
+    const first = person?.first_name ?? user.user_metadata?.first_name ?? ''
+    const last = person?.last_name ?? user.user_metadata?.last_name ?? ''
+    avatarUrl = person?.avatar_url ?? null
+    name = [first, last].filter(Boolean).join(' ') || (user.email?.split('@')[0] ?? 'Member')
+    initials = [first[0], last[0]].filter(Boolean).join('').toUpperCase()
+      || (user.email?.[0] ?? '?').toUpperCase()
+
+    // The bell renders only for an APPROVED membership. `personId` is what gates it, and
+    // it is also what NotificationBell subscribes to for real-time inserts, so leaving it
+    // blank suppresses both the panel and the subscription in one place.
+    //
+    // FamilySwitcher is deliberately NOT suppressed: it is how a multi-family account gets
+    // back out of the family it is waiting on, and hiding it would strand them on the
+    // pending screen with no navigation at all.
+    const active = families.find(f => f.isActive)
+    personId = active?.status === 'approved' ? active.personId : ''
+  }
+
+  // ── THE STACKING ORDER, in one place ─────────────────────────────────────
+  // A positioned element with a z-index starts its OWN stacking context, and every
+  // z-index inside it is then scoped to that context — it competes with this bar as a
+  // whole, never with this bar's children individually.
+  //
+  //   30  THIS bar, the auth/landing headers, and everything inside them
+  //   40  Sidebar drawer backdrop          (covers the bar — it is modal)
+  //   50  Sidebar drawer, Dialog, RowMenu, lightbox
+  //  100  ConfirmDialog                    (may open on top of a Dialog)
+  //
+  // The old level 20 is gone with the Sidebar's separate mobile strip: the drawer trigger
+  // lives in this bar now, so there is no second sticky element under it to rank against.
+  return (
+    <header className="sticky top-0 z-30 bg-background">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:px-6">
+        {/* Left: the drawer trigger, below md only. */}
+        <MobileNav hasAssignments={hasAssignments} viewable={viewable} />
+
+        {/* `ml-auto`, NOT `justify-between` on the parent. The trigger beside this is
+            `md:hidden`, and a `display: none` flex child is removed from layout entirely —
+            so on a wide screen `justify-between` had one item to distribute and parked it
+            at the START. The controls sat top-LEFT of the workspace, which is the one
+            place the Golden Master does not put them. Pushing from this element instead
+            is correct whether or not the trigger is there. */}
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
+          {/* Renders NOTHING for a single-family account, which is most of them — and is
+              why this bar matches the Golden Master's three controls for most people
+              while still giving a multi-family member the one piece of state they cannot
+              afford to have hidden. */}
+          <FamilySwitcher families={families} />
+          {personId && (
+            // KEYED, for the reason the <main> in app/(protected)/layout.tsx is keyed: a
+            // family switch is a `router.refresh()`, which merges new server props without
+            // discarding client state, and this bell holds `initialNotifications` in plain
+            // `useState`. It sits inside main now but OUTSIDE the keyed subtree, because
+            // the key is on <main> itself and this is rendered by the layout, so it still
+            // needs its own.
+            //
+            // `personId` rather than the family code because it is already the per-family
+            // value here and it is what the bell's real-time subscription filters on.
+            <NotificationBell
+              key={personId}
+              initialNotifications={notifications}
+              personId={personId}
+              pendingApprovals={pendingApprovals}
+            />
+          )}
+          <AccountMenu name={name} email={user?.email ?? ''} initials={initials} avatarUrl={avatarUrl} />
+        </div>
+      </div>
+    </header>
+  )
+}
