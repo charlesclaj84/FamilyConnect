@@ -6,6 +6,7 @@ import { createClient, createPasswordCheckClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FormError } from '@/components/ui/form-message'
 
 /**
  * Sign-in & security: the two things a member can change about their ACCOUNT, as opposed
@@ -273,9 +274,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
                 placeholder="you@example.com"
               />
             </div>
-            {emailError && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{emailError}</p>
-            )}
+            <FormError message={emailError} />
             <div className="flex gap-2">
               <Button size="sm" type="submit" disabled={emailBusy}>
                 {emailBusy ? 'Sending…' : 'Send confirmation'}
@@ -369,9 +368,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
               />
             </div>
 
-            {pwError && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{pwError}</p>
-            )}
+            <FormError message={pwError} />
 
             <div className="flex gap-2">
               <Button size="sm" type="submit" disabled={pwBusy}>

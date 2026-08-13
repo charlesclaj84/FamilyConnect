@@ -6,6 +6,7 @@ import { UserCheck, UserX, Clock, Mail, Phone, ShieldCheck, Send } from 'lucide-
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { approveApplicant, rejectApplicant, type Applicant } from '@/app/actions/admin/approvals'
 import { revokeInvitation, resendInvitation, type FamilyInvitation, type ResendResult } from '@/app/actions/invitations'
@@ -417,9 +418,7 @@ export function AdminApprovalsClient({
         </section>
       )}
 
-      {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-      )}
+      <FormError message={error} />
 
       <Dialog
         open={Boolean(rejecting)}

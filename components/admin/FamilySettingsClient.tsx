@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { formatDate } from '@/lib/date-utils'
 import { renameFamily, type FamilySettings } from '@/app/actions/admin/family'
@@ -107,9 +108,7 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
             />
           </div>
 
-          {error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-          )}
+          <FormError message={error} />
 
           {settings.canEdit ? (
             <div className="flex items-center gap-3">
@@ -129,7 +128,7 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           ) : (
             <p className="text-sm text-muted-foreground">
               You can see this page but not change the name. Ask an administrator for the
-              Family Settings permission.
+              Settings permission.
             </p>
           )}
         </form>

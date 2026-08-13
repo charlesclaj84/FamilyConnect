@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
 
 type Mode = 'join' | 'create'
@@ -241,16 +242,12 @@ export function RegisterForm({
             <div className="space-y-1.5">
               <Label htmlFor="firstName">First name</Label>
               <Input id="firstName" placeholder="Jane" autoComplete="given-name" {...register('firstName')} />
-              {errors.firstName && (
-                <p className="text-sm text-destructive">{errors.firstName.message}</p>
-              )}
+              <FieldError message={errors.firstName?.message} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lastName">Last name</Label>
               <Input id="lastName" placeholder="Doe" autoComplete="family-name" {...register('lastName')} />
-              {errors.lastName && (
-                <p className="text-sm text-destructive">{errors.lastName.message}</p>
-              )}
+              <FieldError message={errors.lastName?.message} />
             </div>
           </div>
 
@@ -274,25 +271,19 @@ export function RegisterForm({
                 The address your invitation was sent to.
               </p>
             )}
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
-            )}
+            <FieldError message={errors.email?.message} />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" placeholder="Min. 8 characters" autoComplete="new-password" {...register('password')} />
-            {errors.password && (
-              <p className="text-sm text-destructive">{errors.password.message}</p>
-            )}
+            <FieldError message={errors.password?.message} />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="confirmPassword">Confirm password</Label>
             <Input id="confirmPassword" type="password" placeholder="••••••••" autoComplete="new-password" {...register('confirmPassword')} />
-            {errors.confirmPassword && (
-              <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-            )}
+            <FieldError message={errors.confirmPassword?.message} />
           </div>
 
           {!inviteToken && mode === 'join' && (
@@ -306,9 +297,7 @@ export function RegisterForm({
                 {...register('familyCode')}
               />
               <p className="text-xs text-muted-foreground">Enter the code shared with you by your family.</p>
-              {errors.familyCode && (
-                <p className="text-sm text-destructive">{errors.familyCode.message}</p>
-              )}
+              <FieldError message={errors.familyCode?.message} />
             </div>
           )}
 
@@ -322,17 +311,11 @@ export function RegisterForm({
                 {...register('familyName')}
               />
               <p className="text-xs text-muted-foreground">A unique family code will be generated for you to share.</p>
-              {errors.familyName && (
-                <p className="text-sm text-destructive">{errors.familyName.message}</p>
-              )}
+              <FieldError message={errors.familyName?.message} />
             </div>
           )}
 
-          {serverError && (
-            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {serverError}
-            </div>
-          )}
+          <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting

@@ -9,7 +9,9 @@ import {
 } from '@/components/account/summary-panes'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'My Summary' }
+// "Summary", not "My Summary" — see the note on the FEATURES entry in lib/features.ts.
+// The route and the resource key both stay `account-summary`.
+export const metadata = { title: 'Summary' }
 
 export default async function AccountSummaryPage({
   searchParams,
@@ -59,7 +61,7 @@ export default async function AccountSummaryPage({
   // it), so renaming the path would orphan those grants to rename a heading.
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">My Summary</h1>
+      <h1 className="text-3xl font-bold">Summary</h1>
       {/* Donations are handed in as a slot: DonationsSection is a server component and
           DuesDetailSection is a client one, so it is rendered here and passed down
           rather than imported across the boundary. `hasDonations` goes with it because

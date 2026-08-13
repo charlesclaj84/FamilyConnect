@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
+import { FormError } from '@/components/ui/form-message'
 import { createAnnouncement, type Chapter } from '@/app/actions/announcements'
 
 type Scope = 'national' | 'regional' | 'chapter'
@@ -135,7 +136,7 @@ export function NewAnnouncementForm({ isAdmin, chapters }: { isAdmin: boolean; c
         </label>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <FormError message={error} />
 
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={submit} disabled={isPending}>

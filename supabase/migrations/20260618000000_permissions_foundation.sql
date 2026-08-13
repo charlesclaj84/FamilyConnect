@@ -69,10 +69,17 @@ CREATE TABLE IF NOT EXISTS public.permission_resources (
 INSERT INTO public.permission_resources (key, label, category, sort_order) VALUES
   ('chat',                'Chat',                   'community',  50),
   ('announcements',       'Announcements',          'community',  60),
-  ('members',             'Member Directory',       'community',  70),
+  -- Labelled 'Directory' since 20260812000001 — the caption the page and the rail item
+  -- both carry now. Updated here as well as there because this insert is ON CONFLICT
+  -- DO UPDATE on label and would otherwise revert it on replay. The KEY is unchanged
+  -- and must stay so: permission_table_map, the composed RLS policies and every grant
+  -- already issued all name it.
+  ('members',             'Directory',              'community',  70),
   ('events',              'Events',                 'events',     80),
   ('event-planning',      'Event Planning',         'events',     90),
-  ('account-summary',     'My Summary',             'accounting', 100),
+  -- Labelled 'Summary' since 20260812000001, with its three panes' sub-heading moved
+  -- to match. Restated here because this insert is ON CONFLICT DO UPDATE on label.
+  ('account-summary',     'Summary',                'accounting', 100),
   ('dues',                'Dues',                   'accounting', 110),
   ('transactions',        'Transactions',           'accounting', 115),
   ('family-finances',     'Family Finances',        'accounting', 120),
@@ -90,12 +97,20 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- so naming it here would abort the chain on an empty database. The row is created
   -- with the default four actions and narrowed to view+edit by 20260812000000 §1,
   -- which also deletes the create/delete grants materialization handed out meanwhile.
-  ('admin/family',        'Family Settings',        'admin',      155),
+  --
+  -- Labelled 'Settings' and sorted to 260 — the BOTTOM of the admin block, after
+  -- admin/announcements — since 20260812000001, which explains both. Restated here for
+  -- the usual reason: this insert is ON CONFLICT DO UPDATE on label and sort_order.
+  -- Note that 20260812000000 re-asserts 'Family Settings'/155 in between, and
+  -- 20260812000001 then corrects it, so a full replay still lands here.
+  ('admin/family',        'Settings',               'admin',      260),
   -- Renamed by 20260807000000, which merged Groups & Permissions into this page:
   -- one template per member replaced group membership plus per-person overrides, so
-  -- the two screens became one. The label is updated here as well as there because
-  -- this insert is ON CONFLICT DO UPDATE and would otherwise revert it on replay.
-  ('admin/users',         'Members & Access',       'admin',      160),
+  -- the two screens became one — 'Members & Access'. Shortened to 'Members' by
+  -- 20260812000001, which also renames the sub-heading its three tabs group under.
+  -- The label is updated here as well as there because this insert is ON CONFLICT DO
+  -- UPDATE and would otherwise revert it on replay.
+  ('admin/users',         'Members',                'admin',      160),
   -- Added by 20260806000010 (Phase 3, join-by-code). Listed here as well as there
   -- because this insert is ON CONFLICT DO UPDATE and a replay would otherwise leave
   -- the key registered only by the later file — harmless in itself, but the seeding

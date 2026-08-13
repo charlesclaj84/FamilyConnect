@@ -67,27 +67,36 @@ interface NavGroup {
 // This order is independent of the permission grid on Members & Access, which sorts
 // by permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
-  // Members & Access leads, having absorbed Member Approvals as its Pending Approval
-  // tab. The queue is the reason for the position: it is the only admin surface with
-  // PEOPLE waiting behind it, who can see nothing until somebody acts, so it is the
-  // one an administrator should be prompted to look at rather than scroll to.
+  // Members leads, having absorbed Member Approvals as its Pending Approval tab. The
+  // queue is the reason for the position: it is the only admin surface with PEOPLE
+  // waiting behind it, who can see nothing until somebody acts, so it is the one an
+  // administrator should be prompted to look at rather than scroll to.
   //
-  // Family Settings therefore sits SECOND rather than first, which is the one place
-  // this list and the permission grid disagree — the grid sorts it above Members &
-  // Access (sort_order 155) because "which family is this" reads first in a catalogue
-  // of switches. Nothing waits behind it, so it does not earn the top of a nav.
+  // Captioned "Members" since 20260812000001, where it was "Members & Access". Note it
+  // is NOT the same thing as Community > Directory, which is now captioned with the one
+  // word too: that one is the roster every member may read, this one is who is in the
+  // family and what each of them may do. They sit under different section headings,
+  // which is what tells them apart — the same rule that lets "Dues" appear under both
+  // Accounting and Transactions in the permission grid.
   {
     href: '/admin/users',
-    label: 'Members & Access',
+    label: 'Members',
     icon: UsersRound,
     viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates'],
   },
-  { href: '/admin/family',         label: 'Family Settings',      icon: Settings },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
   { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
+  // SETTINGS IS LAST, and the permission grid agrees with it — 20260812000001 moved its
+  // sort_order from 155 (top of the Administration block) to 260 (bottom) in the same
+  // commit that shortened its label. The two lists used to disagree here on the argument
+  // that "which family is this" reads first in a CATALOGUE of switches; the simpler rule
+  // won. Settings is the thing you set up once and then leave alone, so it belongs where
+  // a reader stops looking rather than where they start, and one order is easier to hold
+  // in the head than two.
+  { href: '/admin/family',         label: 'Settings',             icon: Settings },
 ]
 
 // Build the nav groups for the current user. Every item is listed unconditionally
@@ -132,7 +141,7 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       items: [
         { href: '/chat',          label: 'Chat',             icon: MessageCircle },
         { href: '/announcements', label: 'Announcements',    icon: Megaphone },
-        { href: '/members',       label: 'Member Directory', icon: UsersRound },
+        { href: '/members',       label: 'Directory',        icon: UsersRound },
       ],
     },
   ]
@@ -142,7 +151,7 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
   groups.push({
     section: { label: 'Accounting', icon: Wallet },
     items: [
-      { href: '/account-summary', label: 'My Summary',        icon: Wallet },
+      { href: '/account-summary', label: 'Summary',           icon: Wallet },
       { href: '/transactions',    label: 'Transactions',      icon: ArrowRightLeft },
       { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
     ],

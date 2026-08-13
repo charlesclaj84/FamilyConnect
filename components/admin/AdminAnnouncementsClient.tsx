@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createAnnouncement, deleteAnnouncement, togglePinAnnouncement,
@@ -166,7 +167,7 @@ export function AdminAnnouncementsClient({ initialAnnouncements, chapters }: Pro
             </div>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleCreate} disabled={isPending}>
               {isPending ? 'Posting…' : 'Post Announcement'}

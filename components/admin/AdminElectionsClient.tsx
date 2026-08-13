@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { createElection, updateElectionStatus, deleteElection, type Election } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
@@ -221,7 +222,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
             Post an announcement about this election
           </label>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleCreate} disabled={isPending}>
               {isPending ? 'Creating…' : 'Create Election'}

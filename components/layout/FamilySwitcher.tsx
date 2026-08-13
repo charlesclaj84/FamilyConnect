@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Home, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
 import type { FamilyMembership } from '@/lib/auth/family'
-import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
+import {
+  HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
+} from '@/components/layout/header-panel'
 import { cn } from '@/lib/utils'
 
 /**
@@ -21,6 +23,11 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  // Same reason as the account menu: this panel outlives the page it was opened over,
+  // because TopBar is rendered by the layout and never unmounts. See the hook. Above
+  // the early return below, because hooks may not sit after one.
+  useCloseOnNavigate(open, () => setOpen(false))
 
   if (families.length < 2) return null
 
@@ -133,8 +140,14 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                 </li>
               ))}
             </ul>
+            {/* NOT `FormError`, and deliberately the one place in the app that is true.
+                This message is the panel's own footer — full-bleed, ruled off the list
+                above it, and `shrink-0` inside the panel's flex column. The shared
+                component is an inset alert with its own radius and border, which inside
+                a bordered dropdown reads as a box in a box and leaves the panel's bottom
+                corners showing through behind it. */}
             {error && (
-              <p className="shrink-0 border-t bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
+              <p role="alert" className="shrink-0 border-t bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
             )}
           </div>
         </>

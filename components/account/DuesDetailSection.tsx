@@ -9,12 +9,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
-import { installmentCents, isOutstanding, PAY_CADENCES, type PayCadence } from '@/lib/dues-utils'
+import {
+  installmentCents, isOutstanding, PAY_CADENCES, PAYMENT_STATUS_LABELS, type PayCadence,
+} from '@/lib/dues-utils'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import {
   setMyDuesPlan, setMyDuesOptOut,
@@ -31,6 +35,59 @@ type HistCol = 'schedule' | 'date' | 'amount'
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 
 const fmtDate = (s: string) => formatDate(s) ?? ''
+
+/**
+ * One of the member's own payments, as the detail dialog shows it.
+ *
+ * THE SAME DIALOG THE LEDGERS HAVE, minus the bookkeeping. Transactions has had a
+ * per-row detail view since the four ledgers were built; Payment History looked
+ * identical — a table of rows that reward a click — and did nothing when clicked, so a
+ * member who wanted the cheque number for a payment had no way to reach it. Every field
+ * below is already in the row's props; this is a rendering, not a fetch.
+ *
+ * WHAT IS DELIBERATELY ABSENT is "Recorded by", which `viewOfPayment` in
+ * TransactionsClient leads with. `getMyPaymentHistory` does not embed the recorder at
+ * all — "who keyed the payment in is treasurer bookkeeping the member has no use for",
+ * and not fetching it is what keeps it out of the RSC payload (AGENTS.md §5). It would
+ * render as "No longer in the family" for every row if it were listed here, which is the
+ * one thing worse than omitting it. `person_name` is null for the same reason and would
+ * be the member reading the page anyway, so the schedule is the title instead.
+ *
+ * Every value is pre-formatted to a string, exactly as the ledger dialog does it, so a
+ * date or an amount cannot be shown one way in the table and another in the detail.
+ */
+function viewOfMyPayment(p: DuesPayment): {
+  title: string
+  subtitle: string
+  fields: { label: string; value: string | null }[]
+} {
+  const isReversal = Boolean(p.reverses_id)
+  const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
+  return {
+    title: p.schedule_label ?? 'General Payment',
+    subtitle: isReversal ? `${kindWord} — correcting entry` : kindWord,
+    fields: [
+      { label: 'Amount', value: formatCurrency(p.amount_cents) },
+      { label: 'Status', value: PAYMENT_STATUS_LABELS[p.status] ?? p.status },
+      { label: 'Date', value: formatDate(p.payment_date) },
+      // Both null on a waived row by design — no money moved, so there was no method
+      // and no cheque to number. The dialog renders a null as an em dash.
+      { label: 'Payment method', value: p.payment_method },
+      { label: 'Check # / Reference', value: p.payment_reference },
+      { label: 'Notes', value: p.notes },
+      // When the family recorded it, which is not the same as when it was paid — a
+      // cheque handed over in March and keyed in in May has two different dates, and
+      // this is the one that explains why it only just appeared here.
+      { label: 'Recorded', value: formatDate(p.created_at) },
+      ...(p.reversed_by_id
+        ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }]
+        : []),
+      ...(isReversal
+        ? [{ label: 'Corrects', value: 'An earlier payment in this history' }]
+        : []),
+    ],
+  }
+}
 
 function SortTh({
   label, active, dir, onClick, align = 'left', className,
@@ -245,6 +302,14 @@ export function DuesDetailSection({
   }
 
   // ── Sorting / filtering (history) ──
+  // Which payment's detail dialog is open. Held as an ID rather than as the row itself,
+  // for the reason TransactionsClient holds one: the dialog then re-derives from live
+  // props, so a reversal posted while it is open updates the entry being read instead of
+  // showing a stale snapshot of it.
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const viewedPayment = viewingId ? history.find(p => p.id === viewingId) ?? null : null
+  const viewed = viewedPayment ? viewOfMyPayment(viewedPayment) : null
+
   const [histSearch, setHistSearch] = useState('')
   const [histSort, setHistSort] = useState<{ col: HistCol; dir: SortDir }>({ col: 'date', dir: 'desc' })
   function sortHist(col: HistCol) {
@@ -306,7 +371,7 @@ export function DuesDetailSection({
   if (visiblePanes.length === 0) {
     return (
       <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        None of the sections of My Summary have been shared with you. Ask an
+        None of the sections of Summary have been shared with you. Ask an
         administrator for access to the ones you need — your upcoming dues, the
         donation drives and your payment history are each granted separately.
       </div>
@@ -412,7 +477,7 @@ export function DuesDetailSection({
       {/* Two independent narrowings, both of which remove an item: the permission
           grant, and — for Donations alone — whether the family has any. */}
       <MainRail
-        label="My Summary sections"
+        label="Summary sections"
         items={RAIL_ITEMS.filter(i =>
           visiblePanes.includes(i.id) && (i.id !== 'donations' || hasDonations),
         )}
@@ -435,7 +500,7 @@ export function DuesDetailSection({
           separate list items from each other, which is a different job. */}
       {pane === 'dues' && (
         <div>
-          {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+          <FormError message={error} className="mb-3" />
           {sortedDues.length === 0 ? (
             <div className="flex flex-col items-center py-10 gap-2">
               <CheckCircle2 className="h-10 w-10 text-muted-foreground/20" />
@@ -545,10 +610,30 @@ export function DuesDetailSection({
                       }`}>{p.status}</span>
                     )
                     return (
-                    <tr key={p.id} className="border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle">
+                    /* TWO WAYS INTO THE DETAIL DIALOG, and both are deliberate — the
+                       same split TransactionsClient's LedgerRow makes. The <tr> carries
+                       the click, because a whole row is the target people aim at; the
+                       schedule name in the first cell is a real <button>, because that
+                       is the only part of this a keyboard reaches and a screen reader
+                       announces. A <tr> cannot take the click alone: it is not focusable,
+                       and role="button" on it would promise Enter and Space handling that
+                       nothing here implements. */
+                    <tr
+                      key={p.id}
+                      onClick={() => setViewingId(p.id)}
+                      className="cursor-pointer border-b align-top transition-colors last:border-0 hover:bg-muted/30 sm:align-middle"
+                    >
                       <td className="py-2.5 pr-3">
                         <p className="flex flex-wrap items-center gap-2 font-medium">
-                          {p.schedule_label ?? 'General Payment'}
+                          {/* stopPropagation, or this click opens the dialog twice on its
+                              way up through the row. */}
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setViewingId(p.id) }}
+                            className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+                          >
+                            {p.schedule_label ?? 'General Payment'}
+                          </button>
                           {/* Dues and donations land in the same ledger, so each row
                               says which it was. Both are tagged, not just donations:
                               identifying dues by the ABSENCE of a tag only works if
@@ -606,6 +691,36 @@ export function DuesDetailSection({
           )}
         </div>
       )}
+
+      {/* ── One payment, in full ──
+          Rendered outside the pane condition on purpose. `Dialog` returns null when
+          closed, and keeping it here means the panel is not unmounted mid-close by a
+          pane switch happening behind it. The same shape and the same `<dl>` the
+          Transactions ledgers use, so one transaction reads the same way whichever
+          screen it was opened from. */}
+      <Dialog
+        open={viewed !== null}
+        onClose={() => setViewingId(null)}
+        title={viewed?.title ?? ''}
+        description={viewed?.subtitle}
+        className="max-w-lg"
+      >
+        {viewed && (
+          <div className="mt-2">
+            <dl className="divide-y text-sm">
+              {viewed.fields.map(f => (
+                <div key={f.label} className="flex gap-4 py-2">
+                  <dt className="w-40 shrink-0 text-muted-foreground">{f.label}</dt>
+                  <dd className="min-w-0 flex-1 break-words">{f.value ?? '—'}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="pt-4">
+              <Button variant="outline" className="w-full" onClick={() => setViewingId(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   )
 }

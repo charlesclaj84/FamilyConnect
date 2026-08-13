@@ -26,6 +26,7 @@ import {
 import type { BlueprintItem } from '@/app/actions/admin/event-types'
 import type { MemberWithRoles } from '@/app/actions/admin/users'
 import { AddressSelects } from '@/components/ui/AddressSelects'
+import { FormError } from '@/components/ui/form-message'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
@@ -90,7 +91,7 @@ function EventFormFields({ form, setForm, isSubEvent = false }: {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div className="space-y-1.5 sm:col-span-2">
-        <Label>Name <span className="text-destructive">*</span></Label>
+        <Label required>Name</Label>
         <Input value={form.name ?? ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
       </div>
       <div className="space-y-1.5 sm:col-span-2">
@@ -249,7 +250,7 @@ function EditEventForm({ event, onSaved, onCancel }: { event: AdminEvent; onSave
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="pt-4 space-y-3">
         <EventFormFields form={form} setForm={setForm} />
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormError message={error} />
         <div className="flex gap-2">
           <Button disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Save Changes'}</Button>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
@@ -320,7 +321,7 @@ function AddSubEventForm({ parentId, eventTypes, onAdded, onCancel }: {
           </select>
         </div>
         <EventFormFields form={form} setForm={setForm} isSubEvent />
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormError message={error} />
         <div className="flex gap-2">
           <Button disabled={saving} onClick={handleSave}>{saving ? 'Adding…' : 'Add Sub-Event'}</Button>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
@@ -430,7 +431,7 @@ function HotelBookingsSection({ eventId, hotels, readOnly = false, open, onToggl
         {showForm && (
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5 sm:col-span-2"><Label>Hotel Name <span className="text-destructive">*</span></Label><Input value={form.hotel_name} onChange={e => setForm(f => ({ ...f, hotel_name: e.target.value }))} autoFocus /></div>
+              <div className="space-y-1.5 sm:col-span-2"><Label required>Hotel Name</Label><Input value={form.hotel_name} onChange={e => setForm(f => ({ ...f, hotel_name: e.target.value }))} autoFocus /></div>
               <div className="space-y-1.5"><Label>Phone Number</Label><Input type="tel" placeholder="(555) 000-0000" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
               <div className="space-y-1.5 sm:col-span-2"><Label>Website</Label><Input type="url" placeholder="https://..." value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} /></div>
               <div className="space-y-1.5"><Label>Booking Code</Label><Input placeholder="Group rate / reservation code" value={form.booking_code} onChange={e => setForm(f => ({ ...f, booking_code: e.target.value }))} /></div>
@@ -792,7 +793,7 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
           {!readOnly && <span className="text-xs text-muted-foreground">Expenses default to drawing down this fund.</span>}
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormError message={error} />
 
         {/* Line items */}
         <div className="space-y-2">

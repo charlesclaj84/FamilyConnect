@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
+import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import {
   createTemplate, renameTemplate, deleteTemplate, setTemplatePermission,
@@ -162,9 +163,7 @@ export function AdminAccessClient({
         </div>
       )}
 
-      {error && (
-        <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
-      )}
+      <FormError message={error} />
 
       <MainRail
         label="Members and access"

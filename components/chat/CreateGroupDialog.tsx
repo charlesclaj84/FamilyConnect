@@ -5,6 +5,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FormError } from '@/components/ui/form-message'
 import { createGroupRoom, type RoomWithMeta } from '@/app/actions/chat'
 
 interface Props {
@@ -92,7 +93,7 @@ export function CreateGroupDialog({ open, onClose, familyMembers, onRoomCreated 
           </div>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FormError message={error} />
 
         <div className="flex gap-2 pt-1">
           <Button className="flex-1" disabled={loading} onClick={handleCreate}>

@@ -16,12 +16,13 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
-import { type ScheduleKind } from '@/lib/dues-utils'
+import { PAYMENT_STATUS_LABELS, type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
@@ -31,6 +32,7 @@ import {
 import { LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
+import { FormError } from '@/components/ui/form-message'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 interface FundOption { id: string; name: string }
@@ -114,14 +116,10 @@ const SOURCE_LABELS: Record<string, string> = {
   member_contribution: 'From a member',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  paid: 'Paid',
-  waived: 'Waived',
-  // Not offered by any form here, and kept because the TABLE still allows it: the
-  // pending -> paid settlement 20260806000002 leaves open is how an online payment will
-  // land, and a row in that state must read as something rather than as a raw column.
-  pending: 'Pending',
-}
+// MOVED TO lib/dues-utils.ts as PAYMENT_STATUS_LABELS. My Summary's Payment History
+// dialog renders the same statuses, and a second copy of this map is a second answer on
+// the one pair of screens a family compares when a figure looks wrong.
+const STATUS_LABELS = PAYMENT_STATUS_LABELS
 
 /**
  * One transaction rendered as a title and a flat list of labelled fields.
@@ -795,7 +793,7 @@ export function TransactionsClient({
 
         {/* Errors from the pane itself — suppressed while a dialog is up, which renders
             the same message inline. */}
-        {!recording && error && <p className="text-sm text-destructive">{error}</p>}
+        {!recording && <FormError message={error} />}
       </div>
 
       {/* ── One transaction, in full ── */}
@@ -835,14 +833,14 @@ export function TransactionsClient({
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label>Member <span className="text-destructive">*</span></Label>
+            <Label required>Member</Label>
             <Select value={rpPersonId} onChange={e => setRpPersonId(e.target.value)} autoFocus>
               <option value="">— Select member —</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>{payingKind === 'donation' ? 'Donation' : 'Schedule'} <span className="text-destructive">*</span></Label>
+            <Label required>{payingKind === 'donation' ? 'Donation' : 'Schedule'}</Label>
             <Select value={rpScheduleId} onChange={e => setRpScheduleId(e.target.value)}>
               <option value="">— Select —</option>
               {payableSchedules.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
@@ -855,11 +853,11 @@ export function TransactionsClient({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Amount ($) <span className="text-destructive">*</span></Label>
+              <Label required>Amount ($)</Label>
               <Input type="number" min="0" step="0.01" value={rpAmount} onChange={e => setRpAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Date <span className="text-destructive">*</span></Label>
+              <Label required>Date</Label>
               <Input type="date" value={rpDate} onChange={e => setRpDate(e.target.value)} />
             </div>
           </div>
@@ -887,23 +885,31 @@ export function TransactionsClient({
           {rpStatus !== 'waived' && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Payment Method <span className="text-destructive">*</span></Label>
+                <Label required>Payment Method</Label>
                 <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
                   <option value="">— Select method —</option>
                   {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Check # / Reference <span className="text-destructive">*</span></Label>
+                <Label required>Check # / Reference</Label>
                 <Input value={rpReference} onChange={e => setRpReference(e.target.value)} placeholder="Check #1043" />
               </div>
             </div>
           )}
+          {/* A TEXTAREA, NOT AN INPUT, AND IT GROWS. All three Notes fields on this page
+              were single-line `<Input>`s: the text did not wrap, so anything past ~40
+              characters scrolled sideways inside the box and the beginning of the note
+              disappeared while it was being typed. Notes are the one free-text field in
+              these forms — the row's detail dialog renders them with `break-words`, so
+              they were always meant to be more than a phrase. `autoGrow` starts the box
+              at one row and adds rows as the text wraps, up to the cap in
+              components/ui/textarea.tsx, after which it scrolls. */}
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Input value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder="Optional notes" />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordPayment} disabled={isPending}>
               {isPending ? 'Recording…' : 'Record Payment'}
@@ -923,14 +929,14 @@ export function TransactionsClient({
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label>Fund <span className="text-destructive">*</span></Label>
+            <Label required>Fund</Label>
             <Select value={fcFundId} onChange={e => setFcFundId(e.target.value)} autoFocus>
               <option value="">— Select fund —</option>
               {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Who gave it <span className="text-destructive">*</span></Label>
+            <Label required>Who gave it</Label>
             <Select value={fcGiver} onChange={e => setFcGiver(e.target.value)}>
               <option value="">— Select —</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
@@ -939,7 +945,7 @@ export function TransactionsClient({
           </div>
           {fcGiver === NON_MEMBER && (
             <div className="space-y-1.5">
-              <Label>Name or source <span className="text-destructive">*</span></Label>
+              <Label required>Name or source</Label>
               <Input
                 value={fcGiverName}
                 onChange={e => setFcGiverName(e.target.value)}
@@ -949,32 +955,32 @@ export function TransactionsClient({
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Payment Method <span className="text-destructive">*</span></Label>
+              <Label required>Payment Method</Label>
               <Select value={fcMethod} onChange={e => setFcMethod(e.target.value)}>
                 <option value="">— Select method —</option>
                 {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Check # / Reference <span className="text-destructive">*</span></Label>
+              <Label required>Check # / Reference</Label>
               <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder="Check #1043" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Amount ($) <span className="text-destructive">*</span></Label>
+              <Label required>Amount ($)</Label>
               <Input type="number" min="0" step="0.01" value={fcAmount} onChange={e => setFcAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Date <span className="text-destructive">*</span></Label>
+              <Label required>Date</Label>
               <Input type="date" value={fcDate} onChange={e => setFcDate(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Input value={fcNotes} onChange={e => setFcNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={fcNotes} onChange={e => setFcNotes(e.target.value)} placeholder="Optional notes" />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordContribution} disabled={isPending}>
               {isPending ? 'Recording…' : 'Add Contribution'}
@@ -994,7 +1000,7 @@ export function TransactionsClient({
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label>Fund <span className="text-destructive">*</span></Label>
+            <Label required>Fund</Label>
             <Select value={rdFundId} onChange={e => { setRdFundId(e.target.value); setRdMilestoneId('') }} autoFocus>
               <option value="">— Select fund —</option>
               {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -1016,7 +1022,7 @@ export function TransactionsClient({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>Recipient <span className="text-destructive">*</span></Label>
+            <Label required>Recipient</Label>
             <Select value={rdPersonId} onChange={e => setRdPersonId(e.target.value)}>
               <option value="">— Select member —</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
@@ -1024,23 +1030,23 @@ export function TransactionsClient({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Amount ($) <span className="text-destructive">*</span></Label>
+              <Label required>Amount ($)</Label>
               <Input type="number" min="0" step="0.01" value={rdAmount} onChange={e => setRdAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Date <span className="text-destructive">*</span></Label>
+              <Label required>Date</Label>
               <Input type="date" value={rdDate} onChange={e => setRdDate(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Check # / Reference <span className="text-destructive">*</span></Label>
+            <Label required>Check # / Reference</Label>
             <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder="Check #1043" />
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Input value={rdNotes} onChange={e => setRdNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={rdNotes} onChange={e => setRdNotes(e.target.value)} placeholder="Optional notes" />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordDisbursement} disabled={isPending}>
               {isPending ? 'Recording…' : 'Record Disbursement'}

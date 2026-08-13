@@ -87,7 +87,13 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
 
   return (
     <>
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+      {/* THE HEIGHT IS THE PAGE'S, NOT THIS COMPONENT'S. This was
+          `h-[calc(100vh-4rem)]` — the viewport less the TopBar — which meant the shell
+          claimed the whole screen and nothing could be rendered above it without pushing
+          the composer off the bottom. `app/(protected)/chat/page.tsx` now owns that
+          measurement and puts the page's h1 above this; `min-h-0` is what lets a flex
+          child shrink below its content height so the panes scroll instead of the page. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left panel */}
         <aside className={cn('w-full md:w-64 shrink-0 border-r bg-background flex-col', showThread ? 'hidden md:flex' : 'flex')}>
           <RoomList

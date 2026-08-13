@@ -14,6 +14,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { saveProfileSection, saveChapterAndPropagate, uploadAvatar, type PersonalInfoRecord } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/admin/chapters'
 import { Avatar } from '@/components/ui/Avatar'
+import { FieldError, FormError } from '@/components/ui/form-message'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { GENDERS, GENDER_LABELS, genderLabel } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
@@ -152,7 +153,7 @@ function FormActions({
 }) {
   return (
     <div className="space-y-3 pt-1">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <FormError message={error} />
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={isSubmitting}>
           {isSubmitting ? 'Saving…' : 'Save'}
@@ -382,18 +383,18 @@ function GeneralSection({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="first_name">First Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="first_name" required>First Name</Label>
               <Input id="first_name" {...register('first_name')} />
-              {errors.first_name && <p className="text-xs text-destructive">{errors.first_name.message}</p>}
+              <FieldError message={errors.first_name?.message} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="middle_name">Middle Name</Label>
               <Input id="middle_name" {...register('middle_name')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="last_name">Last Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="last_name" required>Last Name</Label>
               <Input id="last_name" {...register('last_name')} />
-              {errors.last_name && <p className="text-xs text-destructive">{errors.last_name.message}</p>}
+              <FieldError message={errors.last_name?.message} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nick_name">Nickname</Label>

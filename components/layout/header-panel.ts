@@ -1,3 +1,8 @@
+'use client'
+
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+
 /**
  * The geometry every panel hanging off the app header shares.
  *
@@ -46,3 +51,43 @@ export const HEADER_PANEL_CLASS = [
 
 /** The click-away scrim behind either panel. Below the panel, above the header's bar. */
 export const HEADER_PANEL_SCRIM_CLASS = 'fixed inset-0 z-20'
+
+/**
+ * Close an open header panel when the page underneath it changes.
+ *
+ * THE BUG THIS FIXES. `TopBar` is rendered by `app/(protected)/layout.tsx`, so it does
+ * not unmount on navigation — and neither does the `open` flag in any of the three
+ * panels hanging off it. Open the account menu, go to another page, and the menu is
+ * still sitting there over a screen it no longer has anything to do with.
+ *
+ * The scrim is not the answer, and it is worth saying why, because it looks like it
+ * ought to be: `HEADER_PANEL_SCRIM_CLASS` covers the viewport and closes on click, but
+ * the sidebar is not underneath it. `<main>` carries `isolate`, which scopes the
+ * header's `z-30` — and everything inside it, this scrim included — to main's own
+ * stacking context, while the rail's sticky block is `z-10` in the ROOT one. A positive
+ * z-index in the root context paints after a z-auto subtree, so the rail sits ON TOP of
+ * the scrim and its links stay clickable with a panel open. That is the route into the
+ * bug: click the avatar, then click a page in the rail.
+ *
+ * Anything reached without a click — Back, Forward, a redirect, the idle timeout — has
+ * never gone through the scrim either, so this is the general answer rather than a patch
+ * over that one route.
+ *
+ * ADJUSTED DURING RENDER, not in an effect. This is React's documented pattern for
+ * "reset some state when a prop changes": compare against the value the state was
+ * computed for and set during render, which React resolves before it commits anything.
+ * An effect would paint one frame of the new page with the old page's menu still open,
+ * and it is the cascading render `react-hooks/set-state-in-effect` exists to stop. The
+ * sidebar's `NavTree` and `MobileNav` both do exactly this, for exactly this reason.
+ *
+ * `close` is called during the render of the component that owns the state, which is
+ * the one place React permits a render-phase update.
+ */
+export function useCloseOnNavigate(open: boolean, close: () => void) {
+  const pathname = usePathname()
+  const [seenPathname, setSeenPathname] = useState(pathname)
+  if (seenPathname !== pathname) {
+    setSeenPathname(pathname)
+    if (open) close()
+  }
+}

@@ -14,6 +14,7 @@ import { APP_NAME } from '@/lib/brand'
 import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { Card, CardContent } from '@/components/ui/card'
+import { FieldError, FormError } from '@/components/ui/form-message'
 import {
   addChild,
   updateChild,
@@ -96,18 +97,18 @@ function ChildFormFields({ register, errors, watch, setValue, serverError }: Chi
     <>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <Label>First Name <span className="text-destructive">*</span></Label>
+          <Label required>First Name</Label>
           <Input {...register('first_name')} />
-          {errors.first_name && <p className="text-xs text-destructive">{errors.first_name.message}</p>}
+          <FieldError message={errors.first_name?.message} />
         </div>
         <div className="space-y-1.5">
           <Label>Middle Name</Label>
           <Input {...register('middle_name')} />
         </div>
         <div className="space-y-1.5">
-          <Label>Last Name <span className="text-destructive">*</span></Label>
+          <Label required>Last Name</Label>
           <Input {...register('last_name')} />
-          {errors.last_name && <p className="text-xs text-destructive">{errors.last_name.message}</p>}
+          <FieldError message={errors.last_name?.message} />
         </div>
       </div>
 
@@ -125,12 +126,12 @@ function ChildFormFields({ register, errors, watch, setValue, serverError }: Chi
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Relationship <span className="text-destructive">*</span></Label>
+          <Label required>Relationship</Label>
           <Select {...register('relationship_type')}>
             <option value="">— Select —</option>
             {CHILD_RELATIONSHIP_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
           </Select>
-          {errors.relationship_type && <p className="text-xs text-destructive">{errors.relationship_type.message}</p>}
+          <FieldError message={errors.relationship_type?.message} />
         </div>
         <div className="flex items-end pb-1">
           <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
@@ -146,7 +147,7 @@ function ChildFormFields({ register, errors, watch, setValue, serverError }: Chi
         </div>
       </div>
 
-      {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+      <FormError message={serverError} />
     </>
   )
 }
@@ -285,13 +286,13 @@ function ConvertDialog({ child, onClose }: { child: ChildRecord; onClose: () => 
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="convert-email">
-              Email Address <span className="text-destructive">*</span>
+            <Label htmlFor="convert-email" required>
+              Email Address
             </Label>
             <Input id="convert-email" type="email" placeholder="adult@example.com" autoFocus {...register('email')} />
-            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+            <FieldError message={errors.email?.message} />
           </div>
-          {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+          <FormError message={serverError} />
           <div className="flex gap-2 pt-2">
             <Button type="submit" disabled={isSubmitting} className="flex-1">
               {isSubmitting ? 'Converting…' : 'Convert to Adult'}
@@ -453,7 +454,7 @@ function AcceptChildRow({ child, onRefresh }: { child: SpouseChildRecord; onRefr
               Step relationship
             </label>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          <FieldError message={error} />
           <div className="flex gap-2">
             <Button size="sm" disabled={loading} onClick={handleAccept}>
               {loading ? 'Saving…' : `Confirm — ${isStep ? 'Step-' : ''}${relType}`}

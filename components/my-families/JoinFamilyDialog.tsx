@@ -6,6 +6,7 @@ import { UserPlus, ArrowRight, Clock } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FormError } from '@/components/ui/form-message'
 import { validateFamilyCode, joinFamilyByCode } from '@/app/actions/my-families'
 
 /**
@@ -114,9 +115,7 @@ export function JoinFamilyDialog() {
               />
             </div>
 
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-            )}
+            <FormError message={error} />
 
             <div className="flex justify-end gap-2">
               <button
@@ -152,9 +151,7 @@ export function JoinFamilyDialog() {
               belong to.
             </p>
 
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-            )}
+            <FormError message={error} />
 
             <div className="flex justify-end gap-2">
               <button

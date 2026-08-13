@@ -6,6 +6,7 @@ import { MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError } from '@/components/ui/form-message'
 import { saveChapterAndPropagate } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/announcements'
 
@@ -103,9 +104,12 @@ export function ChapterReminderBanner({ chapters }: Props) {
           </Button>
         </div>
 
-        {/* `text-destructive` is the semantic token and already resolves per theme —
-            `text-red-600 dark:text-red-400` was a hand-rolled copy of it. */}
-        {error && <p className="text-xs font-medium text-destructive">{error}</p>}
+        {/* `FieldError` rather than `FormError`: this banner is one control and one
+            button, and a bordered alert inside a banner is a box in a box. The colour
+            comes from `--destructive` either way, which is the semantic token and
+            already resolves per theme — `text-red-600 dark:text-red-400` was a
+            hand-rolled copy of it, and is what used to be here. */}
+        <FieldError message={error} />
       </div>
 
       <button

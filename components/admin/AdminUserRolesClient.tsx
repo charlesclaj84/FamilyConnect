@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { createCustomRole, deleteCustomRole, setRoleEnabled, type CustomRole } from '@/app/actions/admin/chapters'
 
@@ -97,7 +98,7 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
           </div>
         </CardHeader>
         <CardContent>
-          {error && <p className="text-sm text-destructive mb-3">{error}</p>}
+          <FormError message={error} className="mb-3" />
 
           {!editingPositions ? (
             // ── View: only the positions the family uses ──
@@ -161,7 +162,7 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5 sm:col-span-1">
-                  <Label>Role Name <span className="text-destructive">*</span></Label>
+                  <Label required>Role Name</Label>
                   <Input
                     placeholder="e.g. Regional Coordinator"
                     value={roleForm.name}
@@ -192,7 +193,7 @@ export function AdminUserRolesClient({ initialRoles }: { initialRoles: CustomRol
                   </select>
                 </div>
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              <FormError message={error} />
               <div className="flex gap-2">
                 <Button disabled={saving} onClick={handleAdd}>{saving ? 'Creating…' : 'Create Role'}</Button>
                 <Button variant="outline" onClick={() => { setShowForm(false); setError('') }}>Cancel</Button>

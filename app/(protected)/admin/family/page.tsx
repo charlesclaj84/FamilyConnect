@@ -6,7 +6,9 @@ import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
 import { FamilySettingsClient } from '@/components/admin/FamilySettingsClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Family Settings' }
+// "Settings", not "Family Settings" — see the note on the FEATURES entry in
+// lib/features.ts. The route and the resource key both stay `admin/family`.
+export const metadata = { title: 'Settings' }
 
 /**
  * The family's own identity: its name, and the code relatives join with.
@@ -34,7 +36,7 @@ export default async function FamilySettingsPage() {
   return (
     <PageShell width="reading" className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Family Settings</h1>
+        <h1 className="mb-1 text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">
           What your family is called, and the code relatives use to join it.
         </p>

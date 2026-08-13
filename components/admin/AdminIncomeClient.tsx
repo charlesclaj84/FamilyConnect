@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person-multi-select'
+import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
@@ -189,7 +190,7 @@ function RequiredToggle({ checked, onChange }: {
       <p className="text-xs text-muted-foreground">
         {checked
           ? 'Every member owes this and cannot decline it.'
-          : 'Members can opt out of this from My Summary, and it will not count toward what they owe.'}
+          : 'Members can opt out of this from their Summary, and it will not count toward what they owe.'}
       </p>
     </div>
   )
@@ -227,7 +228,7 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
   return (
     <>
       <div className="space-y-1.5">
-        <Label>Name <span className="text-destructive">*</span></Label>
+        <Label required>Name</Label>
         <Input
           value={form.label}
           onChange={e => onChange({ label: e.target.value })}
@@ -241,7 +242,7 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
           particular amount and does not recur. */}
       {isDonation ? (
         <div className="space-y-1.5">
-          <Label>Goal Amount <span className="text-destructive">*</span></Label>
+          <Label required>Goal Amount</Label>
           <Input type="number" min="0" step="0.01" value={form.goal}
             onChange={e => onChange({ goal: e.target.value })} placeholder={copy.amountPlaceholder} />
           <p className="text-xs text-muted-foreground">
@@ -252,7 +253,7 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Due Amount <span className="text-destructive">*</span></Label>
+            <Label required>Due Amount</Label>
             <Input type="number" min="0" step="0.01" disabled={locked} value={form.amount}
               onChange={e => onChange({ amount: e.target.value })} placeholder={copy.amountPlaceholder} />
           </div>
@@ -598,7 +599,7 @@ export function AdminIncomeClient({
                 members={members}
                 autoFocus
               />
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              <FormError message={error} />
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleCreateSchedule} disabled={isPending}>
                   {isPending ? 'Adding…' : copy.title.replace('New', 'Add')}
@@ -653,7 +654,7 @@ export function AdminIncomeClient({
                   endDateMin={editing.kind === 'dues' ? todayLocal() : undefined}
                   autoFocus
                 />
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                <FormError message={error} />
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1" onClick={handleSaveEdit} disabled={isPending}>
                     {isPending ? 'Saving…' : 'Save changes'}
@@ -702,7 +703,7 @@ export function AdminIncomeClient({
                 <tr key={s.id} className="border-b align-top last:border-0 sm:align-middle">
                       <td className="px-3 py-2.5">
                         {/* Description on hover, matching how a member sees the same
-                            field in My Summary. Underlined only when there is
+                            field in Summary. Underlined only when there is
                             one, so the hint never promises an empty tooltip. */}
                         <span
                           className={cn('font-medium', s.description && 'cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}

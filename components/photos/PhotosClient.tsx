@@ -6,6 +6,7 @@ import { PhotoCollectionCard } from '@/components/photos/PhotoCollectionCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FormError } from '@/components/ui/form-message'
 import { getPhotoCollections, createCollection } from '@/app/actions/photos'
 import type { PhotoCollection } from '@/app/actions/photos'
 
@@ -57,7 +58,7 @@ export function PhotosClient() {
             <Label>Description (optional)</Label>
             <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Photos from the summer gathering" />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleCreate} disabled={isPending}>Create</Button>
             <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); setError('') }}>Cancel</Button>

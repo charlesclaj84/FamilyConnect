@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboard/tiles'
 
 /**
@@ -19,8 +21,10 @@ import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboar
  *
  * EVERY TILE IS A LINK AND EVERY LINK SETS ITS OWN TEXT COLOUR. `globals.css` carries an
  * unscoped `a { color: var(--brand-accent) }`, so an anchor that says nothing comes out
- * terracotta in light mode and gold in dark. `text-card-foreground` on the tile and an
- * explicit colour on the caption are what keep it reading as a card rather than a link.
+ * terracotta in light mode and gold in dark. `text-card-foreground` on the tile is what
+ * keeps it reading as a card rather than a link; the button at the foot of each tile
+ * gets its own `text-brand-ink` from `buttonVariants`, which is the same trap answered
+ * the same way.
  */
 export function AtAGlance({ tiles }: { tiles: ResolvedTile[] }) {
   if (tiles.length === 0) return null
@@ -52,7 +56,30 @@ export function AtAGlance({ tiles }: { tiles: ResolvedTile[] }) {
                   heading, and the panel's h2 above already names the region. */}
               <span className="text-2xl font-semibold leading-none tabular-nums">{value}</span>
               <span className="text-sm text-muted-foreground">{meta.label}</span>
-              <span className="text-xs font-medium text-brand-accent group-hover:underline">
+              {/* THE WAY THROUGH IS A BUTTON, NOT A LINE OF TEXT — the same outline
+                  button DuesBalanceKpi ends with ("View Account"), so the four cards a
+                  member sees on this screen offer their one action the same way. It read
+                  as a caption before: small accent text under two other lines of small
+                  text, underlining only on hover, which is a discovery cost paid on the
+                  one control the tile exists to offer.
+
+                  A <span>, NOT a nested <Link>. The whole tile is already an anchor and
+                  an <a> inside an <a> is invalid HTML that browsers silently unnest — so
+                  this is a button-SHAPED element inside the one real link, which is also
+                  why the hover state hangs off `group-hover` rather than its own
+                  `hover:`: the target is the tile, and the button has to light up when
+                  the pointer is anywhere on it.
+
+                  `mt-auto` pins it to the bottom edge. Grid items stretch to the tallest
+                  in the row, and a "Pending Approval" label wraps to two lines at narrow
+                  widths where "Dues Collected" does not — without this the three buttons
+                  sit at three different heights. */}
+              <span
+                className={cn(
+                  buttonVariants({ size: 'sm', variant: 'outline' }),
+                  'mt-auto w-full justify-center group-hover:bg-brand-soft/60',
+                )}
+              >
                 {meta.linkLabel}
               </span>
             </Link>

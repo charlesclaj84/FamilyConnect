@@ -5,7 +5,12 @@ import { getMembers } from '@/app/actions/members'
 import { MemberDirectoryClient } from '@/components/members/MemberDirectoryClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Member Directory' }
+// "Directory", not "Member Directory". It sits under a Community heading in the rail,
+// beside Chat and Announcements, where the only thing it could be a directory OF is the
+// family — so the qualifier was restating its own section. The ROUTE and the RESOURCE
+// KEY both stay `members`: that string is the permission key in permission_resources,
+// permission_table_map and every grant already issued.
+export const metadata = { title: 'Directory' }
 
 export default async function MembersPage() {
   const supabase = await createClient()
@@ -19,7 +24,7 @@ export default async function MembersPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Member Directory</h1>
+        <h1 className="text-3xl font-bold mb-1">Directory</h1>
         <p className="text-muted-foreground">All family members and their roles.</p>
       </div>
       <MemberDirectoryClient members={members} />

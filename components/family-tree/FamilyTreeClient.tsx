@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError, FormError } from '@/components/ui/form-message'
 import {
   upsertAncestor,
   type AncestorEntry,
@@ -190,9 +191,7 @@ function EditAncestorModal({
                 <option key={m.id} value={m.id}>{formatMember(m)}</option>
               ))}
             </select>
-            {selectForm.formState.errors.existing_person_id && (
-              <p className="text-xs text-destructive">{selectForm.formState.errors.existing_person_id.message}</p>
-            )}
+            <FieldError message={selectForm.formState.errors.existing_person_id?.message} />
           </div>
 
           {isParent && (
@@ -236,7 +235,7 @@ function EditAncestorModal({
             )}
           </label>
 
-          {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+          <FormError message={serverError} />
 
           <div className="flex gap-2 pt-1">
             <Button type="submit" disabled={selectForm.formState.isSubmitting} className="flex-1">
@@ -249,18 +248,14 @@ function EditAncestorModal({
         <form onSubmit={newForm.handleSubmit(onSubmitNew)} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="anc-first">First Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="anc-first" required>First Name</Label>
               <Input id="anc-first" autoFocus {...newForm.register('first_name')} />
-              {newForm.formState.errors.first_name && (
-                <p className="text-xs text-destructive">{newForm.formState.errors.first_name.message}</p>
-              )}
+              <FieldError message={newForm.formState.errors.first_name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="anc-last">Last Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="anc-last" required>Last Name</Label>
               <Input id="anc-last" {...newForm.register('last_name')} />
-              {newForm.formState.errors.last_name && (
-                <p className="text-xs text-destructive">{newForm.formState.errors.last_name.message}</p>
-              )}
+              <FieldError message={newForm.formState.errors.last_name?.message} />
             </div>
           </div>
 
@@ -288,7 +283,7 @@ function EditAncestorModal({
             )}
           </label>
 
-          {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+          <FormError message={serverError} />
 
           <div className="flex gap-2 pt-1">
             <Button type="submit" disabled={newForm.formState.isSubmitting} className="flex-1">
@@ -430,9 +425,7 @@ function EditPartnerModal({
                 <option key={m.id} value={m.id}>{formatMember(m)}</option>
               ))}
             </select>
-            {selectForm.formState.errors.existing_person_id && (
-              <p className="text-xs text-destructive">{selectForm.formState.errors.existing_person_id.message}</p>
-            )}
+            <FieldError message={selectForm.formState.errors.existing_person_id?.message} />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -472,7 +465,7 @@ function EditPartnerModal({
             Step relationship
           </label>
 
-          {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+          <FormError message={serverError} />
 
           <div className="flex gap-2 pt-1">
             <Button type="submit" disabled={selectForm.formState.isSubmitting} className="flex-1">
@@ -496,18 +489,14 @@ function EditPartnerModal({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="sp-first">First Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="sp-first" required>First Name</Label>
               <Input id="sp-first" autoFocus {...newForm.register('first_name')} />
-              {newForm.formState.errors.first_name && (
-                <p className="text-xs text-destructive">{newForm.formState.errors.first_name.message}</p>
-              )}
+              <FieldError message={newForm.formState.errors.first_name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sp-last">Last Name <span className="text-destructive">*</span></Label>
+              <Label htmlFor="sp-last" required>Last Name</Label>
               <Input id="sp-last" {...newForm.register('last_name')} />
-              {newForm.formState.errors.last_name && (
-                <p className="text-xs text-destructive">{newForm.formState.errors.last_name.message}</p>
-              )}
+              <FieldError message={newForm.formState.errors.last_name?.message} />
             </div>
           </div>
 
@@ -532,7 +521,7 @@ function EditPartnerModal({
             Step relationship
           </label>
 
-          {serverError && <p className="text-sm text-destructive">{serverError}</p>}
+          <FormError message={serverError} />
 
           <div className="flex gap-2 pt-1">
             <Button type="submit" disabled={newForm.formState.isSubmitting} className="flex-1">

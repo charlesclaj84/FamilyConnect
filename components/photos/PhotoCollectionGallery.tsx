@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatPersonName } from '@/lib/name-utils'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { uploadPhoto, deletePhoto, tagPersonInPhoto, untagPersonFromPhoto } from '@/app/actions/photos'
 import type { Photo } from '@/app/actions/photos'
@@ -131,7 +132,7 @@ export function PhotoCollectionGallery({
               Upload Photo
             </Button>
           </div>
-          {error && <p className="text-sm text-destructive w-full">{error}</p>}
+          <FormError message={error} className="w-full" />
         </div>
       )}
 

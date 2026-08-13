@@ -12,7 +12,9 @@ import {
 } from '@/components/admin/AdminAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Members & Access' }
+// "Members", not "Members & Access" — see the note on the FEATURES entry in
+// lib/features.ts. The route and the resource key both stay `admin/users`.
+export const metadata = { title: 'Members' }
 
 interface Props {
   searchParams: Promise<{ tab?: string; template?: string }>
@@ -114,7 +116,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Members &amp; Access</h1>
+        <h1 className="mb-1 text-3xl font-bold">Members</h1>
         <p className="text-muted-foreground">
           Every member is on one permission template, and that template is what they can do.
         </p>

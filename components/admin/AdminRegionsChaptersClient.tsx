@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createRegion, deleteRegion, createChapter, deleteChapter,
@@ -105,7 +106,7 @@ function RegionGroup({
               <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
-          {error && <p className="text-xs text-destructive px-3 pb-2">{error}</p>}
+          <FieldError message={error} className="px-3 pb-2" />
         </div>
       )}
     </div>
@@ -192,7 +193,7 @@ export function AdminRegionsChaptersClient({ initialRegions, initialChapters }: 
             onChange={e => { setNewRegion(e.target.value); setRegionError('') }}
             onKeyDown={e => { if (e.key === 'Enter') handleAddRegion() }}
           />
-          {regionError && <p className="text-xs text-destructive">{regionError}</p>}
+          <FieldError message={regionError} />
         </div>
         <Button disabled={!newRegion.trim() || addingRegion} onClick={handleAddRegion}>
           <Plus className="h-4 w-4" /> Add Region

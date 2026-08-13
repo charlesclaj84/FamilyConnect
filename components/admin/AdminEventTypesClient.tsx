@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createEventType, updateEventType, deleteEventType, moveEventType,
@@ -357,14 +358,14 @@ export function AdminEventTypesClient({ initialEventTypes }: { initialEventTypes
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="pt-4 space-y-3">
             <div className="space-y-1.5">
-              <Label>Name <span className="text-destructive">*</span></Label>
+              <Label required>Name</Label>
               <Input placeholder="e.g. Family Reunion" value={name} onChange={e => { setName(e.target.value); setError('') }} />
             </div>
             <div className="space-y-1.5">
               <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
               <Input placeholder="Brief description of this event type" value={description} onChange={e => setDescription(e.target.value)} />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            <FormError message={error} />
             <div className="flex gap-2">
               <Button disabled={saving} onClick={handleCreate}>{saving ? 'Creating…' : 'Create'}</Button>
               <Button variant="outline" onClick={() => { setShowForm(false); setName(''); setDescription(''); setError('') }}>Cancel</Button>

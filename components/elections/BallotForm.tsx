@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { castVote, submitNomination, respondToNomination, type Election, type ElectionPosition, type ElectionNomination } from '@/app/actions/elections'
 import type { MemberRecord } from '@/app/actions/members'
 import { formatDate } from '@/lib/date-utils'
@@ -160,7 +161,7 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
             </div>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
 
           {/* Current candidates per position (accepted + pending acceptance) */}
           <div className="space-y-4">
@@ -199,7 +200,7 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
           <h2 className="font-semibold flex items-center gap-2">
             <Vote className="h-5 w-5 text-primary" /> Cast Your Vote
           </h2>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           {positions.map(pos => {
             const posNoms = nominations.filter(n => n.position_id === pos.id && n.accepted === true)
             const myVote = votes[pos.id]

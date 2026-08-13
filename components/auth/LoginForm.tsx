@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
 
 const schema = z.object({
@@ -124,9 +125,7 @@ export function LoginForm({
               autoComplete="email"
               {...register('email')}
             />
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
-            )}
+            <FieldError message={errors.email?.message} />
           </div>
 
           <div className="space-y-1.5">
@@ -138,9 +137,7 @@ export function LoginForm({
               autoComplete="current-password"
               {...register('password')}
             />
-            {errors.password && (
-              <p className="text-sm text-destructive">{errors.password.message}</p>
-            )}
+            <FieldError message={errors.password?.message} />
             <Link href="/forgot-password" className="text-sm text-primary hover:underline block text-right">
               Forgot password?
             </Link>
@@ -154,11 +151,7 @@ export function LoginForm({
             </div>
           )}
 
-          {serverError && (
-            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {serverError}
-            </div>
-          )}
+          <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Signing in…' : 'Sign In'}

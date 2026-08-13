@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { FieldError, FormError } from '@/components/ui/form-message'
 
 /**
  * Set a new password, at the end of a recovery link.
@@ -94,9 +95,7 @@ export function UpdatePasswordForm() {
               autoComplete="new-password"
               {...register('password')}
             />
-            {errors.password && (
-              <p className="text-sm text-destructive">{errors.password.message}</p>
-            )}
+            <FieldError message={errors.password?.message} />
           </div>
 
           <div className="space-y-1.5">
@@ -108,16 +107,10 @@ export function UpdatePasswordForm() {
               autoComplete="new-password"
               {...register('confirmPassword')}
             />
-            {errors.confirmPassword && (
-              <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-            )}
+            <FieldError message={errors.confirmPassword?.message} />
           </div>
 
-          {serverError && (
-            <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {serverError}
-            </div>
-          )}
+          <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Save new password'}

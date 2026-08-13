@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError } from '@/components/ui/form-message'
 import type { MatchReason } from '@/lib/match-utils'
 import type { UnlinkedPerson } from '@/app/actions/link-person'
 import { linkPersonToCurrentUser } from '@/app/actions/link-person'
@@ -184,7 +185,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
           <p className="text-xs text-brand-on-soft/80">No matching family members found.</p>
         )}
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        <FieldError message={error} />
       </div>
 
       <button

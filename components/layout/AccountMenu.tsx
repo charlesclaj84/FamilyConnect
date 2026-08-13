@@ -8,7 +8,9 @@ import { createClient } from '@/lib/supabase/client'
 import { clearIdleActivity } from '@/lib/idle-timeout'
 import { Avatar } from '@/components/ui/Avatar'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
-import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
+import {
+  HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
+} from '@/components/layout/header-panel'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -48,6 +50,13 @@ interface Props {
 export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+
+  // TopBar lives in the layout and never unmounts, so neither does this flag — the menu
+  // stayed on screen over whatever page you navigated to next. Every item in here
+  // already closes it on the way out; this covers the navigations it does not start,
+  // which is all of them: a rail link (the rail is not under the scrim — see the hook),
+  // Back, Forward, a redirect, the idle timeout.
+  useCloseOnNavigate(open, () => setOpen(false))
 
   async function handleSignOut() {
     const supabase = createClient()

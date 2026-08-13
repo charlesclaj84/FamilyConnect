@@ -13,6 +13,7 @@ import { useServerState } from '@/lib/use-server-state'
 import { publishEvent, approveEvent, cancelEvent, createEvent, deleteEvent, type AdminEvent } from '@/app/actions/admin/events'
 import type { EventType } from '@/app/actions/admin/event-types'
 import { AddressSelects } from '@/components/ui/AddressSelects'
+import { FormError } from '@/components/ui/form-message'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { EVENT_STATUS_PILL } from '@/components/events/status'
 
@@ -149,7 +150,7 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
           <CardContent className="pt-4 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Event Name <span className="text-destructive">*</span></Label>
+                <Label required>Event Name</Label>
                 <Input placeholder="e.g. 2026 Summer Reunion" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setError('') }} />
               </div>
               <div className="space-y-1.5">
@@ -222,7 +223,7 @@ export function AdminEventsClient({ initialEvents, eventTypes, canApprove }: Pro
                 <Input value={form.zip_code} onChange={e => setForm(f => ({ ...f, zip_code: e.target.value }))} />
               </div>
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            <FormError message={error} />
             <div className="flex gap-2">
               <Button disabled={saving} onClick={handleCreate}>{saving ? 'Creating…' : 'Create Event'}</Button>
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>

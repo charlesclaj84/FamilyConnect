@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { uploadDocument, deleteDocument, type DocumentRecord } from '@/app/actions/documents'
 
@@ -147,7 +148,7 @@ export function DocumentList({ initialDocuments, isAdmin }: Props) {
               {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </Select>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleUpload} disabled={isPending || !selectedFile}>
               {isPending ? 'Uploading…' : 'Upload'}

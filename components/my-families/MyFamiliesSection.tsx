@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Home, Star, Check, Eye, Clock, Ban } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 // switchActiveFamily is no longer called from here — the navbar FamilySwitcher owns
 // switching now that "View this family" is gone.
 import { setDefaultFamily } from '@/app/actions/family'
@@ -173,9 +174,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
           )
         })}
 
-        {error && (
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-        )}
+        <FormError message={error} />
 
         {/* Right-aligned, and wrapping rather than shrinking: two buttons plus their
             labels do not fit beside each other on a narrow phone. */}

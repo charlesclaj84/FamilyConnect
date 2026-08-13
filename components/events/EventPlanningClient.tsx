@@ -5,6 +5,7 @@ import { Check, X, Pencil, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError } from '@/components/ui/form-message'
 import { submitAssignmentResponse, type MyAssignment, type FamilyMemberOption } from '@/app/actions/event-planning'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { ASSIGNMENT_STATUS_PILL } from '@/components/events/status'
@@ -200,7 +201,7 @@ function AssignmentRow({ assignment, familyMembers = [] }: { assignment: MyAssig
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 resize-none"
             />
           )}
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          <FieldError message={error} />
           <div className="flex gap-2">
             <Button size="sm" disabled={saving} onClick={handleSave}>
               <Check className="h-3.5 w-3.5" /> {saving ? 'Saving…' : 'Submit Response'}

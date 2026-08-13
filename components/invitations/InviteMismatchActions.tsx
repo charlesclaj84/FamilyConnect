@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Copy, Check, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { clearIdleActivity } from '@/lib/idle-timeout'
+import { FormError } from '@/components/ui/form-message'
 
 /**
  * The two exits from the "this invitation is for a different address" screen.
@@ -91,9 +92,7 @@ export function InviteMismatchActions({ token }: { token: string }) {
         </button>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-      )}
+      <FormError message={error} />
     </div>
   )
 }

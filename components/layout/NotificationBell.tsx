@@ -4,7 +4,9 @@ import { useState, useEffect, useTransition } from 'react'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
-import { HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS } from '@/components/layout/header-panel'
+import {
+  HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
+} from '@/components/layout/header-panel'
 import { timeAgo } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +25,10 @@ export function NotificationBell({ initialNotifications, personId, pendingApprov
   const [notifications, setNotifications] = useState(initialNotifications)
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // Same reason as the account menu: this panel outlives the page it was opened over,
+  // because TopBar is rendered by the layout and never unmounts. See the hook.
+  useCloseOnNavigate(open, () => setOpen(false))
 
   // A STANDING ITEM, not a notification, and the difference is load-bearing in three
   // places below. It has no row in `notifications`, so it cannot be marked read, is not

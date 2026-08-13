@@ -5,6 +5,7 @@ import { ChevronLeft, Send, UserPlus, UserMinus, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MessageBubble } from './MessageBubble'
 import { useConfirm } from '@/components/ui/confirm'
+import { FieldError } from '@/components/ui/form-message'
 import {
   getMessages, getSenderMap, sendMessage, getFamilyMembersWithAccounts,
   addGroupMember, removeGroupMember,
@@ -195,7 +196,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
         <div className="border-b bg-muted/30 px-4 py-3 space-y-3">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Members</p>
 
-          {memberError && <p className="text-xs text-destructive">{memberError}</p>}
+          <FieldError message={memberError} />
 
           <div className="space-y-1">
             {activeParticipants.map(p => {
@@ -260,7 +261,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       {/* Input area or ended banner */}
       {room.can_reply ? (
         <div className="border-t px-4 py-3 shrink-0 bg-background">
-          {sendError && <p className="text-xs text-destructive mb-1">{sendError}</p>}
+          <FieldError message={sendError} className="mb-1" />
           <div className="flex gap-2 items-end">
             <textarea
               value={body}

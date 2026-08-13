@@ -22,6 +22,26 @@ export const PAY_CADENCES: readonly PayCadence[] = ['weekly', 'monthly', 'quarte
  */
 export type ScheduleKind = 'dues' | 'donation'
 
+/**
+ * What a `dues_payments.status` is called on screen.
+ *
+ * Here rather than beside either of the two components that read it, for the reason
+ * this module's other constants are here: a second copy is a second answer, and the two
+ * places a payment is displayed — the Transactions ledgers and the member's own Payment
+ * History — are exactly the pair a family would compare when a figure looks wrong.
+ *
+ * `pending` is not offered by any form: a treasurer typing an entry in is recording
+ * something that already happened, and `recordPayment` refuses it. It is kept because
+ * the TABLE still allows it — the pending -> paid settlement 20260806000002 leaves open
+ * is how an online payment will land — and a row in that state must read as something
+ * rather than as a raw column value.
+ */
+export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  paid: 'Paid',
+  waived: 'Waived',
+  pending: 'Pending',
+}
+
 /** How many of the schedule's native period occur per year (for annualizing). */
 const FREQ_PER_YEAR: Record<string, number> = {
   annual: 1,

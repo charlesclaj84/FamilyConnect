@@ -57,13 +57,18 @@ export const FEATURES: readonly Feature[] = [
   },
   {
     href: '/members',
-    label: 'Member Directory',
+    label: 'Directory',
     status: 'live',
     blurb: 'Search and browse everyone in the family, with roles and contact info.',
   },
   {
     href: '/account-summary',
-    label: 'My Summary',
+    // "Summary", not "My Summary", since 20260812000001. Everything in the Personal half
+    // of this product is the caller's own, and the possessive was carried by four
+    // labels in a row; the page still shows nobody else's money, which is a property of
+    // its RLS rather than of its title. The ROUTE stays /account-summary — it is the
+    // permission key in permission_resources and in every grant already issued.
+    label: 'Summary',
     status: 'live',
     blurb: 'What you owe, what you have paid, and your full payment history.',
   },
@@ -169,7 +174,7 @@ export const FEATURES: readonly Feature[] = [
     status: 'future',
     blurb: 'The leadership toolkit for running your family organization.',
   },
-  // Family Settings is LIVE, and is the family's own identity rather than a tool for
+  // Settings is LIVE, and is the family's own identity rather than a tool for
   // running it — the name every other admin page is about, and the code people join by.
   // It has to be live for a second reason beyond being built: getResources() drops any
   // resource key whose path resolves to a 'future' feature, and getFeature()
@@ -178,9 +183,16 @@ export const FEATURES: readonly Feature[] = [
   // error anywhere. Who actually sees it is the permission model's business:
   // 20260812000000 registers it 'restricted' per family, so it is administrators-only
   // until a family says otherwise.
+  //
+  // Named "Settings", not "Family Settings", since 20260812000001. The word "Family" was
+  // doing no work: every page under Admin is about the one family the caller is acting
+  // in, and the rail item sat directly under an Admin heading that had already said so.
+  // The ROUTE and the RESOURCE KEY both stay `admin/family` — that string is wired into
+  // permission_table_map, the `families` policy and every grant already issued, so
+  // renaming the path would orphan them all to retitle a heading.
   {
     href: '/admin/family',
-    label: 'Family Settings',
+    label: 'Settings',
     status: 'live',
     blurb: 'Your family’s name and the code relatives join with.',
   },
@@ -191,7 +203,12 @@ export const FEATURES: readonly Feature[] = [
   // launch, it is a page that no longer exists.
   {
     href: '/admin/users',
-    label: 'Members & Access',
+    // "Members", not "Members & Access", since 20260812000001. The "& Access" half was
+    // there to say the page had absorbed Groups & Permissions; two renames later it is
+    // the only members screen an administrator has, and the qualifier only competed with
+    // Community > Directory for what the word "members" means. The key stays
+    // `admin/users`, as does the sub-heading its three tabs group under in the grid.
+    label: 'Members',
     status: 'live',
     blurb: 'Who is in the family, and the permission template deciding what each of them can do.',
   },

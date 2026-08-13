@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Clock, Ban, Mail, Home } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { FormError } from '@/components/ui/form-message'
 import { resendConfirmationEmail, appealMembershipDecision } from '@/app/actions/membership'
 import type { MembershipStatus } from '@/lib/auth/family'
 
@@ -219,11 +220,7 @@ export function PendingApprovalScreen({
                   className="mt-3"
                   placeholder="I'm Martha's youngest — my mother was born in Bastrop and my cousin Ada is already a member."
                 />
-                {appealError && (
-                  <p className="mt-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {appealError}
-                  </p>
-                )}
+                <FormError message={appealError} className="mt-2" />
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"

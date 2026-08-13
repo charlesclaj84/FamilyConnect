@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { useServerState } from '@/lib/use-server-state'
@@ -296,7 +297,7 @@ export function AdminFundsClient({
           >
             <div className="space-y-3 mt-2">
               <div className="space-y-1.5">
-                <Label>Name <span className="text-destructive">*</span></Label>
+                <Label required>Name</Label>
                 <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder="College Fund" autoFocus />
               </div>
               <div className="space-y-1.5">
@@ -319,7 +320,7 @@ export function AdminFundsClient({
                   <span className="text-xs text-muted-foreground">(any family member can contribute any amount)</span>
                 </label>
               )}
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              <FormError message={error} />
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleCreateFund} disabled={isPending}>
                   {isPending ? 'Adding…' : 'Add Fund'}
@@ -438,7 +439,7 @@ export function AdminFundsClient({
           {/* Failures from the list itself (delete, open/close) have nowhere else to
               land now that the create form is a dialog. Suppressed while the dialog
               is up, which renders the same message inline. */}
-          {!creatingFund && error && <p className="text-sm text-destructive">{error}</p>}
+          {!creatingFund && <FormError message={error} />}
         </div>
       )}
 
@@ -471,25 +472,25 @@ export function AdminFundsClient({
             ) : (
               <div className="space-y-3 mt-2">
                 <div className="space-y-1.5">
-                  <Label>Fund <span className="text-destructive">*</span></Label>
+                  <Label required>Fund</Label>
                   <Select value={nmFundId} onChange={e => setNmFundId(e.target.value)}>
                     <option value="">— Select fund —</option>
                     {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Milestone Name <span className="text-destructive">*</span></Label>
+                  <Label required>Milestone Name</Label>
                   <Input value={nmName} onChange={e => setNmName(e.target.value)} placeholder="Graduate high school" autoFocus />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Award Amount ($) <span className="text-destructive">*</span></Label>
+                  <Label required>Award Amount ($)</Label>
                   <Input type="number" min="0" step="0.01" value={nmAmount} onChange={e => setNmAmount(e.target.value)} placeholder="250.00" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Description</Label>
                   <Input value={nmDesc} onChange={e => setNmDesc(e.target.value)} placeholder="High school diploma or GED" />
                 </div>
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                <FormError message={error} />
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1" onClick={handleCreateMilestone} disabled={isPending}>
                     {isPending ? 'Adding…' : 'Add Milestone'}
@@ -543,7 +544,7 @@ export function AdminFundsClient({
           )}
 
           {/* Delete failures, for the same reason as the funds list above. */}
-          {!creatingMilestone && error && <p className="text-sm text-destructive">{error}</p>}
+          {!creatingMilestone && <FormError message={error} />}
         </div>
       )}
 
@@ -692,7 +693,7 @@ export function AdminFundsClient({
             )}
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          <FormError message={error} />
           {routingMsg && <p className="text-sm text-muted-foreground">{routingMsg}</p>}
         </div>
       )}

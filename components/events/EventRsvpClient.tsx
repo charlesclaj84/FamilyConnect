@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
+import { FormError } from '@/components/ui/form-message'
 import { submitRsvp, type RsvpPerson, type MyRsvp } from '@/app/actions/events'
 
 interface Props {
@@ -161,7 +162,7 @@ export function EventRsvpClient({ eventId, familyMembers, existingRsvp, deadline
         })}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      <FormError message={error} />
 
       <div className="flex gap-2">
         <Button onClick={handleSave} disabled={saving}>
