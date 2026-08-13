@@ -45,6 +45,20 @@ const PRICING_IS_ANNOUNCED = false
 /**
  * ── THE PLAN TABLE — THIS IS WHAT YOU EDIT ──────────────────────────────────
  *
+ * THE PRODUCT NOW ENFORCES THESE, which it did not until 2026-08-13, and the two halves
+ * are deliberately NOT derived from one another. `PLANS[]` below is prose about benefits;
+ * `lib/features.ts` carries a `tier` per ROUTE and `lib/tiers.ts` compares it against
+ * `families.tier`. They do not correspond one to one in either direction — one bullet
+ * frequently spans several routes, and several routes are sold in no bullet at all — so
+ * generating either from the other would mean inventing correspondences that do not
+ * exist. FutureFeature.md is where the mismatches are tracked.
+ *
+ * WHAT THAT MEANS FOR AN EDIT HERE: moving a bullet between cards no longer changes only
+ * a document. Check whether a ROUTE has to move with it — `grep "tier: '"
+ * lib/features.ts` is the whole job — because a bullet that moves to Plus while its route
+ * stays Free is a giveaway, and one that moves to Free while its route stays Plus is a
+ * page a customer was promised and cannot open.
+ *
  * Three tiers, and each one INHERITS the tier below it rather than restating it. That is
  * what `inheritsFrom` does: Plus renders "Everything in Free, plus:" and lists only what
  * it adds; Premium does the same for Plus. Two reasons it is modelled rather than typed:

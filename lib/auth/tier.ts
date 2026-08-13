@@ -1,0 +1,101 @@
+import { cache } from 'react'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { normalizeTier, tierMeets, type FamilyTier } from '@/lib/tiers'
+import { requiredTier } from '@/lib/features'
+
+/**
+ * What plan the family being viewed is on.
+ *
+ * ── WHY THE ADMIN CLIENT ────────────────────────────────────────────────────────────
+ * `families` is readable by its own members under RLS, so the user client would work for
+ * the ordinary case — and it would fail for the case this has to serve. A PENDING member
+ * resolves to no person (`auth_person_id()` is NULL since 20260806000011), so every
+ * policy behind `families` matches nothing for them, and `getMyFamilyTier` would answer
+ * Free for a family on Premium. That answer then reaches `requireViewOrPending`, which is
+ * the one guard a pending member passes, and the awaiting-approval screen would be
+ * decided by a plan lookup that failed.
+ *
+ * Family scoping is therefore hand-applied, per AGENTS.md §3: `.eq('family_code', …)`
+ * from the caller's OWN membership (`getMyFamilyCode`), never from an argument. There is
+ * no id here that arrives from a client, so §4 has nothing to check.
+ *
+ * ── WHY IT IS NOT PART OF `PermissionSet` ───────────────────────────────────────────
+ * It would be one fewer round trip, and it would put two different kinds of answer in one
+ * structure. `lib/auth/permissions.ts` states in its own header that it mirrors
+ * `public.auth_permission()` exactly and that a change to one is a change to both — and
+ * there is no SQL counterpart to this, deliberately: a tier is not a permission, no
+ * policy consults it, and RLS must never start to. A family that stops paying keeps its
+ * data and loses its screens.
+ *
+ * Both are `cache()`d per request, so a page that asks about several resources makes one
+ * query for permissions and one for the tier, whatever the SQL would have cost.
+ *
+ * ── WHAT A TIER IS AND IS NOT ───────────────────────────────────────────────────────
+ * It is a commercial fact, enforced at the page and at the rail. It is NOT a security
+ * boundary and nothing here should be mistaken for one: family isolation is RLS, and who
+ * may do what inside a family is the permission model. Downgrading a family must never be
+ * a way to lose data, and upgrading one must never be a way to reach somebody else's.
+ */
+export const getMyFamilyTier = cache(async (userId: string): Promise<FamilyTier> => {
+  if (!userId) return normalizeTier(null)
+
+  const familyCode = await getMyFamilyCode(userId)
+  if (!familyCode) return normalizeTier(null)
+
+  return getFamilyTier(familyCode)
+})
+
+/**
+ * The plan for one family by code.
+ *
+ * Separate from the caller-scoped version because `/my-families` lists several families
+ * at once and `getMyFamilyTier` answers only for the active one. Callers owe the same
+ * thing they always owe a code that did not come from `getMyFamilies()`: proof that it is
+ * the caller's. This function does not check, and cannot — it is handed a string.
+ */
+export const getFamilyTier = cache(async (familyCode: string): Promise<FamilyTier> => {
+  if (!familyCode) return normalizeTier(null)
+
+  const { data, error } = await createAdminClient()
+    .from('families')
+    .select('tier')
+    .eq('family_code', familyCode)
+    .maybeSingle()
+
+  // THE ERROR IS READ RATHER THAN DISCARDED (AGENTS.md §8), and the two outcomes mean
+  // different things: no row is a family that does not exist, while a refused query is
+  // most likely a database that has not had 20260813000003 applied — PostgREST answers
+  // 42703 for a column that is not there and kills the WHOLE query, which is the exact
+  // failure that took every page in the app to 404 during Phase 3.
+  //
+  // Both fall back to Free, which is the safe direction here for the reason DEFAULT_TIER
+  // gives: it withholds only what somebody has paid for, and never takes away what every
+  // family is entitled to. The log is what stops that being silent, because a whole
+  // estate of families quietly demoted to Free looks exactly like a whole estate of
+  // families that never upgraded.
+  if (error) {
+    console.error(
+      `[tier] could not read families.tier for ${familyCode}: ${error.message}. ` +
+      'Every family will be treated as Free until this is fixed. If this is "column ... ' +
+      'does not exist", the app is running against a database that is behind ' +
+      'supabase/migrations — check `npx supabase migration list --linked`.',
+    )
+    return normalizeTier(null)
+  }
+
+  return normalizeTier((data as { tier?: string } | null)?.tier)
+})
+
+/**
+ * Does the caller's family include the resource `resourceKey` names?
+ *
+ * The key is the route without its leading slash — the same string `requireView()` takes
+ * and the same one `permission_resources` is keyed by — so a sub-key inherits its page's
+ * plan by `getFeature()`'s longest-prefix match. `admin/users/templates` is Free because
+ * `/admin/users` is; `transactions/dues-payments` is Free because `/transactions` is.
+ * That is the behaviour to want: a tab is part of the page it is on.
+ */
+export async function tierAllows(userId: string, resourceKey: string): Promise<boolean> {
+  return tierMeets(await getMyFamilyTier(userId), requiredTier(`/${resourceKey}`))
+}

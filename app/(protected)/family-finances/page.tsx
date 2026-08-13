@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getFamilyPnL } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
 import { AccountPnLCard } from '@/components/account/AccountPnLCard'
 import { FundsSection } from '@/components/account/FundsSection'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Family Finances' }
 
@@ -16,16 +16,15 @@ export default async function FamilyFinancesPage() {
 
   await requireView(user.id, 'family-finances')
 
-  const admin = createAdminClient()
   const [pnlData, funds] = await Promise.all([
     getFamilyPnL(),
     getFunds(),
   ])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-10">
+    <PageShell className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold mb-1">Family Finances</h1>
+        <h1 className="mb-1 text-3xl font-bold">Family Finances</h1>
         <p className="text-muted-foreground">Family-wide income, expenses, net balance, and funds.</p>
       </div>
 
@@ -40,6 +39,6 @@ export default async function FamilyFinancesPage() {
       <section>
         <FundsSection funds={funds} isAdmin={await can(user.id, 'family-finances', 'edit')} />
       </section>
-    </div>
+    </PageShell>
   )
 }

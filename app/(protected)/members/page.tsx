@@ -26,20 +26,24 @@ export default async function MembersPage() {
 
   return (
     <PageShell>
-      {/* THE LINEAGE LINK IS THE WAY IN TO `/members/family-tree`, and it is not decoration.
-          That page moved under this one and deliberately has no rail item — it shows one
-          person's line rather than the family, so it belongs behind the roster. Without a
-          link here it would be reachable only from inside itself, which is how a page
-          becomes unreachable without anybody deleting it. */}
+      {/* THE BUTTON POINTS AT THE FAMILY TREE, since 2026-08-13. It used to open
+          `/members/family-tree`, the per-member lineage view, which had no rail item and
+          so was reachable only from here — that page is now deleted and the family tree
+          answers the same question by re-centring on whoever you click.
+
+          It is kept rather than dropped even though Family Tree HAS a rail item directly
+          under Directory, because the two screens answer one question from two sides:
+          somebody looking at a name in the roster and wondering how they are related is
+          one click from the answer, without having to notice the rail. */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-1">Directory</h1>
           <p className="text-muted-foreground">All family members and their roles.</p>
         </div>
-        <Link href="/members/family-tree">
+        <Link href="/family-tree">
           <Button variant="outline">
             <GitBranch className="h-4 w-4" aria-hidden="true" />
-            Lineage
+            Family Tree
           </Button>
         </Link>
       </div>

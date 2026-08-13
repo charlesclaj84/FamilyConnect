@@ -8,6 +8,7 @@ import { getEvents } from '@/app/actions/admin/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersRound, ListChecks, CalendarClock, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Admin' }
 
@@ -30,9 +31,9 @@ export default async function AdminPage() {
   const pendingCount = draftEvents.length
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-1">Administration</h1>
+        <h1 className="mb-1 text-3xl font-bold">Administration</h1>
         <p className="text-muted-foreground">Manage your family organization.</p>
       </div>
 
@@ -87,6 +88,6 @@ export default async function AdminPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

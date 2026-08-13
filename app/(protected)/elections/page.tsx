@@ -6,6 +6,7 @@ import { getAllElections } from '@/app/actions/elections'
 import { ChevronRight, Vote } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ELECTION_STATUS_PILL } from '@/components/elections/status'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Elections' }
 
@@ -25,9 +26,9 @@ export default async function ElectionsPage() {
   const past = elections.filter(e => e.status === 'closed' || e.status === 'draft')
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Elections</h1>
+        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
         <p className="text-muted-foreground">Participate in family officer elections.</p>
       </div>
 
@@ -84,6 +85,6 @@ export default async function ElectionsPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyActiveMembership } from '@/lib/auth/family'
-import { isFeatureFuture } from '@/lib/features'
+import { isFeatureFuture, requiredTier } from '@/lib/features'
+import { getMyFamilyTier } from '@/lib/auth/tier'
+import { tierMeets } from '@/lib/tiers'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import {
   can,
@@ -392,6 +394,11 @@ export async function getResources(): Promise<ResourceSummary[]> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'view')
   if (!auth.ok) return []
 
+  // The family's plan, for the second filter below. Resolved once for the whole grid
+  // rather than per row — `getMyFamilyTier` is `cache()`d, so this is one query however
+  // many resources come back.
+  const tier = await getMyFamilyTier(auth.userId)
+
   const admin = createAdminClient()
   const { data: resources } = await admin
     .from('permission_resources')
@@ -414,6 +421,17 @@ export async function getResources(): Promise<ResourceSummary[]> {
     // `family-finances/` or `admin/` would inherit a 'future' entry and vanish from
     // the grid with no error.
     .filter(r => !isFeatureFuture(`/${r.key}`))
+    // ...and neither has a page the family's PLAN does not include. Same argument as the
+    // line above, one step along: a switch for a screen nobody in this family can open
+    // reads as a control being honoured, and an administrator who grants it and then
+    // watches nothing change has been told a small lie by the grid.
+    //
+    // IT IS A PRESENTATION FILTER AND NOTHING ELSE. The grants themselves are untouched —
+    // a family that upgrades finds its templates exactly as they were, and one that
+    // downgrades loses no configuration, only the row that displays it. That is the same
+    // promise `requireTier` makes about data, and it is what makes moving between plans
+    // survivable rather than destructive.
+    .filter(r => tierMeets(tier, requiredTier(`/${r.key}`)))
     .map(r => ({
       key: r.key,
       label: r.label,

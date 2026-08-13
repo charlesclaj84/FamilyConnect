@@ -1,5 +1,52 @@
 # Future features — what the site promises, and what is still gated
 
+> ## 2026-08-13: tier enforcement exists, and this file's central premise has changed
+>
+> Read this before anything below it. The sentence this document repeats most often —
+> *"nothing in the codebase enforces a tier at all"*, and its consequence, *"until there
+> is, **every flip is a Free flip**, whatever the pricing page says"* — **is no longer
+> true.** Decisions 9's underlying question ("where does tier enforcement live at all?")
+> is answered.
+>
+> `lib/features.ts` now carries a **required** `tier` on every entry, `families.tier`
+> (`20260813000003`) says what each family pays for, and `requireView()` sends a member
+> reaching past their plan to `/upgrade` rather than to the page. The sidebar and the
+> permission grid drop above-tier rows. AGENTS.md, "A family is on a plan", is the
+> reference.
+>
+> **What that closes, and what it does not.** It closes the *mechanism* gap, so §4's two
+> open rows stop being unfixable — but it does not by itself decide them, and neither has
+> moved yet:
+>
+> * **RSVPs and head counts** are still free to everybody, because the tier is per ROUTE
+>   and they live inside `/events`, which is Free. Splitting them needs a sub-key, exactly
+>   as `transactions/dues-payments` has one. The registry now says so in its own header.
+> * **Profile pictures** are still free to everybody, for a sharper version of the same
+>   reason: `AvatarUpload` is one control on `/personal-info`, a page that stays Free.
+>
+> **Two decisions this pass made rather than deferred**, both previously in the list below:
+>
+> * **`/event-planning` is Free** — decision 3, which warned it would otherwise "decide
+>   itself as Free by default". It has now decided itself as Free deliberately.
+> * **`/admin/account`, `/admin/events` and `/admin/event-types` are Free**, because the
+>   Free card sells the dues ledger and the reunion on the calendar, and neither works
+>   without the screen that sets it up. Decisions 1 and 2 are narrowed rather than closed:
+>   what remains is whether individual CAPABILITIES inside those pages (hotel blocks,
+>   nested itineraries, per-event budgets, event templates) should be sub-keyed onto Plus.
+>
+> **Three other things below are now stale.** The `/admin/announcements` row is gone —
+> that route was deleted on 2026-08-13 and its permission resource with it, because
+> everything it did the member-facing Announcements page does under the same key. The
+> family-tree rows describe a beta scaffold; `/family-tree` is a working tree now, and
+> what it still owes is in TODO.md rather than here. And `event-photos` is no longer
+> reachable through a live feature: the Photos card on an event now reads
+> `isFeatureLive('/photos')`, so the storage rework is preventative again rather than
+> remedial — the `avatars` bucket is the one that is still live and world-readable.
+>
+> Re-derive the per-card table and the counts before quoting them; they were written
+> against a product with no tier mechanism at all.
+
+
 The marketing site describes the product GENORRA is becoming. `lib/features.ts` describes
 what a member can reach today. This file is the distance between the two, so the gap is
 tracked rather than discovered.
@@ -49,17 +96,18 @@ a way a count cannot express — the family tree's 15. Re-derive it against the 
 surfaces before quoting it; the *partly* is why nobody should subtract in their head.
 
 **Nothing in the registry is unbuilt.** Every gated route has its page, its client and its
-server actions in the repo — `AdminEventDetailClient` is 1,361 lines, `FamilyTreeClient` 853,
-`ancestors.ts` 1,014, `admin/events.ts` 1,078. `/admin/boardpositions` says so in its own
-comment: *"shipping it again is this one word."* So the remaining work is a status flip plus
-targeted fixes, not construction. That is the single most important fact in this document,
-because it sets the size of everything below.
+server actions in the repo — `AdminEventDetailClient` is 1,361 lines, `admin/events.ts`
+1,078. `/admin/boardpositions` says so in its own comment: *"shipping it again is this one
+word."* So the remaining work is a status flip plus targeted fixes, not construction. That is
+the single most important fact in this document, because it sets the size of everything
+below.
 
-**One exception now, and it is new: the family-wide tree at `/family-tree` genuinely is
-unbuilt.** It is the only entry in the registry that is `'live'` with nothing behind it — a
-beta scaffold, badged as such — because it is being built differently rather than being
-un-gated. Read the sentence above as being about the ten *gated* routes, all of which are
-still built and waiting on a word.
+**The one exception has closed.** The family-wide tree at `/family-tree` was the only entry
+in the registry that was `'live'` with nothing behind it — a beta scaffold, badged as such,
+because it was being built differently rather than un-gated. It was built on 2026-08-13, and
+the per-member lineage view retired with it; `FamilyTreeClient` (853 lines), `ancestors.ts`
+(1,014) and `spouse.ts` are deleted rather than waiting on a flip, which is why they no
+longer appear in the line-count list above.
 
 **Two mitigations already in place, worth knowing before reading the gap list:**
 
@@ -70,8 +118,10 @@ still built and waiting on a word.
   it empties. A member does not see a teased door — they see no door. **Events came back on
   2026-08-12** and the section reappeared with all four of its items, exactly as this
   mechanism promises; **Resources** — photos, documents, elections — is the one still absent
-  entirely. The rail's one hand-set badge is the opposite case: `BetaBadge` on Family Tree,
-  marking a route that is live and unfinished rather than one nobody can reach.
+  entirely. The rail carried one hand-set badge, the opposite case: `BetaBadge` on Family
+  Tree, marking a route that is live and unfinished rather than one nobody can reach. It came
+  off on 2026-08-13 when the tree stopped being unfinished, so **the rail badges nothing
+  today** — the component survives for the next surface that needs it.
 
 ### What each pricing card promises today
 
@@ -163,33 +213,40 @@ have.
 
 The one item here that is not a status flip, and the reason the row above is struck
 through rather than ticked. `/family-tree` used to be a single gated route in the
-**Personal** section — a per-person lineage viewer, opened for whoever `?view=` named.
-It is now two things:
+**Personal** section — a per-person lineage viewer, opened for whoever `?view=` named. It
+briefly became two routes, and on 2026-08-13 it became one again:
 
 | Route | What it is | Where it lives | State |
 |---|---|---|---|
-| `/members/family-tree` | The original lineage view, unchanged. One person's line, walked outwards. | Community > Directory, reached from the roster — **no rail item of its own** | Live. Inherits `/members` by prefix, so it is live because the Directory is. |
-| `/family-tree` | The family-wide tree, being rebuilt. A beta notice and a sketch of the layout it is heading for. | Community > Family Tree, directly after Directory | Live, and **live with nothing behind it** — the one state the registry cannot describe. |
+| `/family-tree` | The family-wide tree. An ancestry-style focus canvas: click anybody to re-centre on them, fill the gaps with "+" cards, and a list of the people connected to nobody. | Community > Family Tree, directly after Directory | Live, real, and no longer badged. |
+| ~~`/members/family-tree`~~ | ~~The original lineage view.~~ **Deleted**, with `FamilyTreeClient`, `app/actions/ancestors.ts` and `app/actions/spouse.ts`. | — | Gone. |
 
 Four things follow that this file has to carry, because no mechanism does:
 
-* **`BetaBadge` is hand-set and cannot be derived.** `status` has two values and "live but
-  unfinished" is a property of one of them. The badge is written twice — on the page
-  heading and on the rail item — and both come off by hand when the real tree lands. It is
-  the mirror of `ComingSoonBadge`: that one marks a route nobody can reach, this one marks
-  a route anybody can.
-* **The resource key stayed `family-tree` while the route moved.** Deliberately: keying the
-  lineage view to `members` instead would let a family that restricts its Directory break
-  its own family tree, and every action behind the page already checks
-  `requireRead('family-tree')`. So the page's key names a *different* route's registry
-  entry — the same arrangement `/admin/approvals` has, and the one place either page
-  departs from §1's "the key is the route without its leading slash".
-* **The lineage page is captioned "Lineage", not "Family Tree".** Community has a rail item
-  called Family Tree now, and two pages answering to one name in one section is worse than
-  a duller word. It is one word in three places if that goes the other way.
-* **The Directory owes it a link, and now has one.** A page with no rail item and no entry
-  point is unreachable without anybody deleting it; `/members` carries a Lineage button
-  beside its heading, and `FamilyTreeClient` handles person-to-person from there.
+* **The lineage view retired, which is decision 5 answered.** It cost nothing in data:
+  both surfaces were readers of `person_relationships`, so every row the lineage view wrote
+  is on the canvas already. What it uniquely offered was a *directional* walk from one
+  person, and re-focusing on whoever you click is the same drill-down without a second
+  page, a second vocabulary or a second set of writes that could disagree. The actions were
+  DELETED rather than merely unlinked, because every export of a `'use server'` file is a
+  public HTTP endpoint — a page nobody links to is not the same as an action nobody can
+  call.
+* **`BetaBadge` is hand-set, cannot be derived, and is now unused.** `status` has two values
+  and "live but unfinished" is a property of one of them. It was written twice — on the page
+  heading and on the rail item — and both came off by hand with this pass. The component
+  stays in `components/ui/beta-badge.tsx` for the next surface that needs it; nothing
+  renders it today. It is the mirror of `ComingSoonBadge`: that one marks a route nobody can
+  reach, this one marks a route anybody can.
+* **The resource key is `family-tree`, and is now simply the route.** It was not, while the
+  lineage view sat at a different path on the same key — the one place either page departed
+  from §1's "the key is the route without its leading slash". That departure is gone. The
+  key is still *unregistered*, which is the open item: TODO.md carries it, and the choice
+  narrowed to two options when the second page went.
+* **The Directory keeps its button, now pointing at the tree.** It existed because the
+  lineage view had no rail item and would otherwise have been unreachable. Family Tree does
+  have one, directly under Directory — but the button is kept anyway, because somebody
+  looking at a name in the roster and wondering how they are related should be one click
+  from the answer rather than having to notice the rail.
 
 ### Plus — the storage rework, 7 high gaps, then one build
 
@@ -303,11 +360,13 @@ published claim on the wrong side of it.
    enforced by a grant* — `/direct-lineage` has no permission row by design. **This is now
    the last gated item on the Free card,** so the decision is the only thing standing
    between that card and being wholly true.
-5. **What is the new family-wide tree, precisely?** `/family-tree` is live, badged beta and
-   empty, which buys time rather than answering anything. Two questions come with it: what
-   the new tree does that the lineage view does not, and whether the lineage view retires
-   when it lands or stays as the per-person drill-down from the Directory. The beta badge
-   is hand-set, so nothing expires on its own if this drifts.
+5. ~~**What is the new family-wide tree, precisely?**~~ **Answered, 2026-08-13.** The tree
+   is an ancestry-style focus canvas that re-centres on whoever you click, with three ways
+   to add a relative and a list of the people connected to nobody; and the lineage view
+   **retires** — `/members/family-tree`, `FamilyTreeClient`, `app/actions/ancestors.ts` and
+   `app/actions/spouse.ts` are deleted. Re-focusing IS the per-person drill-down, so keeping
+   a second page would have meant two vocabularies over one table. The beta badge came off
+   with it. What is still open is the permission key, which TODO.md carries.
 6. **Does the `/admin` hub survive?** Nothing links to it, `Sidebar` has no `/admin` item, it
    gates on the wrong key, it has no permission row, and two of its three tiles point at
    gated routes.
@@ -346,7 +405,7 @@ shipped with a documented obligation still open and a tick would hide that.
 
 | Shipped | Route | Claims closed | What it left behind |
 |---|---|---|---|
-| Family tree | `/family-tree` + `/members/family-tree` | 15, partly | **Not a flip — a split.** The lineage view is live under the Directory; the family-wide tree is live, beta and empty. Several of those 15 claims describe a whole-family tree and are now met by a scaffold, so read this as the largest *partly* closed item in the file rather than a clean one. |
+| Family tree | `/family-tree` | 15, mostly | **Closed on 2026-08-13.** It was a split — a beta scaffold beside a per-member lineage view — and it is now one real tree, with the lineage view retired. Several of those 15 claims describe a whole-family tree and are met by this one; what is still outstanding is the second pass in TODO.md (step relationships, multiple marriages, dates on the connectors), not the feature. |
 | Announcements | `/announcements` | 8 | Nothing. No migration was needed — the key has been registered since `20260618000000` and `resource_visibility` already answered `everyone` for it. The dashboard's pinned-news panel switched itself on, because it reads `isFeatureLive('/announcements')`. |
 | Announcement management | `/admin/announcements` | 3 | The `Sidebar.tsx` `adminItems` entry this file demanded, added with the flip. Restricted per family already, like every `category = 'admin'` resource. |
 | Events | `/events` | 19 | **The storage rework, now overdue rather than pending** — see the warning in the Plus table. Sub-keys and RLS cases are still owed. |
@@ -364,7 +423,7 @@ shipped with a documented obligation still open and a tick would hide that.
 | Regions & chapters | `/admin/chapters` | Plus | 5 | Delete the dead duplicate client |
 | Leadership reports | `/admin/reports` | Plus | 6 | Two of four columns need `/events` data first — **`/events` has now shipped**, so this is no longer blocked on a flip, only on families having run an event and collected some. It can move up the order. |
 | **Payment processing** — card, debit, PayPal, Apple Pay, Google Pay, Cash App | **none** | Plus | 6 | **No route, so `proxy.ts` cannot gate it and Coming Soon never appears.** The most exposed claim in this file. |
-| Profile pictures | `/personal-info` — **live** | Plus | 2 | The mirror image of everything else here: sold as Plus and shipping to **everyone, free, today**. Avatar upload sits on a live page, so this is a capability to withdraw rather than one to ship — see the decisions list. Its detail line also promises the picture "on the directory, the tree and everywhere a member is listed": the directory shows it, and "the tree" now means the lineage view, which does — so the bullet reads correctly and is simply sold one tier too high. |
+| Profile pictures | `/personal-info` — **live** | Plus | 2 | The mirror image of everything else here: sold as Plus and shipping to **everyone, free, today**. Avatar upload sits on a live page, so this is a capability to withdraw rather than one to ship — see the decisions list. Its detail line also promises the picture "on the directory, the tree and everywhere a member is listed": the directory shows it, and the family-wide tree draws an avatar on every card — so the bullet reads correctly and is simply sold one tier too high. |
 | RSVPs, head counts, day-of check-in | `/events` + `/admin/events` — **live** | Plus | (inside 2 claims) | **Joined the row above on 2026-08-12.** Same shape, opposite cause: profile pictures were never gated, these were gated until the Events flip and are now free to everybody. Plus bullet 2 and the Free/Plus FAQ answer both name them. |
 | **The public family website that builds itself** | **none** | Premium | 6 | No route, no entry, no code |
 | **Per-family public address** | **none** | Premium | 3 | No route, no config, no code |
@@ -473,10 +532,11 @@ cannot owe them "at flip time" any more. They are outstanding work on live code.
   **Resolved** — the flip added the `adminItems` entry, between Accounting and Election
   Management.
 - `/direct-lineage` and `/family-tree` have no permission row by design, so shipping them
-  ships them to everyone with no switch. **`/family-tree` has now done exactly that**, and
-  the beta scaffold is why it did not matter: there is nothing behind it to restrict yet. It
-  will matter when the real tree lands, and `/members/family-tree` inherits the same answer
-  because its key is still `family-tree`.
+  ships them to everyone with no switch. **`/family-tree` has now done exactly that, and it
+  matters** — the beta scaffold was why it did not, and the tree is real since 2026-08-13:
+  it publishes the whole roster and every relationship in it under a key a family cannot
+  switch off. TODO.md carries the decision, narrowed to two options now the lineage view
+  that shared the key is gone.
 - The Coming Soon screen offers every member three administrator links they cannot use.
 - ~~The protected layout queries gated event-planning data on every request.~~ **Resolved by
   the flip, not by a fix** — `/event-planning` is live, so the query is no longer for a gated
@@ -531,9 +591,9 @@ Accounting — dues schedules, funds and payment routing.
 
 **And, since 2026-08-12:** announcements with pinning, and the whole of events — the shared
 event page, itineraries, hotel blocks, RSVPs with t-shirt and meal totals, day-of check-in,
-event templates and the planning checklist. Plus the per-member lineage view, now under the
-Directory. That is seven routes, and it is the largest single movement in this file's short
-history.
+event templates and the planning checklist. Plus the per-member lineage view, moved under
+the Directory — and then, on 2026-08-13, retired outright in favour of the family-wide tree.
+That is seven routes, and it is the largest single movement in this file's short history.
 
 Two qualifications belong with that paragraph rather than in a footnote, because it is the
 paragraph somebody will quote:
@@ -598,8 +658,8 @@ still lists a gated bullet, so check the pillar's bullets — not just its route
 from `available`, and every bullet in `PLANS[]` is prose typed by hand. That was worth
 worrying about while the Free card wore an **"Available now"** pill over three gated bullets;
 after 2026-08-12 it wears it over **one** — and only partly, since what is gated inside "Never
-lose track of who is who again" is `/direct-lineage` while the directory and the lineage view
-under it are both live.
+lose track of who is who again" is `/direct-lineage` while the directory and the family-wide
+tree are both live.
 
 It is still not an oversight to fix with a mechanism: a pricing bullet describes a tier's
 offer rather than a route, several of them span more than one route, and "Available now" is a

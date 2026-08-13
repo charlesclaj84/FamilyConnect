@@ -132,8 +132,16 @@ export default async function InvitePage({
     return (
       <Shell>
         <CardHeader>
+          {/* The name the INVITER typed, not a claim about who is reading. It is on the
+              invitation since 20260813000002 and is used here for the same reason the
+              email opens with it — a link that greets you by name reads as meant for
+              you, and one that greets the wrong person reads as a mistake, which is
+              exactly the signal a forwarded invitation should give. Older invitations
+              carry no name and get the plain heading. */}
           <CardTitle className="text-lg">
-            You have been invited to {invitation.familyName}
+            {invitation.firstName
+              ? `${invitation.firstName}, you have been invited to ${invitation.familyName}`
+              : `You have been invited to ${invitation.familyName}`}
           </CardTitle>
           <CardDescription>
             {invitation.hasAccount

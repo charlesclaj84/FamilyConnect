@@ -81,6 +81,17 @@ export function familyInvitationEmail(o: {
   familyName: string
   /** Display name of whoever sent it. Omitted rather than faked when unknown. */
   inviterName?: string | null
+  /**
+   * What the inviter called the invitee — required on the invitation since
+   * 20260813000002, and used here only to open with a name instead of an address.
+   *
+   * IT IS NOT A CLAIM ABOUT WHO HOLDS THE MAILBOX, and the copy must never imply one.
+   * The token is the credential and the address narrows it; this is the inviter's label
+   * for a person, typed from memory, and a forwarded message greeting the wrong Ada
+   * should read as a mistake rather than as recognition. Escaped like everything else
+   * here — it is free text from a form, rendered in somebody's mail client.
+   */
+  inviteeFirstName?: string | null
   token: string
   preApproved: boolean
   /** Days until it lapses, for the fine print. */
@@ -89,6 +100,8 @@ export function familyInvitationEmail(o: {
   const link = `${o.origin}/invite/${encodeURIComponent(o.token)}`
   const family = esc(o.familyName)
   const inviter = o.inviterName?.trim() ? esc(o.inviterName.trim()) : null
+  const greetingName = o.inviteeFirstName?.trim() ? esc(o.inviteeFirstName.trim()) : null
+  const greeting = greetingName ? `Hi ${greetingName},` : null
 
   const opening = inviter
     ? `<strong style="font-weight:600;">${inviter}</strong> has invited you to join <strong style="font-weight:600;">${family}</strong> on ${esc(APP_NAME)} — where a family keeps its stories, its photographs, its plans and the record of who belongs to whom.`
@@ -106,7 +119,10 @@ export function familyInvitationEmail(o: {
     html: renderEmailFrom(o.origin, {
       preheader: `${family} kept a place for you. The invitation lasts ${o.expiresInDays} days.`,
       heading: 'Your family kept a place for you',
-      paragraphs: [opening, second],
+      // The greeting is its own paragraph and is DROPPED rather than defaulted when
+      // there is no name — invitations created before 20260813000002 have none, and
+      // "Hi ," reads worse than no greeting at all.
+      paragraphs: greeting ? [greeting, opening, second] : [opening, second],
       button: { href: link, label: 'Accept the invitation', widthPx: 240 },
       fine: `This invitation is for this address only and expires in ${o.expiresInDays} days.`,
       fallbackUrl: esc(link),

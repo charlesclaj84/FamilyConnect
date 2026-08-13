@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { can } from '@/lib/auth/permissions'
+import { can, canAny } from '@/lib/auth/permissions'
 import {
   getTemplates, getResources, getTemplatePolicy, canManageAccess, getMyEffectivePermissions,
   type AccessRights,
@@ -92,6 +92,21 @@ export default async function AdminAccessPage({ searchParams }: Props) {
 
   const resources = canViewTemplates ? await getResources() : []
 
+  // WHO MAY INVITE FROM THIS SCREEN, resolved once for a button that now sits on the rail
+  // and so is visible from every tab. The union of the two grants that can mean it:
+  //
+  //   admin/users:create        adding somebody to the roster — the same grant the
+  //                             dashboard's Add Member quick action checks.
+  //   admin/approvals:edit=any  deciding who gets in, which is what pre-approval IS. This
+  //                             half is why the union exists: an approvals administrator
+  //                             with no roster grant would otherwise lose the button when
+  //                             it moved out of the Pending Approval pane.
+  //
+  // `canAny` on the approvals half rather than `can`, matching `getApplicants().canDecide`
+  // exactly — and matching what create_family_invitation() actually tests before it
+  // honours pre-approval. Neither of these IS the gate: the RPC re-derives both.
+  const canInvite = rights.members.create || await canAny(user.id, 'admin/approvals', 'edit')
+
   const selectedTemplateId = templates.some(t => t.id === params.template)
     ? params.template!
     : templates[0]?.id ?? null
@@ -135,6 +150,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
         canViewApprovals={canViewApprovals}
         canViewAccess={canViewAccess}
         canViewTemplates={canViewTemplates}
+        canInvite={canInvite}
       />
     </PageShell>
   )

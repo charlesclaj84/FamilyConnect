@@ -42,12 +42,21 @@ import { accountStateForEmail, requestConfirmationResend } from '@/lib/auth/acco
 export interface FamilyInvitation {
   id: string
   email: string
+  /** Who the inviter said this is. Required since 20260813000002; '' on older rows. */
+  firstName: string
+  lastName: string
   preApproved: boolean
   createdAt: string
   expiresAt: string
   acceptedAt: string | null
   revokedAt: string | null
   invitedBy: string | null
+}
+
+/** The invitee, as the inviter names them. Both halves required. */
+export interface InviteeName {
+  firstName: string
+  lastName: string
 }
 
 export type InviteResult =
@@ -98,8 +107,23 @@ export type InvitationActionResult =
  */
 export async function inviteMember(
   email: string,
+  name: InviteeName,
   preApproved = false,
   familyCode?: string,
+  /**
+   * An existing `people` row this invitation is ABOUT, so redemption attaches the account
+   * to it instead of creating a second one (20260813000004).
+   *
+   * The family tree is what needs it: adding a relative by invitation has to put a card on
+   * the canvas immediately, so the record exists before the invitation is accepted. Without
+   * this the family ends up with Ada on the tree and Ada in the directory, unrelated.
+   *
+   * NOT VALIDATED HERE, deliberately, and this is the same reasoning `familyCode` above
+   * carries: the RPC confirms the row is in the TARGET family and still unclaimed, and
+   * silently drops it otherwise. A second implementation of that rule in TypeScript would
+   * be free to disagree with the first.
+   */
+  personId?: string,
 ): Promise<InviteResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -107,6 +131,16 @@ export async function inviteMember(
 
   const normalized = (email ?? '').trim().toLowerCase()
   if (!normalized) return { success: false, message: 'Enter an email address' }
+
+  // THE NAME IS REQUIRED, since 20260813000002. Checked here for the message and again
+  // in the RPC because that is where it binds: this is a `'use server'` export, so the
+  // dialog is not in its request path and a POST with `{}` for the name must be refused
+  // by something that is.
+  const firstName = (name?.firstName ?? '').trim()
+  const lastName = (name?.lastName ?? '').trim()
+  if (!firstName || !lastName) {
+    return { success: false, message: 'Enter the first and last name of the person you are inviting' }
+  }
 
   // `familyCode` targets a family other than the one being viewed — /my-families offers
   // the button on every row. It is NOT validated here: the RPC looks for the caller's
@@ -119,8 +153,11 @@ export async function inviteMember(
   const { data, error } = await supabase
     .rpc('create_family_invitation', {
       p_email: normalized,
+      p_first_name: firstName,
+      p_last_name: lastName,
       p_pre_approved: preApproved,
       p_family_code: familyCode?.trim().toUpperCase() || null,
+      p_person_id: personId?.trim() || null,
     })
     .maybeSingle<{
       ok: boolean; token: string | null; email: string | null
@@ -170,6 +207,10 @@ export async function inviteMember(
       origin: emailOrigin(),
       familyName: (family?.family_name as string) ?? targetFamily ?? 'your family',
       inviterName,
+      // The name the inviter typed, so the message opens with "Hi Ada" rather than with
+      // the address. It is a LABEL, not a claim about who holds the mailbox — the token
+      // is still the credential and the address is still what narrows it.
+      inviteeFirstName: firstName,
       token: data.token,
       preApproved: data.pre_approved,
       expiresInDays: INVITATION_EXPIRY_DAYS,
@@ -215,9 +256,13 @@ export async function getInvitations(): Promise<FamilyInvitation[]> {
   if (!g.ok) return []
 
   const supabase = await createClient()
+  // The invitation's OWN first_name/last_name are aliased, because the embed brings a
+  // second pair with the same names — the INVITER's. Without the aliases the row would
+  // carry whichever PostgREST serialized last, and the queue would print the sender's
+  // name where the invitee's belongs.
   const { data, error } = await supabase
     .from('family_invitations')
-    .select('id, email, pre_approved, created_at, expires_at, accepted_at, revoked_at, people!family_invitations_invited_by_fkey(first_name, last_name)')
+    .select('id, email, invitee_first:first_name, invitee_last:last_name, pre_approved, created_at, expires_at, accepted_at, revoked_at, people!family_invitations_invited_by_fkey(first_name, last_name)')
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -232,6 +277,8 @@ export async function getInvitations(): Promise<FamilyInvitation[]> {
     return {
       id: row.id as string,
       email: row.email as string,
+      firstName: (row.invitee_first as string) ?? '',
+      lastName: (row.invitee_last as string) ?? '',
       preApproved: row.pre_approved as boolean,
       createdAt: row.created_at as string,
       expiresAt: row.expires_at as string,
@@ -297,7 +344,7 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
 
   const { data: invitation, error } = await supabase
     .from('family_invitations')
-    .select('id, email, family_code, pre_approved, accepted_at, revoked_at, expires_at')
+    .select('id, email, first_name, last_name, family_code, pre_approved, accepted_at, revoked_at, expires_at')
     .eq('id', invitationId)
     .maybeSingle()
 
@@ -327,8 +374,29 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
   // an account that needs confirming.
   const state = await accountStateForEmail(email)
 
+  // THE NAME COMES FROM THE ROW, never from the caller. A resend is a re-mint, so the new
+  // invitation has to carry the name the old one did — and taking it as a parameter would
+  // let anyone who can see an invitation rewrite the label an administrator reads in the
+  // approvals queue.
+  const firstName = ((invitation.first_name as string) ?? '').trim()
+  const lastName = ((invitation.last_name as string) ?? '').trim()
+
+  // A ROW FROM BEFORE 20260813000002 HAS NO NAME, and the RPC refuses to mint one without
+  // it. Refusing is right — a nameless invitation is the thing that change exists to stop
+  // — but the RPC's message is "Enter the first and last name…", and Resend is a button
+  // with no fields. So the message is replaced with one that names an action the reader
+  // can actually take. This population is transient: invitations expire in 14 days.
+  if (!firstName || !lastName) {
+    return {
+      success: false,
+      message: 'This invitation was created before we started recording names. '
+        + 'Cancel it and send a new one instead.',
+    }
+  }
+
   const sent = await inviteMember(
     email,
+    { firstName, lastName },
     Boolean(invitation.pre_approved),
     invitation.family_code as string,
   )
@@ -387,7 +455,10 @@ export async function revokeInvitation(invitationId: string): Promise<Invitation
  * behind an email parameter.
  */
 export async function peekInvitation(token: string): Promise<
-  | { valid: true; email: string; familyName: string; preApproved: boolean; hasAccount: boolean }
+  | {
+      valid: true; email: string; familyName: string; preApproved: boolean
+      hasAccount: boolean; firstName: string; lastName: string
+    }
   | { valid: false }
 > {
   const supabase = await createClient()
@@ -396,6 +467,7 @@ export async function peekInvitation(token: string): Promise<
     .maybeSingle<{
       valid: boolean; email: string; family_name: string
       pre_approved: boolean; has_account: boolean | null
+      first_name: string | null; last_name: string | null
     }>()
 
   if (!data?.valid) return { valid: false }
@@ -404,6 +476,12 @@ export async function peekInvitation(token: string): Promise<
     email: data.email,
     familyName: data.family_name,
     preApproved: data.pre_approved,
+    // Defaults to '' against a database without 20260813000002, where these columns are
+    // absent and read undefined — the same shape as `has_account` below. Registration
+    // prefills from them and a blank prefill is simply an empty field, so there is
+    // nothing to fail closed about.
+    firstName: data.first_name ?? '',
+    lastName: data.last_name ?? '',
     // Defaults to "no account" against a database that has not had 20260810000000
     // applied, where the column is absent and this reads undefined. That keeps the
     // pre-migration behaviour — offer registration — rather than sending everyone to a

@@ -26,11 +26,31 @@ import { cn } from '@/lib/utils'
  * Do not reach past this for a bespoke max-w. A page that needs a third measure needs a
  * third named option here, so the next page facing the same choice finds it.
  *
- * NOT YET APPLIED EVERYWHERE. The pages in this change use it; the rest still carry
- * their own container. Converting them is mechanical but it is not a no-op — each one
- * has to be read to decide whether it is `wide` or `reading`, and widening a page that
- * wanted to be narrow is the one way this makes things worse. New pages should use it
- * from the start.
+ * ── APPLIED EVERYWHERE, since 2026-08-13 ────────────────────────────────────────────
+ * This said "NOT YET APPLIED EVERYWHERE" for as long as it was true. Every page under
+ * `app/(protected)` now uses it, `loading.tsx` included — so a navigation no longer
+ * starts at one measure and jumps to another.
+ *
+ * `grep "mx-auto max-w-"` over that directory returns exactly three things and none is a
+ * page container: /chat's empty-state card, and error.tsx and not-found.tsx, which are
+ * centred `max-w-md` messages. Those two are deliberate — an apology in a 6xl column
+ * reads as a layout failure rather than as a message — and they are the whole exception
+ * list. A fourth belongs here or in a named option.
+ *
+ * FOUR PAGES ARE `reading` AND THE REST ARE `wide`. The four are the ones whose content
+ * is a single column of prose read start to finish: Announcements, an event, an election
+ * ballot, and Settings. Everything else is horizontal — tables, card grids, a MainRail
+ * with panes under it — which is what `wide` is for and why it is the default.
+ *
+ * TWO PAGES LOST AN `xl:max-w-6xl` STEP in that sweep and it is worth knowing why, since
+ * it reads like a regression. Accounting and Transactions were `max-w-4xl … xl:max-w-6xl`
+ * — narrower than every page beside them until 1280px — on the argument that their
+ * second-level rail only appears at xl. That rail lives INSIDE the measure rather than
+ * beside it, so the argument did not hold, and the visible cost was a page that changed
+ * width mid-resize while Members next door did not.
+ *
+ * New pages use it from the start, and a page that seems to need something else needs a
+ * named option here first.
  */
 export function PageShell({
   width = 'wide',

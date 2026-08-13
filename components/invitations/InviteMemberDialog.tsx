@@ -40,6 +40,7 @@ export function InviteMemberDialog({
   className,
   familyCode,
   familyName,
+  renderTrigger,
 }: {
   preApproved?: boolean
   label?: string
@@ -51,13 +52,31 @@ export function InviteMemberDialog({
   familyCode?: string
   /** Only for the wording; the family is decided by `familyCode` server-side. */
   familyName?: string
+  /**
+   * A trigger of your own, given the function that opens the dialog.
+   *
+   * WHY A RENDER PROP RATHER THAN A SECOND DIALOG. The Dashboard's Add Member quick
+   * action is a round accent chip over a caption, which no amount of `className` can
+   * make out of the bordered pill below — the icon and the label are inside the default
+   * trigger's markup, not around it. The alternative was a second copy of this dialog
+   * with a different button on it, and a second copy is how one of them ends up not
+   * carrying the failure path, or the name fields, or the pre-approval wording.
+   *
+   * The trigger is the ONLY thing this swaps. Everything a caller must not get wrong —
+   * the fields, what is reported back, and the token being shown only when the email
+   * did not go — is below and is not overridable.
+   */
+  renderTrigger?: (open: () => void) => React.ReactNode
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [result, setResult] = useState<{
+    name: string
     email: string
     preApproved: boolean
     emailed: boolean
@@ -65,12 +84,16 @@ export function InviteMemberDialog({
   } | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const complete = Boolean(firstName.trim() && lastName.trim() && email.trim())
+
   // Only ever set on the failure path, where the action hands the token back so the
   // invitation is not stranded. Composed in the browser so there is no origin to guess —
   // the link is for whatever host the inviter is actually using.
   const inviteLink = result?.token ? `${window.location.origin}/invite/${result.token}` : ''
 
   function reset() {
+    setFirstName('')
+    setLastName('')
     setEmail('')
     setError('')
     setCopied(false)
@@ -85,10 +108,17 @@ export function InviteMemberDialog({
 
   function submit() {
     setError('')
+    const name = { firstName: firstName.trim(), lastName: lastName.trim() }
     startTransition(async () => {
-      const r = await inviteMember(email, preApproved, familyCode)
+      const r = await inviteMember(email, name, preApproved, familyCode)
       if (r.success) {
         setResult({
+          // Held from the form rather than echoed by the action, deliberately: the
+          // action returns what the DATABASE recorded about the invitation, and the
+          // name is not part of that answer — it is a label, not a decision. The two
+          // fields the success screen must not invent are `preApproved` and `emailed`,
+          // and both come back from the server.
+          name: `${name.firstName} ${name.lastName}`.trim(),
           email: r.email,
           preApproved: r.preApproved,
           emailed: r.emailed,
@@ -109,18 +139,25 @@ export function InviteMemberDialog({
     }
   }
 
+  function launch() {
+    reset()
+    setOpen(true)
+  }
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => { reset(); setOpen(true) }}
-        className={cn(
-          'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted',
-          className,
-        )}
-      >
-        <UserPlus className="h-4 w-4" /> {label}
-      </button>
+      {renderTrigger ? renderTrigger(launch) : (
+        <button
+          type="button"
+          onClick={launch}
+          className={cn(
+            'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted',
+            className,
+          )}
+        >
+          <UserPlus className="h-4 w-4" /> {label}
+        </button>
+      )}
 
       <Dialog
         open={open}
@@ -138,6 +175,39 @@ export function InviteMemberDialog({
       >
         {!result && (
           <form className="space-y-4" onSubmit={e => { e.preventDefault(); submit() }}>
+            {/* NAME FIRST, AND BOTH HALVES REQUIRED, since 2026-08-13. Two things needed
+                it, and neither is cosmetic: the approvals queue used to be a list of bare
+                email addresses, which is not an answer to "who is waiting"; and a member
+                who already had an account and merely signed in to accept arrived in the
+                directory with no name at all, because the person row was seeded from
+                account metadata that is frequently empty.
+
+                Side by side above the address rather than below it, because this is the
+                order the inviter is thinking in — they know who their cousin is before
+                they go looking for the address. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-first">First name</Label>
+                <Input
+                  id="invite-first"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  placeholder="Ada"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-last">Last name</Label>
+                <Input
+                  id="invite-last"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  placeholder="Okonkwo"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="invite-email">Email address</Label>
               <Input
@@ -153,7 +223,8 @@ export function InviteMemberDialog({
 
             <p className="text-sm text-muted-foreground">
               We&apos;ll email them an invitation. Only this address can use it, and it
-              expires in 14 days.
+              expires in 14 days. The name is what your family sees while they are waiting
+              to be admitted.
             </p>
 
             <FormError message={error} />
@@ -168,7 +239,7 @@ export function InviteMemberDialog({
               </button>
               <button
                 type="submit"
-                disabled={isPending || !email.trim()}
+                disabled={isPending || !complete}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 {isPending ? 'Creating…' : 'Create invitation'}
@@ -181,9 +252,15 @@ export function InviteMemberDialog({
           <div className="space-y-4">
             <p className="text-sm">
               {result.emailed ? (
-                <>We&apos;ve emailed an invitation to <span className="font-medium">{result.email}</span>.</>
+                <>
+                  We&apos;ve emailed an invitation to <span className="font-medium">{result.name}</span>
+                  {' '}at <span className="font-medium">{result.email}</span>.
+                </>
               ) : (
-                <>An invitation for <span className="font-medium">{result.email}</span>.</>
+                <>
+                  An invitation for <span className="font-medium">{result.name}</span>
+                  {' '}at <span className="font-medium">{result.email}</span>.
+                </>
               )}
             </p>
 

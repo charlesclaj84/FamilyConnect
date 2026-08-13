@@ -96,12 +96,10 @@ const adminItems: NavItem[] = [
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
-  // Announcement Management had no entry here at all until its route came back — it was
-  // gated before this rail was written, so the page was built, permissioned and reachable
-  // by URL while appearing in no navigation anywhere. It sits with the other periodic
-  // tasks rather than with the setup screens above: posting news is something a family
-  // does continuously, like running an election.
-  { href: '/admin/announcements',  label: 'Announcement Management', icon: Megaphone },
+  // NO Announcement Management ROW. The route is deleted (20260813000000) — posting,
+  // pinning and deleting all live on Community > Announcements now, each control gated by
+  // the `announcements` grant that governs it. An admin duplicate of a member page is a
+  // second place to learn one job.
   { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
   { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
   // SETTINGS IS LAST, and the permission grid agrees with it — 20260812000001 moved its
@@ -146,11 +144,11 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       // to say so.
       //
       // FAMILY TREE USED TO BE HERE and is now under Community, which is a change of
-      // meaning rather than of filing: the tree being built is the WHOLE family's, not the
-      // caller's own line, so it no longer belongs beside My Children in the half of the
-      // product that is about you. The per-member lineage view — which genuinely was
-      // personal — is still here in spirit, at `/members/family-tree`, reached from the
-      // Directory rather than from a rail item of its own.
+      // meaning rather than of filing: the tree is the WHOLE family's, not the caller's
+      // own line, so it no longer belongs beside My Children in the half of the product
+      // that is about you. The per-member lineage view — which genuinely was personal —
+      // was retired on 2026-08-13 along with its route; the family tree re-centres on
+      // whoever you click, which is what that view was for.
       section: { label: 'Personal', icon: UserCircle },
       items: [
         { href: '/direct-lineage',  label: 'My Children',  icon: Users },
@@ -158,15 +156,19 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
     },
     {
       // Family Tree LAST, and directly after Directory on purpose: the two answer the same
-      // question — who is in this family and how are they related — and the lineage view
-      // behind the Directory is the thing this tree is being built to replace. Chat and
-      // Announcements are conversation; these two are the roster.
+      // question — who is in this family and how are they related. Chat and Announcements
+      // are conversation; these two are the roster.
+      //
+      // NO `beta` FLAG, since 2026-08-13. The badge was hand-set here and on the page, and
+      // both came off together when the per-member lineage view was retired and this
+      // became the only tree — see app/(protected)/family-tree/page.tsx. Nothing derives
+      // it, so if a surface ever needs it again it is set here by hand exactly as it was.
       section: { label: 'Community', icon: UsersRound },
       items: [
         { href: '/chat',          label: 'Chat',             icon: MessageCircle },
         { href: '/announcements', label: 'Announcements',    icon: Megaphone },
         { href: '/members',       label: 'Directory',        icon: UsersRound },
-        { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch, beta: true },
+        { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
       ],
     },
   ]

@@ -6,6 +6,7 @@ import { getUpcomingEvents } from '@/app/actions/events'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, MapPin, Clock, ChevronRight, Users } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Events' }
 
@@ -19,9 +20,9 @@ export default async function EventsPage() {
   const events = await getUpcomingEvents()
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Upcoming Events</h1>
+        <h1 className="mb-1 text-3xl font-bold">Upcoming Events</h1>
         <p className="text-muted-foreground">Upcoming family events. Click an event to view details and RSVP.</p>
       </div>
 
@@ -87,6 +88,6 @@ export default async function EventsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

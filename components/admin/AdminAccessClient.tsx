@@ -26,6 +26,7 @@ import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
+import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import type { Applicant } from '@/app/actions/admin/approvals'
 import type { FamilyInvitation } from '@/app/actions/invitations'
@@ -96,11 +97,23 @@ interface Props {
   canViewAccess: boolean
   /** Whether the caller may view `admin/users/templates` — drives the templates tab. */
   canViewTemplates: boolean
+  /**
+   * Whether to offer Invite Member at all — resolved by the page as
+   * `admin/users:create` OR `admin/approvals:edit` at scope 'any'.
+   *
+   * A SEPARATE PROP RATHER THAN `memberRights.create`, since 2026-08-13, and it is the
+   * union for a reason: the button now sits on the rail, which every tab shares, so
+   * tying it to the Members grant alone would have TAKEN it away from an approvals
+   * administrator who has no roster grant — the one person on this screen whose whole
+   * job is deciding who is in the family. Either grant is a caller who may invite from
+   * an administration screen; the database decides what the invitation is worth.
+   */
+  canInvite: boolean
 }
 
 export function AdminAccessClient({
   templates, resources, tab, selectedTemplateId, policy, memberRights, templateRights,
-  legacy, approvals, canViewApprovals, canViewAccess, canViewTemplates,
+  legacy, approvals, canViewApprovals, canViewAccess, canViewTemplates, canInvite,
 }: Props) {
   const router = useRouter()
   const [error, setError] = useState('')
@@ -165,11 +178,33 @@ export function AdminAccessClient({
 
       <FormError message={error} />
 
+      {/* INVITE MEMBER SITS ON THE RAIL FOR ALL THREE TABS, since 2026-08-13, and this is
+          a deliberate departure from MainRail's "the active pane's one action" (AGENTS.md,
+          "The main rail is a standard component").
+
+          The rule assumes each pane has a DIFFERENT action, and here all three want the
+          same one: adding somebody to the family is the job this whole screen is about,
+          and it was previously offered twice — once on the Members rail and once inside
+          the Pending Approval pane — so the same button appeared in two places at two
+          sizes depending on which tab you were on. One button that does not move is
+          easier to find than two that take turns. The pane copy is now gone; this is the
+          only Invite Member on the page.
+
+          `canInvite` is the union of the two grants that can mean it — see the prop.
+
+          `preApproved` — the invitee is admitted the moment they accept, because the
+          person inviting from an administration screen is the person who would have
+          approved them a moment later. It is a REQUEST, not an instruction:
+          `create_family_invitation` honours it only for a caller holding
+          admin/approvals:edit at scope 'any' and silently downgrades otherwise, so a
+          roster administrator without the approvals grant sends an ordinary invitation
+          and the dialog reports what actually happened. */}
       <MainRail
         label="Members and access"
         items={tabs}
         active={tab}
         onSelect={t => go({ tab: t })}
+        action={canInvite ? <InviteMemberDialog preApproved /> : undefined}
       />
 
       {tab === 'approvals' && approvals && (

@@ -275,7 +275,6 @@ export async function createElection(input: {
     })
     revalidatePath('/announcements')
     revalidatePath('/dashboard')
-    revalidatePath('/admin/announcements')
   }
 
   revalidatePath('/elections')

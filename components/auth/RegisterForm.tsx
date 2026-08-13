@@ -52,10 +52,23 @@ export function RegisterForm({
   inviteToken,
   invitedEmail,
   invitedFamilyName,
+  invitedFirstName,
+  invitedLastName,
 }: {
   inviteToken?: string
   invitedEmail?: string
   invitedFamilyName?: string
+  /**
+   * The name on the invitation (20260813000002), used ONLY to prefill.
+   *
+   * Unlike the email, these fields stay editable — the address is what the invitation is
+   * bound to and a mismatch is refused server-side, whereas the name is the inviter's
+   * guess at what their cousin calls themselves. The person registering is the better
+   * authority, and `redeem_family_invitation` agrees: it prefers the account's own
+   * metadata and falls back to the invitation only when there is none.
+   */
+  invitedFirstName?: string
+  invitedLastName?: string
 } = {}) {
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('join')
@@ -71,7 +84,11 @@ export function RegisterForm({
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: invitedEmail ? { email: invitedEmail } : undefined,
+    defaultValues: {
+      ...(invitedEmail ? { email: invitedEmail } : {}),
+      ...(invitedFirstName ? { firstName: invitedFirstName } : {}),
+      ...(invitedLastName ? { lastName: invitedLastName } : {}),
+    },
   })
 
   function switchMode(next: Mode) {

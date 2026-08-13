@@ -198,7 +198,6 @@ export async function addChild(
   }
 
   revalidatePath('/direct-lineage')
-  revalidatePath('/members/family-tree')
   return { success: true }
 }
 
@@ -256,7 +255,6 @@ export async function updateChild(
   }
 
   revalidatePath('/direct-lineage')
-  revalidatePath('/members/family-tree')
   return { success: true }
 }
 
@@ -292,7 +290,6 @@ export async function deleteChild(
   }
 
   revalidatePath('/direct-lineage')
-  revalidatePath('/members/family-tree')
   return { success: true }
 }
 
@@ -415,7 +412,6 @@ export async function acceptSpouseChild(
   if (error) return { success: false, message: error.message }
 
   revalidatePath('/direct-lineage')
-  revalidatePath('/members/family-tree')
   return { success: true }
 }
 
@@ -436,6 +432,5 @@ export async function convertChildToAdult(
   if (error) return { success: false, message: error.message }
 
   revalidatePath('/direct-lineage')
-  revalidatePath('/members/family-tree')
   return { success: true }
 }

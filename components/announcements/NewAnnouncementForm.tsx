@@ -19,7 +19,20 @@ const SCOPE_META: Record<Scope, { label: string; icon: typeof Globe; hint: strin
   chapter:  { label: 'Chapter', icon: Building2, hint: 'Shown to a specific chapter' },
 }
 
-export function NewAnnouncementForm({ isAdmin, chapters }: { isAdmin: boolean; chapters: Chapter[] }) {
+/**
+ * `canPin` was called `isAdmin` until 2026-08-13, and the rename is not cosmetic: it is
+ * the ONE grant this control reads — `announcements:edit` at scope 'any' — rather than a
+ * general statement about the caller. A family can hand pinning to a communications
+ * officer who administers nothing else, and a prop named `isAdmin` invites the next
+ * reader to reuse it for a second decision that does not follow from it.
+ *
+ * THE EXPIRY CAME BACK WITH THE ADMIN PAGE'S DELETION. `pinned_until` is a column
+ * (20260610000003) and `createAnnouncement` has always honoured it; only the deleted
+ * Announcement Management screen offered it, so folding that screen in here without this
+ * field would have quietly removed the ability to pin something until the reunion and no
+ * longer.
+ */
+export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; chapters: Chapter[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -27,21 +40,27 @@ export function NewAnnouncementForm({ isAdmin, chapters }: { isAdmin: boolean; c
   const [scope, setScope] = useState<Scope>('national')
   const [chapterId, setChapterId] = useState('')
   const [pinned, setPinned] = useState(false)
+  const [pinnedUntil, setPinnedUntil] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function reset() {
-    setTitle(''); setBody(''); setScope('national'); setChapterId(''); setPinned(false); setError(''); setOpen(false)
+    setTitle(''); setBody(''); setScope('national'); setChapterId('')
+    setPinned(false); setPinnedUntil(''); setError(''); setOpen(false)
   }
 
   function submit() {
     if (!title.trim() || !body.trim()) { setError('Add a title and a message.'); return }
     if (scope === 'chapter' && !chapterId) { setError('Choose which chapter to notify.'); return }
     setError('')
+    const willPin = canPin && pinned
     startTransition(async () => {
       const res = await createAnnouncement({
         title, body, scope,
-        pinned: isAdmin && pinned,
+        pinned: willPin,
+        // Only when it is actually pinned — an expiry on an unpinned post is a date
+        // nothing ever reads, and `createAnnouncement` drops it for the same reason.
+        pinned_until: willPin && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         chapter_id: scope === 'chapter' ? chapterId : null,
       })
       if (!res.success) { setError(res.message ?? 'Could not post'); return }
@@ -128,12 +147,48 @@ export function NewAnnouncementForm({ isAdmin, chapters }: { isAdmin: boolean; c
         </div>
       )}
 
-      {isAdmin && (
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input type="checkbox" checked={pinned} onChange={e => setPinned(e.target.checked)} className="h-4 w-4 rounded border-input accent-primary" />
-          <Pin className="h-3.5 w-3.5 text-muted-foreground" />
-          Pin to the top of everyone’s dashboard
-        </label>
+      {canPin && (
+        <div className="space-y-2">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={pinned}
+              onChange={e => { setPinned(e.target.checked); if (!e.target.checked) setPinnedUntil('') }}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+            <Pin className="h-3.5 w-3.5 text-muted-foreground" />
+            Pin to the top of everyone’s Recent Updates
+          </label>
+          {pinned && (
+            <div className="ml-6 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="ann-pinned-until" className="whitespace-nowrap text-xs text-muted-foreground">
+                  Stop pinning on
+                </Label>
+                <input
+                  type="date"
+                  id="ann-pinned-until"
+                  value={pinnedUntil}
+                  onChange={e => setPinnedUntil(e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                />
+                {pinnedUntil && (
+                  <button
+                    type="button"
+                    onClick={() => setPinnedUntil('')}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional. Leave it empty to pin until somebody unpins it. Each member can
+                dismiss it from their own updates whenever they like.
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       <FormError message={error} />

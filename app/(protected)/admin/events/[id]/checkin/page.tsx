@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireView } from '@/lib/auth/permissions'
 import { getCheckInList } from '@/app/actions/admin/event-checkin'
 import { EventCheckInClient } from '@/components/admin/EventCheckInClient'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Event Check-In — Admin' }
 
@@ -24,15 +25,15 @@ export default async function EventCheckInPage({ params }: { params: Promise<{ i
   const attendees = await getCheckInList(id)
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <Link href={`/admin/events/${id}`} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-6">
         <ChevronLeft className="h-3.5 w-3.5" /> Back to Event
       </Link>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Check-In</h1>
+        <h1 className="mb-1 text-3xl font-bold">Check-In</h1>
         <p className="text-muted-foreground">{event.name}</p>
       </div>
       <EventCheckInClient eventId={id} initialAttendees={attendees} />
-    </div>
+    </PageShell>
   )
 }

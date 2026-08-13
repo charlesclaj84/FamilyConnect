@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { disambiguatedName } from '@/lib/name-utils'
+import { matchesPersonQuery } from '@/lib/person-search'
 
 /**
  * THE control for choosing several members of a family.
@@ -68,19 +69,14 @@ export interface SelectablePerson {
  */
 const RENDER_LIMIT = 60
 
-/** Case- and accent-insensitive, so "jose" finds "José" and "OConnor" finds "O'Connor". */
-function normalize(s: string): string {
-  return s
-    .normalize('NFD')
-    // The combining-diacritic block NFD just split the accents into. Written as escapes
-    // rather than as literal marks, which are invisible in an editor and get eaten by
-    // the first tool that touches the file.
-    .replace(/[\u0300-\u036f]/g, '')
-    // Punctuation and spaces dropped entirely, so "oconnor" finds "O'Connor" and
-    // "maryjane" finds "Mary Jane".
-    .replace(/[^a-z0-9]+/gi, '')
-    .toLowerCase()
-}
+// THE MATCHING RULE MOVED TO `lib/person-search.ts` on 2026-08-13, and the reason is the
+// one AGENTS.md already records against this file's known-gaps list: this codebase has
+// hand-rolled a member picker three times and the copies drifted — the Member Directory
+// got accent-insensitive search and the photo tagger did not. A rule that lives inside a
+// component can only be shared by copying it. The family-tree picker imports the same
+// module, so a fourth control has somewhere to look and a fix reaches all of them.
+//
+// The comments that were here on WHY each pass exists moved with it.
 
 export function PersonMultiSelect({
   people,
@@ -115,15 +111,10 @@ export function PersonMultiSelect({
     [people],
   )
 
-  const matches = useMemo(() => {
-    const q = normalize(query)
-    if (!q) return named
-    return named.filter(({ person, name }) =>
-      normalize(name).includes(q)
-      || normalize(`${person.first_name}${person.last_name}`).includes(q)
-      || normalize(person.nick_name ?? '').includes(q),
-    )
-  }, [named, query])
+  const matches = useMemo(
+    () => named.filter(({ person, name }) => matchesPersonQuery(person, name, query)),
+    [named, query],
+  )
 
   const shown = matches.slice(0, RENDER_LIMIT)
   const hiddenByLimit = matches.length - shown.length

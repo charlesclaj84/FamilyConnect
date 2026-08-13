@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getChapters, getRegions } from '@/app/actions/admin/chapters'
 import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Regions & Chapters — Admin' }
 
@@ -16,14 +17,14 @@ export default async function AdminChaptersPage() {
   const [regions, chapters] = await Promise.all([getRegions(), getChapters()])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Regions & Chapters</h1>
+        <h1 className="mb-1 text-3xl font-bold">Regions &amp; Chapters</h1>
         <p className="text-muted-foreground">
           Organize your family geographically. Chapters must belong to a region — or they live under National by default.
         </p>
       </div>
       <AdminRegionsChaptersClient initialRegions={regions} initialChapters={chapters} />
-    </div>
+    </PageShell>
   )
 }

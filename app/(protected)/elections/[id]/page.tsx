@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/date-utils'
 import { BallotForm } from '@/components/elections/BallotForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ELECTION_WINDOW } from '@/components/elections/status'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Election' }
 
@@ -42,7 +43,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <PageShell width="reading" className="space-y-8">
       <div>
         <Link href="/elections" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
           <ChevronLeft className="h-3.5 w-3.5" /> Back to Elections
@@ -125,6 +126,6 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
           })}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

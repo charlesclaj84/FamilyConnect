@@ -127,6 +127,133 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+## The family-wide tree publishes the roster under a key nobody can restrict
+
+**Action:** decide whether `/family-tree` gets a permission resource of its own. It is a
+product call — the mechanism is three lines and a migration.
+
+`/family-tree` became a real tree on 2026-08-13: it fetches every `people` row in the
+family and every relationship between them, and it writes new ones. It gates on
+`family-tree`, which `20260806000006` deliberately left **unregistered** — a member's own
+things are not something a family administers — so `auth_permission()` falls through to
+the default and resolves `view` to `'any'` for every approved member. **A family cannot
+switch this page off.**
+
+That was right when the key meant "my own line". It is a different claim now, and
+FutureFeature.md predicted exactly this: *"`/direct-lineage` and `/family-tree` have no
+permission row by design, so shipping them ships them to everyone with no switch … It
+will matter when the real tree lands."* It has landed.
+
+**What is and is not exposed**, so this is not read as bigger than it is. The tree shows
+names, avatars, gender, minor status and whether somebody has an account — the same
+columns the Member Directory shows, plus the relationships. It shows no contact details,
+no addresses and no money. The exposure is that a family which has restricted
+`members` (its Directory) has not thereby restricted this.
+
+**THE CHOICE NARROWED TO TWO on 2026-08-13**, later the same day, when the per-member
+lineage view was deleted. There is now exactly one page on the `family-tree` key, so the
+option this list called "probably right" — splitting the key so the two pages could answer
+differently — has nothing left to split. What remains:
+
+1. **Register `family-tree` as a resource again.** One migration: a `permission_resources`
+   row, a per-family `resource_visibility` backfill, and a place in
+   `components/admin/resource-groups.ts`, exactly as AGENTS.md §6 describes. The objection
+   this option used to carry — that restricting the tree would also restrict the lineage
+   view sharing its key — is gone with that view. This is now the straightforward answer
+   and needs only the product call.
+2. **Decide the tree is Directory-equivalent** and gate it on `members`. Cheapest, and it
+   still carries the trap option 1 avoids: `belongsToFamily` uses the service role
+   precisely so that a family restricting its Directory does not break its own family
+   tree (AGENTS.md §4), and this would reintroduce that coupling at the page instead.
+
+Whichever is chosen, one more surface reads this key now: the Dashboard's Family Tree card
+resolves `can(user.id, 'family-tree', 'view')` before fetching, so registering the resource
+starts narrowing the card without anybody having to remember it exists.
+
+Recorded 2026-08-13, when the tree stopped being a placeholder; narrowed the same day.
+
+## The family tree's second pass
+
+**Action:** none blocking. This is an ordinary backlog against a finished feature, which
+is the change from what this section used to be — it was "the list the beta badge is
+standing in for", and the badge came off on 2026-08-13. Nothing below is a caveat a member
+needs warning about; each is a thing the tree does not do yet.
+
+Shipped in the first pass: an ancestry-style focus canvas (grandparents, parents, focus
+with spouses, children, siblings beside), three ways to add a relative (link an existing
+member, invite by email, record without one), detaching a connection without removing
+anybody from the family, a list of people connected to nobody, and the Dashboard card that
+counts generations, members and those unconnected people.
+
+**The lineage view is gone**, and that answers FutureFeature.md decision 5 — it asked
+whether the per-member view retires when the real tree lands or stays as the Directory's
+drill-down. `/members/family-tree`, `FamilyTreeClient`, `app/actions/ancestors.ts` and
+`app/actions/spouse.ts` were all deleted. It cost nothing in data: both surfaces were
+readers of `person_relationships`, so every row it wrote is on the canvas already, and
+re-focusing on whoever you click is the same drill-down without a second page.
+
+What is deliberately absent, and what each would take:
+
+* **Step relationships.** `person_relationships.is_step` exists and the builder writes
+  `false`. The column is the easy half; the question is what a step-parent looks like on
+  a canvas that has one row for parents.
+* **More than one marriage.** Every spouse renders beside the focus person with no way to
+  say which children belong to which union. This is the hardest of the three and the one
+  most likely to force a layout change rather than an addition.
+* **Dates on the connectors**, and a person card that says more than a name and a status.
+
+**`is_minor` is not asked for anywhere in the add flow,** which matters more than it
+sounds: a child recorded through "no email address" is created with `is_minor: false`, so
+they are counted as an adult by the member count on the dashboard and by anything else
+that filters on it. Fixing it is a checkbox and a column; deciding whether the tree should
+be the place a child is created at all is the actual question, since `/direct-lineage`
+exists for that and is still gated.
+
+## Recent Updates has no archive — there is nowhere to see or search past updates
+
+**Action:** decide whether Recent Updates earns a page of its own, and if so what it
+holds. This is a product call first; the query behind it is easy.
+
+2026-08-13 folded announcements into the dashboard's Recent Updates card
+([components/dashboard/updates.ts](components/dashboard/updates.ts)) and removed the
+pinned-announcements banner above it. That is better in every way it was meant to be —
+one feed instead of two surfaces, and a dismissal that is per PERSON rather than per
+browser — but it has left the card holding two kinds of thing and showing only the
+newest handful of each. What a member cannot do today:
+
+* **Scroll back.** The card shows every pin plus `RECENT_UPDATES_LIMIT` (6) other rows,
+  and nothing renders row seven. `getNotifications()` caps at 30 and the bell shows the
+  same rows; `getAnnouncementFeed()` caps at 20. Older than that is not merely unseen,
+  it is unfetched.
+* **Search.** No surface searches either table. "What did they say about the hotel
+  block?" has no answer but scrolling `/announcements`, which itself stops at 50.
+* **See the two together anywhere but the dashboard.** `/announcements` is the board and
+  the bell is the inbox; the merged view exists only in a card five rows tall.
+
+The card deliberately carries **no "View all updates" link** for exactly this reason —
+there is nothing at the other end of one, and the comment in
+[RecentUpdates.tsx](components/dashboard/RecentUpdates.tsx) says so. When this ships,
+that link is the first thing to add.
+
+Three things to settle before building it:
+
+1. **Is it a route or a bigger card?** A route (`/updates`) needs a `permission_resources`
+   row, a `resource_visibility` backfill and a rail item under Community — AGENTS.md §6
+   and the "one rail item, one permission resource" rule. Note the awkwardness it would
+   inherit: the feed mixes rows governed by `announcements` with rows governed by
+   nothing at all (notifications lost their resource in `20260805000007`), so a single
+   view grant over the page would not describe what is in it.
+2. **Whose notifications, and does read-state move?** The card deliberately does not mark
+   anything read — the bell owns `read_at`, and two surfaces competing over it would make
+   the badge disagree with itself. An archive that opens rows has to answer the same
+   question, and probably the same way.
+3. **What does search actually search?** Title and body across both tables is the obvious
+   answer and needs an index on neither today. Doing it in Postgres rather than in the
+   browser is what makes it work for a family with three years of news, which is the case
+   this is for.
+
+Recorded 2026-08-13, while moving announcements into the card.
+
 ## The Dashboard design kit is world-readable, and seven of its images have no provenance
 
 **Action:** decide whether `public/dashboard/` moves out of the served tree. It is a

@@ -111,6 +111,8 @@ export default async function RegisterPage({
         inviteToken={invite}
         invitedEmail={invitation.email}
         invitedFamilyName={invitation.familyName}
+        invitedFirstName={invitation.firstName}
+        invitedLastName={invitation.lastName}
       />
     )
   }

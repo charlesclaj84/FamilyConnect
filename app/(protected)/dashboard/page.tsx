@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
@@ -7,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { getLinkPersonBannerData } from '@/app/actions/link-person'
-import { getPinnedAnnouncements, getChapters } from '@/app/actions/announcements'
+import { getAnnouncementFeed, getChapters } from '@/app/actions/announcements'
 import { getMyDuesSummary, getFamilyDuesCollected } from '@/app/actions/dues'
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
@@ -16,13 +15,15 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
-import { PinnedAnnouncementsBanner } from '@/components/dashboard/PinnedAnnouncementsBanner'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { WelcomeHero } from '@/components/dashboard/WelcomeHero'
 import { AtAGlance } from '@/components/dashboard/AtAGlance'
 import { QuickActions } from '@/components/dashboard/QuickActions'
+import { FamilyTreeCard } from '@/components/dashboard/FamilyTreeCard'
+import { getFamilyTreeSummary } from '@/app/actions/family-tree'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
+import { mergeUpdates } from '@/components/dashboard/updates'
 import {
   TILE_RESOURCE, QUICK_ACTION_GRANT, ROUTE_FOR_GRANT,
   type ResolvedTile, type QuickActionId,
@@ -30,9 +31,6 @@ import {
 import { isFeatureLive } from '@/lib/features'
 
 export const metadata = { title: 'Dashboard' }
-
-/** How many notification rows the Recent Updates card shows before the bell takes over. */
-const RECENT_UPDATES_LIMIT = 5
 
 /**
  * The member's landing screen, in the Golden Master's visual language.
@@ -46,21 +44,24 @@ const RECENT_UPDATES_LIMIT = 5
  *                                  waiting on a panel nobody has written. The data and the
  *                                  actions exist; the band under the greeting is where they
  *                                  go. Do not read this row as "blocked" any more.
- *   Family Tree Highlights         `/family-tree` is live but is the beta scaffold — no
- *                                  data behind it at all — and nothing computes a
- *                                  family-wide generation depth either. Two things missing,
- *                                  not one; the lineage view at `/members/family-tree`
- *                                  answers for one person and cannot fill a family panel.
  *   Family hero photograph         No column, no bucket, no schema. The kit's own image
  *                                  is stock photography with the design burnt into it.
  *   Recent Activity (a feed)       No table records who did what. See RecentUpdates,
  *                                  which answers the question the data can answer.
  *
- * Nothing renders a placeholder for these, and the policy outlived the sentence that used
- * to state it: "omitted entirely until Events ships, no placeholder, no badge" was written
- * when Events was gated, and Events has now shipped without these panels arriving with it.
- * The rule that survives is the useful half — the layout narrows to what is real rather
- * than advertising what is not, whatever the registry says about the route.
+ * FAMILY TREE HIGHLIGHTS WAS ON THAT LIST AND IS NOW ON THE PAGE. It was omitted on two
+ * grounds — the tree was "the beta scaffold, no data behind it at all", and "nothing
+ * computes a family-wide generation depth either" — and both expired on 2026-08-13 when
+ * the tree became real and `summarizeTree` was written. That is the shape these omissions
+ * are meant to have: a statement of what is missing, checked when the missing thing lands,
+ * rather than a permanent absence nobody revisits. See `FamilyTreeCard`.
+ *
+ * Nothing renders a placeholder for the remaining two, and the policy outlived the
+ * sentence that used to state it: "omitted entirely until Events ships, no placeholder, no
+ * badge" was written when Events was gated, and Events has now shipped without these
+ * panels arriving with it. The rule that survives is the useful half — the layout narrows
+ * to what is real rather than advertising what is not, whatever the registry says about
+ * the route.
  *
  * ONE PANEL DOES SWITCH ITSELF ON, and it is the model for how the rest should arrive:
  * `announcementsLive` below is read from the registry, so flipping `/announcements` to live
@@ -109,7 +110,7 @@ export default async function DashboardPage() {
   // feature shipped at all (lib/features.ts), and may THIS member view it (the
   // permission model). Either one false and the query below is never issued.
   const announcementsLive = isFeatureLive('/announcements')
-  const [canViewMembers, canAddMember, canRecordPayment, canSendMessage] = await Promise.all([
+  const [canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree] = await Promise.all([
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
       : false,
@@ -126,13 +127,20 @@ export default async function DashboardPage() {
     isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['send-message'].resource])
       ? can(user.id, QUICK_ACTION_GRANT['send-message'].resource, QUICK_ACTION_GRANT['send-message'].action)
       : false,
+    // The Family Tree card. `family-tree` is the key the page and every one of its actions
+    // gate on, and 20260806000006 deliberately left it unregistered — so `can()` resolves
+    // it to true for every approved member and a family cannot switch it off. That is
+    // recorded in TODO.md as a decision to make rather than assumed here: the check is
+    // written the same way every other one on this page is, so registering the resource
+    // later starts narrowing this card without anybody having to remember it exists.
+    isFeatureLive('/family-tree') ? can(user.id, 'family-tree', 'view') : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
   const [
-    myRoles, linkBannerData, pinnedAnnouncements, duesSummary,
+    myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
-    pendingApprovals, duesCollectedCents,
+    pendingApprovals, duesCollectedCents, treeSummary,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -142,7 +150,11 @@ export default async function DashboardPage() {
     LINK_EXISTING_PERSON_ENABLED
       ? getLinkPersonBannerData()
       : Promise.resolve({ showBanner: false, unlinkedPeople: [] }),
-    announcementsLive ? getPinnedAnnouncements() : [],
+    // Announcements are rows in Recent Updates now, not a banner of their own — see
+    // components/dashboard/updates.ts. Still read from the registry rather than
+    // unconditionally, so a family whose announcements feature is gated fetches nothing
+    // rather than fetching and hiding (AGENTS.md §5).
+    announcementsLive ? getAnnouncementFeed() : [],
     getMyDuesSummary(),
     getNotifications(),
     // The "Family Members" tile. THREE conditions, and none is decoration:
@@ -173,6 +185,15 @@ export default async function DashboardPage() {
     // Gated inside the action too, and it returns null rather than 0 for anyone without
     // a ledger grant — see getFamilyDuesCollected on why 0 would have been a lie.
     getFamilyDuesCollected(),
+    // The tree's three figures. `null` for a caller who may not see it, so the card is
+    // never rendered over numbers that were fetched anyway (§5) — the action refuses
+    // independently, but "not fetched" and "fetched then hidden" are the distinction this
+    // whole preamble exists to keep.
+    //
+    // Note this is NOT the same shape as `memberCountResult`: an empty tree is a real
+    // answer that the card renders deliberately, so zero here means zero and only `null`
+    // means "not entitled".
+    canViewTree ? getFamilyTreeSummary() : Promise.resolve(null),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -224,14 +245,11 @@ export default async function DashboardPage() {
 
       {needsChapter && <ChapterReminderBanner chapters={chapters} />}
 
-      {pinnedAnnouncements.length > 0 && (
-        <>
-          <PinnedAnnouncementsBanner announcements={pinnedAnnouncements} />
-          <Link href="/announcements" className="text-xs text-brand-accent hover:underline">
-            View all announcements
-          </Link>
-        </>
-      )}
+      {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather
+          than a deletion. Pinned news used to render here as its own card between the
+          hero and the grid, with a per-BROWSER dismissal in localStorage. It is now
+          rows at the top of Recent Updates, with a per-PERSON dismissal that follows the
+          member across devices and can be undone. See components/dashboard/updates.ts. */}
 
       {/* THE COLUMN SPLIT IS 2:1, AND WHICH CARD GOES WHERE IS LOAD-BEARING.
           The Golden Master can afford a tall narrow column on the right because it has
@@ -268,7 +286,12 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <AtAGlance tiles={tiles} />
-          <RecentUpdates notifications={notifications.slice(0, RECENT_UPDATES_LIMIT)} />
+          {/* Merged and ordered on the server: pinned announcements first, then
+              notifications and dismissed announcements interleaved by date. The rule is
+              in `mergeUpdates` rather than in the component, because the ordering IS the
+              feature — "pinned stays at the top, unpinned falls into natural order" —
+              and it should be readable without a browser. */}
+          <RecentUpdates items={mergeUpdates(notifications, announcements)} />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
           <QuickActions actions={quickActions} />
@@ -277,6 +300,16 @@ export default async function DashboardPage() {
               column being empty for a member with no quick actions at all.
               `showViewLink` is the one prop that may differ between the two pages. */}
           <DuesBalanceKpi summary={duesSummary} showViewLink />
+          {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
+              this file, which listed it among four omitted panels because the tree was a
+              scaffold and nothing computed a generation depth. Both are now false.
+
+              Last in the narrow column rather than first: the two cards above it are what
+              a member has to DO (their quick actions, what they owe), and this is what
+              their family IS. It renders whether or not the tree has anything in it, which
+              is the one place it departs from every other card here, and the component
+              says why. */}
+          {treeSummary && <FamilyTreeCard summary={treeSummary} />}
         </div>
       </div>
     </PageShell>

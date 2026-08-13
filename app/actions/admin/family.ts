@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAny } from '@/lib/auth/permissions'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
+import { getMyFamilyTier } from '@/lib/auth/tier'
+import { isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import { FAMILY_RESOURCE, MAX_FAMILY_NAME } from '@/components/admin/family-settings'
 
 /**
@@ -28,12 +30,27 @@ export interface FamilySettings {
   /** Approved, admitted members — what "how big is this family" actually means. */
   memberCount: number
   createdAt: string | null
+  /**
+   * The plan this family is on.
+   *
+   * NO LONGER READ-ONLY, since 2026-08-13 — `setFamilyTier` below is the scaffolding for
+   * choosing a plan from inside the product, and any of the three may be picked. Read
+   * that function's header before touching it: what changed is who may move the value,
+   * and NOT the rule underneath. `families_guard_tier` (20260813000003) still refuses the
+   * `authenticated` role outright, so the write goes through the service role — which is
+   * what keeps `renameFamily` from ever being able to carry a tier along with a name.
+   */
+  tier: FamilyTier
   /** Whether to render the form at all. The write re-checks; this only shapes the UI. */
   canEdit: boolean
 }
 
 export type RenameFamilyResult =
   | { success: true; familyName: string }
+  | { success: false; message: string }
+
+export type SetTierResult =
+  | { success: true; tier: FamilyTier }
   | { success: false; message: string }
 
 /**
@@ -55,7 +72,7 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
   if (!g.ok || !g.familyCode) return null
 
   const supabase = await createClient()
-  const [family, members, editable] = await Promise.all([
+  const [family, members, editable, tier] = await Promise.all([
     supabase
       .from('families')
       .select('family_code, family_name, created_at')
@@ -67,6 +84,14 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
       .eq('family_code', g.familyCode)
       .eq('membership_status', 'approved'),
     canAny(g.userId, FAMILY_RESOURCE, 'edit'),
+    // Read separately rather than added to the select above, on purpose: `tier` reaches
+    // this app only through `getMyFamilyTier`, which normalizes an unknown or absent
+    // value to Free and logs a refused query. Selecting the column here as well would be
+    // a second reader free to disagree with the one every guard in the app uses — and it
+    // would fail differently, because PostgREST answers 42703 for a missing column and
+    // kills the WHOLE query, so a database behind on migrations would take the family's
+    // NAME down along with its plan.
+    getMyFamilyTier(g.userId),
   ])
 
   // The error is read rather than discarded (AGENTS.md §8): `null` from maybeSingle()
@@ -88,6 +113,7 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
     memberCount: members.count ?? 0,
     createdAt: row?.created_at ?? null,
     canEdit: editable,
+    tier,
   }
 }
 
@@ -156,3 +182,77 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
   revalidatePath('/', 'layout')
   return { success: true, familyName: name }
 }
+
+/**
+ * Put the family on a plan.
+ *
+ * ── THIS IS SCAFFOLDING, AND THE SCAFFOLD IS THE POINT ──────────────────────────────
+ * There is no billing. Any of the three tiers can be picked and nothing is charged, which
+ * is why the panel that calls this says so in as many words rather than reading as a
+ * checkout. What it buys today is the ability to SEE the tier gates work — put a family on
+ * Free and `/family-finances`, `/photos`, `/documents` and `/elections` become the upgrade
+ * screen; put them back on Plus and they return, with every row they ever entered intact,
+ * because no policy consults `families.tier` and none may start to (20260813000003).
+ *
+ * It changes nothing about Home. `/pricing` still sells three tiers to a visitor, still
+ * shows Plus and Premium as "Not yet available", and is not derived from this in either
+ * direction — see `lib/plans.ts`.
+ *
+ * ── WHY THE SERVICE ROLE, WHICH LOOKS LIKE THE THING THE GUARD FORBIDS ──────────────
+ * `families_guard_tier` refuses a change made by the `authenticated` role — the role the
+ * BROWSER speaks as — and says nothing about the service role. That boundary is drawn
+ * around the role rather than around the column on purpose, and it is exactly what makes
+ * this action possible without weakening it: `renameFamily` writes through the USER
+ * client, so a `{ tier }` smuggled into that update still hits the trigger and still
+ * fails. The plan moves only through a function that has decided to move it.
+ *
+ * So the authorization is entirely this function's, and it is the same one renaming
+ * requires — `requireEdit`, which is `canAny(…, 'edit')`. Scope 'own' would otherwise
+ * pass and there is no personal copy of the family's plan to own.
+ *
+ * ── §3, IN FULL, BECAUSE THE SERVICE ROLE HAS NO RLS ────────────────────────────────
+ * The family code is derived from the caller's own membership and never taken as an
+ * argument — the same reasoning `renameFamily`'s header gives — and `.eq('family_code',
+ * …)` is what confines the UPDATE to one row. With the service role there is no policy
+ * behind that filter, so it is not belt and braces here: it IS the isolation.
+ */
+export async function setFamilyTier(tier: string): Promise<SetTierResult> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+
+  // Narrowed rather than cast. This is a `'use server'` export, so the argument arrives
+  // from an HTTP request and the panel is not in its path; `families_tier_check` would
+  // refuse an unknown value anyway, but a checked string is a message the caller can read
+  // instead of a constraint violation logged as "could not save".
+  if (!isFamilyTier(tier)) return { success: false, message: 'That is not a plan.' }
+
+  const { data, error } = await createAdminClient()
+    .from('families')
+    .update({ tier })
+    .eq('family_code', g.familyCode)
+    .select('tier')
+
+  if (error) {
+    console.error(`[admin/family] tier change refused for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not change the plan. Please try again.' }
+  }
+  // Zero rows is a family with a people row and no `families` row — the same pre-table
+  // case `getFamilySettings` handles by falling back to the code. Reported rather than
+  // returned as success over an unchanged value.
+  if (!data || data.length === 0) {
+    return { success: false, message: 'This family has no settings record to change.' }
+  }
+
+  // THE WHOLE LAYOUT, not this route. A tier decides which items the sidebar renders
+  // (`viewableResources` narrows on it) and which pages `requireView` admits, so a
+  // revalidation confined to /admin/family would leave the rail advertising the old plan
+  // until the next full navigation.
+  revalidatePath('/', 'layout')
+  return { success: true, tier }
+}
+
+// NO `planLabel` HELPER HERE, and the reason is a build error rather than taste: every
+// export of a `'use server'` file must be an async function, because Next.js gives each
+// one a URL. `TIER_LABEL` is a plain object in `lib/tiers.ts` and every caller imports it
+// from there.

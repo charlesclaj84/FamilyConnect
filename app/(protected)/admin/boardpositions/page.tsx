@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getAllRolesWithGlobal } from '@/app/actions/admin/chapters'
 import { AdminUserRolesClient } from '@/components/admin/AdminUserRolesClient'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Board Positions — Admin' }
 
@@ -16,12 +17,12 @@ export default async function AdminBoardPositionsPage() {
   const roles = await getAllRolesWithGlobal()
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Board Positions</h1>
+        <h1 className="mb-1 text-3xl font-bold">Board Positions</h1>
         <p className="text-muted-foreground">Choose which board positions your family uses, and create your own custom positions.</p>
       </div>
       <AdminUserRolesClient initialRoles={roles} />
-    </div>
+    </PageShell>
   )
 }

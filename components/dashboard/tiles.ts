@@ -108,6 +108,11 @@ export interface QuickActionMeta {
 }
 
 export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
+  // `href` IS NOT NAVIGATED TO for this one, since 2026-08-13 — Add Member opens
+  // InviteMemberDialog in place rather than sending the member to Members to look for the
+  // button themselves. It is kept because it is still the true answer to "where does this
+  // job live", which is what the row menu and the permission grid both reflect, and
+  // because dropping it would make this the one entry with a different shape.
   'add-member':     { label: 'Add Member',     href: '/admin/users',                       accent: 'primary', icon: UserPlus },
   'record-payment': { label: 'Record Payment', href: '/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
   'send-message':   { label: 'Send Message',   href: '/chat',                              accent: 'warm',    icon: MessageCircle },

@@ -9,6 +9,7 @@ import { useServerState } from '@/lib/use-server-state'
 import { formatDate } from '@/lib/date-utils'
 import { renameFamily, type FamilySettings } from '@/app/actions/admin/family'
 import { MAX_FAMILY_NAME } from '@/components/admin/family-settings'
+import { PlanPanel } from '@/components/admin/PlanPanel'
 
 /**
  * One field, and three facts that are not editable.
@@ -83,6 +84,19 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
 
   return (
     <div className="space-y-6">
+      {/* THE PLAN LEADS THE PAGE, since 2026-08-13. It used to be the last of three
+          sections, under the name and the join code, on the reasoning that "what are we
+          on?" is a fact of the same kind as the member count. It is not the same kind of
+          fact: the name and the code are set once and then left alone, while the plan is
+          the thing that decides which pages the family has at all — so it is what somebody
+          opening Settings is most often here to see or to change.
+
+          Shown to everyone who can view this page, not only to whoever can rename the
+          family. Hiding it would leave a member reaching an upgrade screen with nowhere in
+          the product to find out what they already have. The BUTTONS are gated separately,
+          inside the panel, on the same `canEdit` the name field uses. */}
+      <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
+
       <section className="rounded-xl border bg-card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Family name</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -174,6 +188,11 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           the family holding none of its own history.
         </p>
       </section>
+
+      {/* THE PLAN SECTION MOVED TO THE TOP OF THIS COMPONENT — see the comment there. It
+          is no longer read-only, and it no longer links to /pricing: an in-product screen
+          answering "what do we get?" by sending a signed-in administrator to the marketing
+          site was the thing that change removed. `lib/plans.ts` carries the copy. */}
     </div>
   )
 }

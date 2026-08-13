@@ -102,8 +102,17 @@ const read = (id, mod, fn, extra = {}) => ({ kind: 'read', id, mod, fn, args: ()
 export const CASES = [
   // ── directory / identity ──────────────────────────────────────────────────
   read('members.getMembers', 'app/actions/members.ts', 'getMembers'),
-  read('ancestors.getFamilyMembers', 'app/actions/ancestors.ts', 'getFamilyMembers'),
-  read('ancestors.getMyAncestors', 'app/actions/ancestors.ts', 'getMyAncestors'),
+  // NO `ancestors.*` OR `spouse.*` CASES, since 2026-08-13, and their absence is a
+  // deletion rather than a gap: `app/actions/ancestors.ts` and `app/actions/spouse.ts`
+  // were removed along with the per-member lineage view they served, so a case naming
+  // them would now fail to import.
+  //
+  // WHAT MOVED RATHER THAN LAPSED, because two of them mattered more than the rest.
+  // `upsertSpouse` and `upsertAncestor` are the worked examples AGENTS.md §4 cites for the
+  // missing-`belongsToFamily` shape, and the shape outlived the actions: it is tested on
+  // `family-tree.addRelative`, which took over their job. Two cases cover it, one per id
+  // that action accepts — see "cross-family anchor" and "links ALPHA person to a BRAVO
+  // anchor" below.
   read('children.getMyChildren', 'app/actions/children.ts', 'getMyChildren'),
   read('children.getSpouseChildren', 'app/actions/children.ts', 'getSpouseChildren', {
     // The spouse has no children of her own in the fixture, so this legitimately
@@ -112,7 +121,13 @@ export const CASES = [
     positive: 'not-applicable',
     why: 'fixture seeds no children under the spouse, so [] is the correct answer for ALPHA too',
   }),
-  read('spouse.getMyPartners', 'app/actions/spouse.ts', 'getMyPartners'),
+  // The family-wide tree. It reads the WHOLE roster and every relationship between them
+  // on the ADMIN client — deliberately, because the `people` SELECT policy hides
+  // applicants and the tree has to draw the person it just invited — so its family
+  // isolation is a hand-written `.eq('family_code', …)` and nothing else. That makes the
+  // attack half more load-bearing here than in the cases around it, not less: there is no
+  // policy underneath to catch the scoping if it is ever dropped.
+  read('family-tree.getFamilyTree', 'app/actions/family-tree.ts', 'getFamilyTree'),
   read('personal-info.getPersonalInfo', 'app/actions/personal-info.ts', 'getPersonalInfo'),
   read('family.getMyFamilyMemberships', 'app/actions/family.ts', 'getMyFamilyMemberships', {
     // Returns the caller's own memberships; ALPHA's member sees ALPHATEST.
@@ -123,7 +138,11 @@ export const CASES = [
   // ── community ─────────────────────────────────────────────────────────────
   read('announcements.getAnnouncements', 'app/actions/announcements.ts', 'getAnnouncements'),
   read('announcements.getMyAnnouncements', 'app/actions/announcements.ts', 'getMyAnnouncements'),
-  read('announcements.getPinnedAnnouncements', 'app/actions/announcements.ts', 'getPinnedAnnouncements'),
+  // Was `getPinnedAnnouncements` until 2026-08-13. Same query, one more join: the feed
+  // reads `announcement_unpins` alongside the announcements so Recent Updates knows
+  // which pins THIS reader has dismissed. Renaming the case rather than adding one is
+  // right — the old action no longer exists, and a case naming it would fail to load.
+  read('announcements.getAnnouncementFeed', 'app/actions/announcements.ts', 'getAnnouncementFeed'),
   // A REAL CONTROL SINCE THE FIXTURE SEEDS CHAPTERS. This carried
   // `positive: 'not-applicable'` for as long as there were none — an honest note that
   // the isolation half was asserting over an empty list. The chapter rows the
@@ -392,7 +411,157 @@ export const CASES = [
     },
     probe: async (db, fx) => probeRead(db, [fx.alpha.notification.id, fx.alpha.otherNotification.id]),
   },
+
+  // ── the reader's own announcement pin (20260813000001) ────────────────────
+  // Self-service, so there is no grant to withhold and the ONLY thing standing between
+  // BRAVO and a row in ALPHA's family is family scoping — `requireMember()` +
+  // `belongsToFamily()` in the action, and the `auth_person_id()` / EXISTS pair in the
+  // policy. That makes these two cases the whole test of that table.
+  //
+  // The attacker is BRAVO's administrator, holding every grant BRAVO can confer, passing
+  // ALPHA's real announcement id. A row appearing under it is a cross-family write with
+  // every local check satisfied — the §4 shape, arriving through a table whose own row
+  // genuinely belongs to the caller.
+  {
+    kind: 'write',
+    id: 'announcements.unpinAnnouncementForMe (cross-family)',
+    mod: 'app/actions/announcements.ts',
+    fn: 'unpinAnnouncementForMe',
+    args: fx => [fx.alpha.announcement.id],
+    // Cleared first so the control has something to do: this file is run in order and
+    // an earlier pass may have left the row behind.
+    setup: async (db, fx) => {
+      const { error } = await db.from('announcement_unpins')
+        .delete().eq('announcement_id', fx.alpha.announcement.id)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => probeUnpins(db, fx.alpha.announcement.id),
+  },
+  {
+    kind: 'write',
+    id: 'announcements.repinAnnouncementForMe (cross-family)',
+    mod: 'app/actions/announcements.ts',
+    fn: 'repinAnnouncementForMe',
+    args: fx => [fx.alpha.announcement.id],
+    // The mirror of the case above: ALPHA's member has dismissed the announcement, and
+    // BRAVO's administrator must not be able to un-dismiss it for them. Seeded through
+    // the admin client rather than by relying on the previous case having run, so this
+    // case is meaningful on its own and cannot be broken by reordering.
+    setup: async (db, fx) => {
+      const { error } = await db.from('announcement_unpins').upsert({
+        announcement_id: fx.alpha.announcement.id,
+        person_id: fx.alpha.ownerPersonId,
+        family_code: 'ALPHATEST',
+      }, { onConflict: 'announcement_id,person_id' })
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => probeUnpins(db, fx.alpha.announcement.id),
+  },
+
+  // ── the family-wide tree (20260813000004) ─────────────────────────────────
+  // Both writes are SELF-SERVICE — `requireMember()` and no grant, matching
+  // person_relationships' own policies since 20260806000006 — so the permission layer
+  // withholds nothing from BRAVO's administrator here. What must refuse them is family
+  // scoping alone: `belongsToFamily()` on every id, and `.eq('family_code', …)` on every
+  // query. These two cases are the whole test of that.
+  //
+  // This is the §4 shape at its sharpest. The row `addRelative` writes is legitimately
+  // BRAVO's — its family_code is BRAVOTEST and every policy is satisfied — while the
+  // `person_id` it carries points into ALPHA. Nothing in the database objects, because
+  // nothing in the database was asked.
+  {
+    kind: 'write',
+    id: 'family-tree.addRelative (cross-family anchor)',
+    mod: 'app/actions/family-tree.ts',
+    fn: 'addRelative',
+    args: fx => [{
+      anchorPersonId: fx.alpha.ownerPersonId,
+      relationshipType: 'Brother',
+      mode: 'record',
+      firstName: 'ALPHATESTIntruder',
+      lastName: 'Probe',
+      noEmailReason: 'rls probe',
+    }],
+    probe: async (db, fx) => probeRelationships(db, fx.alpha.ownerPersonId),
+  },
+  {
+    kind: 'write',
+    id: 'family-tree.removeRelationship (cross-family)',
+    mod: 'app/actions/family-tree.ts',
+    fn: 'removeRelationship',
+    args: () => [TREE_PROBE_REL],
+    // ITS OWN ROW, AND ITS OWN PERSON, which AGENTS.md asks for by name: a control that
+    // mutates a row a later case depends on turns a real finding into a pass. This action
+    // deletes BOTH directions of the pair, so reusing the seeded ancestor relationship
+    // would take the (owner → Father → ancestor) row with it — and that row is the
+    // baseline the `addRelative (links ALPHA person…)` probe further down snapshots
+    // against, so its attack half would compare an empty set with an empty set and pass
+    // whatever the action did.
+    //
+    // Recreated on every half so the attack and the control each start from a row that
+    // exists — otherwise the control would have nothing to delete and would report a
+    // failure that is really just ordering.
+    setup: async (db, fx) => {
+      const type = must(await db
+        .from('relationship_types').select('id').eq('name', 'Brother').maybeSingle())
+      await db.from('person_relationships').delete().eq('id', TREE_PROBE_REL)
+      must(await db.from('people').upsert({
+        id: TREE_PROBE_PERSON,
+        family_code: 'ALPHATEST',
+        first_name: 'ALPHATESTTree',
+        last_name: 'Probe',
+        is_minor: false,
+      }))
+      must(await db.from('person_relationships').insert({
+        id: TREE_PROBE_REL,
+        person_id: fx.alpha.ownerPersonId,
+        related_person_id: TREE_PROBE_PERSON,
+        relationship_type_id: type.id,
+        family_code: 'ALPHATEST',
+        is_step: false,
+      }))
+    },
+    probe: async (db) => probeRelationships(db, TREE_PROBE_PERSON),
+  },
 ]
+
+/**
+ * Fixed ids, so `setup` and `args` can name the same throwaway rows without threading a
+ * value between them. Deliberately outside every fixture range — nothing else in the seed
+ * uses a hand-written uuid — so a collision would be visible rather than subtle.
+ *
+ * Declared AFTER `CASES` and used inside it, which is safe because `args` and `setup` are
+ * arrow functions the runner calls later. `const` hoists to the module's temporal dead
+ * zone, not into it.
+ */
+const TREE_PROBE_PERSON = '00000000-0000-4000-8000-00000000e2ee'
+const TREE_PROBE_REL    = '00000000-0000-4000-8000-00000000e2ef'
+
+/** Throw on a PostgREST error rather than letting a broken fixture pass as an empty one. */
+function must(result) {
+  if (result.error) throw new Error(`setup: ${result.error.message}`)
+  return result.data
+}
+
+async function probeRelationships(db, personId) {
+  const { data, error } = await db
+    .from('person_relationships')
+    .select('id, person_id, related_person_id')
+    .or(`person_id.eq.${personId},related_person_id.eq.${personId}`)
+    .order('id')
+  if (error) throw new Error(`probe: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+async function probeUnpins(db, announcementId) {
+  const { data, error } = await db
+    .from('announcement_unpins')
+    .select('announcement_id, person_id')
+    .eq('announcement_id', announcementId)
+    .order('person_id')
+  if (error) throw new Error(`probe: ${error.message}`)
+  return JSON.stringify(data)
+}
 
 async function probeRead(db, ids) {
   const { data, error } = await db
@@ -859,28 +1028,48 @@ export const MORE_CASES = [
     probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.photo.id })(db),
     positiveActor: 'alphaAdmin',
   },
+  // ── §4 ON THE *SECOND* ID addRelative TAKES ───────────────────────────────
+  //
+  // This replaces `spouse.upsertSpouse (links ALPHA person)` and
+  // `ancestors.upsertAncestor (links ALPHA person)`, whose actions were deleted with the
+  // per-member lineage view on 2026-08-13. Those two are the worked examples AGENTS.md §4
+  // cites by name, so the shape they tested had to survive their removal — and it moved
+  // to the action that inherited their job.
+  //
+  // IT IS A DIFFERENT VECTOR FROM `addRelative (cross-family anchor)` above, which is why
+  // both exist. That one poisons the ANCHOR and dies on the first `belongsToFamily`. This
+  // one gives a legitimate anchor — the attacker's OWN BRAVO row — and poisons the person
+  // being linked TO it. The row written is genuinely BRAVO's, its family_code is genuinely
+  // BRAVOTEST, and every policy on `person_relationships` is satisfied; only the second
+  // `belongsToFamily` in `addRelative` stands between that and one family reaching into
+  // another's tree. Delete it and the attack half passes with the anchor check intact.
+  //
+  // NO `setup`, deliberately: the attack is expected to write nothing, so the control
+  // starts from the seeded state either way. `positiveArgs` is what makes the two halves
+  // anchor on their OWN person — the whole point is that the anchor is never the flaw.
+  //
+  // The probe filters on `related_person_id`, so it sees the forward row and not the
+  // inverse `addRelative` may also write (person_id = ancestor). That is deliberate: the
+  // inverse is written only when the anchor has a recorded gender, and a probe that
+  // depended on it would report a fixture detail as a security result.
   {
     kind: 'write',
-    id: 'spouse.upsertSpouse (links ALPHA person)',
-    mod: 'app/actions/spouse.ts', fn: 'upsertSpouse',
-    // existing_person_id is the vector: naming a person in another family.
-    args: fx => [{ my_relationship_type: 'Wife', is_step: false,
-      existing_person_id: fx.alpha.otherPersonId }],
-    probe: (db, fx) => snapshot('person_relationships', 'id, person_id, related_person_id',
-      { related_person_id: fx.alpha.otherPersonId })(db),
-    positive: 'not-applicable',
-    why: 'the owner already has this partner; re-linking is a no-op',
-  },
-  {
-    kind: 'write',
-    id: 'ancestors.upsertAncestor (links ALPHA person)',
-    mod: 'app/actions/ancestors.ts', fn: 'upsertAncestor',
-    args: fx => [{ relationship_type: 'Father', is_step: false,
-      existing_person_id: fx.alpha.ancestor.id }],
+    id: 'family-tree.addRelative (links ALPHA person to a BRAVO anchor)',
+    mod: 'app/actions/family-tree.ts', fn: 'addRelative',
+    args: fx => [{
+      anchorPersonId: fx.users.bravoAdmin.personId,
+      relationshipType: 'Brother',
+      mode: 'existing',
+      existingPersonId: fx.alpha.ancestor.id,
+    }],
+    positiveArgs: fx => [{
+      anchorPersonId: fx.users.alphaMember.personId,
+      relationshipType: 'Brother',
+      mode: 'existing',
+      existingPersonId: fx.alpha.ancestor.id,
+    }],
     probe: (db, fx) => snapshot('person_relationships', 'id, person_id, related_person_id',
       { related_person_id: fx.alpha.ancestor.id })(db),
-    positive: 'not-applicable',
-    why: 'the owner already has this ancestor; re-linking is a no-op',
   },
 
   // ── people.chapter_id — §4 on the ONE table a member may write themselves ──
@@ -1022,7 +1211,12 @@ export const PENDING_CASES = [
   read('members.getMembers (pending member)', 'app/actions/members.ts', 'getMembers', {
     attacker: 'alphaPending',
   }),
-  read('ancestors.getFamilyMembers (pending member)', 'app/actions/ancestors.ts', 'getFamilyMembers', {
+  // The family-wide tree, which is now the only one — `ancestors.getFamilyMembers` was
+  // this line until its module was deleted with the lineage view (2026-08-13). It is the
+  // sharper test of the two anyway: `getFamilyTree` reads the WHOLE roster on the ADMIN
+  // client, deliberately, so nothing but `requireRead('family-tree')` stands between an
+  // unadmitted applicant and every name, gender and minor flag in the family.
+  read('family-tree.getFamilyTree (pending member)', 'app/actions/family-tree.ts', 'getFamilyTree', {
     attacker: 'alphaPending',
   }),
   read('chat.getFamilyMembersWithAccounts (pending member)', 'app/actions/chat.ts', 'getFamilyMembersWithAccounts', {
@@ -1425,7 +1619,7 @@ export const APPROVAL_CASES = [
     // been let in start pulling others in behind them. create_family_invitation() tests
     // auth_person_id(), which is NULL for them.
     attacker: 'alphaPending',
-    args: () => ['newcomer.by.pending@rls.test', true],
+    args: () => ['newcomer.by.pending@rls.test', { firstName: 'New', lastName: 'Comer' }, true],
     probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
       { family_code: 'ALPHATEST' })(db),
     // The control proves the action works at all — and, because it asks for
@@ -1446,13 +1640,13 @@ export const APPROVAL_CASES = [
     // pre_approved: true is passed deliberately. Even if the family check were somehow
     // satisfied, honouring pre-approval on the strength of BRAVO permissions would be
     // the escalation the migration's `v_family = v_active` clause exists to stop.
-    args: () => ['intruder@rls.test', true, 'ALPHATEST'],
+    args: () => ['intruder@rls.test', { firstName: 'In', lastName: 'Truder' }, true, 'ALPHATEST'],
     probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
       { family_code: 'ALPHATEST' })(db),
     // The control names ALPHATEST too — the same argument, from someone entitled to it —
     // so the attack assertion cannot pass merely because the parameter is ignored.
     positiveActor: 'alphaMember',
-    positiveArgs: () => ['legit.invite@rls.test', false, 'ALPHATEST'],
+    positiveArgs: () => ['legit.invite@rls.test', { firstName: 'Legit', lastName: 'Invite' }, false, 'ALPHATEST'],
   },
   {
     kind: 'write',
@@ -1496,7 +1690,7 @@ export const APPROVAL_CASES = [
     // grant — the same actor whose pre_approved request is silently downgraded two cases
     // up — so if this ever starts requiring one, this control goes red.
     attacker: 'bravoAdmin',
-    args: () => ['alpha.declined.ask@rls.test', false, 'ALPHATEST'],
+    args: () => ['alpha.declined.ask@rls.test', { firstName: 'Declined', lastName: 'Ask' }, false, 'ALPHATEST'],
     probe: (db) => snapshot('family_invitations', 'id, email, pre_approved',
       { family_code: 'ALPHATEST', email: 'alpha.declined.ask@rls.test' })(db),
     positiveActor: 'alphaMember',
@@ -1560,7 +1754,7 @@ export const APPROVAL_CASES = [
     // current member's address gets. Asserting the STRING is the assertion — a leak check
     // would not catch it, because the address being probed is one the caller supplied.
     attacker: 'alphaMember',
-    args: () => ['alpha.pending@rls.test', false, 'ALPHATEST'],
+    args: () => ['alpha.pending@rls.test', { firstName: 'Alpha', lastName: 'Pending' }, false, 'ALPHATEST'],
     expectAttack: (r) => r?.success === false
       && r.message === 'That person is already in this family.',
     positive: 'not-applicable',
@@ -1609,7 +1803,7 @@ export const APPROVAL_CASES = [
     // write runner only compares a probe before and after (run.mjs:112-119), and an
     // invitation is minted either way — it is `pre_approved` on the new row that differs.
     attacker: 'alphaAdmin',
-    args: () => ['alpha.declined.ask@rls.test', true, 'ALPHATEST'],
+    args: () => ['alpha.declined.ask@rls.test', { firstName: 'Declined', lastName: 'Ask' }, true, 'ALPHATEST'],
     expectAttack: (r) => r?.success === true && r.preApproved === false,
     positive: 'not-applicable',
     why: 'alphaAdmin IS the entitled caller — the assertion is that even a full approvals grant cannot pre-approve a re-invitation, so a more-entitled comparison does not exist',

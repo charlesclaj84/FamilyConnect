@@ -4,6 +4,7 @@ import { requireView } from '@/lib/auth/permissions'
 import { getMyChildren, getSpouseChildren } from '@/app/actions/children'
 import { DirectLineageClient } from '@/components/direct-lineage/DirectLineageClient'
 import { Card, CardContent } from '@/components/ui/card'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Direct Lineage' }
 
@@ -17,9 +18,9 @@ export default async function DirectLineagePage() {
   const [children, spouseChildren] = await Promise.all([getMyChildren(), getSpouseChildren()])
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">My Children</h1>
+        <h1 className="mb-1 text-3xl font-bold">My Children</h1>
         <p className="text-muted-foreground">
           Manage your children&apos;s information. When a child grows up, use{' '}
           <strong>Convert to Adult</strong> to update their status.
@@ -31,6 +32,6 @@ export default async function DirectLineagePage() {
           <DirectLineageClient initialChildren={children} spouseChildren={spouseChildren} />
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   )
 }

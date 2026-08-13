@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getAllElections } from '@/app/actions/elections'
 import { getAllRoles } from '@/app/actions/admin/users'
 import { AdminElectionsClient } from '@/components/admin/AdminElectionsClient'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Election Management — Admin' }
 
@@ -13,18 +13,17 @@ export default async function AdminElectionsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const admin = createAdminClient()
   await requireView(user.id, 'admin/elections')
 
   const [elections, roles] = await Promise.all([getAllElections(), getAllRoles()])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+    <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">Election Management</h1>
+        <h1 className="mb-1 text-3xl font-bold">Election Management</h1>
         <p className="text-muted-foreground">Create and manage family officer elections.</p>
       </div>
       <AdminElectionsClient initialElections={elections} roles={roles.map(r => r.name)} />
-    </div>
+    </PageShell>
   )
 }

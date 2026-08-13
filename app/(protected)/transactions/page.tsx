@@ -9,6 +9,7 @@ import { TransactionsClient } from '@/components/transactions/TransactionsClient
 import {
   LEDGERS, resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE, type Ledger,
 } from '@/components/transactions/ledgers'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Transactions' }
 
@@ -182,8 +183,11 @@ export default async function TransactionsPage({
     date_of_birth: m.date_of_birth ?? null,
   }))
 
+  // `wide` at every width — see the note on the same change in /admin/account. The
+  // `xl:max-w-6xl` step this replaces made the page narrower than its neighbours below
+  // 1280px for a rail that lives inside the measure rather than beside it.
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8 xl:max-w-6xl">
+    <PageShell className="space-y-8">
       <h1 className="text-3xl font-bold">Transactions</h1>
 
       <TransactionsClient
@@ -206,6 +210,6 @@ export default async function TransactionsPage({
         canReverse={canReverse}
         myName={[meResult.data?.first_name, meResult.data?.last_name].filter(Boolean).join(' ')}
       />
-    </div>
+    </PageShell>
   )
 }

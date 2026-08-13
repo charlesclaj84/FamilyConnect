@@ -98,9 +98,11 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- with the default four actions and narrowed to view+edit by 20260812000000 §1,
   -- which also deletes the create/delete grants materialization handed out meanwhile.
   --
-  -- Labelled 'Settings' and sorted to 260 — the BOTTOM of the admin block, after
-  -- admin/announcements — since 20260812000001, which explains both. Restated here for
-  -- the usual reason: this insert is ON CONFLICT DO UPDATE on label and sort_order.
+  -- Labelled 'Settings' and sorted to 260 — the BOTTOM of the admin block — since
+  -- 20260812000001, which explains both. (It read "after admin/announcements" until
+  -- 20260813000000 retired that resource; 240, Accounting, is what precedes it now.)
+  -- Restated here for the usual reason: this insert is ON CONFLICT DO UPDATE on label
+  -- and sort_order.
   -- Note that 20260812000000 re-asserts 'Family Settings'/155 in between, and
   -- 20260812000001 then corrects it, so a full replay still lands here.
   ('admin/family',        'Settings',               'admin',      260),
@@ -142,8 +144,13 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('admin/reports',       'Reports',                'admin',      210),
   ('admin/events',        'Event Management',       'admin',      220),
   ('admin/event-types',   'Event Templates',        'admin',      230),
-  ('admin/account',       'Accounting',             'admin',      240),
-  ('admin/announcements', 'Announcement Management','admin',      250)
+  ('admin/account',       'Accounting',             'admin',      240)
+  -- NO 'admin/announcements' ROW. Retired by 20260813000000, which folded posting,
+  -- pinning and deleting back onto the member-facing `announcements` key — one screen,
+  -- three grants. It is removed HERE as well because this insert is ON CONFLICT DO
+  -- UPDATE: left in place it would be re-created by every `db reset`, so a fresh local
+  -- database would carry a resource hosted does not, and the grid would offer a switch
+  -- for a page that no longer exists. Sort order 250 is now free.
 ON CONFLICT (key) DO UPDATE
   SET label = EXCLUDED.label, category = EXCLUDED.category, sort_order = EXCLUDED.sort_order;
 

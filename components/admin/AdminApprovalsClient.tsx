@@ -10,7 +10,6 @@ import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { approveApplicant, rejectApplicant, type Applicant } from '@/app/actions/admin/approvals'
 import { revokeInvitation, resendInvitation, type FamilyInvitation, type ResendResult } from '@/app/actions/invitations'
-import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { formatDate } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 
@@ -154,29 +153,27 @@ export function AdminApprovalsClient({
      */
     <div className="space-y-8">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Clock className="h-4 w-4" /> Waiting for approval
-              {pending.length > 0 && (
-                <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs font-semibold text-brand-on-primary">
-                  {pending.length}
-                </span>
-              )}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {pending.length === 0
-                ? 'Nobody is waiting. Requests appear here when someone joins with your family code.'
-                : 'Check that you recognise the person before admitting them.'}
-            </p>
-          </div>
-
-          {/* preApproved — the distinguishing thing about inviting from THIS page. The
-              person clicking it is the person who would otherwise approve the
-              applicant, so routing them through the queue would be asking them to
-              confirm their own decision. Only rendered for someone who can actually
-              decide; the server grants it independently of this prop. */}
-          {canDecide && <InviteMemberDialog preApproved />}
+        {/* NO INVITE BUTTON HERE, since 2026-08-13. It moved to the rail above, where it
+            now shows on all three tabs — see AdminAccessClient. This pane had its own
+            copy because the rail's action slot was per-pane, which meant the same button
+            appeared in two places at two sizes depending on which tab you were on. The
+            pre-approval reasoning that lived on this copy did not go with it: it is
+            stated on the rail's `preApproved` prop, and `create_family_invitation`
+            re-derives it from admin/approvals:edit either way. */}
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Clock className="h-4 w-4" /> Waiting for approval
+            {pending.length > 0 && (
+              <span className="rounded-full bg-brand-primary px-2 py-0.5 text-xs font-semibold text-brand-on-primary">
+                {pending.length}
+              </span>
+            )}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {pending.length === 0
+              ? 'Nobody is waiting. Requests appear here when someone joins with your family code.'
+              : 'Check that you recognise the person before admitting them.'}
+          </p>
         </div>
 
         {pending.length > 0 && (
@@ -284,16 +281,27 @@ export function AdminApprovalsClient({
                   key={invitation.id}
                   className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3"
                 >
+                  {/* THE NAME LEADS, and the address moves to the meta line. This list
+                      used to be bare email addresses, which is not an answer to the
+                      question the screen asks — family addresses are frequently opaque,
+                      and the person working the queue is usually not the one who sent
+                      the invitation a week earlier. Names are required on new
+                      invitations (20260813000002); rows created before that have none,
+                      so the address leads for those rather than a blank heading. */}
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                      <span className="truncate">{invitation.email}</span>
+                      <span className="truncate">
+                        {[invitation.firstName, invitation.lastName].filter(Boolean).join(' ')
+                          || invitation.email}
+                      </span>
                       {invitation.preApproved && (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-primary">
                           <ShieldCheck className="h-3 w-3" /> Pre-approved
                         </span>
                       )}
                     </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {(invitation.firstName || invitation.lastName) ? `${invitation.email} · ` : ''}
                       {invitation.invitedBy ? `Invited by ${invitation.invitedBy}` : 'Invited'}
                       {invitation.expiresAt ? ` · expires ${formatDate(invitation.expiresAt)}` : ''}
                     </p>

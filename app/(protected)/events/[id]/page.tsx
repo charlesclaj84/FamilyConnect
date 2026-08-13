@@ -5,12 +5,14 @@ import { requireView } from '@/lib/auth/permissions'
 import { getEventDetail, getMyRsvp, getMyFamilyForRsvp, getEventHotels, getEventRsvpSummary } from '@/app/actions/events'
 import { getSubEvents } from '@/app/actions/admin/events'
 import { getOrCreateEventCollection } from '@/app/actions/photos'
+import { isFeatureLive } from '@/lib/features'
 import { EventRsvpClient } from '@/components/events/EventRsvpClient'
 import { EventHotelsClient } from '@/components/events/EventHotelsClient'
 import { EventItineraryClient } from '@/components/events/EventItineraryClient'
 import { ChevronLeft, Calendar, MapPin, Clock, ClipboardList, Users, Camera } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDate } from '@/lib/date-utils'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Event' }
 
@@ -23,6 +25,19 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   await requireView(user.id, 'events')
 
+  // EVENT PHOTOS ARE NOT LIVE, and this is where that is decided rather than in a flag
+  // of its own. `/photos` is `status: 'future'`, so `proxy.ts` already rewrites the
+  // collection page to Coming Soon — what was left was this page still ADVERTISING the
+  // link and, worse, still calling `getOrCreateEventCollection`, which is a write: every
+  // view of every event minted a `photo_collections` row for a feature nobody can open.
+  //
+  // Read from the registry, not hand-set, so the card comes back with the flip exactly
+  // as the dashboard's announcements panel did. There is real work behind that flip and
+  // it is not this line — `event-photos` is a `public` bucket whose policies carry no
+  // family predicate, and `deleteEventPhoto` takes its object path from the client. See
+  // FutureFeature.md, "Storage rework".
+  const photosLive = isFeatureLive('/photos')
+
   const [event, myRsvp, familyMembers, subEvents, hotels, rsvpSummary, photoCollection] = await Promise.all([
     getEventDetail(id),
     getMyRsvp(id),
@@ -30,7 +45,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     getSubEvents(id),
     getEventHotels(id),
     getEventRsvpSummary(id),
-    getOrCreateEventCollection(id),
+    photosLive ? getOrCreateEventCollection(id) : Promise.resolve(null),
   ])
 
   if (!event) notFound()
@@ -40,7 +55,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     : false
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <PageShell width="reading" className="space-y-8">
       <div>
         <Link href="/events" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
           <ChevronLeft className="h-3.5 w-3.5" /> Back to Events
@@ -152,6 +167,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </Card>
         ) : null
       })()}
-    </div>
+    </PageShell>
   )
 }

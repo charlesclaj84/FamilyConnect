@@ -11,6 +11,7 @@ import {
   type AccountSection, type AccountRights, type SectionRights,
 } from '@/components/admin/account-sections'
 import { can, canAny } from '@/lib/auth/permissions'
+import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Accounting — Admin' }
 
@@ -96,10 +97,14 @@ export default async function AdminAccountPage({
       : Promise.resolve({ data: [] }),
   ])
 
-  // Widened only at xl, where the rail appears: every narrower width keeps the
-  // measure the rest of the admin pages use.
+  // ONE MEASURE AT EVERY WIDTH, since 2026-08-13. This was `max-w-4xl … xl:max-w-6xl`,
+  // narrower than the pages either side of it until 1280px, on the argument that the
+  // second-level rail only appears at xl. That argument was already stale — the rail's
+  // 16rem column is inside the shell, not outside it — and the visible cost was a page
+  // that changed width mid-resize while Members next door did not. `wide` is what every
+  // horizontal page uses; see components/layout/PageShell.tsx.
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8 xl:max-w-6xl">
+    <PageShell className="space-y-8">
       <h1 className="text-3xl font-bold">Accounting</h1>
 
       <AdminAccountShell
@@ -118,6 +123,6 @@ export default async function AdminAccountPage({
           date_of_birth: m.date_of_birth ?? null,
         }))}
       />
-    </div>
+    </PageShell>
   )
 }

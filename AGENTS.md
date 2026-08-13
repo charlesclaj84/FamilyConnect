@@ -225,6 +225,13 @@ against another family's records, and all four passed a reading of the policies,
 because the policies were right. Any parameter named `existing_person_id`,
 `personId`, `scheduleId`, `fundId`, `eventId` deserves the same look.
 
+**Two of those four no longer exist**, and the examples are kept anyway. `upsertSpouse`
+and `upsertAncestor` were deleted on 2026-08-13 with the per-member lineage view they
+served; `addRelative` in `app/actions/family-tree.ts` inherited their job and takes two
+such ids, both of which it checks. The shape is what this section is about, not the
+function names — and `tests/rls/cases.mjs` moved the cases across rather than dropping
+them, one per id, for exactly that reason.
+
 ## 5. Gate the fetch, not just the button
 
 Hiding a control does not protect the data behind it. Props are serialized into the
@@ -348,13 +355,24 @@ of tables, `people(first_name)` is refused with **PGRST201** and the whole query
 ```
 
 `fund_disbursements`, `fund_contributions`, `dues_payments`, `election_votes`,
-`election_nominations`, `photo_tags`, `event_rsvp_attendees` and
-`person_relationships` all have two paths to `people`; `photo_collections` has two to
-`photos` (its rows, and its cover); `fund_transfers` has two to `funds` — where the
-money left and where it landed, which is the whole content of the row. Name the
-constraint. And check the relationship
+`election_nominations`, `photo_tags`, `event_rsvp_attendees`, `person_relationships` and
+— since `20260813000001` — `announcements` all have two paths to `people`;
+`photo_collections` has two to `photos` (its rows, and its cover); `fund_transfers` has
+two to `funds` — where the money left and where it landed, which is the whole content of
+the row. Name the constraint. And check the relationship
 exists at all before embedding it — `event_rsvp` has no foreign key to `people`, so
 `event_rsvp(people(...))` is PGRST200, equally silent.
+
+**A JUNCTION TABLE BREAKS EMBEDS ON TABLES YOU DID NOT TOUCH,** and `announcements` is
+how that was learned. It has exactly ONE foreign key to `people` (`author_id`) and its
+bare `people(...)` embed was correct for a year. Then `announcement_unpins` arrived with
+foreign keys to both — a perfectly ordinary two-column join table — and PostgREST began
+reporting a second, *many-to-many* path between the same pair. Every announcement query
+started answering PGRST201, which is to say `[]`, on a page nobody had edited.
+
+So after adding any table with two foreign keys, grep for bare embeds of **either** table
+it joins. The query below finds the pairs; it will not tell you which call sites are
+already qualified.
 
 To find every pair that needs disambiguating:
 
@@ -817,6 +835,77 @@ removed their rows so they cannot be restricted; the 2026-08-08 review reconside
 and kept it. The empty `personal` heading in `components/admin/resource-groups.ts` is the
 trace of that decision, not a gap to fill.
 
+# A family is on a plan, and the plan decides which pages exist
+
+`lib/features.ts` answers *has this shipped at all?* `lib/tiers.ts` answers *is it in
+what this family pays for?* Both must be true before a member sees a page, and they
+fail differently on purpose:
+
+| | |
+|---|---|
+| not shipped | Coming Soon, from `proxy.ts`. Nobody can have it yet, on any plan. |
+| above the tier | `/upgrade`, from `requireView`. It works, and this family has not bought it. |
+
+Answering both with one screen was the obvious shortcut and is wrong in both directions:
+telling a paying family that a shipped feature is "coming soon" is a lie, and telling a
+free family to wait for something they could have this afternoon is a sale nobody made.
+
+**Every `FEATURES` entry states a `tier`, and the field has no default.** A new feature
+has to decide, because the failure mode of forgetting is invisible and expensive: it
+ships to every family on every plan and nothing anywhere says so. That is exactly how
+RSVPs, day-of check-in and profile pictures came to be sold as Plus while shipping free
+to everybody — three separate special cases in FutureFeature.md §4, because there was no
+field to leave blank.
+
+Four things about the mechanism are load-bearing.
+
+* **The two gates live in different places, and that is not arbitrary.** `status` is a
+  static fact about the build, so the edge gate decides it with no session and no query.
+  `tier` is a fact about the FAMILY, so it needs a database round trip and is decided in
+  the page guard, where a trip is already being made. **`proxy.ts` deliberately knows
+  nothing about tiers** — do not add a families lookup to it.
+* **It is folded into `requireView`, not bolted beside it.** A second line every page must
+  also remember is a line three pages will not have. A page written next year is
+  tier-gated without its author knowing any of this exists.
+* **It withholds SCREENS, never rows.** No RLS policy consults `families.tier` and none
+  may start to: a family that lapses to Free keeps every record it ever entered, and
+  loses only the pages that read them. That is why there is no `auth_family_tier()` to
+  match `auth_family_code()`, and why the server actions behind a paid page are
+  deliberately *not* tier-checked — the first time a family downgraded, one would start
+  answering "Not authorized" for their own history.
+* **The browser can never set it; one server action can.** A tier is a billing fact.
+  `families_guard_tier` (`20260813000003`) refuses any change made by the `authenticated`
+  role — the same shape as `people_guard_permission_template` and
+  `families_guard_family_code`, and for the same reason: `families` has an UPDATE policy
+  so an administrator can rename their family, and a policy has no opinion about which
+  column changed. That guard is what stops `renameFamily`, which writes through the user
+  client, from ever carrying a tier along with a name.
+
+  Since 2026-08-13 `setFamilyTier` (`app/actions/admin/family.ts`) moves it deliberately,
+  through the **service role**, gated on `admin/family:edit` at scope `'any'`; the Plan
+  panel at the top of `/admin/family` offers all three. **It is scaffolding, not billing** —
+  nothing is charged, and the panel says so rather than dressing itself as a checkout.
+  Keep the boundary where the guard draws it: around the ROLE the browser speaks as, never
+  around the column, so a new write to `families` cannot become a self-upgrade by accident.
+
+* **Plan copy lives in the product, not on `/pricing`.** `lib/plans.ts` carries what each
+  tier includes for the two signed-in surfaces that ask — the Plan panel and `/upgrade`.
+  Neither links to `/pricing` any more: that page is Home, and sending a member there to
+  read what their family already has drops them into an advertisement with a "Create Your
+  Free Account" button on it. The two lists are kept in step **by hand**, for the same
+  reason `PLANS[]` and this registry are (see the note above `PLANS[]`).
+
+**What it cannot express: a tier boundary running THROUGH a page.** `/events` is Free
+("put the reunion on the calendar") and the RSVPs inside it are sold as Plus. The
+mechanism for that already exists and is the one permissions use — give the capability
+its own sub-key with its own registry entry, as `transactions/dues-payments` does. Until
+somebody does, the page's tier governs everything on it.
+
+**`PLANS[]` on `/pricing` is not derived from this and must not be.** One bullet spans
+several routes and several routes are sold in no bullet at all. Moving a bullet between
+cards now changes more than a document: check whether a route has to move with it —
+`grep "tier: '" lib/features.ts` is the whole job.
+
 # Colours live in one place
 
 `app/globals.css` is **the only file in the app that may contain a colour literal.**
@@ -1160,12 +1249,24 @@ Do not reach past it for a bespoke `max-w`. A page needing a third measure needs
 named option **on the component**, so the next page facing that choice finds it instead
 of inventing a sixth width.
 
-**Not yet applied everywhere,** and that is deliberate rather than half-finished. My
-Summary, My Families, My Profile, Members & Access and Member Directory use it. The rest
-still carry their own container, and converting them is mechanical but not a no-op: each
-has to be read to decide `wide` or `reading`, and widening a page that wanted to be
-narrow is the one way this change makes things worse. New pages use `PageShell` from the
-start.
+**Applied everywhere since 2026-08-13.** Every page under `app/(protected)` uses it,
+`loading.tsx` included — so a navigation no longer starts at one measure and jumps to
+another. `grep "mx-auto max-w-"` over that directory returns exactly three things, and
+none of them is a page container: `/chat`'s empty-state card, and `error.tsx` and
+`not-found.tsx`, which are centred `max-w-md` messages. Those two are deliberate — an
+apology in a 6xl column reads as a layout failure rather than as a message — and they are
+the exception list. If a fourth appears, it belongs here or it belongs in `PageShell`.
+
+**Four pages are `reading`; the rest are `wide`.** The four are the ones whose content is
+a single column of prose read start to finish: Announcements, an event, an election
+ballot, and Settings.
+
+**Accounting and Transactions lost an `xl:max-w-6xl` step** in that sweep, and it reads
+like a regression until you know why. Both were `max-w-4xl … xl:max-w-6xl` — narrower
+than every page beside them below 1280px — on the argument that their second-level rail
+only appears at `xl`. That rail lives *inside* the measure rather than beside it, so the
+argument did not hold, and the visible cost was a page that changed width mid-resize
+while Members next door did not.
 
 # A table is a table
 
@@ -1319,6 +1420,23 @@ reader changes its key handling to match; none of it is implemented, so claiming
 strands the users it is aimed at. It is a search input and a group of real checkboxes,
 which is what it says it is. Same reasoning as `MainRail` refusing `role="tablist"`.
 
+## `PersonPicker` is the control for choosing ONE member
+
+`components/ui/person-picker.tsx`. The single-select counterpart, and it exists for the
+same reason: a filter box over a bounded, scrolling radio group, with the current choice
+stated above the box so a selection the filter excludes is still visible.
+
+**This is a narrowing of the rule below, not a contradiction of it.** A native `<select>`
+really is the right answer for a field on a form — the platform gives you type-ahead. It
+stops being the right answer inside a dialog over a hundred and forty relatives, because
+native type-ahead matches from the START of an option only: typing "allen" finds nobody in
+a list of "Martha Allen". Searching any part of any name is the whole job.
+
+**Both pickers import `lib/person-search.ts`.** The matching rule lives beside the data it
+is about rather than inside a component, because a rule inside a component can only be
+shared by copying it — which is precisely how the Member Directory got accent-insensitive
+search and the photo tagger did not.
+
 ## Anything else that lists members needs a way to find one
 
 The rule is about the size of the list, not about this one component.
@@ -1342,4 +1460,6 @@ The rule is about the size of the list, not about this one component.
 * `components/photos/PhotoCollectionGallery.tsx` — its own `tagSearch`, a plain
   lowercased `.includes()` on the formatted name. No accent or punctuation handling, no
   chips, no count. This is the third hand-rolled copy the shared component exists to
-  stop being a fourth.
+  stop being a fourth. **It is now a one-line fix rather than a rewrite**, since
+  `lib/person-search.ts` exists: swap the `.includes()` for `matchesPersonQuery` and the
+  accent and punctuation halves come with it.

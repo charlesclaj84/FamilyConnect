@@ -704,6 +704,7 @@ export async function seed() {
     f.invitation = must('invitation', await db.from('family_invitations').insert({
       family_code: code,
       email: `invited.${side}@rls.test`,
+      first_name: 'Invited', last_name: 'Person',
       token_hash: tokenHash(`rls-invite-token-${code}`),
       pre_approved: true,
       invited_by: familyAdmin.personId,
@@ -712,6 +713,7 @@ export async function seed() {
     f.revocableInvitation = must('revocable invitation', await db.from('family_invitations').insert({
       family_code: code,
       email: `revocable.${side}@rls.test`,
+      first_name: 'Revocable', last_name: 'Person',
       token_hash: tokenHash(`rls-revocable-token-${code}`),
       pre_approved: false,
       invited_by: familyAdmin.personId,
@@ -729,6 +731,7 @@ export async function seed() {
       f.outsideInvitation = must('outside invitation', await db.from('family_invitations').insert({
         family_code: code,
         email: 'outside.invitee@rls.test',
+        first_name: 'Outside', last_name: 'Invitee',
         token_hash: tokenHash(`rls-outside-invite-token-${code}`),
         pre_approved: false,
         invited_by: familyAdmin.personId,
@@ -747,6 +750,7 @@ export async function seed() {
       f.reopenInvitation = must('reopen invitation', await db.from('family_invitations').insert({
         family_code: code,
         email: fx.users.alphaDeclinedBack.email,
+        first_name: 'Declined', last_name: 'Back',
         token_hash: tokenHash(`rls-reopen-token-${code}`),
         pre_approved: true,
         invited_by: familyAdmin.personId,
@@ -760,6 +764,7 @@ export async function seed() {
       f.resendInvitation = must('resend invitation', await db.from('family_invitations').insert({
         family_code: code,
         email: 'resend.alpha@rls.test',
+        first_name: 'Resend', last_name: 'Target',
         token_hash: tokenHash(`rls-resend-token-${code}`),
         pre_approved: false,
         invited_by: familyAdmin.personId,
@@ -773,6 +778,7 @@ export async function seed() {
       f.staleInvitation = must('stale invitation', await db.from('family_invitations').insert({
         family_code: code,
         email: fx.users.alphaDeclinedStale.email,
+        first_name: 'Declined', last_name: 'Stale',
         token_hash: tokenHash(`rls-stale-token-${code}`),
         pre_approved: true,
         invited_by: familyAdmin.personId,

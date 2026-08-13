@@ -1,8 +1,10 @@
 import { cache } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getViewingMembership, isApproved, type FamilyMembership } from '@/lib/auth/family'
-import { FEATURES, TAB_RESOURCES } from '@/lib/features'
+import { FEATURES, TAB_RESOURCES, requiredTier } from '@/lib/features'
+import { getMyFamilyTier } from '@/lib/auth/tier'
+import { tierMeets } from '@/lib/tiers'
 
 /**
  * Authorization for the authenticated caller in their active family.
@@ -254,7 +256,54 @@ export async function canOn(
  * the data underneath, so this is the friendly layer, not the only one.
  */
 export async function requireView(userId: string, resource: string): Promise<void> {
+  await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
+}
+
+/**
+ * Refuse a page the family's PLAN does not include, and say so.
+ *
+ * ── WHY IT LIVES INSIDE `requireView` ───────────────────────────────────────────────
+ * Because §1's preamble is already the thing every page calls, and a second line every
+ * page must also remember is a line three pages will not have. The same argument
+ * `lib/auth/guard.ts` makes for wrapping the write preamble: repeating a check by hand
+ * across twenty pages is how two of them end up without it. Folding it in here means a
+ * page written next year is tier-gated without its author knowing this exists.
+ *
+ * ── WHY IT REDIRECTS RATHER THAN 404s ───────────────────────────────────────────────
+ * `requireView` answers a permission question with `notFound()`, and that is right there:
+ * a page an administrator has restricted should not advertise that it exists, because
+ * confirming it would leak how the family is organized. A TIER is the opposite kind of
+ * fact. It is published on `/pricing`, identical for every customer, and the whole point
+ * of the boundary is that the family should be told what is on the other side of it — a
+ * 404 here would hide the product from the person deciding whether to buy it.
+ *
+ * So it goes to `/upgrade`, which names the feature and the plan. `from` carries the
+ * ROUTE rather than the key so that screen can look the feature up the same way every
+ * other surface does, and so a sub-key resolves to the page a member was actually
+ * reaching for.
+ *
+ * ── WHAT THIS IS NOT ────────────────────────────────────────────────────────────────
+ * NOT a security boundary, and nothing downstream may treat it as one. It withholds
+ * SCREENS, not rows: family isolation is RLS and per-member authority is the permission
+ * model, both of which are enforced in the database and neither of which knows what a
+ * tier is. A family that lapses to Free keeps every record it ever entered — it simply
+ * cannot open the pages that read them — which is the only behaviour that makes
+ * downgrading survivable.
+ *
+ * Consequently the server ACTIONS behind a paid page are deliberately not tier-checked.
+ * They are permission-checked, which is what protects the data; adding a tier test to
+ * each would be a second gate over the same rows enforcing a commercial fact, and the
+ * first time a family downgraded it would start returning "Not authorized" for their own
+ * history. If a paid ACTION should refuse rather than a paid PAGE, that is a decision to
+ * make explicitly at that action, not a rule to generalize from here.
+ */
+export async function requireTier(userId: string, resource: string): Promise<void> {
+  const route = `/${resource}`
+  const need = requiredTier(route)
+  if (!tierMeets(await getMyFamilyTier(userId), need)) {
+    redirect(`/upgrade?from=${encodeURIComponent(route)}`)
+  }
 }
 
 /**
@@ -277,6 +326,13 @@ export async function requireViewOrPending(
   const membership = await getViewingMembership(userId)
   if (!membership) notFound()
   if (!isApproved(membership.status)) return { pending: true, membership }
+  // AFTER the pending branch, deliberately. All three resources this guard serves are
+  // Free (`PENDING_RESOURCES`), so the check can never fire today — but if one ever
+  // stopped being, an applicant would be bounced to an upgrade screen for a family they
+  // have not been admitted to, which is both confusing and a disclosure about somebody
+  // else's billing. Answering "you are awaiting approval" first is correct in every
+  // ordering of those two facts.
+  await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
   return { pending: false }
 }
@@ -325,9 +381,18 @@ export async function viewableResources(userId: string): Promise<Set<string>> {
   // all"; the latter keeps the empty set, because there is nothing they are waiting on.
   if (perms.personId && !perms.approved) return new Set(PENDING_RESOURCES)
 
+  // TWO NARROWINGS, and the tier one is the reason this function is no longer purely a
+  // permission question. A rail item for a page the family's plan does not include would
+  // be a link to the upgrade screen, dressed as a destination — the same objection
+  // `buildNavGroups` already answers for a gated route by DROPPING the item rather than
+  // badging it. A family sees the product they bought; what they did not buy is on
+  // `/pricing`, where it can be sold properly.
+  const tier = await getMyFamilyTier(userId)
+
   const out = new Set<string>()
   const keys = [...FEATURES.map(f => f.href.replace(/^\//, '')), ...TAB_RESOURCES]
   for (const resource of keys) {
+    if (!tierMeets(tier, requiredTier(`/${resource}`))) continue
     if (resolveScope(perms, resource, 'view') !== 'none') out.add(resource)
   }
   return out
