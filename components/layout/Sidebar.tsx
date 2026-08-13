@@ -27,7 +27,6 @@ import {
   Camera,
   ChevronDown,
   ArrowRightLeft,
-  Home,
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -109,12 +108,21 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       ],
     },
     {
+      // MY PROFILE AND MY FAMILIES ARE NOT HERE — they moved to the account menu in the
+      // top bar, and a destination in two places at once is a destination people learn
+      // twice. The menu is the better home for both: they are things about YOU rather
+      // than about the family being viewed, which is the same distinction that put the
+      // family switcher in the bar and left it out of the menu.
+      //
+      // THE SECTION SURVIVES ANYWAY, and deleting it would have been the mistake. Its
+      // other two items are both `status: 'future'`, so the filter at the bottom of this
+      // function drops them, the group empties, and no Personal heading renders today —
+      // which is the outcome asked for. When My Children or Family Tree ships, the
+      // section comes back on its own with the items that are NOT in the account menu.
+      // Removing the group instead would have left those two with nowhere to appear and
+      // nothing to say so.
       section: { label: 'Personal', icon: UserCircle },
       items: [
-        { href: '/personal-info',   label: 'My Profile',   icon: UserCircle },
-        // Always shown, including for single-family accounts: this is where you join
-        // another family by code, so it has to be reachable before you have a second one.
-        { href: '/my-families',     label: 'My Families',  icon: Home },
         { href: '/direct-lineage',  label: 'My Children',  icon: Users },
         { href: '/family-tree',     label: 'Family Tree',  icon: GitBranch },
       ],
@@ -458,7 +466,23 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col bg-brand-hero">
-      <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain p-3">
+      {/* THE PADDING IS ASYMMETRIC, AND THE RIGHT NUMBER IS FROM THE KIT.
+          `Sidebar.svg` draws the active pill as `x=0 width=218` on a canvas whose rail
+          spans x=12..258 — so it covers 83.7% of the rail and leaves 16.3% clear on the
+          right. At `w-56` that is a right edge at 188px with 36px of rail beside it.
+
+          This was `p-3`, which put the right edge at 212px and left 12px. Three things
+          were wrong with that at once: the pill read as almost-full-bleed rather than as
+          a shape sitting on a rail, the row had no breathing room for the chevron on a
+          collapsible section, and — the visible one — the inward swoosh at the top of the
+          rail runs through the rightmost ~13px, so a 212px pill overlapped the bite and
+          cut it off just where it is deepest.
+
+          `pr-9` is 36px. The kit's motto card arrives at the same answer independently
+          (`x=30..217`, a 37px right inset), which is the check that this is the rail's
+          real margin and not one shape's quirk. `pl-3` stays, because NavLink cancels it
+          with `-ml-3` to bleed the pill off the left edge exactly as the kit does. */}
+      <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain py-3 pl-3 pr-9">
         <RailBrand />
         <nav className="mt-4 flex flex-col">
           <NavTree groups={navGroups} pathname={pathname} />
@@ -538,7 +562,11 @@ export function MobileNav({ hasAssignments = false, viewable }: { hasAssignments
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <nav className="relative z-10 flex flex-col p-3 overflow-y-auto">
+            {/* Same asymmetric inset as the desktop rail, and for the first of the same
+                three reasons — a pill that stops short of the edge reads as sitting on
+                the rail. The drawer has no swoosh to protect, so this is proportion
+                alone. */}
+            <nav className="relative z-10 flex flex-col overflow-y-auto py-3 pl-3 pr-9">
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
               <RailMotto />
             </nav>
