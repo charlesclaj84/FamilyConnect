@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { markIdleActivity } from '@/lib/idle-timeout'
 import { registerUser } from '@/app/actions/register'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -118,6 +119,9 @@ export function RegisterForm({
       password: data.password,
     })
     if (!signInError) {
+      // Same reason as LoginForm: the idle timer reads the shared marker once, at mount,
+      // and a marker left by whoever used this browser last is not this member's.
+      markIdleActivity()
       setAutoSignedIn(true)
       // For join mode go straight to dashboard; create mode shows the family code first.
       // An invitation is a join: the membership already exists, pre-approved or queued.

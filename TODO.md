@@ -127,6 +127,59 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+## The Dashboard design kit is world-readable, and seven of its images have no provenance
+
+**Action:** decide whether `public/dashboard/` moves out of the served tree. It is a
+licensing question first and a payload question second, and only the first one is urgent.
+
+`public/dashboard/` is the Golden Master handoff kit, added by `c622624`. Everything under
+`public/` is served, so **every byte of it is fetchable by anyone, signed in or not** — no
+route, no gate, no referrer check. These URLs resolve on production today:
+
+```
+genorra.com/dashboard/04_MEDIA/family_hero_source.jpg
+genorra.com/dashboard/01_REFERENCE/Dashboard_Golden_Master_OFFICIAL.png
+genorra.com/dashboard/08_QA/VISUAL_ACCEPTANCE.md
+```
+
+**The images are the part that matters.** `04_MEDIA/` holds seven photographs — a family
+group shot and five portraits of an invented family, plus an event thumbnail. Nothing in
+the kit states a licence, names a photographer, or carries EXIF. So the position today is
+that GENORRA publishes seven photographs of identifiable people under its own domain with
+no established right to do so, and they are indexable. That is a different kind of problem
+from the rest of this file: it is not a defect that might bite, it is a claim being made
+right now on every crawl.
+
+The rest is smaller and worth stating so nobody re-litigates it as if it were the main
+point. About 8.5 MB rides in every clone and every deploy, of which 2.3 MB is one reference
+PNG and 1.38 MB is a "vector" SVG that is 99 % embedded base64. And `08_QA/`, `07_PAGE_PATTERNS/`
+and `00_START_HERE/` are internal design correspondence — no secrets, but written for us
+rather than for readers.
+
+**Why it was left where it is.** `public/home/` holds the brand kits by the same convention
+— "the versioned vendor kits, exactly as delivered; reference material, nothing is served
+out of it" — so `public/dashboard/` is consistent with the rule as written, and moving it
+unilaterally during the dashboard build would have been a second decision smuggled into an
+unrelated commit. The AGENTS.md table row was corrected to describe what is actually there.
+
+Three options, in the order they are probably worth considering:
+
+1. **`git mv public/dashboard design/dashboard-v1_0`.** Kits are reference material and
+   nothing imports them, so nothing breaks. This is the whole fix for all three problems and
+   costs one commit. It does leave `public/home/` inconsistent with it, which is an argument
+   for moving that too and making `design/` the convention.
+2. **Delete `04_MEDIA/` only** and keep the kit in place. Narrowest fix for the licensing
+   question; the images are demo photography the implementation does not use and cannot use
+   (the design treatment is burnt into the pixels — see the note in `WelcomeHero.tsx`).
+3. **Leave it and get provenance.** If the images came from a stock licence that permits
+   web distribution, this is a README away from being fine. Somebody has to know the answer.
+
+Note that (1) and (2) are not undone by history: the blobs stay reachable to anyone who
+clones, which is a separate question from what genorra.com serves. Only a rewrite changes
+that, and for demo photography it is very likely not worth one.
+
+Found 2026-08-12 while implementing the kit.
+
 ## The migration pipeline's `workflow_dispatch` path has never been exercised
 
 **Action:** run it once from Actions → Migrate → Run workflow on `master`, and watch what
@@ -318,9 +371,9 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## The inactivity sign-out has not been exercised in a browser
+## The inactivity sign-out is only half exercised in a browser
 
-**Action:** click through it once — idle a signed-in tab, watch the warning, let it fire.
+**Action:** the three unverified behaviours below, each about two tabs or a dialog.
 
 [components/layout/IdleTimeout.tsx](components/layout/IdleTimeout.tsx), added 2026-08-12:
 `IDLE_LIMIT_MINUTES` (75) without keyboard or pointer activity signs the member out with
@@ -328,14 +381,22 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 them to `/login` with a notice and a `?next=` back to where they were. A warning dialog
 appears for the last minute with an "I'm still here" button.
 
-What **is** verified: the active/warn/expired boundary, as a pure function in
-[lib/idle-timeout.ts](lib/idle-timeout.ts), across 11 cases including the exact limit, the
-sub-second tail and a slept-through clock; and that `/login` server-renders the notice and
-carries the `next` parameter. Build, typecheck and lint are clean.
+**A first click-through on 2026-08-12 fired the timeout correctly and then could not sign
+back in** — every attempt bounced straight back to `/login` about a second later. The cause
+was `genorra:last-activity` outliving the session that wrote it: the timeout left a
+75-minute-old marker in `localStorage`, and the next signed-in page adopted it at mount and
+expired on its first tick. Fixed by `inheritedActivity()` refusing an expired marker, plus
+`clearIdleActivity()` on every sign-out and `markIdleActivity()` on every sign-in; the
+reasoning is in AGENTS.md under "The shared marker belongs to one session". **That fix is
+verified as a boundary function (13 cases) and not yet in a browser** — re-idling a tab and
+signing back in is the first thing to check.
 
-What is **not** verified, because this checkout has no browser driver and adding one was not
-in scope: the event wiring, the cross-tab `localStorage` handshake, and the sign-out and
-redirect actually firing. Three things to watch for when somebody does click it through:
+What **is** verified: the timeout firing and redirecting, with the notice on `/login`; the
+active/warn/expired boundary and the marker-adoption rule, both as pure functions in
+[lib/idle-timeout.ts](lib/idle-timeout.ts). Build, typecheck and lint are clean.
+
+What is **not**, because this checkout has no browser driver and adding one was not in
+scope — all three need two tabs or an open dialog, which is why the first pass missed them:
 
 * the warning appearing **on top of** a dialog a page already had open — it is mounted after
   the shell for exactly this reason, and every dialog in the app shares `z-50`;

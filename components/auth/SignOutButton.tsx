@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { clearIdleActivity } from '@/lib/idle-timeout'
 import { Button } from '@/components/ui/button'
 
 export function SignOutButton() {
@@ -19,6 +20,10 @@ export function SignOutButton() {
     // It still revokes this session server-side rather than only clearing the cookie, so
     // the button remains a real sign-out.
     await supabase.auth.signOut({ scope: 'local' })
+    // The idle timer's marker belongs to the session that just ended. Left behind, it is
+    // however old this member's last click was, and the next person to sign in on this
+    // browser inherits it — see lib/idle-timeout.ts.
+    clearIdleActivity()
     router.push('/')
     router.refresh()
   }

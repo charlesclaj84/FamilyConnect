@@ -5,7 +5,9 @@ import { Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   ACTIVITY_KEY,
+  clearIdleActivity,
   idlePhase,
+  inheritedActivity,
   SIGNED_OUT_KEY,
   TICK_MS,
   TIMEOUT_NOTICE,
@@ -85,6 +87,13 @@ export function IdleTimeout() {
     // idle. Their phone should not be signed out because a laptop tab was left open.
     await supabase.auth.signOut({ scope: 'local' })
 
+    // DROP THIS SESSION'S MARKER. Without it the sign-out is unrecoverable: the marker is
+    // 75 minutes old by definition, it survives the redirect, and the first signed-in page
+    // the member reaches after signing back in adopts it and expires on its first tick.
+    // `inheritedActivity` refuses an expired marker as well — belt and braces, because
+    // this call cannot run when the browser is simply closed and that path leaves one too.
+    clearIdleActivity()
+
     try {
       localStorage.setItem(SIGNED_OUT_KEY, String(Date.now()))
     } catch {
@@ -110,10 +119,13 @@ export function IdleTimeout() {
     lastWrite.current = now
 
     // A tab opened while another has been idle for nine minutes should inherit that, not
-    // reset it. Only ever move the marker FORWARD.
+    // reset it — but only from a marker that could still belong to a live tab.
+    // `inheritedActivity` is where that judgement lives, and why: an expired marker is
+    // residue from a session that has already ended, and adopting it signs the member out
+    // one tick after they sign back in.
     try {
-      const stored = Number(localStorage.getItem(ACTIVITY_KEY))
-      if (Number.isFinite(stored) && stored > 0 && stored < now) lastActivity.current = stored
+      const stored = inheritedActivity(localStorage.getItem(ACTIVITY_KEY), now)
+      if (stored !== null) lastActivity.current = stored
     } catch {
       // Ignore — an unreadable store just means this tab times itself.
     }

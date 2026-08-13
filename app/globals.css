@@ -156,7 +156,13 @@
   --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
   --brand-on-warm: var(--genorra-light);         /* 4.78 on warm */
   --brand-legacy: var(--genorra-legacy);         /* premium accent — SURFACE ONLY, see below */
-  --brand-on-legacy: var(--genorra-ink);         /* 6.99 on gold — dark in BOTH themes */
+  /* 6.14, not the 6.99 this said until 2026-08-12. That figure was measured against the
+     v1.0 ink (#2e1c22); kit v1.1 lightened Ink to #3c2528 and the pair moved with it.
+     Still comfortably AA, so nothing had to change but the number — and it is the only
+     stale ratio in this file: every other figure on --brand-legacy below re-measures
+     exactly as written. Same class of drift as --genorra-growth-lift above, which that
+     same ink change pushed UNDER AA and which was caught at the time. */
+  --brand-on-legacy: var(--genorra-ink);         /* 6.14 on gold — dark in BOTH themes */
 
   /* ── Elevation ────────────────────────────────────────────────────
      A white card on a cream page is 1.069:1 — invisible — and the border
@@ -217,7 +223,7 @@
    obvious choice for a gold button, and it turns cream in dark mode, landing
    at 1.65 on the very surface it was meant to sit on.
 
-   So: `bg-brand-legacy text-brand-on-legacy` (6.99) is a gold button, and it
+   So: `bg-brand-legacy text-brand-on-legacy` (6.14) is a gold button, and it
    is the brand's signature pairing. Gold as a text colour is still wrong in
    light mode; use `--brand-accent`, which resolves to gold in dark anyway. */
 

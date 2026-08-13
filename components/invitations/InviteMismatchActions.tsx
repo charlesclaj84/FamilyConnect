@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Copy, Check, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { clearIdleActivity } from '@/lib/idle-timeout'
 
 /**
  * The two exits from the "this invitation is for a different address" screen.
@@ -44,6 +45,10 @@ export function InviteMismatchActions({ token }: { token: string }) {
       setError('We could not sign you out just now. Your invitation link is still in the address bar — try again, or open it in a private window.')
       return
     }
+
+    // Only on success, for the same reason the error branch returns: a sign-out that
+    // failed leaves the session live, and the idle timer is still guarding it.
+    clearIdleActivity()
 
     startTransition(() => router.refresh())
   }

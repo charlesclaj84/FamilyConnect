@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { markIdleActivity } from '@/lib/idle-timeout'
 import { safeNext } from '@/lib/safe-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -92,6 +93,12 @@ export function LoginForm({
     if (error) {
       setServerError(error.message)
     } else {
+      // SIGNING IN IS ACTIVITY, and the idle timer has to be told before the page it
+      // guards mounts. `IdleTimeout` reads the shared marker once, at mount, and whoever
+      // used this browser last left one behind — an expired one is refused, but a marker
+      // 74 minutes old is not, and it would put this member a minute from the warning
+      // dialog before they had done anything.
+      markIdleActivity()
       router.push(next)
       router.refresh()
     }

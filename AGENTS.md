@@ -593,6 +593,44 @@ Four things about it are load-bearing, and the first is the one that gets undone
   timeout fail in the only direction that matters, which is never firing. A chat message
   arriving is not activity either; the point is somebody at the keyboard.
 
+## The shared marker belongs to one session, and outlives it
+
+`genorra:last-activity` in `localStorage` is how activity in one tab keeps the others
+alive, and a tab adopts it at mount so opening a second tab mid-stretch inherits the clock
+instead of resetting it. It is also the one piece of this feature that **survives the thing
+it is timing** — the sign-out, the redirect, and the browser being closed altogether.
+
+Adopted unconditionally it made the sign-out unrecoverable, which is the bug that shipped:
+the timer fired, left a 75-minute-old marker behind, and the first signed-in page after
+signing back in mounted already expired and bounced to `/login` on its first tick — forever.
+The same bounce met anyone returning the next morning, because `localStorage` does not care
+that the tab is gone.
+
+Three rules hold it now, and they are three because no one of them is sufficient:
+
+* **`inheritedActivity()` refuses an expired marker** (`lib/idle-timeout.ts`). A live tab
+  signs *itself* out on reaching the limit, so a marker past it can never describe one —
+  it is residue, and residue is not evidence of somebody sitting idle in a loaded page,
+  which is the only thing this component measures. This is the rule that covers the closed
+  browser, where no code of ours runs to clean up.
+* **Every sign-out that ends *this* browser's session calls `clearIdleActivity()`** — the
+  timeout, `SignOutButton`, `InviteMismatchActions`. Needed on top of the above because a
+  marker 74 minutes old is *inside* the window and still residue. The one `signOut` that
+  must **not** call it is `SignInSecurity`'s `scope: 'others'`: that leaves this browser
+  signed in, with somebody demonstrably at the keyboard.
+* **Every sign-in calls `markIdleActivity()`** — `LoginForm`, `RegisterForm`. Signing in is
+  activity, and the timer has to hear about it *before* the page it guards mounts, since
+  the marker is read once. It is also what stops one person on a shared browser inheriting
+  the last person's clock.
+
+Both writes live in `lib/idle-timeout.ts` rather than at the call sites, for the reason the
+file exists at all: a `localStorage.removeItem('genorra:last-activity')` typed into a
+sign-out handler is a copy of the key that no rename will find.
+
+`genorra:idle-signed-out` is deliberately *not* cleared. It is a broadcast, not state — its
+only reader is the `storage` event, which fires on the write — so a stale value confuses
+nobody and clearing it would only announce a second, meaningless change.
+
 **Session scope is a decision every `signOut` call owes.** The default is `'global'`, which
 revokes every session the *account* has, and that is almost never what a button means:
 `SignOutButton` shipped with it and was signing members out of their phone when they signed
@@ -832,7 +870,7 @@ worth understanding before touching a colour.
   **`--brand-legacy` has no `on-` partner, deliberately.** Gold is 2.30 against white
   and 1.65 against sand: it can never carry text in light mode, and a partner token
   would invite exactly that. Use it as a surface with dark text on it (ink on gold is
-  6.99), or as a non-text accent — a rule, a dot, a border. The one place it *is* a
+  6.14), or as a non-text accent — a rule, a dot, a border. The one place it *is* a
   foreground is dark mode, where `--brand-accent` resolves to it against a near-black
   ground at 7.91.
 

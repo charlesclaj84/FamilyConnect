@@ -1,9 +1,11 @@
 /**
  * The idle sign-out's constants and its one piece of arithmetic, kept out of the component
  * for the same reason `lib/theme.ts` holds `DEFAULT_THEME`: a rule two places have to agree
- * about belongs in neither of them. `components/layout/IdleTimeout.tsx` is the only
- * consumer today, and it carries the reasoning about what the feature does and does not
- * cover. This file is the numbers and the boundary.
+ * about belongs in neither of them. `components/layout/IdleTimeout.tsx` carries the
+ * reasoning about what the feature does and does not cover. This file is the numbers, the
+ * boundary, and the two writes to the shared marker that the AUTH screens owe it — see
+ * `markIdleActivity` and `clearIdleActivity` at the bottom, and the note above them about
+ * why those call sites exist at all.
  */
 
 /**
@@ -81,4 +83,88 @@ export function idlePhase(idleMs: number): IdlePhase {
     return { phase: 'warn', secondsLeft: Math.max(1, Math.ceil((IDLE_LIMIT_MS - idleMs) / 1000)) }
   }
   return { phase: 'active' }
+}
+
+/**
+ * THE MARKER OUTLIVES THE SESSION THAT WROTE IT, and this is the rule that stops it
+ * deciding anything about the next one.
+ *
+ * A tab adopts the stored marker on mount so that opening a second tab during an idle
+ * stretch inherits the clock instead of resetting it. Adopted unconditionally, it also
+ * signs the member out one tick after they sign back IN: the timeout fires, leaves its own
+ * 75-minute-old marker in `localStorage`, and the first signed-in page they reach mounts
+ * already expired. That was shipped, and it made the sign-out unrecoverable — every
+ * sign-in bounced straight back to /login. `localStorage` survives the browser closing
+ * too, so the same bounce met anybody returning the next morning.
+ *
+ * Returns the marker to adopt, or null to start this tab's own clock. Two rejections:
+ *
+ *   * **Older than the limit.** It cannot describe a live tab, because a live tab signs
+ *     ITSELF out on reaching the limit. So an expired marker is always residue — from a
+ *     closed browser, or from the sign-out this feature just performed — and residue is
+ *     not evidence of somebody sitting idle in a loaded page, which is the only thing
+ *     this component measures.
+ *   * **In the future.** A clock that moved, not activity. Inheriting it would set a timer
+ *     that never fires.
+ *
+ * NOT SUFFICIENT ON ITS OWN, deliberately: a marker 74 minutes old is inside the window
+ * and still residue if the session it belonged to has ended. `clearIdleActivity()` on
+ * sign-out and `markIdleActivity()` on sign-in are the other half.
+ */
+export function inheritedActivity(raw: string | null, now: number): number | null {
+  const at = Number(raw)
+  // `Number(null)` and `Number('')` are both 0, so the falsy cases fall out here with NaN.
+  if (!Number.isFinite(at) || at <= 0) return null
+  if (at >= now) return null
+  if (now - at >= IDLE_LIMIT_MS) return null
+  return at
+}
+
+/**
+ * ─── The two writes the auth screens owe ────────────────────────────────────────────────
+ *
+ * They live here rather than at the call sites for the reason the whole file exists: the
+ * key is a string, and a `localStorage.removeItem('genorra:last-activity')` typed into a
+ * sign-out handler is a copy of it that no rename will ever find.
+ *
+ * Both fail soft. Private mode and a full store both throw, and neither is a reason to
+ * break a sign-in — the in-page timer still works from mount, and only the cross-tab half
+ * is lost.
+ */
+
+/**
+ * Stamp NOW. Signing in is activity, and the strongest signal there is: somebody just
+ * typed a password.
+ *
+ * Called from the sign-in forms rather than from `IdleTimeout`, because by the time that
+ * component mounts the marker has already been read — and because whoever used this
+ * browser last is not the person now signing in. Their marker must not decide how long
+ * this session has been idle.
+ */
+export function markIdleActivity(at: number = Date.now()): void {
+  try {
+    localStorage.setItem(ACTIVITY_KEY, String(at))
+  } catch {
+    // See above.
+  }
+}
+
+/**
+ * Drop the marker, because the session that wrote it is over.
+ *
+ * Every sign-out that ends THIS browser's session owes this call — the idle timeout, the
+ * header button, the invitation-mismatch hatch. The one that must NOT make it is the
+ * password panel's `signOut({ scope: 'others' })`, which evicts the other devices and
+ * leaves this one signed in and, by definition, with somebody at the keyboard.
+ *
+ * `SIGNED_OUT_KEY` is deliberately left alone. It is a broadcast rather than state — its
+ * only reader is the `storage` event, which fires on the write — so clearing it would
+ * announce a second, meaningless change and there is nothing for a stale value to confuse.
+ */
+export function clearIdleActivity(): void {
+  try {
+    localStorage.removeItem(ACTIVITY_KEY)
+  } catch {
+    // See above.
+  }
 }
