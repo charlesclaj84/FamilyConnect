@@ -12,18 +12,41 @@ Generated 2026-08-12 from a six-agent audit of `lib/features.ts`, the eight mark
 surfaces, `PLANS[]`, and the storage migrations. Two independent verifiers corrected the
 first pass; their corrections are folded in.
 
+Revised the same day for the pricing edit that re-ranked all three cards, moved per-feature
+permissions from Plus to **Free**, added profile pictures to Plus, and gave Premium the four
+reach features. **A bullet moving between tiers changes what this file says about it without
+changing a line of code** — the severity rubric below is keyed to the tier a claim is sold
+in, so `PLANS[]` is as much an input to this document as `lib/features.ts` is.
+
 ---
 
 ## Where things stand
 
 | | Count |
 |---|---|
-| `FEATURES[]` entries | 27 |
-| `status: 'live'` | 10 |
-| `status: 'future'` | 17 |
-| **Gated features already built** | **17 of 17** |
-| Marketing claims with no code at all | 5 |
-| Marketing claims resolving to a gated feature | 22 |
+| `FEATURES[]` entries | 28 |
+| `status: 'live'` | 18 |
+| `status: 'future'` | 10 |
+| **Gated features already built** | **10 of 10** |
+| Marketing claims with no code at all | 9 |
+| Marketing claims resolving to a gated feature | 22 — **stale, re-derive** |
+
+**Live overtook gated on 2026-08-12.** It was 10 live and 17 future when this file was
+written, and 11 after `/admin/family` (Family Settings) landed. Then seven routes flipped in
+one afternoon — `/announcements`, `/admin/announcements`, `/events`, `/event-planning`,
+`/admin/events`, `/admin/event-types` and `/family-tree` — which is what took live from 11
+to 18 and gated from 17 to 10. This document was written against a product that was mostly
+gated and is now describing one that mostly is not; the delivery order below has been reduced
+accordingly rather than reordered.
+
+The claims-with-no-code figure was 5 until the Premium card took on the four reach features —
+apps, notifications, email distributions and automatic dues reminders. None has a route, so
+none can be gated, and none of them moved on 2026-08-12; see the register.
+
+**The last row is knowingly stale and is left visible rather than guessed at.** The flips
+closed the claim sets behind Announcements (8 + 3), Events (19 + 7 + 1 + 3) and — partly, in
+a way a count cannot express — the family tree's 15. Re-derive it against the marketing
+surfaces before quoting it; the *partly* is why nobody should subtract in their head.
 
 **Nothing in the registry is unbuilt.** Every gated route has its page, its client and its
 server actions in the repo — `AdminEventDetailClient` is 1,361 lines, `FamilyTreeClient` 853,
@@ -32,21 +55,63 @@ comment: *"shipping it again is this one word."* So the remaining work is a stat
 targeted fixes, not construction. That is the single most important fact in this document,
 because it sets the size of everything below.
 
+**One exception now, and it is new: the family-wide tree at `/family-tree` genuinely is
+unbuilt.** It is the only entry in the registry that is `'live'` with nothing behind it — a
+beta scaffold, badged as such — because it is being built differently rather than being
+un-gated. Read the sentence above as being about the ten *gated* routes, all of which are
+still built and waiting on a word.
+
 **Two mitigations already in place, worth knowing before reading the gap list:**
 
 - **No public click path into Coming Soon.** The marketing site links no gated route —
   `ACCOUNT_ROUTES` is exactly `{ login, register }`. A visitor cannot walk from a promise into
   a wall; only a signed-in member can, from the sidebar.
 - **The sidebar removes gated items rather than badging them,** and drops a whole section when
-  it empties. So Events and Resources are currently absent from the nav entirely. A member
-  does not see a teased door — they see no door. (Side effect: the header comment in
-  `lib/features.ts` still describes "Soon badges in the sidebar", which is stale.)
+  it empties. A member does not see a teased door — they see no door. **Events came back on
+  2026-08-12** and the section reappeared with all four of its items, exactly as this
+  mechanism promises; **Resources** — photos, documents, elections — is the one still absent
+  entirely. The rail's one hand-set badge is the opposite case: `BetaBadge` on Family Tree,
+  marking a route that is live and unfinished rather than one nobody can reach.
+
+### What each pricing card promises today
+
+Read per card rather than per feature, because a card is what a buyer actually reads. Counted
+against `PLANS[]` as it stands after the 2026-08-12 re-rank:
+
+| Card | Bullets | Fully live | What the card still needs |
+|---|---|---|---|
+| **Free** | 7 | **6** | 1 route inside one bullet (`/direct-lineage`), and the family-wide tree in that same bullet is a beta scaffold rather than a tree |
+| **Plus** | 8 | 2 — and **both are free to everyone** | 5 flips, 1 build (payment processing), 2 tier decisions (RSVPs and head counts; profile pictures) |
+| **Premium** | 6 | 0 | 6 builds, not one of which has a route |
+
+Four things follow, and the second is the reason this table is here.
+
+* **Free is nearly true now, and it took one afternoon.** It was 3 fully-live bullets of 6
+  when this file was written; the pricing re-rank made it 4 of 7 by moving a live capability
+  onto the card, and the flips made it 6 of 7. The single remaining bullet — "Never lose
+  track of who is who again" — names the tree, the direct lineage and the directory, and it
+  is `/direct-lineage` alone that is still gated.
+* **Both live bullets on the Plus card are shipping free to everyone.** This is the shape
+  that changed: it used to read *nothing on this card is live*, which was at least
+  internally consistent. Now "Stop guessing the head count" (RSVPs, t-shirt and meal
+  totals, day-of check-in) works — it came back with `/events` and `/admin/events` — and
+  "A face against every name" has always worked. Neither is restricted to a paid tier by
+  anything, because nothing in the codebase enforces a tier at all. **Shipping a gated
+  feature that a paid card claims converts a promise into a giveaway**, and that is now
+  true twice; see §4.
+* **Plus's opening bullet is still the most exposed claim in the file.** Payment processing
+  has no route, therefore no gate, therefore no Coming Soon screen — on the first line of
+  the `featured: true` card the layout is built to make you look at. Nothing about
+  2026-08-12 touched it.
+* **Premium is honest by construction** — every bullet is unbuilt and the whole card carries
+  a Coming soon badge and a disabled button, so the tier cannot mislead about availability.
+  What it can mislead about is *scope*, which is what the decisions list is for.
 
 ### How the gate works
 
 `proxy.ts` *rewrites* — not redirects — any gated path to `/coming-soon`, which names the
 feature from its `blurb` and lists the live ones as "Available now". Nested paths inherit
-their parent entry's status. **An unregistered path is not gated**, which is why the five
+their parent entry's status. **An unregistered path is not gated**, which is why the nine
 claims with no route at all are the most exposed items in this file: nothing catches them.
 
 ### Severity, and what it means here
@@ -68,19 +133,69 @@ Sequenced by the tier the feature is sold in, **Free first**. Two reasons: a gap
 tier is the promise made to everyone, so it costs the most trust; and the paid tiers sit on
 top of that base, so they cannot be sold until it works.
 
-### Free — 6 blocking gaps
+### Free — 1 blocking gap left
+
+Three of the four items here shipped on 2026-08-12. What is left is one bullet, and it is
+the one blocked on a product decision rather than on work.
+
+| # | Ship | State |
+|---|---|---|
+| 1 | `/direct-lineage` | **Still gated.** One word, and the only thing left on the Free card. Blocked on the same decision it always was — where child management and convert-to-adult sit, and note the answer *cannot be enforced by a grant*, because the route has no permission row by design. |
+| ~~2~~ | ~~`/family-tree`~~ | **Shipped, split in two.** See below — this one did not flip, it was rearranged. |
+| ~~3~~ | ~~`/announcements` + `/admin/announcements`~~ | **Shipped together,** as this table said they had to. The admin flip carried the `Sidebar.tsx` `adminItems` entry with it; without that the page would have come back working, permissioned and linked from nowhere. |
+| ~~4~~ | ~~`/events` + `/admin/events` + `/admin/event-types`~~ | **Shipped, and `/event-planning` with them** — all four event routes at once, because `/events` cannot show a reunion `/admin/events` is not there to create. Heaviest item in the repo, done as one flip. |
+
+**The storage rework moved to Plus,** from position 0 here. It was at the top of the Free
+list because `/photos`, `/documents` and `/events` all queued behind it; Events has now
+shipped *ahead* of it by explicit decision, so the two features still waiting are both
+Plus and the item belongs with them. **What that decision costs is stated once, in the Plus
+table, and it is a real cost rather than a formality** — read it there before concluding
+the sequencing was free.
+
+**Free's gap list went from 6 to 1 without the card changing.** Worth stating plainly
+because the two edits of 2026-08-12 pull in opposite directions and it would be easy to
+read only one of them: the pricing re-rank moved a live capability *onto* the Free card
+(separation of duties, which needs nothing at all), and the flips took three gated
+capabilities *off* the gap list. The card now describes something a family can largely
+have.
+
+### The family tree, split in two
+
+The one item here that is not a status flip, and the reason the row above is struck
+through rather than ticked. `/family-tree` used to be a single gated route in the
+**Personal** section — a per-person lineage viewer, opened for whoever `?view=` named.
+It is now two things:
+
+| Route | What it is | Where it lives | State |
+|---|---|---|---|
+| `/members/family-tree` | The original lineage view, unchanged. One person's line, walked outwards. | Community > Directory, reached from the roster — **no rail item of its own** | Live. Inherits `/members` by prefix, so it is live because the Directory is. |
+| `/family-tree` | The family-wide tree, being rebuilt. A beta notice and a sketch of the layout it is heading for. | Community > Family Tree, directly after Directory | Live, and **live with nothing behind it** — the one state the registry cannot describe. |
+
+Four things follow that this file has to carry, because no mechanism does:
+
+* **`BetaBadge` is hand-set and cannot be derived.** `status` has two values and "live but
+  unfinished" is a property of one of them. The badge is written twice — on the page
+  heading and on the rail item — and both come off by hand when the real tree lands. It is
+  the mirror of `ComingSoonBadge`: that one marks a route nobody can reach, this one marks
+  a route anybody can.
+* **The resource key stayed `family-tree` while the route moved.** Deliberately: keying the
+  lineage view to `members` instead would let a family that restricts its Directory break
+  its own family tree, and every action behind the page already checks
+  `requireRead('family-tree')`. So the page's key names a *different* route's registry
+  entry — the same arrangement `/admin/approvals` has, and the one place either page
+  departs from §1's "the key is the route without its leading slash".
+* **The lineage page is captioned "Lineage", not "Family Tree".** Community has a rail item
+  called Family Tree now, and two pages answering to one name in one section is worse than
+  a duller word. It is one word in three places if that goes the other way.
+* **The Directory owes it a link, and now has one.** A page with no rail item and no entry
+  point is unreachable without anybody deleting it; `/members` carries a Lineage button
+  beside its heading, and `FamilyTreeClient` handles person-to-person from there.
+
+### Plus — the storage rework, 7 high gaps, then one build
 
 | # | Ship | Why here |
 |---|---|---|
-| 0 | **Storage rework** | Not a feature, but it gates `/photos`, `/documents` and `/events`, and it is the only item that touches a **live** page (avatar upload on `/personal-info`). Long pole; three features queue behind it. Start first. |
-| 1 | `/family-tree` + `/direct-lineage` | Ship together. Two one-word flips closing the largest single Free promise, plus the SEO description, a landing spotlight, a features pillar, the footer, the default `CtaBand` lede and both auth pages. Blocked on a decision, not a migration — see below. |
-| 2 | `/announcements` + `/admin/announcements` | Ship together: pinning is half the Free promise and lives only in the admin route. **The flip must include a `Sidebar.tsx` `adminItems` entry** or it surfaces nowhere. |
-| 3 | `/events` + `/admin/events` + `/admin/event-types` | Ship together — Free's "put the reunion on the calendar" cannot work without the admin route that creates the event. Heaviest item in the repo. Do it last in Free because everything else here is cheap and this is not. |
-
-### Plus — 7 high gaps, then one build
-
-| # | Ship | Why here |
-|---|---|---|
+| 0 | **Storage rework** | **Moved here from Free position 0** on 2026-08-12, when Events shipped ahead of it. Not a feature; it is what stands between `/photos` and `/documents` and their flips. It is also the only item here that touches pages which are **already live** — and it now touches two of them, not one: `avatars` behind `/personal-info` (which the pricing edit also made a Plus claim), and `event-photos` behind the events feature that just shipped. Still the long pole, and no longer preventative. **Read the warning below before scheduling anything under it.** |
 | 1 | `/family-finances` | One-word flip. Resolves the sharpest inconsistency in the registry: its admin counterpart `/admin/account` is **already live**, so funds are configurable but their balances and the P&L are unreachable. Needs a restricted `resource_visibility` backfill in the same migration. |
 | 2 | `/admin/boardpositions` | Cheapest item in the repo by its own comment, and a structural dependency of the elections claim. |
 | 3 | `/elections` + `/admin/elections` | Immediately after board positions — the roster feeds the ballot. `BallotForm` needs `disambiguatedName` + search **first** (AGENTS.md names it). Its "launch announcement goes out automatically" sub-claim needs `/announcements`, already shipped in Free. |
@@ -90,11 +205,75 @@ top of that base, so they cannot be sold until it works.
 | 7 | `/admin/reports` | Flip **last**: RSVP turnout and t-shirt counts are event data, so two of its four advertised columns stay empty until `/events` has shipped and collected some. |
 | 8 | **Payment processing** | The only Plus item that is a build, not a flip. Needs a provider and a fee decision before a route exists. **It is also the one claim with no gate at all** — so it must not be the thing left outstanding when `PRICING_IS_ANNOUNCED` flips. |
 
-### Premium — nothing can start yet
+> ### ⚠ Events shipped ahead of the storage rework, and `event-photos` is live now
+>
+> This is the one place in this file where deferring something has a cost that is already
+> being paid rather than merely scheduled, so it is stated where the item now sits.
+>
+> `event-photos` is a **`public: true`** bucket whose policies carry **no family predicate**
+> — the bare `bucket_id = X AND auth.uid() IS NOT NULL` — and twelve of the policies in
+> `20260609000000_avatar_url.sql` omit a `TO` clause, so they attach to `PUBLIC`, which
+> includes `anon`. `deleteEventPhoto` also takes its object path from the client.
+>
+> While `/events` and `/admin/events` were gated, all of that was a checklist for a rework.
+> Now that they are live, it is the storage layer of a feature families are using: one
+> family's event photographs are readable by URL by anyone who has the URL, and by any
+> signed-in member of **any** family through the API. The claim *"One family cannot see
+> another. Ever."* is published on four surfaces and is now false of a **shipped** feature
+> rather than of a dormant one.
+>
+> Nothing here says the sequencing was wrong — shipping Events was a deliberate call and
+> the reunion is the product's whole premise. It says the rework stopped being preventative
+> work on 2026-08-12 and became remedial, which is a different priority. `avatars` was
+> already in this position (live, world-readable, and now sold as Plus); `event-photos` is
+> the second bucket to join it, and `photos` and `documents` are still gated behind their
+> own flips.
 
-1. **Ship `/events`, `/photos` and `/announcements` first.** Not prerequisites in a loose
-   sense — they *are* the content the public site renders. Premium has nothing to show until
-   all three exist.
+**This order is close to the inverse of the card's,** and that is expected rather than wrong:
+the card ranks by which absence hurts a family most, this table ranks by what unblocks what.
+Three consequences to hold on to, and the first two are what a buyer meets first.
+
+- **Payments is bullet 1 on the card and item 8 here.** Nothing about the sequencing is
+  negotiable — it needs a provider and a fee decision — so the gap is open for the entire
+  life of the Plus rollout, on the opening line of the featured card, with no gate behind it.
+- **Profile pictures is bullet 8 on the card and appears in this table not at all,** because
+  it is not work of the same kind: it ships today, free, and the decision is whether to take
+  it away. It is in the decisions list instead, and it must be settled before
+  `PRICING_IS_ANNOUNCED` — a Plus bullet a Free family already has is the one error on this
+  page that a reader can catch by themselves.
+- `/admin/reports` moved **up** the card (bullet 4, from 8) and stays **last** here. Two of
+  its four advertised columns are event data, so promoting it in the copy did not shorten
+  its queue by a day.
+
+### Premium — the reach half can start, the website half cannot
+
+This heading read *"nothing can start yet"* while Premium was the website alone, and the four
+reach features are what changed it.
+
+**The four reach features are separable from the website and from each other**, which makes
+them the only Premium work that could start today: apps for iPhone and Android, push
+notifications on web and mobile, email distributions drawn from membership, and automatic
+dues reminders. Each is a build with no route, so none of them can ever show `/coming-soon`.
+Automatic dues reminders is the cheapest and the least speculative — dues schedules and
+installments are live under `/admin/account`, so only the sending half is missing, and it
+needs a scheduler rather than a screen. The apps are the largest single item in this
+document by an order of magnitude and are not a status flip in any sense.
+
+**The card's ranking and this order agree here, unlike Plus.** The re-rank put dues reminders
+first and notifications second — the two cheapest reach items — and dropped the website, the
+tier's signature, to fifth. So the two lines a reader meets first are the two that could
+start today. The tagline moved with them: *"In every relative's pocket, and out in the
+world"* names the reach half before the website half, where it used to name only the website.
+Worth knowing when re-counting claims, because that first clause is now an **apps** claim
+rather than a website one.
+
+**The public website half is what cannot start:**
+
+1. ~~**Ship `/events`, `/photos` and `/announcements` first.**~~ **Two of the three are
+   done** — Events and Announcements shipped 2026-08-12. They *are* the content the public
+   site renders, so this prerequisite is now one item: `/photos`, which is behind the
+   storage rework. Premium's website half is closer to startable than it has ever been, and
+   the remaining blockers below are all decisions rather than work.
 2. **Decide the publish / opt-in model.** Nothing in the permission system can express
    "visible to the world", and a public surface over family data inverts the *"One family
    cannot see another. Ever."* claim published in four places. This is a design decision, not
@@ -117,12 +296,37 @@ published claim on the wrong side of it.
    landing page, absent from `/features` entirely.
 3. **Does `/event-planning` earn a tier, or is it internal-only?** Fully registered with a
    resource key and a sidebar entry, and the marketing site does not sell it at all.
+   **Now urgent rather than theoretical:** it shipped live with the other three event
+   routes on 2026-08-12, so it is a capability every family has and no tier names. Decide
+   it before `PRICING_IS_ANNOUNCED`, or it decides itself as Free by default.
 4. **Where do child management and convert-to-adult sit?** Note the answer *cannot be
-   enforced by a grant* — `/direct-lineage` has no permission row by design.
-5. **Does the `/admin` hub survive?** Nothing links to it, `Sidebar` has no `/admin` item, it
+   enforced by a grant* — `/direct-lineage` has no permission row by design. **This is now
+   the last gated item on the Free card,** so the decision is the only thing standing
+   between that card and being wholly true.
+5. **What is the new family-wide tree, precisely?** `/family-tree` is live, badged beta and
+   empty, which buys time rather than answering anything. Two questions come with it: what
+   the new tree does that the lineage view does not, and whether the lineage view retires
+   when it lands or stays as the per-person drill-down from the Directory. The beta badge
+   is hand-set, so nothing expires on its own if this drifts.
+6. **Does the `/admin` hub survive?** Nothing links to it, `Sidebar` has no `/admin` item, it
    gates on the wrong key, it has no permission row, and two of its three tiles point at
    gated routes.
-6. **Trusted Vendors** — directory, marketplace, or discount list? No code exists.
+7. **Trusted Vendors** — directory, marketplace, or discount list? No code exists.
+8. **Profile pictures are sold as Plus and ship free to everyone today.** `AvatarUpload` is on
+   `/personal-info`, which is live and free, so the work is *withdrawing* a capability rather
+   than shipping one. Three calls come with it — whether families already using it are
+   grandfathered, what happens to the pictures already uploaded when a family is not on Plus,
+   and where the check even goes. `lib/features.ts` cannot express it: the registry gates by
+   route, and this is one control on a page that stays free. It is also entangled with the
+   storage rework, since the `avatars` bucket is world-readable by URL today.
+9. **RSVPs, head counts and day-of check-in are sold as Plus and, since 2026-08-12, ship free
+   to everyone too.** This used to be the item above's distinction — it is now a pair, and the
+   pair is a pattern rather than a coincidence. Both are Plus claims served by live routes
+   that nothing restricts to a tier. **The general decision underneath them is the one worth
+   making first: where does tier enforcement live at all?** There is no mechanism today — not
+   in `lib/features.ts`, which knows only routes, and not in the permission model, which knows
+   only what a family granted its own members. Every answer to the two items above is a
+   special case until that exists.
 
 ---
 
@@ -134,12 +338,19 @@ Grouped by feature, because the question this answers is "what does shipping X c
 
 | Feature | Route | Claims | Shipping it requires |
 |---|---|---|---|
-| Family tree — multi-generation, spouses, children, ancestors | `/family-tree` | 15 | Flip + the no-permission-row decision |
-| My Children — add, manage, convert to adult members | `/direct-lineage` | 4 | Flip + same decision; also a silent-success no-op write |
-| Announcements — family-wide news pinned to the dashboard | `/announcements` | 8 | Flip + `resource_visibility` backfill |
-| Announcement management — post and pin | `/admin/announcements` | 3 | Flip + **a `Sidebar.tsx` entry**, or it surfaces nowhere |
-| Events — shared event page, itineraries, hotel blocks, RSVPs | `/events` | 19 | Flip + storage rework (event-photos) + sub-keys + RLS cases |
-| Event management — build events, assign the checklist, day-of check-in | `/admin/events` | 7 | Flip + **33 uncased actions behind one key** + sub-keys per rail item |
+| My Children — add, manage, convert to adult members | `/direct-lineage` | 4 | Flip + the no-permission-row decision; also a silent-success no-op write |
+
+**One row left, from six.** The five that closed on 2026-08-12 are below, with what actually
+came with each flip — kept here rather than merged into **Already true**, because two of them
+shipped with a documented obligation still open and a tick would hide that.
+
+| Shipped | Route | Claims closed | What it left behind |
+|---|---|---|---|
+| Family tree | `/family-tree` + `/members/family-tree` | 15, partly | **Not a flip — a split.** The lineage view is live under the Directory; the family-wide tree is live, beta and empty. Several of those 15 claims describe a whole-family tree and are now met by a scaffold, so read this as the largest *partly* closed item in the file rather than a clean one. |
+| Announcements | `/announcements` | 8 | Nothing. No migration was needed — the key has been registered since `20260618000000` and `resource_visibility` already answered `everyone` for it. The dashboard's pinned-news panel switched itself on, because it reads `isFeatureLive('/announcements')`. |
+| Announcement management | `/admin/announcements` | 3 | The `Sidebar.tsx` `adminItems` entry this file demanded, added with the flip. Restricted per family already, like every `category = 'admin'` resource. |
+| Events | `/events` | 19 | **The storage rework, now overdue rather than pending** — see the warning in the Plus table. Sub-keys and RLS cases are still owed. |
+| Event management + templates + planning | `/admin/events`, `/admin/event-types`, `/event-planning` | 7 + 1 + 3 | **33 uncased actions behind one key,** and no sub-keys per rail item — so `admin/events` still cannot express "record an RSVP but do not delete the event". `/event-planning` also shipped into no tier at all. |
 
 ### High — paid-tier headlines
 
@@ -151,38 +362,50 @@ Grouped by feature, because the question this answers is "what does shipping X c
 | Elections — nominate, accept/decline, vote | `/elections` | Plus | 6 | `BallotForm` member-picker defect must land with it |
 | Election management | `/admin/elections` | Plus | 3 | After board positions |
 | Regions & chapters | `/admin/chapters` | Plus | 5 | Delete the dead duplicate client |
-| Leadership reports | `/admin/reports` | Plus | 6 | Two of four columns need `/events` data first |
+| Leadership reports | `/admin/reports` | Plus | 6 | Two of four columns need `/events` data first — **`/events` has now shipped**, so this is no longer blocked on a flip, only on families having run an event and collected some. It can move up the order. |
 | **Payment processing** — card, debit, PayPal, Apple Pay, Google Pay, Cash App | **none** | Plus | 6 | **No route, so `proxy.ts` cannot gate it and Coming Soon never appears.** The most exposed claim in this file. |
+| Profile pictures | `/personal-info` — **live** | Plus | 2 | The mirror image of everything else here: sold as Plus and shipping to **everyone, free, today**. Avatar upload sits on a live page, so this is a capability to withdraw rather than one to ship — see the decisions list. Its detail line also promises the picture "on the directory, the tree and everywhere a member is listed": the directory shows it, and "the tree" now means the lineage view, which does — so the bullet reads correctly and is simply sold one tier too high. |
+| RSVPs, head counts, day-of check-in | `/events` + `/admin/events` — **live** | Plus | (inside 2 claims) | **Joined the row above on 2026-08-12.** Same shape, opposite cause: profile pictures were never gated, these were gated until the Events flip and are now free to everybody. Plus bullet 2 and the Free/Plus FAQ answer both name them. |
 | **The public family website that builds itself** | **none** | Premium | 6 | No route, no entry, no code |
 | **Per-family public address** | **none** | Premium | 3 | No route, no config, no code |
+| **Apps for iPhone and Android** | **none** | Premium | 2 | No route and none possible — this claim leaves the web app entirely. Largest item in this file. Two claims since the re-rank: the bullet, and the tagline's *"In every relative's pocket"*. |
+| **Push notifications, web and mobile** | **none** | Premium | 1 | No route, no code. `lib/notifications.ts` and `NotificationBell` are the in-product bell; nothing leaves the browser today. **Read the bullet before building it** — it promises notifications "in the browser … for events, announcements and messages", and the bell that exists is free, in-browser, and fires on **membership approvals only** (`admin/approvals.ts` and `my-families.ts` are its only callers). So a member already has the mechanism the copy names, for none of the three subjects it names. |
+| **Email distributions** | **none** | Premium | 1 | No route. `lib/email/` sends transactional mail one recipient at a time; a list drawn from membership does not exist. Read that module's open-relay rule before building it. |
+| **Automatic dues reminders** | **none** | Premium | 1 | No route, no scheduler. Dues schedules and installments are live, so this is the send half only. |
 
 ### Medium / low
 
-| Feature | Route | Claims |
-|---|---|---|
-| Board positions | `/admin/boardpositions` | 4 |
-| Event templates | `/admin/event-types` | 1 |
-| Event planning — assigned tasks with deadlines | `/event-planning` | 3 |
-| Untiered event sub-capabilities (hotel blocks, nested itineraries, per-event budgets) | `/admin/events` | 4 |
-| Trusted vendors | none | 2 |
-| Family stories and traditions as a first-class thing | none | 2 |
+| Feature | Route | Claims | State |
+|---|---|---|---|
+| Board positions | `/admin/boardpositions` | 4 | Gated. Cheapest flip in the repo by its own comment. |
+| Trusted vendors | none | 2 | No code. |
+| Family stories and traditions as a first-class thing | none | 2 | No code. |
+| ~~Event templates~~ | `/admin/event-types` | 1 | **Live.** Shipped with the event flip — and still absent from `/features` entirely and priced in no tier. |
+| ~~Event planning~~ — assigned tasks with deadlines | `/event-planning` | 3 | **Live.** Also in no tier; the decision above got more urgent rather than less. |
+| ~~Untiered event sub-capabilities~~ (hotel blocks, nested itineraries, per-event budgets) | `/admin/events` | 4 | **Live, and still untiered.** These were "built but unreachable"; they are now built, reachable and free. Per-event budgets crosses into `/family-finances`, which is still gated, so that one is half-shipped. |
 
 ---
 
 ## Supporting work
 
-### 1. Storage rework — the long pole
+### 1. Storage rework — the long pole, and no longer preventative
 
-Four buckets, **15 policies**, and the shape is wrong in three ways. This is the checklist for
-the rework, not an incident report: the features these buckets serve are all gated, so nothing
-is exposed today except the avatar path.
+Four buckets, **15 policies**, and the shape is wrong in three ways.
 
-| Bucket | `public` | Effect today |
-|---|---|---|
-| `avatars` | `true` | World-readable by URL |
-| `event-photos` | `true` | World-readable by URL |
-| `photos` | `true` | World-readable by URL |
-| `documents` | `false` | Any signed-in user of **any** family can read, overwrite, delete and enumerate |
+**This section opened by calling itself "a checklist for the rework, not an incident
+report", on the grounds that the features these buckets serve were all gated. That is no
+longer true.** Events shipped on 2026-08-12 and took `event-photos` into production with it,
+so two of the four buckets are now reachable through a live feature and the reading of this
+section changes with them: the `avatars` and `event-photos` rows describe what is happening
+now, and only `photos` and `documents` are still statements about what would happen on a
+flip.
+
+| Bucket | `public` | Reachable today? | Effect |
+|---|---|---|---|
+| `avatars` | `true` | **Yes** — `/personal-info`, live and free | World-readable by URL |
+| `event-photos` | `true` | **Yes, since 2026-08-12** — `/events`, `/admin/events` | World-readable by URL |
+| `photos` | `true` | No — `/photos` gated | World-readable by URL |
+| `documents` | `false` | No — `/documents` gated | Any signed-in user of **any** family can read, overwrite, delete and enumerate |
 
 Three defects to fix together:
 
@@ -196,60 +419,136 @@ Three defects to fix together:
 
 Two application defects must land in the **same** change, because fixing the policy without
 them leaves the hole open from the other side: `deletePhoto` and `deleteEventPhoto` both take
-the object path from the client.
+the object path from the client. **`deleteEventPhoto` is the reachable one now** — its page
+shipped — so of the two it is the one that has stopped being a latent defect.
 
 **And `tests/rls` does not cover storage at all.** A storage test harness is part of this item,
 not a follow-up — without it the rework's correctness is unverified, and this is the one area
 of the schema with no attacker case anywhere.
 
 > The claim *"One family cannot see another. Ever."* is published on four surfaces and is
-> currently true of every table and false of storage. This rework is what makes an
-> already-published promise true, which is why it sits at position zero.
+> currently true of every table and false of storage. It used to be false only of storage
+> nobody could reach; since 2026-08-12 it is false of the storage behind a **shipped**
+> feature. That is the whole change in this item's character — the work did not get bigger,
+> it got later.
 
 ### 2. Per-feature launch obligations
 
 Each gated feature owes these at flip time. AGENTS.md requires them; they are listed here so
 "flip the status" is never mistaken for the whole job.
 
-- **~85 uncased server actions** across the gated set. §7 requires a case per action, with a
-  real attacker *and* a positive control.
-- **`resource_visibility` backfill** for the 7 non-admin gated keys (§6): `/family-finances`,
-  `/documents`, `/announcements`, `/events`, `/event-planning`, `/photos`, `/elections`.
-  Without it a resource falls back to `everyone` for view and nothing else.
-- **An `actions` audit** on all 14 gated `permission_resources` rows — §6 says never declare an
-  action nothing reads.
+**Two of these are now owed retroactively, and that is the important line in this section.**
+The seven routes that shipped on 2026-08-12 needed no migration — every key was registered
+and every admin one already `restricted`, so the `resource_visibility` item below was
+satisfied in advance — but the RLS cases and the sub-keys were not, and a shipped feature
+cannot owe them "at flip time" any more. They are outstanding work on live code.
+
+- **~85 uncased server actions** across the gated set, of which **the ~40 behind Events and
+  Announcements are now behind LIVE routes.** §7 requires a case per action, with a real
+  attacker *and* a positive control, and it says so precisely because these actions reach the
+  database through `createClient()` and have delegated family isolation to policies nobody
+  has run an attacker against. Re-derive the figure; it moved.
+- **`resource_visibility` backfill** for the non-admin gated keys (§6): `/family-finances`,
+  `/documents`, `/photos`, `/elections`. Without it a resource falls back to `everyone` for
+  view and nothing else. `/announcements`, `/events` and `/event-planning` are off this list
+  because they shipped — and needed nothing, since `everyone` for view is what all three
+  wanted and `20260618000000` had registered them from the start.
+- **An `actions` audit** on the remaining gated `permission_resources` rows — §6 says never
+  declare an action nothing reads.
 - **Sub-keys per rail item** for pages that divide into jobs. `admin/events` has 33 actions
-  behind one key, which cannot express "record an RSVP but do not delete the event".
+  behind one key, which cannot express "record an RSVP but do not delete the event" — **and
+  that page is live now**, so the grant an administrator would need in order to delegate
+  day-of check-in without also handing over deletion does not exist yet.
 - **Replace the two hand-rolled member pickers** with `PersonMultiSelect` — `BallotForm` and
   `PhotoCollectionGallery`, both named in AGENTS.md's known-gaps list. Each lands with its
-  feature.
+  feature; both features are still gated.
 
 ### 3. Registry inconsistencies to resolve
 
 - `/family-finances` gated while `/admin/account` is live — funds configurable, balances
   unreachable.
 - `/admin` gated while three of its children are live; it gates on the wrong key and has no
-  permission row.
-- `/admin/announcements` is built and permissioned but absent from the sidebar.
+  permission row. **Now five of its children,** since the two event admin routes shipped.
+- ~~`/admin/announcements` is built and permissioned but absent from the sidebar.~~
+  **Resolved** — the flip added the `adminItems` entry, between Accounting and Election
+  Management.
 - `/direct-lineage` and `/family-tree` have no permission row by design, so shipping them
-  ships them to everyone with no switch.
+  ships them to everyone with no switch. **`/family-tree` has now done exactly that**, and
+  the beta scaffold is why it did not matter: there is nothing behind it to restrict yet. It
+  will matter when the real tree lands, and `/members/family-tree` inherits the same answer
+  because its key is still `family-tree`.
 - The Coming Soon screen offers every member three administrator links they cannot use.
-- The protected layout queries gated event-planning data on every request.
+- ~~The protected layout queries gated event-planning data on every request.~~ **Resolved by
+  the flip, not by a fix** — `/event-planning` is live, so the query is no longer for a gated
+  feature. `hasAssignments` is what decides whether the rail item renders, which is what that
+  query was always for.
 - `cancel_overdue_event_assignments` holds an `authenticated` EXECUTE grant nothing needs.
+  **Reachable now** — the events feature it belongs to is live, so §2b's reasoning about a
+  loose grant applies to a running feature rather than a dormant one.
 
-### 4. Two claims that are LIVE but sold as unreleased
+### 4. Claims that are LIVE but sold as unreleased
 
 Decide before `PRICING_IS_ANNOUNCED` flips — these are the mirror image of everything else
-here, and they cost revenue rather than trust.
+here, and they cost revenue rather than trust. **This section said "two" and then named
+neither, from the day the file was written until 2026-08-12.** Both are named below now,
+because a count with no list is not something the next reader can act on.
+
+The mechanism is worth stating once, since it will recur every time a bullet moves: Plus and
+Premium are `available: false`, so each card carries a Coming soon badge and a disabled
+button. **Every bullet under one of them therefore reads as not yet available** — including a
+bullet describing something a Free family is using today.
+
+| Claim | Where it lives | State |
+|---|---|---|
+| **Per-feature permissions** — "Separation of duties" | Was Plus bullet 5; now **Free bullet 6** | **Resolved by the pricing edit.** `/admin/users` has shipped since permission templates landed, and the FAQ and the `/features` privacy bullet moved with it — the latter simply dropped its `(Plus)` tag, and `features/page.tsx` records why in its header comment. |
+| **Profile pictures** — "A face against every name" | **Plus bullet 8**, added by the pricing edit | **Open.** `AvatarUpload` is on `/personal-info`, live and free. This one runs both ways at once: it costs revenue for as long as it stays free, and it costs trust the moment it is withdrawn from families already using it. Three sub-decisions in the decisions list; nothing in `lib/features.ts` can express any of them. |
+| **RSVPs, head counts and check-in** — "Stop guessing the head count" | **Plus bullet 2** | **Open, and created by the Events flip on 2026-08-12.** RSVPs with t-shirt and meal totals and day-of check-in all live behind `/events` and `/admin/events`, which are now live for every family on every tier. It is the second-strongest argument on the featured card and it is currently a giveaway. |
+
+**The pattern is worth naming, because it will recur with every flip.** Free and Plus are
+served by the *same* routes in several places — Free sells "put the reunion on the calendar"
+and Plus sells the RSVPs and the head count, and both are `/events` — so un-gating a route
+ships whichever tier's claims sit on it, all of them, to everybody. `lib/features.ts` gates
+by route and knows nothing about tiers; there is no tier enforcement anywhere in the
+codebase. Until there is, **every flip is a Free flip**, whatever the pricing page says. That
+is the thing to check before the next one, and the reason the per-card table above exists.
+
+**One live capability is sold in no tier at all: fund transfers.** `LEDGERS` has five entries
+since `20260812000002`, `/transactions` is live, and `transactions/fund-transfers` is its own
+permission resource on purpose — emptying a fund is not the same judgement as paying a member
+what they are owed. No marketing surface mentions it. That is the safe direction to be wrong
+in, so it is a note rather than a gap; the pricing question is whether moving money between
+funds belongs on the Free card beside the ledger, or on Plus beside the P&L.
 
 ---
 
 ## Already true
 
-So this file is not only a list of failures. The site accurately claims, and a member can
-reach today: the member directory, family chat, dues plans and the contribution ledger, the
-four transaction ledgers, `My Summary`, Members & Access with permission templates, member
-approvals, and Accounting — dues schedules, funds and payment routing.
+So this file is not only a list of failures — and as of 2026-08-12 it is mostly not one. The
+site accurately claims, and a member can reach today: the member directory, family chat, dues
+plans and the contribution ledger, the five transaction ledgers, `My Summary`, Members
+(`/admin/users`) with permission templates, member approvals, Family Settings, and
+Accounting — dues schedules, funds and payment routing.
+
+**And, since 2026-08-12:** announcements with pinning, and the whole of events — the shared
+event page, itineraries, hotel blocks, RSVPs with t-shirt and meal totals, day-of check-in,
+event templates and the planning checklist. Plus the per-member lineage view, now under the
+Directory. That is seven routes, and it is the largest single movement in this file's short
+history.
+
+Two qualifications belong with that paragraph rather than in a footnote, because it is the
+paragraph somebody will quote:
+
+* **Events shipped ahead of its storage rework, deliberately.** `event-photos` is
+  world-readable by URL and its policies carry no family predicate. The feature works; that
+  part of it is not yet safe, and §1 now says so in the present tense.
+* **The events half of what shipped is sold as Plus and is free to everybody,** because
+  nothing enforces a tier. See §4 — this is not a bug in the flip, it is the absence of a
+  mechanism the pricing page assumes exists.
+
+**Permissions are now sold in the tier that has them.** The Free card's "Separation of
+duties" and the `/features` privacy bullet both describe `/admin/users` as it ships today, and
+the Free/Plus FAQ answer names it on the Free side. That is the single largest true claim the
+Free card makes, in the sense that it needs nothing from anybody.
 
 **Both product surfaces now badge honestly, as of 2026-08-12.** They did not when this file
 was written: `FeatureShowcase` derived a Coming Soon pill from `isFeatureFuture()`, and
@@ -271,9 +570,44 @@ render from it — so a flip cannot correct one page and leave the other stale.
 
 Two limits worth keeping in view. `isComingSoon` is evaluated **per card, not per bullet**,
 so a badged pillar can still list a bullet describing something live and vice versa. And a
-capability with **no route at all** cannot be derived — the five claims with no code are
+capability with **no route at all** cannot be derived — the nine claims with no code are
 still the most exposed items in this file, for exactly the reason `proxy.ts` cannot gate
 them either.
+
+**The per-card limit has now fired in the expensive direction, and it needs a decision.**
+The family-record pillar in `components/marketing/pillars.ts` derives its badge from
+`/family-tree`, which is live as of 2026-08-12 — so **its Coming Soon pill has come off on
+both the landing page and `/features`**, automatically and correctly by the mechanism's own
+rule. Five of its six bullets are genuinely reachable now. The sixth is *"Add your children,
+and convert them to members when they grow up"*, which is `/direct-lineage` and still gated.
+
+So one pillar on the landing page currently promises a gated capability with no badge over
+it, which is the direction that costs a customer's trust rather than a sale. Three ways out,
+and it is a copy decision rather than a mechanism one:
+
+* Ship `/direct-lineage` — it is one word and the last gated item on the Free card anyway.
+* Drop that bullet from the pillar until it ships, and put it back with the flip.
+* Accept it, on the grounds that the pillar's own headline claim is live.
+
+Nothing in the code will surface this again if it is left, which is why it is written down
+here. **This is also the general case, not a one-off:** any flip can un-badge a card that
+still lists a gated bullet, so check the pillar's bullets — not just its route — whenever a
+`status` moves.
+
+**`/pricing` is a third marketing surface and it derives nothing.** Its badge is per *tier*,
+from `available`, and every bullet in `PLANS[]` is prose typed by hand. That was worth
+worrying about while the Free card wore an **"Available now"** pill over three gated bullets;
+after 2026-08-12 it wears it over **one** — and only partly, since what is gated inside "Never
+lose track of who is who again" is `/direct-lineage` while the directory and the lineage view
+under it are both live.
+
+It is still not an oversight to fix with a mechanism: a pricing bullet describes a tier's
+offer rather than a route, several of them span more than one route, and "Available now" is a
+statement about the *plan* being open to sign up for, which is true. What the hand-written
+list cannot do is notice a **tier** discrepancy, which is the one that now matters more — the
+Plus card says nothing about two of its bullets already being free. Nothing derives that
+either, so the per-card table above is where it lives, and it needs re-deriving whenever
+`PLANS[]` or a `status` moves.
 
 ---
 
@@ -285,10 +619,54 @@ marketing files are edited continuously. Grep the quote.
 
 Two figures are worth re-deriving rather than trusting when you next read this: the
 uncased-action count (~85) and the claim counts per feature. Both move every time copy or an
-action lands.
+action lands, and the second is now stale by three whole feature sets. The registry counts
+have moved twice — 27/10 became 28/11 when Family Settings shipped, then 28/18 on 2026-08-12 —
+so re-derive those too rather than quoting them. `grep -c "status: 'live',"` is the whole job.
 
 When a feature ships: flip its `status` in `lib/features.ts`, tick its supporting-work items,
 and move its row from the gap register to **Already true**. The marketing badges need no
-edit — both surfaces derive them from the registry — with one exception to check each time:
-a claim with **no route** has nothing to derive from, so if the thing that shipped is one of
-the five in that category, it needs a route in the registry or a hand-set flag removing.
+edit — the landing page and `/features` derive them from the registry — with **two** exceptions
+to check each time, and 2026-08-12 hit both:
+
+* A claim with **no route** has nothing to derive from, so if the thing that shipped is one of
+  the nine in that category, it needs a route in the registry or a hand-set flag removing.
+* A pillar's badge comes off **as a whole** when its route goes live, including over any bullet
+  that is still gated. Read the bullets, not just the route. The family-record pillar is the
+  worked example and is currently unresolved.
+
+**A flip is not the whole job, and the two things it leaves behind are both invisible.** What
+shipped on 2026-08-12 needed no migration, which is genuinely how this registry is meant to
+work — but the RLS cases §7 demands and the sub-keys §6 demands do not stop being owed
+because the route stopped being gated. Nothing fails, nothing warns, and the obligation
+quietly changes from "before launch" to "on live code". If you flip a status and do not write
+the cases, say so in §2 in the same commit; that section is the only thing that will remember.
+
+**Ask what a flip un-gates that is sold elsewhere.** Free and Plus share routes — `/events`
+carries the reunion page (Free) and the RSVPs and head count (Plus) — and nothing in the
+codebase enforces a tier, so a flip ships every tier's claims on that route to everybody at
+once. Check the pricing card for the route you are about to flip before you flip it.
+
+**When a bullet MOVES BETWEEN TIERS, this file changes and no code does.** Severity is keyed
+to the tier a claim is sold in, so `PLANS[]` is an input here on the same footing as the
+registry. Three things to redo after any edit to it:
+
+1. **The per-card table** under "Where things stand" — bullet counts, fully-live counts, and
+   what each card still needs. It is the only place the pricing page's per-tier badge is
+   reconciled against per-route status.
+2. **The severity of every claim that moved.** A bullet arriving on Free is blocking if it is
+   gated; a bullet leaving Plus stops being a paid-tier headline. Permissions moving to Free
+   closed a §4 entry outright; profile pictures arriving on Plus opened one.
+3. **§4 in both directions.** Ask not only "does this claim have code?" but "does this code
+   have a claim, and is it in the right tier?" Fund transfers, profile pictures and the event
+   RSVPs are the worked examples, and they do not all fail in the same direction — one is live
+   and sold nowhere, two are live and sold as paid.
+
+---
+
+**Revision log,** because two edits landed on one day and this file reads differently after
+each. 2026-08-12, in order: the pricing re-rank (three cards reordered, permissions to Free,
+profile pictures to Plus, four reach features to Premium), then seven status flips
+(announcements ×2, events ×4, family tree — the last of which was a split rather than a flip).
+The first changed what is *claimed*; the second changed what is *true*. Where a section
+distinguishes them it says which, and the storage warning in the Plus table is the one place
+they interact.
