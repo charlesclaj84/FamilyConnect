@@ -30,22 +30,9 @@ import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
+import { EVENT_STATUS_PILL, ASSIGNMENT_STATUS_TEXT } from '@/components/events/status'
 
 interface BudgetFund { id: string; name: string; event_id: string | null }
-
-const STATUS_COLORS: Record<AdminEvent['status'], string> = {
-  draft:     'bg-muted text-muted-foreground',
-  published: 'bg-blue-100 text-blue-700',
-  approved:  'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-}
-
-const RESPONSE_STATUS_COLORS = {
-  pending:   'text-muted-foreground',
-  submitted: 'text-blue-600',
-  approved:  'text-green-600',
-  cancelled: 'text-destructive',
-}
 
 interface Props {
   report: EventReport
@@ -822,7 +809,7 @@ function EventBudgetSection({ eventId, funds, closed, closedAt, onClose, open, o
                       <p className="text-sm font-medium">{i.title}</p>
                       <p className="text-xs text-muted-foreground">
                         Budget {formatCurrency(i.budget_cents)} · Spent {formatCurrency(i.spent_cents)} ·{' '}
-                        <span className={remaining < 0 ? 'text-destructive' : 'text-green-600'}>
+                        <span className={remaining < 0 ? 'text-destructive' : 'text-brand-affirm'}>
                           {remaining < 0 ? `${formatCurrency(-remaining)} over` : `${formatCurrency(remaining)} left`}
                         </span>
                       </p>
@@ -1100,7 +1087,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
           </Link>
           <h1 className="text-3xl font-bold">{event.name}</h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[event.status]}`}>{event.status}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${EVENT_STATUS_PILL[event.status]}`}>{event.status}</span>
             {event.event_type_name && <span className="text-xs text-muted-foreground">{event.event_type_name}</span>}
             {event.event_date && <span className="text-sm text-muted-foreground">{formatDate(event.event_date)}{event.event_time ? ` at ${event.event_time}` : ''}</span>}
             {event.location && <span className="text-sm text-muted-foreground">· {event.location}</span>}
@@ -1209,7 +1196,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>{sub.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${EVENT_STATUS_PILL[sub.status]}`}>{sub.status}</span>
                   {!isPast && (
                     <>
                       {/* `aria-label`, not `title`: these are icon-only, one set per
@@ -1270,7 +1257,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                         {a.response && (
                           <p className="text-xs text-muted-foreground mt-0.5 italic">&ldquo;{a.response}&rdquo;</p>
                         )}
-                        <span className={`text-xs font-medium ${RESPONSE_STATUS_COLORS[a.response_status]}`}>
+                        <span className={`text-xs font-medium ${ASSIGNMENT_STATUS_TEXT[a.response_status]}`}>
                           {a.response_status === 'pending' ? 'No response yet'
                             : a.response_status === 'submitted' ? 'Response submitted'
                             : a.response_status === 'cancelled' ? 'Cancelled — event ended'
@@ -1280,7 +1267,7 @@ export function AdminEventDetailClient({ report: initialReport, assignments: ini
                       {!isPast && (
                         <div className="flex items-center gap-1.5 shrink-0">
                           {a.response_status === 'submitted' && canApprove && (
-                            <button onClick={() => handleApproveResponse(a.id)} className="text-xs text-green-600 hover:opacity-70 flex items-center gap-0.5">
+                            <button onClick={() => handleApproveResponse(a.id)} className="text-xs text-brand-affirm hover:opacity-70 flex items-center gap-0.5">
                               <Check className="h-3.5 w-3.5" /> Approve
                             </button>
                           )}
