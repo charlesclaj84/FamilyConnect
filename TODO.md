@@ -307,6 +307,38 @@ that, and for demo photography it is very likely not worth one.
 
 Found 2026-08-12 while implementing the kit.
 
+## `truncate_entire_database.sql` empties the global lookups, and nothing puts them back
+
+**Action:** decide whether the script should re-seed the global tables it empties, or refuse
+to touch them at all. Either is defensible; the present state — empties them and walks away —
+is not.
+
+The script TRUNCATEs every base table in `public` by catalogue, deliberately and correctly
+for a full purge. But four of those tables are not family data at all: `relationship_types`,
+`permission_resources`, `permission_table_map`, and any lookup added after this is written.
+They are seeded **only** by migrations, and a migration hosted has already recorded as
+applied never runs again — so on hosted the purge is a one-way door.
+
+That is not hypothetical. Hosted ran with `relationship_types` **empty** until
+`20260813000005` re-seeded it, and the cost was every screen that names a relationship:
+`/family-tree` answered "That relationship type is not set up" on every addition and drew a
+canvas of people with no edges at all, and the five lookups in `app/actions/children.ts` plus
+`link-person`, `personal-info` and `events` were broken the same way. It went unnoticed
+because a fresh `db reset` seeds the table from the original migration, so local was always
+right and only production was wrong.
+
+`permission_resources` (38 rows) and `permission_table_map` (40) survived the same purge —
+but by luck rather than by design: their seeding migrations happened to still be pending when
+it ran, and applied afterwards. Next time the timing will not oblige, and an empty
+`permission_resources` fails **open** (§6: an unregistered resource defaults to viewable),
+which is a silent one rather than a loud one.
+
+Note that `reset_families.sql` gets this right already — its §11 keep-list names all three as
+"global configuration, not family data" and it never deletes from them. The two scripts
+disagree about what a global lookup is, and only one of them has thought about it.
+
+Found 2026-08-13, from the family-tree report.
+
 ## The migration pipeline's `workflow_dispatch` path has never been exercised
 
 **Action:** run it once from Actions → Migrate → Run workflow on `master`, and watch what

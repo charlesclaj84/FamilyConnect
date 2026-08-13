@@ -315,8 +315,18 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
 
   const admin = createAdminClient()
 
-  const { data: typeRow } = await admin
+  // §8: `data` alone cannot tell a missing row from a refused query, and here the two
+  // deserve different answers. An empty `relationship_types` — which is what hosted had
+  // until 20260813000005, the whole table truncated and never re-seeded — really is "not
+  // set up", and a member reading that can do nothing about it but report it. A query
+  // that FAILED is an outage wearing the same sentence, and it stayed invisible for as
+  // long as this line discarded the error.
+  const { data: typeRow, error: typeError } = await admin
     .from('relationship_types').select('id').eq('name', type).maybeSingle()
+  if (typeError) {
+    console.error('[family-tree] relationship_types lookup failed for ' + type + ': ' + typeError.message)
+    return { success: false, message: 'Could not read the relationship types' }
+  }
   if (!typeRow) return { success: false, message: 'That relationship type is not set up' }
 
   let personId: string
@@ -497,8 +507,16 @@ async function linkRelationship(o: {
   const inverse = inverseTypeFor(o.type, (anchor as { gender: string | null } | null)?.gender)
   if (!inverse) return { ok: true }
 
-  const { data: inverseType } = await admin
+  // Best-effort by design (see the header), so neither branch fails the addition — but a
+  // refused query is still logged rather than discarded. Without this, an empty or
+  // unreadable lookup table means the inverse row silently stops being written and the
+  // only trace is a "Daughter" nobody recorded, months later.
+  const { data: inverseType, error: inverseError } = await admin
     .from('relationship_types').select('id').eq('name', inverse).maybeSingle()
+  if (inverseError) {
+    console.error('[family-tree] inverse type lookup failed for ' + inverse + ': ' + inverseError.message)
+    return { ok: true }
+  }
   if (!inverseType) return { ok: true }
 
   await admin.from('person_relationships').upsert({
