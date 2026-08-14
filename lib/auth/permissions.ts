@@ -344,12 +344,12 @@ export async function requireViewOrPending(
  * is the SIDEBAR'S copy of a decision the page guards already make, so a key here that
  * the guard would refuse is a nav link to a 404. Change one, change the other.
  *
- * My Children and Family Tree sit under the same Personal heading and are deliberately
- * NOT here. Both read `people` rows that belong to the FAMILY — the tree is everyone's
- * relationships, and a child is a family record with dues and tags of its own — and
- * auth_person_id() is NULL for a non-approved caller (20260806000011), so every policy
- * behind them matches nothing. They gate with requireView(), which 404s. Listing them
- * would offer a pending member two dead links to prove it.
+ * Family Tree is deliberately NOT here — and it is the only one left to say that about,
+ * since My Children was retired on 2026-08-13 (AGENTS.md §4b). It reads `people` rows
+ * belonging to the FAMILY rather than to the caller: everyone's relationships, and every
+ * person on them. auth_person_id() is NULL for a non-approved caller (20260806000011), so
+ * every policy behind it matches nothing. It gates with requireView(), which 404s.
+ * Listing it would offer a pending member a dead link to prove it.
  */
 export const PENDING_RESOURCES: readonly string[] = [
   'dashboard',

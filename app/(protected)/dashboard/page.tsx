@@ -169,8 +169,24 @@ export default async function DashboardPage() {
     //                           Someone who has asked to join has not joined.
     //   family_code           — §3. The admin client bypasses RLS, so family isolation is
     //                           this line and nothing else.
+    //
+    // TWO CONJUNCTS CAME OFF ON 2026-08-13, and they came off for different reasons.
+    // `is_minor` went with the column (20260813000006). `user_id IS NOT NULL` was
+    // DELIBERATELY dropped: this tile answers "how big is this family", and a
+    // grandfather recorded on the tree without an email address is a member of it. He
+    // was invisible here while being listed in the Directory next door, so the two
+    // screens disagreed about the size of the same family.
+    //
+    // `membership_status = 'approved'` is what still keeps applicants out, and it is
+    // exactly the right conjunct to be left holding this. tg_person_stamp_membership_status
+    // RETURNS EARLY for `user_id IS NULL` (20260806000011 §2), so a record entered by
+    // somebody else is never stamped 'pending' — it keeps the column's 'approved' default,
+    // which that migration's own comment says is there so these people "stay visible in
+    // the directory". They are family records rather than memberships, and this tile counts
+    // the family. An applicant, who does have a user_id, is still stamped and still
+    // excluded.
     canViewMembers
-      ? admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null).eq('membership_status', 'approved')
+      ? admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('membership_status', 'approved')
       : Promise.resolve(null),
     // The caller's own people row — chapter for the hero's location line, avatar for its
     // portrait. Both are per-family (one `people` row PER family), so this is scoped to

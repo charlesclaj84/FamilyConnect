@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Search, Users } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/Avatar'
-import { formatPersonName } from '@/lib/name-utils'
+import { NickName } from '@/components/ui/person-name'
 import { cn } from '@/lib/utils'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import type { MemberRecord } from '@/app/actions/members'
@@ -90,7 +90,10 @@ export function MemberDirectoryClient({ members }: Props) {
             </thead>
             <tbody>
               {filtered.map(member => {
-                const displayName = [member.prefix, formatPersonName(member)].filter(Boolean).join(' ')
+                // `first_name last_name`, NOT formatPersonName — that appends "(Nick)",
+                // and the nickname is printed on its own line below by <NickName>.
+                const displayName = [member.prefix, member.first_name, member.last_name]
+                  .filter(Boolean).join(' ')
                 const initials = [member.first_name[0], member.last_name[0]].filter(Boolean).join('').toUpperCase()
                 return (
                   <tr key={member.id} className="border-b last:border-0 align-middle">
@@ -111,6 +114,10 @@ export function MemberDirectoryClient({ members }: Props) {
                               </span>
                             )}
                           </div>
+                          {/* Under the name, not beside it — same treatment as the tree's
+                              cards, so the two screens that list the same people print
+                              them the same way. */}
+                          <NickName nickName={member.nick_name} />
                           {member.primary_role_title && (
                             <p className="text-xs font-semibold text-primary">{member.primary_role_title}</p>
                           )}

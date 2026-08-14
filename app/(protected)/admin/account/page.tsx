@@ -85,13 +85,14 @@ export default async function AdminAccountPage({
     // being handed the roster (AGENTS.md §5: props reach the browser whether or not a
     // component renders them).
     //
-    // Adults only, matching every other member picker, and family-scoped explicitly
-    // because the service-role client applies no RLS.
+    // People who can transact, and family-scoped explicitly because the service-role
+    // client applies no RLS. The `is_minor` conjunct came off with the column in
+    // 20260813000006; `user_id IS NOT NULL` is what always decided this, and it stays —
+    // see the longer note on the same query in app/(protected)/transactions/page.tsx.
     rights.donations.view
       ? admin.from('people')
           .select('id, first_name, last_name, nick_name, date_of_birth')
           .eq('family_code', familyCode)
-          .eq('is_minor', false)
           .not('user_id', 'is', null)
           .order('last_name')
       : Promise.resolve({ data: [] }),

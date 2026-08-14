@@ -290,7 +290,6 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     await admin.from('people').insert({
       user_id: authData.user.id,
       family_code: familyCode,
-      is_minor: false,
       first_name: input.firstName.trim(),
       last_name: input.lastName.trim(),
       primary_email: input.email.trim().toLowerCase(),

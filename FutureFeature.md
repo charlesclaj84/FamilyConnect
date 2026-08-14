@@ -46,6 +46,27 @@
 > Re-derive the per-card table and the counts before quoting them; they were written
 > against a product with no tier mechanism at all.
 
+> ## 2026-08-13, later: EVERY `/direct-lineage` ROW BELOW IS VOID
+>
+> This file names `/direct-lineage` about eight times, and every one of them is now wrong
+> in the same way: they treat it as the last gated route on the Free card, one word away
+> from shipping, blocked only on "where child management and convert-to-adult sit". That
+> question was answered by **deleting the route**, not by flipping it.
+>
+> A child is not a second kind of person. They join the family the way any relative
+> without an email address does — the family tree's "No email address" mode — and stop
+> being a special case the day somebody invites them, which is the ordinary invitation
+> flow rather than a conversion. `/direct-lineage`, `app/actions/children.ts`,
+> `components/direct-lineage/` and `lib/family-constants.ts` are gone; `20260813000006`
+> dropped `people.is_minor`; `editPersonRecord` and `invitePersonRecord` on the tree took
+> over the two jobs that page really did. AGENTS.md §4b is the reference.
+>
+> **So the Free card has no gated routes left at all** — the count this file reports as
+> "7 promised, 6 live, 1 gated" is now 6 and 6, because the seventh was withdrawn rather
+> than delivered. Nothing on `/pricing` advertised it by name (`PLANS[]` sells the tree
+> and the directory, and both are live), so no bullet has to move — but check that for
+> yourself before quoting the table, exactly as the note above says.
+
 
 The marketing site describes the product GENORRA is becoming. `lib/features.ts` describes
 what a member can reach today. This file is the distance between the two, so the gap is

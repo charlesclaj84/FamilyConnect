@@ -225,12 +225,136 @@ against another family's records, and all four passed a reading of the policies,
 because the policies were right. Any parameter named `existing_person_id`,
 `personId`, `scheduleId`, `fundId`, `eventId` deserves the same look.
 
-**Two of those four no longer exist**, and the examples are kept anyway. `upsertSpouse`
+**Three of those four no longer exist**, and the examples are kept anyway. `upsertSpouse`
 and `upsertAncestor` were deleted on 2026-08-13 with the per-member lineage view they
-served; `addRelative` in `app/actions/family-tree.ts` inherited their job and takes two
-such ids, both of which it checks. The shape is what this section is about, not the
-function names — and `tests/rls/cases.mjs` moved the cases across rather than dropping
-them, one per id, for exactly that reason.
+served; `acceptSpouseChild` went the same day with `app/actions/children.ts`, when a child
+stopped being a record its parent owned. `addRelative` in `app/actions/family-tree.ts`
+inherited the first two and takes two such ids, both of which it checks;
+`editPersonRecord` and `invitePersonRecord` inherited the third and take one each. The
+shape is what this section is about, not the function names — and `tests/rls/cases.mjs`
+moved the cases across rather than dropping them, one per id, for exactly that reason.
+
+`editPersonRecord` is worth reading as the current worked example, because it is the
+sharpest version of this shape in the tree: it runs on the ADMIN client (the `people`
+UPDATE policy admits only a member's own row, so the user client cannot touch a record
+belonging to nobody), which means **no policy is underneath it at all**. Removing its
+`belongsToFamily` call and its two `family_code` conjuncts lets BRAVO's administrator
+rename ALPHA's people — verified by doing it, and `family-tree.editPersonRecord` in the
+suite is what catches it.
+
+## 4b. A child is a person. There is one kind of `people` row
+
+There is no child record, no `is_minor`, and no "convert to adult". A child is somebody on
+the family tree who has no email address yet, recorded exactly the way a grandmother with
+no address and a great-uncle who died in 1998 are recorded — `addRelative`'s `record`
+mode, which generates a placeholder address and demands a stated reason.
+
+`/direct-lineage`, `app/actions/children.ts`, `components/direct-lineage/` and
+`lib/family-constants.ts` were deleted on 2026-08-13, and `20260813000006` dropped the
+column. **Do not reintroduce any of it**, and in particular do not add a "this person is a
+minor" flag: the old one was two facts that disagreed with each other — a stored boolean
+written only by `addChild`, and `computeIsMinor(date_of_birth)` used at read time by
+`members.ts`, which returned `false` for a NULL birthday. A stored boolean about age is
+wrong the moment it is written, because the row does not change when the person has a
+birthday. `lib/age-utils.ts` is now the single definition and it derives.
+
+**The two questions the old flow answered still need answering, and here is where they
+went.** Both are in `app/actions/family-tree.ts`:
+
+| Old | New |
+|---|---|
+| a parent edits their child | `editPersonRecord` — ANY approved member may edit ANY row with no `user_id` |
+| "Convert to Adult" | `invitePersonRecord` — sends a real invitation; they join the approvals queue |
+
+Four bounds on `editPersonRecord`, and the third is the one that looks like caution and
+is not:
+
+* **`requireMember()`, and it is the ONLY gate.** The action writes through the admin
+  client, because the `people` UPDATE policy admits a member's own row and so cannot
+  reach a record belonging to nobody. There is no policy underneath this — see §4.
+* **Never a row with a `user_id`.** Its owner is the authority on their own name; that is
+  what `saveProfileSection` is for.
+* **Never `primary_email`.** A record holds a GENERATED address paired with
+  `email_is_placeholder` and a reason. Writing a real address in would leave both flags
+  describing an address that is no longer generated, and anything checking before mailing
+  would then refuse a working mailbox. The address changes exactly once, when
+  `redeem_family_invitation` clears both flags as the account attaches.
+* **`pickProfileColumns` on top**, so the same allow-list that stops a self-approval
+  through `saveProfileSection` stops one here.
+
+**"Member" and "person" are now different words.** `user_id IS NOT NULL` is the line, and
+which side a surface wants is a real decision rather than a default:
+
+| Surface | Who |
+|---|---|
+| Member Directory, dashboard "Family Members" tile, family tree | everybody — a recorded grandfather is in the family |
+| dues and disbursement pickers, chapters, Reports' `totalMembers` | accounts only — a record cannot pay or be paid |
+
+The Directory needed no change for this: `tg_person_stamp_membership_status` returns early
+for `user_id IS NULL`, so an unclaimed row keeps the `'approved'` default and was always
+listed. The dashboard tile was the one that disagreed with it, and now does not.
+
+## 4c. Blood is a property of the LINK, and it is not derivable
+
+`person_relationships.link_kind` — `blood | step | adopted | foster`, default `'blood'`
+(`20260813000007`). It is what the family tree's **Bloodline** toggle walks, through
+`bloodlineIds()` in `lib/family-tree.ts`.
+
+**Do not try to compute this from the graph.** Two attempts fail, and the second is the
+one that matters:
+
+* *"anyone reachable without crossing a spouse edge"* — right for one generation. Add a
+  spouse's mother and she gains a `child` edge, so the walk reaches her through a
+  marriage.
+* *"a child edge means blood"* — a member with three children, one of them his by blood,
+  has three identical `child` rows. **Only a person knows which.** That is the fact the
+  database was missing and this column now holds.
+
+Four things follow:
+
+* **On the edge, never on the person.** The same child is a step-child of one parent and a
+  blood child of the other, so a `people.is_blood_relative` boolean would have to be wrong
+  about one of them — silently, about whichever parent was recorded second.
+* **Both directions carry it.** `linkRelationship` writes the inverse row with the same
+  kind, and `setRelationshipKind` updates both with the same `.or(...)` shape
+  `removeRelationship` uses. Blood must not travel back up an edge it could not travel
+  down.
+* **A marriage is never blood, and the database enforces it.**
+  `person_relationships_marriage_is_not_blood` rewrites `'blood'` to `'step'` on any
+  spouse-type edge, on insert and on update. It CORRECTS rather than refuses, because
+  failing an ordinary "add my wife" on a column nobody typed is the worse product. So the
+  UI does not offer the choice for a marriage — it would be offering a control that
+  undoes itself.
+* **`is_step` is superseded and must not be written.** It predates this, was never written
+  by anything, and two columns describing one fact is how they come to disagree. TODO.md
+  carries dropping it.
+
+**The bloodline is family-wide, not per viewer.** `bloodlineIds` walks from ONE anchor —
+`families.created_by`'s people row, surfaced as `FamilyTree.bloodlineAnchorId`. A
+viewer-relative version would make the toggle mean something different on every screen,
+and two members cannot disagree about who is in the family's bloodline. `null` anchor
+means "do not know": `bloodlineIds` returns `null` and the canvas hides the toggle rather
+than guessing.
+
+## 4d. The tree opens where there is something to see
+
+The canvas is focus-plus-context and draws the four generations around ONE person. That is
+right for a family of a hundred and forty and has a cost that bit immediately: it opened on
+*you*, and a member who married in has no parents and no children of their own, so they got
+their own name, their spouse, and two "+" buttons. Nothing said the family was elsewhere —
+they are not unattached, so `leafIds` (which means **no relationships at all**, and is a
+narrower thing) did not list them either.
+
+Two fixes, and both are load-bearing:
+
+* **`openingFocus()`** centres on you when you have any non-spouse edge, and otherwise on
+  the person you are attached to, preferring a spouse. When it moves it **says so** on
+  screen with a "Centre on me" link — a tree that quietly centres on somebody else is worse
+  than one that starts empty.
+* **The "Everyone in this family" index** lists the whole roster, always, each name
+  centring the tree. It is not the "Not on the tree yet" section and does not replace it:
+  that one answers *who is connected to nobody*, which is work to do; this one guarantees
+  nobody is more than one click from anybody.
 
 ## 5. Gate the fetch, not just the button
 
@@ -834,10 +958,12 @@ Accounting and Transactions — and that is fine, because each renders under its
 `subsection` heading.
 
 **Dashboard and the Personal pages are deliberately outside all of this.** My Profile, My
-Families, My Children and Family Tree are a member's own things, and `20260806000006`
-removed their rows so they cannot be restricted; the 2026-08-08 review reconsidered that
-and kept it. The empty `personal` heading in `components/admin/resource-groups.ts` is the
-trace of that decision, not a gap to fill.
+Families and Family Tree are a member's own things, and `20260806000006` removed their
+rows so they cannot be restricted; the 2026-08-08 review reconsidered that and kept it.
+The empty `personal` heading in `components/admin/resource-groups.ts` is the trace of that
+decision, not a gap to fill. (My Children was on that list and is gone — see "A child is
+a person" below; the row `20260806000006` deleted for it was never re-added, so retiring
+the route needed no migration.)
 
 # A family is on a plan, and the plan decides which pages exist
 
@@ -1125,7 +1251,7 @@ import { APP_NAME, APP_BANNER_ALT, BRAND_LOCKUP_DARK_SRC } from '@/lib/brand'
 `APP_NAME`, `APP_TAGLINE`, `APP_LEAD`, `APP_VALUES`, `APP_PROMISE`, `APP_DESCRIPTION`,
 `APP_BANNER_ALT`, `APP_LOGO_ALT`, `BRAND_MARK_SRC`, `BRAND_LOCKUP_DARK_SRC` and
 `BRAND_THEME_COLOR` are the whole surface. In a template string use `${APP_NAME}`, not a
-literal — `lib/features.ts` and `app/actions/children.ts` are the worked examples.
+literal — `lib/features.ts` and `app/(auth)/login/page.tsx` are the worked examples.
 
 **`APP_TAGLINE` and `APP_LEAD` are not interchangeable.** The tagline is the acronym
 expansion and belongs beside the mark; the lead line — "Where every generation belongs."

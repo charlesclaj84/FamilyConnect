@@ -25,7 +25,7 @@ import { IS_INDEXABLE_DEPLOYMENT, SITE_URL } from '@/lib/site'
  *
  * And it costs something: `/robots.txt` is world-readable and is the first
  * thing anyone probing a site fetches. Listing `/family-finances`,
- * `/transactions`, `/direct-lineage`, `/personal-info` and the rest hands over
+ * `/transactions`, `/family-tree`, `/personal-info` and the rest hands over
  * a complete feature inventory of the product for free. That is not a
  * vulnerability — the auth in front of them is what protects them, and hiding
  * route names is not security — but it is a disclosure with no benefit on the

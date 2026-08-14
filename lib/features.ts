@@ -196,14 +196,19 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'A multi-generation tree of parents, grandparents, children, and spouses.',
   },
 
-  // ── On the roadmap: personal ────────────────────────────────────────────────
-  {
-    href: '/direct-lineage',
-    label: 'My Children',
-    status: 'future',
-    tier: 'free',
-    blurb: 'Add and manage your kids, then convert them to full members as they grow up.',
-  },
+  // MY CHILDREN IS NOT ON THE ROADMAP — IT WAS RETIRED, 2026-08-13. `/direct-lineage`
+  // was the second way a person could exist: a child record a parent owned, carrying
+  // `people.is_minor`, "converted to adult" once they had an email address. There is one
+  // kind of person now. A child joins the family the way any relative without an address
+  // does — the family tree's "No email address" mode, which has had "Too young for an
+  // account" in its own placeholder text since it shipped — and stops being a special
+  // case the day somebody invites them, which is the ordinary invitation flow and not a
+  // conversion. `20260813000006` dropped the column; the route, its action file and
+  // `lib/family-constants.ts` went with it.
+  //
+  // Nothing is left to register here. `20260806000006` had already deleted the
+  // `direct-lineage` row from `permission_resources` when the Personal pages were made
+  // always-viewable, so retiring the route needed no migration of its own.
 
   // ── Events: LIVE ────────────────────────────────────────────────────────────
   // All four event routes came back together, and they have to: `/events` cannot show a

@@ -145,10 +145,16 @@ permission row by design, so shipping them ships them to everyone with no switch
 will matter when the real tree lands."* It has landed.
 
 **What is and is not exposed**, so this is not read as bigger than it is. The tree shows
-names, avatars, gender, minor status and whether somebody has an account — the same
-columns the Member Directory shows, plus the relationships. It shows no contact details,
-no addresses and no money. The exposure is that a family which has restricted
-`members` (its Directory) has not thereby restricted this.
+names, avatars, gender, birthdays and whether somebody has an account — the same columns
+the Member Directory shows, plus the relationships. It shows no contact details, no
+addresses and no money. The exposure is that a family which has restricted `members` (its
+Directory) has not thereby restricted this.
+
+It grew slightly on 2026-08-13: `editPersonRecord` lets any approved member WRITE those
+columns for anybody with no account, not merely read them. That is a deliberate choice
+(a tree is built collaboratively) and it is bounded — never a row with a `user_id`, never
+`primary_email`, never a column outside `lib/profile-columns.ts` — but it means the
+missing permission row now withholds an edit as well as a read.
 
 **THE CHOICE NARROWED TO TWO on 2026-08-13**, later the same day, when the per-member
 lineage view was deleted. There is now exactly one page on the `family-tree` key, so the
@@ -195,19 +201,35 @@ re-focusing on whoever you click is the same drill-down without a second page.
 What is deliberately absent, and what each would take:
 
 * **Step relationships.** `person_relationships.is_step` exists and the builder writes
-  `false`. The column is the easy half; the question is what a step-parent looks like on
-  a canvas that has one row for parents.
+  `false`. **The column arrived on 2026-08-13** — `person_relationships.link_kind`
+  (`20260813000007`), which supersedes `is_step` and drives the Bloodline toggle, and is
+  set both when adding a relative and afterwards through the manage dialog. What is left
+  is the half this entry always said was the hard one: what a step-parent LOOKS like on a
+  canvas that has one row for parents. Today a step-relative is an ordinary card with a
+  "Step" pill, and it vanishes in the Bloodline view; nothing draws the second marriage
+  it implies.
+
+  **Two follow-ups this created.** `is_step` is now dead weight on the table and should be
+  dropped in its own migration (see 20260813000006 for how much care a column drop wants).
+  And the bloodline ANCHOR is `families.created_by` with no override, so a family whose
+  founder married in gets the answer backwards — it needs a setting, or a rule better than
+  "whoever signed up first".
 * **More than one marriage.** Every spouse renders beside the focus person with no way to
   say which children belong to which union. This is the hardest of the three and the one
   most likely to force a layout change rather than an addition.
 * **Dates on the connectors**, and a person card that says more than a name and a status.
 
-**`is_minor` is not asked for anywhere in the add flow,** which matters more than it
-sounds: a child recorded through "no email address" is created with `is_minor: false`, so
-they are counted as an adult by the member count on the dashboard and by anything else
-that filters on it. Fixing it is a checkbox and a column; deciding whether the tree should
-be the place a child is created at all is the actual question, since `/direct-lineage`
-exists for that and is still gated.
+**RESOLVED 2026-08-13 — and the answer was to delete the question.** This entry used to
+read "`is_minor` is not asked for anywhere in the add flow … fixing it is a checkbox and a
+column; deciding whether the tree should be the place a child is created at all is the
+actual question, since `/direct-lineage` exists for that". The tree is that place, the
+checkbox was never added, and the column is gone (`20260813000006`).
+
+A child is a person nobody has claimed yet, which `user_id IS NULL` already said, and a
+birthday answers "how old are they" on the day it is asked — which a stored boolean never
+could. `/direct-lineage`, `app/actions/children.ts` and `lib/family-constants.ts` were
+deleted with it; `editPersonRecord` and `invitePersonRecord` on the tree replaced the
+parent-edits-child and convert-to-adult halves.
 
 ## Recent Updates has no archive — there is nowhere to see or search past updates
 
@@ -322,7 +344,8 @@ applied never runs again — so on hosted the purge is a one-way door.
 That is not hypothetical. Hosted ran with `relationship_types` **empty** until
 `20260813000005` re-seeded it, and the cost was every screen that names a relationship:
 `/family-tree` answered "That relationship type is not set up" on every addition and drew a
-canvas of people with no edges at all, and the five lookups in `app/actions/children.ts` plus
+canvas of people with no edges at all, and the five lookups in `app/actions/children.ts`
+(deleted later the same day — see §4b of AGENTS.md) plus
 `link-person`, `personal-info` and `events` were broken the same way. It went unnoticed
 because a fresh `db reset` seeds the table from the original migration, so local was always
 right and only production was wrong.

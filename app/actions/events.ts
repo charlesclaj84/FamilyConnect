@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { computeIsMinor } from '@/lib/age-utils'
 
 export interface PublicEvent {
   id: string
@@ -26,6 +27,12 @@ export interface RsvpPerson {
   person_id: string
   first_name: string | null
   last_name: string | null
+  /**
+   * DERIVED from `date_of_birth`, not stored. `people.is_minor` was dropped in
+   * 20260813000006 — it was a boolean about age that never changed when somebody had a
+   * birthday. What this feeds is t-shirt sizing on the RSVP, which wants the answer on
+   * the day the question is asked.
+   */
   is_minor: boolean
   tshirt_category: string | null
   tshirt_size: string | null
@@ -222,7 +229,7 @@ export async function getMyFamilyForRsvp(): Promise<RsvpPerson[]> {
   // household they cover are family-scoped.
   const { data: me } = await admin
     .from('people')
-    .select('id, first_name, last_name, is_minor, tshirt_category, tshirt_size')
+    .select('id, first_name, last_name, date_of_birth, tshirt_category, tshirt_size')
     .eq('user_id', user.id)
     .eq('family_code', familyCode)
     .maybeSingle()
@@ -245,19 +252,19 @@ export async function getMyFamilyForRsvp(): Promise<RsvpPerson[]> {
     .in('relationship_type_id', typeIds)
 
   if (!relationships?.length) {
-    return [{ person_id: me.id, first_name: me.first_name, last_name: me.last_name, is_minor: me.is_minor, tshirt_category: me.tshirt_category, tshirt_size: me.tshirt_size, relationship: 'Me' }]
+    return [{ person_id: me.id, first_name: me.first_name, last_name: me.last_name, is_minor: computeIsMinor(me.date_of_birth), tshirt_category: me.tshirt_category, tshirt_size: me.tshirt_size, relationship: 'Me' }]
   }
 
   const relatedIds = relationships.map(r => r.related_person_id)
   const { data: related } = await admin
     .from('people')
-    .select('id, first_name, last_name, is_minor, tshirt_category, tshirt_size')
+    .select('id, first_name, last_name, date_of_birth, tshirt_category, tshirt_size')
     .in('id', relatedIds)
 
   const relatedById = Object.fromEntries((related ?? []).map(p => [p.id, p]))
 
   const family: RsvpPerson[] = [
-    { person_id: me.id, first_name: me.first_name, last_name: me.last_name, is_minor: me.is_minor, tshirt_category: me.tshirt_category, tshirt_size: me.tshirt_size, relationship: 'Me' },
+    { person_id: me.id, first_name: me.first_name, last_name: me.last_name, is_minor: computeIsMinor(me.date_of_birth), tshirt_category: me.tshirt_category, tshirt_size: me.tshirt_size, relationship: 'Me' },
   ]
 
   for (const rel of relationships) {
@@ -268,7 +275,7 @@ export async function getMyFamilyForRsvp(): Promise<RsvpPerson[]> {
       person_id:       person.id,
       first_name:      person.first_name,
       last_name:       person.last_name,
-      is_minor:        person.is_minor,
+      is_minor:        computeIsMinor(person.date_of_birth),
       tshirt_category: person.tshirt_category,
       tshirt_size:     person.tshirt_size,
       relationship:    relName,

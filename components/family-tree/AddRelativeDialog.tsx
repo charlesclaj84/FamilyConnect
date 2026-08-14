@@ -11,7 +11,7 @@ import { FormError } from '@/components/ui/form-message'
 import { PersonPicker } from '@/components/ui/person-picker'
 import { cn } from '@/lib/utils'
 import { addRelative, type AddRelativeMode, type TreePerson } from '@/app/actions/family-tree'
-import { relationshipMeta } from '@/lib/family-tree'
+import { relationshipMeta, LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
 
 /**
  * Adding one relative to somebody already on the tree.
@@ -91,6 +91,7 @@ export function AddRelativeDialog({
   const [lastName, setLastName] = useState(anchor.lastName ?? '')
   const [email, setEmail] = useState('')
   const [reason, setReason] = useState('')
+  const [linkKind, setLinkKind] = useState<LinkKind>('blood')
   const [error, setError] = useState('')
   const [result, setResult] = useState<{
     invited: boolean; emailed: boolean; placeholderEmail?: string; name: string
@@ -110,6 +111,7 @@ export function AddRelativeDialog({
     setLastName(anchor.lastName ?? '')
     setEmail('')
     setReason('')
+    setLinkKind('blood')
     setError('')
     setResult(null)
   }
@@ -140,6 +142,7 @@ export function AddRelativeDialog({
         lastName,
         email,
         noEmailReason: reason,
+        linkKind,
       })
       if (!r.success) { setError(r.message); return }
       setResult({
@@ -198,6 +201,46 @@ export function AddRelativeDialog({
               {MODES.find(m => m.id === mode)!.hint}
             </p>
           </div>
+
+          {/* HOW THEY ARE RELATED, and only for a link blood could travel down. A marriage
+              is never blood — the database corrects one that claims to be
+              (`person_relationships_marriage_is_not_blood`) — so asking here would be
+              asking a question whose answer is overruled.
+
+              It is asked at CREATION rather than left to be corrected later because the
+              person adding a step-son knows it at that moment and will not come back. The
+              default is 'blood', which is the common case and the column default. */}
+          {meta && meta.relation !== 'spouse' && (
+            <div className="space-y-2">
+              <Label>How are they related?</Label>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {LINK_KINDS.map(k => {
+                  const active = linkKind === k
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setLinkKind(k)}
+                      aria-pressed={active}
+                      className={cn(
+                        'rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-colors',
+                        active
+                          ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
+                          : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
+                      )}
+                    >
+                      {k}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {linkKind === 'blood'
+                  ? 'Blood relatives appear in the Bloodline view of the tree.'
+                  : `Recorded as ${linkKindLabel(linkKind, meta.label)} — they will not appear in the Bloodline view.`}
+              </p>
+            </div>
+          )}
 
           {mode === 'existing' && (
             <PersonPicker

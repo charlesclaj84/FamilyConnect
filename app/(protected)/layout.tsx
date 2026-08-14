@@ -18,7 +18,7 @@ import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
  * at it, and the instruction that actually keeps a page out of the index is
  * `noindex`, which has to be crawlable to be read. It then declines to list these
  * routes in robots.txt for a good separate reason (a world-readable file naming
- * /family-finances, /transactions and /direct-lineage is a free feature inventory)
+ * /family-finances, /transactions and /family-tree is a free feature inventory)
  * and the noindex half never got written. This is that half.
  *
  * It is defence in depth rather than the primary control, which remains

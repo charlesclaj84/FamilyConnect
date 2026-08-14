@@ -4,10 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember, requireRead } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
+import { pickProfileColumns } from '@/lib/profile-columns'
 import { inviteMember } from '@/app/actions/invitations'
 import {
   isTreeRelationshipType, inverseTypeFor, relationFor, placeholderEmail, summarizeTree,
-  type TreeRelation, type TreeSummary,
+  isLinkKind, type LinkKind, type TreeRelation, type TreeSummary,
 } from '@/lib/family-tree'
 
 /**
@@ -59,7 +60,6 @@ export interface TreePerson {
   avatarUrl: string | null
   dateOfBirth: string | null
   sunsetDate: string | null
-  isMinor: boolean
   /** True when this person holds an account in this family. */
   hasAccount: boolean
   /** 'pending' means invited or applied and not yet admitted. */
@@ -77,6 +77,9 @@ export interface TreeEdge {
   to: string
   /** `from` HAS this relation TO `to`: 'parent' means `to` is `from`'s parent. */
   relation: TreeRelation
+  /** `person_relationships.link_kind` — only 'blood' conducts. Mirrored onto the
+   *  derived direction, because a step-son's step-father is still a step link. */
+  kind: LinkKind
   /** True for the direction this edge was DERIVED rather than stored. */
   derived: boolean
 }
@@ -86,14 +89,29 @@ export interface FamilyTree {
   edges: TreeEdge[]
   /** The caller's own people.id, so the canvas can open on them. */
   myPersonId: string | null
+  /**
+   * The person the Bloodline view walks out from — the family's FOUNDER.
+   *
+   * It has to be one person for the whole family, not the caller, or two members would
+   * see different bloodlines and the toggle would mean something different on every
+   * screen. The founder is the defensible default: they created the family, and a family
+   * is usually named for the line it descends from.
+   *
+   * Null when the founder has left or never had a people row here, and the canvas then
+   * hides the toggle rather than guessing — see `bloodlineIds`, which returns null for
+   * the same reason. TODO.md carries the case this gets wrong: a founder who married in.
+   */
+  bloodlineAnchorId: string | null
 }
 
-const EMPTY_TREE: FamilyTree = { people: [], edges: [], myPersonId: null }
+const EMPTY_TREE: FamilyTree = {
+  people: [], edges: [], myPersonId: null, bloodlineAnchorId: null,
+}
 
 type PersonRow = {
   id: string; first_name: string; last_name: string; nick_name: string | null
   gender: string | null; avatar_url: string | null; date_of_birth: string | null
-  sunset_date: string | null; is_minor: boolean; user_id: string | null
+  sunset_date: string | null; user_id: string | null
   membership_status: string | null
   email_is_placeholder: boolean | null; no_email_reason: string | null
 }
@@ -122,20 +140,24 @@ export async function getFamilyTree(): Promise<FamilyTree> {
 
   const admin = createAdminClient()
 
-  const [peopleResult, edgeResult, typeResult] = await Promise.all([
+  const [peopleResult, edgeResult, typeResult, familyResult] = await Promise.all([
     admin
       .from('people')
-      .select('id, first_name, last_name, nick_name, gender, avatar_url, date_of_birth, sunset_date, is_minor, user_id, membership_status, email_is_placeholder, no_email_reason')
+      .select('id, first_name, last_name, nick_name, gender, avatar_url, date_of_birth, sunset_date, user_id, membership_status, email_is_placeholder, no_email_reason')
       .eq('family_code', g.familyCode)
       .order('last_name')
       .order('first_name'),
     admin
       .from('person_relationships')
-      .select('id, person_id, related_person_id, relationship_type_id')
+      .select('id, person_id, related_person_id, relationship_type_id, link_kind')
       .eq('family_code', g.familyCode),
     // The global lookup, unscoped by design — `relationship_types` has no family_code and
     // is the same twenty rows for everybody (20260602000003).
     admin.from('relationship_types').select('id, name'),
+    // THE BLOODLINE ANCHOR. `families.created_by` is an auth user id, so it takes a second
+    // hop to reach their people row IN THIS FAMILY — a founder who belongs to two families
+    // has a row in each, and `.eq('family_code', …)` is what picks the right one (§3).
+    admin.from('families').select('created_by').eq('family_code', g.familyCode).maybeSingle(),
   ])
 
   // §8: an empty result and a refused query are different things and `data` cannot tell
@@ -163,7 +185,6 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     avatarUrl: p.avatar_url,
     dateOfBirth: p.date_of_birth,
     sunsetDate: p.sunset_date,
-    isMinor: Boolean(p.is_minor),
     hasAccount: Boolean(p.user_id),
     membershipStatus: p.membership_status ?? 'approved',
     emailIsPlaceholder: Boolean(p.email_is_placeholder),
@@ -176,6 +197,7 @@ export async function getFamilyTree(): Promise<FamilyTree> {
 
   for (const row of (edgeResult.data ?? []) as {
     id: string; person_id: string; related_person_id: string; relationship_type_id: string
+    link_kind: string | null
   }[]) {
     const relation = relationFor(typeName.get(row.relationship_type_id) ?? '')
     // An unmapped type is skipped rather than guessed at. The grandparent rows the
@@ -186,20 +208,41 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     // foreign key, but a row whose person was filtered out would draw an edge to nowhere.
     if (!known.has(row.person_id) || !known.has(row.related_person_id)) continue
 
+    // An unrecognised kind falls back to 'blood', matching the column default and the
+    // behaviour of every row written before 20260813000007. Failing closed here would be
+    // worse than it sounds: it would quietly drop people OUT of the bloodline, which is
+    // the answer nobody can tell is wrong by looking.
+    const kind: LinkKind = isLinkKind(row.link_kind ?? '') ? (row.link_kind as LinkKind) : 'blood'
+
     push(edges, seen, {
-      id: row.id, from: row.person_id, to: row.related_person_id, relation, derived: false,
+      id: row.id, from: row.person_id, to: row.related_person_id, relation, kind, derived: false,
     })
 
     // THE DERIVED HALF, and it is what makes the canvas correct rather than convenient.
     // The stored row says "A has a Father, B"; the tree also needs "B has a child, A", and
     // whether that second row was ever written depended on somebody knowing A's gender.
+    //
+    // `kind` is carried across UNCHANGED: a step-son's step-father is still a step link,
+    // so blood must not travel back up an edge it could not travel down.
     const mirror = MIRROR[relation]
     push(edges, seen, {
-      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror, derived: true,
+      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror, kind, derived: true,
     })
   }
 
-  return { people, edges, myPersonId: g.personId }
+  // §8 again, and deliberately NOT fatal: a family whose founder row cannot be read still
+  // has a tree worth drawing. The anchor goes null, `bloodlineIds` answers null, and the
+  // canvas hides the toggle — one control missing rather than an empty page.
+  if (familyResult.error) {
+    console.error('[family-tree] could not read the founder for ' + g.familyCode
+      + ': ' + familyResult.error.message)
+  }
+  const founderUserId = (familyResult.data as { created_by: string | null } | null)?.created_by
+  const anchor = founderUserId
+    ? ((peopleResult.data ?? []) as PersonRow[]).find(p => p.user_id === founderUserId)?.id ?? null
+    : null
+
+  return { people, edges, myPersonId: g.personId, bloodlineAnchorId: anchor }
 }
 
 /**
@@ -264,6 +307,14 @@ export interface AddRelativeInput {
   anchorPersonId: string
   /** A `relationship_types.name` the builder offers — see TREE_RELATIONSHIPS. */
   relationshipType: string
+  /**
+   * What the link IS. Omitted means 'blood', matching the column default.
+   *
+   * Only meaningful for parent, child and sibling links — a marriage is never blood, and
+   * `person_relationships_marriage_is_not_blood` corrects it in the database rather than
+   * trusting this, so a caller passing 'blood' for a Wife is fixed rather than refused.
+   */
+  linkKind?: LinkKind
   mode: AddRelativeMode
   /** mode 'existing': the people.id to link. */
   existingPersonId?: string
@@ -412,6 +463,10 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
     personId,
     typeId: typeRow.id as string,
     type,
+    // Validated rather than trusted: this is a `'use server'` export, so the segmented
+    // control in the dialog is not in its request path and an arbitrary string can arrive.
+    // The CHECK constraint would refuse it, but with a constraint-violation message.
+    linkKind: isLinkKind(input.linkKind ?? '') ? (input.linkKind as LinkKind) : 'blood',
   })
   if (!link.ok) return { success: false, message: link.message }
 
@@ -449,7 +504,6 @@ async function createPerson(
     .from('people')
     .insert({
       family_code: familyCode,
-      is_minor: false,
       created_by: userId,
       ...fields,
     })
@@ -487,6 +541,7 @@ async function linkRelationship(o: {
   personId: string
   typeId: string
   type: string
+  linkKind: LinkKind
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   const admin = createAdminClient()
 
@@ -495,6 +550,7 @@ async function linkRelationship(o: {
     related_person_id: o.personId,
     relationship_type_id: o.typeId,
     is_step: false,
+    link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,
   }, { onConflict: 'person_id,related_person_id,relationship_type_id' })
@@ -523,12 +579,241 @@ async function linkRelationship(o: {
     person_id: o.personId,
     related_person_id: o.anchorPersonId,
     relationship_type_id: inverseType.id,
+    // THE SAME KIND, both ways. A step-son's step-father is still a step link, and an
+    // inverse row written as 'blood' would put him back in the bloodline from the other
+    // side — where the walk reaches him just as happily.
     is_step: false,
+    link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,
   }, { onConflict: 'person_id,related_person_id,relationship_type_id' })
 
   return { ok: true }
+}
+
+/**
+ * Edit somebody who has no account, from the tree.
+ *
+ * ── WHY THIS EXISTS AT ALL ──────────────────────────────────────────────────────────
+ * Until 2026-08-13 a record nobody had claimed was editable by exactly one person: the
+ * parent who created it, through `/direct-lineage`. That page is gone, and with it the
+ * idea that a child is a different kind of record with an owner. What replaced it has to
+ * answer the same question — somebody typed your father's birthday wrong, who can fix it?
+ *
+ * ANY APPROVED MEMBER CAN. A family tree is built collaboratively, by whoever happens to
+ * know the fact, and the alternatives were both worse: `created_by` leaves a record
+ * uneditable the day its author leaves the family, and administrators-only means an
+ * ordinary member cannot correct their own father's record.
+ *
+ * ── THE TWO THINGS THAT BOUND IT ────────────────────────────────────────────────────
+ *   * ACCOUNT-LESS ONLY. The moment a row has a `user_id`, its owner is the authority on
+ *     their own name and this action refuses — that is what `saveProfileSection` is for,
+ *     and what stops "any member may edit" from meaning "any member may rewrite anyone".
+ *   * THE ALLOW-LIST, minus the address. `pickProfileColumns` is the same guard
+ *     `saveProfileSection` and `updateUserProfile` use (see lib/profile-columns.ts), so a
+ *     POST carrying `membership_status` or `permission_template_id` writes neither.
+ *
+ * `primary_email` is then dropped on top of that list, and the omission is the design
+ * rather than caution. A record here holds a GENERATED address paired with
+ * `email_is_placeholder` and a stated reason; writing a real address into it would leave
+ * those two flags describing an address that is no longer generated, and anything that
+ * checks before mailing would then refuse a mailbox that works. Giving somebody a real
+ * address is `invitePersonRecord` below, which routes it through an invitation and lets
+ * `redeem_family_invitation` clear both flags at the moment the account attaches.
+ *
+ * THE ADMIN CLIENT, and §3 requires the justification: the `people` UPDATE policy admits a
+ * member's write to their OWN row, so the user's client cannot touch a record belonging to
+ * nobody — the policy would match zero rows and the caller would be shown "saved". Family
+ * scoping is therefore hand-applied, twice: `belongsToFamily` before the write and
+ * `.eq('family_code', …)` on it.
+ */
+export async function editPersonRecord(
+  personId: string,
+  fields: Record<string, unknown>,
+): Promise<{ success: boolean; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'No family selected' }
+
+  // §4: the id arrives from the client and decides which row is rewritten.
+  if (!(await belongsToFamily('people', personId, g.familyCode))) {
+    return { success: false, message: 'Person not found' }
+  }
+
+  const admin = createAdminClient()
+  const { data: row, error: readError } = await admin
+    .from('people')
+    .select('user_id')
+    .eq('id', personId)
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+
+  // §8: `data` alone cannot tell a refused query from a missing row, and refusing on a
+  // read failure is the safe direction — the alternative is treating an outage as
+  // "nobody owns this row" and letting the write through.
+  if (readError) {
+    console.error('[family-tree] could not read ' + personId + ': ' + readError.message)
+    return { success: false, message: 'Could not read that record' }
+  }
+  if (!row) return { success: false, message: 'Person not found' }
+  if (row.user_id) {
+    return { success: false, message: 'They have an account and manage their own profile.' }
+  }
+
+  const patch = pickProfileColumns(fields)
+  // Never through this door — see the header.
+  delete patch.primary_email
+  if (Object.keys(patch).length === 0) return { success: true }
+
+  const { error } = await admin
+    .from('people')
+    .update(patch)
+    .eq('id', personId)
+    .eq('family_code', g.familyCode)
+    .is('user_id', null)
+
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath('/family-tree')
+  revalidatePath('/members')
+  return { success: true }
+}
+
+/**
+ * Invite somebody already on the tree — the record grew into an email address.
+ *
+ * THIS IS WHAT REPLACED `convertChildToAdult`, and the difference is the whole point of
+ * the change. Converting flipped `is_minor` and wrote an address onto the row, which made
+ * somebody a member by editing a column; nobody was asked and no account was created. This
+ * sends them the ordinary invitation, and they join the approvals queue like anybody else.
+ *
+ * The record is not duplicated: `inviteMember` carries `personId` through to
+ * `create_family_invitation`, and `redeem_family_invitation`'s ADOPT branch attaches the
+ * new account to this row — so the tree edges around it survive and the family does not
+ * end up with one person twice (20260813000004).
+ *
+ * NOT `preApproved`. Putting somebody on a tree was never a decision about who gets into
+ * the family, and neither is this.
+ *
+ * The names come from the ROW rather than from the caller, because the record already
+ * holds them and a second copy in the request is a second chance to disagree.
+ */
+export async function invitePersonRecord(
+  personId: string,
+  email: string,
+): Promise<{ success: boolean; message?: string; emailed?: boolean }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'No family selected' }
+
+  const address = (email ?? '').trim().toLowerCase()
+  if (!address) return { success: false, message: 'Enter an email address' }
+
+  if (!(await belongsToFamily('people', personId, g.familyCode))) {
+    return { success: false, message: 'Person not found' }
+  }
+
+  const admin = createAdminClient()
+  const { data: row, error: readError } = await admin
+    .from('people')
+    .select('user_id, first_name, last_name')
+    .eq('id', personId)
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+
+  if (readError) {
+    console.error('[family-tree] could not read ' + personId + ': ' + readError.message)
+    return { success: false, message: 'Could not read that record' }
+  }
+  if (!row) return { success: false, message: 'Person not found' }
+  if (row.user_id) return { success: false, message: 'They already have an account.' }
+
+  const firstName = (row.first_name as string | null) ?? ''
+  const lastName = (row.last_name as string | null) ?? ''
+  if (!firstName.trim() || !lastName.trim()) {
+    return { success: false, message: 'Give them a first and last name before inviting them' }
+  }
+
+  const sent = await inviteMember(
+    address,
+    { firstName, lastName },
+    false,
+    g.familyCode,
+    personId,
+  )
+  if (!sent.success) return { success: false, message: sent.message }
+
+  revalidatePath('/family-tree')
+  revalidatePath('/members')
+  // The send fails soft (lib/email/README.md), so the caller is told which of the two
+  // things happened rather than being shown "invited" over a message that never went.
+  return { success: true, emailed: sent.emailed }
+}
+
+/**
+ * Change what an existing relationship IS — blood, step, adopted or foster.
+ *
+ * ── WHY THIS IS NOT OPTIONAL ────────────────────────────────────────────────────────
+ * `link_kind` defaults to 'blood', so every relationship recorded before 20260813000007
+ * — and every one added without thinking about it since — claims to carry blood. A family
+ * with three children, one of them theirs by blood, has two rows that are wrong the moment
+ * the column exists. Without a way to correct them the Bloodline view is decorative: it
+ * would answer confidently and be wrong, which is worse than not offering it.
+ *
+ * ── IT MOVES BOTH DIRECTIONS ────────────────────────────────────────────────────────
+ * `linkRelationship` writes an inverse row whenever it can name one, and the two rows are
+ * one fact. Updating only the stored direction would leave the inverse claiming blood, and
+ * `bloodlineIds` walks whichever it meets first — so the toggle would keep including
+ * somebody with no visible reason. Same `.or(...)` shape as `removeRelationship` below,
+ * and for the same reason.
+ *
+ * ── AUTHORIZATION ───────────────────────────────────────────────────────────────────
+ * Self-service (`requireMember`), matching `addRelative` and `removeRelationship`: any
+ * approved member may record a relationship, so any approved member may correct one. The
+ * row is read family-scoped FIRST, so an id from another family finds nothing and is
+ * refused with the message a missing row gets — telling a prober nothing.
+ */
+export async function setRelationshipKind(
+  relationshipId: string,
+  kind: LinkKind,
+): Promise<{ success: boolean; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'No family selected' }
+
+  // Validated here because this is a public endpoint and the CHECK constraint's message
+  // is not one to show somebody.
+  if (!isLinkKind(kind)) return { success: false, message: 'That is not a relationship kind' }
+
+  const admin = createAdminClient()
+  const { data: row, error: readError } = await admin
+    .from('person_relationships')
+    .select('id, person_id, related_person_id, family_code')
+    .eq('id', relationshipId)
+    .maybeSingle()
+
+  if (readError) {
+    console.error('[family-tree] could not read relationship ' + relationshipId
+      + ': ' + readError.message)
+    return { success: false, message: 'Could not read that connection' }
+  }
+  if (!row || row.family_code !== g.familyCode) {
+    return { success: false, message: 'Relationship not found' }
+  }
+
+  const { error } = await admin
+    .from('person_relationships')
+    .update({ link_kind: kind })
+    .eq('family_code', g.familyCode)
+    .or(
+      `and(person_id.eq.${row.person_id},related_person_id.eq.${row.related_person_id}),`
+      + `and(person_id.eq.${row.related_person_id},related_person_id.eq.${row.person_id})`,
+    )
+
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath('/family-tree')
+  return { success: true }
 }
 
 /**

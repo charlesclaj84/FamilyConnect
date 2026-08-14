@@ -25,7 +25,12 @@ export function AdminReportsClient({ stats }: Props) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{stats.totalMembers}</p>
-            <p className="text-xs text-muted-foreground">+ {stats.totalMinors} minors</p>
+            {/* "Records" rather than "minors" since 2026-08-13: people entered by
+                somebody else who hold no account — children, elders with no email
+                address, relatives who have died. The old caption counted a column that
+                was 0 for every family in production, so it read "+ 0 minors" under a
+                member count that was itself excluding those people. */}
+            <p className="text-xs text-muted-foreground">+ {stats.totalRecords} records</p>
           </CardContent>
         </Card>
         <Card>

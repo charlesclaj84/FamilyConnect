@@ -14,8 +14,21 @@ export interface FinancialActivity {
 }
 
 export interface OrgStats {
+  /** People with an account — they can sign in. */
   totalMembers: number
-  totalMinors: number
+  /**
+   * People recorded by somebody else and holding no account: children, elders with no
+   * email address, relatives who have died. Family, and not sign-ins.
+   *
+   * THIS REPLACED `totalMinors` on 2026-08-13, and it is not a rename. That number
+   * counted `people.is_minor`, a stored boolean written only by the retired
+   * /direct-lineage flow — so in production it was 0 for every family however many
+   * children they had, and the Reports page said "+ 0 minors" underneath a member count
+   * that was also excluding those children. The split that means something is whether
+   * anybody can reach them, which is the same line the tree draws with its "Record only"
+   * pill and the money pickers draw with `user_id IS NOT NULL`.
+   */
+  totalRecords: number
   membersByChapter: { chapter_name: string; count: number }[]
   totalEvents: number
   upcomingEvents: number
@@ -32,7 +45,7 @@ export async function getOrgStats(): Promise<OrgStats> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return {
-      totalMembers: 0, totalMinors: 0, membersByChapter: [], totalEvents: 0,
+      totalMembers: 0, totalRecords: 0, membersByChapter: [], totalEvents: 0,
       upcomingEvents: 0, avgRsvpRate: null, duesCollectedCents: 0,
       duesOutstandingCents: 0, tshirtBreakdown: [], recentActivity: [],
     }
@@ -41,7 +54,7 @@ export async function getOrgStats(): Promise<OrgStats> {
 
   const [
     membersResult,
-    minorsResult,
+    recordsResult,
     chapterResult,
     eventsResult,
     rsvpResult,
@@ -52,9 +65,16 @@ export async function getOrgStats(): Promise<OrgStats> {
     disbursementsResult,
     expensesResult,
   ] = await Promise.all([
-    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
-    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).eq('is_minor', true),
-    admin.from('people').select('chapters(name)').eq('family_code', familyCode).eq('is_minor', false).not('user_id', 'is', null),
+    // The two halves of the roster, and between them they now cover it — which the pair
+    // they replaced did not. `is_minor` came off with the column (20260813000006); the
+    // second query flipped from "minors" to "people with no account", so a child, an
+    // elder with no email and a relative who has died are all counted somewhere instead
+    // of falling between the two.
+    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).not('user_id', 'is', null),
+    admin.from('people').select('id', { count: 'exact', head: true }).eq('family_code', familyCode).is('user_id', null),
+    // Chapters are a membership thing — a record nobody administers has no chapter to
+    // report — so this half stays scoped to people with accounts.
+    admin.from('people').select('chapters(name)').eq('family_code', familyCode).not('user_id', 'is', null),
     admin.from('events').select('id, status, start_date', { count: 'exact' }).eq('family_code', familyCode).neq('status', 'cancelled'),
     admin.from('event_rsvp').select('event_id').eq('family_code', familyCode),
     admin.from('dues_payments').select('id, amount_cents, status, payment_date, recorded_by').eq('family_code', familyCode),
@@ -134,7 +154,7 @@ export async function getOrgStats(): Promise<OrgStats> {
 
   return {
     totalMembers: membersResult.count ?? 0,
-    totalMinors: minorsResult.count ?? 0,
+    totalRecords: recordsResult.count ?? 0,
     membersByChapter,
     totalEvents: eventsResult.count ?? 0,
     upcomingEvents,

@@ -70,7 +70,6 @@ export type PersonalInfoRecord = PersonalInfoData & {
   id: string
   user_id: string
   family_code: string
-  is_minor: boolean
   nick_name?: string | null
   avatar_url?: string | null
   created_at: string
@@ -162,7 +161,6 @@ export async function saveProfileSection(
       {
         user_id: user.id,
         family_code: familyCode,
-        is_minor: false,
         created_by: user.id,
         ...cleaned,
       },
@@ -199,7 +197,6 @@ export async function upsertPersonalInfo(
       {
         user_id: user.id,
         family_code: familyCode,
-        is_minor: false,
         created_by: user.id,
         prefix: normalize(input.prefix),
         first_name: input.first_name.trim(),
@@ -254,7 +251,7 @@ export async function saveChapterAndPropagate(
   // Update own record
   const { data: myRecord, error: myError } = await supabase
     .from('people')
-    .upsert({ user_id: user.id, family_code: familyCode, is_minor: false, created_by: user.id, chapter_id: chapterId ?? null }, { onConflict: 'user_id,family_code' })
+    .upsert({ user_id: user.id, family_code: familyCode, created_by: user.id, chapter_id: chapterId ?? null }, { onConflict: 'user_id,family_code' })
     .select('id')
     .single()
 
@@ -275,11 +272,21 @@ export async function saveChapterAndPropagate(
         .in('relationship_type_id', childRelTypes.map(t => t.id))
 
       if (childRels?.length) {
+        // WHO FOLLOWS THE PARENT: children with NO ACCOUNT, not children flagged as
+        // minors. This was `.eq('is_minor', true)` until 20260813000006 dropped that
+        // column, and the swap is a correction rather than a translation.
+        //
+        // The rule was always meant to be "somebody who cannot set their own chapter",
+        // and age was a poor proxy for it in both directions: a 20-year-old with no
+        // account was left behind while a 16-year-old who had claimed one had their
+        // chapter overwritten by a parent. `user_id IS NULL` is the fact that actually
+        // decides it, and it is the same test every other surface now uses to mean
+        // "a record rather than a member".
         await supabase
           .from('people')
           .update({ chapter_id: chapterId ?? null })
           .in('id', childRels.map(r => r.related_person_id))
-          .eq('is_minor', true)
+          .is('user_id', null)
       }
     }
   }

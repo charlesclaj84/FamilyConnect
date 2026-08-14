@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, isApprovedMember } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scoreMatch, type MatchReason } from '@/lib/match-utils'
+import { computeIsMinor } from '@/lib/age-utils'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 
 export interface UnlinkedPerson {
@@ -74,7 +75,7 @@ export async function getLinkPersonBannerData(): Promise<{
   // to compute the match server-side — they are NOT returned to the client.
   const { data: unlinked } = await supabase
     .from('people')
-    .select('id, first_name, last_name, nick_name, primary_email, primary_phone, date_of_birth, is_minor')
+    .select('id, first_name, last_name, nick_name, primary_email, primary_phone, date_of_birth')
     .eq('family_code', familyCode)
     .is('user_id', null)
 
@@ -100,7 +101,7 @@ export async function getLinkPersonBannerData(): Promise<{
         first_name: p.first_name,
         last_name: p.last_name,
         date_of_birth: p.date_of_birth,
-        is_minor: p.is_minor,
+        is_minor: computeIsMinor(p.date_of_birth),
         score,
         reasons,
         isStrong,

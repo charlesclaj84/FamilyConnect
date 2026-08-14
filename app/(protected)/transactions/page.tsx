@@ -133,13 +133,23 @@ export default async function TransactionsPage({
     ? fundsData.map(f => ({ id: f.id, name: f.name, balance_cents: f.balance_cents }))
     : []
 
-  // Adults only, matching every other member picker. Family-scoped explicitly: the
-  // service-role client does not apply RLS.
+  // PEOPLE WHO CAN TRANSACT — everyone with an account, and nobody else. Family-scoped
+  // explicitly: the service-role client does not apply RLS.
+  //
+  // This was `.eq('is_minor', false).not('user_id', 'is', null)` until 20260813000006
+  // dropped that column, and losing the first conjunct changes nothing: it was false on
+  // every row in production, and a person with a `user_id` registered an account, which
+  // no minor record ever did. What remains is the conjunct that was always doing the work.
+  //
+  // The `user_id` test STAYS here while the Directory and the dashboard tile drop it. A
+  // money form is the one place where "everyone in the family" is the wrong roster: a
+  // record with a generated address cannot pay dues or receive a disbursement, and
+  // offering them in the picker invites a payment attributed to somebody who cannot have
+  // made it.
   const membersQuery = admin
     .from('people')
     .select('id, first_name, last_name, nick_name, date_of_birth')
     .eq('family_code', familyCode)
-    .eq('is_minor', false)
     .not('user_id', 'is', null)
     .order('last_name')
 

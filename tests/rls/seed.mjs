@@ -654,26 +654,29 @@ export async function seed() {
     }).select().single())
 
     // ── relatives + relationships ───────────────────────────────────────────
-    // Without these, getMyChildren / getMyPartners / getMyAncestors would return
-    // [] for everyone and their isolation tests would pass without proving
-    // anything. A positive control needs data to actually be there.
-    // created_by is the family's ADMIN, not the plain member. updateChild and
-    // deleteChild narrow their writes with BOTH .eq('created_by', user.id) and
-    // the people:edit policy, so only a caller who is the creator *and* holds the
-    // grant can make them do anything. That is the actor the positive control
-    // uses; seeding any other creator makes the control a silent no-op.
+    // People with NO ACCOUNT, attached to `owner`. The tree is built out of these and
+    // `editPersonRecord` / `invitePersonRecord` are defined over exactly them, so a
+    // fixture without any would let both of those pass while touching nothing.
+    //
+    // THEY WERE `child` ROWS WITH `is_minor: true` until 2026-08-13. The column went in
+    // 20260813000006 and the concept went with it — a child is a person nobody has
+    // claimed yet, which is what `user_id IS NULL` already said. The names are kept so
+    // the diff stays readable; what they now fixture is "a record", not "a minor".
+    //
+    // The birthday stays and is load-bearing in a new way: `computeIsMinor` derives from
+    // it now, so a row with no date would make the Directory's Minor badge untestable.
     f.child = must('child', await db.from('people').insert({
       family_code: code, first_name: `${code}Child`, last_name: code,
-      is_minor: true, date_of_birth: '2015-04-04', created_by: familyAdmin.userId,
+      date_of_birth: '2015-04-04', created_by: familyAdmin.userId,
     }).select().single())
 
-    // A second child that exists purely so the deleteChild case has something to
-    // destroy. Without it, deleteChild's positive control removes the child that
-    // later cases still need, and those cases then "pass" against a row that is
-    // no longer there — a vacuous green that hides a real finding.
+    // A SECOND ONE, so a destructive positive control has its own row to ruin. Without it
+    // a control that deletes or rewrites `child` pulls the ground out from under every
+    // later case, and those cases then "pass" against a row that is no longer what they
+    // think it is — a vacuous green that hides a real finding.
     f.deletableChild = must('deletable child', await db.from('people').insert({
       family_code: code, first_name: `${code}SpareChild`, last_name: code,
-      is_minor: true, date_of_birth: '2016-05-05', created_by: familyAdmin.userId,
+      date_of_birth: '2016-05-05', created_by: familyAdmin.userId,
     }).select().single())
 
     f.ancestor = must('ancestor', await db.from('people').insert({
@@ -786,9 +789,11 @@ export async function seed() {
       }).select().single())
     }
 
+    // `childRelId` and `deletableChildRelId` were here and went with the children cases
+    // on 2026-08-13: updateChild and deleteChild addressed a relationship row by id, and
+    // their successors (editPersonRecord, invitePersonRecord) address the PERSON. The
+    // relationship rows themselves are still seeded above — the tree needs the edges.
     f.spouseRelId = rels.find(r => r.related_person_id === other.personId).id
-    f.childRelId = rels.find(r => r.related_person_id === f.child.id).id
-    f.deletableChildRelId = rels.find(r => r.related_person_id === f.deletableChild.id).id
     f.ancestorRelId = rels.find(r => r.related_person_id === f.ancestor.id).id
   }
 

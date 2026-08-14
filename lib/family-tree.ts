@@ -169,6 +169,122 @@ export interface TreeLink {
   from: string
   to: string
   relation: TreeRelation
+  /** `person_relationships.link_kind`. Only 'blood' conducts — see `bloodlineIds`. */
+  kind: LinkKind
+}
+
+/**
+ * What a relationship IS — `person_relationships.link_kind` (20260813000007).
+ *
+ * The order is the order the picker offers, and 'blood' is first because it is the answer
+ * for most links and the column default.
+ */
+export const LINK_KINDS = ['blood', 'step', 'adopted', 'foster'] as const
+
+export type LinkKind = (typeof LINK_KINDS)[number]
+
+/**
+ * Captions, keyed by kind. 'blood' is deliberately the EMPTY string: an ordinary
+ * relationship needs no qualifier on the card, and printing "Blood son" beside every
+ * other child would make the unremarkable case look like the remarkable one.
+ */
+export const LINK_KIND_PREFIX: Record<LinkKind, string> = {
+  blood: '',
+  step: 'Step',
+  adopted: 'Adopted',
+  foster: 'Foster',
+}
+
+/** "Step-son", "Adopted daughter", or plain "Son". */
+export function linkKindLabel(kind: LinkKind, relationshipLabel: string): string {
+  const prefix = LINK_KIND_PREFIX[kind]
+  if (!prefix) return relationshipLabel
+  // Hyphenated for 'step' and spaced for the rest, which is how English writes them:
+  // "step-son" but "adopted son". Not a rule worth a table for four values.
+  const joiner = kind === 'step' ? '-' : ' '
+  return `${prefix}${joiner}${relationshipLabel.toLowerCase()}`
+}
+
+export function isLinkKind(value: string): value is LinkKind {
+  return (LINK_KINDS as readonly string[]).includes(value)
+}
+
+/**
+ * The relations blood travels down. Spouse is deliberately absent — that is the whole
+ * definition, and everything below is bookkeeping around it.
+ *
+ * Sibling counts. Two brothers are blood whether or not the parent joining them has been
+ * recorded yet, and on a half-built tree that is the common case: somebody enters their
+ * brother long before they enter their father.
+ */
+const BLOOD_RELATIONS: readonly TreeRelation[] = ['parent', 'child', 'sibling']
+
+/**
+ * Who in this family is related to the anchor BY BLOOD, as opposed to by marriage.
+ *
+ * ── THE RULE ────────────────────────────────────────────────────────────────────────
+ * Walk out from the anchor through parent, child and sibling edges whose `kind` is
+ * 'blood'. Whoever you reach is the bloodline; everybody else is in this family by
+ * marriage, by adoption, or not yet attached to anybody.
+ *
+ * BOTH HALVES ARE LOAD-BEARING and they fail differently:
+ *
+ *   the relation   stops the walk crossing a MARRIAGE. Without it a spouse is one hop
+ *                  from the anchor and the whole of their family is two.
+ *   the kind       stops it crossing a link that is not by blood. This is the half no
+ *                  graph can supply: a member with three children, one of them his by
+ *                  blood, has three identical `child` edges and only a person knows
+ *                  which. 20260813000007 is where that answer now lives.
+ *
+ * Dropping either one is silent — the walk still returns a plausible set, just the wrong
+ * one — which is why the toggle they feed is worth a test rather than a look.
+ *
+ * ── IT IS FAMILY-WIDE, NOT PER VIEWER ───────────────────────────────────────────────
+ * The anchor is the FAMILY's, so the same set comes back whoever is looking. A
+ * viewer-relative version ("blood relative of me") was the other option and makes the
+ * toggle mean something different on every screen — two members would disagree about who
+ * is in the bloodline, which is not a thing a family can disagree about.
+ *
+ * ── NULL MEANS "DO NOT KNOW", AND CALLERS MUST NOT TREAT IT AS EMPTY ────────────────
+ * Returned when the anchor is missing or is not in this roster. The honest answer then is
+ * silence: an empty set would be read as "nobody is blood" and would hide the entire
+ * family behind the toggle. The canvas hides the control instead.
+ */
+export function bloodlineIds(
+  people: readonly { id: string }[],
+  edges: readonly TreeLink[],
+  anchorId: string | null | undefined,
+): Set<string> | null {
+  if (!anchorId) return null
+  const known = new Set(people.map(p => p.id))
+  if (!known.has(anchorId)) return null
+
+  const blood = new Set<TreeRelation>(BLOOD_RELATIONS)
+  const out = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (!blood.has(edge.relation)) continue
+    if (edge.kind !== 'blood') continue
+    // Both ends must be in the roster; `getFamilyTree` has already dropped dangling
+    // edges, and doing it again here keeps this function correct for any caller.
+    if (!known.has(edge.from) || !known.has(edge.to)) continue
+    const list = out.get(edge.from)
+    if (list) list.push(edge.to); else out.set(edge.from, [edge.to])
+  }
+
+  // Breadth-first rather than recursive: a deep family is deep, and `summarizeTree` next
+  // door already carries a comment about what an unguarded walk does to a cyclic graph.
+  // `seen` is the guard here — a cousin marriage makes this graph cyclic in practice.
+  const seen = new Set<string>([anchorId])
+  const queue = [anchorId]
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    for (const next of out.get(id) ?? []) {
+      if (seen.has(next)) continue
+      seen.add(next)
+      queue.push(next)
+    }
+  }
+  return seen
 }
 
 /** What the dashboard widget and the canvas both want to know about a tree. */

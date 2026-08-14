@@ -6,8 +6,6 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard,
-  UserCircle,
-  Users,
   GitBranch,
   Wallet,
   MessageCircle,
@@ -129,31 +127,22 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       ],
     },
-    {
-      // MY PROFILE AND MY FAMILIES ARE NOT HERE — they moved to the account menu in the
-      // top bar, and a destination in two places at once is a destination people learn
-      // twice. The menu is the better home for both: they are things about YOU rather
-      // than about the family being viewed, which is the same distinction that put the
-      // family switcher in the bar and left it out of the menu.
-      //
-      // THE SECTION SURVIVES ANYWAY, and deleting it would have been the mistake. Its one
-      // remaining item is `status: 'future'`, so the filter at the bottom of this function
-      // drops it, the group empties, and no Personal heading renders today — which is the
-      // outcome asked for. When My Children ships, the section comes back on its own.
-      // Removing the group instead would have left it with nowhere to appear and nothing
-      // to say so.
-      //
-      // FAMILY TREE USED TO BE HERE and is now under Community, which is a change of
-      // meaning rather than of filing: the tree is the WHOLE family's, not the caller's
-      // own line, so it no longer belongs beside My Children in the half of the product
-      // that is about you. The per-member lineage view — which genuinely was personal —
-      // was retired on 2026-08-13 along with its route; the family tree re-centres on
-      // whoever you click, which is what that view was for.
-      section: { label: 'Personal', icon: UserCircle },
-      items: [
-        { href: '/direct-lineage',  label: 'My Children',  icon: Users },
-      ],
-    },
+    // THE PERSONAL SECTION IS GONE, 2026-08-13, and this time deleting it is right.
+    //
+    // It survived one earlier pass deliberately: My Profile and My Families had moved to
+    // the account menu in the top bar, leaving one `status: 'future'` item that the filter
+    // at the bottom of this function dropped — so the group rendered nothing but was kept,
+    // on the argument that My Children would bring the heading back on its own.
+    //
+    // My Children is not coming back. `/direct-lineage` was the product's second kind of
+    // person — a child record its parent owned and later "converted to adult" — and there
+    // is one kind now: a child is recorded like any other relative without an email
+    // address, on the family tree, under Community. So the section has nothing left to
+    // wait for, and an empty group kept for an item that will never ship is the comment
+    // arguing for itself.
+    //
+    // FAMILY TREE was under this heading once and is under Community for a reason that
+    // outlived the section: the tree is the WHOLE family's, not the caller's own line.
     {
       // Family Tree LAST, and directly after Directory on purpose: the two answer the same
       // question — who is in this family and how are they related. Chat and Announcements

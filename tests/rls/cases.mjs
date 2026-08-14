@@ -113,14 +113,11 @@ export const CASES = [
   // `family-tree.addRelative`, which took over their job. Two cases cover it, one per id
   // that action accepts — see "cross-family anchor" and "links ALPHA person to a BRAVO
   // anchor" below.
-  read('children.getMyChildren', 'app/actions/children.ts', 'getMyChildren'),
-  read('children.getSpouseChildren', 'app/actions/children.ts', 'getSpouseChildren', {
-    // The spouse has no children of her own in the fixture, so this legitimately
-    // returns [] for everyone. Isolation is still asserted; the positive control
-    // cannot be, and saying so is better than a green tick that means nothing.
-    positive: 'not-applicable',
-    why: 'fixture seeds no children under the spouse, so [] is the correct answer for ALPHA too',
-  }),
+  // `children.getMyChildren` and `children.getSpouseChildren` WERE HERE and lapsed with
+  // their module on 2026-08-13: `/direct-lineage` is gone, and with it the idea that a
+  // child is a record its parent owns. Nothing inherited their job, because there is no
+  // longer a per-parent view to isolate — the tree reads the whole family roster, and
+  // `family-tree.getFamilyTree` below is the case that covers it.
   // The family-wide tree. It reads the WHOLE roster and every relationship between them
   // on the ADMIN client — deliberately, because the `people` SELECT policy hides
   // applicants and the tree has to draw the person it just invited — so its family
@@ -510,7 +507,6 @@ export const CASES = [
         family_code: 'ALPHATEST',
         first_name: 'ALPHATESTTree',
         last_name: 'Probe',
-        is_minor: false,
       }))
       must(await db.from('person_relationships').insert({
         id: TREE_PROBE_REL,
@@ -610,6 +606,56 @@ const templateGrantProbe = (resourceKey, action) => async (db, fx) => {
     .eq('action', action)
   if (error) throw new Error(`probe template_permissions: ${error.message}`)
   return JSON.stringify(data)
+}
+
+/**
+ * The marker grant a copied template would carry across a family boundary.
+ *
+ * `admin/account/bank` for the same reason setTemplatePermission's case uses it —
+ * nothing else in the suite reads it, so writing it here cannot change what a later
+ * case sees. 'own' rather than 'any' so it is distinguishable from the blanket grant
+ * the fixture puts on both Administrators templates.
+ */
+const markAlphaGeneralBankView = async (db, fx) => {
+  const { error } = await db.from('template_permissions').upsert({
+    template_id: fx.alpha.generalTemplateId,
+    resource_key: 'admin/account/bank',
+    action: 'view',
+    scope: 'own',
+  }, { onConflict: 'template_id,resource_key,action' })
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * Every `admin/account/bank` grant in the fixture, named by the family and template
+ * holding it.
+ *
+ * Deliberately spans BOTH families, because the leak createTemplate's copy could cause
+ * does not mutate a row in ALPHA at all — it writes ALPHA's answers onto a brand new
+ * BRAVO template. A probe scoped to ALPHA would watch the wrong side of the theft and
+ * report "no-op — row untouched" over a stolen access map.
+ *
+ * Both and no more: a developer's local database holds whatever families they have made
+ * by hand, and every one of them carries the two seeded templates. Including them turned
+ * the failure this probe exists to report into a 6,000-character diff of rows that never
+ * change.
+ */
+const bankGrantsProbe = async (db, fx) => {
+  const { data, error } = await db
+    .from('template_permissions')
+    .select('action, scope, permission_templates!inner(family_code, name)')
+    .eq('resource_key', 'admin/account/bank')
+  if (error) throw new Error(`probe template_permissions: ${error.message}`)
+  const fixture = [fx.alpha.familyCode, fx.bravo.familyCode]
+  const rows = (data ?? [])
+    .map(r => {
+      const t = Array.isArray(r.permission_templates) ? r.permission_templates[0] : r.permission_templates
+      return t && fixture.includes(t.family_code)
+        ? `${t.family_code}/${t.name}/${r.action}=${r.scope}`
+        : null
+    })
+    .filter(Boolean)
+  return JSON.stringify(rows.sort())
 }
 
 /**
@@ -781,46 +827,74 @@ export const MORE_CASES = [
   },
 
   // ── writes against ALPHA's rows ───────────────────────────────────────────
+  // ── the four `children.*` write cases were REPLACED here, 2026-08-13 ──────
+  // updateChild, deleteChild, acceptSpouseChild and convertChildToAdult all lapsed with
+  // `app/actions/children.ts`. Two of the shapes they tested outlived them and are
+  // carried below rather than dropped, which is the same reason `upsertSpouse` and
+  // `upsertAncestor`'s cases moved onto `addRelative` instead of being deleted:
+  //
+  //   updateChild          -> editPersonRecord.  A write to somebody else's `people` row
+  //                           addressed by a client-supplied id. It runs on the ADMIN
+  //                           client now, so RLS is not underneath it at all and the
+  //                           `.eq('family_code', …)` is the whole of the isolation.
+  //   convertChildToAdult  -> invitePersonRecord. Same id, and it reaches further: a
+  //                           success mints a real invitation into a family.
+  //
+  // acceptSpouseChild has no successor — there is no second parent to accept a child
+  // from when a child is just a person on the tree.
   {
     kind: 'write',
-    id: 'children.updateChild',
-    mod: 'app/actions/children.ts', fn: 'updateChild',
-    args: fx => [fx.alpha.child.id, fx.alpha.childRelId,
-      { first_name: 'Pwned', last_name: 'Pwned', relationship_type: 'Son', is_step: false }],
-    positiveArgs: fx => [fx.alpha.child.id, fx.alpha.childRelId,
-      { first_name: 'Renamed', last_name: 'ALPHATEST', relationship_type: 'Son', is_step: false }],
-    probe: (db, fx) => snapshot('people', 'id, first_name, last_name', { id: fx.alpha.child.id })(db),
-    // people:edit is required by the policy — see the note on alphaAdmin in seed.mjs.
-    positiveActor: 'alphaAdmin',
+    id: 'family-tree.editPersonRecord',
+    mod: 'app/actions/family-tree.ts', fn: 'editPersonRecord',
+    // BRAVO's administrator rewriting an ALPHA record by id. Nothing in the database
+    // objects to the row itself — it is a perfectly ordinary people row — so the only
+    // thing between this and a cross-family write is belongsToFamily plus the
+    // family_code conjunct on the UPDATE.
+    args: fx => [fx.alpha.child.id, { first_name: 'Pwned', last_name: 'Pwned' }],
+    // Aimed at the SPARE row: the control genuinely renames it, and pointing both halves
+    // at `child` would leave later cases asserting against a row this one had rewritten.
+    positiveArgs: fx => [fx.alpha.deletableChild.id,
+      { first_name: 'Renamed', last_name: 'ALPHATEST' }],
+    // BOTH rows in the projection, because the attack and the control address different
+    // ones and a snapshot of either alone cannot show both halves moving.
+    probe: db => snapshot('people', 'id, first_name, last_name, gender',
+      { family_code: 'ALPHATEST' })(db),
+    // A PLAIN MEMBER, deliberately, and this is the case's second claim: the action is
+    // self-service (requireMember) rather than grant-gated, so an ordinary member of
+    // ALPHA must succeed here. If this control ever needs alphaAdmin to go green,
+    // somebody has quietly made the tree administrator-only.
+    positiveActor: 'alphaMember',
   },
   {
     kind: 'write',
-    id: 'children.deleteChild',
-    mod: 'app/actions/children.ts', fn: 'deleteChild',
-    // Aimed at the spare child, so the control's real deletion does not pull the
-    // ground out from under the cases that run after this one.
-    args: fx => [fx.alpha.deletableChild.id, fx.alpha.deletableChildRelId],
-    probe: (db, fx) => snapshot('people', 'id', { id: fx.alpha.deletableChild.id })(db),
-    positiveActor: 'alphaAdmin',
-  },
-  {
-    kind: 'write',
-    id: 'children.acceptSpouseChild',
-    mod: 'app/actions/children.ts', fn: 'acceptSpouseChild',
-    args: fx => [fx.alpha.child.id, 'Son', false],
-    probe: (db, fx) => snapshot('person_relationships', 'id, person_id, related_person_id',
-      { related_person_id: fx.alpha.child.id })(db),
-    positive: 'not-applicable',
-    why: 'the owner already has this relationship, so their call is legitimately a no-op',
-  },
-  {
-    kind: 'write',
-    id: 'children.convertChildToAdult',
-    mod: 'app/actions/children.ts', fn: 'convertChildToAdult',
+    id: 'family-tree.invitePersonRecord',
+    mod: 'app/actions/family-tree.ts', fn: 'invitePersonRecord',
     args: fx => [fx.alpha.child.id, 'pwned@rls.test'],
-    probe: (db, fx) => snapshot('people', 'id, is_minor, primary_email', { id: fx.alpha.child.id })(db),
+    probe: db => snapshot('family_invitations',
+      'id, family_code, email, invited_person_id', { family_code: 'ALPHATEST' })(db),
     positive: 'not-applicable',
-    why: 'succeeding would invite a real account into the fixture family; attack side is what matters',
+    why: 'a successful control mints a real invitation and mutates family_invitations for later cases; the attack half is what this guards',
+  },
+  {
+    kind: 'write',
+    id: 'family-tree.setRelationshipKind',
+    mod: 'app/actions/family-tree.ts', fn: 'setRelationshipKind',
+    // ALPHA's Father edge, by id. The row is an ordinary person_relationships row and the
+    // action runs on the ADMIN client, so the only thing between BRAVO's administrator and
+    // ALPHA's bloodline is the family_code test on the row it read.
+    //
+    // WHAT A SUCCESSFUL ATTACK WOULD DO is worth stating, because it is quieter than most:
+    // it does not delete anything or reveal anything. It changes who another family counts
+    // as descended from them, on a screen they will believe.
+    args: fx => [fx.alpha.ancestorRelId, 'adopted'],
+    positiveArgs: fx => [fx.alpha.ancestorRelId, 'foster'],
+    // link_kind IS IN THE PROJECTION — the column the control changes. Leaving it out is
+    // the failure mode AGENTS.md §7 names: the write succeeds, the probe cannot see it, and
+    // a real change reads as a no-op.
+    probe: (db, fx) => snapshot('person_relationships', 'id, link_kind',
+      { id: fx.alpha.ancestorRelId })(db),
+    // A plain member: recording a relationship is self-service, so correcting one is too.
+    positiveActor: 'alphaMember',
   },
   {
     kind: 'write',
@@ -1215,7 +1289,7 @@ export const PENDING_CASES = [
   // this line until its module was deleted with the lineage view (2026-08-13). It is the
   // sharper test of the two anyway: `getFamilyTree` reads the WHOLE roster on the ADMIN
   // client, deliberately, so nothing but `requireRead('family-tree')` stands between an
-  // unadmitted applicant and every name, gender and minor flag in the family.
+  // unadmitted applicant and every name, gender and birthday in the family.
   read('family-tree.getFamilyTree (pending member)', 'app/actions/family-tree.ts', 'getFamilyTree', {
     attacker: 'alphaPending',
   }),
@@ -1377,6 +1451,44 @@ export const PENDING_CASES = [
       { election_id: fx.alpha.election.id })(db),
     positive: 'not-applicable',
     why: 'the approved owner has already voted; a second call is an upsert no-op, and their vote is asserted by the cross-family castVote case above',
+  },
+
+  // [crux] The same shape as castVote, and for the same reason: `editPersonRecord` is
+  // self-service, so there is NO GRANT to withhold — being an approved member is the
+  // entire authorization, and `requireMember()` is the only thing an applicant fails.
+  //
+  // It is the sharper of the two because of what the action runs on. It writes through
+  // the ADMIN client (the `people` UPDATE policy admits only a member's own row, so the
+  // user client could not touch a record belonging to nobody), which means RLS is not
+  // underneath this at all. Neuter the membership gate and somebody who has merely typed
+  // the family code can rewrite the name, birthday and gender of every unclaimed person
+  // in a family that has not admitted them — with no policy anywhere to object.
+  {
+    kind: 'write',
+    id: 'family-tree.editPersonRecord (pending member)',
+    mod: 'app/actions/family-tree.ts', fn: 'editPersonRecord',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.child.id, { first_name: 'Pending', last_name: 'Pwned' }],
+    probe: (db, fx) => snapshot('people', 'id, first_name, last_name',
+      { id: fx.alpha.child.id })(db),
+    positive: 'not-applicable',
+    why: 'an approved member editing this row is asserted by the cross-family editPersonRecord case above, whose control is alphaMember',
+  },
+
+  // [crux] Same shape as editPersonRecord above and the same argument: self-service, so
+  // no grant is being withheld, and it writes on the ADMIN client so no policy is
+  // underneath it. An applicant who has merely typed the family code could otherwise
+  // rewrite which of a family's children it counts as its own.
+  {
+    kind: 'write',
+    id: 'family-tree.setRelationshipKind (pending member)',
+    mod: 'app/actions/family-tree.ts', fn: 'setRelationshipKind',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.ancestorRelId, 'step'],
+    probe: (db, fx) => snapshot('person_relationships', 'id, link_kind',
+      { id: fx.alpha.ancestorRelId })(db),
+    positive: 'not-applicable',
+    why: 'an approved member changing this row is asserted by the cross-family setRelationshipKind case above, whose control is alphaMember',
   },
 
   // NOT [crux], and labelled so rather than left looking like evidence. An applicant is
@@ -1553,6 +1665,27 @@ export const APPROVAL_CASES = [
     // template_permissions has a composite primary key and no `id`, so snapshot()'s
     // .order('id') cannot be used here.
     probe: templateGrantProbe('admin/account/bank', 'edit'),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/permissions.createTemplate (copy from)',
+    mod: 'app/actions/admin/permissions.ts', fn: 'createTemplate',
+    // THE ATTACK IS NOT THE CREATE — it is the copy. BRAVO's administrator may create a
+    // template in their own family all day; what they may not do is seed it from ALPHA's,
+    // which would hand them a working transcript of another family's access map without
+    // ever reading a row they could be refused.
+    //
+    // That makes this an exfiltration wearing a write's clothes, and the reason the id
+    // is checked into the caller's family before the grid is read (AGENTS.md §4). Drop
+    // the `.eq('family_code', …)` from that lookup in createTemplate and this fails.
+    setup: markAlphaGeneralBankView,
+    args: fx => ['Copied from General', 'stolen', fx.alpha.generalTemplateId],
+    probe: bankGrantsProbe,
+    // The control copies ALPHA's General inside ALPHA, which is the whole feature: the
+    // new template must come out carrying the marker grant. Without it the attack
+    // assertion would pass just as well against a createTemplate that ignored its third
+    // argument entirely.
     positiveActor: 'alphaAdmin',
   },
 
