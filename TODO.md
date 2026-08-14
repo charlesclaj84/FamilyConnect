@@ -579,7 +579,7 @@ reasoning is now AGENTS.md §2b. Three loose ends survived it:
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
 
-## The idle sign-out's three cross-tab behaviours are still unconfirmed
+## The idle sign-out's two remaining cross-tab behaviours are still unconfirmed
 
 **Action:** twenty minutes with two tabs, after temporarily dropping the timer — see below.
 
@@ -590,22 +590,25 @@ notice, and signing back in works — which is the half that had actually shippe
 this replaces is gone. The number is now `IDLE_LIMIT_MINUTES = 60` in
 [lib/idle-timeout.ts](lib/idle-timeout.ts), matching `jwt_expiry`.
 
-What is **not** confirmed is everything that needs a second tab or an already-open dialog,
-which is exactly why the first pass and the click-through both missed it:
+**The cross-tab sign-out is confirmed too, 2026-08-13** — a second tab follows the first out
+via `genorra:idle-signed-out` rather than being left rendering a signed-in page over a
+revoked session. That was the riskiest of the three, because the failure mode is silent: the
+session is dead server-side and the stale tab looks fine until the next write fails.
+
+What is **not** confirmed is the pair below — one needing an already-open dialog, the other
+a second tab left alone for the whole limit. Both are why the first pass and the
+click-through missed them:
 
 * **The warning renders on top of a dialog the page already had open.** Every dialog in the
   app is `fixed z-50`, so this rests entirely on `IdleTimeout` being mounted *after*
   `{children}` in `app/(protected)/layout.tsx` — among equal z-indexes the later DOM node
   wins. Open any form dialog, wait, and watch which one is in front. Getting this wrong
   hides the warning at the one moment it is worth showing.
-* **A second tab signs itself out when the first one times out** (`genorra:idle-signed-out`).
-  The sign-out revokes the shared session, so a tab that does not follow is left rendering a
-  signed-in page over a dead session until something fails.
 * **Activity in one tab keeps the other alive** (`genorra:last-activity`, written at most
   every `WRITE_THROTTLE_MS` = 5s). Without this, reading in one tab signs you out of both.
 
 **Drop the timer to validate, and put it back.** At 60 minutes these are untestable in
-practice — the third one alone needs an hour of not touching the other tab. Set
+practice — the keep-alive one alone needs an hour of not touching the other tab. Set
 `IDLE_LIMIT_MINUTES` to **2** for the session: `WARN_BEFORE_MS` comes *out of* the limit
 rather than being added to it, so 2 gives a minute of normal idling and then the last-minute
 warning, and anything below 2 is a page that warns from the moment it loads. Three things
@@ -620,7 +623,8 @@ that make this safe and are worth knowing before doing it:
   `jwt_expiry` tie; a 2 left in place would sign real families out mid-sentence, and neither
   typecheck nor lint has any opinion about it.
 
-Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60.
+Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
+narrowed from three to two the same day, when the cross-tab sign-out was validated.
 
 ## Phase 3 leftovers
 
