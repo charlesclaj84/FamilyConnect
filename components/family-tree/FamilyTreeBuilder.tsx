@@ -79,7 +79,9 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
   // Managing a record nobody has claimed — the replacement for /direct-lineage. Holds the
   // person rather than a boolean so the dialog remounts per subject, which is what keeps
   // its field initializers honest when you manage two people in a row.
-  const [managing, setManaging] = useState<{ person: TreePerson; edge?: TreeEdge } | null>(null)
+  const [managing, setManaging] = useState<
+    { person: TreePerson; edge?: TreeEdge; spouseEdge?: TreeEdge } | null
+  >(null)
 
   // Bloodline or the whole family. UI-local and deliberately NOT keyed on familyCode: it
   // is a way of looking, not a fact about a family, so switching family should not silently
@@ -233,15 +235,19 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
   )
 
   const card = (person: TreePerson, opts?: { edge?: TreeEdge; highlight?: boolean }) => {
-    // The relationship kind is only a CHOICE for a non-marriage link: a marriage never
-    // carries blood, and the database corrects one that claims to
+    // BLOOD is only a CHOICE for a non-marriage link: a marriage never carries blood, and
+    // the database corrects one that claims to
     // (`person_relationships_marriage_is_not_blood`), so offering the control there would
     // be offering one that undoes itself.
     const kindEdge = opts?.edge && opts.edge.relation !== 'spouse' ? opts.edge : undefined
-    // Manage is offered when there is EITHER a record to edit or a connection to
-    // classify. A member with an account owns their own profile — the action refuses
-    // their row — but somebody still has to be able to say their son is a step-son.
-    const canManage = !person.hasAccount || Boolean(kindEdge)
+    // THE WORD is a choice for a marriage and for nothing else — Wife to Ex-Wife to
+    // Partner, all of which sit in the same row of the diagram. The other relations get
+    // their word from the person's gender and have nothing to pick.
+    const typeEdge = opts?.edge && opts.edge.relation === 'spouse' ? opts.edge : undefined
+    // Manage is offered when there is ANY of: a record to edit, a link to classify, or a
+    // marriage to rename. It used to be the first two, which left a spouse WITH an account
+    // — the ordinary case — with no control on their card at all.
+    const canManage = !person.hasAccount || Boolean(kindEdge) || Boolean(typeEdge)
     return (
       <PersonCard
         key={person.id}
@@ -251,7 +257,7 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
         kind={opts?.edge?.kind}
         onFocus={() => setFocusId(person.id)}
         onDetach={opts?.edge ? () => detach(opts.edge!, nameOf.get(person.id) ?? 'them') : undefined}
-        onManage={canManage ? () => setManaging({ person, edge: kindEdge }) : undefined}
+        onManage={canManage ? () => setManaging({ person, edge: kindEdge, spouseEdge: typeEdge }) : undefined}
         busy={isPending}
       />
     )
@@ -348,12 +354,21 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
           <Generation label={spouses.length > 0 ? 'This person, and their spouse' : 'This person'}>
             {card(focus, { highlight: true })}
             {spouses.map(p => card(p, { edge: related(focus.id, 'spouse').find(e => e.to === p.id) }))}
-            {spouses.length === 0 && (
-              <div className="flex flex-wrap gap-2">
-                {TREE_RELATIONSHIPS.filter(r => r.relation === 'spouse')
-                  .map(r => addButton(focus, r.type))}
-              </div>
-            )}
+            {/* OFFERED WHETHER OR NOT THERE IS ALREADY A SPOUSE. This was
+                `spouses.length === 0`, which meant a family could record exactly one
+                marriage per person and then had no way to record a second — no
+                remarriage, no former partner, and no way in at all once the first was
+                entered. A second marriage is ordinary, and it is usually where the other
+                half of somebody's children come from.
+
+                Only the CURRENT three get a "+" of their own; an ex is reached by adding
+                the relationship and then renaming it in the manage dialog, because
+                "+ Add ex-husband" as a first move is a strange thing to offer somebody
+                building a tree. TODO.md carries drawing each marriage as its own line. */}
+            <div className="flex flex-wrap gap-2">
+              {TREE_RELATIONSHIPS.filter(r => r.relation === 'spouse' && !r.type.startsWith('Ex-'))
+                .map(r => addButton(focus, r.type, spouses.length > 0 ? `Add another ${r.label.toLowerCase()}` : undefined))}
+            </div>
           </Generation>
 
           <Connector show={children.length > 0} />
@@ -494,6 +509,10 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
           name={nameOf.get(managing.person.id)
             ?? `${managing.person.firstName} ${managing.person.lastName}`.trim()}
           edge={managing.edge}
+          spouseEdge={managing.spouseEdge}
+          // The word for the person ON THE CARD, which is what the edge's own direction
+          // already carries — `to` is the card person, so `typeName` names them.
+          spouseType={managing.spouseEdge?.typeName ?? undefined}
           // The word for the relationship, from the edge's own direction: `relation` says
           // 'child', and which of Son/Daughter that is depends on the person's gender.
           edgeLabel={managing.edge ? relationLabelFor(managing.edge, managing.person) : undefined}

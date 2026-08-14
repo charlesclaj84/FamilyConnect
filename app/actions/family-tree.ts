@@ -80,6 +80,15 @@ export interface TreeEdge {
   /** `person_relationships.link_kind` — only 'blood' conducts. Mirrored onto the
    *  derived direction, because a step-son's step-father is still a step link. */
   kind: LinkKind
+  /**
+   * The `relationship_types.name` naming `to` relative to `from` — 'Wife', 'Ex-Husband'.
+   *
+   * COMPUTED PER DIRECTION, not copied: the stored row names one end, and the derived
+   * direction needs the inverse word or a spouse card reached from the other side would
+   * read "Wife" under a man. Null when the inverse cannot be named, which is whenever the
+   * far end has no recorded gender — most of a real tree.
+   */
+  typeName: string | null
   /** True for the direction this edge was DERIVED rather than stored. */
   derived: boolean
 }
@@ -192,6 +201,7 @@ export async function getFamilyTree(): Promise<FamilyTree> {
   }))
 
   const known = new Set(people.map(p => p.id))
+  const genderById = new Map(people.map(p => [p.id, p.gender]))
   const edges: TreeEdge[] = []
   const seen = new Set<string>()
 
@@ -214,8 +224,11 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     // the answer nobody can tell is wrong by looking.
     const kind: LinkKind = isLinkKind(row.link_kind ?? '') ? (row.link_kind as LinkKind) : 'blood'
 
+    const storedName = typeName.get(row.relationship_type_id) ?? null
+
     push(edges, seen, {
-      id: row.id, from: row.person_id, to: row.related_person_id, relation, kind, derived: false,
+      id: row.id, from: row.person_id, to: row.related_person_id, relation, kind,
+      typeName: storedName, derived: false,
     })
 
     // THE DERIVED HALF, and it is what makes the canvas correct rather than convenient.
@@ -225,8 +238,14 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     // `kind` is carried across UNCHANGED: a step-son's step-father is still a step link,
     // so blood must not travel back up an edge it could not travel down.
     const mirror = MIRROR[relation]
+    // The inverse WORD, named against the gender of the person the stored row is about —
+    // the same call `linkRelationship` makes when it writes the second row.
+    const mirrorName = storedName
+      ? inverseTypeFor(storedName, genderById.get(row.person_id) ?? null)
+      : null
     push(edges, seen, {
-      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror, kind, derived: true,
+      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror, kind,
+      typeName: mirrorName, derived: true,
     })
   }
 
@@ -811,6 +830,160 @@ export async function setRelationshipKind(
     )
 
   if (error) return { success: false, message: error.message }
+
+  revalidatePath('/family-tree')
+  return { success: true }
+}
+
+/**
+ * Change WHAT a relationship is called — Wife to Ex-Wife, Partner to Husband.
+ *
+ * ── WHY THIS IS SEPARATE FROM `setRelationshipKind` ─────────────────────────────────
+ * They answer different questions and only one of them is about blood. `link_kind` says
+ * whether blood travels down the edge; this says which word names it. A marriage that
+ * ends changes the word and not the kind — it was never blood and still is not — and a
+ * step-son who is adopted changes the kind and not the word.
+ *
+ * ── IT MOVES THE INVERSE ROW TOO, AND RENAMES IT ────────────────────────────────────
+ * `linkRelationship` writes both directions where it can name them, and the two are one
+ * fact. Renaming only the stored row leaves "Ada has an Ex-Wife, Mary" beside "Mary has a
+ * Husband, Ada" — not a stale copy but a contradiction, and the tree reads whichever it
+ * meets first. So the inverse is renamed with it, through `inverseTypeFor` against the
+ * OTHER person's gender, which is the same call `linkRelationship` makes when it writes
+ * the pair in the first place.
+ *
+ * A missing or unnameable inverse is not an error: gender is optional, so for much of a
+ * real tree there is no second row to move. That is the same asymmetry `linkRelationship`
+ * documents, and the canvas is correct either way because `getFamilyTree` derives both
+ * directions from either row.
+ *
+ * ── THE RELATION MUST NOT CHANGE ────────────────────────────────────────────────────
+ * Wife to Ex-Wife is a rename; Wife to Daughter is not, it is a different edge in a
+ * different row of the diagram, and letting one become the other through a rename would
+ * move somebody between generations without anyone choosing to. Refused, and it is the
+ * one check here that is about the shape of the tree rather than about authorization.
+ */
+export async function setRelationshipType(
+  relationshipId: string,
+  typeName: string,
+  /**
+   * WHO `typeName` DESCRIBES — the person whose card the caller is looking at.
+   *
+   * `person_relationships` is directional and names one end relative to the other: "A has
+   * a Wife, B" names B. The canvas draws BOTH directions from that single row, so the same
+   * edge is reached from A's card (where the word is "Wife") and from B's (where it is
+   * "Husband"). Taking the word without taking whose it is means writing "Ex-Husband" into
+   * a row that should have said "Ex-Wife" — a silent inversion, visible only to whoever
+   * next reads the database directly.
+   *
+   * So the caller states it and the conversion happens here, once, next to the row it is
+   * about, rather than in a client that would have to know which direction it was handed.
+   */
+  subjectPersonId: string,
+): Promise<{ success: boolean; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'No family selected' }
+
+  const type = (typeName ?? '').trim()
+  if (!isTreeRelationshipType(type)) {
+    return { success: false, message: 'That is not a relationship this tree records' }
+  }
+
+  const admin = createAdminClient()
+  const { data: row, error: readError } = await admin
+    .from('person_relationships')
+    .select('id, person_id, related_person_id, relationship_type_id, family_code')
+    .eq('id', relationshipId)
+    .maybeSingle()
+
+  if (readError) {
+    console.error('[family-tree] could not read relationship ' + relationshipId
+      + ': ' + readError.message)
+    return { success: false, message: 'Could not read that connection' }
+  }
+  if (!row || row.family_code !== g.familyCode) {
+    return { success: false, message: 'Relationship not found' }
+  }
+
+  const { data: types, error: typesError } = await admin
+    .from('relationship_types').select('id, name')
+  if (typesError || !types) {
+    return { success: false, message: 'Could not read the relationship types' }
+  }
+  const idByName = new Map((types as { id: string; name: string }[]).map(t => [t.name, t.id]))
+  const nameById = new Map((types as { id: string; name: string }[]).map(t => [t.id, t.name]))
+
+  // Same row of the diagram, or it is not a rename — see the header. Checked against the
+  // word the CALLER used, before any conversion, because that is the one they chose.
+  const before = relationFor(nameById.get(row.relationship_type_id) ?? '')
+  const after = relationFor(type)
+  if (!before || !after || before !== after) {
+    return { success: false, message: 'That would change how they are related, not just what it is called' }
+  }
+
+  // WHOSE WORD IS IT. `typeName` names `subjectPersonId`; the stored row names
+  // `related_person_id`. When those are the same person it is written as given, and when
+  // they are opposite ends it has to be turned round first — see the parameter's note.
+  let storedType = type
+  if (subjectPersonId === row.person_id) {
+    const { data: anchor } = await admin
+      .from('people').select('gender').eq('id', row.related_person_id)
+      .eq('family_code', g.familyCode).maybeSingle()
+    const turned = inverseTypeFor(type, (anchor as { gender: string | null } | null)?.gender)
+    // No inverse nameable — the other end has no recorded gender — so there is nothing
+    // honest to write. Refused rather than guessed at: writing the caller's word
+    // unturned would record the opposite of what they chose.
+    if (!turned) {
+      return {
+        success: false,
+        message: 'Record a gender for the other person first, so we can name this from their side too.',
+      }
+    }
+    storedType = turned
+  } else if (subjectPersonId !== row.related_person_id) {
+    return { success: false, message: 'That person is not part of this connection' }
+  }
+
+  const targetId = idByName.get(storedType)
+  if (!targetId) return { success: false, message: 'That relationship type is not set up' }
+
+  const { error } = await admin
+    .from('person_relationships')
+    .update({ relationship_type_id: targetId })
+    .eq('id', row.id)
+    .eq('family_code', g.familyCode)
+
+  if (error) return { success: false, message: error.message }
+
+  // THE INVERSE, best-effort. Named against the OTHER end's gender, because the inverse
+  // word describes them: renaming "Ada has an Ex-Wife" makes Mary's row "Ex-Husband" only
+  // if Ada is male.
+  const { data: other } = await admin
+    .from('people').select('gender').eq('id', row.person_id)
+    .eq('family_code', g.familyCode).maybeSingle()
+
+  const inverse = inverseTypeFor(storedType, (other as { gender: string | null } | null)?.gender)
+  const inverseId = inverse ? idByName.get(inverse) : undefined
+  if (inverseId) {
+    // Only a row already pointing the other way, and only one in the same row of the
+    // diagram — never an insert. If the family never had the second row, this is not the
+    // moment to invent one.
+    const { data: back } = await admin
+      .from('person_relationships')
+      .select('id, relationship_type_id')
+      .eq('family_code', g.familyCode)
+      .eq('person_id', row.related_person_id)
+      .eq('related_person_id', row.person_id)
+
+    for (const candidate of (back ?? []) as { id: string; relationship_type_id: string }[]) {
+      if (relationFor(nameById.get(candidate.relationship_type_id) ?? '') !== after) continue
+      await admin.from('person_relationships')
+        .update({ relationship_type_id: inverseId })
+        .eq('id', candidate.id)
+        .eq('family_code', g.familyCode)
+    }
+  }
 
   revalidatePath('/family-tree')
   return { success: true }

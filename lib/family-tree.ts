@@ -51,6 +51,18 @@ export const TREE_RELATIONSHIPS: readonly RelationshipMeta[] = [
   { type: 'Husband',  relation: 'spouse',  label: 'Husband', gender: 'male' },
   { type: 'Wife',     relation: 'spouse',  label: 'Wife',    gender: 'female' },
   { type: 'Partner',  relation: 'spouse',  label: 'Partner', gender: null },
+  // THE EX- TYPES, added 2026-08-13. They were seeded into `relationship_types` by
+  // 20260610000004 and had never been listed here — which was not merely a missing
+  // option, it was a hole: `relationFor('Ex-Wife')` returned undefined, so
+  // `getFamilyTree` SKIPPED any such row and the canvas drew nothing at all where a
+  // former marriage had been recorded. A family that entered one saw it vanish.
+  //
+  // They keep `relation: 'spouse'`, so an ex sits beside the focus person exactly where
+  // a current spouse does. That is deliberate: a former marriage is still where the
+  // children came from, and hiding it would break the line it explains.
+  { type: 'Ex-Husband', relation: 'spouse', label: 'Ex-husband', gender: 'male' },
+  { type: 'Ex-Wife',    relation: 'spouse', label: 'Ex-wife',    gender: 'female' },
+  { type: 'Ex-Partner', relation: 'spouse', label: 'Ex-partner', gender: null },
   { type: 'Son',      relation: 'child',   label: 'Son',     gender: 'male' },
   { type: 'Daughter', relation: 'child',   label: 'Daughter', gender: 'female' },
   { type: 'Brother',  relation: 'sibling', label: 'Brother', gender: 'male' },
@@ -109,10 +121,20 @@ export function inverseTypeFor(
 
   const male = anchorGender === 'male'
   const female = anchorGender === 'female'
+
+  // FORMER STAYS FORMER, and this is the conjunct that was missing when the Ex- types
+  // were added on 2026-08-13. Without it an Ex-Wife's inverse came back as "Husband" —
+  // the database would then hold "Ada has an Ex-Wife, Mary" beside "Mary has a Husband,
+  // Ada", which is not two views of one fact but a contradiction, and the second one is
+  // what a report or an export would print.
+  const former = meta.type.startsWith('Ex-')
+
   if (!male && !female) {
-    // The one case that survives an unknown gender: Partner is symmetric, so a partner's
-    // partner is a Partner whoever they are.
-    return meta.type === 'Partner' ? 'Partner' : null
+    // The cases that survive an unknown gender: Partner is symmetric, so a partner's
+    // partner is a Partner whoever they are, and the same holds once it is over.
+    if (meta.type === 'Partner') return 'Partner'
+    if (meta.type === 'Ex-Partner') return 'Ex-Partner'
+    return null
   }
 
   switch (meta.relation) {
@@ -123,9 +145,15 @@ export function inverseTypeFor(
     case 'sibling': return male ? 'Brother' : 'Sister'
     // Partner is handled above and stays Partner; a Husband's spouse is a Wife and vice
     // versa, decided by the ANCHOR's gender like every other case here.
-    case 'spouse':  return male ? 'Husband' : 'Wife'
+    case 'spouse':
+      if (former) return male ? 'Ex-Husband' : 'Ex-Wife'
+      return male ? 'Husband' : 'Wife'
   }
 }
+
+/** The spouse types, in the order the tree offers them. Current first, then former. */
+export const SPOUSE_TYPES: readonly string[] =
+  TREE_RELATIONSHIPS.filter(r => r.relation === 'spouse').map(r => r.type)
 
 /**
  * A generated address for somebody who has none —

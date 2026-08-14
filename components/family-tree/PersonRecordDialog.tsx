@@ -10,10 +10,12 @@ import { FormError } from '@/components/ui/form-message'
 import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { cn } from '@/lib/utils'
 import {
-  editPersonRecord, invitePersonRecord, setRelationshipKind,
+  editPersonRecord, invitePersonRecord, setRelationshipKind, setRelationshipType,
   type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
-import { LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
+import {
+  LINK_KINDS, SPOUSE_TYPES, linkKindLabel, relationshipMeta, type LinkKind,
+} from '@/lib/family-tree'
 
 /**
  * Managing somebody on the tree who has no account.
@@ -51,7 +53,7 @@ import { LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
  * re-imposing a default while it is up.
  */
 export function PersonRecordDialog({
-  open, onClose, person, name, edge, edgeLabel, focusName,
+  open, onClose, person, name, edge, edgeLabel, focusName, spouseEdge, spouseType,
 }: {
   open: boolean
   onClose: () => void
@@ -69,10 +71,20 @@ export function PersonRecordDialog({
   edgeLabel?: string
   /** Whose son/daughter: the focus person's name, for the sentence. */
   focusName?: string
+  /**
+   * A MARRIAGE, when this card was reached by one. Its own prop rather than reusing
+   * `edge`, because the two offer opposite controls: a marriage can be renamed (Wife to
+   * Ex-Wife) and cannot be made blood; everything else is the other way round.
+   */
+  spouseEdge?: TreeEdge
+  /** The current `relationship_types.name` on `spouseEdge` — 'Wife', 'Ex-Husband'. */
+  spouseType?: string
 }) {
   const router = useRouter()
   const [kind, setKind] = useState<LinkKind>(edge?.kind ?? 'blood')
   const [kindSaved, setKindSaved] = useState(false)
+  const [spouse, setSpouse] = useState(spouseType ?? '')
+  const [spouseSaved, setSpouseSaved] = useState(false)
   const [firstName, setFirstName] = useState(person.firstName ?? '')
   const [lastName, setLastName] = useState(person.lastName ?? '')
   const [nickName, setNickName] = useState(person.nickName ?? '')
@@ -91,6 +103,27 @@ export function PersonRecordDialog({
     setKindSaved(false)
     setInvited(null)
     setEmail('')
+  }
+
+  function saveSpouseType(next: string) {
+    if (!spouseEdge) return
+    const previous = spouse
+    setSpouse(next)
+    setError('')
+    setSpouseSaved(false)
+    startTransition(async () => {
+      // `person.id` is the subject: the word describes the person on this card. The edge
+      // may have been reached from either end and the action turns it round if needed —
+      // see the parameter's note there.
+      const r = await setRelationshipType(spouseEdge.id, next, person.id)
+      if (!r.success) {
+        setError(r.message ?? 'Could not change that connection.')
+        setSpouse(previous)   // put the control back where the database still is
+        return
+      }
+      setSpouseSaved(true)
+      router.refresh()
+    })
   }
 
   function saveKind(next: LinkKind) {
@@ -154,6 +187,45 @@ export function PersonRecordDialog({
         : 'They have no account, so anyone in the family can keep this record right.'}
     >
       <div className="space-y-6">
+        {/* A MARRIAGE — the word for it, which is the one thing about a spouse card that
+            is always somebody's to change. Blood is not offered here: a marriage never
+            carries it and the database says so
+            (`person_relationships_marriage_is_not_blood`). */}
+        {spouseEdge && (
+          <div className="space-y-2">
+            <Label>
+              {focusName ? `How is ${name} related to ${focusName}?` : 'What is this relationship?'}
+            </Label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {SPOUSE_TYPES.map(t => {
+                const active = spouse === t
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => saveSpouseType(t)}
+                    disabled={isPending}
+                    aria-pressed={active}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                      active
+                        ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
+                        : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
+                    )}
+                  >
+                    {relationshipMeta(t)?.label ?? t}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A former marriage stays on the tree beside {focusName ?? 'them'} — it is
+              usually where half the children came from.
+              {spouseSaved && <span className="ml-1 font-medium text-brand-affirm">Saved.</span>}
+            </p>
+          </div>
+        )}
+
         {/* HOW THEY ARE RELATED — first, because it is the half that is offered for
             everybody. The details below are only editable for somebody with no account,
             so for a member with one this is the whole dialog. */}

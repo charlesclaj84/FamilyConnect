@@ -898,6 +898,22 @@ export const MORE_CASES = [
   },
   {
     kind: 'write',
+    id: 'family-tree.setRelationshipType',
+    mod: 'app/actions/family-tree.ts', fn: 'setRelationshipType',
+    // ALPHA's marriage, renamed by BRAVO's administrator. The third argument is the
+    // SUBJECT — the person the word describes — and it is ALPHA's too, so a successful
+    // attack would need both ids to have been taken on trust.
+    args: fx => [fx.alpha.spouseRelId, 'Ex-Wife', fx.alpha.otherPersonId],
+    positiveArgs: fx => [fx.alpha.spouseRelId, 'Ex-Wife', fx.alpha.otherPersonId],
+    // relationship_type_id IS the column that moves, so it has to be in the projection —
+    // §7's second failure mode, where a real write reads as a no-op because the probe
+    // could not see it.
+    probe: (db, fx) => snapshot('person_relationships', 'id, relationship_type_id, link_kind',
+      { id: fx.alpha.spouseRelId })(db),
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
     id: 'dues.setMyDuesPlan',
     mod: 'app/actions/dues.ts', fn: 'setMyDuesPlan',
     // The attacker enrols themselves against ALPHA's schedule. A plan row bound to
