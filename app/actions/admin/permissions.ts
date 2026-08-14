@@ -489,7 +489,26 @@ export async function getMyEffectivePermissions(): Promise<{ legacy: boolean }> 
 
 // ── Templates ───────────────────────────────────────────────────────────────
 
-export async function createTemplate(name: string, description: string): Promise<AdminResult> {
+/**
+ * Create a template, blank or as a copy of one the family already has.
+ *
+ * `copyFromTemplateId` is a COPY and never a link: the new grid is what the source
+ * granted at this moment, and the two have nothing to do with each other afterwards.
+ * Anything else would be a second layer of resolution, which is the thing 20260807000000
+ * removed — see the "one template per member" note in AGENTS.md.
+ *
+ * TWO GRANTS FOR A COPY, and this is the part worth not undoing. Creating is gated on
+ * `create` and rewriting a grid on `edit`, so a family can hand out "may add a template"
+ * without "may decide what a template grants". Copying does both in one call — it is
+ * exactly `createTemplate` followed by `setTemplatePermission` for every cell — so a
+ * caller holding `create` alone could otherwise clone Administrators and mint the
+ * authority that split exists to withhold. Blank creation still needs only `create`.
+ */
+export async function createTemplate(
+  name: string,
+  description: string,
+  copyFromTemplateId?: string | null,
+): Promise<AdminResult> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'create')
   if (!auth.ok) return { success: false, message: auth.message }
 
@@ -497,6 +516,46 @@ export async function createTemplate(name: string, description: string): Promise
   if (!trimmed) return { success: false, message: 'Template name is required.' }
 
   const admin = createAdminClient()
+
+  // Resolve the source BEFORE anything is inserted, so a copy that cannot be honoured
+  // leaves no half-made template behind. Silently falling back to a blank grid was the
+  // alternative and is worse than refusing: the caller asked to copy, and a template
+  // that grants nothing looks identical to one whose source granted nothing.
+  let sourceGrid: PolicyMap | null = null
+  if (copyFromTemplateId) {
+    if (!(await can(auth.userId, TEMPLATE_RESOURCE, 'edit'))) {
+      return {
+        success: false,
+        message: 'You do not have permission to copy what a template grants. Create a blank template instead.',
+      }
+    }
+
+    // §4: the id arrives from the client and this runs on the service role, so the
+    // source is confirmed into the caller's own family before it is read. Without it,
+    // `.eq('id', …)` alone copies any family's access map into this one.
+    const { data: source } = await admin
+      .from('permission_templates')
+      .select('id')
+      .eq('id', copyFromTemplateId)
+      .eq('family_code', auth.familyCode)
+      .maybeSingle()
+    if (!source) return { success: false, message: 'The template to copy was not found in your family.' }
+
+    // The error is read rather than discarded (§8) precisely because an empty result is
+    // indistinguishable from a template that grants nothing — and here that difference
+    // is the whole content of the operation.
+    const { data: grants, error: grantsError } = await admin
+      .from('template_permissions')
+      .select('resource_key, action, scope')
+      .eq('template_id', copyFromTemplateId)
+    if (grantsError) return { success: false, message: 'Could not read the template to copy.' }
+
+    sourceGrid = {}
+    for (const g of (grants ?? []) as { resource_key: string; action: PermissionAction; scope: PermissionScope }[]) {
+      sourceGrid[`${g.resource_key}:${g.action}`] = g.scope
+    }
+  }
+
   const { data: created, error } = await admin
     .from('permission_templates')
     .insert({
@@ -513,10 +572,15 @@ export async function createTemplate(name: string, description: string): Promise
     return { success: false, message: 'Could not create the template.' }
   }
 
-  // A new template starts as a complete grid of denials rather than an empty one.
+  // A new template starts as a complete grid rather than an empty one, copy or not.
   // The grid on screen is the whole answer to "what may these people do", and a
   // template with no rows would fall through to resource_visibility for 'view' —
   // so it would silently grant every unrestricted page while showing nothing.
+  //
+  // Built from permission_resources and OVERLAID with the source, never copied row for
+  // row: that is what fills in a resource registered after the source template was last
+  // touched (§6 — those rows do not exist on an older template) and what drops a stale
+  // grant for an action the resource no longer declares.
   const { data: resources } = await admin
     .from('permission_resources')
     .select('key, actions')
@@ -524,7 +588,12 @@ export async function createTemplate(name: string, description: string): Promise
   const rows: { template_id: string; resource_key: string; action: string; scope: string }[] = []
   for (const r of (resources ?? []) as { key: string; actions: string[] | null }[]) {
     for (const action of r.actions?.length ? r.actions : PERMISSION_ACTIONS) {
-      rows.push({ template_id: created.id, resource_key: r.key, action, scope: 'none' })
+      rows.push({
+        template_id: created.id,
+        resource_key: r.key,
+        action,
+        scope: sourceGrid?.[`${r.key}:${action}`] ?? 'none',
+      })
     }
   }
   if (rows.length) {

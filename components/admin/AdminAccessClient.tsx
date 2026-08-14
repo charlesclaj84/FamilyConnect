@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
@@ -597,6 +598,23 @@ function TemplatesTab({
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  /**
+   * Which template the new one starts from, or '' for a blank grid.
+   *
+   * Offered only to a caller who also holds `edit` on this key, because that is what
+   * the action demands of a copy — see createTemplate. Showing the choice to someone
+   * who may only create would be a control that refuses every time it is used.
+   */
+  const [copyFrom, setCopyFrom] = useState('')
+  /**
+   * Resolved against the LIVE list rather than trusted as held, so every control below
+   * reads from one value. Deleting the template the form is pointing at is the case
+   * that matters: a `router.refresh()` deliberately merges the new server payload
+   * without discarding client state, so `copyFrom` would go on naming a row that no
+   * longer exists — the radio saying "A copy of…", the sentence beneath it saying
+   * nothing is allowed, and Create sending an id the action can only refuse.
+   */
+  const copySource = templates.find(t => t.id === copyFrom) ?? null
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
@@ -648,14 +666,46 @@ function TemplatesTab({
               <Input id="new-template-desc" value={newDesc} onChange={e => setNewDesc(e.target.value)}
                 placeholder="Optional" />
             </div>
+
+            {/* A real <fieldset>/<legend> radio group rather than a styled div: the
+                legend is what makes a screen reader announce "Start from" before each
+                option, and native radios bring arrow-key selection with them. Same
+                reasoning as MainRail refusing role="tablist" — claim only what is
+                implemented, and here the platform implements all of it. */}
+            {rights.edit && templates.length > 0 && (
+              <fieldset className="space-y-1">
+                <legend className="text-sm leading-none font-medium">Start from</legend>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="new-template-start" className="accent-brand-primary"
+                    checked={!copySource} onChange={() => setCopyFrom('')} />
+                  Blank
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="radio" name="new-template-start" className="accent-brand-primary"
+                    checked={!!copySource}
+                    onChange={() => setCopyFrom(templates[0].id)} />
+                  A copy of…
+                </label>
+                {copySource && (
+                  <Select className="mt-1" aria-label="Template to copy"
+                    value={copySource.id} onChange={e => setCopyFrom(e.target.value)}>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </Select>
+                )}
+              </fieldset>
+            )}
+
             <p className="text-xs text-muted-foreground">
-              A new template starts with nothing allowed. Set what it grants, then apply it
-              to members.
+              {copySource
+                ? `The new template starts with exactly what ${copySource.name} grants today. It is a copy, not a link — changing one afterwards leaves the other alone.`
+                : 'A new template starts with nothing allowed. Set what it grants, then apply it to members.'}
             </p>
             <div className="flex gap-2">
               <Button size="sm" disabled={isPending || !newName.trim()}
-                onClick={() => run(null, () => createTemplate(newName, newDesc),
-                  () => { setNewName(''); setNewDesc(''); setCreating(false) })}>
+                onClick={() => run(null, () => createTemplate(newName, newDesc, copySource?.id ?? null),
+                  () => { setNewName(''); setNewDesc(''); setCopyFrom(''); setCreating(false) })}>
                 Create
               </Button>
               <Button size="sm" variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
