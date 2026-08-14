@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireMember, requireRead } from '@/lib/auth/guard'
+import { requireEdit, requireMember, requireRead } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { inviteMember } from '@/app/actions/invitations'
@@ -166,7 +166,8 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     // THE BLOODLINE ANCHOR. `families.created_by` is an auth user id, so it takes a second
     // hop to reach their people row IN THIS FAMILY — a founder who belongs to two families
     // has a row in each, and `.eq('family_code', …)` is what picks the right one (§3).
-    admin.from('families').select('created_by').eq('family_code', g.familyCode).maybeSingle(),
+    admin.from('families').select('created_by, bloodline_anchor_id')
+      .eq('family_code', g.familyCode).maybeSingle(),
   ])
 
   // §8: an empty result and a refused query are different things and `data` cannot tell
@@ -256,10 +257,27 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     console.error('[family-tree] could not read the founder for ' + g.familyCode
       + ': ' + familyResult.error.message)
   }
-  const founderUserId = (familyResult.data as { created_by: string | null } | null)?.created_by
-  const anchor = founderUserId
-    ? ((peopleResult.data ?? []) as PersonRow[]).find(p => p.user_id === founderUserId)?.id ?? null
-    : null
+  // THE FAMILY'S CHOICE FIRST, the founder only as a fallback (20260813000008).
+  //
+  // The founder is a poor default and was the reported bug: a family created by a SON
+  // walks up from him, so his mother — his father's former wife, and no blood relation to
+  // the line — comes back as blood, while the current wife correctly does not. One rule,
+  // two answers, decided by who happened to register.
+  //
+  // The set anchor is re-checked against the roster below rather than trusted: the column
+  // is ON DELETE SET NULL and guarded to this family, but a person filtered out of THIS
+  // query (there is no filter today, and that is not a promise) would leave the walk
+  // starting nowhere.
+  const familyRow = familyResult.data as
+    { created_by: string | null; bloodline_anchor_id: string | null } | null
+  const roster = (peopleResult.data ?? []) as PersonRow[]
+
+  const chosen = familyRow?.bloodline_anchor_id
+  const anchor = (chosen && roster.some(p => p.id === chosen))
+    ? chosen
+    : (familyRow?.created_by
+      ? roster.find(p => p.user_id === familyRow.created_by)?.id ?? null
+      : null)
 
   return { people, edges, myPersonId: g.personId, bloodlineAnchorId: anchor }
 }
@@ -1061,6 +1079,58 @@ export async function setRelationshipType(
   }
 
   revalidatePath('/family-tree')
+  return { success: true }
+}
+
+/**
+ * Set the person the family's bloodline descends from (20260813000008).
+ *
+ * ── WHY A FAMILY DECIDES THIS RATHER THAN THE DATA ──────────────────────────────────
+ * The Bloodline view walks up from an anchor and keeps everybody who shares an ancestor
+ * with it. Anchored on the FOUNDER — which is what it did until this existed — a family
+ * created by a son walks up through his mother, so his father's former wife comes back as
+ * a blood relative of the line while the current wife correctly does not. Same rule, two
+ * answers, decided by who happened to register first.
+ *
+ * There is no better guess available. "The oldest person" is wrong the moment a spouse's
+ * parents are recorded; "the most descendants" is wrong until the tree is built. Which
+ * line a family considers ITS line is a fact about the family, so they state it.
+ *
+ * ── THE GRANT ───────────────────────────────────────────────────────────────────────
+ * `admin/family:edit`, the same as `renameFamily`, and for the same reason: this is
+ * family-wide configuration that changes what every member sees, not a self-service
+ * record like a relationship. Deliberately NOT the tree's own self-service rule — any
+ * member may say who their father is, and that is a different kind of claim from
+ * redefining whose line the family is.
+ *
+ * Passing null clears it, and the tree falls back to the founder — which is the behaviour
+ * every family had before the column existed, so clearing is a real answer rather than a
+ * broken state.
+ */
+export async function setBloodlineAnchor(
+  personId: string | null,
+): Promise<{ success: boolean; message?: string }> {
+  const g = await requireEdit('admin/family')
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'No family selected' }
+
+  // §4: the id decides what every member sees on the tree, and the database guard
+  // (`families_guard_bloodline_anchor`) is the second layer rather than the only one —
+  // it raises, and a raised exception is a worse message than this one.
+  if (personId && !(await belongsToFamily('people', personId, g.familyCode))) {
+    return { success: false, message: 'Person not found' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('families')
+    .update({ bloodline_anchor_id: personId })
+    .eq('family_code', g.familyCode)
+
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath('/family-tree')
+  revalidatePath('/dashboard')
   return { success: true }
 }
 

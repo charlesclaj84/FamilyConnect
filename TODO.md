@@ -231,11 +231,15 @@ What is deliberately absent, and what each would take:
   "Step" pill, and it vanishes in the Bloodline view; nothing draws the second marriage
   it implies.
 
-  **Two follow-ups this created.** `is_step` is now dead weight on the table and should be
+  **One follow-up this created.** `is_step` is now dead weight on the table and should be
   dropped in its own migration (see 20260813000006 for how much care a column drop wants).
-  And the bloodline ANCHOR is `families.created_by` with no override, so a family whose
-  founder married in gets the answer backwards — it needs a setting, or a rule better than
-  "whoever signed up first".
+
+  **The anchor got its setting** (`20260813000008`), and the case that forced it was not
+  the one predicted here. It was not a founder who married in — it was a founder who is a
+  SON. Anchored on him the walk goes up through his mother, so his father's former wife
+  comes back as a blood relative of the line while the current wife correctly does not,
+  from the same rule. `families.bloodline_anchor_id` is nullable and falls back to the
+  founder, so nothing changed for a family that does not set it.
 * **More than one marriage.** Every spouse renders beside the focus person with no way to
   say which children belong to which union. This is the hardest of the three and the one
   most likely to force a layout change rather than an addition.

@@ -16,7 +16,8 @@ import {
   type TreeRelation,
 } from '@/lib/family-tree'
 import {
-  removeRelationship, type FamilyTree, type TreeEdge, type TreePerson,
+  removeRelationship, setBloodlineAnchor,
+  type FamilyTree, type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
 
 /**
@@ -57,7 +58,12 @@ import {
  * card in the new family rather than pointing at a person who is not in it.
  */
 
-export function FamilyTreeBuilder({ tree, canEdit }: { tree: FamilyTree; canEdit: boolean }) {
+export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
+  tree: FamilyTree
+  canEdit: boolean
+  /** `admin/family:edit` — see the page. Decides whether the anchor picker is offered. */
+  canSetAnchor?: boolean
+}) {
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -359,6 +365,54 @@ export function FamilyTreeBuilder({ tree, canEdit }: { tree: FamilyTree; canEdit
               ? `Showing the ${bloodline!.size} people descended from this family's line. Spouses, step and adopted relatives are hidden.`
               : `Everyone in the family — ${tree.people.length} people, ${bloodline!.size} of them by blood.`}
           </p>
+        </div>
+      )}
+
+      {/* WHOSE LINE. The single most consequential setting on this page and the one nobody
+          would think to look for, so it sits next to the thing it decides rather than in
+          Family Settings.
+
+          It matters because the default is a poor one: anchored on the FOUNDER, a family
+          created by a son walks up through his mother — so his father's former wife comes
+          back as blood while the current wife correctly does not, from the same rule. The
+          fix is to name the person the line descends from, usually the oldest recorded
+          ancestor rather than whoever signed up.
+
+          Offered on `admin/family:edit`, the grant that renames the family, because it is
+          the same kind of decision: one setting that changes what every member sees. */}
+      {canSetAnchor && bloodline !== null && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <label htmlFor="bloodline-anchor" className="font-medium">
+            Bloodline descends from
+          </label>
+          <select
+            id="bloodline-anchor"
+            value={tree.bloodlineAnchorId ?? ''}
+            disabled={isPending}
+            onChange={e => {
+              const next = e.target.value || null
+              setError('')
+              startTransition(async () => {
+                const r = await setBloodlineAnchor(next)
+                if (!r.success) { setError(r.message ?? 'Could not change that.'); return }
+                router.refresh()
+              })
+            }}
+            className="rounded-lg border bg-transparent px-2 py-1 text-xs"
+          >
+            {/* An explicit "clear" rather than a blank first row, so the fallback is a
+                choice somebody can make on purpose and read back afterwards. */}
+            <option value="">Whoever created the family</option>
+            {tree.people.map(p => (
+              <option key={p.id} value={p.id}>
+                {nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim()}
+              </option>
+            ))}
+          </select>
+          <span>
+            Everyone who shares an ancestor with them is a blood relative; their spouses
+            are not.
+          </span>
         </div>
       )}
 

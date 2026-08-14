@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { isApprovedMember } from '@/lib/auth/family'
+import { canAny } from '@/lib/auth/permissions'
 import { getFamilyTree } from '@/app/actions/family-tree'
 import { PageShell } from '@/components/layout/PageShell'
 import { FamilyTreeBuilder, TreeLegend } from '@/components/family-tree/FamilyTreeBuilder'
@@ -83,6 +84,12 @@ export default async function FamilyTreePage() {
   // has changed a prop rather than a permission.
   const canEdit = await isApprovedMember(user.id)
 
+  // WHO MAY MOVE THE BLOODLINE ANCHOR — `admin/family:edit`, the same grant that renames
+  // the family, because it is the same kind of decision: one setting that changes what
+  // every member sees. Deliberately NOT the tree's self-service rule. Any member may say
+  // who their father is; redefining whose line the family descends from is not that.
+  const canSetAnchor = await canAny(user.id, 'admin/family', 'edit')
+
   return (
     <PageShell className="space-y-6">
       <div>
@@ -99,7 +106,7 @@ export default async function FamilyTreePage() {
           the sentence that offered "one person's line rather than the family's" described
           a distinction that no longer exists. Clicking anybody on the canvas re-centres
           the tree on them, which is what that link was for. */}
-      <FamilyTreeBuilder tree={tree} canEdit={canEdit} />
+      <FamilyTreeBuilder tree={tree} canEdit={canEdit} canSetAnchor={canSetAnchor} />
     </PageShell>
   )
 }

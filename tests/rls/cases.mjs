@@ -914,6 +914,23 @@ export const MORE_CASES = [
   },
   {
     kind: 'write',
+    id: 'family-tree.setBloodlineAnchor',
+    mod: 'app/actions/family-tree.ts', fn: 'setBloodlineAnchor',
+    // BRAVO's administrator anchoring ALPHA's bloodline on an ALPHA person. Two things
+    // have to hold and they are separate: the write must land on the caller's OWN
+    // families row (the `.eq('family_code', …)`), and the id must be checked into that
+    // family (§4). Neither is RLS — this runs on the admin client.
+    args: fx => [fx.alpha.child.id],
+    positiveArgs: fx => [fx.alpha.child.id],
+    probe: db => snapshot('families', 'family_code, bloodline_anchor_id',
+      { family_code: 'ALPHATEST' })(db),
+    // NOT a plain member: this is family-wide configuration on `admin/family:edit`, the
+    // same grant renameFamily uses. If alphaMember ever makes this control go green,
+    // somebody has widened who may redefine the family's line.
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
     id: 'dues.setMyDuesPlan',
     mod: 'app/actions/dues.ts', fn: 'setMyDuesPlan',
     // The attacker enrols themselves against ALPHA's schedule. A plan row bound to
