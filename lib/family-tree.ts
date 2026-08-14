@@ -238,34 +238,49 @@ export function isLinkKind(value: string): value is LinkKind {
 }
 
 /**
- * The relations blood travels down. Spouse is deliberately absent — that is the whole
- * definition, and everything below is bookkeeping around it.
- *
- * Sibling counts. Two brothers are blood whether or not the parent joining them has been
- * recorded yet, and on a half-built tree that is the common case: somebody enters their
- * brother long before they enter their father.
- */
-const BLOOD_RELATIONS: readonly TreeRelation[] = ['parent', 'child', 'sibling']
-
-/**
  * Who in this family is related to the anchor BY BLOOD, as opposed to by marriage.
  *
- * ── THE RULE ────────────────────────────────────────────────────────────────────────
- * Walk out from the anchor through parent, child and sibling edges whose `kind` is
- * 'blood'. Whoever you reach is the bloodline; everybody else is in this family by
- * marriage, by adoption, or not yet attached to anybody.
+ * ── THE RULE: A SHARED ANCESTOR ─────────────────────────────────────────────────────
+ * Two people are blood relatives when they have an ancestor in common. So: walk UP from
+ * the anchor through `parent` edges marked 'blood' to get its ancestors — itself
+ * included — and then keep anybody whose own ancestors intersect that set.
  *
- * BOTH HALVES ARE LOAD-BEARING and they fail differently:
+ * That covers every case a family means by the word, and covers them for one reason
+ * rather than several: descendants (their ancestors include the anchor), siblings and
+ * cousins (a shared parent or grandparent), aunts and great-uncles (a shared ancestor
+ * further up). Nothing is special-cased.
  *
- *   the relation   stops the walk crossing a MARRIAGE. Without it a spouse is one hop
- *                  from the anchor and the whole of their family is two.
- *   the kind       stops it crossing a link that is not by blood. This is the half no
- *                  graph can supply: a member with three children, one of them his by
- *                  blood, has three identical `child` edges and only a person knows
- *                  which. 20260813000007 is where that answer now lives.
+ * ── WHY IT IS NOT A CONNECTED-COMPONENT WALK, WHICH IS WHAT IT USED TO BE ───────────
+ * The first version walked OUT from the anchor through parent, child and sibling edges
+ * in both directions and kept whoever it reached. That is wrong, and wrong in a way that
+ * looks right until a real family hits it, because the relation "connected by blood
+ * edges" is not the relation "blood relative": a child is blood to BOTH parents, so a
+ * walk that goes down to a child and back up to their other parent has crossed from one
+ * line into an unrelated one.
  *
- * Dropping either one is silent — the walk still returns a plausible set, just the wrong
- * one — which is why the toggle they feed is worth a test rather than a look.
+ * It was reported as step-children carrying the droplet anyway. Marking them `step` had
+ * done nothing, because there was a second route in:
+ *
+ *     Charles --Daughter[blood]--> Sydnee     (his daughter, correctly blood)
+ *     Angel   --Sister  [blood]--> Sydnee     (her half-sister, also correctly blood)
+ *
+ * Both rows are true. The old walk chained them and put Angel — Charles's step-daughter,
+ * explicitly marked — in his bloodline. The same chain reached one step further and put
+ * Sydnee's MOTHER in it, who is Charles's wife.
+ *
+ * Nothing about the data was wrong. Half-siblings really are blood relatives of each
+ * other; they are simply not blood relatives of each other's other parent, and only a
+ * directed rule can tell those apart.
+ *
+ * ── SIBLING EDGES DO NOT CONDUCT, AND THAT IS THE DELIBERATE COST ───────────────────
+ * Only `parent` edges are walked. A brother recorded with no shared parent on record is
+ * therefore NOT in the bloodline — the tree has been told they are siblings and not told
+ * whose children they are, and guessing which parent they share is exactly how Angel got
+ * a droplet. The dialog now asks for the shared parents when a sibling is added, which is
+ * where that fact belongs; recording it puts them in.
+ *
+ * Erring this way is deliberate: a missing droplet is a fact nobody has entered yet, and
+ * a wrong one is the product telling a family something false about itself.
  *
  * ── IT IS FAMILY-WIDE, NOT PER VIEWER ───────────────────────────────────────────────
  * The anchor is the FAMILY's, so the same set comes back whoever is looking. A
@@ -287,32 +302,53 @@ export function bloodlineIds(
   const known = new Set(people.map(p => p.id))
   if (!known.has(anchorId)) return null
 
-  const blood = new Set<TreeRelation>(BLOOD_RELATIONS)
-  const out = new Map<string, string[]>()
+  // Who each person's blood parents are. `relation: 'parent'` reads "`to` is `from`'s
+  // parent", so this is already the upward direction and needs no mirroring — the derived
+  // half of every stored row is in `edges` too, carrying the same `kind`.
+  const parents = new Map<string, string[]>()
   for (const edge of edges) {
-    if (!blood.has(edge.relation)) continue
+    if (edge.relation !== 'parent') continue
     if (edge.kind !== 'blood') continue
-    // Both ends must be in the roster; `getFamilyTree` has already dropped dangling
-    // edges, and doing it again here keeps this function correct for any caller.
     if (!known.has(edge.from) || !known.has(edge.to)) continue
-    const list = out.get(edge.from)
-    if (list) list.push(edge.to); else out.set(edge.from, [edge.to])
+    const list = parents.get(edge.from)
+    if (list) list.push(edge.to); else parents.set(edge.from, [edge.to])
   }
 
-  // Breadth-first rather than recursive: a deep family is deep, and `summarizeTree` next
-  // door already carries a comment about what an unguarded walk does to a cyclic graph.
-  // `seen` is the guard here — a cousin marriage makes this graph cyclic in practice.
-  const seen = new Set<string>([anchorId])
-  const queue = [anchorId]
-  while (queue.length > 0) {
-    const id = queue.shift()!
-    for (const next of out.get(id) ?? []) {
-      if (seen.has(next)) continue
-      seen.add(next)
-      queue.push(next)
+  /**
+   * Everybody at or above `id`. Memoized across calls because a family converges: two
+   * cousins share a grandparent, and without the cache that subtree is walked once per
+   * descendant.
+   *
+   * `visiting` guards a cycle. `person_relationships` has no constraint stopping somebody
+   * being recorded as their own grandfather, and an unguarded upward walk on such a graph
+   * does not return a wrong answer — it never returns. Same reasoning as `summarizeTree`.
+   */
+  const cache = new Map<string, Set<string>>()
+  const visiting = new Set<string>()
+  function ancestorsOf(id: string): Set<string> {
+    const hit = cache.get(id)
+    if (hit) return hit
+    if (visiting.has(id)) return new Set([id])
+    visiting.add(id)
+
+    const out = new Set<string>([id])
+    for (const parent of parents.get(id) ?? []) {
+      for (const up of ancestorsOf(parent)) out.add(up)
+    }
+
+    visiting.delete(id)
+    cache.set(id, out)
+    return out
+  }
+
+  const anchorLine = ancestorsOf(anchorId)
+  const blood = new Set<string>()
+  for (const person of people) {
+    for (const up of ancestorsOf(person.id)) {
+      if (anchorLine.has(up)) { blood.add(person.id); break }
     }
   }
-  return seen
+  return blood
 }
 
 /** What the dashboard widget and the canvas both want to know about a tree. */
