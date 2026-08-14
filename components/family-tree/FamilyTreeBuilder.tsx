@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Unlink, Users, Crown, Sprout, Pencil } from 'lucide-react'
+import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -13,7 +13,7 @@ import { AddRelativeDialog } from '@/components/family-tree/AddRelativeDialog'
 import { PersonRecordDialog } from '@/components/family-tree/PersonRecordDialog'
 import {
   TREE_RELATIONSHIPS, leafIds, bloodlineIds, relationshipMeta,
-  type LinkKind, type TreeRelation,
+  type TreeRelation,
 } from '@/lib/family-tree'
 import {
   removeRelationship, type FamilyTree, type TreeEdge, type TreePerson,
@@ -254,7 +254,7 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
         person={person}
         name={nameOf.get(person.id) ?? `${person.firstName} ${person.lastName}`.trim()}
         highlight={opts?.highlight}
-        kind={opts?.edge?.kind}
+        inBloodline={bloodline ? bloodline.has(person.id) : undefined}
         onFocus={() => setFocusId(person.id)}
         onDetach={opts?.edge ? () => detach(opts.edge!, nameOf.get(person.id) ?? 'them') : undefined}
         onManage={canManage ? () => setManaging({ person, edge: kindEdge, spouseEdge: typeEdge }) : undefined}
@@ -483,7 +483,10 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
                     : 'hover:border-brand-primary/50 hover:bg-brand-soft/40',
                 )}
               >
-                {nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim()}
+                <span className="flex items-center gap-1">
+                  {nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim()}
+                  <BloodDroplet show={bloodline ? bloodline.has(p.id) : undefined} />
+                </span>
                 <NickName nickName={p.nickName} />
               </button>
             )
@@ -620,12 +623,15 @@ function Connector({ show }: { show: boolean }) {
  * still needs to say is whether anybody can reach them, which is what the three pills
  * above answer; how old they are is on their profile, and is derived from a date.
  */
-function PersonCard({ person, name, highlight, kind, onFocus, onDetach, onManage, busy }: {
+function PersonCard({ person, name, highlight, inBloodline, onFocus, onDetach, onManage, busy }: {
   person: TreePerson
   name: string
   highlight?: boolean
-  /** The kind of the link this card was reached by, when there is one. */
-  kind?: LinkKind
+  /**
+   * Marked with a droplet. Undefined when the family has no anchor to walk from, and the
+   * card then says nothing rather than implying "not blood" — see `bloodlineIds`.
+   */
+  inBloodline?: boolean
   onFocus: () => void
   onDetach?: () => void
   /** Given when there is a record to edit or a connection to classify. */
@@ -649,21 +655,16 @@ function PersonCard({ person, name, highlight, kind, onFocus, onDetach, onManage
       >
         <Avatar url={person.avatarUrl} initials={initials} size="sm" />
         <span className="w-full text-sm font-medium">
-          <span className="block truncate">{name}</span>
+          <span className="flex min-w-0 items-center justify-center gap-1">
+            <span className="truncate">{name}</span>
+            <BloodDroplet show={inBloodline} />
+          </span>
           {/* The nickname sits UNDER the name rather than in parentheses beside it: a
               card is 10rem wide and "Charles Allen (Chuck)" truncates to "Charles All…",
               which loses the very thing the nickname was added to supply. */}
           <NickName nickName={person.nickName} className="truncate" />
         </span>
         <span className="flex flex-wrap justify-center gap-1">
-          {/* The kind FIRST, because it changes what the card means. Blood prints nothing
-              — see LINK_KIND_PREFIX: qualifying the ordinary case would make it look like
-              the remarkable one. */}
-          {kind && kind !== 'blood' && (
-            <Pill title="Not a blood relative, so hidden in the Bloodline view">
-              <span className="capitalize">{kind}</span>
-            </Pill>
-          )}
           {!person.hasAccount && <Pill>Record only</Pill>}
           {person.hasAccount && person.membershipStatus === 'pending' && <Pill>Invited</Pill>}
           {person.emailIsPlaceholder && (
@@ -705,6 +706,46 @@ function PersonCard({ person, name, highlight, kind, onFocus, onDetach, onManage
   )
 }
 
+/**
+ * A droplet of blood beside the name of somebody in the bloodline.
+ *
+ * ── IT MARKS THE RULE, NOT THE EXCEPTION, AND THAT IS THE CHANGE ────────────────────
+ * The cards used to carry the opposite: a "Step" / "Adopted" / "Foster" pill on everybody
+ * who was NOT blood. That reads as a correction attached to a person — a word about how
+ * somebody joined the family, printed on their face, on the one screen the whole family
+ * looks at. Marking the bloodline instead says the same thing about the tree without
+ * saying anything about them.
+ *
+ * It is also the more honest shape. The pill described the EDGE you happened to arrive by,
+ * so the same person carried a different label depending on whose card you were looking
+ * from; the droplet describes the person's place in the family, which is one answer
+ * wherever you stand.
+ *
+ * ── THE COLOUR ──────────────────────────────────────────────────────────────────────
+ * `--brand-primary` and not a literal (AGENTS.md forbids the literal, and there is no
+ * blood-red token). It is the one brand role that stays burgundy in BOTH themes —
+ * Heritage in light, `--genorra-heritage-lift` in dark at a measured 6.81 — where
+ * `--brand-ink` would turn to sand and `--brand-accent` to gold. A droplet has to be the
+ * colour of the thing it is a droplet of, in both themes or in neither.
+ *
+ * ── UNDEFINED IS NOT FALSE ──────────────────────────────────────────────────────────
+ * `show` is undefined when the family has no bloodline anchor, and nothing renders. An
+ * absent droplet then means "we do not know", exactly as the missing toggle does; only
+ * `false` means "not in it", and both look the same on purpose — a card that has never
+ * been asked the question should not answer it.
+ */
+function BloodDroplet({ show }: { show?: boolean }) {
+  if (!show) return null
+  return (
+    <span className="shrink-0 leading-none" title="In the bloodline">
+      <Droplet className="h-3 w-3 fill-brand-primary text-brand-primary" aria-hidden="true" />
+      {/* The icon is the whole signal, so it owes a screen reader the words. `title`
+          alone is not read reliably and is not reachable by keyboard. */}
+      <span className="sr-only">In the bloodline</span>
+    </span>
+  )
+}
+
 function Pill({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <span
@@ -729,6 +770,12 @@ export function TreeLegend() {
       <span className="flex items-center gap-1.5">
         <Crown className="h-3 w-3 text-brand-legacy" aria-hidden="true" />
         Click anybody to centre the tree on them
+      </span>
+      {/* The droplet is the one mark on a card that is not self-evident, so it is the one
+          the legend spends a line on. A colour with no key is decoration. */}
+      <span className="flex items-center gap-1.5">
+        <Droplet className="h-3 w-3 fill-brand-primary text-brand-primary" aria-hidden="true" />
+        Marks a blood relative
       </span>
       <span>· Dashed cards are gaps you can fill</span>
       <span>· Removing a connection never removes anyone from the family</span>
