@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { isApprovedMember } from '@/lib/auth/family'
 import { getFamilyTree } from '@/app/actions/family-tree'
 import { PageShell } from '@/components/layout/PageShell'
 import { FamilyTreeBuilder, TreeLegend } from '@/components/family-tree/FamilyTreeBuilder'
@@ -65,6 +66,23 @@ export default async function FamilyTreePage() {
   // its own and the page in front of it is a convenience rather than a gate.
   const tree = await getFamilyTree()
 
+  // WHO MAY EDIT THE TREE, resolved server-side and handed down as one boolean.
+  //
+  // Today it is "an approved member of this family", which is exactly what every write
+  // action behind the canvas already demands (`requireMember()`), so the toggle appears
+  // for precisely the people whose edits would in fact succeed. A pending applicant reads
+  // the tree and is refused every write, and now sees no edit affordance to be refused at.
+  //
+  // IT IS RESOLVED HERE RATHER THAN IN THE COMPONENT so that registering `family-tree` as
+  // a permission resource — the open decision in TODO.md, which this feature is the second
+  // half of — is a change to THIS LINE and nothing else. The canvas already asks a
+  // question it does not answer.
+  //
+  // NOT A GATE. It decides what is offered, not what is permitted: every action re-checks
+  // for itself, because this boolean travels in the RSC payload and a caller who edits it
+  // has changed a prop rather than a permission.
+  const canEdit = await isApprovedMember(user.id)
+
   return (
     <PageShell className="space-y-6">
       <div>
@@ -81,7 +99,7 @@ export default async function FamilyTreePage() {
           the sentence that offered "one person's line rather than the family's" described
           a distinction that no longer exists. Clicking anybody on the canvas re-centres
           the tree on them, which is what that link was for. */}
-      <FamilyTreeBuilder tree={tree} />
+      <FamilyTreeBuilder tree={tree} canEdit={canEdit} />
     </PageShell>
   )
 }

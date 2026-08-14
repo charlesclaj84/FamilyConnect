@@ -7,8 +7,8 @@ import { belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { inviteMember } from '@/app/actions/invitations'
 import {
-  isTreeRelationshipType, inverseTypeFor, relationFor, placeholderEmail, summarizeTree,
-  isLinkKind, type LinkKind, type TreeRelation, type TreeSummary,
+  isTreeRelationshipType, inverseTypeFor, relationFor, relationshipMeta, placeholderEmail,
+  summarizeTree, isLinkKind, type LinkKind, type TreeRelation, type TreeSummary,
 } from '@/lib/family-tree'
 
 /**
@@ -344,6 +344,25 @@ export interface AddRelativeInput {
   email?: string
   /** mode 'record' only, and required there. */
   noEmailReason?: string
+  /**
+   * People who should ALSO become parents of the person being added.
+   *
+   * ── THE GAP THIS CLOSES ─────────────────────────────────────────────────────────
+   * A sibling edge records that two people are siblings and nothing about WHOSE children
+   * they are. So adding a sister put her beside you and left her invisible from your
+   * father's card — he had a son and, as far as the database knew, no daughter. The tree
+   * looked wrong from one end and right from the other, which is the worst way for a
+   * family tree to be wrong.
+   *
+   * Siblings share parents by definition, so the dialog offers the anchor's parents here
+   * and ticks them; a child added to somebody with a spouse offers the spouse the same
+   * way. It is OFFERED rather than assumed, because half-siblings are ordinary and
+   * silently inventing a parent is exactly the mistake a family tree must never make.
+   *
+   * Every id is checked into the caller's family before it is written (§4), like every
+   * other id on this input.
+   */
+  sharedParentIds?: string[]
 }
 
 export type AddRelativeResult =
@@ -436,6 +455,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
         first_name: firstName,
         last_name: lastName,
         primary_email: generatedEmail,
+        gender: relationshipMeta(type)?.gender ?? null,
         email_is_placeholder: true,
         no_email_reason: reason,
       })
@@ -449,6 +469,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
         first_name: firstName,
         last_name: lastName,
         primary_email: email,
+        gender: relationshipMeta(type)?.gender ?? null,
       })
       if (!created.ok) return { success: false, message: created.message }
       personId = created.id
@@ -489,6 +510,48 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
   })
   if (!link.ok) return { success: false, message: link.message }
 
+  // ── THE SHARED PARENTS ────────────────────────────────────────────────────────────
+  // A second set of edges, so a sister is also her father's daughter and shows up on HIS
+  // card rather than only beside the person who added her. See `sharedParentIds`.
+  //
+  // BEST-EFFORT, and deliberately after the edge above rather than beside it: the
+  // relationship the member asked for is already recorded and correct, so a parent link
+  // that cannot be written must not fail the whole addition and lose it.
+  //
+  // The word is the CHILD's, from the gender the relationship implied — a Brother is his
+  // parents' Son. Nothing to write when that is unknown (Partner, or a plain 'existing'
+  // link to somebody whose gender nobody has recorded), because `relationship_types` has
+  // no gender-neutral child and inventing one is not this function's decision.
+  const childType = relationshipMeta(type)?.gender === 'male' ? 'Son'
+    : relationshipMeta(type)?.gender === 'female' ? 'Daughter'
+    : null
+
+  const sharedParents = (input.sharedParentIds ?? []).filter(id => id && id !== personId)
+  if (childType && sharedParents.length > 0) {
+    const { data: childTypeRow } = await admin
+      .from('relationship_types').select('id').eq('name', childType).maybeSingle()
+
+    if (childTypeRow) {
+      for (const parentId of sharedParents) {
+        // §4 on every one of them, individually. They arrive from the client and each
+        // becomes the `person_id` of a row whose family_code satisfies every policy.
+        if (!(await belongsToFamily('people', parentId, g.familyCode))) continue
+        await linkRelationship({
+          familyCode: g.familyCode,
+          userId: g.userId,
+          anchorPersonId: parentId,
+          personId,
+          typeId: childTypeRow.id as string,
+          type: childType,
+          // A shared parent is a blood link by default for the same reason the main edge
+          // is, and the caller's answer carries across: somebody adding a step-brother is
+          // saying the parent link is a step one too.
+          linkKind: isLinkKind(input.linkKind ?? '') ? (input.linkKind as LinkKind) : 'blood',
+        })
+      }
+    }
+  }
+
   revalidatePath('/family-tree')
   revalidatePath('/members')
   return {
@@ -516,6 +579,18 @@ async function createPerson(
   userId: string,
   fields: {
     first_name: string; last_name: string; primary_email: string
+    /**
+     * From the relationship that created them — Brother means male, Daughter female,
+     * Partner nothing.
+     *
+     * `lib/family-tree.ts` has claimed since it was written that "naming the relationship
+     * also sets the new person's gender, which is what makes the inverse edge writable",
+     * and until 2026-08-13 nothing did it. The cost compounded quietly: no gender meant
+     * `inverseTypeFor` returned null, so the inverse row was never written, so the
+     * father/mother slots stayed empty and `setRelationshipType` from the far side had
+     * nothing to name the relationship with.
+     */
+    gender?: string | null
     email_is_placeholder?: boolean; no_email_reason?: string
   },
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {

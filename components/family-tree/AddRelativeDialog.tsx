@@ -69,7 +69,7 @@ const MODES: { id: AddRelativeMode; label: string; hint: string; icon: typeof Us
 ]
 
 export function AddRelativeDialog({
-  open, onClose, anchor, relationshipType, candidates,
+  open, onClose, anchor, relationshipType, candidates, coParents = [],
 }: {
   open: boolean
   onClose: () => void
@@ -79,6 +79,14 @@ export function AddRelativeDialog({
   relationshipType: string
   /** Everyone eligible to be linked — the roster minus the anchor and existing relatives. */
   candidates: TreePerson[]
+  /**
+   * People who could ALSO be a parent of whoever is being added — the anchor's parents
+   * when adding a sibling, the anchor's spouses when adding a child.
+   *
+   * Empty when there is nothing to ask, and the question then does not appear. That is
+   * most of a young tree, which is why this is a question and not a step.
+   */
+  coParents?: { id: string; name: string }[]
 }) {
   const router = useRouter()
   const [mode, setMode] = useState<AddRelativeMode>('existing')
@@ -92,6 +100,11 @@ export function AddRelativeDialog({
   const [email, setEmail] = useState('')
   const [reason, setReason] = useState('')
   const [linkKind, setLinkKind] = useState<LinkKind>('blood')
+  // TICKED BY DEFAULT. Sharing both parents is what "brother" means to most families most
+  // of the time, and a half-sibling is the case somebody unticks — the opposite default
+  // makes the ordinary addition take an extra decision and leaves the tree half-built when
+  // nobody notices the question.
+  const [sharedParents, setSharedParents] = useState<string[]>(() => coParents.map(p => p.id))
   const [error, setError] = useState('')
   const [result, setResult] = useState<{
     invited: boolean; emailed: boolean; placeholderEmail?: string; name: string
@@ -112,6 +125,7 @@ export function AddRelativeDialog({
     setEmail('')
     setReason('')
     setLinkKind('blood')
+    setSharedParents(coParents.map(p => p.id))
     setError('')
     setResult(null)
   }
@@ -143,6 +157,7 @@ export function AddRelativeDialog({
         email,
         noEmailReason: reason,
         linkKind,
+        sharedParentIds: sharedParents,
       })
       if (!r.success) { setError(r.message); return }
       setResult({
@@ -238,6 +253,43 @@ export function AddRelativeDialog({
                 {linkKind === 'blood'
                   ? 'Blood relatives appear in the Bloodline view of the tree.'
                   : `Recorded as ${linkKindLabel(linkKind, meta.label)} — they will not appear in the Bloodline view.`}
+              </p>
+            </div>
+          )}
+
+          {/* THE FOLLOW-UP QUESTION, and it is the one that keeps the tree consistent from
+              both ends. A sibling edge says two people are siblings and nothing about whose
+              children they are, so a sister added here was invisible from her own father's
+              card until this existed. Ticked by default; unticking is what a half-sibling
+              looks like. */}
+          {coParents.length > 0 && (
+            <div className="space-y-2 rounded-xl border bg-muted/30 px-4 py-3">
+              <Label>
+                {meta?.relation === 'sibling'
+                  ? `Do they share ${anchorName}'s parents?`
+                  : `Who else is a parent of this ${relationLabel}?`}
+              </Label>
+              <div className="space-y-1.5">
+                {coParents.map(p => {
+                  const on = sharedParents.includes(p.id)
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => setSharedParents(
+                          on ? sharedParents.filter(id => id !== p.id) : [...sharedParents, p.id],
+                        )}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      {p.name}
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ticking somebody records the parent link too, so this person appears on
+                their card as well — not only beside {anchorName}.
               </p>
             </div>
           )}

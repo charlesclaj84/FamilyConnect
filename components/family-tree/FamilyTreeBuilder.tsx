@@ -57,7 +57,7 @@ import {
  * card in the new family rather than pointing at a person who is not in it.
  */
 
-export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
+export function FamilyTreeBuilder({ tree, canEdit }: { tree: FamilyTree; canEdit: boolean }) {
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -88,6 +88,27 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
   // change what you are looking at. (The layout remounts this component anyway; this is
   // about not treating it as family-scoped state — see AGENTS.md on the remount rule.)
   const [bloodOnly, setBloodOnly] = useState(false)
+
+  // VIEW OR EDIT, and it starts in VIEW even for somebody who may edit.
+  //
+  // The canvas carries a control on almost every surface — a "+" in each empty slot, an
+  // unlink on each drawn relative, a pencil on each card — and every one of them is there
+  // for BUILDING the tree. Reading it is the commoner act by a wide margin, and reading a
+  // diagram whose every node has two buttons on it is reading around the furniture. In
+  // view the marks that carry meaning stay (the droplet, the pills, the focus ring) and
+  // everything that acts is gone.
+  //
+  // Defaulting to edit would have been the smaller change and is the wrong one: a member
+  // opening the tree to look something up should not have to tidy it first, and the "+"
+  // cards in particular read as things that are MISSING rather than things you may add.
+  //
+  // `editing` is UI-local and per session, deliberately not persisted: the mode is what
+  // you are doing right now, not a preference about yourself.
+  const [editing, setEditing] = useState(false)
+  // The one place the two combine, so no control has to remember both. A non-member who
+  // somehow reached the page cannot flip into edit at all, and every action re-checks
+  // regardless — see the note on `canEdit` in the page.
+  const canAct = canEdit && editing
 
   const byId = useMemo(
     () => new Map(tree.people.map(p => [p.id, p])),
@@ -222,7 +243,7 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
     })
   }
 
-  const addButton = (anchor: TreePerson, type: string, label?: string) => (
+  const addButton = (anchor: TreePerson, type: string, label?: string) => !canAct ? null : (
     <button
       key={type}
       type="button"
@@ -256,8 +277,8 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
         highlight={opts?.highlight}
         inBloodline={bloodline ? bloodline.has(person.id) : undefined}
         onFocus={() => setFocusId(person.id)}
-        onDetach={opts?.edge ? () => detach(opts.edge!, nameOf.get(person.id) ?? 'them') : undefined}
-        onManage={canManage ? () => setManaging({ person, edge: kindEdge, spouseEdge: typeEdge }) : undefined}
+        onDetach={canAct && opts?.edge ? () => detach(opts.edge!, nameOf.get(person.id) ?? 'them') : undefined}
+        onManage={canAct && canManage ? () => setManaging({ person, edge: kindEdge, spouseEdge: typeEdge }) : undefined}
         busy={isPending}
       />
     )
@@ -271,6 +292,41 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
   return (
     <div className="space-y-4">
       <FormError message={error} />
+
+      {/* VIEW OR EDIT. Offered only to somebody who may actually edit, so it is not a
+          control that exists to be refused. Its own row above the Bloodline filter,
+          because the two are different kinds of thing: this one changes what the canvas
+          LETS YOU DO, the other changes who is on it. */}
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label="Tree mode">
+            {([
+              { id: false, label: 'View' },
+              { id: true, label: 'Edit' },
+            ] as const).map(o => (
+              <button
+                key={String(o.id)}
+                type="button"
+                onClick={() => setEditing(o.id)}
+                aria-pressed={editing === o.id}
+                className={cn(
+                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  editing === o.id
+                    ? 'bg-brand-primary text-brand-on-primary'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {editing
+              ? 'Add relatives, correct records and remove connections. Nothing here removes anybody from the family.'
+              : 'Reading the tree. Switch to Edit to add relatives or change a connection.'}
+          </p>
+        </div>
+      )}
 
       {/* BLOODLINE OR EVERYONE. Offered only when the family HAS a bloodline that differs
           from its roster: with no anchor there is no honest answer, and with everybody in
@@ -387,20 +443,27 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
           the same. They belong to the focus person's own generation, so drawing them in
           that row would put four cards where the eye is looking for one — and a person
           with eight siblings would push their own card off the side of the diagram. */}
-      <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
-        <h2 className="mb-1 text-lg">
-          {focus.firstName ? `${focus.firstName}'s brothers and sisters` : 'Brothers and sisters'}
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Siblings share this person&apos;s generation, so they are listed here rather than
-          drawn in the row above.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          {siblings.map(p => card(p, { edge: related(focus.id, 'sibling').find(e => e.to === p.id) }))}
-          {TREE_RELATIONSHIPS.filter(r => r.relation === 'sibling')
-            .map(r => addButton(focus, r.type))}
-        </div>
-      </section>
+      {/* NOT RENDERED AT ALL when there is nothing to put in it. In edit mode it always
+          has the two "+" cards, so this only bites in view: without the guard a person
+          with no recorded siblings got a heading, a sentence explaining where siblings
+          are listed, and then nothing — a section whose whole content was an apology for
+          being empty. Same rule the "Not on the tree yet" section already follows. */}
+      {(siblings.length > 0 || canAct) && (
+        <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
+          <h2 className="mb-1 text-lg">
+            {focus.firstName ? `${focus.firstName}'s brothers and sisters` : 'Brothers and sisters'}
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Siblings share this person&apos;s generation, so they are listed here rather than
+            drawn in the row above.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {siblings.map(p => card(p, { edge: related(focus.id, 'sibling').find(e => e.to === p.id) }))}
+            {TREE_RELATIONSHIPS.filter(r => r.relation === 'sibling')
+              .map(r => addButton(focus, r.type))}
+          </div>
+        </section>
+      )}
 
       {/* ── NOT ON THE TREE YET ───────────────────────────────────────────────────────
           The people with no relationship recorded in any direction. They are the whole
@@ -501,6 +564,22 @@ export function FamilyTreeBuilder({ tree }: { tree: FamilyTree }) {
           anchor={adding.anchor}
           relationshipType={adding.type}
           candidates={candidates}
+          // WHO ELSE COULD BE A PARENT of the person being added. A sibling shares the
+          // anchor's parents; a child's other parent is the anchor's spouse. Computed here
+          // rather than in the dialog because this is where the adjacency already is, and
+          // resolved against the ANCHOR — which is the focus person for every "+" on the
+          // canvas, but is stated explicitly so it stays right if that ever changes.
+          coParents={(() => {
+            const meta = relationshipMeta(adding.type)
+            const from = meta?.relation === 'sibling' ? 'parent'
+              : meta?.relation === 'child' ? 'spouse'
+              : null
+            if (!from) return []
+            return peopleFor(adding.anchor.id, from).map(p => ({
+              id: p.id,
+              name: nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim(),
+            }))
+          })()}
         />
       )}
 

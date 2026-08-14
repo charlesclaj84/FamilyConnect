@@ -176,7 +176,29 @@ Whichever is chosen, one more surface reads this key now: the Dashboard's Family
 resolves `can(user.id, 'family-tree', 'view')` before fetching, so registering the resource
 starts narrowing the card without anybody having to remember it exists.
 
-Recorded 2026-08-13, when the tree stopped being a placeholder; narrowed the same day.
+**HALF OF OPTION 1 IS NOW BUILT, and it is deliberately the half with no migration in it.**
+The canvas has a View/Edit mode, and it takes a `canEdit` boolean resolved on the page —
+today `isApprovedMember(user.id)`, which is exactly what every write action behind it
+already demands. So the toggle is offered to precisely the people whose edits would
+succeed, and the question "who may edit this tree" now has ONE place that answers it.
+
+What is left is the product call and the migration, and swapping the answer is one line:
+
+```ts
+const canEdit = await can(user.id, 'family-tree', 'edit')   // instead of isApprovedMember
+```
+
+**Do not do that without the backfill**, and this is the trap worth writing down. Since
+`20260807000000` a template's grid is materialized, and `create`/`edit` default to
+`'none'` — so registering the resource and gating on it, with no `resource_visibility` and
+no per-template backfill in the same migration, makes the tree **read-only for the entire
+family including its founder**, with no error anywhere. AGENTS.md §6 says this; the tree is
+the case where it costs most, because the page keeps working and only the writing stops.
+The backfill has to cover existing templates AND whatever `families_seed_permission_templates`
+gives a family created afterwards.
+
+Recorded 2026-08-13, when the tree stopped being a placeholder; narrowed the same day; the
+UI half built later the same day.
 
 ## The family tree's second pass
 
