@@ -7,8 +7,7 @@ import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
-  installmentCents,
-  nextInstallmentDate,
+  duesPlanMath,
   currentPeriodStart,
   defaultCadence,
   type PayCadence,
@@ -117,7 +116,28 @@ export interface DuesSummary {
   cadence: PayCadence
   hasExplicitPlan: boolean
   annualTotalCents: number
+  /** The steady-state installment — what every one AFTER a catch-up costs. */
   installmentCents: number
+  /**
+   * What the NEXT installment actually has to be.
+   *
+   * Equal to `installmentCents` for a member who is level, larger when the calendar has
+   * asked for installments that were never paid — see `duesPlanMath`, which is where the
+   * whole rule lives. Already clamped to the remaining balance, so a consumer must NOT
+   * clamp it again: a second answer to "how much" is how the two used to disagree.
+   */
+  nextInstallmentCents: number
+  /** The one after the catch-up, so a screen can say what being level costs. */
+  followingInstallmentDate: string | null
+  followingInstallmentCents: number
+  /** The oldest installment whose money never arrived. Null when the member is level. */
+  overdueSinceDate: string | null
+  /** How many installments the calendar has passed this period. */
+  periodsElapsed: number
+  /** Expected by now, less what has been settled. Never negative. */
+  arrearsCents: number
+  /** False when there is a catch-up in `nextInstallmentCents`. */
+  onSchedule: boolean
   amountPaidThisPeriodCents: number
   amountPaidTotalCents: number
   /**
@@ -870,6 +890,11 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     (plansResult.data ?? []).filter(p => p.opted_out).map(p => p.schedule_id as string),
   )
 
+  // Hoisted out of the map so every schedule is measured against ONE day — the same thing
+  // getDonationProgress does below. A `new Date()` per row would be harmless today and
+  // wrong the moment a render straddles midnight.
+  const today = new Date().toISOString().slice(0, 10)
+
   return schedules.map(schedule => {
     const explicit = planBySchedule.get(schedule.id)
     const cadence = explicit ?? defaultCadence(schedule.frequency)
@@ -878,7 +903,6 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     // made required after the member opted out, must read as owed rather than declined.
     const optedOut = !schedule.required && optedOutSchedules.has(schedule.id)
     const annual = annualTotalCents(schedule)
-    const installment = installmentCents(annual, cadence)
 
     const scheduleRows = payments.filter(p => p.schedule_id === schedule.id)
     const schedulePaid = scheduleRows.filter(p => p.status === 'paid')
@@ -906,25 +930,50 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
       : Math.max(0, annual - amountPaidThisPeriodCents - amountWaivedThisPeriodCents)
     const paid = remainingBalanceCents <= 0
 
+    // ── The payment plan: what is next, when, and how far behind ──
+    //
+    // MONEY IN, NOT A ROW COUNT. This used to pass `paidThisPeriod.length +
+    // waivedThisPeriod.length` — how many LINES were in the ledger — which made two $1
+    // payments worth twice one $500 payment, and pushed the next date FORWARD every time
+    // a payment was reversed (a reversal is a `paid` row with a negative amount, so it
+    // counted as another installment while the money went the other way). The sum beside
+    // it was always right; the count was the thing that was not.
+    //
+    // Waived is summed WITH paid, for the reason the balance already does it: waiving is
+    // the family forgiving the obligation, so an installment they forgave is one the
+    // member is not being asked for again. The two are added here and nowhere else — only
+    // one of them is money, which is why they stay separate fields on the way out.
+    const plan = duesPlanMath({
+      schedule,
+      cadence,
+      periodStart,
+      today,
+      settledCents: amountPaidThisPeriodCents + amountWaivedThisPeriodCents,
+    })
+
+    // Nothing is coming due on something already settled or declined — the same
+    // suppression this has always applied, kept outside duesPlanMath so the arithmetic
+    // stays a property of the schedule rather than of this member's choices.
+    const quiet = paid || optedOut
+
     return {
       schedule,
       cadence,
       hasExplicitPlan: !!explicit,
       annualTotalCents: annual,
-      installmentCents: installment,
+      installmentCents: plan.installmentCents,
+      nextInstallmentCents: quiet ? 0 : plan.nextInstallmentCents,
+      followingInstallmentDate: quiet ? null : plan.followingInstallmentDate,
+      followingInstallmentCents: quiet ? 0 : plan.followingInstallmentCents,
+      overdueSinceDate: quiet ? null : plan.overdueSinceDate,
+      periodsElapsed: plan.periodsElapsed,
+      arrearsCents: quiet ? 0 : plan.arrearsCents,
+      onSchedule: quiet ? true : plan.onSchedule,
       amountPaidThisPeriodCents,
       amountPaidTotalCents,
       amountWaivedThisPeriodCents,
       remainingBalanceCents,
-      // Nothing is coming due on something they have declined.
-      //
-      // Waived rows count toward the installment tally as well as the balance: the
-      // date is anchor + (settled installments × cadence step), and an installment the
-      // family forgave is one the member is not being asked for again. Counting only
-      // the paid ones would keep pointing at an installment that has been dealt with.
-      nextInstallmentDate: paid || optedOut
-        ? null
-        : nextInstallmentDate(schedule, cadence, paidThisPeriod.length + waivedThisPeriod.length),
+      nextInstallmentDate: quiet ? null : plan.nextInstallmentDate,
       paid,
       lastPayment: payments.find(p => p.schedule_id === schedule.id) ?? null,
       required: schedule.required,

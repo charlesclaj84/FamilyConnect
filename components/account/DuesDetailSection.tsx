@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import {
-  installmentCents, isOutstanding, PAY_CADENCES, PAYMENT_STATUS_LABELS, type PayCadence,
+  currentPeriodStart, duesPlanMath, isOutstanding,
+  PAY_CADENCES, PAYMENT_STATUS_LABELS, type PayCadence,
 } from '@/lib/dues-utils'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
@@ -234,30 +235,70 @@ export function DuesDetailSection({
    * one date and had to infer that the other two existed. It now lists each schedule's own
    * next date, and says "Installments" when it means more than one.
    */
-  const installmentDueCents = (s: DuesSummary) => Math.min(s.installmentCents, s.remainingBalanceCents)
+  // NO CLIENT-SIDE CLAMP any more. `nextInstallmentCents` arrives already limited to the
+  // remaining balance (see DuesSummary), and the `Math.min` that used to sit here was a
+  // second answer to the same question — which is exactly how the figure in this card and
+  // the figure in the table below came to be computed two different ways.
   const upcoming = unpaid
     .filter(s => s.nextInstallmentDate)
     .sort((a, b) => (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? ''))
-  // The headline is what the member is about to pay across all of them. With one schedule
-  // that is the single installment, which is what this card has always shown.
-  const upcomingTotalCents = upcoming.reduce((sum, s) => sum + installmentDueCents(s), 0)
+  // The headline is what the member is about to pay across all of them — the catch-up
+  // included, which is the whole point: a total that quietly showed the steady installment
+  // while the row beside it asked for more is the disagreement this replaced.
+  const upcomingTotalCents = upcoming.reduce((sum, s) => sum + s.nextInstallmentCents, 0)
+
+  /**
+   * Recompute a row's plan for a cadence the member has just picked, without waiting for
+   * the server.
+   *
+   * The SAME function the server ran, from lib/dues-utils.ts — which is why that module
+   * exists at all. Every input is already on the row: `currentPeriodStart` reads the
+   * schedule's own dates (all serialized), and settled money is the two figures the
+   * summary already carries. Nothing new crosses the wire for this.
+   *
+   * `new Date()` here is the browser's clock against a period start the server sent, so a
+   * member sitting on the far side of a date boundary can see a figure one rung different
+   * from what `router.refresh()` then returns. That is a one-day skew on an optimistic
+   * preview which the refresh corrects a moment later, and it is the price of not making
+   * the member wait for a round trip to see what a plan costs.
+   */
+  const planFor = (r: DuesSummary, cadence: PayCadence) => duesPlanMath({
+    schedule: r.schedule,
+    cadence,
+    periodStart: currentPeriodStart(r.schedule),
+    today: new Date().toISOString().slice(0, 10),
+    settledCents: r.amountPaidThisPeriodCents + r.amountWaivedThisPeriodCents,
+  })
 
   async function changeCadence(scheduleId: string, cadence: PayCadence) {
     const row = rows.find(r => r.schedule.id === scheduleId)
+    const preview = row ? planFor(row, cadence) : null
     const ok = await confirm({
       title: 'Change payment plan',
-      description: row
+      description: row && preview
         // "installment", not "instalment". The single-l spelling is British and the rest
         // of this app is American — every other label says Installment, and the field it
         // describes is installmentCents.
-        ? `Pay "${row.schedule.label}" ${cadence} — ${formatCurrency(installmentCents(row.annualTotalCents, cadence))} per installment?`
+        //
+        // The catch-up is named HERE, before the change is made, because it is the whole
+        // consequence of the choice: switching to monthly in August does not mean $50 a
+        // month, it means one payment covering the year to date and $50 a month after
+        // that. A dialog that showed only the steady figure would be describing a plan
+        // the member cannot actually be on.
+        ? preview.onSchedule
+          ? `Pay "${row.schedule.label}" ${cadence} — ${formatCurrency(preview.installmentCents)} per installment?`
+          : `Pay "${row.schedule.label}" ${cadence}. Your next installment is ${formatCurrency(preview.nextInstallmentCents)}, which covers what has come due so far${preview.followingInstallmentDate ? `, then ${formatCurrency(preview.followingInstallmentCents)} per installment` : ''}.`
         : `Change this payment plan to ${cadence}?`,
       confirmLabel: 'Change plan',
     })
     if (!ok) return
+    // EVERY field of the result is spread, not the two that used to be. `rows` is
+    // `useServerState`, which adopts the server's value on the next render — so a partial
+    // patch left `arrearsCents`, `overdueSinceDate` and the date itself describing the OLD
+    // cadence until the refresh landed, with the new installment figure beside them.
     setRows(prev => prev.map(r =>
       r.schedule.id === scheduleId
-        ? { ...r, cadence, hasExplicitPlan: true, installmentCents: installmentCents(r.annualTotalCents, cadence) }
+        ? { ...r, cadence, hasExplicitPlan: true, ...planFor(r, cadence) }
         : r,
     ))
     startTransition(async () => {
@@ -460,8 +501,21 @@ export function DuesDetailSection({
                   <p className="text-muted-foreground">
                     due {fmtDate(s.nextInstallmentDate!)}
                     {' · '}
-                    <span className="font-medium text-foreground">{formatCurrency(installmentDueCents(s))}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(s.nextInstallmentCents)}</span>
                   </p>
+                  {/* THE SECOND LINE IS THE ANSWER TO "why is this more than my
+                      installment". A catch-up figure with nothing explaining it reads as
+                      an error, and the thing that explains it is what comes after: one
+                      larger payment, then the ordinary amount. Rendered only when there is
+                      one — a member who is level has nothing to catch up and needs no
+                      sentence about it. */}
+                  {!s.onSchedule && s.followingInstallmentDate && (
+                    <p className="text-muted-foreground/80">
+                      covers {s.periodsElapsed} earlier installment{s.periodsElapsed === 1 ? '' : 's'}
+                      {' · then '}
+                      {formatCurrency(s.followingInstallmentCents)} from {fmtDate(s.followingInstallmentDate)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -750,6 +804,30 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
 }) {
   const declined = row.optedOut
 
+  /**
+   * "Catching up", when the calendar has asked for installments the money never covered.
+   *
+   * NOT `--destructive`, and not red. An unpaid installment is neither an error nor a
+   * deletion — the two things that token owns — and reporting a failure is
+   * `components/ui/form-message.tsx`'s job, not a row's. `--brand-withheld` is the role
+   * for exactly this: something that looks like alarm and is not, in Warmth rather than
+   * shadcn's alarm hue.
+   *
+   * Worded as a state of the plan rather than as a verdict on the member. They may have
+   * joined in August, or simply chosen a cadence today — the schedule opened in January
+   * either way, and the figure is the same arithmetic in both cases.
+   */
+  const catchUpPill = !declined && !row.onSchedule ? (
+    <span
+      className="inline-block whitespace-nowrap rounded-full bg-brand-withheld/10 px-2 py-0.5 text-[11px] font-medium text-brand-withheld"
+      title={row.overdueSinceDate
+        ? `Includes ${row.periodsElapsed} installment${row.periodsElapsed === 1 ? '' : 's'} due since ${fmtDate(row.overdueSinceDate)}`
+        : undefined}
+    >
+      Catching up
+    </span>
+  ) : null
+
   // Required / Optional / Declined. Declined REPLACES Optional rather than sitting
   // beside it: a row cannot be both, and showing both would leave the member reading two
   // answers to one question. Lifted out of the cell because the meta line renders the
@@ -832,6 +910,7 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
         <div className="mt-2.5 space-y-2 sm:hidden">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             {statusPill}
+            {catchUpPill}
             {/* Labelled, unlike most folded values. A bare date and a bare amount next
                 to an installment figure are three numbers with no captions. */}
             <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : null} prefix="Next due" />
@@ -858,7 +937,13 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
         </div>
       </td>
       <td className={cn('py-2.5 pr-3', COLLAPSING_CELL)}>
-        {statusPill}
+        {/* Both pills, stacked: Required/Optional says what KIND of due this is and
+            Catching up says where this member stands on it. They answer different
+            questions, so neither replaces the other. */}
+        <span className="flex flex-col items-start gap-1">
+          {statusPill}
+          {catchUpPill}
+        </span>
       </td>
       <td className={cn('py-2.5 pr-3', COLLAPSING_CELL)}>
         {cadenceControl ?? <span className="text-xs text-muted-foreground">—</span>}
@@ -873,10 +958,21 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
           read together instead of at opposite ends of a card.
           `line-through` sits on the amount rather than on the cell, so a declined row
           cannot strike through its own way back in. */}
+      {/* THE FIGURE IS WHAT THEY PAY NEXT, not the steady installment, since 2026-08-14.
+          A member who switched to monthly in August was shown "$50" while actually owing
+          $450 at the next date beside it — the column was answering a question about the
+          plan while the member was reading it as a question about the bill. The steady
+          amount has not gone away; it is the second line, where it belongs, because it is
+          what every installment AFTER this one costs. */}
       <td className="py-3 text-right font-semibold whitespace-nowrap align-top sm:py-2.5 sm:pr-3 sm:align-middle">
         <span className={cn(declined && 'text-muted-foreground line-through')}>
-          {formatCurrency(row.installmentCents)}
+          {formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
         </span>
+        {!declined && !row.onSchedule && row.followingInstallmentDate && (
+          <span className="block text-[11px] font-normal text-muted-foreground">
+            then {formatCurrency(row.followingInstallmentCents)}
+          </span>
+        )}
         {!declined && (
           <span className="block text-[11px] font-normal capitalize text-muted-foreground sm:hidden">
             {row.cadence}

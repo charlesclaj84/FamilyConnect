@@ -1,7 +1,10 @@
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getViewingMembership, isApproved, type FamilyMembership } from '@/lib/auth/family'
+import {
+  getViewingMembership, isApproved,
+  type FamilyMembership, type MembershipStatus,
+} from '@/lib/auth/family'
 import { FEATURES, TAB_RESOURCES, requiredTier } from '@/lib/features'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { tierMeets } from '@/lib/tiers'
@@ -356,6 +359,118 @@ export const PENDING_RESOURCES: readonly string[] = [
   'personal-info',
   'my-families',
 ]
+
+/**
+ * One (resource, action) resolved in EVERY family the caller belongs to, not just the
+ * one they are looking at.
+ *
+ * ── WHY THIS EXISTS, AND WHY IT IS DELIBERATELY NARROW ──────────────────────────────
+ * Every other resolver here runs through `getMyPermissionSet`, which starts from
+ * `getViewingMembership()` — the ACTIVE family and nothing else. That is right for
+ * authorization: a request acts in one family, and a grant in another confers nothing on
+ * the page being rendered.
+ *
+ * It is wrong for exactly one job, which is telling somebody that something is waiting
+ * for them SOMEWHERE. An administrator of two families who is currently looking at the
+ * first has no way to learn that the second has an applicant in its queue: the bell, its
+ * badge and its standing approvals row are all scoped to the active family, so the
+ * notification exists and is invisible. That was the reported bug, and adding a
+ * notification to the paths that lacked one did not fix it — the notification was never
+ * the missing part.
+ *
+ * So: a resolver for the bell, and for anything else that has to speak ACROSS families.
+ * It is not a permission check and must not be used as one. A page still gates on
+ * `requireView`, in the family it is rendering.
+ *
+ * ── HOW IT STAYS HONEST ─────────────────────────────────────────────────────────────
+ * It reproduces `resolveScope` exactly — explicit template grant, else the family's own
+ * `resource_visibility` default for 'view' and 'none' for everything else — but per
+ * family, in four queries rather than four per family. The two conjuncts that matter are
+ * both kept: only APPROVED memberships resolve at all (a pending applicant holds nothing,
+ * whatever template the default-assignment trigger gave them), and a template only counts
+ * for the family it belongs to (`permission_template_id` is a bare uuid, and a row
+ * carrying another family's template must resolve to nothing rather than to that family's
+ * grants).
+ *
+ * NO LEGACY BRANCH, unlike `getMyPermissionSet`. A database that predates 20260807000000
+ * resolves nothing here and the caller shows no cross-family badge — which is the correct
+ * way for a presentational extra to fail, and not worth a second copy of a fallback that
+ * exists to keep pages working.
+ *
+ * The caller's own rows only: `.eq('user_id', userId)` is the first query, so nothing
+ * downstream can widen past their own memberships.
+ */
+export async function scopeInFamilies(
+  userId: string,
+  resource: string,
+  action: PermissionAction,
+): Promise<Map<string, PermissionScope>> {
+  const out = new Map<string, PermissionScope>()
+  if (!userId) return out
+
+  const admin = createAdminClient()
+
+  const { data: rows, error } = await admin
+    .from('people')
+    .select('family_code, membership_status, permission_template_id')
+    .eq('user_id', userId)
+  // §8: an empty list and a refused query are indistinguishable in `data` and mean
+  // opposite things. Both end in "no badge" here, but only one of them is a fact.
+  if (error || !rows?.length) return out
+
+  const approved = (rows as {
+    family_code: string
+    membership_status: MembershipStatus | null
+    permission_template_id: string | null
+  }[]).filter(r => isApproved(r.membership_status) && r.family_code)
+  if (!approved.length) return out
+
+  const codes = [...new Set(approved.map(r => r.family_code))]
+  const templateIds = [...new Set(approved.map(r => r.permission_template_id).filter((v): v is string => Boolean(v)))]
+
+  const [templates, perms, visibility] = await Promise.all([
+    templateIds.length
+      ? admin.from('permission_templates').select('id, family_code').in('id', templateIds)
+      : Promise.resolve({ data: [] as { id: string; family_code: string }[] }),
+    templateIds.length
+      ? admin.from('template_permissions').select('template_id, scope')
+          .eq('resource_key', resource).eq('action', action).in('template_id', templateIds)
+      : Promise.resolve({ data: [] as { template_id: string; scope: PermissionScope }[] }),
+    admin.from('resource_visibility').select('family_code, visibility')
+      .eq('resource_key', resource).in('family_code', codes),
+  ])
+
+  const templateFamily = new Map<string, string>(
+    ((templates.data ?? []) as { id: string; family_code: string }[]).map(t => [t.id, t.family_code]),
+  )
+  const scopeByTemplate = new Map<string, PermissionScope>(
+    ((perms.data ?? []) as { template_id: string; scope: PermissionScope }[]).map(p => [p.template_id, p.scope]),
+  )
+  const restricted = new Set(
+    ((visibility.data ?? []) as { family_code: string; visibility: string }[])
+      .filter(v => v.visibility === 'restricted')
+      .map(v => v.family_code),
+  )
+
+  for (const row of approved) {
+    // The template only speaks for its OWN family — see the header.
+    const usable = row.permission_template_id
+      && templateFamily.get(row.permission_template_id) === row.family_code
+    const explicit = usable ? scopeByTemplate.get(row.permission_template_id!) : undefined
+    if (explicit) {
+      out.set(row.family_code, explicit)
+      continue
+    }
+    // The same fall-through resolveScope applies, and for the same reason: a resource
+    // registered by a later migration has no row in a template that already existed.
+    out.set(
+      row.family_code,
+      action === 'view' ? (restricted.has(row.family_code) ? 'none' : 'any') : 'none',
+    )
+  }
+
+  return out
+}
 
 /**
  * Every resource key the caller may view — for the sidebar, which needs the whole

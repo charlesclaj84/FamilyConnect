@@ -4,7 +4,7 @@ import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { AccountMenu } from '@/components/layout/AccountMenu'
 import { MobileNav } from '@/components/layout/Sidebar'
 import { getNotifications } from '@/app/actions/notifications'
-import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
+import { getPendingApprovalQueues } from '@/app/actions/admin/approvals'
 import { getMyFamilies, getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
@@ -62,13 +62,19 @@ export default async function TopBar({
   let notifications: Awaited<ReturnType<typeof getNotifications>> = []
   let personId = ''
   let families: Awaited<ReturnType<typeof getMyFamilies>> = []
-  // The approvals queue depth, for the bell's standing "Members Pending Approval" row.
-  // getPendingApprovalCount() runs requireRead('admin/approvals') itself and returns 0
-  // without it, so a member who cannot work the queue never has the number computed and
-  // never receives it — the count is a fetch that is gated, not a row that is hidden
-  // (AGENTS.md §5). It is a COUNT, so nothing about any applicant crosses the boundary
-  // even for someone who can see it.
-  let pendingApprovals = 0
+  // The approvals queue depth, for the bell's standing "waiting for approval" rows —
+  // one per family the caller can work, INCLUDING the ones they are not looking at.
+  //
+  // It was `getPendingApprovalCount()`, the active family only, and that is what made a
+  // pending applicant in a second family invisible to the person who could admit them:
+  // the notification existed and the badge counted a different family's queue. See the
+  // header on getPendingApprovalQueues.
+  //
+  // Still gated, and gated per family: the action resolves admin/approvals:view in each
+  // one and never computes a count for a family the caller cannot work, so this is a
+  // fetch that is withheld rather than a row that is hidden (AGENTS.md §5). Counts and
+  // family names only — nothing about any applicant crosses the boundary.
+  let pendingQueues: Awaited<ReturnType<typeof getPendingApprovalQueues>> = []
   let name = ''
   let initials = ''
   let avatarUrl: string | null = null
@@ -78,7 +84,7 @@ export default async function TopBar({
     const [notifResult, familyResult, pendingResult, personResult] = await Promise.all([
       getNotifications(),
       getMyFamilies(user.id),
-      getPendingApprovalCount(),
+      getPendingApprovalQueues(),
       // The caller's own row in the ACTIVE family, for the portrait. Admin client because
       // a pending member has no `auth_person_id()` and would read nothing through RLS —
       // and they still have a face and a name. Scoped by family_code AND user_id, which
@@ -92,7 +98,7 @@ export default async function TopBar({
     ])
     notifications = notifResult
     families = familyResult
-    pendingApprovals = pendingResult
+    pendingQueues = pendingResult
 
     const person = personResult.data as { first_name: string | null; last_name: string | null; avatar_url: string | null } | null
     const first = person?.first_name ?? user.user_metadata?.first_name ?? ''
@@ -102,9 +108,11 @@ export default async function TopBar({
     initials = [first[0], last[0]].filter(Boolean).join('').toUpperCase()
       || (user.email?.[0] ?? '?').toUpperCase()
 
-    // The bell renders only for an APPROVED membership. `personId` is what gates it, and
-    // it is also what NotificationBell subscribes to for real-time inserts, so leaving it
-    // blank suppresses both the panel and the subscription in one place.
+    // `personId` is the caller's own feed in the ACTIVE family: it gates the notification
+    // list and it is what NotificationBell subscribes to for real-time inserts, so leaving
+    // it blank suppresses both the panel's feed and the subscription in one place. A
+    // non-approved membership gets nothing — the database would refuse the reads anyway,
+    // and the bell is deliberately not the one thing that reaches a pending member.
     //
     // FamilySwitcher is deliberately NOT suppressed: it is how a multi-family account gets
     // back out of the family it is waiting on, and hiding it would strand them on the
@@ -112,6 +120,14 @@ export default async function TopBar({
     const active = families.find(f => f.isActive)
     personId = active?.status === 'approved' ? active.personId : ''
   }
+
+  // WHETHER THE BELL RENDERS AT ALL is no longer just `personId`, and the case that
+  // changed it is the same one this whole change is about: somebody PENDING in the family
+  // they are viewing who is an approved administrator of another. Their feed is empty and
+  // must stay empty, but a queue in the other family is genuinely theirs to work — and
+  // gating the bell on the active membership alone hid it behind the one screen that
+  // cannot show it.
+  const showBell = Boolean(personId) || pendingQueues.length > 0
 
   // ── THE STACKING ORDER, in one place ─────────────────────────────────────
   // A positioned element with a z-index starts its OWN stacking context, and every
@@ -143,7 +159,7 @@ export default async function TopBar({
               while still giving a multi-family member the one piece of state they cannot
               afford to have hidden. */}
           <FamilySwitcher families={families} />
-          {personId && (
+          {showBell && (
             // KEYED, for the reason the <main> in app/(protected)/layout.tsx is keyed: a
             // family switch is a `router.refresh()`, which merges new server props without
             // discarding client state, and this bell holds `initialNotifications` in plain
@@ -152,12 +168,15 @@ export default async function TopBar({
             // needs its own.
             //
             // `personId` rather than the family code because it is already the per-family
-            // value here and it is what the bell's real-time subscription filters on.
+            // value here and it is what the bell's real-time subscription filters on. The
+            // fallback covers the one case where the bell renders WITHOUT one — see
+            // `showBell` — and is a constant rather than the family code on purpose: there
+            // is no feed to remount, only the standing rows, which are props.
             <NotificationBell
-              key={personId}
+              key={personId || 'no-feed'}
               initialNotifications={notifications}
               personId={personId}
-              pendingApprovals={pendingApprovals}
+              pendingQueues={pendingQueues}
             />
           )}
           <AccountMenu name={name} email={user?.email ?? ''} initials={initials} avatarUrl={avatarUrl} />

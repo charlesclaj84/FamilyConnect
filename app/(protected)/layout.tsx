@@ -1,12 +1,14 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, getViewingMembership, isApproved } from '@/lib/auth/family'
+import { getMyShellState } from '@/app/actions/membership'
 import { getMyAssignmentCount } from '@/app/actions/event-planning'
 import TopBar from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
+import { ShellWatcher } from '@/components/layout/ShellWatcher'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
 
 /**
@@ -42,6 +44,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let familyCode = ''
   /** Gates the idle timer — there is nothing to sign out if nobody resolved. */
   let signedIn = false
+  /**
+   * What this shell was built from, and whether the caller is sitting in front of a
+   * reduced version of it waiting for that to change. Both feed ShellWatcher — see its
+   * header for why a layout needs watching at all.
+   */
+  let shellFingerprint = ''
+  let watchClosely = false
 
   try {
     const supabase = await createClient()
@@ -56,14 +65,26 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, assignmentCount, code] = await Promise.all([
+      const [resources, assignmentCount, code, shell, membership] = await Promise.all([
         viewableResources(user.id),
         getMyAssignmentCount(),
         getMyFamilyCode(user.id),
+        // Costs one extra round of the same cache()-wrapped reads the three above
+        // already warmed — getMyFamilies, getMyPermissionSet and getMyFamilyTier are
+        // each resolved once per request whoever asks first.
+        getMyShellState(),
+        getViewingMembership(user.id),
       ])
       viewable = [...resources]
       hasAssignments = assignmentCount > 0
       familyCode = code
+      shellFingerprint = shell.fingerprint
+      // Positively 'approved' is what makes this total: pending, rejected and disabled
+      // all put the caller in front of a shell that is missing most of itself, and all
+      // three can be changed by somebody else while they watch. `isApproved` is the same
+      // predicate every gate in the app tests, so a fifth status would land here denied
+      // — which, for a watcher, is the safe direction.
+      watchClosely = Boolean(membership) && !isApproved(membership?.status)
     }
   } catch {
     // Non-fatal
@@ -176,6 +197,25 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           Not keyed on `familyCode` like `<main>` is: switching family must not restart the
           idle clock, and the component holds no family data to go stale. */}
       {signedIn && <IdleTimeout />}
+
+      {/* THE SHELL ABOVE IS BUILT ONCE AND NEVER ASKS AGAIN.
+          ─────────────────────────────────────────────────────────────────────
+          `viewable` is resolved at the top of this function and handed to the rail and
+          the bar. App Router does not re-render a shared layout on a client-side
+          navigation, so an applicant approved while their tab is open keeps the one-link
+          rail a pending member gets — and a member switched OFF keeps a full one. This is
+          what notices, by comparing a fingerprint of everything the shell derives from.
+
+          Mounted here for the same two reasons IdleTimeout is: it belongs to the shell
+          rather than to any page, and it must sit OUTSIDE `<main key={familyCode}>` so a
+          family switch does not tear it down mid-request. It renders nothing, so its
+          position among these siblings carries no z-index consequence.
+
+          Not keyed at all: it holds a ref seeded from a prop and adopts a new one during
+          render, so a family switch flows through it without a remount. */}
+      {signedIn && shellFingerprint && (
+        <ShellWatcher fingerprint={shellFingerprint} watchClosely={watchClosely} />
+      )}
     </ConfirmProvider>
   )
 }

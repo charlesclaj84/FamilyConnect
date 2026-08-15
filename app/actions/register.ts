@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redeemInvitationForNewUser } from '@/lib/invitations'
+import { notifyMembershipRequest } from '@/lib/notifications'
 
 export type RegisterResult =
   | { success: true; familyCode?: string }
@@ -119,6 +120,10 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   }
 
+  // Held from the validation below so the approvers' notification at the bottom can name
+  // the family without asking a second time — see notifyMembershipRequest.
+  let joinFamilyName = ''
+
   if (!inviteToken && input.mode === 'join') {
     const code = input.familyCode?.trim().toUpperCase() ?? ''
     if (!code) {
@@ -126,9 +131,10 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
     const { data } = await admin
       .from('families')
-      .select('id')
+      .select('id, family_name')
       .eq('family_code', code)
       .maybeSingle()
+    if (data) joinFamilyName = (data.family_name as string) ?? ''
     if (!data) {
       return {
         success: false,
@@ -228,6 +234,27 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     await admin.auth.admin.updateUserById(authData.user.id, {
       app_metadata: { family_code: redemption.family_code },
     })
+
+    // An invitation that does not PRE-APPROVE puts the new account straight into the
+    // approvals queue, exactly as a family code does — the fourth of the five doors in
+    // lib/notifications.ts's list, and silent for the same reason the first was: the
+    // notification lived at one call site instead of at the event.
+    //
+    // `pre_approved` is the RPC's effective answer, so a re-opened row reads false here
+    // even where the invitation itself said otherwise; and the family code is the RPC's,
+    // resolved from the token rather than supplied by anyone.
+    if (!redemption.pre_approved) {
+      try {
+        await notifyMembershipRequest({
+          familyCode: redemption.family_code,
+          familyName: redemption.family_name ?? redemption.family_code,
+          applicantName: `${input.firstName.trim()} ${input.lastName.trim()}`.trim(),
+          applicantEmail: input.email.trim().toLowerCase(),
+        })
+      } catch {
+        // Swallowed: the account exists and the invitation is spent. See below.
+      }
+    }
     return { success: true }
   }
 
@@ -287,7 +314,13 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   // or its next applicant is decided by the trigger, so `?mode=join` cannot arrive
   // pre-approved by omitting a field.
   if (authData.user) {
-    await admin.from('people').insert({
+    // `membership_status` is read BACK rather than assumed: the stamp trigger of
+    // 20260806000011 is what decides founder vs applicant, and the notification below has
+    // to follow that decision rather than infer it from `mode`. A family whose first
+    // member arrives through `?mode=join` — a code for a family row created by some other
+    // route — comes out approved, and telling its own approvers that they are waiting for
+    // themselves would be the kind of thing nobody notices for a year.
+    const { data: inserted } = await admin.from('people').insert({
       user_id: authData.user.id,
       family_code: familyCode,
       first_name: input.firstName.trim(),
@@ -295,7 +328,40 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       primary_email: input.email.trim().toLowerCase(),
       created_by: authData.user.id,
     })
+      .select('membership_status')
+      .maybeSingle()
     // Non-fatal: if this fails the user can fill in their profile manually.
+
+    // ── Tell the family somebody is waiting ──────────────────────────────────
+    // THIS IS THE SECOND DOOR, and it had no bell on it. `joinFamilyByCode` — the same
+    // act performed by an account that already exists — has notified the approvers since
+    // it was written; registering with a code created an identical pending row and told
+    // nobody, so whether a family heard about an applicant depended on which page the
+    // applicant happened to start from.
+    //
+    // REACHABLE WITHOUT A SESSION, unlike every other caller of this module, and that is
+    // why nothing about the message is chosen here: the title, the shape of the body and
+    // the link are literals inside notifyMembershipRequest, and the only variables are
+    // this family and the registrant's own name and address. `familyCode` is the code
+    // just validated against `families` and written onto the row the trigger pended, so
+    // it is established rather than merely supplied.
+    //
+    // The worst an abuser gets out of it is one bell entry per registration against a
+    // code they already know — which is the same row the approvals queue was going to
+    // show them anyway, so this adds no surface that pending row did not.
+    if (inserted?.membership_status === 'pending') {
+      try {
+        await notifyMembershipRequest({
+          familyCode,
+          familyName: joinFamilyName || familyCode,
+          applicantName: `${input.firstName.trim()} ${input.lastName.trim()}`.trim(),
+          applicantEmail: input.email.trim().toLowerCase(),
+        })
+      } catch {
+        // Deliberately swallowed. The account exists and the application is recorded; a
+        // failure to announce it must not fail a registration the user has completed.
+      }
+    }
   }
 
   return { success: true, familyCode: input.mode === 'create' ? familyCode : undefined }

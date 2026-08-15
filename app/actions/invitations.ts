@@ -4,9 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRead } from '@/lib/auth/guard'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, getMyNameInFamily } from '@/lib/auth/family'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { familyInvitationEmail } from '@/lib/email/templates'
+import { notifyMembershipRequest } from '@/lib/notifications'
 // Plain modules, never re-exported from here: one takes an email address and answers
 // whether it has an account, which as an endpoint is an enumeration oracle. See the
 // header of lib/auth/account-state.ts.
@@ -515,6 +516,30 @@ export async function redeemInvitation(token: string): Promise<RedeemResult> {
   if (error) return { success: false, message: 'Could not accept that invitation. Please try again.' }
   if (!data?.ok || !data.family_code) {
     return { success: false, message: data?.message ?? 'That invitation is no longer valid.' }
+  }
+
+  // ── An invitation that does NOT pre-approve lands in the approvals queue ──────
+  // ...and told nobody it had, until 2026-08-14. `pre_approved` comes back as the
+  // EFFECTIVE value — 20260811000001 returns `v_inv.pre_approved AND NOT v_reopen`, so a
+  // re-invited applicant whose row was re-opened reads false here even though the
+  // invitation itself said otherwise — which makes `!data.pre_approved` exactly the test
+  // for "this person is now waiting on somebody".
+  //
+  // The family code is the RPC's own answer, not the caller's: it resolved the invitation
+  // from the token and returns the family it belongs to, so it is established rather than
+  // supplied (lib/notifications.ts's precondition).
+  if (!data.pre_approved) {
+    try {
+      await notifyMembershipRequest({
+        familyCode: data.family_code,
+        familyName: data.family_name ?? data.family_code,
+        applicantName: await getMyNameInFamily(user.id, data.family_code),
+        applicantEmail: user.email ?? null,
+      })
+    } catch {
+      // Swallowed like every other call site: the membership is created either way, and
+      // an unsent bell entry must not read back as a failed redemption.
+    }
   }
 
   revalidatePath('/', 'layout')

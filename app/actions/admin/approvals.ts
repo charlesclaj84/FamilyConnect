@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRead } from '@/lib/auth/guard'
-import { canAny } from '@/lib/auth/permissions'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { canAny, scopeInFamilies } from '@/lib/auth/permissions'
+import { getMyFamilyCode, getMyFamilies } from '@/lib/auth/family'
 import { createNotification } from '@/lib/notifications'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { membershipApprovedEmail } from '@/lib/email/templates'
@@ -179,6 +179,103 @@ export async function getPendingApprovalCount(): Promise<number> {
   return count ?? 0
 }
 
+/**
+ * One waiting queue per family the caller can work — INCLUDING the ones they are not
+ * currently looking at.
+ *
+ * ── THE BUG THIS EXISTS FOR ─────────────────────────────────────────────────────────
+ * Everything about the bell is scoped to the ACTIVE family and every piece of it was
+ * right to be: `getNotifications` filters on the caller's people row in that family
+ * (`getMyPersonId`), the realtime channel filters on the same id, and
+ * `getPendingApprovalCount` above resolves its family from `requireRead`. Notifications
+ * hang off a family-scoped row, so that is what a notification IS.
+ *
+ * The consequence nobody chose is that an administrator of two families, sitting in the
+ * first, cannot be told that somebody is waiting in the second. The row is in the queue,
+ * the notification is in the table, and the only way to find either is to switch family
+ * and look — which is exactly the thing you do not do when you have no reason to think
+ * anything has happened. Adding the missing notifications to the join paths did not fix
+ * that and could not: the notification was never the missing part.
+ *
+ * So this answers the whole question at once, and `NotificationBell` renders one standing
+ * row per family with somebody in it.
+ *
+ * ── WHAT IT DOES AND DOES NOT PUBLISH (AGENTS.md §5) ────────────────────────────────
+ * COUNTS AND FAMILY NAMES, nothing else — no applicant name, email, phone or date, in any
+ * family. `getApplicants` is still the only thing that returns a person, and it is still
+ * scoped to one family behind its own guard. The names here are the caller's own
+ * memberships, which `FamilySwitcher` already renders in the same bar.
+ *
+ * And a family only appears when the caller genuinely holds `admin/approvals:view`
+ * THERE. `scopeInFamilies` resolves that per family from the same rules `resolveScope`
+ * applies, so an administrator of ALPHA who is an ordinary member of BRAVO learns nothing
+ * about BRAVO's queue — the count is never computed rather than computed and hidden.
+ *
+ * The service role, necessarily: this reads across families, which is precisely what RLS
+ * exists to prevent, so §3's obligation is discharged by hand — the family codes come
+ * from the caller's OWN memberships and the one query below is `.in()`-scoped to them.
+ */
+export interface PendingQueue {
+  familyCode: string
+  familyName: string
+  count: number
+  /** True for the family the caller is already acting in — that row needs no switch. */
+  isActive: boolean
+}
+
+export async function getPendingApprovalQueues(): Promise<PendingQueue[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const [families, scopes] = await Promise.all([
+    getMyFamilies(user.id),
+    scopeInFamilies(user.id, 'admin/approvals', 'view'),
+  ])
+
+  const workable = families.filter(f => (scopes.get(f.familyCode) ?? 'none') !== 'none')
+  if (!workable.length) return []
+
+  // ONE query for every family rather than one per family: a count-per-family is a
+  // `GROUP BY` PostgREST will not give us, so the pending ids come back and are tallied
+  // here. `id` alone — nothing identifying leaves the server.
+  //
+  // `.not('user_id', 'is', null)` matters for the same reason it does in the two
+  // functions above: a `people` row can be pending with NOBODY waiting behind it, which
+  // is what pre-entering a relative creates. Counting those would put a number on the
+  // bell that the approvals queue does not show and no decision can clear.
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('people')
+    .select('id, family_code')
+    .in('family_code', workable.map(f => f.familyCode))
+    .not('user_id', 'is', null)
+    .eq('membership_status', 'pending')
+
+  // A refused query and an empty queue are the same `[]` and mean opposite things (§8).
+  // No badge is the honest answer to "I do not know", the same choice the count above
+  // makes.
+  if (error) return []
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const code = row.family_code as string
+    counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+
+  return workable
+    .map(f => ({
+      familyCode: f.familyCode,
+      familyName: f.familyName,
+      count: counts.get(f.familyCode) ?? 0,
+      isActive: f.isActive,
+    }))
+    .filter(q => q.count > 0)
+    // The family being viewed first — its row is the one that needs no switch to act on
+    // — then the rest by name, so the list does not reorder as counts change.
+    .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.familyName.localeCompare(b.familyName))
+}
+
 async function decide(
   personId: string,
   status: 'approved' | 'rejected',
@@ -288,10 +385,23 @@ async function decide(
     }
   }
 
-  // The queue renders on Members & Access now (its Pending Approval tab). Revalidating
-  // the old /admin/approvals route would refresh a redirect that holds no data.
-  revalidatePath('/admin/users')
-  revalidatePath('/dashboard')
+  // LAYOUT SCOPE, not two page paths, and this action was the last grant-changing one in
+  // the app still using page scope — `applyTemplate`, `setTemplatePermission`,
+  // `deleteTemplate`, `setMemberEnabled` and `setFamilyTier` all call
+  // `revalidatePath('/', 'layout')` already.
+  //
+  // What page scope missed is the APPROVER'S OWN SHELL. The bell's queue rows are
+  // resolved in app/(protected)/layout.tsx via TopBar, not on either of the two pages
+  // named here, so admitting somebody left the badge sitting at its old number until
+  // something else happened to re-render the layout. It is also what makes the sidebar
+  // right for an administrator whose own access changed in the same breath.
+  //
+  // It does NOT help the applicant, and cannot: this runs in the approver's request and
+  // reaches the approver's caches. That half is components/layout/ShellWatcher.tsx.
+  //
+  // (The old /admin/approvals route is only a redirect now — the queue is the Pending
+  // Approval tab on Members & Access — so revalidating it refreshed nothing either way.)
+  revalidatePath('/', 'layout')
   return { success: true }
 }
 

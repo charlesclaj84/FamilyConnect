@@ -238,6 +238,38 @@ export async function isApprovedMember(userId: string): Promise<boolean> {
 }
 
 /**
+ * The caller's own name in one particular family, for a message that has to say who
+ * they are.
+ *
+ * ITS ONE JOB IS THE APPROVALS NOTIFICATIONS, and it exists as a shared helper rather
+ * than three copies because its three callers are all in the same awkward position:
+ * `joinFamilyByCode`, `redeemInvitation` and `appealMembershipDecision` each need to name
+ * the applicant to the administrators, and each is running as somebody who is PENDING in
+ * the family being named. `auth_person_id()` is NULL for them there (20260806000011), so
+ * their own client resolves nothing at all — not even their own row, through a policy
+ * that does admit it, because the policy's own conjunct has already collapsed.
+ *
+ * Hence the service role, and hence §3's obligation discharged the only way it can be:
+ * scoped by `user_id` AND `family_code` together, so the query can return the caller's
+ * own row in that one family and nothing else. No id crosses in from a client.
+ *
+ * Empty string on anything unexpected, which every caller reads as "no name" and falls
+ * back to the email address. A notification that says "Someone" is worse than one that
+ * says "Ada Okonkwo"; neither is worth failing a join over.
+ */
+export async function getMyNameInFamily(userId: string, familyCode: string): Promise<string> {
+  if (!userId || !familyCode) return ''
+  const { data } = await createAdminClient()
+    .from('people')
+    .select('first_name, last_name')
+    .eq('user_id', userId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  const row = data as { first_name: string | null; last_name: string | null } | null
+  return `${row?.first_name ?? ''} ${row?.last_name ?? ''}`.trim()
+}
+
+/**
  * True when `id` names a row of `table` that lives in `familyCode`.
  *
  * For the one case RLS structurally cannot cover: an id that arrives from the

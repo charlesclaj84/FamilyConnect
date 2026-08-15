@@ -416,6 +416,8 @@ npx supabase start      # once; local only, never the hosted project
 npm run test:rls
 ```
 
+(`npm test` is the other runner and covers something else entirely — see §7b.)
+
 `tests/rls` calls each action for real — the exported function Next.js publishes as an
 HTTP endpoint — against a local Postgres with the real policies applied. Only the
 cookie-to-JWT plumbing and two `next/*` modules are substituted; the guards,
@@ -464,6 +466,76 @@ real finding into a pass: a case whose positive control **mutates a row a later 
 depends on** (give it its own row — that is what `deletableChild` is for), and a probe
 whose projection **omits the column the control changes**, so a successful write looks
 like a no-op.
+
+## 7b. Arithmetic is tested with `npm test`, not with `tests/rls`
+
+`vitest` runs the pure modules under `lib/`, and its `include` is `lib/**/*.test.ts` as a
+BOUNDARY rather than a default: it has no jsdom, no React and no Supabase, and must never
+become a second, weaker place to "test" a server action. An action tested without RLS is an
+action tested without the thing that protects it.
+
+The two runners answer different questions and neither substitutes for the other. §7's
+suite calls actions for real against real policies, because family isolation is enforced by
+SQL that exists in no file anyone reviewed. It cannot check a figure: its fixtures seed dues
+schedules with **no `start_date` at all**, so an assertion about installment maths there
+exercises one null branch and passes while testing nothing — the exact failure §7 warns
+about.
+
+`lib/dues-utils.ts` is why this exists. `duesPlanMath` takes `today` as a PARAMETER, so the
+whole of the plan arithmetic is checkable; every other helper in that file reads
+`new Date()` internally, which is why none of them ever was. A new pure module with real
+edge cases — dates, money, rounding — takes `today` (or whatever else it would otherwise
+read from the world) as an argument for the same reason.
+
+**And the same rule applies here as to the RLS suite: a green run is not evidence until you
+have seen it fail.** The dues tests were checked by mutation — removing the month-end
+clamp, freezing the elapsed-rung count, zeroing the covered-rung count and dropping the
+future-start guard each trip a different set of them.
+
+## 7c. Dues: what a member pays next is not their installment
+
+`installmentCents` is the steady-state figure — what an installment costs once a member is
+level. `nextInstallmentCents` is what the NEXT one has to be. They differ whenever the
+calendar has already asked for installments the money never covered, and `duesPlanMath` in
+`lib/dues-utils.ts` is the single place that decides both.
+
+The rule: **the next installment covers everything already due plus the one now due**, so
+the one after it is the ordinary amount and the member is back on schedule. Switching to
+monthly on 14 August on a $600 schedule that opened on 1 January is $450 on 1 September,
+then $50 on 1 October.
+
+Four things that were wrong before it, each of which a future change could reintroduce:
+
+* **A ledger row is not money.** The old date was `anchor + (count of payment rows)`, so
+  two $1 payments outran one $500 payment — and a REVERSAL, which is written as a `paid`
+  row with a negative amount, pushed the next due date FORWARD while the money went
+  backward. Count rungs against the clock and cents against the total; never mix them.
+* **The ladder starts at the CURRENT period, not at `start_date`.** `remainingBalanceCents`
+  is the annual total less what was settled *this period*, so arrears measured from
+  anywhere else describes a different debt from the balance beside it. Anchoring on the
+  original start date left every second-year schedule pointing at dates a year or more ago.
+* **`setUTCMonth` overflows.** From 31 January, +1 month is "31 February", which resolves to
+  3 March — a ladder with no February rung, two in March, and one fewer in the year, which
+  under-bills by a whole installment. The Accounting form prefills the start date with
+  today, so a schedule anchored on the 29th–31st is ordinary. `addCadenceSteps` clamps, and
+  takes the day from the ANCHOR each step so a clamped February does not drag March back.
+* **`currentPeriodStart` never returns null and `duesPlanMath` must not assume it means
+  something.** It defaults to 1 January, so building a ladder on it unconditionally gives
+  every schedule with no `start_date` and no `due_month` a year of phantom arrears. Those
+  rows are real: the Accounting form writes `due_month: null, due_day: null` on every
+  create and does not require a start date.
+
+Two boundaries to keep. **This withholds no rows and changes no ledger:**
+`remainingBalanceCents`, the paid totals and the family's collected figure are untouched,
+and moving arrears into the balance would change the dashboard headline and every sum built
+from it. And **a member who joined mid-year owes from the period start** — which is not this
+function inventing a charge, it is the balance's existing policy finally being itemized,
+since nothing in the product prorates. `dues_member_plans.start_date` exists, is written by
+nothing, and is where to floor the ladder if prorating ever arrives — the balance would have
+to move with it.
+
+The catch-up marker is `--brand-withheld`, never `--destructive`. An unpaid installment is
+neither an error nor a deletion, and reporting a failure is `form-message.tsx`'s job.
 
 ## 8. An empty result is not the same as no rows
 
@@ -704,6 +776,108 @@ The fix is one key, in one place:
 Genuinely UI-local state is *not* what this is about and does not need keying — which
 nav section is expanded (`Sidebar`), which dialog is open, a search string. The test is
 whether the value came from, or will be written back to, one particular family.
+
+# The shell is built once, and only a refresh rebuilds it
+
+`app/(protected)/layout.tsx` resolves `viewableResources()` and hands it to the rail and
+the top bar. **App Router does not re-render a shared layout on a client-side
+navigation** — it refetches only the segments below the common layout — so whatever the
+shell resolved to when the tab was opened is what it keeps saying, however many pages the
+member visits.
+
+That is almost always fine, because almost nothing about a member changes mid-session.
+The exception is the one the product creates deliberately: somebody signs in while their
+membership is pending, an administrator approves them, and their rail keeps showing the
+single Dashboard link `PENDING_RESOURCES` gives them. `revalidatePath('/', 'layout')` in
+`approveApplicant` cannot reach them — **it runs in the APPROVER's request and touches the
+approver's caches.** Nor is it only approval: `applyTemplate`, `setTemplatePermission`,
+`deleteTemplate` and `setFamilyTier` all change what the shell may show, and
+`setMemberEnabled` takes it away entirely — a member switched off keeps a full rail of
+destinations that now 404.
+
+`components/layout/ShellWatcher.tsx` is what notices, mounted beside `IdleTimeout` and
+outside `<main key={familyCode}>`. Four things about it are load-bearing:
+
+* **It compares a FINGERPRINT, not a status.** `getMyShellState()` folds the caller's whole
+  membership vector, the active family, its tier and the resolved permission grid into one
+  string. Watching `membership_status` alone would miss every one of the four actions
+  above, and watching only the ACTIVE membership would miss an applicant pending in two
+  families who is approved by the second.
+* **It polls on a timer only while the shell is showing a reduced answer,** and otherwise
+  re-checks on `visibilitychange`/`focus`. Polling for everybody is one round trip per tab
+  per interval — each a GoTrue `getUser()` plus a memberships read — to catch an event that
+  happens about once per member per lifetime. Returning to a tab is when a stale shell is
+  both most likely and most visible, and it costs nothing when nobody does.
+* **It must never call `markIdleActivity()`.** A background poll is not somebody at the
+  keyboard; marking it would keep every open tab alive forever and defeat the 60-minute
+  sign-out entirely.
+* **`router.refresh()` merges without discarding client state,** so a refresh fired from
+  here re-syncs anything on `useServerState`. Checked when it was written: nothing a member
+  can type into loses work. A page added later that seeds `useServerState` from something
+  editable would turn this into a data-loss bug — that is the thing to re-check before
+  widening when it fires.
+
+## Telling somebody about something in ANOTHER family
+
+Everything about the notification bell is scoped to the family the caller is currently
+viewing, and each piece was right to be: notifications hang off a family-scoped `people`
+row, so `getNotifications` filters on `getMyPersonId()` and the realtime channel filters on
+the same id. **That is what a notification IS.**
+
+The consequence nobody chose is that an administrator of two families, sitting in the
+first, could not be told that somebody was waiting in the second. The row was in the queue,
+the notification was in the table, and the only way to find either was to switch family and
+look — which is exactly what you do not do when you have no reason to think anything has
+happened.
+
+`scopeInFamilies()` in `lib/auth/permissions.ts` is the resolver for that, and
+`getPendingApprovalQueues()` is its one consumer. Both are narrow on purpose:
+
+* **It is not a permission check and must never be used as one.** Every page still gates
+  with `requireView`, in the family it is rendering. This answers "is there something for
+  me somewhere", which is a different question.
+* **It reproduces `resolveScope` exactly, per family** — explicit template grant, else the
+  family's own `resource_visibility` default. Both conjuncts are kept: only approved
+  memberships resolve, and a template only counts for the family it belongs to.
+* **It publishes counts and family names, nothing else.** A cross-family read is precisely
+  what RLS exists to prevent, so §3's obligation is discharged by hand — the codes come
+  from the caller's own memberships and the one query is `.in()`-scoped to them.
+* **A family only appears when the caller genuinely holds the grant THERE**, so the count
+  for a family they cannot work is never computed rather than computed and hidden (§5).
+
+If a second surface ever needs to speak across families, it uses this resolver. Do not add
+a second one.
+
+## Five doors lead into the approvals queue
+
+Every one of these creates the same pending `people` row, and until 2026-08-14 only the
+third told anybody:
+
+| Door | Where |
+|---|---|
+| `/register` with a family code | `registerUser`, mode `'join'` |
+| `/register` from an invitation that does not pre-approve | `registerUser` → `redeem_family_invitation` |
+| `/my-families` with a family code | `joinFamilyByCode` |
+| an invitation accepted while already signed in | `redeemInvitation` |
+| an appeal of a decline | `appealMembershipDecision` |
+
+So whether a family heard about an applicant depended on which page the applicant happened
+to start from. The message lives in `lib/notifications.ts`
+(`notifyMembershipRequest` / `notifyMembershipAppeal`) rather than at five call sites, for
+the reason the rest of that module is there: five copies of one sentence are five answers,
+and the two that existed had already drifted. **A sixth door owes a call**, and the
+registration one is worth reading first — it is reachable without a session, which is why
+nothing about the message is chosen at the call site.
+
+`membership_status` is read BACK from the insert rather than inferred from `mode`: the
+stamp trigger decides founder versus applicant, and a family whose first member arrives
+through `?mode=join` comes out approved.
+
+**And supabase-js RETURNS errors rather than throwing them**, so the `try/catch` every one
+of these call sites wraps the notification in — correctly, because a bell entry must never
+undo the decision it announces — catches nothing PostgREST produces. The writers in
+`lib/notifications.ts` therefore read `error` and log it. Discarding it made a refused
+insert indistinguishable from a delivered one at every layer.
 
 # The signed-in app signs itself out when left idle
 

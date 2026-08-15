@@ -1415,6 +1415,58 @@ export const PENDING_CASES = [
       positiveActor: 'alphaAdmin',
       expectPositive: r => r === 3,
     }),
+  // A pending caller can work no queue anywhere, so this must come back empty.
+  //
+  // [crux] for the GRANT CHECK, and NOT for the approval conjunct — which is the opposite
+  // of what it looks like and was settled by running both mutations rather than by reading
+  // the code. Dropping `workable`'s `scopeInFamilies` filter fails this case at once: the
+  // action reads on the service role, so with no grant test there is no policy underneath
+  // to refuse an applicant ALPHA's queue depth.
+  //
+  // Removing `scopeInFamilies`' own `isApproved` filter, however, changes NOTHING here —
+  // the applicant is already refused one layer further on, because 20260806000010 sets
+  // `admin/approvals` to 'restricted' for every family and the General template they are
+  // auto-assigned grants them nothing on it. So this is not evidence for the approval
+  // conjunct; that filter earns its place by not resolving a template for somebody who
+  // holds no membership to act through, which is a different argument and one this suite
+  // does not make. Said out loud rather than left looking like proof, per §7.
+  read('admin/approvals.getPendingApprovalQueues (pending member)',
+    'app/actions/admin/approvals.ts', 'getPendingApprovalQueues', {
+      attacker: 'alphaPending',
+      expectAttack: r => Array.isArray(r) && r.length === 0,
+      // The ADMIN, not the default plain member: alphaMember holds no approvals grant
+      // either and would also get [], making the control assert nothing. Same
+      // substitution and the same reason as dues.getScheduleUsage below.
+      positiveActor: 'alphaAdmin',
+      expectPositive: r => Array.isArray(r) && r.length === 1 && r[0].count === 3,
+    }),
+  // The shell fingerprint the applicant's own browser polls while it waits to be admitted
+  // (components/layout/ShellWatcher.tsx). It MUST answer for a pending caller — that is
+  // the entire point of it, and it is the one read here whose positive control is the
+  // pending member rather than a check that they are refused.
+  //
+  // What it must not do is describe anybody else. It takes no arguments and derives
+  // everything from the session, so the assertion is that ALPHA's applicant sees ALPHA's
+  // own code and nothing of BRAVO's, and vice versa.
+  //
+  // NOT [crux], and worth saying so: the isolation here is `getMyFamilies`'
+  // `.eq('user_id', …)`, which about forty other cases in this file already lean on — a
+  // mutation to it fails most of the suite, not this. What this case actually holds is the
+  // CONTRACT the watcher depends on: that a pending caller gets a non-empty fingerprint
+  // (return '' for them and the shell stops watching, which is the bug it exists to fix)
+  // and that the string carries the membership status, which is the thing that changes on
+  // approval. Narrow the fingerprint back to, say, the template id alone, and this is what
+  // notices.
+  read('membership.getMyShellState (pending member)', 'app/actions/membership.ts', 'getMyShellState', {
+    attacker: 'alphaPending',
+    expectAttack: r => typeof r?.fingerprint === 'string'
+      && r.fingerprint.includes('ALPHATEST:pending')
+      && !r.fingerprint.includes('BRAVOTEST'),
+    positiveActor: 'alphaAdmin',
+    expectPositive: r => typeof r?.fingerprint === 'string'
+      && r.fingerprint.includes('ALPHATEST:approved')
+      && !r.fingerprint.includes('BRAVOTEST'),
+  }),
   read('dues.getDuesSchedules (pending member)', 'app/actions/dues.ts', 'getDuesSchedules', {
     attacker: 'alphaPending',
   }),
@@ -1625,6 +1677,43 @@ export const APPROVAL_CASES = [
     expectAttack: r => r === 1,
     positiveActor: 'alphaAdmin',
     expectPositive: r => r === 3,
+  }),
+  // THE CROSS-FAMILY ONE, and it needs saying why it is different from the case above it.
+  //
+  // getPendingApprovalQueues answers for EVERY family the caller belongs to, deliberately
+  // — it exists because an administrator of two families could not be told that the one
+  // they were not looking at had somebody waiting. So it is the one read in this file
+  // whose whole job is to cross the boundary the rest of the suite is checking, and every
+  // guard it has is written by hand: the family codes come from the caller's own
+  // memberships, `scopeInFamilies` resolves admin/approvals per family, and the single
+  // query is `.in()`-scoped to what survives both. There is no policy underneath it — it
+  // reads on the service role, because RLS could not answer this question at all.
+  //
+  // The default leak scan does NOT catch a failure here, which is why the assertions are
+  // explicit: ALPHA's FAMILY NAME is not on the marker list (the markers are its rows and
+  // its people, not the string "ALPHATEST Family"), so a version of this action that
+  // forgot to scope by membership would hand BRAVO's administrator ALPHA's queue and the
+  // scan would report nothing. Assert the family codes themselves.
+  //
+  // [crux] WHAT THIS IS EVIDENCE FOR, established by mutation rather than assumed: that
+  // the returned list is built from the CALLER'S OWN memberships. Rewritten to iterate the
+  // count query's keys instead — the obvious refactor, and the one that reads as tidier —
+  // BRAVO's administrator is handed ALPHA's queue, and all three assertions here fail.
+  //
+  // WHAT IT IS NOT EVIDENCE FOR: the `.in('family_code', …)` on that query. Removing it
+  // alone changes nothing observable, because the final map only ever reads counts for
+  // families already in `workable`. That `.in()` is defence in depth and worth keeping —
+  // §3 asks for it, and it is what stops the query dragging every family's pending rows
+  // into memory — but this case does not hold it up, and should not be read as though it
+  // does.
+  read('admin/approvals.getPendingApprovalQueues', 'app/actions/admin/approvals.ts', 'getPendingApprovalQueues', {
+    // BRAVO's administrator belongs to BRAVO alone, so exactly one queue, exactly theirs
+    // — 1, not the global 4.
+    expectAttack: r => Array.isArray(r) && r.length === 1
+      && r[0].familyCode === 'BRAVOTEST' && r[0].count === 1,
+    positiveActor: 'alphaAdmin',
+    expectPositive: r => Array.isArray(r) && r.length === 1
+      && r[0].familyCode === 'ALPHATEST' && r[0].count === 3 && r[0].isActive === true,
   }),
   {
     kind: 'write',

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs",
     "db:check": "node scripts/migrations.mjs check",
     "db:audit": "npx supabase db query -f supabase/scripts/audit_policy_shadowing.sql",
@@ -44,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

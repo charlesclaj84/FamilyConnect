@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilies } from '@/lib/auth/family'
+import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { switchActiveFamily } from '@/app/actions/family'
-import { notifyApprovers } from '@/lib/notifications'
+import { notifyMembershipRequest } from '@/lib/notifications'
 
 /**
  * Joining an existing family by its code, from /my-families.
@@ -146,13 +146,17 @@ export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> 
 
   // Tell the people who can act on it. Failing to notify must not fail the join —
   // the application is already recorded and the approvals page lists it regardless.
+  //
+  // The message itself lives in lib/notifications.ts, shared with the registration path,
+  // which creates the identical pending row from `/register`. It used to be written out
+  // here and identified the applicant by their email address alone, because that is what
+  // this call site has to hand; the shared version takes the name too.
   try {
-    await notifyApprovers({
+    await notifyMembershipRequest({
       familyCode: normalized,
-      type: 'membership_request',
-      title: 'A new member is waiting for approval',
-      body: `${user.email ?? 'Someone'} has asked to join ${familyName}.`,
-      link: '/admin/users?tab=approvals',
+      familyName,
+      applicantName: await getMyNameInFamily(user.id, normalized),
+      applicantEmail: user.email ?? null,
     })
   } catch {
     // Deliberately swallowed. See above.

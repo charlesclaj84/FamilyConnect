@@ -53,6 +53,34 @@ interface Props {
  *     counted once, as `declined`, in the footer — and the way to reverse it is in My
  *     Summary's table, not here.
  */
+/**
+ * One schedule's plan, in a line: what it costs and how often.
+ *
+ * SHARED BY BOTH LISTS, required and optional, because they were the same string written
+ * twice — and the moment a catch-up had to be added, twice would have become "once, in
+ * whichever list somebody was looking at". Same argument as this whole component.
+ *
+ * WHAT IT SAYS WHEN A MEMBER IS BEHIND. The steady installment on its own is a promise
+ * this card cannot keep: a member switching to monthly in August owes $450 next, not $50,
+ * and a KPI that says "$50/monthly" beside a "Remaining Balance" of $600 is inviting them
+ * to work out the difference themselves. So the next figure leads and the steady one
+ * follows it, in the same order My Summary's table puts them.
+ *
+ * `next` is used and never recomputed: it arrives clamped to the balance from
+ * `duesPlanMath` on the server, and a second clamp here would be a second answer.
+ */
+function PlanLine({ summary: s }: { summary: DuesSummary }) {
+  if (s.onSchedule) {
+    return <>{s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}</>
+  }
+  return (
+    <>
+      {s.schedule.label} — {formatCurrency(s.nextInstallmentCents)} next
+      {s.followingInstallmentDate && <>, then {formatCurrency(s.followingInstallmentCents)}/{s.cadence}</>}
+    </>
+  )
+}
+
 export function DuesBalanceKpi({ summary, showViewLink = false, className }: Props) {
   const outstanding = summary.filter(isOutstanding)
   const requiredDue = outstanding.filter(s => s.required)
@@ -91,7 +119,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
               {requiredDue.map(s => (
                 <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <AlertCircle className="h-3 w-3 shrink-0 text-brand-accent" />
-                  {s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}
+                  <PlanLine summary={s} />
                 </li>
               ))}
             </ul>
@@ -113,7 +141,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
                 {optionalDue.map(s => (
                   <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <HeartHandshake className="h-3 w-3 shrink-0" />
-                    {s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}
+                    <PlanLine summary={s} />
                   </li>
                 ))}
               </ul>

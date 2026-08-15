@@ -2,6 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
+import { getMyPermissionSet } from '@/lib/auth/permissions'
+import { getMyFamilyTier } from '@/lib/auth/tier'
+import { notifyMembershipAppeal } from '@/lib/notifications'
 
 export type ResendResult =
   | { success: true }
@@ -67,12 +71,126 @@ export async function appealMembershipDecision(
   if (error) return { success: false, message: 'Could not send that just now. Please try again.' }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Could not send that.' }
 
+  // ── Tell the administrators, which nothing did until 2026-08-14 ────────────────
+  // This is the worst of the five silent doors in lib/notifications.ts's list, because
+  // it is the only one carrying a MESSAGE. 20260811000002 states the whole rationale for
+  // the feature as "the whole value to the administrator is the sentence explaining why
+  // they should reconsider" — and that sentence went into a column nobody was told about.
+  // The row reappears in the queue, so a family that happens to look sees it; a family
+  // that does not look never learns an appeal was made.
+  //
+  // WHY `familyCode` IS ESTABLISHED HERE DESPITE ARRIVING FROM THE CLIENT, which
+  // lib/notifications.ts's precondition otherwise forbids: appeal_membership_decision()
+  // resolves the row from auth.uid() and this code TOGETHER, takes no person id, and
+  // refuses any row that is not the caller's own and not 'rejected'. So `ok: true` is
+  // itself the proof that the caller has a membership in this family — a code they have
+  // no row in matches nothing and returns ok: false, three lines above. The normalization
+  // is the RPC's too, so what is passed on is what it matched.
+  const mine = (await getMyFamilies(user.id)).find(f => f.familyCode === familyCode)
+  try {
+    await notifyMembershipAppeal({
+      familyCode,
+      familyName: mine?.familyName ?? familyCode,
+      applicantName: await getMyNameInFamily(user.id, familyCode),
+      applicantEmail: user.email ?? null,
+      note,
+    })
+  } catch {
+    // Swallowed, like every other notification call site: the appeal is recorded and the
+    // row is back in the queue whether or not the bell rang.
+  }
+
   // The dashboard renders the waiting screen from this status, and Members & Access shows
   // the row in its queue.
   revalidatePath('/dashboard')
   revalidatePath('/admin/users')
   revalidatePath('/my-families')
   return { success: true }
+}
+
+/**
+ * A cheap fingerprint of everything the signed-in SHELL is built from.
+ *
+ * ── THE BUG THIS EXISTS FOR ─────────────────────────────────────────────────────────
+ * The rail and the top bar are rendered by app/(protected)/layout.tsx from
+ * `viewableResources()`, which collapses to the three PENDING_RESOURCES for anyone not
+ * yet admitted. App Router does not re-render a shared layout on a client-side
+ * navigation — only the segments below it — so an applicant approved while their tab is
+ * open keeps a one-item rail indefinitely. `revalidatePath` in the approver's request
+ * cannot reach them: it runs in a different session and touches that session's caches.
+ *
+ * Nothing else in their browser asks. The pending screen has no interval and no channel,
+ * and the bell — which does hold a realtime subscription — is not even rendered for them.
+ * So the shell needs something that asks, and this is what it asks.
+ *
+ * ── WHY A FINGERPRINT AND NOT A STATUS ──────────────────────────────────────────────
+ * Because `membership_status` is the wrong column to watch on its own. Four other actions
+ * change what the shell may show without touching it — `applyTemplate`,
+ * `setTemplatePermission`, `deleteTemplate` and `setFamilyTier`, the last because
+ * `viewableResources` narrows by tier — so a template edit or a downgrade would leave a
+ * rail full of destinations that now 404 or bounce to /upgrade. Comparing a string built
+ * from all four inputs catches every one of them without the watcher knowing what any of
+ * them mean.
+ *
+ * `memberships` is the whole vector rather than the active membership, and that is
+ * required rather than thorough: PendingApproval renders EVERY non-approved membership
+ * plus the approved ones as "your other families", so an applicant pending in two
+ * families who is approved by the second must see the screen change even though the
+ * family they are viewing did not move.
+ *
+ * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────
+ * NOT an authorization surface. It answers only "has anything about me changed", and the
+ * client's only response is `router.refresh()` — which re-runs every real guard on the
+ * server. Nothing here decides anything.
+ *
+ * TAKES NO IDENTITY PARAMETER (AGENTS.md §2b). It is a `'use server'` export and
+ * therefore a public endpoint; everything below derives from the session, and
+ * `getMyFamilies` scopes on `.eq('user_id', userId)`, so the only state anybody can read
+ * through it is their own.
+ *
+ * DELIBERATELY NO `requireMember()`. Its whole purpose is to serve a caller who is not an
+ * approved member yet — the same reason `appealMembershipDecision` above has no grant
+ * check. Demanding one would refuse precisely the person it exists for.
+ */
+export interface ShellState {
+  /** '' when the caller belongs to no family at all. */
+  fingerprint: string
+}
+
+export async function getMyShellState(): Promise<ShellState> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { fingerprint: '' }
+
+  const families = await getMyFamilies(user.id)
+  if (!families.length) return { fingerprint: '' }
+
+  // Sorted, so the fingerprint depends on the facts and not on the order a query
+  // happened to return them in — an unstable string here would refresh the page forever.
+  const memberships = families
+    .map(f => `${f.familyCode}:${f.status}${f.isActive ? ':active' : ''}`)
+    .sort()
+    .join(',')
+
+  // The active family's template and tier, which is the granularity the shell is built
+  // at: `viewableResources` resolves one template and one tier, both for the family being
+  // viewed. A change in another family's grants cannot alter this rail, and a change in
+  // which family is active is already in `memberships` above.
+  const active = families.find(f => f.isActive) ?? families[0]
+  const [perms, tier] = await Promise.all([
+    getMyPermissionSet(user.id),
+    getMyFamilyTier(user.id),
+  ])
+
+  // The template ID is not enough on its own — editing a template in place changes what
+  // it grants without changing which one it is — so the resolved grid's size and its
+  // sorted contents stand in for its version. It is a string comparison either way, and
+  // `resolved` is already loaded for this request.
+  const grid = [...perms.resolved.entries()].map(([k, v]) => `${k}=${v}`).sort().join('|')
+
+  return {
+    fingerprint: [active.familyCode, memberships, tier, grid].join('#'),
+  }
 }
 
 export async function resendConfirmationEmail(): Promise<ResendResult> {

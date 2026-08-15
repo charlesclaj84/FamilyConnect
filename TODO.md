@@ -720,3 +720,49 @@ policies are a **separate access-control system** from the RLS policies the suit
 exercises. Nothing in this work says anything about whether one family can read or
 overwrite another's objects. Doing it properly means seeding buckets and asserting on
 object paths, which is a different harness rather than three more cases.
+
+### `dues_member_plans.start_date` is a live column nothing reads or writes
+
+**Action:** decide whether dues prorate for a member who joins mid-period, and either
+use this column or drop it.
+
+`20260610000005_accounting.sql` gives every plan row a `start_date DATE NOT NULL DEFAULT
+CURRENT_DATE`. `getMyDuesSummary` does not select it (`select('schedule_id, cadence,
+opted_out')`) and `setMyDuesPlan` does not write it, so every row carries the date its
+plan happened to be created and nothing has ever consulted it.
+
+It became worth deciding on 2026-08-14, when `duesPlanMath` started itemizing arrears.
+A member admitted in August is now told, on screen, that their next installment covers
+the year to date. **That is not new behaviour** — `remainingBalanceCents` has always
+charged them the full annual total, because nothing in this product prorates — but it
+was previously a single number nobody could decompose, and it is now a sentence.
+
+If prorating is wanted, this column is where the ladder should be floored, and **the
+balance has to move with it** or the page shows two figures describing different debts.
+Two traps if it goes that way: the column must be written once and never on a
+re-pick, or a member could reduce their arrears by changing cadence twice; and
+`dues_schedules.start_date` is FROZEN once any payment references it
+(`20260807000001`), so there is no data-entry remedy for a schedule whose start date
+was wrong — the derivation is the only lever.
+
+### `notifications` may not be in the realtime publication
+
+**Action:** run `SELECT * FROM pg_publication_tables WHERE pubname='supabase_realtime';`
+against hosted and record the answer.
+
+`NotificationBell` opens a `postgres_changes` subscription on `notifications`, and
+nothing in `supabase/migrations/` adds that table to the publication — the only mention
+of `supabase_realtime` in the repo is a commented-out line for `chat_messages` in
+`20260603000000_chat.sql`. Publication membership is database state edited by hand in
+the Dashboard, so it is invisible to `npm run db:check` and to `db:audit`, and a fresh
+`supabase db reset` publishes nothing at all.
+
+Two consequences worth knowing before relying on it. The subscription may never have
+fired for anyone, in which case the bell has always been updating on navigation alone
+(`getNotifications` is server-rendered by `TopBar` on every page load, so the feature
+works either way — which is why nobody noticed). And a realtime-based fix for anything
+else would work on hosted and silently do nothing locally, or the reverse.
+
+If it is added, guard it — a bare `ALTER PUBLICATION … ADD TABLE` raises 42710 if the
+table was ever added by hand, and under `migrate.yml` a failed job holds the Vercel
+alias so nothing deploys.
