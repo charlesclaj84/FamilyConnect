@@ -2,7 +2,7 @@
  * The three sections of My Profile.
  *
  * Free of React and lucide imports on purpose, matching
- * components/transactions/ledgers.ts and components/account/summary-panes.ts: the page
+ * components/transactions/ledgers.ts: the page
  * is a server component that resolves the initial section from `await searchParams`, and
  * it must import this without dragging a client boundary or an icon set into its module
  * graph.

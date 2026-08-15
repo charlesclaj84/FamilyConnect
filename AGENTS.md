@@ -1099,22 +1099,48 @@ that row's `label` is the caption the rail prints. Both halves are load-bearing.
 a family delegates. One grant over a whole rail cannot express "record dues but not pay
 money out", which is the division basic accounting exists to make. Every rail is bound to
 its keys through one table, next to the labels, so the tab and the server action cannot
-disagree: `LEDGER_RESOURCE` (Transactions), `SECTION_RESOURCE` (Accounting),
-`PANE_RESOURCE` (My Summary). Members & Access is the exception that proves it — its
-three tabs have three keys and no table, because its page resolves them one by one.
+disagree: `LEDGER_RESOURCE` (Transactions), `SECTION_RESOURCE` (Accounting). Members &
+Access is the exception that proves it — its three tabs have three keys and no table,
+because its page resolves them one by one.
+
+**A rail item that grows a ROUTE stops needing the table, and its key must move with
+it.** `PANE_RESOURCE` was the third of those tables until `20260815000000`, and its
+disappearance is the rule rather than an exception to it. My Summary was a rail over
+Upcoming Dues | Donations | Payment History, each already carrying its own grant under an
+`account-summary/` prefix; those three are `/dues`, `/donations` and `/payment-history`
+now, on the MAIN rail. §1 leaves no choice about what that does to the keys — the
+resource key is the route without its leading slash — so `account-summary/history` became
+`payment-history`, and a lookup table became unnecessary the moment the href *was* the
+key. The migration copies every family's pane grant onto the new key before deleting the
+old row, which is the whole of what promoting a pane costs.
+
+Two things about that migration are worth reading before doing the same to another rail.
+It **re-uses the key `dues`**, which `20260808000001` had retired — safe only because the
+old one gated a TABLE (`dues_payments` SELECT) and the new one gates a SCREEN, and the
+file asserts the difference rather than asserting it in prose: no `permission_table_map`
+row may name it, and no policy may evaluate `auth_permission('dues', …)`. And it keeps
+one sub-key, `account-summary/funds`, because the family's fund balances on Summary are
+the one section there with no screen behind them — which is exactly what a sub-key is
+for.
 
 Sub-keys nest under their page's key (`transactions/dues-payments`,
-`admin/account/routing`, `account-summary/history`) and that prefix is **not** cosmetic:
+`admin/account/routing`, `account-summary/funds`) and that prefix is **not** cosmetic:
 `getResources()` drops any row where `isFeatureFuture('/' + key)`, and `getFeature()`
 longest-prefix-matches. A key under a `'future'` prefix vanishes from the grid with no
-error at all — `family-finances/foo` would, `transactions/foo` does not.
+error at all — `family-finances/foo` would, `transactions/foo` does not. That is why the
+funds section on Summary is `account-summary/funds` and not `family-finances/funds`,
+though the table it reads is mapped to `family-finances`: the sub-key is an app-layer
+gate on whether the section is fetched, and the map row is still what decides which rows
+come back.
 
 **Gate the fetch, not the tab.** A hidden tab over data already fetched has published
 that data (§5). Each page resolves its rail's grants server-side, skips the query for
 every item the caller cannot view, and hands down the surviving list — `visibleLedgers`,
-`visiblePanes`, `rights` — so the rail renders from the same answer the fetch used. A
-caller who can view none of them gets a sentence saying so, not an empty rail over an
-empty pane.
+`rights` — so the rail renders from the same answer the fetch used. A caller who can view
+none of them gets a sentence saying so, not an empty rail over an empty pane. This holds
+for a page that is a DIGEST of other screens too: `/account-summary` resolves `dues`,
+`payment-history`, `donations` and `account-summary/funds` before its `Promise.all` and
+passes `[]` in place of any query it is not entitled to run.
 
 **Declare only the actions something reads.** `permission_resources.actions` is what
 decides which switches the grid renders, and a switch nothing consults reads as a

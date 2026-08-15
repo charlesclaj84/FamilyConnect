@@ -22,7 +22,6 @@ import { AtAGlance } from '@/components/dashboard/AtAGlance'
 import { QuickActions } from '@/components/dashboard/QuickActions'
 import { FamilyTreeCard } from '@/components/dashboard/FamilyTreeCard'
 import { DonationDrivesCard } from '@/components/dashboard/DonationDrivesCard'
-import { PANE_RESOURCE } from '@/components/account/summary-panes'
 import { getFamilyTreeSummary } from '@/app/actions/family-tree'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
@@ -139,12 +138,16 @@ export default async function DashboardPage() {
     // written the same way every other one on this page is, so registering the resource
     // later starts narrowing this card without anybody having to remember it exists.
     isFeatureLive('/family-tree') ? can(user.id, 'family-tree', 'view') : false,
-    // The Donation Drives card. It BORROWS My Summary's Donations grant rather than
+    // The Donation Drives card. It BORROWS the Donations screen's grant rather than
     // getting a `dashboard/*` key of its own — the rule in components/dashboard/tiles.ts,
     // which 20260806000006 settled: a dashboard panel is a pointer at a job that already
     // has a switch, and registering a second one gives an administrator two controls for
-    // one thing that can disagree. Restrict the Donations pane and this card goes with it.
-    isFeatureLive('/account-summary') ? can(user.id, PANE_RESOURCE.donations, 'view') : false,
+    // one thing that can disagree. Restrict /donations and this card goes with it.
+    //
+    // The key is `donations` since 20260815000000, which promoted My Summary's three
+    // panes to screens; it was `account-summary/donations`, and the migration copied
+    // every family's grant across, so nothing about who sees this card changed.
+    isFeatureLive('/donations') ? can(user.id, 'donations', 'view') : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
@@ -227,7 +230,7 @@ export default async function DashboardPage() {
     // not. The action gates independently — it reads the schedules through the user's
     // client, so a drive the caller is a beneficiary of never comes back at all — and
     // this line is what keeps the whole list out of the payload for somebody the family
-    // has withheld the Donations pane from.
+    // has withheld Donations from.
     canViewDonations ? getDonationProgress() : Promise.resolve([]),
   ])
 
@@ -339,7 +342,7 @@ export default async function DashboardPage() {
               two are the same subject read the other way round: one is money the family
               expects, the other money it is asking for. A drive closes on a date and gets
               no second reminder, which is why it belongs on the screen every member lands
-              on rather than only behind Summary → Donations.
+              on rather than only on Donations.
 
               The card renders nothing when no drive is open, so for most families most of
               the time this column is Quick Actions, the balance and the tree — exactly as

@@ -38,7 +38,7 @@ import type { DonationSummary } from '@/app/actions/dues'
  * stops while LOOKING complete is how somebody concludes a drive does not exist.
  *
  * ── THE GATE IS NOT HERE ────────────────────────────────────────────────────────────
- * `donations` arrives already fetched under `account-summary/donations:view` and only
+ * `donations` arrives already fetched under `donations:view` and only
  * when that feature is live — AGENTS.md §5, like every other panel on this page. A
  * `canSee` prop would be the wrong shape: the check belongs above the page's
  * `Promise.all`, where the query can be skipped rather than the result hidden.
@@ -52,7 +52,7 @@ import type { DonationSummary } from '@/app/actions/dues'
 export function DonationDrivesCard({ donations }: { donations: DonationSummary[] }) {
   // Soonest to close first, then the ones with no end date at all. A drive with a
   // deadline is the one worth acting on today, which is the whole reason this card is on
-  // the landing screen rather than only on My Summary.
+  // the landing screen rather than only on Donations.
   const open = donations
     .filter(d => !d.closed)
     .sort((a, b) => {
@@ -84,7 +84,7 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
       )}
 
       <Link
-        href="/account-summary?pane=donations"
+        href="/donations"
         className={cn(
           buttonVariants({ size: 'sm', variant: 'outline' }),
           'mt-4 w-full justify-center',

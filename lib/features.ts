@@ -149,7 +149,52 @@ export const FEATURES: readonly Feature[] = [
     label: 'Summary',
     status: 'live',
     tier: 'free',
-    blurb: 'What you owe, what you have paid, and your full payment history.',
+    // A DIGEST OF THE THREE ENTRIES BELOW plus the family's fund balances, since
+    // 20260815000000. It used to BE those three, as panes on a rail; they are screens
+    // now, and this page is what it has always been called. Each section here is
+    // fetched under the grant of the screen it summarises, so a member who cannot open
+    // Donations does not get a donation figure on their Summary either.
+    blurb: 'Where you stand: what you owe, what you have paid, the drives that are open, and what the family holds.',
+  },
+  // ── The three screens Summary summarises ──────────────────────────────────
+  // Panes of /account-summary until 20260815000000, each already carrying its own
+  // grant under an `account-summary/` prefix. Promoting them to rail items promoted
+  // the keys with them, because AGENTS.md §1 leaves no choice: the resource key is the
+  // route without its leading slash, and a nav item whose href and key disagree cannot
+  // be hidden by the thing that appears to hide it.
+  //
+  // `dues` IS A RE-USED KEY AND MEANS SOMETHING ELSE NOW. The note further down this
+  // file used to say there was no /dues route and no `dues` resource, and it was right
+  // for the key 20260808000001 retired — "Dues Records", which governed whether you
+  // could see OTHER people's payments. That question still lives on the two
+  // `transactions/*` ledgers and is not coming back here. This key governs a SCREEN,
+  // and everything behind it is own-only in the action before RLS is consulted at all.
+  // The migration asserts the difference rather than describing it: no
+  // permission_table_map row, and no policy evaluating auth_permission('dues', …).
+  //
+  // ALL THREE ARE FREE, like the page they came off. Nothing about a member reading
+  // their own balance was ever sold, and splitting one Free screen into three would be
+  // a strange moment to start.
+  {
+    href: '/dues',
+    label: 'Dues',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Every schedule you are on, what each installment costs, and when the next one falls due.',
+  },
+  {
+    href: '/donations',
+    label: 'Donations',
+    status: 'live',
+    tier: 'free',
+    blurb: 'The drives your family is running, how far each has got, and what you have given.',
+  },
+  {
+    href: '/payment-history',
+    label: 'Payment History',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Every payment recorded against you, with its date, method, status and reference.',
   },
   {
     href: '/transactions',
@@ -259,9 +304,10 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
-  // There is no `/dues` route and, since 20260808000001, no `dues` permission resource
-  // either. Both halves of what it used to govern moved to the key of the screen that
-  // actually asks the question:
+  // WHAT THE OLD `dues` RESOURCE GOVERNED, AND WHERE IT WENT — worth keeping now that
+  // the key is back above under a different meaning. 20260808000001 retired "Dues
+  // Records", and both halves of its job moved to the key of the screen that actually
+  // asks the question:
   //
   //   dues_payments SELECT   -> transactions/dues-payments:view
   //                             OR transactions/donation-payments:view
@@ -269,9 +315,10 @@ export const FEATURES: readonly Feature[] = [
   //   dues_member_plans      -> nothing. Self-service; a member's own cadence and
   //                             opt-out, which no screen offers to set for anyone else.
   //
-  // Both keep an unconditional `person_id = auth_person_id()` clause, which is what
-  // makes My Summary own-only regardless of any grant. My Summary and Transactions are
-  // two different screens answering two different questions and no longer share a key.
+  // Both keep an unconditional `person_id = auth_person_id()` clause. That clause is
+  // what makes /dues and /payment-history own-only regardless of any grant, and it is
+  // why the `dues` entry above can gate a screen without gating a table. Neither of
+  // those keys is coming back to this page.
   //
   // The note this replaces claimed `dues:edit` gated "recording a payment for someone
   // other than yourself". That stopped being true in 20260806000000, which moved

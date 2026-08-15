@@ -9,21 +9,22 @@ import { type DuesSummary } from '@/app/actions/dues'
 interface Props {
   summary: DuesSummary[]
   /**
-   * The dashboard's way through to My Summary. Off by default, because the other place
-   * this card appears IS My Summary — a button linking to the page you are on.
+   * The dashboard's way through to [Dues](/dues). Off by default, because the other two
+   * places this card appears both carry their own: Summary states the link under its
+   * stat row, and Dues IS the destination — a button linking to the page you are on.
    *
-   * This is the ONLY thing that may differ between the two renderings. Anything else
-   * that wants to vary belongs in both or in neither; see the header comment.
+   * This is the ONLY thing that may differ between the three renderings. Anything else
+   * that wants to vary belongs in all of them or in none; see the header comment.
    */
   showViewLink?: boolean
-  /** Sizing from the parent — `max-w-sm` on the dashboard, a grid cell on My Summary. */
+  /** Sizing from the parent — `max-w-sm` on the dashboard, a grid cell elsewhere. */
   className?: string
 }
 
 /**
- * THE dues balance KPI. One component, rendered unchanged on the dashboard and in My
- * Summary's stat row, because it answers one question and had been answering it two
- * different ways.
+ * THE dues balance KPI. One component, rendered unchanged on the dashboard, in
+ * [Summary](/account-summary)'s stat row and at the top of [Dues](/dues), because it
+ * answers one question and had been answering it two different ways.
  *
  * They were two hand-rolled cards before. Both showed required money as the headline and
  * optional underneath — the rule was right in both — but nothing else about them matched:
@@ -160,8 +161,8 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
       )}
 
       {showViewLink && (
-        <Link href="/account-summary" className={buttonVariants({ size: 'sm', variant: 'outline' }) + ' w-full justify-center'}>
-          View Account
+        <Link href="/dues" className={buttonVariants({ size: 'sm', variant: 'outline' }) + ' w-full justify-center'}>
+          View Dues
         </Link>
       )}
     </div>

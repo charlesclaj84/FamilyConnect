@@ -16,17 +16,29 @@ import { formatCurrency as fmt } from '@/lib/currency-utils'
 
 interface Props {
   funds: FundWithStats[]
-  isAdmin: boolean
+  /**
+   * Whether to offer the way through to Accounting's Funds section.
+   *
+   * NAMED FOR WHAT IT DECIDES, not for who the caller is. It was `isAdmin` and was fed
+   * `family-finances:edit`, which is a different question from the one the link asks:
+   * the link goes to /admin/account?section=funds, so what it needs is that section's
+   * own view grant, or it renders a destination that 404s for whoever follows it. Both
+   * call sites pass `admin/account/funds:view` now.
+   */
+  canManage: boolean
 }
 
 function pctLabel(bps: number) {
   return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`
 }
 
-export function FundsSection({ funds, isAdmin }: Props) {
+export function FundsSection({ funds, canManage }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  if (funds.length === 0 && !isAdmin) return null
+  // Nothing to show and nothing to do about it. Somebody who CAN set funds up still
+  // gets the card, because "No funds set up yet" beside a Manage Funds button is the
+  // one useful thing to say to them.
+  if (funds.length === 0 && !canManage) return null
 
   return (
     <Card>
@@ -35,7 +47,7 @@ export function FundsSection({ funds, isAdmin }: Props) {
           <Award className="h-4 w-4 text-primary" />
           Family Funds
         </CardTitle>
-        {isAdmin && (
+        {canManage && (
           <Link href="/admin/account?section=funds" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
             Manage Funds
           </Link>

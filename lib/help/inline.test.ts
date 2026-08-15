@@ -75,8 +75,8 @@ describe('parseInline', () => {
   })
 
   it('carries a query string in an href', () => {
-    expect(parseInline('[Dues](/account-summary?pane=dues)')).toEqual([
-      { kind: 'link', text: 'Dues', href: '/account-summary?pane=dues' },
+    expect(parseInline('[Dues](/dues?from=summary)')).toEqual([
+      { kind: 'link', text: 'Dues', href: '/dues?from=summary' },
     ])
   })
 })

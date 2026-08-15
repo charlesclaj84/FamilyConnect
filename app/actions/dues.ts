@@ -306,6 +306,30 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
 }
 
 /**
+ * Revalidate every screen a member reads their own money on.
+ *
+ * NOT EXPORTED, and it must not be. Everything exported from a `'use server'` file gets
+ * a URL (AGENTS.md, on `lib/email`), and a cache-busting endpoint anyone signed in may
+ * POST is not a thing this file should publish. A local helper is fine — only exports
+ * become endpoints.
+ *
+ * ONE CALL REPLACING ONE LINE, at all eight sites that used to say
+ * `revalidatePath('/account-summary')`. Until 20260815000000 that single path held the
+ * whole of a member's own accounting, as three panes behind a rail; the panes are three
+ * screens now, so the same eight events have four pages to invalidate instead of one.
+ * Written as a list rather than resolved per call site deliberately: the alternative is
+ * eight judgements about which of four screens a given write touches, made again every
+ * time somebody adds a ninth, and the failure mode of getting one wrong is a member
+ * looking at a figure that changed a minute ago.
+ */
+function revalidateMemberMoney() {
+  revalidatePath('/account-summary')
+  revalidatePath('/dues')
+  revalidatePath('/donations')
+  revalidatePath('/payment-history')
+}
+
+/**
  * Normalize a dues_schedules row's `kind`.
  *
  * Anything that is not exactly 'donation' is dues — which covers the column being
@@ -795,7 +819,7 @@ export async function createDuesSchedule(
     }
   }
 
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/admin/account')
   return { success: true, schedule: mapSchedule({ ...data, donation_beneficiaries: beneficiaryIds.map(person_id => ({ person_id })) }) }
 }
@@ -919,7 +943,7 @@ export async function updateDuesSchedule(
     if (!synced.ok) return { success: false, message: synced.message }
   }
 
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/admin/account')
   revalidatePath('/transactions')
   return { success: true }
@@ -947,7 +971,7 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
   const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/account')
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   return { success: true }
 }
 
@@ -1226,7 +1250,7 @@ export async function setMyDuesPlan(
       { onConflict: 'person_id,schedule_id' },
     )
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -1311,7 +1335,7 @@ export async function setMyDuesOptOut(
       { onConflict: 'person_id,schedule_id' },
     )
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -1336,7 +1360,7 @@ export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: bo
     .eq('family_code', familyCode)
     .eq('schedule_id', scheduleId)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -1605,7 +1629,7 @@ export async function recordPayment(input: {
     await routePaidPayment(admin, familyCode, payment, myPerson.id, kind)
   }
 
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/admin/account')
   revalidatePath('/family-finances')
   revalidatePath('/dashboard')
@@ -1707,7 +1731,7 @@ export async function reversePayment(
     )
   }
 
-  revalidatePath('/account-summary')
+  revalidateMemberMoney()
   revalidatePath('/transactions')
   revalidatePath('/admin/account')
   revalidatePath('/family-finances')

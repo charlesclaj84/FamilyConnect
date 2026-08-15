@@ -15,6 +15,8 @@ import {
   UsersRound,
   ListChecks,
   CalendarClock,
+  HeartHandshake,
+  History,
   Menu,
   X,
   BookOpen,
@@ -165,12 +167,30 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
 
   groups.push({ section: { label: 'Events', icon: CalendarClock }, items: eventItems })
 
+  // SUMMARY FIRST, THEN THE THREE SCREENS IT SUMMARISES, then the family's ledgers.
+  // Dues, Donations and Payment History were panes on a rail INSIDE Summary until
+  // 20260815000000; each is a destination now, with its own route, its own
+  // permission_resources row and — the part that makes them appear here at all — its own
+  // entry in lib/features.ts, since viewableResources() builds its answer by walking
+  // that registry and a key with no entry there can never be in `viewable`.
+  //
+  // The order is the permission grid's too: sort_order 100, 105, 106, 107, 115 in the
+  // accounting category. Two lists of the same items in two different orders is a thing
+  // an administrator has to reconcile by hand, and Settings' position is the precedent
+  // for keeping them in step rather than arguing each one separately.
+  //
+  // The icons are the three the rail items carried when they were panes — CalendarClock
+  // for schedules, HeartHandshake for giving, History for the record — which is what
+  // keeps these recognisable as the screens that replaced them.
   groups.push({
     section: { label: 'Accounting', icon: Wallet },
     items: [
-      { href: '/account-summary', label: 'Summary',           icon: Wallet },
-      { href: '/transactions',    label: 'Transactions',      icon: ArrowRightLeft },
-      { href: '/family-finances', label: 'Family Finances',   icon: BarChart3 },
+      { href: '/account-summary',  label: 'Summary',         icon: Wallet },
+      { href: '/dues',             label: 'Dues',            icon: CalendarClock },
+      { href: '/donations',        label: 'Donations',       icon: HeartHandshake },
+      { href: '/payment-history',  label: 'Payment History', icon: History },
+      { href: '/transactions',     label: 'Transactions',    icon: ArrowRightLeft },
+      { href: '/family-finances',  label: 'Family Finances', icon: BarChart3 },
     ],
   })
 

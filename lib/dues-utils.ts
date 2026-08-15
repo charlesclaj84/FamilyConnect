@@ -385,7 +385,7 @@ export function duesPlanMath(input: {
    * It exists because the proration is a fact about the MEMBER and this function only
    * ever sees the schedule. Passing the figure in rather than teaching this function
    * about birthdays keeps the ladder arithmetic where it is — and keeps the client's
-   * optimistic cadence preview (`planFor` in DuesDetailSection) able to reproduce the
+   * optimistic cadence preview (`planFor` in DuesPlanSection) able to reproduce the
    * server's answer exactly, from a number the summary already carries.
    */
   annualCents?: number

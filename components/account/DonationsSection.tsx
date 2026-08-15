@@ -20,15 +20,20 @@ import type { DonationSummary } from '@/app/actions/dues'
  * Every figure shown is either a family total or the reader's own. Nothing here
  * identifies another member's giving.
  *
- * Renders nothing at all when the family has no donations configured, so families
- * that do not use them never see an empty shell. My Summary's rail is built from the
- * same fact — passed separately as `hasDonations`, because a null child and a child
- * that draws nothing look identical from outside.
+ * TWO CALLERS SINCE 20260815000000, and neither passes the same list. [Donations](/donations)
+ * hands it every drive, open and closed, because that screen is the full record;
+ * [Summary](/account-summary) filters to the open ones and states the count of the rest,
+ * because a digest is about what to do next. The filtering is the caller's job — this
+ * component renders the drives it is given and takes no view on which they should be.
  *
- * No card header and no card: the rail item above the pane names it, and a bordered panel
- * wrapping a list of already-bordered rows was a box inside a box. Each DRIVE keeps its
- * own border — that separates one drive from the next, which is a different job from
- * fencing off the pane.
+ * Renders nothing at all on an empty list, which is right for a section inside a larger
+ * page and NOT enough for a screen of its own: /donations answers that case itself,
+ * because a blank page under a heading reads as something that failed to load.
+ *
+ * No card header and no card: whatever heading is above it names it, and a bordered
+ * panel wrapping a list of already-bordered rows was a box inside a box. Each DRIVE
+ * keeps its own border — that separates one drive from the next, which is a different
+ * job from fencing off the list.
  */
 export function DonationsSection({ donations }: { donations: DonationSummary[] }) {
   if (donations.length === 0) return null

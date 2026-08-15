@@ -37,7 +37,11 @@ export default async function FamilyFinancesPage() {
       </section>
 
       <section>
-        <FundsSection funds={funds} isAdmin={await can(user.id, 'family-finances', 'edit')} />
+        {/* `admin/account/funds:view`, not `family-finances:edit`. The prop decides one
+            thing — whether to offer the Manage Funds link — and that link goes to
+            /admin/account?section=funds, so it is that section's grant the question is
+            about. Summary passes the same expression; see the prop's own note. */}
+        <FundsSection funds={funds} canManage={await can(user.id, 'admin/account/funds', 'view')} />
       </section>
     </PageShell>
   )

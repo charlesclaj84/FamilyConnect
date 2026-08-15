@@ -346,14 +346,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'balance',
             heading: 'Remaining Balance',
             blocks: [
-              p('What you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/account-summary) leads with, and clicking through takes you to the detail.'),
+              p('What you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/account-summary) leads with, and **View Dues** takes you to the schedule-by-schedule detail on [Dues](/dues).'),
             ],
           },
           {
             id: 'donation-drives',
             heading: 'Donation Drives',
             blocks: [
-              p('Every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Summary](/account-summary).'),
+              p('Every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Donations](/donations).'),
               p('The soonest to close comes first, and the panel names the count if there are more than three. It does not appear at all when no drive is open, which is most families most of the time.'),
             ],
           },
@@ -737,21 +737,46 @@ export const HELP_PARTS: readonly HelpPart[] = [
     blurb: 'What you owe, what the family has taken in, and how it is set up.',
     chapters: [
       {
-        slug: 'my-dues',
-        title: 'Your dues and donations',
-        summary: 'What you owe, when the next payment is due, how to change the cadence, and your full history.',
+        slug: 'summary',
+        title: 'Summary',
+        summary: 'Where you stand at a glance — what you owe, what you have paid, which drives are open, and what the family holds.',
         route: '/account-summary',
         sections: [
           {
-            id: 'panes',
-            heading: 'The three panes',
+            id: 'what-it-is',
+            heading: 'A digest, not a screen of its own',
             blocks: [
+              p('[Summary](/account-summary) shows the headline of each of the four things below it and names where the rest is. Nothing lives only here — every figure has a screen behind it, reached from the link beside its heading or from the **Accounting** section of the rail.'),
               defs(
-                { term: 'Upcoming Dues', text: 'Every schedule you are on, what it costs, and what is next.' },
-                { term: 'Donations', text: 'The drives your family is running and how they are doing.' },
-                { term: 'Payment History', text: 'Everything you have paid, with method and status.' },
+                { term: 'Account Standing / Next Installments', text: 'What you owe and what the next payment comes to. In full on [Dues](/dues).' },
+                { term: 'Paid This Year', text: 'Your total for the year, broken down by schedule. In full on [Payment History](/payment-history).' },
+                { term: 'Open donation drives', text: 'The drives still running. Closed ones are counted here and listed on [Donations](/donations).' },
+                { term: 'Family Funds', text: 'Every fund the family keeps and what each holds. There is no separate screen for this one.' },
               ),
-              p('A pane you cannot see is one your family has not granted you — see [Who can do what](/help/who-can-do-what). This page never shows anybody else\'s money, whatever you have been granted.'),
+            ],
+          },
+          {
+            id: 'what-you-see',
+            heading: 'Why a section might be missing',
+            blocks: [
+              p('Each of the four is granted separately, and Summary shows only the ones you hold. A section you cannot see is one your family has not given you — see [Who can do what](/help/who-can-do-what). If you hold none of them, the page says so rather than showing you empty headings.'),
+              note('Whatever you have been granted, the money figures here are yours. Nothing on this page shows another member\'s dues, payments or giving. Family Funds is the exception in kind rather than in privacy: a fund balance belongs to the whole family, and it names nobody.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'my-dues',
+        title: 'Your dues',
+        summary: 'Every schedule you are on, what the next payment has to be, and how to change how often you pay.',
+        route: '/dues',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Your schedules',
+            blocks: [
+              p('[Dues](/dues) lists every schedule you are on: what it costs a year, what one installment comes to, when the next one falls, and what is left. The two cards at the top are the same ones [Summary](/account-summary) leads with.'),
+              p('It never shows anybody else\'s dues, whatever you have been granted. What the family as a whole has paid is a different question, asked on [Transactions](/transactions).'),
             ],
           },
           {
@@ -787,15 +812,64 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
-              p('**Opt out** on a schedule says it does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** reverses it.'),
+              p('**Opt out** on a schedule says it does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** reverses it. Only an optional due offers it; a required one has no button.'),
               note('Opting out is not the same as having paid. It removes the schedule from your balance going forward; it does not erase what was already owed.'),
             ],
           },
+        ],
+      },
+      {
+        slug: 'donations',
+        title: 'Donations',
+        summary: 'The drives your family is running, how far each has got, and what you have given.',
+        route: '/donations',
+        sections: [
           {
-            id: 'history',
-            heading: 'Payment History',
+            id: 'drives',
+            heading: 'What a drive shows',
             blocks: [
-              p('Every payment recorded against you: the date, the amount, the method and the status. A reversal appears as its own entry with a negative amount rather than the original disappearing, so the record stays true to what happened.'),
+              p('[Donations](/donations) lists every drive the family has run, each with a bar showing how far it has got. Under the bar: what has been raised, what the goal was, and — only if you have given to it — how much of that was yours.'),
+              p('A drive that has passed its goal keeps going rather than stopping at 100%: the bar rescales and the excess is shown as its own segment, because a drive that doubled its target should not look like one that scraped in.'),
+              p('A drive with no goal set has no bar to draw, so it shows the running total instead.'),
+            ],
+          },
+          {
+            id: 'closed',
+            heading: 'Closed drives',
+            blocks: [
+              p('A drive past its end date is marked **Closed** and dimmed, and it stays on this page. [Summary](/account-summary) lists only the open ones and counts the rest — a digest is about what to do next, and this page is the full record.'),
+            ],
+          },
+          {
+            id: 'giving',
+            heading: 'Giving to one',
+            blocks: [
+              p('Giving online is not built yet, which is why **Give** is there and does nothing. Hand your gift to whoever keeps the books and it appears here — and in your [payment history](/payment-history) — once they record it.'),
+              note('Nothing on this page says who gave what. Every figure is either a family total or your own.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'payment-history',
+        title: 'Payment history',
+        summary: 'Everything recorded against you, with its date, amount, method and status.',
+        route: '/payment-history',
+        sections: [
+          {
+            id: 'the-list',
+            heading: 'The list',
+            blocks: [
+              p('[Payment History](/payment-history) is every payment the family has recorded against you — dues and donations in one list, each row tagged with which it was. Any column heading sorts, and the **Filter** box narrows by schedule, method or status.'),
+              p('Clicking a row opens the full entry: the cheque number or reference, any notes, and the date it was keyed in — which is not the same as the date it was paid, and is usually what explains why something only just appeared.'),
+            ],
+          },
+          {
+            id: 'reversals',
+            heading: 'Corrections',
+            blocks: [
+              p('A payment entered wrongly is not edited or deleted. A correcting entry is posted against it with a negative amount, and both stay in the list, so the record explains itself rather than quietly changing.'),
+              note('**Waived** means the family cancelled what was owed rather than that money moved. The amount still shows, because it comes off your balance and a balance that drops with no figure anywhere to match it is one you cannot check.'),
             ],
           },
         ],

@@ -9,9 +9,11 @@ import {
  *
  * WHY THERE IS A TABLE AT ALL, AND WHY IT IS NOT A MIGRATION. AGENTS.md's "one rail
  * item, one permission resource" rule binds each item on a rail to a row in
- * `permission_resources` — `LEDGER_RESOURCE` (Transactions), `SECTION_RESOURCE`
- * (Accounting), `PANE_RESOURCE` (My Summary) are the three worked examples, and this is
- * the fourth. What is deliberately different here: **no `dashboard/*` resource keys are
+ * `permission_resources` — `LEDGER_RESOURCE` (Transactions) and `SECTION_RESOURCE`
+ * (Accounting) are the worked examples, and this is the third. (There was a fourth,
+ * `PANE_RESOURCE`, until 20260815000000 turned My Summary's three panes into three
+ * screens — a rail item with a route of its own needs no table, because the key is the
+ * route without its leading slash.) What is deliberately different here: **no `dashboard/*` resource keys are
  * registered, and none should be.**
  *
  * A rail item is a JOB the page divides into, so it earns its own switch. A dashboard
