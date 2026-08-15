@@ -68,6 +68,21 @@ const MODES: { id: AddRelativeMode; label: string; hint: string; icon: typeof Us
   },
 ]
 
+/**
+ * The record mode's hint, worded for what is being recorded.
+ *
+ * A child with no email is the commonest use of this path and the general wording buried
+ * it at the end of a list — so somebody adding a son saw "for relatives who have passed"
+ * first and reasonably concluded this was the wrong door. The child version leads with
+ * the child, and says why a birthday is being asked for, which is the one thing about
+ * this form that is not self-evident.
+ */
+function recordHint(isChild: boolean): string {
+  return isChild
+    ? 'Record them without one — for a child too young for an account. We ask for their birthday because dues can start at an age.'
+    : MODES[2].hint
+}
+
 export function AddRelativeDialog({
   open, onClose, anchor, relationshipType, candidates, coParents = [],
 }: {
@@ -99,6 +114,7 @@ export function AddRelativeDialog({
   const [lastName, setLastName] = useState(anchor.lastName ?? '')
   const [email, setEmail] = useState('')
   const [reason, setReason] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
   const [linkKind, setLinkKind] = useState<LinkKind>('blood')
   // TICKED BY DEFAULT. Sharing both parents is what "brother" means to most families most
   // of the time, and a half-sibling is the case somebody unticks — the opposite default
@@ -124,6 +140,7 @@ export function AddRelativeDialog({
     setLastName(anchor.lastName ?? '')
     setEmail('')
     setReason('')
+    setDateOfBirth('')
     setLinkKind('blood')
     setSharedParents(coParents.map(p => p.id))
     setError('')
@@ -138,10 +155,18 @@ export function AddRelativeDialog({
     reset()
   }
 
+  // A CHILD recorded with no email owes a birthday, because dues can start at an age and
+  // an unrecorded age reads as an adult's everywhere in the product. `addRelative`
+  // refuses it independently — this is the button agreeing with the action rather than
+  // the thing that enforces it. See the input's own note there.
+  const isChild = meta?.relation === 'child'
+  const needsBirthday = mode === 'record' && isChild
+
   const complete =
     mode === 'existing' ? Boolean(existingPersonId)
       : mode === 'invite' ? Boolean(firstName.trim() && lastName.trim() && email.trim())
-        : Boolean(firstName.trim() && lastName.trim() && reason.trim())
+        : Boolean(firstName.trim() && lastName.trim() && reason.trim()
+          && (!needsBirthday || dateOfBirth))
 
   function submit() {
     setError('')
@@ -156,6 +181,7 @@ export function AddRelativeDialog({
         lastName,
         email,
         noEmailReason: reason,
+        dateOfBirth,
         linkKind,
         sharedParentIds: sharedParents,
       })
@@ -213,7 +239,7 @@ export function AddRelativeDialog({
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {MODES.find(m => m.id === mode)!.hint}
+              {mode === 'record' ? recordHint(isChild) : MODES.find(m => m.id === mode)!.hint}
             </p>
           </div>
 
@@ -360,6 +386,34 @@ export function AddRelativeDialog({
 
           {mode === 'record' && (
             <>
+              {/* THE BIRTHDAY, and only on this path. Required for a child, because dues
+                  can start at an age (`dues_schedules.start_age`) and a record with no
+                  birthday is treated as fully liable — the same "never guess at an age"
+                  rule that is right everywhere else and exactly wrong for a five-year-old.
+                  Offered for everybody else because it is the moment somebody knows it,
+                  and it is what the tree disambiguates two identical names by.
+
+                  `max` is today: nobody on this tree was born tomorrow, and a typo in the
+                  year is the commonest thing to get wrong in a date field. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="relative-dob" required={needsBirthday}>
+                  Date of birth{needsBirthday ? '' : ' (optional)'}
+                </Label>
+                <Input
+                  id="relative-dob"
+                  type="date"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={dateOfBirth}
+                  onChange={e => setDateOfBirth(e.target.value)}
+                />
+                {needsBirthday && (
+                  <p className="text-xs text-muted-foreground">
+                    Dues can start at an age. Without a birthday we cannot tell when this
+                    child starts owing them, and they would be billed as an adult.
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="relative-reason">Why is there no email address?</Label>
                 <Textarea
@@ -367,7 +421,9 @@ export function AddRelativeDialog({
                   rows={2}
                   value={reason}
                   onChange={e => setReason(e.target.value)}
-                  placeholder="Passed away in 1998 · No email, phone only · Too young for an account"
+                  placeholder={isChild
+                    ? 'Too young for an account · No email yet'
+                    : 'Passed away in 1998 · No email, phone only · Too young for an account'}
                 />
               </div>
               <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">

@@ -89,7 +89,11 @@ export function AdminFundsClient({
   // did; only a successful create clears them.
   const [nfName, setNfName] = useState('')
   const [nfDesc, setNfDesc] = useState('')
-  const [nfGoal, setNfGoal] = useState('')
+  // THE MINIMUM, not a goal. A goal was a number nothing reads: routing fills funds toward
+  // their MINIMUM in priority order, so the field that was asked for at creation had no
+  // consequence and the one that did stayed at zero — and the Routing screen next door
+  // then showed $0.00 for a fund somebody had just given a target. See `createFund`.
+  const [nfMinimum, setNfMinimum] = useState('')
   const [nfOpen, setNfOpen] = useState(false)
 
   // ── New milestone form ──
@@ -173,11 +177,15 @@ export function AdminFundsClient({
   function handleCreateFund() {
     if (!nfName) { setError('Name required'); return }
     setError('')
+    // One reading of the field, used for the write AND for both optimistic rows below.
+    // Parsed once because the Routing pane is fed from `alloc` and the Balances table from
+    // `funds`: computing it twice is how the same fund came to show two minimums.
+    const minimumCents = dollarsToCents(nfMinimum)
     startTransition(async () => {
       const result = await createFund({
         name: nfName,
         description: nfDesc,
-        goal_cents: nfGoal ? Math.round(parseFloat(nfGoal) * 100) : null,
+        minimum_cents: minimumCents,
         open_contributions: nfOpen,
       })
       if (!result.success || !result.id) { setError(result.message ?? 'Failed'); return }
@@ -187,11 +195,12 @@ export function AdminFundsClient({
         id: result.id,
         name: nfName.trim(),
         description: nfDesc.trim() || null,
-        goal_cents: nfGoal ? Math.round(parseFloat(nfGoal) * 100) : null,
+        // Not asked for on create any more — see `nfMinimum`. Null is what the row holds.
+        goal_cents: null,
         active: true,
         created_at: new Date().toISOString(),
         priority: maxPriority + 1,
-        minimum_cents: 0,
+        minimum_cents: minimumCents,
         event_id: null,
         open_contributions: nfOpen,
         // A fund created from this form is never a system fund; only the migration and
@@ -205,8 +214,16 @@ export function AdminFundsClient({
         allocation_bps: funds.length === 0 ? 10000 : 0,
       }
       setFunds(prev => [...prev, newFund])
-      setAlloc(prev => [...prev, { fund_id: newFund.id, fund_name: newFund.name, percent: funds.length === 0 ? '100' : '0', minimum: '0.00' }])
-      setNfName(''); setNfDesc(''); setNfGoal(''); setNfOpen(false)
+      // THE MINIMUM CARRIES INTO THE ROUTING ROW. It used to be hard-coded '0.00' here,
+      // so even once the value was stored the Routing pane went on showing zero for the
+      // rest of the visit — and pressing Save there wrote that zero back over it.
+      setAlloc(prev => [...prev, {
+        fund_id: newFund.id,
+        fund_name: newFund.name,
+        percent: funds.length === 0 ? '100' : '0',
+        minimum: (minimumCents / 100).toFixed(2),
+      }])
+      setNfName(''); setNfDesc(''); setNfMinimum(''); setNfOpen(false)
       onCloseCreate()
     })
   }
@@ -315,8 +332,13 @@ export function AdminFundsClient({
                 <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder="College Fund" autoFocus />
               </div>
               <div className="space-y-1.5">
-                <Label>Goal Amount ($, optional)</Label>
-                <Input type="number" min="0" step="0.01" value={nfGoal} onChange={e => setNfGoal(e.target.value)} placeholder="5000.00" />
+                <Label>Minimum Balance ($, optional)</Label>
+                <Input type="number" min="0" step="0.01" value={nfMinimum} onChange={e => setNfMinimum(e.target.value)} placeholder="5000.00" />
+                <p className="text-xs text-muted-foreground">
+                  What this fund is topped up to before any fund below it receives
+                  anything. You can change it, and the order funds fill in, under
+                  Funds&nbsp;→&nbsp;Routing.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Description</Label>

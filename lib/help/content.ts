@@ -125,6 +125,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Appearance', text: 'Light, Dark, or System. It is remembered in this browser.' },
                 { term: 'Your name', text: 'Opens the account menu: [My Profile](/personal-info), [My Families](/my-families), appearance, and sign out.' },
               ),
+              p('Each of these closes itself a few seconds after you move away from it, so a panel is never left sitting over the page you went on to read. It stays open for as long as your pointer is over it, and for as long as you are moving through it with the keyboard.'),
             ],
           },
           {
@@ -349,6 +350,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'donation-drives',
+            heading: 'Donation Drives',
+            blocks: [
+              p('Every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Summary](/account-summary).'),
+              p('The soonest to close comes first, and the panel names the count if there are more than three. It does not appear at all when no drive is open, which is most families most of the time.'),
+            ],
+          },
+          {
             id: 'tree-card',
             heading: 'Family Tree',
             blocks: [
@@ -515,6 +524,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('The tree draws four generations around one person: grandparents at the top, then parents, then that person and their spouse, then children. Brothers and sisters are listed underneath rather than drawn in the row, because they share the focus person\'s generation and would crowd it out.'),
               p('It opens on you. If you married in and have no parents or children recorded, it opens on the relative you are attached to instead and says so, with a **Centre on me** link.'),
+              p('Where somebody has more than one marriage, each spouse card carries the word for it — **Wife**, **Ex-wife**, **Partner** — and the children below are split into a panel per marriage, plus **Other children** for anybody whose other parent is not one of them. The split comes from the parent connections the children already carry; nothing is guessed at.'),
             ],
           },
           {
@@ -544,6 +554,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Say whether they have an email address.',
               ),
               p('If they do, they get a real invitation and join the approvals queue when they accept. If they do not, you are asked for a short reason in your own words — "passed away in 1998", "too young for an account", "phone only" — and the record is created without one.'),
+              p('**Adding a child with no email asks for their date of birth, and will not go through without it.** A family can set an age at which its dues start, and a record with no birthday is treated as an adult everywhere in the product — so a child entered without one would be billed from the day you added them. Every other relative may be recorded with a birthday or without.'),
+              p('Grandparents have their own **+** cards in the top row, one pair per parent, named for whose they are — **Add Martha\'s father**. They hang off a parent rather than off the person in the middle, because a grandparent is somebody\'s mother or father and the tree has no other way to say which side they are on. Record a parent first and the slots appear.'),
               p('A former marriage is recorded by adding the spouse and then renaming the connection to **Ex-husband**, **Ex-wife** or **Ex-partner** in the manage dialog. An ex is drawn beside the person exactly where a current spouse is, deliberately — it is often where half the children came from.'),
               p('Every connection is recorded from both ends, so adding your mother also gives her you as a child. Each person can carry more than one marriage; the **+** for a spouse stays available after the first.'),
             ],
@@ -566,7 +578,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Blood, step, adopted and foster',
             blocks: [
               p('Every connection carries one of those four. It is set on the *connection*, not the person, because the same child can be a step-child of one parent and a blood child of the other.'),
-              p('The product cannot work this out for itself and does not try. A man with three children has three identical connections; only a person knows which of them is his by blood. Set it in the manage dialog on the connection.'),
+              p('The product cannot work this out for itself and does not try. A man with three children has three identical connections; only a person knows which of them is his by blood. Set it when you add the relative, or afterwards in the manage dialog.'),
+              p('The manage dialog lists **every** connection that person has, whoever\'s card you opened it from — so a step-grandmother is corrected from her own card rather than by clicking through to the parent she is attached to. Each one saves as you change it, and both directions move together: a step-son\'s step-father is still a step connection read the other way.'),
               note('A marriage is never blood, and choosing it is not offered — the product records a spouse connection as step and moves on rather than refusing an ordinary "add my wife" over a field nobody typed.'),
             ],
           },
@@ -762,6 +775,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'age',
+            heading: 'Dues that start at an age',
+            blocks: [
+              p('A family can say that a due starts when a member reaches a particular age. Until then it sits at the bottom of your list marked **Not yet due**, with the date it starts and nothing to pay.'),
+              p('The year you reach the age is charged by the month, and the month of your birthday is free: a $120 annual due and an eighteenth birthday in July is $50 that year, then $120 every year after. The row says so — **$50 this year · $120/yr after**.'),
+              note('Somebody with no date of birth recorded owes the due in full, because the product will not guess at an age. If a due of yours should be reduced and is not, check your birthday on [My Profile](/personal-info).'),
+            ],
+          },
+          {
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
@@ -835,7 +857,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('A dues schedule is what a member owes over a year: a name, an amount, how often it is natively billed, and which fund it lands in. Members then choose their own cadence within it.'),
               p('The start date matters. It anchors the ladder of due dates, and the form prefills today — which is fine, and worth a moment\'s thought if you are entering last year\'s schedule.'),
-              note('A schedule that has been paid against cannot simply be deleted. The page tells you when one is in use, because deleting it would orphan the payments recorded against it.'),
+              p('**Members start paying at age** is how a family says the children do not pay. Leave it blank and everybody owes the due whatever their age. Put 18 in it and a member owes nothing until they turn 18, then the months of that year after their birthday, then the full amount every year afterwards — a $120 due and a July birthday is $50 that year. The row shows it as **From age 18+**.'),
+              note('A member with no date of birth recorded owes the due in full, because the product will not guess at an age. Adding a child to the [family tree](/family-tree) without an email address asks for a birthday for exactly this reason.'),
+              note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date and starting age are then fixed — every payment already recorded was made against those terms. The page tells you when one is in use. The end date can still change.'),
             ],
           },
           {
@@ -849,7 +873,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'funds',
             heading: 'Funds',
             blocks: [
-              p('Funds are the pots money sits in. Each has a balance, what has come in, and what has gone out. A fund can carry a minimum balance, which is how a family says "this one is not for spending".'),
+              p('Funds are the pots money sits in. Each has a balance, what has come in, and what has gone out.'),
+              p('The new-fund form asks for a **Minimum Balance**, and it is the one number that actually does something: an incoming payment tops each fund up to its minimum, in the order set under **Routing**, before anything below it receives a share. It is how a family says "this one is not for spending". Leave it blank for a fund with no floor, and change it later on the Routing pane, where it sits beside the order the funds fill in.'),
             ],
           },
           {

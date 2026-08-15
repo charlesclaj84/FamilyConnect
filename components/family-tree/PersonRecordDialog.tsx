@@ -18,7 +18,30 @@ import {
 } from '@/lib/family-tree'
 
 /**
- * Managing somebody on the tree who has no account.
+ * One connection this person has, as the dialog needs it.
+ *
+ * The EDGE plus the name and the word for the person at the other end — everything the
+ * two controls need, resolved by the canvas where the adjacency and the disambiguated
+ * names already are. Declared here rather than in the builder because this is the shape's
+ * consumer; the builder imports the type.
+ */
+export interface TreeConnection {
+  edge: TreeEdge
+  /** The `people.id` at the far end. `edge.typeName` names THEM. */
+  otherId: string
+  otherName: string
+  /** "Son", "Father", "Wife" — the word for the other person relative to this one. */
+  label: string
+}
+
+/**
+ * Managing somebody on the tree: how they are related, and — for a record nobody has
+ * claimed — who they are.
+ *
+ * The two halves have different audiences. The connections are offered for EVERYBODY on
+ * the canvas, member or record, because how two people are related is a fact about the
+ * family; the details below them are editable only where there is no account, because a
+ * member is the authority on their own name.
  *
  * ── WHAT THIS REPLACED ──────────────────────────────────────────────────────────────
  * `/direct-lineage`, where a child was a record its parent owned and "Convert to Adult"
@@ -48,12 +71,13 @@ import {
  * Daughter, Martha" rather than a nameless link. A record entered without one is the
  * common case, and this is where it gets fixed.
  *
- * THE DIALOG IS ONLY MOUNTED FOR SOMEBODY WITH NO ACCOUNT, so its state initializers run
- * fresh per opening (same reasoning as `AddRelativeDialog`) and there is no effect
- * re-imposing a default while it is up.
+ * THE DIALOG IS MOUNTED PER SUBJECT — the canvas renders it only while `managing` holds a
+ * person — so its state initializers run fresh per opening (same reasoning as
+ * `AddRelativeDialog`) and there is no effect re-imposing a default while it is up. That
+ * is what lets the connection controls be seeded straight from the edges.
  */
 export function PersonRecordDialog({
-  open, onClose, person, name, edge, edgeLabel, focusName, spouseEdge, spouseType,
+  open, onClose, person, name, connections,
 }: {
   open: boolean
   onClose: () => void
@@ -61,30 +85,37 @@ export function PersonRecordDialog({
   /** The disambiguated name, so two Martha Allens are told apart in the title. */
   name: string
   /**
-   * The connection this card was reached by, when there is one. Given only for a
-   * non-marriage edge — a marriage is never blood and the database corrects it anyway
-   * (`person_relationships_marriage_is_not_blood`), so offering the choice would be
-   * offering a control that does nothing.
+   * EVERY connection this person has, in the canvas's own order.
+   *
+   * ── WHY ALL OF THEM AND NOT THE ONE THE CARD WAS REACHED BY ──────────────────────
+   * This used to take a single `edge` — the link from the focus person — plus a separate
+   * `spouseEdge`, and what could be corrected therefore depended on which card had been
+   * clicked. A grandparent is drawn from their child's card and has no edge to the focus
+   * at all, so their card offered nothing: there was no way anywhere in the product to
+   * record that a grandmother was a step-grandmother, on the one screen whose Bloodline
+   * toggle depends on that answer.
+   *
+   * Each connection gets the control its own relation admits, which is why they are one
+   * list rather than two props: a marriage can be RENAMED (Wife to Ex-Wife) and can never
+   * be blood — `person_relationships_marriage_is_not_blood` rewrites it if it claims to
+   * be — and everything else is exactly the other way round.
    */
-  edge?: TreeEdge
-  /** "Son", "Daughter", "Father" — what the relationship is called. */
-  edgeLabel?: string
-  /** Whose son/daughter: the focus person's name, for the sentence. */
-  focusName?: string
-  /**
-   * A MARRIAGE, when this card was reached by one. Its own prop rather than reusing
-   * `edge`, because the two offer opposite controls: a marriage can be renamed (Wife to
-   * Ex-Wife) and cannot be made blood; everything else is the other way round.
-   */
-  spouseEdge?: TreeEdge
-  /** The current `relationship_types.name` on `spouseEdge` — 'Wife', 'Ex-Husband'. */
-  spouseType?: string
+  connections: TreeConnection[]
 }) {
   const router = useRouter()
-  const [kind, setKind] = useState<LinkKind>(edge?.kind ?? 'blood')
-  const [kindSaved, setKindSaved] = useState(false)
-  const [spouse, setSpouse] = useState(spouseType ?? '')
-  const [spouseSaved, setSpouseSaved] = useState(false)
+  // Keyed by relationship id, so a person with four connections has four independent
+  // controls and a save on one does not put the others back. Seeded from the edges and
+  // corrected on refusal, which is what keeps a control showing what the database holds
+  // rather than what was clicked.
+  const [kinds, setKinds] = useState<Record<string, LinkKind>>(
+    () => Object.fromEntries(connections.map(c => [c.edge.id, c.edge.kind])),
+  )
+  const [types, setTypes] = useState<Record<string, string>>(
+    () => Object.fromEntries(
+      connections.filter(c => c.edge.typeName).map(c => [c.edge.id, c.edge.typeName as string]),
+    ),
+  )
+  const [savedId, setSavedId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState(person.firstName ?? '')
   const [lastName, setLastName] = useState(person.lastName ?? '')
   const [nickName, setNickName] = useState(person.nickName ?? '')
@@ -100,45 +131,46 @@ export function PersonRecordDialog({
     onClose()
     setError('')
     setSaved(false)
-    setKindSaved(false)
+    setSavedId(null)
     setInvited(null)
     setEmail('')
   }
 
-  function saveSpouseType(next: string) {
-    if (!spouseEdge) return
-    const previous = spouse
-    setSpouse(next)
+  function saveType(connection: TreeConnection, next: string) {
+    const previous = types[connection.edge.id] ?? ''
+    setTypes(prev => ({ ...prev, [connection.edge.id]: next }))
     setError('')
-    setSpouseSaved(false)
+    setSavedId(null)
     startTransition(async () => {
-      // `person.id` is the subject: the word describes the person on this card. The edge
-      // may have been reached from either end and the action turns it round if needed —
-      // see the parameter's note there.
-      const r = await setRelationshipType(spouseEdge.id, next, person.id)
+      // THE SUBJECT IS THE OTHER PERSON, because `next` is the word for them: the edge
+      // points out of the person this dialog is about, and `typeName` on it names the far
+      // end. The action turns the word round when the stored row runs the other way — see
+      // `subjectPersonId` there, and note that getting this wrong is a SILENT inversion
+      // rather than an error.
+      const r = await setRelationshipType(connection.edge.id, next, connection.otherId)
       if (!r.success) {
         setError(r.message ?? 'Could not change that connection.')
-        setSpouse(previous)   // put the control back where the database still is
+        // Put the control back where the database still is.
+        setTypes(prev => ({ ...prev, [connection.edge.id]: previous }))
         return
       }
-      setSpouseSaved(true)
+      setSavedId(connection.edge.id)
       router.refresh()
     })
   }
 
-  function saveKind(next: LinkKind) {
-    if (!edge) return
-    setKind(next)
+  function saveKind(connection: TreeConnection, next: LinkKind) {
+    setKinds(prev => ({ ...prev, [connection.edge.id]: next }))
     setError('')
-    setKindSaved(false)
+    setSavedId(null)
     startTransition(async () => {
-      const r = await setRelationshipKind(edge.id, next)
+      const r = await setRelationshipKind(connection.edge.id, next)
       if (!r.success) {
         setError(r.message ?? 'Could not change that connection.')
-        setKind(edge.kind)   // put the control back where the database still is
+        setKinds(prev => ({ ...prev, [connection.edge.id]: connection.edge.kind }))
         return
       }
-      setKindSaved(true)
+      setSavedId(connection.edge.id)
       router.refresh()
     })
   }
@@ -187,81 +219,81 @@ export function PersonRecordDialog({
         : 'They have no account, so anyone in the family can keep this record right.'}
     >
       <div className="space-y-6">
-        {/* A MARRIAGE — the word for it, which is the one thing about a spouse card that
-            is always somebody's to change. Blood is not offered here: a marriage never
-            carries it and the database says so
-            (`person_relationships_marriage_is_not_blood`). */}
-        {spouseEdge && (
-          <div className="space-y-2">
-            <Label>
-              {focusName ? `How is ${name} related to ${focusName}?` : 'What is this relationship?'}
-            </Label>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {SPOUSE_TYPES.map(t => {
-                const active = spouse === t
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => saveSpouseType(t)}
-                    disabled={isPending}
-                    aria-pressed={active}
-                    className={cn(
-                      'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
-                      active
-                        ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
-                        : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
-                    )}
-                  >
-                    {relationshipMeta(t)?.label ?? t}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              A former marriage stays on the tree beside {focusName ?? 'them'} — it is
-              usually where half the children came from.
-              {spouseSaved && <span className="ml-1 font-medium text-brand-affirm">Saved.</span>}
-            </p>
-          </div>
-        )}
+        {/* ── EVERY CONNECTION, EACH WITH THE CONTROL ITS RELATION ADMITS ────────────
+            A marriage offers the WORD (Wife → Ex-wife) and never blood, because a
+            marriage cannot carry it and the database rewrites one that says it does. Every
+            other link offers the KIND, which is what the Bloodline view walks and the only
+            way to say that a child is a step-child or that a grandmother married in.
 
-        {/* HOW THEY ARE RELATED — first, because it is the half that is offered for
-            everybody. The details below are only editable for somebody with no account,
-            so for a member with one this is the whole dialog. */}
-        {edge && (
-          <div className="space-y-2">
-            <Label htmlFor="link-kind">
-              {focusName ? `How is ${name} ${focusName}'s ${(edgeLabel ?? 'relative').toLowerCase()}?` : 'How are they related?'}
-            </Label>
-            <div className="grid gap-2 sm:grid-cols-4">
-              {LINK_KINDS.map(k => {
-                const active = kind === k
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => saveKind(k)}
-                    disabled={isPending}
-                    aria-pressed={active}
-                    className={cn(
-                      'rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-colors disabled:opacity-60',
-                      active
-                        ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
-                        : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
-                    )}
-                  >
-                    {k}
-                  </button>
-                )
-              })}
+            First in the dialog, because it is the half offered for everybody: the details
+            below are editable only for somebody with no account, so for a member with one
+            this is the whole dialog. */}
+        {connections.length > 0 && (
+          <div className="space-y-4">
+            <div>
+              <Label>How {name} is related</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Only blood links carry the bloodline, so this is what the Bloodline view
+                walks. Each connection is saved as you change it.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {kind === 'blood'
-                ? `Blood relatives appear in the Bloodline view. ${edgeLabel ? `Recorded as ${linkKindLabel(kind, edgeLabel)}.` : ''}`
-                : `Only blood relatives appear in the Bloodline view, so ${name} will not. ${edgeLabel ? `Recorded as ${linkKindLabel(kind, edgeLabel)}.` : ''}`}
-              {kindSaved && <span className="ml-1 font-medium text-brand-affirm">Saved.</span>}
-            </p>
+
+            {connections.map(connection => {
+              const isMarriage = connection.edge.relation === 'spouse'
+              const kind = kinds[connection.edge.id] ?? connection.edge.kind
+              const type = types[connection.edge.id] ?? ''
+              const saved = savedId === connection.edge.id
+              return (
+                <div key={connection.edge.id} className="space-y-2 rounded-xl border px-3 py-3">
+                  <p className="text-xs font-medium">
+                    {/* WHO, THEN WHAT THEY ARE TO THIS PERSON. `label` names the far end
+                        relative to the person this dialog is about — that is the direction
+                        the edge itself carries — so it reads "Samuel Allen · Charles's
+                        father". A bare "father" would be unreadable in a list of four. */}
+                    {connection.otherName}
+                    <span className="text-muted-foreground">
+                      {' · '}{name}&apos;s {connection.label.toLowerCase()}
+                    </span>
+                  </p>
+
+                  <div className={cn('grid gap-2', isMarriage ? 'sm:grid-cols-3' : 'sm:grid-cols-4')}>
+                    {(isMarriage ? SPOUSE_TYPES : LINK_KINDS).map(option => {
+                      const active = isMarriage ? type === option : kind === option
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => isMarriage
+                            ? saveType(connection, option)
+                            : saveKind(connection, option as LinkKind)}
+                          disabled={isPending}
+                          aria-pressed={active}
+                          className={cn(
+                            'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                            !isMarriage && 'capitalize',
+                            active
+                              ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
+                              : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
+                          )}
+                        >
+                          {isMarriage ? (relationshipMeta(option)?.label ?? option) : option}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    {isMarriage
+                      ? `A former marriage stays on the tree beside ${name} — it is usually where half the children came from. A marriage never carries blood.`
+                      : `Recorded as ${name}'s ${linkKindLabel(kind, connection.label).toLowerCase()}.`
+                        + (kind === 'blood'
+                          ? ' Blood links carry the bloodline.'
+                          : ` ${connection.otherName} does not reach the bloodline through this link.`)}
+                    {saved && <span className="ml-1 font-medium text-brand-affirm">Saved.</span>}
+                  </p>
+                </div>
+              )
+            })}
           </div>
         )}
 

@@ -7,9 +7,12 @@ import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
+  ageShareOfPeriod,
+  proratedAnnualCents,
   duesPlanMath,
   currentPeriodStart,
   defaultCadence,
+  type AgeShare,
   type PayCadence,
   type ScheduleKind,
 } from '@/lib/dues-utils'
@@ -41,6 +44,20 @@ export interface DuesSchedule {
   description: string | null
   kind: ScheduleKind
   goal_cents: number | null
+  /**
+   * DUES ONLY: the age at which a member becomes responsible for this due
+   * (20260814000000). Null means everybody owes it whatever their age, which is what
+   * every schedule meant before the column existed.
+   *
+   * The year a member reaches it is prorated by month — see `ageShareOfPeriod`. Nothing
+   * is stored per member: the answer is derived from `people.date_of_birth` at read time,
+   * because a stored answer about somebody's age is wrong the morning they have a
+   * birthday. That is the whole reason `is_minor` was dropped (20260813000006).
+   *
+   * Always null for a donation, held there by a CHECK: nobody owes a gift, so there is no
+   * age at which they start.
+   */
+  start_age: number | null
   /**
    * TRUE: every member owes this and cannot decline it.
    * FALSE: optional — a member may opt out (see DuesSummary.optedOut).
@@ -115,7 +132,44 @@ export interface DuesSummary {
   schedule: DuesSchedule
   cadence: PayCadence
   hasExplicitPlan: boolean
+  /**
+   * What THIS member owes for the period — the schedule's annual total, scaled by the
+   * age rule where one applies.
+   *
+   * NOT ALWAYS THE SCHEDULE'S FIGURE, since 20260814000000. A member reaching the
+   * schedule's `start_age` part-way through the period owes the months after their
+   * birthday month and no more, so this is five twelfths of the annual total in the year
+   * they turn eighteen and the whole of it every year after. `ageProration` below carries
+   * the workings so a screen can say why the number is not the one on the schedule.
+   */
   annualTotalCents: number
+  /**
+   * The age rule's effect on this member, or null when it has none.
+   *
+   * Null covers three different situations that all mean the same thing to a caller: the
+   * schedule has no `start_age`, the member has no recorded birthday (fully liable, see
+   * `ageShareOfPeriod`), or they reached the age before this period opened. A consumer
+   * that wants to explain a reduced figure only ever needs the non-null case.
+   */
+  ageProration: {
+    /** `dues_schedules.start_age` — the age this due starts at. */
+    startAge: number
+    /** Months of the period they are liable for, 0–12. */
+    monthsOwed: number
+    /** The date they reach the age, `YYYY-MM-DD`. */
+    responsibleFrom: string
+    /** What a full period costs, so a screen can say what changes next year. */
+    fullAnnualCents: number
+  } | null
+  /**
+   * They are below the schedule's `start_age` for the whole of this period.
+   *
+   * A SEPARATE FIELD FROM `paid`, and the distinction is the point: both leave a
+   * remaining balance of zero, and only one of them means the member settled something.
+   * A screen that treated this as paid would tell a twelve-year-old they were all caught
+   * up on a due they have never owed.
+   */
+  ageExempt: boolean
   /** The steady-state installment — what every one AFTER a catch-up costs. */
   installmentCents: number
   /**
@@ -263,6 +317,7 @@ function mapSchedule(
   s: DuesSchedule & {
     kind?: string | null
     required?: boolean | null
+    start_age?: number | null
     donation_beneficiaries?: { person_id: string }[] | null
   },
 ): DuesSchedule {
@@ -284,6 +339,9 @@ function mapSchedule(
     // not run 20260807000003 yet reads as "required dues, optional donations", which is
     // what every row in it means.
     required: kind === 'donation' ? false : (s.required ?? true),
+    // Null for a donation and for any database that has not run 20260814000000 — both of
+    // which mean "no age rule", which is exactly what null means everywhere that reads it.
+    start_age: kind === 'donation' ? null : (s.start_age ?? null),
   }
 }
 
@@ -297,11 +355,35 @@ function mapSchedule(
  */
 function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined) {
   return kind === 'donation'
-    // `required: false` is forced here as well as CHECKed in the database, so a stale
-    // form cannot post a donation nobody may decline and get a constraint violation
-    // instead of a sensible row.
-    ? { amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null, required: false }
+    // `required: false` and `start_age: null` are forced here as well as CHECKed in the
+    // database, so a stale form cannot post a donation nobody may decline — or one that
+    // starts at an age nobody owes it from — and get a constraint violation instead of a
+    // sensible row.
+    ? {
+        amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null,
+        required: false, start_age: null,
+      }
     : { goal_cents: null }
+}
+
+/**
+ * `dues_schedules.start_age`, as it is safe to write.
+ *
+ * Both write actions spread client-supplied columns onto the row, and both are `'use
+ * server'` exports with URLs of their own — so the number input in the Accounting form is
+ * not in their request path and `start_age: -3` or `'eighteen'` can arrive. The CHECK
+ * added by 20260814000000 would refuse those, with a constraint violation for a message;
+ * this turns them into the one thing they can honestly mean, which is no rule at all.
+ *
+ * 0 SURVIVES and is not the same as null: "from birth" is a real answer a family might
+ * give, and `?? null` on a falsy check would silently turn it into "everybody, always" —
+ * which happens to produce the same bill and for a completely different reason.
+ */
+function normalizeStartAge(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n) || n < 0 || n > 120) return null
+  return n
 }
 
 /**
@@ -686,6 +768,8 @@ export async function createDuesSchedule(
     .insert({
       ...columns,
       kind,
+      // Before kindInvariants, which pins it to null for a donation and must win.
+      start_age: normalizeStartAge(input.start_age),
       ...kindInvariants(kind, input.goal_cents),
       family_code: familyCode,
       active: true,
@@ -737,7 +821,7 @@ export async function updateDuesSchedule(
   // reachable on its own.
   const { data: existing } = await admin
     .from('dues_schedules')
-    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency')
+    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age')
     .eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
@@ -783,15 +867,21 @@ export async function updateDuesSchedule(
 
   // Only looked up when something frozen is actually moving, so the ordinary edit —
   // a renamed due, a new end date — never touches the payments table.
+  //
+  // `start_age` is one of them, and it belongs here rather than being freely editable:
+  // moving it restates what every member owed for the periods already posted against —
+  // lowering it from 21 to 18 makes three years of nineteen-year-olds retrospectively in
+  // arrears on a due nobody billed them for. Same argument as the amount.
   const movingTerms = movingStart
     || moved(input.amount_cents, existing.amount_cents)
     || moved(input.frequency, existing.frequency)
+    || moved(input.start_age, existing.start_age)
   if (movingTerms) {
     const usage = (await loadScheduleUsage(admin, familyCode))[id]
     if (kind === 'dues' && usage?.used) {
       return {
         success: false,
-        message: 'Payments have been recorded against this due, so its start date, amount and frequency can no longer change. You can still change the end date.',
+        message: 'Payments have been recorded against this due, so its start date, amount, frequency and starting age can no longer change. You can still change the end date.',
       }
     }
     if (kind === 'donation' && usage?.funded && movingStart) {
@@ -809,7 +899,15 @@ export async function updateDuesSchedule(
 
   const { error } = await admin
     .from('dues_schedules')
-    .update({ ...columns, kind, ...kindInvariants(kind, goalCents) })
+    .update({
+      ...columns,
+      kind,
+      // Only when it was SENT. `undefined` means "not in this patch" everywhere else in
+      // this action, and normalizing an absent key would write null over a rule the form
+      // never showed — which is how a partial update silently clears a column.
+      ...(input.start_age !== undefined ? { start_age: normalizeStartAge(input.start_age) } : {}),
+      ...kindInvariants(kind, goalCents),
+    })
     .eq('id', id)
     .eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
@@ -865,11 +963,23 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   if (!myPersonId) return []
   const myPerson = { id: myPersonId }
 
-  const [schedulesResult, paymentsResult, plansResult] = await Promise.all([
+  const [schedulesResult, paymentsResult, plansResult, meResult] = await Promise.all([
     supabase.from('dues_schedules').select('*').eq('active', true).order('label'),
     supabase.from('dues_payments').select('*').eq('person_id', myPerson.id).order('payment_date', { ascending: false }),
     supabase.from('dues_member_plans').select('schedule_id, cadence, opted_out').eq('person_id', myPerson.id),
+    // THEIR BIRTHDAY, for the age rule. Their own row on their own client, so RLS is the
+    // whole of the authorization — the `people` SELECT policy admits a member's own row,
+    // and this asks for one column of it.
+    //
+    // `getMyPersonId` has already resolved the ACTIVE family's row, so this is scoped by
+    // id rather than by user_id: a member of two families has a row in each, and reading
+    // by user_id alone would match two and fail.
+    supabase.from('people').select('date_of_birth').eq('id', myPerson.id).maybeSingle(),
   ])
+
+  // Null when not recorded, which `ageShareOfPeriod` reads as FULLY LIABLE on purpose —
+  // see its header, and `computeIsMinor`, which makes the same call for the same reason.
+  const myDateOfBirth = (meResult.data as { date_of_birth: string | null } | null)?.date_of_birth ?? null
 
   // Dues only. A donation is optional, so it must never reach a remaining balance, a
   // next-installment date or the dashboard's "you owe" card — every one of which is
@@ -902,11 +1012,30 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     // trigger: a row that predates 20260807000003's guard, or one whose schedule was
     // made required after the member opted out, must read as owed rather than declined.
     const optedOut = !schedule.required && optedOutSchedules.has(schedule.id)
-    const annual = annualTotalCents(schedule)
 
     const scheduleRows = payments.filter(p => p.schedule_id === schedule.id)
     const schedulePaid = scheduleRows.filter(p => p.status === 'paid')
     const periodStart = currentPeriodStart(schedule)
+
+    // ── THE AGE RULE ────────────────────────────────────────────────────────────────
+    // Computed BEFORE the annual total, because it is what the annual total is scaled by.
+    // A member who reaches the schedule's start_age in July owes the months after July —
+    // five twelfths of a $120 due is $50 — and the whole of it every year after. It is
+    // derived from a birthday and a period on every read, never stored, for the reason
+    // 20260813000006 dropped `is_minor`: an answer about somebody's age is wrong from the
+    // morning they have a birthday.
+    //
+    // This is the ONE figure the rule touches. It flows into the remaining balance and
+    // into the ladder `duesPlanMath` builds — and it deliberately does not reach the
+    // ledger, the family's collected total, or any payment already recorded. Nothing is
+    // refunded and no row is withheld; what changes is what this member is asked for.
+    const ageShare: AgeShare = ageShareOfPeriod({
+      startAge: schedule.start_age,
+      dateOfBirth: myDateOfBirth,
+      periodStart,
+    })
+    const fullAnnual = annualTotalCents(schedule)
+    const annual = proratedAnnualCents(fullAnnual, ageShare)
     const paidThisPeriod = schedulePaid.filter(p => p.payment_date >= periodStart)
     // A WAIVED DUE IS SETTLED, so it comes off the balance alongside the money. Waiving
     // is the family forgiving the obligation — recordPayment refuses a method and a
@@ -949,18 +1078,34 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
       periodStart,
       today,
       settledCents: amountPaidThisPeriodCents + amountWaivedThisPeriodCents,
+      // The member's own figure, not the schedule's. Passed in rather than taught to
+      // duesPlanMath so that one function stays the single place an installment is
+      // decided and the client can reproduce this exact answer from the summary — see
+      // the parameter's note there.
+      annualCents: annual,
     })
 
-    // Nothing is coming due on something already settled or declined — the same
-    // suppression this has always applied, kept outside duesPlanMath so the arithmetic
-    // stays a property of the schedule rather than of this member's choices.
-    const quiet = paid || optedOut
+    // Nothing is coming due on something already settled, declined, or not yet owed — the
+    // same suppression this has always applied, kept outside duesPlanMath so the
+    // arithmetic stays a property of the schedule rather than of this member's choices.
+    const quiet = paid || optedOut || ageShare.exempt
 
     return {
       schedule,
       cadence,
       hasExplicitPlan: !!explicit,
       annualTotalCents: annual,
+      // Only where the rule actually bit. Null for everybody else, so a consumer never
+      // has to work out whether "12 of 12 months" means something — see the field.
+      ageProration: ageShare.responsibleFrom && ageShare.monthsOwed < 12
+        ? {
+            startAge: schedule.start_age as number,
+            monthsOwed: ageShare.monthsOwed,
+            responsibleFrom: ageShare.responsibleFrom,
+            fullAnnualCents: fullAnnual,
+          }
+        : null,
+      ageExempt: ageShare.exempt,
       installmentCents: plan.installmentCents,
       nextInstallmentCents: quiet ? 0 : plan.nextInstallmentCents,
       followingInstallmentDate: quiet ? null : plan.followingInstallmentDate,

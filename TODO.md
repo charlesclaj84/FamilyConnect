@@ -227,9 +227,14 @@ What is deliberately absent, and what each would take:
   (`20260813000007`), which supersedes `is_step` and drives the Bloodline toggle, and is
   set both when adding a relative and afterwards through the manage dialog. What is left
   is the half this entry always said was the hard one: what a step-parent LOOKS like on a
-  canvas that has one row for parents. Today a step-relative is an ordinary card with a
-  "Step" pill, and it vanishes in the Bloodline view; nothing draws the second marriage
-  it implies.
+  canvas that has one row for parents. A step-relative is an ordinary card that does not
+  carry the bloodline droplet, and it vanishes in the Bloodline view.
+
+  **The second marriage it implies is now drawn** (2026-08-14, see the entry below), and
+  the manage dialog offers the kind for EVERY connection a person has rather than only the
+  one their card was reached by — which is what made a step-grandmother expressible at all.
+  Before that, a grandparent had no edge to the focus person, so their card carried no
+  control and there was nowhere in the product to record it.
 
   **One follow-up this created.** `is_step` is now dead weight on the table and should be
   dropped in its own migration (see 20260813000006 for how much care a column drop wants).
@@ -240,9 +245,21 @@ What is deliberately absent, and what each would take:
   comes back as a blood relative of the line while the current wife correctly does not,
   from the same rule. `families.bloodline_anchor_id` is nullable and falls back to the
   founder, so nothing changed for a family that does not set it.
-* **More than one marriage.** Every spouse renders beside the focus person with no way to
-  say which children belong to which union. This is the hardest of the three and the one
-  most likely to force a layout change rather than an addition.
+* ~~**More than one marriage.**~~ **DONE 2026-08-14.** Once the focus person has more than
+  one spouse the children stop being one row and become one panel per marriage
+  (`MarriageGroup` in [FamilyTreeBuilder](components/family-tree/FamilyTreeBuilder.tsx)),
+  plus a panel for children whose other parent is not a recorded spouse. Each spouse card
+  now carries the word for the marriage — Wife, Ex-wife — so three cards in a row read as a
+  person and two marriages rather than as three people. The split is derived from the
+  `parent` edges the children already carry, and a child the tree cannot attribute falls
+  into the residual panel rather than being assigned to a marriage nobody stated. The
+  per-marriage "+ Son" carries that spouse as the co-parent, so adding a child to a
+  marriage records it.
+
+  This was called "the hardest of the three and the one most likely to force a layout
+  change"; it did force one, and the surviving cost is horizontal — three marriages of
+  three children each is wider than the canvas, which is what the one sanctioned
+  `overflow-x-auto` is for.
 * **Dates on the connectors**, and a person card that says more than a name and a status.
 
 **RESOLVED 2026-08-13 — and the answer was to delete the question.** This entry used to
@@ -666,6 +683,36 @@ deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
   `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
 
 `--max-warnings 0` is only honest once the middle group has an answer.
+
+## The help manual has no `help:check`, so its rule is asking rather than enforcing
+
+**Action:** write `scripts/help-check.mjs`, wire it as `npm run help:check`, and add a step
+to `verify.yml` beside Lint.
+
+AGENTS.md now says a change to a screen owes an edit to the chapter that documents it, and
+that rule has exactly the enforcement `db:check` had before it existed: none. Two things
+were verified by hand before `/help` shipped and both are mechanical, which is the whole
+argument for a script — a checkable rule and an uncheckable one decay at very different
+rates, and this file is full of the second kind.
+
+What it should assert, all of it derivable from `lib/help/content.ts` with no database and
+no network — the same shape as `npm run db:check`, which exits 1 on a finding so it reads
+as a test:
+
+* every internal `[label](/route)` resolves — a `/help/<slug>` to a real chapter, a
+  `#anchor` to a real section id in it, anything else to a route `getFeature()` knows;
+* every chapter's `route` is registered in `FEATURES`;
+* no two chapters or sections share a slug or an id, since both end up in shared links.
+
+What it CANNOT assert is the thing the rule is actually about: that the prose still
+describes the screen. Nothing can. The check is worth having because it removes the
+mechanical half from a reviewer's attention so the unmechanical half gets it — not because
+a green run means the manual is true.
+
+Worth a thought while writing it: whether it also fails when a live `FEATURES` entry has no
+chapter at all. That would catch the real regression — a screen shipping undocumented —
+and it would have to start life allowing the roadmap entries, which have no chapters by
+design.
 
 ## Authorization
 

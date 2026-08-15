@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Home, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
@@ -8,6 +8,7 @@ import type { FamilyMembership } from '@/lib/auth/family'
 import {
   HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
 } from '@/components/layout/header-panel'
+import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
 import { cn } from '@/lib/utils'
 
 /**
@@ -23,11 +24,21 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+  const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
 
   // Same reason as the account menu: this panel outlives the page it was opened over,
   // because TopBar is rendered by the layout and never unmounts. See the hook. Above
   // the early return below, because hooks may not sit after one.
   useCloseOnNavigate(open, () => setOpen(false))
+
+  // And closes itself a few seconds after being walked away from — see the hook. Also
+  // above the early return, and for the same reason.
+  useDismissWhenIdle({
+    open,
+    close: () => setOpen(false),
+    parts: () => [trigger.current, panel.current],
+  })
 
   if (families.length < 2) return null
 
@@ -53,6 +64,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
   return (
     <div className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={isPending}
@@ -87,7 +99,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
               hanging off the trigger — capping the width was not enough, because the
               panel was anchored to a button already well inside the right edge. See
               header-panel.ts. */}
-          <div role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
+          <div ref={panel} role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
             <p className="shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Your families
             </p>

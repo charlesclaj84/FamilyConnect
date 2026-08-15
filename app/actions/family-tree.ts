@@ -336,6 +336,12 @@ function push(edges: TreeEdge[], seen: Set<string>, edge: TreeEdge): void {
   edges.push(edge)
 }
 
+/**
+ * `YYYY-MM-DD`, the shape every date column in this schema and every `<input type="date">`
+ * agrees on. Shape only — Postgres decides whether 2026-02-31 is a date.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
 /** How the new person is established. */
 export type AddRelativeMode = 'existing' | 'invite' | 'record'
 
@@ -362,6 +368,26 @@ export interface AddRelativeInput {
   email?: string
   /** mode 'record' only, and required there. */
   noEmailReason?: string
+  /**
+   * Date of birth, `YYYY-MM-DD`. Modes 'invite' and 'record'.
+   *
+   * ── REQUIRED FOR A CHILD RECORDED WITHOUT AN EMAIL, AND ONLY THERE ────────────────
+   * `dues_schedules.start_age` decides when somebody starts owing a due, and
+   * `ageShareOfPeriod` prorates the year they reach it — five twelfths of the annual
+   * total for a child who turns eighteen in July. Both read `people.date_of_birth`, and
+   * an unknown birthday is treated as FULLY LIABLE, because the product never guesses at
+   * an age (`computeIsMinor` makes the same call and says why).
+   *
+   * That default is right everywhere else and exactly wrong here. This path is how a
+   * child gets onto the tree — the mode's own hint says so — so a child recorded with no
+   * birthday would silently be billed an adult's dues from the day the record was made,
+   * which is the one direction this must not fail in. Asked for at the moment somebody
+   * knows it rather than chased later.
+   *
+   * Optional for every other relative, deliberately: most of a real tree has no
+   * birthdays, and a great-uncle who died in 1998 owes nothing whatever it is.
+   */
+  dateOfBirth?: string
   /**
    * People who should ALSO become parents of the person being added.
    *
@@ -460,6 +486,13 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
       return { success: false, message: 'Enter a first and last name' }
     }
 
+    // Validated rather than trusted, and normalized to null: this is a public endpoint,
+    // and '' is not a date — the column is nullable and a date-shaped empty string is the
+    // one value that would reach Postgres as an error rather than as "not recorded".
+    const dateOfBirth = ISO_DATE.test((input.dateOfBirth ?? '').trim())
+      ? (input.dateOfBirth ?? '').trim()
+      : null
+
     if (input.mode === 'record') {
       const reason = (input.noEmailReason ?? '').trim()
       // REQUIRED, and checked here as well as by the CHECK constraint. This path is the
@@ -468,12 +501,23 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
       if (!reason) {
         return { success: false, message: 'Say why this person has no email address' }
       }
+      // A CHILD RECORDED HERE OWES A BIRTHDAY — see `dateOfBirth` on the input for the
+      // whole argument. Short version: dues start at an age, an unknown age reads as an
+      // adult everywhere else in the product on purpose, and this is the path children
+      // arrive by.
+      if (relationshipMeta(type)?.relation === 'child' && !dateOfBirth) {
+        return {
+          success: false,
+          message: 'Add their date of birth. It is what decides when they start owing dues.',
+        }
+      }
       generatedEmail = placeholderEmail(g.familyCode, firstName, lastName, crypto.randomUUID())
       const created = await createPerson(g.familyCode, g.userId, {
         first_name: firstName,
         last_name: lastName,
         primary_email: generatedEmail,
         gender: relationshipMeta(type)?.gender ?? null,
+        date_of_birth: dateOfBirth,
         email_is_placeholder: true,
         no_email_reason: reason,
       })
@@ -488,6 +532,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
         last_name: lastName,
         primary_email: email,
         gender: relationshipMeta(type)?.gender ?? null,
+        date_of_birth: dateOfBirth,
       })
       if (!created.ok) return { success: false, message: created.message }
       personId = created.id
@@ -609,6 +654,11 @@ async function createPerson(
      * nothing to name the relationship with.
      */
     gender?: string | null
+    /**
+     * `YYYY-MM-DD` or null. Null means "not recorded" and is the ordinary answer for most
+     * of a tree; see `AddRelativeInput.dateOfBirth` for the one case that demands it.
+     */
+    date_of_birth?: string | null
     email_is_placeholder?: boolean; no_email_reason?: string
   },
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {

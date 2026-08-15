@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ageShareOfPeriod,
   annualTotalCents,
   currentPeriodStart,
   duesPlanMath,
   installmentCents,
+  proratedAnnualCents,
   type DuesScheduleLike,
   type PayCadence,
 } from './dues-utils'
@@ -319,5 +321,169 @@ describe('currentPeriodStart, which is what the ladder is anchored to', () => {
 
   it('falls back to January 1st only when there is no date at all', () => {
     expect(currentPeriodStart({ amount_cents: 100, frequency: 'annual' })).toMatch(/-01-01$/)
+  })
+})
+
+// ── The age rule ────────────────────────────────────────────────────────────────────
+//
+// "an annual due is $120, if the child turns 18 in July they are responsible for 5
+// months of that 120. then the full due each year after that."
+//
+// Every case below is a property of a BIRTHDAY and a PERIOD and nothing else — no
+// `today` — which is the point of the shape: the answer must not move halfway through a
+// period, or a member's balance would change on their birthday.
+
+/** $120 a year, billed annually, opening on New Year's Day. The worked example. */
+const ONE_TWENTY: DuesScheduleLike = {
+  amount_cents: 12_000,
+  frequency: 'annual',
+  start_date: '2026-01-01',
+  end_date: null,
+  start_age: 18,
+}
+
+const share = (dateOfBirth: string | null, over: {
+  startAge?: number | null
+  periodStart?: string
+} = {}) => ageShareOfPeriod({
+  startAge: over.startAge === undefined ? 18 : over.startAge,
+  dateOfBirth,
+  periodStart: over.periodStart ?? '2026-01-01',
+})
+
+describe('the reported case: a child who turns 18 part-way through the year', () => {
+  it('charges the months AFTER the birthday month — five twelfths for July', () => {
+    const s = share('2008-07-04')
+
+    expect(s.responsibleFrom).toBe('2026-07-04')
+    expect(s.monthsOwed).toBe(5)
+    expect(s.prorated).toBe(true)
+    expect(s.exempt).toBe(false)
+    expect(proratedAnnualCents(annualTotalCents(ONE_TWENTY), s)).toBe(5_000)
+  })
+
+  it('charges the full year every year after', () => {
+    const next = share('2008-07-04', { periodStart: '2027-01-01' })
+
+    expect(next.monthsOwed).toBe(12)
+    expect(next.prorated).toBe(false)
+    expect(proratedAnnualCents(annualTotalCents(ONE_TWENTY), next)).toBe(12_000)
+  })
+
+  it('charges nothing in the years before', () => {
+    const before = share('2008-07-04', { periodStart: '2025-01-01' })
+
+    expect(before.monthsOwed).toBe(0)
+    expect(before.exempt).toBe(true)
+    expect(proratedAnnualCents(annualTotalCents(ONE_TWENTY), before)).toBe(0)
+  })
+
+  // The rung the member is billed on is still `duesPlanMath`'s business, and it has to
+  // build its ladder out of the PRORATED figure or the two disagree: monthly on $50 is
+  // not monthly on $120 divided twelve ways.
+  it('feeds the prorated figure through the installment ladder', () => {
+    const s = share('2008-07-04')
+    const annual = proratedAnnualCents(annualTotalCents(ONE_TWENTY), s)
+
+    const p = duesPlanMath({
+      schedule: ONE_TWENTY,
+      cadence: 'annual',
+      periodStart: '2026-01-01',
+      today: '2026-08-14',
+      settledCents: 0,
+      annualCents: annual,
+    })
+
+    expect(p.installmentCents).toBe(5_000)
+    expect(p.nextInstallmentCents).toBe(5_000)
+  })
+})
+
+describe('the boundaries of a period', () => {
+  it('is exempt when the birthday falls in the last month — there is no month after it', () => {
+    const s = share('2008-12-20')
+
+    expect(s.monthsOwed).toBe(0)
+    // Exempt AND inside this period, which is the pair a reader needs to tell apart from
+    // a child who does not reach the age until next year.
+    expect(s.exempt).toBe(true)
+    expect(s.responsibleFrom).toBe('2026-12-20')
+  })
+
+  it('charges eleven twelfths for a January birthday', () => {
+    expect(share('2008-01-15').monthsOwed).toBe(11)
+  })
+
+  it('charges the whole period when the birthday is its first day', () => {
+    // `responsibleFrom <= periodStart` — already liable when the period opened, which is
+    // the ordinary case for every adult and every year after the first.
+    expect(share('2008-01-01').monthsOwed).toBe(12)
+  })
+
+  it('charges nothing when the age is reached on the day the NEXT period opens', () => {
+    const s = share('2009-01-01')
+    expect(s.responsibleFrom).toBe('2027-01-01')
+    expect(s.monthsOwed).toBe(0)
+    expect(s.exempt).toBe(true)
+  })
+
+  it('follows a period that does not start in January', () => {
+    // A schedule anchored on 1 July. A birthday in September is the third month of the
+    // period, so nine of its twelve months remain.
+    const s = share('2008-09-10', { periodStart: '2026-07-01' })
+    expect(s.responsibleFrom).toBe('2026-09-10')
+    expect(s.monthsOwed).toBe(9)
+  })
+
+  it('clamps a leap-day birthday rather than overflowing into March', () => {
+    // 2008-02-29 + 18 years is "2026-02-29", which the Date constructor resolves to
+    // 1 March — a month later, and a whole installment cheaper. addCadenceSteps clamps.
+    const s = share('2008-02-29')
+    expect(s.responsibleFrom).toBe('2026-02-28')
+    expect(s.monthsOwed).toBe(10)
+  })
+})
+
+describe('when the rule does not apply at all', () => {
+  it('charges everybody in full when the schedule names no age', () => {
+    const s = share('2020-01-01', { startAge: null })
+    expect(s.monthsOwed).toBe(12)
+    expect(s.responsibleFrom).toBeNull()
+    expect(s.prorated).toBe(false)
+  })
+
+  it('charges in full when no birthday is recorded — it never guesses at an age', () => {
+    // The same call computeIsMinor makes, and the reason addRelative demands a birthday
+    // when a CHILD is recorded with no email: this default is right everywhere except
+    // there, where it would bill a five-year-old as an adult.
+    const s = share(null)
+    expect(s.monthsOwed).toBe(12)
+    expect(s.responsibleFrom).toBeNull()
+  })
+
+  it('honours an age of zero, which is not the same as no rule', () => {
+    // "From birth". Someone born inside the period still owes only the months after the
+    // month they were born, which is what a family means by charging from birth.
+    const s = share('2026-04-09', { startAge: 0 })
+    expect(s.responsibleFrom).toBe('2026-04-09')
+    expect(s.monthsOwed).toBe(8)
+  })
+})
+
+describe('proratedAnnualCents rounds to whole cents', () => {
+  it('lands on the figure a family would write down', () => {
+    expect(proratedAnnualCents(12_000, share('2008-07-04'))).toBe(5_000)
+  })
+
+  it('passes the annual total straight through when nothing is withheld', () => {
+    expect(proratedAnnualCents(12_345, share(null))).toBe(12_345)
+  })
+
+  it('rounds rather than truncating', () => {
+    // $100 over 5 of 12 months is 4166.66…, so round and floor differ by a cent — which
+    // is the only way this assertion is evidence of anything. A 7/12 share was the first
+    // case written here and both operations give 5833 for it, so it passed under a
+    // deliberately floored implementation and proved nothing.
+    expect(proratedAnnualCents(10_000, share('2008-07-04'))).toBe(4_167)
   })
 })

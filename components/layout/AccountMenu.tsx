@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, LogOut, UserCircle, Users } from 'lucide-react'
@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
   HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
 } from '@/components/layout/header-panel'
+import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -50,6 +51,8 @@ interface Props {
 export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
 
   // TopBar lives in the layout and never unmounts, so neither does this flag — the menu
   // stayed on screen over whatever page you navigated to next. Every item in here
@@ -57,6 +60,18 @@ export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
   // which is all of them: a rail link (the rail is not under the scrim — see the hook),
   // Back, Forward, a redirect, the idle timeout.
   useCloseOnNavigate(open, () => setOpen(false))
+
+  // AND THIS COVERS BEING WALKED AWAY FROM. The scrim closes the menu on a click; nothing
+  // closed it on somebody simply moving on, so a panel naming the signed-in account and
+  // its email address sat over the page until the next click landed. The trigger and the
+  // panel are named individually rather than by the wrapper around them: the wrapper also
+  // contains the full-viewport scrim, so testing it would call every pointer position on
+  // the page "inside the menu".
+  useDismissWhenIdle({
+    open,
+    close: () => setOpen(false),
+    parts: () => [trigger.current, panel.current],
+  })
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -75,6 +90,7 @@ export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
   return (
     <div className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open ? 'true' : 'false'}
@@ -89,7 +105,7 @@ export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
       {open && (
         <>
           <div className={HEADER_PANEL_SCRIM_CLASS} onClick={() => setOpen(false)} aria-hidden="true" />
-          <div role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
+          <div ref={panel} role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
             <div className="shrink-0 border-b px-3 py-3">
               <p className="truncate text-sm font-semibold text-card-foreground">{name}</p>
               <p className="truncate text-xs text-muted-foreground">{email}</p>

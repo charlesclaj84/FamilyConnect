@@ -72,6 +72,11 @@ export interface DuesScheduleLike {
   end_date?: string | null
   due_month?: number | null
   due_day?: number | null
+  /**
+   * The age at which a member becomes responsible for this due, or null for "everybody,
+   * whatever their age" (20260814000000). Read by `ageShareOfPeriod` and by nothing else.
+   */
+  start_age?: number | null
 }
 
 /** The schedule's total obligation for one year, in cents. */
@@ -171,6 +176,122 @@ export function currentPeriodStart(schedule: DuesScheduleLike): string {
   return `${startYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+/** How many months of an annual period there are. Named so the arithmetic reads. */
+const MONTHS_IN_PERIOD = 12
+
+/**
+ * How much of a period a member is liable for, given the age a due starts at.
+ *
+ * ── THE RULE, IN ONE SENTENCE ───────────────────────────────────────────────────────
+ * They owe the months of the period AFTER the month they reach the age. An annual $120
+ * and an eighteenth birthday in July is five twelfths — $50 — and the full $120 every
+ * year afterwards.
+ *
+ * The month somebody turns eighteen is free, and that is a choice rather than an
+ * arithmetic accident: it is the reading a family gives when they say "they start paying
+ * when they turn eighteen", and it is the only version that does not need a rule about
+ * what happens to somebody born on the 1st versus the 31st. Counting the birthday month
+ * would make a due depend on the day of the month a person was born, which nobody means.
+ *
+ * ── WHY A FRACTION OF A YEAR AND NOT A COUNT OF INSTALLMENTS ────────────────────────
+ * Because the CADENCE is the member's choice and the liability is the family's rule. A
+ * member paying quarterly and a member paying monthly owe the same money in the year they
+ * turn eighteen; only the shape of the payments differs. So this returns months of the
+ * ANNUAL total, `getMyDuesSummary` scales the annual figure by it, and `duesPlanMath`
+ * then builds whatever ladder the member's cadence asks for on top — untouched, and still
+ * the single place that decides an installment.
+ *
+ * ── AN UNRECORDED BIRTHDAY IS FULLY LIABLE ──────────────────────────────────────────
+ * The same call `computeIsMinor` makes, for the same reason: `date_of_birth` is optional
+ * and most of a real tree has none, so reading a blank field as "a child" would exempt
+ * half a family from its dues. The direction of that default is why `addRelative` demands
+ * a birthday when a CHILD is recorded without an email — the one path where the default
+ * would be wrong and expensive.
+ *
+ * ── PURE, AND EVERY INPUT IS A PARAMETER ────────────────────────────────────────────
+ * No `new Date()`, so this is checkable in full — the boundary rule §7b states. `today`
+ * is not among the inputs and does not need to be: the answer is a property of the PERIOD
+ * and the birthday, so it does not change halfway through a period, which is exactly what
+ * stops a member's balance moving on their birthday.
+ */
+export interface AgeShare {
+  /** Months of the period this member owes, 0–12. 12 when no age rule applies. */
+  monthsOwed: number
+  /** The date they reach the age, `YYYY-MM-DD`. Null when there is no rule or no birthday. */
+  responsibleFrom: string | null
+  /** The rule applies and they owe nothing at all this period. */
+  exempt: boolean
+  /** The rule applies and this period is their first, partial one. */
+  prorated: boolean
+}
+
+const FULL_SHARE: AgeShare = {
+  monthsOwed: MONTHS_IN_PERIOD, responsibleFrom: null, exempt: false, prorated: false,
+}
+
+export function ageShareOfPeriod(input: {
+  /** `dues_schedules.start_age`. Null, undefined or negative means no rule. */
+  startAge: number | null | undefined
+  /** `people.date_of_birth`, `YYYY-MM-DD`. Null means not recorded — see the header. */
+  dateOfBirth: string | null | undefined
+  /** Start of the schedule's current annual period — `currentPeriodStart(schedule)`. */
+  periodStart: string
+}): AgeShare {
+  const { startAge, dateOfBirth, periodStart } = input
+  if (startAge == null || !Number.isFinite(startAge) || startAge < 0) return FULL_SHARE
+  if (!dateOfBirth) return FULL_SHARE
+
+  const birth = parseISO(dateOfBirth)
+  if (Number.isNaN(birth.getTime())) return FULL_SHARE
+
+  // The birthday, `startAge` years on. `addCadenceSteps` with an annual step is what
+  // clamps 29 February to the 28th in a common year — the same month-end clamp the dues
+  // ladder needs, and for the same reason: `setUTCFullYear` on a leap day silently
+  // resolves to 1 March, which would move somebody's eighteenth birthday into the next
+  // month and cost them an installment.
+  const responsibleFrom = toISO(addCadenceSteps(birth, 'annual', Math.round(startAge)))
+
+  const anchor = parseISO(periodStart)
+  const rung = (k: number): string => toISO(addCadenceSteps(anchor, 'monthly', k))
+
+  // Already liable when the period opened: the ordinary case for every year after the
+  // first, and for every adult.
+  if (responsibleFrom <= periodStart) return FULL_SHARE
+
+  // Not yet liable when the period closes. `rung(12)` is the first day of the NEXT
+  // period, so the comparison is exclusive on purpose — somebody turning eighteen on the
+  // day the next period opens owes nothing in this one.
+  if (responsibleFrom >= rung(MONTHS_IN_PERIOD)) {
+    return { monthsOwed: 0, responsibleFrom, exempt: true, prorated: false }
+  }
+
+  // Which month of the period contains the birthday. Walked rather than divided, so it
+  // can never disagree with the rungs `duesPlanMath` prints beside it — month lengths
+  // differ and `addCadenceSteps` clamps month-ends.
+  let month = 0
+  while (month + 1 < MONTHS_IN_PERIOD && rung(month + 1) <= responsibleFrom) month++
+
+  const monthsOwed = MONTHS_IN_PERIOD - (month + 1)
+  // Reachable, and it is not the same as `exempt` above: a birthday inside the LAST month
+  // of the period leaves no month after it. They owe nothing, and they are still somebody
+  // whose liability starts inside this period, which is what a reader of these two flags
+  // is trying to tell apart.
+  return { monthsOwed, responsibleFrom, exempt: monthsOwed === 0, prorated: monthsOwed > 0 }
+}
+
+/**
+ * The annual total scaled by an age share, in whole cents.
+ *
+ * `Math.round`, so the twelve monthly shares of a year add back up to the year rather
+ * than to a cent less — and so the worked example lands on the figure a family would
+ * write down: $120 × 5/12 is exactly $50.
+ */
+export function proratedAnnualCents(annualCents: number, share: AgeShare): number {
+  if (share.monthsOwed >= MONTHS_IN_PERIOD) return annualCents
+  if (share.monthsOwed <= 0) return 0
+  return Math.round((annualCents * share.monthsOwed) / MONTHS_IN_PERIOD)
+}
+
 /**
  * Everything a member's payment plan says: the steady installment, what the NEXT one has
  * to be to bring them level, when it falls, and how far behind they are.
@@ -256,10 +377,22 @@ export function duesPlanMath(input: {
   today: string
   /** Paid PLUS waived this period. A waiver settles the obligation as a payment does. */
   settledCents: number
+  /**
+   * What THIS member owes for the period, when it is not the schedule's whole annual
+   * total. Omit and the schedule decides, which is the answer for everybody the age rule
+   * does not touch.
+   *
+   * It exists because the proration is a fact about the MEMBER and this function only
+   * ever sees the schedule. Passing the figure in rather than teaching this function
+   * about birthdays keeps the ladder arithmetic where it is — and keeps the client's
+   * optimistic cadence preview (`planFor` in DuesDetailSection) able to reproduce the
+   * server's answer exactly, from a number the summary already carries.
+   */
+  annualCents?: number
 }): DuesPlanMath {
   const { schedule, cadence, periodStart, today } = input
   const n = installmentsPerYear(cadence)
-  const annual = annualTotalCents(schedule)
+  const annual = input.annualCents ?? annualTotalCents(schedule)
   const base = installmentCents(annual, cadence)
   const settled = Math.max(0, input.settledCents)
   const remaining = Math.max(0, annual - settled)

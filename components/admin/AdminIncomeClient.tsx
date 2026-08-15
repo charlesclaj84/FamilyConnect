@@ -135,6 +135,14 @@ interface ScheduleForm {
   endDate: string
   description: string
   required: boolean
+  /**
+   * Dues only. The age a member starts owing this, as typed — '' for "everybody".
+   *
+   * A STRING like every other field here, because it is what an `<input>` holds and the
+   * empty box has to stay distinguishable from a zero. '0' is a real answer meaning "from
+   * birth"; '' means the family has no age rule on this due.
+   */
+  startAge: string
   /** Donations only. The people the drive is for, and so the people who cannot see it. */
   beneficiaryIds: string[]
 }
@@ -142,7 +150,22 @@ interface ScheduleForm {
 const EMPTY_SCHEDULE_FORM: ScheduleForm = {
   label: '', amount: '', goal: '', frequency: 'annual',
   startDate: '', endDate: '', description: '', required: true,
-  beneficiaryIds: [],
+  startAge: '', beneficiaryIds: [],
+}
+
+/**
+ * The typed age as the action wants it: a whole number, or null for "everybody".
+ *
+ * `parseInt` and not `Number`, so a trailing space or a stray decimal does not turn the
+ * whole field into NaN and then into null — losing an age rule to a keystroke is a silent
+ * change to what a family charges. The action normalizes it again on the far side of the
+ * wire (`normalizeStartAge`), which is the layer that actually decides.
+ */
+function startAgeOf(form: ScheduleForm): number | null {
+  const raw = form.startAge.trim()
+  if (raw === '') return null
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) && n >= 0 ? n : null
 }
 
 /** A stored row, as the editor's form. */
@@ -156,6 +179,9 @@ function formOfSchedule(s: DuesSchedule): ScheduleForm {
     endDate: s.end_date ?? '',
     description: s.description ?? '',
     required: s.required,
+    // `String(0)` is '0' and null becomes '', which is the distinction the field exists
+    // to keep — see `startAge` on ScheduleForm.
+    startAge: s.start_age == null ? '' : String(s.start_age),
     beneficiaryIds: s.beneficiary_person_ids,
   }
 }
@@ -286,6 +312,40 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
             onChange={e => onChange({ endDate: e.target.value })} />
         </div>
       </div>
+
+      {/* ── WHO OWES IT, BY AGE ──────────────────────────────────────────────────────
+          Dues only: nobody owes a gift, so there is no age at which they start.
+
+          Blank means what every schedule meant before the column existed — everybody
+          owes it. A number means the member starts owing it when they reach that age,
+          and the year they reach it is prorated by month: an $120 annual due and an
+          eighteenth birthday in July is $50 that year, then $120 every year after.
+
+          FROZEN once payments exist, alongside the amount and the frequency, and for the
+          same reason — moving it restates what every member owed for the periods already
+          posted against. `locked` says so above the fields. */}
+      {!isDonation && (
+        <div className="space-y-1.5">
+          <Label htmlFor="schedule-start-age">Members start paying at age (optional)</Label>
+          <Input
+            id="schedule-start-age"
+            type="number"
+            min="0"
+            max="120"
+            step="1"
+            disabled={locked}
+            value={form.startAge}
+            onChange={e => onChange({ startAge: e.target.value })}
+            placeholder="18"
+            className="sm:w-32"
+          />
+          <p className="text-xs text-muted-foreground">
+            {form.startAge.trim() === ''
+              ? 'Leave blank and every member owes this, whatever their age.'
+              : `A member owes nothing until they turn ${form.startAge.trim()}, then the months of that year after their birthday — and the full amount every year after. Anyone with no date of birth recorded owes it in full.`}
+          </p>
+        </div>
+      )}
 
       {/* Dues only. A donation is optional by definition — the field would be a checkbox
           that cannot be unticked. */}
@@ -489,7 +549,16 @@ export function AdminIncomeClient({
         // the action and leaves the set alone, so an omitted key could never REMOVE the
         // last beneficiary. Un-hiding a drive has to be expressible.
         ? { goal_cents: goalCents, beneficiary_person_ids: editForm.beneficiaryIds }
-        : { amount_cents: amountCents, frequency: editForm.frequency, required: editForm.required }
+        : {
+            amount_cents: amountCents,
+            frequency: editForm.frequency,
+            required: editForm.required,
+            // Always sent, null included, for the same reason the beneficiary set is:
+            // `undefined` means "not sent" to the action and leaves the column alone, so
+            // an omitted key could never CLEAR an age rule. Removing one has to be
+            // expressible, and emptying the box is how it is said.
+            start_age: startAgeOf(editForm),
+          }
       const result = await updateDuesSchedule(id, {
         label: editForm.label,
         start_date: editForm.startDate || null,
@@ -533,6 +602,10 @@ export function AdminIncomeClient({
         // Forced false for a donation rather than sent as-is: nobody owes a gift, and
         // the CHECK in 20260807000003 would refuse the row anyway.
         required: isDonation ? false : newForm.required,
+        // Null for a donation for the same reason `required` is forced false there: a
+        // gift is not owed, so there is no age at which somebody starts owing it. The
+        // action pins it and a CHECK holds it, and this line keeps the type honest.
+        start_age: isDonation ? null : startAgeOf(newForm),
         due_month: null,
         due_day: null,
         start_date: newForm.startDate || null,
@@ -723,6 +796,14 @@ export function AdminIncomeClient({
                               )}>
                                 {s.required ? 'Required' : 'Optional'}
                               </span>
+                              {/* WHO OWES IT. On the row rather than only inside the
+                                  editor, because it changes what a member is billed and
+                                  an administrator comparing two dues should not have to
+                                  open both to find out which one the children pay. */}
+                              <MetaIf
+                                value={s.start_age == null ? null : `age ${s.start_age}+`}
+                                prefix="From"
+                              />
                             </>
                           )}
                           <MetaIf value={dateRange(s.start_date, s.end_date)} />

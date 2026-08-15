@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/select'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
+import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
 import { cn } from '@/lib/utils'
 import {
   createTemplate, renameTemplate, deleteTemplate, setTemplatePermission,
@@ -515,6 +516,16 @@ function RowMenu({ label, disabled, children }: {
   // Nothing is lost on the activation path: every item here opens a confirmation
   // dialog, which takes focus itself and owns restoring it.
   const close = useCallback(() => setOpen(false), [])
+
+  // Closes itself a few seconds after the pointer and focus have both left it — the same
+  // hook the three header panels use, so every dropdown in the app goes on the same beat.
+  // `parts` looks the portalled panel up by id for the reason the outside-click handler
+  // below does: it is not inside `wrap`, so there is no single subtree to test.
+  useDismissWhenIdle({
+    open,
+    close,
+    parts: () => [wrap.current, document.getElementById(panelId)],
+  })
 
   useEffect(() => {
     if (!open) return

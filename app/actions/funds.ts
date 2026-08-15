@@ -451,10 +451,26 @@ export async function getDisbursementsForFund(fundId: string): Promise<FundDisbu
 // Fund CRUD (admin only)
 // -------------------------------------------------------
 
+/**
+ * `minimum_cents`, NOT a goal, and the swap is the point rather than a rename.
+ *
+ * A goal was a number nothing read. `funds.goal_cents` is drawn as a progress target on
+ * My Summary and consulted by nothing else — in particular not by `routeContribution`,
+ * which fills funds toward their MINIMUM in priority order and is the one mechanism that
+ * decides where a dues payment lands. So a family setting up a fund answered the question
+ * that has no consequence and left the one that does at zero, then found the Routing
+ * screen showing a minimum of $0.00 for a fund they had just given a target.
+ *
+ * The minimum asked for here is written straight onto the row the routing screen reads,
+ * so what was typed at creation is what that screen shows. `goal_cents` is untouched and
+ * still nullable: the column stays for the drives that already carry one, and
+ * `FundsSection` already falls back to the minimum when there is no goal.
+ */
 export async function createFund(input: {
   name: string
   description: string
-  goal_cents: number | null
+  /** The balance the routing waterfall tops this fund up to before filling lower ones. */
+  minimum_cents: number | null
   open_contributions?: boolean
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
@@ -475,11 +491,17 @@ export async function createFund(input: {
     .from('funds').select('priority').eq('family_code', familyCode)
     .order('priority', { ascending: false }).limit(1).maybeSingle()
 
+  // Rounded and floored here rather than trusted: this is a `'use server'` export, so the
+  // number input in the dialog is not in its request path. `minimum_cents` is NOT NULL
+  // with a zero default, so an omitted or unparseable value becomes the same zero the
+  // column already means.
+  const minimum = Math.max(0, Math.round(input.minimum_cents ?? 0)) || 0
+
   const { data, error } = await admin.from('funds').insert({
     family_code: familyCode,
     name: input.name.trim(),
     description: input.description.trim() || null,
-    goal_cents: input.goal_cents,
+    minimum_cents: minimum,
     priority: (last?.priority ?? 0) + 1,
     open_contributions: input.open_contributions ?? false,
     created_by: myPerson?.id ?? null,

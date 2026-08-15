@@ -587,6 +587,196 @@ anything else is built on that audience mechanism.
   non-negotiable here rather than a convention.
 - Built for 150, like every other member list.
 
+### Records, sources and images on the tree — the ancestry.com half GENORRA does not have
+
+Today a person on the family tree is a name, a gender, two dates and a set of edges. What a
+family doing genealogy actually accumulates is *evidence*: a scan of a birth certificate, an
+obituary clipping, a photograph of a headstone, a paragraph somebody's aunt wrote down before
+she died. Ancestry's whole model is that a **fact** about a person is backed by a **source**,
+and this product has neither noun.
+
+**The tree is where this belongs, and that is the decision worth stating first.** Photos and
+Documents are already features in their own right (both `status: 'future'`, `tier: 'plus'`),
+and the lazy reading of this request is "let a document be tagged with a person". That is not
+the same thing: a document in a shared folder is filed by the family, and a source on a person
+is filed by the CLAIM it supports. The difference shows up the moment two members disagree
+about a birth date and only one of them has the certificate.
+
+#### What already exists, which is less than it looks
+
+| Piece | Where | State |
+|---|---|---|
+| A person | `people`, [lib/profile-columns.ts](lib/profile-columns.ts) | Real, and the allow-list is the write path for every profile edit. One `date_of_birth`, one `sunset_date` — **one value each**, last write wins. |
+| A relationship | `person_relationships` + `link_kind` (`20260813000007`) | Real, and already carries a fact only a person can know (§4c). Carries no date, no place and no source. |
+| Editing somebody else's record | `editPersonRecord` | Real. Any approved member may edit any row with no `user_id`; a member owns their own (§4b). |
+| Photographs | `photos`, `photo_collections`, `photo_tags` | Tables exist; `/photos` is gated. `photo_tags` has **two** foreign keys to `people` — the §8 trap, already documented. |
+| Documents | `documents`, [app/actions/documents.ts](app/actions/documents.ts) | Gated. Filed against the family, not against a person. |
+| Somewhere to put a file | four storage buckets, 15 policies | **The long pole.** See "Storage rework" below; this feature is downstream of all of it. |
+
+#### Six things that are decisions rather than work
+
+1. **A fact is not a column, and this is the fork the whole design turns on.** `people` holds
+   ONE birth date. A genealogy holds "born 4 July 1908 (per the county register)" beside
+   "born 1907 (per the 1910 census)", unresolved, both cited, because that is the state of the
+   evidence. Modelling facts as rows makes the tree honest and makes `people.date_of_birth`
+   a *derived preferred value* rather than the truth — which is a change to
+   `disambiguatedName`, `computeIsMinor`, `ageShareOfPeriod` and every screen that reads a
+   birthday. Modelling them as columns keeps all that and cannot record a disagreement.
+   **Decide this before anybody writes a table**, because the two shapes are not migrations
+   apart.
+
+2. **Uploading evidence about a LIVING member is not the same act as uploading it about a
+   dead one**, and §4b's line does not cut here. `editPersonRecord` is bounded by "no
+   `user_id`", which is a clean rule for correcting a spelling and a poor one for attaching a
+   document: a marriage certificate is about two people, at least one of whom probably holds
+   an account and did not upload it. The workable shape is that a record is attached by
+   whoever holds it and is **visible to its subjects**, with a way for a subject to object
+   that is not "ask an administrator to delete the family's history".
+
+3. **This is the sharpest PII the product would hold, by a distance.** A birth certificate
+   scan carries a full name, a date, a place and usually a mother's maiden name — the standard
+   set of banking security answers, assembled and stored for a hundred and forty relatives.
+   It needs its own resource key with a **restricted** `resource_visibility` backfill (§6),
+   not the `everyone`-for-view default, and it needs a retention answer: a family that leaves
+   GENORRA leaves this behind.
+
+4. **`family-tree` is unregistered, and this is what finally forces that decision.**
+   `20260806000006` deliberately left the key out of `permission_resources` on the grounds
+   that a member's own things are not something a family administers, so it resolves to
+   viewable for every approved member and **cannot be switched off** — TODO.md carries it as
+   an open decision. That was defensible for a diagram of names. It is not defensible for a
+   folder of certificates, and the first record attached to a person makes the gap concrete
+   rather than theoretical.
+
+5. **Two tables joining `people` is two chances at PGRST201, and one of them is not on this
+   feature.** A `person_records` table with `person_id` and `uploaded_by` has two foreign keys
+   to `people` — every embed of it needs qualifying. Worse, per §8's `announcement_unpins`
+   lesson, adding it makes PostgREST report a NEW many-to-many path between `people` and
+   whatever else it joins, which breaks **bare embeds on tables nobody touched**. Grep for
+   both after adding it, not before.
+
+6. **Storage is the gate and it is not this feature's to open.** Four buckets, 15 policies,
+   and a shape the section below says is wrong in three ways. Scans are larger than avatars
+   and are read rarely, which is a different access pattern from anything the current buckets
+   serve. Nothing here should ship on top of the existing arrangement.
+
+#### Which tier
+
+**Premium**, and unusually this one is not a close call: it is storage-heavy, it is the
+capability that distinguishes a family directory from a genealogy, and Premium is where reach
+and depth are already sold. Free's premise — *"get your whole family in one place"* — is about
+the living.
+
+#### What it would owe at build time
+
+- An entry in `lib/features.ts` with a stated `tier`, and a decision on `family-tree`'s own
+  registration (see 4 above) in the same change.
+- `permission_resources` rows in a new migration **and** in the `20260618000000` seed, with a
+  restricted `resource_visibility` backfill (§6). Declare only actions something reads.
+- A case per action in `tests/rls/cases.mjs`, including a pending-member attacker (§7), then
+  broken on purpose and re-run.
+- Every new `people` embed constraint-qualified, and a grep of the existing ones afterwards.
+- A rule for what happens to a record when its subject is detached from the tree —
+  `removeRelationship` deletes the EDGE and never the person, and this needs the same care.
+
+### Importing a tree from ancestry.com
+
+A family that has already spent years on ancestry.com has the tree; what they do not have is
+their relatives inside GENORRA. The ask is to take an Ancestry export and land it as
+`people` and `person_relationships` rows. **This is the largest single thing in this file**,
+and most of its weight is not the parsing.
+
+#### What already exists, which is more than it looks
+
+| Piece | Where | State |
+|---|---|---|
+| A person with no email | `placeholderEmail`, `email_is_placeholder`, `no_email_reason` | **Exactly the shape an import needs**, and already built: a generated `@genorra.com` address, a flag saying it is generated, and a stated reason. Nothing ever mails it. |
+| Attaching an account to an existing record | `create_family_invitation` → `redeem_family_invitation`'s ADOPT branch (`20260813000004`) | Real. An invitation carries `p_person_id`, so accepting joins the row already on the tree instead of creating a second one. This is the whole "members identify themselves" problem, already solved for one person at a time. |
+| Writing an edge and its inverse | `linkRelationship` | Real, and it carries `link_kind` both ways. |
+| The vocabulary | `relationship_types`, `TREE_RELATIONSHIPS` | Real, and NARROWER than GEDCOM's: no gender-neutral parent, child or sibling row (`lib/family-tree.ts` says why). |
+| Checking an id belongs to this family | `belongsToFamily` | Real, and **one round trip per id** — see decision 4. |
+
+#### Seven things that are decisions rather than work
+
+1. **The format is GEDCOM, and Ancestry's GEDCOM is lossy in exactly the places the previous
+   proposal cares about.** Names, dates, places and relationships come across; media and
+   source citations largely do not. So an import populates the *tree* and not the *evidence* —
+   which means these two proposals are independent, and it is worth saying so out loud before
+   somebody sequences them as one project.
+
+2. **An import must not email anybody, and that is a hard constraint rather than a default.**
+   A GEDCOM of a real family is hundreds of individuals; `inviteMember` sends on the spot and
+   `sendEmail` **fails soft**, so a loop over it would produce hundreds of messages, some of
+   them silently undelivered, none of them reviewed. The import creates **records** — the
+   `record` mode `addRelative` already has — and invitations are a second, per-person, human
+   act afterwards. The five doors into the approvals queue are enumerated in AGENTS.md and
+   an import must not become a sixth by accident.
+
+3. **Ancestry redacts living people in its exports by default**, which is not an obstacle to
+   route around but the reason the previous point is easy to get wrong. A family that exports
+   with living people included is handing over a file of names, birth dates and places for
+   relatives who have never heard of GENORRA. A family that exports without them gets a tree
+   of `Living Smith` placeholders. **Both need answering in the upload screen**, in words,
+   before a file is accepted.
+
+4. **Matching an imported individual to an existing member is a review step, never an
+   inference.** The family already has `people` rows — that is the point of importing into an
+   existing family rather than a new one — and a name-and-birthdate match is a *suggestion*.
+   Auto-merging is unrecoverable: it would attach one person's dues, RSVPs, photo tags and
+   permission template to another's record. A dry run that reports "142 new, 6 possible
+   matches, 3 conflicts" and lands nothing until confirmed is the shape.
+
+5. **`belongsToFamily` per id does not survive 2,000 individuals, and the answer is not to
+   skip it.** §4 exists because a row stamped with the caller's own `family_code` satisfies
+   every policy while pointing anywhere; an import is precisely a bulk write of
+   client-supplied references, which is that hazard at scale. The check has to be re-expressed
+   as a set operation against one query rather than dropped — and the import wants a batch id
+   on every row it creates, so a bad import is one `DELETE` rather than an afternoon.
+
+6. **GEDCOM's `PEDI` tag maps onto `link_kind`, and where it is absent the default is a
+   claim.** `birth | adopted | foster | sealing` is very nearly `blood | adopted | foster`,
+   which is a gift. But §4c is explicit that only a person knows whether a child edge is
+   blood, and `link_kind` defaults to `'blood'` — so an import that fills the default for
+   every unlabelled `FAMC` is asserting parentage for a whole family at once, and the
+   Bloodline view will then answer confidently and wrongly. Either import unlabelled edges as
+   blood **and say so on the review screen**, or introduce an "unstated" kind. Do not let this
+   be decided by the column default.
+
+7. **A server action is the wrong container for this.** Parsing, matching and writing a large
+   GEDCOM does not fit a request, and `'use server'` exports are HTTP endpoints with the
+   platform's own time limit. This needs an upload (storage rework again), a job, and a page
+   that can be left and come back to — none of which this product has yet, which is why the
+   ask calls itself a huge undertaking and is right to.
+
+#### Which tier
+
+**Premium**, following the previous proposal: it is the same customer, it needs the same
+storage work, and it is the strongest single reason a family already invested in ancestry.com
+would move.
+
+#### One defect it must not inherit
+
+`addRelative` writes its shared-parent edges **best-effort** — deliberately, because a parent
+link that cannot be written must not lose the relationship the member asked for. That is right
+for one addition and catastrophic for ten thousand: an import that swallows failures produces a
+tree that is silently half-connected, and nobody can tell which half. An import reports every
+row it could not write, or it is not finished.
+
+#### What it would owe at build time
+
+- An entry in `lib/features.ts` with a stated `tier`, and its own `permission_resources` rows
+  in a new migration **and** in the `20260618000000` seed (§6). Importing is family-wide
+  configuration with no coherent "own" version — `canAny`, for the reason funds and
+  disbursements use it.
+- RLS cases for every action it exposes, the BRAVO administrator passing ALPHA's ids and a
+  pending-member attacker (§7), then broken on purpose and re-run. The bulk write is the case
+  that matters most and is the one a per-row fixture will not exercise.
+- Pure parsing and matching in `lib/`, taking their inputs as arguments, tested with
+  `npm test` (§7b). The GEDCOM date grammar alone (`ABT 1908`, `BET 1900 AND 1910`, `4 JUL
+  1908`) is exactly the kind of edge-case arithmetic that runner exists for.
+- A review screen built for 150 rows and honest about what it is not showing — never truncate
+  quietly.
+
 ---
 
 ## Supporting work
@@ -914,3 +1104,10 @@ than a row in the register: it is the first thing written down here that is in `
 `lib/features.ts` alike absent. If a second proposal lands, it goes beside it under the same
 heading and under the same rule — nothing in there is scheduled, and nothing in there moves a
 count.
+
+**2026-08-14, later: two more proposals** — records and images on the tree, and importing a
+tree from ancestry.com. Same rule, same section, and still no counts moved. Two things about
+them are worth knowing before either is picked up. They are **independent**: Ancestry's GEDCOM
+carries the tree and largely not the evidence, so the import does not deliver the records and
+the records do not need the import. And both are **downstream of the storage rework** below,
+which was already the long pole and is now the long pole for three things rather than one.

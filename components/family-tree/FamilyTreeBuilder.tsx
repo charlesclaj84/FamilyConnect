@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
@@ -10,7 +10,9 @@ import { NickName } from '@/components/ui/person-name'
 import { cn } from '@/lib/utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { AddRelativeDialog } from '@/components/family-tree/AddRelativeDialog'
-import { PersonRecordDialog } from '@/components/family-tree/PersonRecordDialog'
+import {
+  PersonRecordDialog, type TreeConnection,
+} from '@/components/family-tree/PersonRecordDialog'
 import {
   TREE_RELATIONSHIPS, leafIds, bloodlineIds, relationshipMeta,
   type TreeRelation,
@@ -43,12 +45,19 @@ import {
  * day one sees the shape of what they are building and where to press. Same for a spouse
  * and for the first child.
  *
+ * ── SEVERAL MARRIAGES ARE DRAWN SEPARATELY, since 2026-08-14 ────────────────────────
+ * Once a person has more than one spouse the children stop being one undivided row and
+ * become one panel per marriage, plus a panel for children the tree cannot attribute to
+ * any of them. It is not a nicety: the second marriage is what EXPLAINS the second set of
+ * children, and a family looking at a remarried grandfather could previously see three
+ * children and nothing at all about which came from where. See `marriages` below for how
+ * the split is derived — from the `parent` edges the children already carry, never guessed.
+ *
  * ── WHAT IT DOES NOT DO YET, and is not pretending to ───────────────────────────────
- * No step relationships (`person_relationships.is_step` exists and is written false), no
- * multiple marriages drawn as separate lines, no dates on the connectors, no zoom, no
- * export. TODO.md carries the second pass. These are a backlog against a finished feature
- * rather than a caveat on a half-built one — which is what the beta badge used to say, and
- * why it came off.
+ * No dates on the connectors, no zoom, no export. (`person_relationships.is_step` is
+ * superseded by `link_kind` and written false; TODO.md carries dropping the column.) These
+ * are a backlog against a finished feature rather than a caveat on a half-built one —
+ * which is what the beta badge used to say, and why it came off.
  *
  * ── STATE ───────────────────────────────────────────────────────────────────────────
  * `focusId` is UI-local — which card you are looking at — so it is genuinely not the
@@ -81,13 +90,32 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
   // you are attached to. `openingFocus` explains itself on screen when it moves, because a
   // tree that silently centres on somebody else is worse than one that starts empty.
   const [focusId, setFocusId] = useState<string>(() => openingFocus(tree))
-  const [adding, setAdding] = useState<{ anchor: TreePerson; type: string } | null>(null)
-  // Managing a record nobody has claimed — the replacement for /direct-lineage. Holds the
-  // person rather than a boolean so the dialog remounts per subject, which is what keeps
-  // its field initializers honest when you manage two people in a row.
-  const [managing, setManaging] = useState<
-    { person: TreePerson; edge?: TreeEdge; spouseEdge?: TreeEdge } | null
-  >(null)
+  const [adding, setAdding] = useState<{
+    anchor: TreePerson
+    type: string
+    /**
+     * Which of the anchor's relatives the dialog should offer as a co-parent, when the
+     * "+" that opened it already knows.
+     *
+     * Undefined means "work it out" — the anchor's parents for a sibling, every spouse
+     * for a child — which is what every "+" outside a marriage group does. The per-
+     * marriage "+ Son" buttons pass the ONE spouse whose group they sit in, so adding a
+     * child to a marriage records that marriage rather than offering all of them and
+     * hoping the right box is ticked.
+     */
+    coParentIds?: string[]
+  } | null>(null)
+  // Managing somebody on the tree. Holds the person rather than a boolean so the dialog
+  // remounts per subject, which is what keeps its field initializers honest when you
+  // manage two people in a row.
+  //
+  // IT NO LONGER CARRIES THE EDGE IT WAS REACHED BY. It used to carry exactly one — the
+  // link from the focus person — so what you could re-classify depended on which card you
+  // had clicked: a grandparent, reached through a parent, arrived with no edge at all and
+  // offered nothing, and the tree's own instruction to mark a step-relationship had
+  // nowhere to be carried out. The dialog is handed EVERY connection this person has and
+  // offers each of them (see `connectionsFor`).
+  const [managing, setManaging] = useState<TreePerson | null>(null)
 
   // Bloodline or the whole family. UI-local and deliberately NOT keyed on familyCode: it
   // is a way of looking, not a fact about a family, so switching family should not silently
@@ -219,16 +247,59 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
   // keeps them correct when the middle generation is filled in later: record somebody's
   // father today and their grandparents appear from HIS parents, rather than from a
   // second set of rows that would then disagree with him.
-  const grandparents = parents.flatMap(p => peopleFor(p.id, 'parent'))
+  // DEDUPED, because two of the focus person's parents can share one. Cousins who married
+  // is the ordinary way that happens and it is not rare in a family large enough to want
+  // this product — the same grandmother would otherwise be drawn twice, under one React
+  // key, which is a duplicate-key warning and a card that cannot be told from its twin.
+  const grandparents = [...new Map(
+    parents.flatMap(p => peopleFor(p.id, 'parent')).map(g => [g.id, g]),
+  ).values()]
 
-  // Who can still be linked here: everybody except the focus and the people already
-  // attached to them in ANY direction. Without the second half the picker offers to make
-  // somebody their own father's sister.
-  const attached = new Set([
-    focus.id,
-    ...(links.get(focus.id) ?? []).map(e => e.to),
-  ])
-  const candidates = tree.people.filter(p => !attached.has(p.id))
+  // Who can still be linked to a given ANCHOR: everybody except the anchor and the people
+  // already attached to them in ANY direction. Without the second half the picker offers
+  // to make somebody their own father's sister.
+  //
+  // A FUNCTION OF THE ANCHOR, not of the focus, since the grandparent slots landed. Those
+  // "+" cards attach to a PARENT rather than to the person in the middle of the canvas, so
+  // a list computed against the focus would offer the focus's own father as a candidate
+  // for his father — and hide people who are merely attached to the focus, who are exactly
+  // the ones a grandparent is likely to be.
+  const candidatesFor = (anchorId: string) => {
+    const attached = new Set([anchorId, ...(links.get(anchorId) ?? []).map(e => e.to)])
+    return tree.people.filter(p => !attached.has(p.id))
+  }
+
+  // ── WHICH MARRIAGE EACH CHILD CAME FROM ─────────────────────────────────────────────
+  // A person with two marriages had every one of their children drawn in one undivided
+  // row, so a family looking at Charles — two wives, one child by the first and two by the
+  // second — saw three children and no way to tell which. The database has always known:
+  // each child carries a `parent` edge to each of their parents, and the answer is the
+  // intersection with each spouse.
+  //
+  // A child is claimed by the FIRST spouse who is also their parent, so nobody is drawn
+  // twice; the remainder — children with no other parent recorded, and children whose
+  // other parent is not a recorded spouse — falls into a group of its own rather than
+  // being attributed to a marriage nobody stated. Guessing is the one thing a family tree
+  // must not do here.
+  const parentIdsOf = (personId: string) =>
+    new Set(related(personId, 'parent').map(e => e.to))
+
+  const claimed = new Set<string>()
+  const marriages = spouses.map(spouse => {
+    const withThem = children.filter(child => {
+      if (claimed.has(child.id)) return false
+      if (!parentIdsOf(child.id).has(spouse.id)) return false
+      claimed.add(child.id)
+      return true
+    })
+    return { spouse, children: withThem }
+  })
+  const unattributedChildren = children.filter(c => !claimed.has(c.id))
+
+  // Grouped only when there is more than one marriage to tell apart. With one spouse, or
+  // none, the groups would be a box drawn round the whole row — and the row already says
+  // everything a single caption could add.
+  const groupChildren = spouses.length > 1
 
   async function detach(edge: TreeEdge, personName: string) {
     const ok = await confirm({
@@ -249,11 +320,16 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
     })
   }
 
-  const addButton = (anchor: TreePerson, type: string, label?: string) => !canAct ? null : (
+  const addButton = (
+    anchor: TreePerson,
+    type: string,
+    label?: string,
+    coParentIds?: string[],
+  ) => !canAct ? null : (
     <button
-      key={type}
+      key={`${anchor.id}:${type}`}
       type="button"
-      onClick={() => setAdding({ anchor, type })}
+      onClick={() => setAdding({ anchor, type, coParentIds })}
       className="flex min-h-[6.5rem] w-40 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-border px-3 py-4 text-xs font-medium text-muted-foreground transition-colors hover:border-brand-primary hover:bg-brand-soft/40 hover:text-brand-on-soft"
     >
       <Plus className="h-4 w-4" aria-hidden="true" />
@@ -261,30 +337,57 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
     </button>
   )
 
-  const card = (person: TreePerson, opts?: { edge?: TreeEdge; highlight?: boolean }) => {
-    // BLOOD is only a CHOICE for a non-marriage link: a marriage never carries blood, and
-    // the database corrects one that claims to
-    // (`person_relationships_marriage_is_not_blood`), so offering the control there would
-    // be offering one that undoes itself.
-    const kindEdge = opts?.edge && opts.edge.relation !== 'spouse' ? opts.edge : undefined
-    // THE WORD is a choice for a marriage and for nothing else — Wife to Ex-Wife to
-    // Partner, all of which sit in the same row of the diagram. The other relations get
-    // their word from the person's gender and have nothing to pick.
-    const typeEdge = opts?.edge && opts.edge.relation === 'spouse' ? opts.edge : undefined
-    // Manage is offered when there is ANY of: a record to edit, a link to classify, or a
-    // marriage to rename. It used to be the first two, which left a spouse WITH an account
-    // — the ordinary case — with no control on their card at all.
-    const canManage = !person.hasAccount || Boolean(kindEdge) || Boolean(typeEdge)
+  const displayName = (person: TreePerson) =>
+    nameOf.get(person.id) ?? `${person.firstName} ${person.lastName}`.trim()
+
+  /**
+   * Every connection this person has, as the manage dialog needs them.
+   *
+   * `getFamilyTree` normalizes each stored row into BOTH directions, so the edges out of
+   * one person are the whole of their adjacency however the rows were written. Taking
+   * them from the PERSON rather than from the card that was clicked is what lets a
+   * grandparent's link be re-classified: their edge is to a parent, not to the focus, so
+   * the card the tree drew them on carried nothing to hand over.
+   *
+   * `label` names the OTHER person relative to this one, which is what the edge's own
+   * direction already says: `relation` reads "`to` is `from`'s parent", and `to` is who
+   * we are labelling.
+   */
+  const connectionsFor = (person: TreePerson): TreeConnection[] =>
+    (links.get(person.id) ?? []).flatMap(edge => {
+      const other = byId.get(edge.to)
+      if (!other) return []
+      return [{
+        edge,
+        otherId: other.id,
+        otherName: displayName(other),
+        label: relationLabelFor(edge, other),
+      }]
+    })
+
+  const card = (person: TreePerson, opts?: {
+    edge?: TreeEdge
+    highlight?: boolean
+    /** A word under the pills — the relationship this card was reached by. */
+    caption?: string
+  }) => {
+    // MANAGE IS OFFERED FROM EVERY CARD WITH SOMETHING TO CHANGE, which is a record to
+    // correct or any connection at all. It used to be offered only for the edge this card
+    // was reached by, so a grandparent — drawn from their child's card, with no edge to
+    // the focus person — got no pencil, and there was no way anywhere in the product to
+    // say that a grandmother was a step-grandmother.
+    const canManage = !person.hasAccount || (links.get(person.id)?.length ?? 0) > 0
     return (
       <PersonCard
         key={person.id}
         person={person}
-        name={nameOf.get(person.id) ?? `${person.firstName} ${person.lastName}`.trim()}
+        name={displayName(person)}
+        caption={opts?.caption}
         highlight={opts?.highlight}
         inBloodline={bloodline ? bloodline.has(person.id) : undefined}
         onFocus={() => setFocusId(person.id)}
-        onDetach={canAct && opts?.edge ? () => detach(opts.edge!, nameOf.get(person.id) ?? 'them') : undefined}
-        onManage={canAct && canManage ? () => setManaging({ person, edge: kindEdge, spouseEdge: typeEdge }) : undefined}
+        onDetach={canAct && opts?.edge ? () => detach(opts.edge!, displayName(person)) : undefined}
+        onManage={canAct && canManage ? () => setManaging(person) : undefined}
         busy={isPending}
       />
     )
@@ -441,14 +544,45 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
         <div className="mx-auto flex min-w-fit flex-col items-center gap-0">
 
           <Generation label="Grandparents">
-            {grandparents.length > 0
-              ? grandparents.map(p => card(p))
-              : (
-                <p className="max-w-xs text-center text-xs text-muted-foreground">
-                  Grandparents appear on their own once {focus.firstName || 'this person'}&apos;s
-                  parents have parents recorded.
-                </p>
-              )}
+            {grandparents.map(p => card(p))}
+
+            {/* ── ADDING A GRANDPARENT FROM HERE ────────────────────────────────────
+                One pair of slots per PARENT, anchored on that parent, because a
+                grandparent is somebody's mother or father and the tree has no other way
+                to say which side they are on. Building it any other way would mean
+                inventing a "grandparent" relationship type — the thing `relationFor`
+                deliberately refuses to map, for the reason it gives: a grandparent is two
+                parent edges, and a row filed as one edge draws somebody's grandfather
+                where their father belongs.
+
+                The slots are named for the parent so two sets of them are never a coin
+                toss, and the dialog they open asks whether the link is blood exactly as it
+                does everywhere else — which is the other half of the request. Before this,
+                reaching a grandparent meant clicking through to the parent first, and
+                nothing on the canvas said so. */}
+            {canAct && parents.map(parent => {
+              const parentEdges = related(parent.id, 'parent')
+              const hasDad = parentEdges.some(e => byId.get(e.to)?.gender === 'male')
+              const hasMum = parentEdges.some(e => byId.get(e.to)?.gender === 'female')
+              const who = parent.firstName || displayName(parent)
+              return (
+                <Fragment key={parent.id}>
+                  {!hasDad && addButton(parent, 'Father', `Add ${who}'s father`)}
+                  {!hasMum && addButton(parent, 'Mother', `Add ${who}'s mother`)}
+                </Fragment>
+              )
+            })}
+
+            {/* Only when the row is genuinely empty. In edit mode with a parent recorded
+                there are slots to press, and a sentence explaining that grandparents
+                appear on their own would be contradicted by the two "+" cards beside it. */}
+            {grandparents.length === 0 && (!canAct || parents.length === 0) && (
+              <p className="max-w-xs text-center text-xs text-muted-foreground">
+                {parents.length === 0
+                  ? `Record ${focus.firstName || 'this person'}'s parents first — grandparents hang off them.`
+                  : `Grandparents appear on their own once ${focus.firstName || 'this person'}'s parents have parents recorded.`}
+              </p>
+            )}
           </Generation>
 
           <Connector show={grandparents.length > 0 && parents.length > 0} />
@@ -461,9 +595,19 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
 
           <Connector show={parents.length > 0} />
 
-          <Generation label={spouses.length > 0 ? 'This person, and their spouse' : 'This person'}>
+          <Generation label={spouses.length > 1
+            ? 'This person, and their marriages'
+            : spouses.length > 0 ? 'This person, and their spouse' : 'This person'}>
             {card(focus, { highlight: true })}
-            {spouses.map(p => card(p, { edge: related(focus.id, 'spouse').find(e => e.to === p.id) }))}
+            {/* THE WORD ON THE CARD — "Wife", "Ex-wife", "Partner". With one spouse it is
+                a small courtesy; with two it is the row's whole meaning, because three
+                cards side by side otherwise read as three people rather than as a person
+                and two marriages. It comes from the edge's own `typeName`, which names the
+                far end, and is absent when nobody has recorded a gender to name it with. */}
+            {spouses.map(p => {
+              const edge = related(focus.id, 'spouse').find(e => e.to === p.id)
+              return card(p, { edge, caption: edge?.typeName ?? undefined })
+            })}
             {/* OFFERED WHETHER OR NOT THERE IS ALREADY A SPOUSE. This was
                 `spouses.length === 0`, which meant a family could record exactly one
                 marriage per person and then had no way to record a second — no
@@ -474,7 +618,7 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
                 Only the CURRENT three get a "+" of their own; an ex is reached by adding
                 the relationship and then renaming it in the manage dialog, because
                 "+ Add ex-husband" as a first move is a strange thing to offer somebody
-                building a tree. TODO.md carries drawing each marriage as its own line. */}
+                building a tree. */}
             <div className="flex flex-wrap gap-2">
               {TREE_RELATIONSHIPS.filter(r => r.relation === 'spouse' && !r.type.startsWith('Ex-'))
                 .map(r => addButton(focus, r.type, spouses.length > 0 ? `Add another ${r.label.toLowerCase()}` : undefined))}
@@ -483,13 +627,70 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
 
           <Connector show={children.length > 0} />
 
-          <Generation label="Children">
-            {children.map(p => card(p, { edge: related(focus.id, 'child').find(e => e.to === p.id) }))}
-            <div className="flex flex-wrap gap-2">
-              {TREE_RELATIONSHIPS.filter(r => r.relation === 'child')
-                .map(r => addButton(focus, r.type))}
-            </div>
-          </Generation>
+          {/* ── CHILDREN, BY MARRIAGE ────────────────────────────────────────────────
+              One undivided row for somebody with two marriages says nothing about which
+              children came from which, and that is the single most load-bearing fact on a
+              tree of a remarried family — it is what the second marriage EXPLAINS. So
+              once there is more than one spouse the row becomes one panel per marriage,
+              captioned with the spouse, plus a panel for children whose other parent is
+              not one of them.
+
+              The "+ Son" and "+ Daughter" buttons live INSIDE each panel and carry that
+              panel's spouse as the co-parent, so adding a child to a marriage records the
+              marriage. Adding from the wrong row was previously impossible to notice: the
+              dialog offered every spouse with all of them ticked. */}
+          {groupChildren ? (
+            <section aria-label="Children" className="w-full">
+              <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Children
+              </p>
+              <div className="flex flex-wrap items-start justify-center gap-4">
+                {marriages.map(({ spouse, children: theirs }) => (
+                  <MarriageGroup
+                    key={spouse.id}
+                    caption={`With ${displayName(spouse)}`}
+                    empty={`No children recorded with ${spouse.firstName || displayName(spouse)}.`}
+                    hasChildren={theirs.length > 0}
+                    canAct={canAct}
+                  >
+                    {theirs.map(p => card(p, {
+                      edge: related(focus.id, 'child').find(e => e.to === p.id),
+                    }))}
+                    {TREE_RELATIONSHIPS.filter(r => r.relation === 'child')
+                      .map(r => addButton(focus, r.type, undefined, [spouse.id]))}
+                  </MarriageGroup>
+                ))}
+
+                {/* The remainder, and it is only drawn when there is one. An empty
+                    "no other parent recorded" panel standing beside two marriages would
+                    read as a third relationship nobody has. `coParentIds: []` is not the
+                    same as leaving it undefined: it says "offer nobody", because the whole
+                    definition of this group is a child the tree cannot attribute. */}
+                {(unattributedChildren.length > 0 || canAct) && (
+                  <MarriageGroup
+                    caption="Other children"
+                    empty="Children whose other parent is not recorded appear here."
+                    hasChildren={unattributedChildren.length > 0}
+                    canAct={canAct}
+                  >
+                    {unattributedChildren.map(p => card(p, {
+                      edge: related(focus.id, 'child').find(e => e.to === p.id),
+                    }))}
+                    {TREE_RELATIONSHIPS.filter(r => r.relation === 'child')
+                      .map(r => addButton(focus, r.type, undefined, []))}
+                  </MarriageGroup>
+                )}
+              </div>
+            </section>
+          ) : (
+            <Generation label="Children">
+              {children.map(p => card(p, { edge: related(focus.id, 'child').find(e => e.to === p.id) }))}
+              <div className="flex flex-wrap gap-2">
+                {TREE_RELATIONSHIPS.filter(r => r.relation === 'child')
+                  .map(r => addButton(focus, r.type))}
+              </div>
+            </Generation>
+          )}
         </div>
       </div>
 
@@ -617,22 +818,28 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
           onClose={() => setAdding(null)}
           anchor={adding.anchor}
           relationshipType={adding.type}
-          candidates={candidates}
+          // Against the ANCHOR, which is a PARENT for the grandparent slots rather than
+          // the focus person — see `candidatesFor`.
+          candidates={candidatesFor(adding.anchor.id)}
           // WHO ELSE COULD BE A PARENT of the person being added. A sibling shares the
           // anchor's parents; a child's other parent is the anchor's spouse. Computed here
           // rather than in the dialog because this is where the adjacency already is, and
-          // resolved against the ANCHOR — which is the focus person for every "+" on the
-          // canvas, but is stated explicitly so it stays right if that ever changes.
+          // resolved against the ANCHOR — which is the focus person for most "+" cards on
+          // the canvas and is a parent for the grandparent slots.
+          //
+          // NARROWED when the button that opened this already knew. The per-marriage
+          // "+ Son" passes its one spouse; the "Other children" panel passes none at all,
+          // which is what that group means.
           coParents={(() => {
             const meta = relationshipMeta(adding.type)
             const from = meta?.relation === 'sibling' ? 'parent'
               : meta?.relation === 'child' ? 'spouse'
               : null
             if (!from) return []
-            return peopleFor(adding.anchor.id, from).map(p => ({
-              id: p.id,
-              name: nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim(),
-            }))
+            const named = adding.coParentIds
+            return peopleFor(adding.anchor.id, from)
+              .filter(p => !named || named.includes(p.id))
+              .map(p => ({ id: p.id, name: displayName(p) }))
           })()}
         />
       )}
@@ -641,18 +848,12 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
         <PersonRecordDialog
           open
           onClose={() => setManaging(null)}
-          person={managing.person}
-          name={nameOf.get(managing.person.id)
-            ?? `${managing.person.firstName} ${managing.person.lastName}`.trim()}
-          edge={managing.edge}
-          spouseEdge={managing.spouseEdge}
-          // The word for the person ON THE CARD, which is what the edge's own direction
-          // already carries — `to` is the card person, so `typeName` names them.
-          spouseType={managing.spouseEdge?.typeName ?? undefined}
-          // The word for the relationship, from the edge's own direction: `relation` says
-          // 'child', and which of Son/Daughter that is depends on the person's gender.
-          edgeLabel={managing.edge ? relationLabelFor(managing.edge, managing.person) : undefined}
-          focusName={nameOf.get(focus.id)}
+          person={managing}
+          name={displayName(managing)}
+          // EVERY connection they have, not the one their card was reached by. That is
+          // what makes "is this person in the bloodline?" answerable from anywhere on the
+          // canvas rather than only from the card of somebody they are directly linked to.
+          connections={connectionsFor(managing)}
         />
       )}
     </div>
@@ -701,6 +902,50 @@ function openingFocus(tree: FamilyTree): string {
 
   const spouse = mine.find(e => e.relation === 'spouse')
   return spouse?.to ?? mine[0]?.to ?? me
+}
+
+/**
+ * One marriage's children, in a panel of their own.
+ *
+ * Dashed and unfilled rather than a solid card: it is a grouping of the cards inside it,
+ * not a thing in its own right, and a second solid surface around a row of solid cards
+ * makes the panel look like the subject. Same treatment, and the same reasoning, as the
+ * dashed "+" slots it usually contains.
+ *
+ * `hasChildren` decides between the cards and a sentence. The sentence matters most on
+ * the marriage that has none: an empty panel beside a full one reads as something that
+ * failed to load, where "No children recorded with Angela" is a fact about the family.
+ *
+ * In VIEW mode a panel with no children renders nothing at all — there are no "+" cards
+ * down there to reach, so it would be a box containing an apology.
+ */
+function MarriageGroup({ caption, empty, hasChildren, canAct, children }: {
+  caption: string
+  empty: string
+  hasChildren: boolean
+  canAct: boolean
+  children: React.ReactNode
+}) {
+  if (!hasChildren && !canAct) return null
+  return (
+    <section aria-label={caption} className="rounded-2xl border border-dashed px-3 py-3">
+      <p className="mb-2 text-center text-[11px] font-medium text-muted-foreground">
+        {caption}
+      </p>
+      <div className="flex flex-wrap items-stretch justify-center gap-3">
+        {hasChildren
+          ? children
+          : (
+            <>
+              <p className="max-w-[10rem] self-center text-center text-xs text-muted-foreground">
+                {empty}
+              </p>
+              {children}
+            </>
+          )}
+      </div>
+    </section>
+  )
 }
 
 /** One horizontal band of the diagram, with its generation named for a screen reader. */
@@ -756,9 +1001,15 @@ function Connector({ show }: { show: boolean }) {
  * still needs to say is whether anybody can reach them, which is what the three pills
  * above answer; how old they are is on their profile, and is derived from a date.
  */
-function PersonCard({ person, name, highlight, inBloodline, onFocus, onDetach, onManage, busy }: {
+function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, onDetach, onManage, busy }: {
   person: TreePerson
   name: string
+  /**
+   * The relationship this card was reached by — "Wife", "Ex-wife". Given for a spouse and
+   * for nothing else: on the other rows the generation band above already says it, and a
+   * "Son" under every child card would caption the unremarkable case.
+   */
+  caption?: string
   highlight?: boolean
   /**
    * Marked with a droplet. Undefined when the family has no anchor to walk from, and the
@@ -797,6 +1048,11 @@ function PersonCard({ person, name, highlight, inBloodline, onFocus, onDetach, o
               which loses the very thing the nickname was added to supply. */}
           <NickName nickName={person.nickName} className="truncate" />
         </span>
+        {caption && (
+          <span className="w-full truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {caption}
+          </span>
+        )}
         <span className="flex flex-wrap justify-center gap-1">
           {!person.hasAccount && <Pill>Record only</Pill>}
           {person.hasAccount && person.membershipStatus === 'pending' && <Pill>Invited</Pill>}

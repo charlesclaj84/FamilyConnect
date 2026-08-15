@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -10,6 +10,7 @@ import { switchActiveFamily } from '@/app/actions/family'
 import {
   HEADER_PANEL_CLASS, HEADER_PANEL_SCRIM_CLASS, useCloseOnNavigate,
 } from '@/components/layout/header-panel'
+import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
 import { timeAgo } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 
@@ -42,10 +43,21 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [switchError, setSwitchError] = useState('')
+  const trigger = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
 
   // Same reason as the account menu: this panel outlives the page it was opened over,
   // because TopBar is rendered by the layout and never unmounts. See the hook.
   useCloseOnNavigate(open, () => setOpen(false))
+
+  // And closes itself a few seconds after being walked away from. This is the panel that
+  // earns it most: left open it is a list of who has asked to join which family, sitting
+  // over whatever page the member went on to read.
+  useDismissWhenIdle({
+    open,
+    close: () => setOpen(false),
+    parts: () => [trigger.current, panel.current],
+  })
 
   // STANDING ITEMS, not notifications, and the difference is load-bearing in three
   // places below. They have no row in `notifications`, so they cannot be marked read, are
@@ -131,6 +143,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
   return (
     <div className="relative">
       <button
+        ref={trigger}
         onClick={() => setOpen(o => !o)}
         // ON CREAM NOW, not on the Heritage band. The bar this sits in stopped being a
         // burgundy header when the Golden Master's shell landed — the brand moved into
@@ -155,7 +168,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
               from the right edge, so on a 375px screen those 320px started 55px off the
               left of the display and the first half of every notification was gone. It
               is a full-width sheet under the header below sm now; see header-panel.ts. */}
-          <div className={cn(HEADER_PANEL_CLASS, 'sm:w-80')}>
+          <div ref={panel} className={cn(HEADER_PANEL_CLASS, 'sm:w-80')}>
             <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b">
               <span className="font-semibold text-sm">Notifications</span>
               {unreadNotifications > 0 && (

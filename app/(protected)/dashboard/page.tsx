@@ -7,7 +7,7 @@ import { getMyFamilyCode } from '@/lib/auth/family'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { getLinkPersonBannerData } from '@/app/actions/link-person'
 import { getAnnouncementFeed, getChapters } from '@/app/actions/announcements'
-import { getMyDuesSummary, getFamilyDuesCollected } from '@/app/actions/dues'
+import { getMyDuesSummary, getFamilyDuesCollected, getDonationProgress } from '@/app/actions/dues'
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { formatRoleTitle } from '@/lib/role-utils'
@@ -21,6 +21,8 @@ import { WelcomeHero } from '@/components/dashboard/WelcomeHero'
 import { AtAGlance } from '@/components/dashboard/AtAGlance'
 import { QuickActions } from '@/components/dashboard/QuickActions'
 import { FamilyTreeCard } from '@/components/dashboard/FamilyTreeCard'
+import { DonationDrivesCard } from '@/components/dashboard/DonationDrivesCard'
+import { PANE_RESOURCE } from '@/components/account/summary-panes'
 import { getFamilyTreeSummary } from '@/app/actions/family-tree'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
@@ -110,7 +112,10 @@ export default async function DashboardPage() {
   // feature shipped at all (lib/features.ts), and may THIS member view it (the
   // permission model). Either one false and the query below is never issued.
   const announcementsLive = isFeatureLive('/announcements')
-  const [canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree] = await Promise.all([
+  const [
+    canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
+    canViewDonations,
+  ] = await Promise.all([
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
       : false,
@@ -134,13 +139,19 @@ export default async function DashboardPage() {
     // written the same way every other one on this page is, so registering the resource
     // later starts narrowing this card without anybody having to remember it exists.
     isFeatureLive('/family-tree') ? can(user.id, 'family-tree', 'view') : false,
+    // The Donation Drives card. It BORROWS My Summary's Donations grant rather than
+    // getting a `dashboard/*` key of its own — the rule in components/dashboard/tiles.ts,
+    // which 20260806000006 settled: a dashboard panel is a pointer at a job that already
+    // has a switch, and registering a second one gives an administrator two controls for
+    // one thing that can disagree. Restrict the Donations pane and this card goes with it.
+    isFeatureLive('/account-summary') ? can(user.id, PANE_RESOURCE.donations, 'view') : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
   const [
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
-    pendingApprovals, duesCollectedCents, treeSummary,
+    pendingApprovals, duesCollectedCents, treeSummary, donations,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -210,6 +221,14 @@ export default async function DashboardPage() {
     // answer that the card renders deliberately, so zero here means zero and only `null`
     // means "not entitled".
     canViewTree ? getFamilyTreeSummary() : Promise.resolve(null),
+    // The family's open drives. NOT FETCHED without the grant rather than fetched and
+    // hidden (§5): every row carries a label, a goal and how much the family has raised,
+    // and props reach the browser in the RSC payload whether a component renders them or
+    // not. The action gates independently — it reads the schedules through the user's
+    // client, so a drive the caller is a beneficiary of never comes back at all — and
+    // this line is what keeps the whole list out of the payload for somebody the family
+    // has withheld the Donations pane from.
+    canViewDonations ? getDonationProgress() : Promise.resolve([]),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -316,6 +335,16 @@ export default async function DashboardPage() {
               column being empty for a member with no quick actions at all.
               `showViewLink` is the one prop that may differ between the two pages. */}
           <DuesBalanceKpi summary={duesSummary} showViewLink />
+          {/* THE OPEN DONATION DRIVES, directly under what the member owes, because the
+              two are the same subject read the other way round: one is money the family
+              expects, the other money it is asking for. A drive closes on a date and gets
+              no second reminder, which is why it belongs on the screen every member lands
+              on rather than only behind Summary → Donations.
+
+              The card renders nothing when no drive is open, so for most families most of
+              the time this column is Quick Actions, the balance and the tree — exactly as
+              before. */}
+          <DonationDrivesCard donations={donations} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.

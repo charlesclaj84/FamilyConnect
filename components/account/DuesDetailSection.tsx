@@ -191,6 +191,13 @@ export function DuesDetailSection({
   // to. Declined rows still appear in the table below, labelled, with the way back.
   const unpaid = rows.filter(isOutstanding)
   const declined = rows.filter(s => s.optedOut)
+  // NOT YET OWED, which is not the same as settled and must not read as it. An
+  // age-exempt due has a remaining balance of zero, so `isOutstanding` drops it and the
+  // member would otherwise see nothing at all where a due they are about to inherit
+  // ought to be. Listed at the end of the table with its own pill and the date it
+  // starts — a schedule that appears out of nowhere on somebody's eighteenth birthday is
+  // the surprise this avoids.
+  const notYetOwed = rows.filter(s => s.ageExempt && !s.optedOut)
   const paidPayments = history.filter(p => p.status === 'paid')
   const totalPaidCents = paidPayments.reduce((sum, p) => sum + p.amount_cents, 0)
   // No required/optional totals here any more: DuesBalanceKpi derives its own from the
@@ -268,6 +275,12 @@ export function DuesDetailSection({
     periodStart: currentPeriodStart(r.schedule),
     today: new Date().toISOString().slice(0, 10),
     settledCents: r.amountPaidThisPeriodCents + r.amountWaivedThisPeriodCents,
+    // THE MEMBER'S FIGURE, not the schedule's. `annualTotalCents` on the row is already
+    // scaled by the age rule where one applies, and reading the schedule instead would
+    // make this preview quietly disagree with the server about a prorated first year —
+    // right up until `router.refresh()` corrected it, which is the worst kind of
+    // disagreement because it looks like the change did something.
+    annualCents: r.annualTotalCents,
   })
 
   async function changeCadence(scheduleId: string, cadence: PayCadence) {
@@ -396,8 +409,11 @@ export function DuesDetailSection({
   //
   // The spread is what makes it safe to sort: `[...unpaid, ...declined]` is a fresh array,
   // so neither prop is touched.
-  const sortedDues = [...unpaid, ...declined].sort((a, b) => {
-    if (a.optedOut !== b.optedOut) return a.optedOut ? 1 : -1
+  // Not-yet-owed rows sort to the very end, after the declined ones: they are the least
+  // actionable thing in the table, being a due nobody can pay yet.
+  const rank = (s: DuesSummary) => s.ageExempt ? 2 : s.optedOut ? 1 : 0
+  const sortedDues = [...unpaid, ...declined, ...notYetOwed].sort((a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) - rank(b)
     let cmp = 0
     if (duesSort.col === 'amount') cmp = a.installmentCents - b.installmentCents
     else if (duesSort.col === 'due_date') cmp = (a.nextInstallmentDate ?? '').localeCompare(b.nextInstallmentDate ?? '')
@@ -803,6 +819,16 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
   onOptOut: (optOut: boolean) => void
 }) {
   const declined = row.optedOut
+  /**
+   * Below the age this due starts at, for the whole of this period.
+   *
+   * A THIRD STATE, not a variety of "paid". The remaining balance is zero either way, and
+   * treating them the same would tell a twelve-year-old they were all caught up on a due
+   * they have never owed — and would hide the one thing worth telling them, which is the
+   * date it starts. `declined` wins where both somehow apply: opting out is a choice the
+   * member made and the way back is on that row.
+   */
+  const notYetOwed = row.ageExempt && !declined
 
   /**
    * "Catching up", when the calendar has asked for installments the money never covered.
@@ -835,15 +861,31 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
   const statusPill = (
     <span className={cn(
       'inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-      declined ? 'bg-muted text-muted-foreground'
+      declined || notYetOwed ? 'bg-muted text-muted-foreground'
         : row.required ? 'bg-brand-soft text-brand-on-soft'
           // Warm, not the gold the status pills use: Optional is a CATEGORY of due, not
           // a state needing attention. Gold here would flag a row nobody is chasing.
           : 'bg-brand-warm text-brand-on-warm',
     )}>
-      {declined ? 'Declined' : row.required ? 'Required' : 'Optional'}
+      {declined ? 'Declined'
+        : notYetOwed ? 'Not yet due'
+          : row.required ? 'Required' : 'Optional'}
     </span>
   )
+
+  /**
+   * The sentence under the schedule name.
+   *
+   * Three readings of the same due, and the reduced one has to explain itself or the
+   * figure beside it looks like an error. A member turning eighteen in July on a $120 due
+   * is shown "$50 this year · $120/yr from 1 Jan 2027", which is the whole rule stated in
+   * the one place they will read it.
+   */
+  const termsLine = notYetOwed && row.ageProration
+    ? `Starts ${fmtDate(row.ageProration.responsibleFrom)}, when you turn ${row.ageProration.startAge}`
+    : row.ageProration
+      ? `${formatCurrency(row.annualTotalCents)} this year · ${formatCurrency(row.ageProration.fullAnnualCents)}/yr after · ${row.schedule.frequency}`
+      : `${formatCurrency(row.annualTotalCents)}/yr · ${row.schedule.frequency}`
 
   // No cadence to choose on a declined due — there is no installment to spread.
   //
@@ -853,7 +895,7 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
   // as unfinished. The aria-label names the schedule as well as the field, which the
   // column heading alone never did — "Pay cadence" over five identical selects tells a
   // screen-reader user nothing about which schedule they are changing.
-  const cadenceControl = declined ? null : (
+  const cadenceControl = declined || notYetOwed ? null : (
     <Select
       value={row.cadence}
       disabled={isPending}
@@ -880,20 +922,21 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
   )
 
   return (
-    <tr className={cn('border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle', declined && 'bg-muted/30')}>
+    <tr className={cn('border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle',
+      (declined || notYetOwed) && 'bg-muted/30')}>
       <td className="py-3 pr-3 sm:py-2.5">
         {/* The description is a tooltip on the title rather than its own line: it is
             reference text, and a paragraph of it under every row pushed the amounts
             apart. The dotted underline is the only hint that there is more to read,
             so it appears exactly when there is. */}
         <p
-          className={cn('font-medium', declined && 'text-muted-foreground',
+          className={cn('font-medium', (declined || notYetOwed) && 'text-muted-foreground',
             row.schedule.description && 'w-fit cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2')}
           title={row.schedule.description ?? undefined}
         >
           {row.schedule.label}
         </p>
-        <p className="text-xs text-muted-foreground">{formatCurrency(row.annualTotalCents)}/yr · {row.schedule.frequency}</p>
+        <p className="text-xs text-muted-foreground">{termsLine}</p>
 
         {/* ── The plan block: this row's other five columns, below `sm` ──────────
             NOT a `RowMeta`. That renders one inline run of short values, and this is
@@ -914,7 +957,7 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
             {/* Labelled, unlike most folded values. A bare date and a bare amount next
                 to an installment figure are three numbers with no captions. */}
             <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : null} prefix="Next due" />
-            {!declined && (
+            {!declined && !notYetOwed && (
               <>
                 <MetaDot />
                 <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix="Remaining" />
@@ -965,15 +1008,18 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
           amount has not gone away; it is the second line, where it belongs, because it is
           what every installment AFTER this one costs. */}
       <td className="py-3 text-right font-semibold whitespace-nowrap align-top sm:py-2.5 sm:pr-3 sm:align-middle">
-        <span className={cn(declined && 'text-muted-foreground line-through')}>
-          {formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
+        {/* An em dash for a due nobody owes yet, not "$0.00". A zero here is a figure
+            somebody would try to reconcile; a dash is the honest answer to "what is your
+            next installment" when there is not going to be one this year. */}
+        <span className={cn((declined || notYetOwed) && 'text-muted-foreground', declined && 'line-through')}>
+          {notYetOwed ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
         </span>
-        {!declined && !row.onSchedule && row.followingInstallmentDate && (
+        {!declined && !notYetOwed && !row.onSchedule && row.followingInstallmentDate && (
           <span className="block text-[11px] font-normal text-muted-foreground">
             then {formatCurrency(row.followingInstallmentCents)}
           </span>
         )}
-        {!declined && (
+        {!declined && !notYetOwed && (
           <span className="block text-[11px] font-normal capitalize text-muted-foreground sm:hidden">
             {row.cadence}
           </span>
@@ -981,11 +1027,15 @@ function DuesRow({ row, isPending, onCadence, onOptOut }: {
         {optOutControl && <span className="mt-1.5 block sm:hidden">{optOutControl}</span>}
       </td>
       <td className={cn('py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
-        {row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
+        {/* The date the due STARTS, for a row nobody owes yet. It is the only date this
+            row has, and it is the one thing the member wants from it. */}
+        {notYetOwed && row.ageProration
+          ? fmtDate(row.ageProration.responsibleFrom)
+          : row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
       </td>
       <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
-        declined ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
-        {declined ? '—' : formatCurrency(row.remainingBalanceCents)}
+        declined || notYetOwed ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
+        {declined || notYetOwed ? '—' : formatCurrency(row.remainingBalanceCents)}
       </td>
       <td className={cn('py-2.5 text-right', COLLAPSING_CELL)}>
         {optOutControl}
