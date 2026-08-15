@@ -1210,6 +1210,73 @@ several routes and several routes are sold in no bullet at all. Moving a bullet 
 cards now changes more than a document: check whether a route has to move with it —
 `grep "tier: '" lib/features.ts` is the whole job.
 
+# The product explains itself, and the explanation is part of the screen
+
+`/help` is the in-product manual — twenty chapters over eight parts, covering every live
+screen in the Dashboard. The whole of it is `lib/help/content.ts`, and the pages that draw
+it are `app/(protected)/help/`.
+
+**It names controls verbatim** — "press **New DM**", "the **Group** column", "**Disable
+member** from the row menu" — because that is the only kind of instruction worth reading.
+It is also why it goes stale exactly the way a screenshot does, and why this section
+exists rather than a line in a README.
+
+**THE RULE: a change to a screen owes an edit to the chapter that documents it, in the
+same commit.** Adding, removing or renaming a control, a tab, a pane, a form field, a
+button caption or a whole route is a change to the manual as much as to the component.
+Shipping the screen and leaving the chapter is not "documentation debt" — it is a page in
+the product that now tells members something false, in a section they were sent to
+*because* they were already confused.
+
+**Finding the chapter is one grep.** Every chapter that documents one screen carries that
+screen's `route`, which is what the availability labels resolve against and what makes the
+manual searchable by the thing you just changed:
+
+```bash
+grep "route: '/events'" lib/help/content.ts     # everything the manual claims about Events
+```
+
+A change with no route to grep — the shell, the idle sign-out, the permission model — is
+in `finding-your-way-around`, `who-can-do-what` or `troubleshooting`. **A new screen owes a
+new chapter**, which is the whole job: add it to the right `HELP_PARTS` entry and it
+appears in the contents, in the neighbour links and in `generateMetadata` by existing.
+
+Four things about it that are decisions, not accidents:
+
+* **The manual is DATA, and it stays pure.** No React, no `server-only`, no database in
+  `lib/help/content.ts` — three surfaces read one chapter (the contents page, the chapter
+  page, and `generateMetadata`, which needs the summary as a plain sentence before anything
+  renders), and it is what lets `[slug]/page.tsx` resolve a slug and 404 on a bad one before
+  deciding to render. Written as JSX the summary becomes a copy and the contents page
+  becomes a hand-maintained list.
+
+* **Two inline forms, and no markdown dependency.** `**bold**` for a control on screen and
+  `[label](/route)` for a link — that is the whole of `lib/help/inline.ts`. Anything else
+  renders as the literal characters, which is the safe direction, because nothing here can
+  emit HTML. Do not reach for a markdown renderer: it is a dependency, a sanitiser, and a
+  styling override for every element it can emit, to buy two forms that already exist.
+
+* **Never restate a fact the product already derives.** Which plan a feature belongs to
+  comes from `lib/features.ts` through `lib/help/availability.ts`, and what each plan
+  includes is `lib/plans.ts`. A chapter that types "this is a Plus feature" into its prose
+  is a fourth copy of the tier table and will be wrong the first time one moves. Say what
+  the screen DOES; let the label say whether the reader can open it.
+
+* **`help` has no `permission_resources` row, deliberately — do not add one.** It is the
+  §6 exception, the class of `/dashboard` and the Personal pages whose rows
+  `20260806000006` deleted: the page reads no family data at all, and the one screen that
+  explains permissions must not be the screen a misconfigured permission can hide. It is
+  also in `PENDING_RESOURCES`, so an applicant can read it while they wait — that list is
+  the sidebar's copy of what `requireViewOrPending()` admits, so change one and change the
+  other.
+
+**Two things are worth checking by running them**, and both were, before it shipped:
+every internal `[link](/route)` resolves to a registered route or a real chapter and
+anchor, and every chapter's `route` is in `FEATURES`. There is no `npm run help:check` yet
+— TODO.md carries it, and until it exists this paragraph is the only thing asking.
+`lib/help/inline.test.ts` is the part that IS enforced, under `npm test`, and it was
+checked by mutation the way §7b requires.
+
 # Colours live in one place
 
 `app/globals.css` is **the only file in the app that may contain a colour literal.**
