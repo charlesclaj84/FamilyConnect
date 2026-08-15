@@ -449,7 +449,7 @@ shipped with a documented obligation still open and a tick would hide that.
 | **The public family website that builds itself** | **none** | Premium | 6 | No route, no entry, no code |
 | **Per-family public address** | **none** | Premium | 3 | No route, no config, no code |
 | **Apps for iPhone and Android** | **none** | Premium | 2 | No route and none possible — this claim leaves the web app entirely. Largest item in this file. Two claims since the re-rank: the bullet, and the tagline's *"In every relative's pocket"*. |
-| **Push notifications, web and mobile** | **none** | Premium | 1 | No route, no code. `lib/notifications.ts` and `NotificationBell` are the in-product bell; nothing leaves the browser today. **Read the bullet before building it** — it promises notifications "in the browser … for events, announcements and messages", and the bell that exists is free, in-browser, and fires on **membership approvals only** (`admin/approvals.ts` and `my-families.ts` are its only callers). So a member already has the mechanism the copy names, for none of the three subjects it names. |
+| **Push notifications, web and mobile** | **none** | Premium | 1 | No route, no code. `lib/notifications.ts` and `NotificationBell` are the in-product bell; nothing leaves the browser today. **Read the bullet before building it** — it promises notifications "in the browser … for events, announcements and messages", and the bell that exists is free, in-browser, and fires on **membership traffic only**: the five doors into the approvals queue (`register.ts`, `my-families.ts`, `invitations.ts`, `membership.ts`) plus the decision itself (`admin/approvals.ts`). So a member already has the mechanism the copy names, for none of the three subjects it names. **The bell is also now cross-family** — `getPendingApprovalQueues` answers for every family the caller can work, which is the one thing in the product that deliberately reaches past the active family, and any push design has to decide the same question rather than inheriting the old per-family answer. |
 | **Email distributions** | **none** | Premium | 1 | No route. `lib/email/` sends transactional mail one recipient at a time; a list drawn from membership does not exist. Read that module's open-relay rule before building it. |
 | **Automatic dues reminders** | **none** | Premium | 1 | No route, no scheduler. Dues schedules and installments are live, so this is the send half only. |
 
@@ -463,6 +463,129 @@ shipped with a documented obligation still open and a tick would hide that.
 | ~~Event templates~~ | `/admin/event-types` | 1 | **Live.** Shipped with the event flip — and still absent from `/features` entirely and priced in no tier. |
 | ~~Event planning~~ — assigned tasks with deadlines | `/event-planning` | 3 | **Live.** Also in no tier; the decision above got more urgent rather than less. |
 | ~~Untiered event sub-capabilities~~ (hotel blocks, nested itineraries, per-event budgets) | `/admin/events` | 4 | **Live, and still untiered.** These were "built but unreachable"; they are now built, reachable and free. Per-event budgets crosses into `/family-finances`, which is still gated, so that one is half-shipped. |
+
+---
+
+## Proposed — no claim, and no code
+
+Everything above is one of two shapes: a claim with no code, or code with no claim. **There is
+a third**, and the register cannot hold it — a feature nobody has promised and nobody has
+built has no row in `PLANS[]` and no entry in `lib/features.ts` to be counted against.
+
+So it goes here, and this section changes none of the counts above. It exists for two
+reasons: to have the design argued once rather than invented twice, and to make the decisions
+underneath a proposal explicit *before* somebody writes the screen and discovers them.
+**Nothing here is scheduled.**
+
+### Emergency check-in — asking the relatives in one area whether they are safe
+
+A hurricane crosses the Gulf coast. One member with the right grant raises a check-in
+addressed to the relatives who live there; everybody addressed is asked one question — *are
+you safe?* — and answers with one tap. Whoever raised it watches a roster fill in: safe,
+needs help, not answered.
+
+**The unanswered column is the product.** The other two are only how it gets shorter, and
+that is the fact governing every decision below — this would be the first capability in
+GENORRA whose value is entirely in the response *rate* rather than in the record.
+
+#### What already exists, which is more than it looks
+
+| Piece | Where | State |
+|---|---|---|
+| An area to address | `regions` and `chapters` (`20260604000005`, `20260604000002`), `people.chapter_id` | Real per-family tables. But `/admin/chapters` is `status: 'future'`, `tier: 'plus'` — the only grouping a family can define is behind a flip **and** a paid plan. |
+| An audience on a message | `announcements.scope` — `national \| regional \| chapter` | Half-built, and worth knowing before reusing it: [`addressedTo()`](app/actions/announcements.ts#L139) filters `chapter` only. **A `regional` announcement reaches the whole family** — a person's region is derivable through `chapters.region_id` and nothing derives it. |
+| Where somebody lives | `people.city`, `state`, `zip_code`, `country` ([lib/profile-columns.ts:29](lib/profile-columns.ts#L29)) | Real, and shown as the Directory's City/State column. Self-reported, optional, and nothing keeps it current — a relative who moved last year is in the wrong area and nothing says so. |
+| A way to reach a member | [lib/notifications.ts](lib/notifications.ts) → the bell | In-browser only, approved members with an account only, and only where a tab is open. |
+| A way to reach them off the site | [lib/email/](lib/email/) | One recipient at a time, and `sendEmail()` **never throws**. |
+| Push, SMS | none | Push is a **Premium bullet with no code**. SMS is in no claim, no tier and no dependency anywhere. |
+| Picking people by hand | `PersonMultiSelect` | Ships today, built for 150. |
+
+#### Six things that are decisions rather than work
+
+1. **Reaching people is the whole feature, and the product cannot do it yet.** The bell needs
+   an open tab, and `IdleTimeout` signs a member out after 60 idle minutes — so the one
+   channel that exists is the one a disaster guarantees is closed. Email is the fallback and
+   it **fails soft by design**, which is correct for an approval and wrong here: a caller
+   must never render *"everyone has been asked"* over mail that did not go, and `inviteMember`
+   is the pattern for saying so honestly. **This feature is therefore downstream of a Premium
+   bullet with no code** (push notifications) or of SMS, which is in no plan at all. Decide the
+   channel before anybody designs the screen; a check-in nobody receives is worse than none,
+   because it is believed.
+
+2. **An area is not a chapter, and neither answer works alone.** A chapter is how a family
+   *organised* itself; a disaster addresses where people *are*. Self-reported city and state
+   are closer to the truth and are stale by an unknown amount. The workable shape is that all
+   three — chapter, geography, hand-picked names — resolve to **one explicit roster at raise
+   time**, and the roster is then the list rather than the rule that built it. Anything else
+   silently drops the relative who moved, which is the person most likely to be in the wrong
+   place. Same rule as the picker's overflow count: **never truncate quietly.**
+
+3. **A record cannot answer, and must not read as unanswered.** §4b's line — `user_id IS
+   NULL` — has a human cost on exactly this screen: a recorded grandmother is in the family,
+   on the tree and in the Directory, has a generated placeholder address and no account, and
+   can neither be asked nor reply. The roster owes a third state, *no way to reach them*,
+   sitting apart from "not answered". Leaving her in the unanswered column turns the one
+   number this feature exists to drive to zero into a number that cannot reach zero.
+
+4. **Two different gates, and the second is the abuse case.** Raising a check-in is
+   family-wide with no coherent "own" version, so it is `canAny(...)` — the same reasoning §2
+   gives funds and disbursements, because the row a member would "own" is precisely the
+   problem: a false alarm addressed to the whole family at 3 a.m. is what the grant exists to
+   prevent. **Answering is self-service** — `requireMember()`, the caller's own row, the
+   `submitRsvp` shape, with every id from the client checked by `belongsToFamily` first (§4).
+   Note what that rules out: an *"I spoke to her, she's fine"* button. It is the most
+   requested feature in every system of this kind and it is a write to somebody else's row.
+
+5. **A completed check-in is the sharpest PII this product would hold** — a list of relatives,
+   where they live, and which of them is unreachable, assembled at the moment it is most
+   useful to somebody else. Gate the fetch, not the tab (§5); give it its own resource key
+   with a **restricted** `resource_visibility` backfill (§6) rather than the `everyone`-for-view
+   default; and settle retention deliberately, because an answered check-in from three years
+   ago is a location history nobody agreed to keep.
+
+6. **The colour does not exist yet, and it is not `--destructive`.** That token owns errors and
+   deletions, `FormError` owns reporting a failure, and `--brand-withheld` is Warmth for a
+   capability going away. An emergency banner is none of the three and must not read as a
+   form error. It needs a role added to `app/globals.css` first, with an `on-` partner checked
+   against AA in both themes — not a hex in a component.
+
+#### Which tier
+
+`tier` is required and has no default, so this cannot be deferred to the pull request. Three
+readings, and the file should not pretend one is obvious:
+
+* **Free** — the Free card's premise is *"get your whole family in one place. All of them"*,
+  and safety is a poor thing to sell back to a family.
+* **Plus** — it sits beside RSVPs and head counts as coordination, which is what that card is.
+* **Premium** — it cannot work without push or SMS, and *reach* is exactly what Premium sells.
+
+**The dependency argues Premium and the ethics argue Free**, which is the kind of tension the
+`tier` field was made required to force somebody to resolve out loud.
+
+#### One defect it must not inherit
+
+[`createAnnouncement`](app/actions/announcements.ts#L282) writes a **client-supplied
+`chapter_id`** onto a service-role insert with no `belongsToFamily` check — §4's shape
+exactly. The blast radius today is small: BRAVO's row carries ALPHA's chapter id, so nobody's
+`myChapterId` matches and the announcement addresses nobody. On a check-in, "addressed
+nobody" is the failure that matters. Fix it where it is, with its own RLS case, before
+anything else is built on that audience mechanism.
+
+#### What it would owe at build time
+
+- An entry in `lib/features.ts` — `href`, `label`, `status`, and a stated `tier`.
+- Its `permission_resources` rows in a new migration **and** in the `20260618000000` seed,
+  with the per-family `resource_visibility` backfill in the same migration (§6). Two actions
+  at most, and only ones something reads: raising and answering are different jobs.
+- A case per action in `tests/rls/cases.mjs` — the BRAVO administrator passing ALPHA's ids, a
+  positive control, and a pending-member attacker (§7). Then break it on purpose and re-run.
+- If the audience lands as a junction table, **grep for bare embeds of both tables it joins**
+  afterwards. That is the `announcement_unpins` lesson (§8), and this table would join
+  `people` — the most embedded table in the schema.
+- The roster is a member table: a real `<table>`, `COLLAPSING_CELL` on the folding columns, no
+  `min-w` floor. **A phone is the device this feature is used on**, which makes that rule
+  non-negotiable here rather than a convention.
+- Built for 150, like every other member list.
 
 ---
 
@@ -784,3 +907,10 @@ profile pictures to Plus, four reach features to Premium), then seven status fli
 The first changed what is *claimed*; the second changed what is *true*. Where a section
 distinguishes them it says which, and the storage warning in the Plus table is the one place
 they interact.
+
+**2026-08-14: the Proposed section, with one entry** — the emergency check-in. It changes
+neither what is claimed nor what is true, which is why it needed a section of its own rather
+than a row in the register: it is the first thing written down here that is in `PLANS[]` and
+`lib/features.ts` alike absent. If a second proposal lands, it goes beside it under the same
+heading and under the same rule — nothing in there is scheduled, and nothing in there moves a
+count.
