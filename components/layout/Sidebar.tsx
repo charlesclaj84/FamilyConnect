@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ArrowRightLeft,
   Settings,
+  LifeBuoy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -183,6 +184,22 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
   })
 
   groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
+
+  // HELP IS LAST, and it is the one section whose position is not a judgement about
+  // importance. It is where a reader's eye goes when everything above has failed them, and
+  // it is the only section that survives every narrowing below — `help` is registered as a
+  // Free feature with no `permission_resources` row, so it resolves to viewable for
+  // everybody, a pending applicant included (see PENDING_RESOURCES).
+  //
+  // ONE ITEM, so NavSection renders it as a static divider rather than a slider — there is
+  // nothing to collapse. A second item here would make it a slider automatically, which is
+  // the correct behaviour and needs no change.
+  groups.push({
+    section: { label: 'Help', icon: LifeBuoy },
+    items: [
+      { href: '/help', label: 'How-To Manual', icon: BookOpen },
+    ],
+  })
 
   // Two independent gates, both narrowing:
   //   * roadmap — has the feature shipped at all? (lib/features.ts)

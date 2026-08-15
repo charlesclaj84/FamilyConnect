@@ -343,9 +343,16 @@ export async function requireViewOrPending(
 /**
  * The pages a member may reach while their membership is not approved.
  *
- * Exactly the three `requireViewOrPending()` admits, and that is the whole rule: this
+ * Exactly the four `requireViewOrPending()` admits, and that is the whole rule: this
  * is the SIDEBAR'S copy of a decision the page guards already make, so a key here that
  * the guard would refuse is a nav link to a 404. Change one, change the other.
+ *
+ * `help` is the fourth, added with the how-to manual, and it is the only one that admits a
+ * pending caller to the WHOLE page rather than to a waiting screen — because there is
+ * nothing on it to withhold. It reads no family data, names no member and shows no figure;
+ * it is documentation of the product, identical for every reader. "I have asked to join,
+ * what happens now?" is a help question asked by somebody who can reach no other screen to
+ * find the answer, and the three pages above cannot answer it.
  *
  * Family Tree is deliberately NOT here — and it is the only one left to say that about,
  * since My Children was retired on 2026-08-13 (AGENTS.md §4b). It reads `people` rows
@@ -358,6 +365,7 @@ export const PENDING_RESOURCES: readonly string[] = [
   'dashboard',
   'personal-info',
   'my-families',
+  'help',
 ]
 
 /**

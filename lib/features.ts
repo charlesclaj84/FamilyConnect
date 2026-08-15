@@ -158,6 +158,25 @@ export const FEATURES: readonly Feature[] = [
     tier: 'free',
     blurb: 'Every payment, donation, contribution, disbursement and fund transfer the family has recorded.',
   },
+  // The how-to manual. `free`, and it could not sensibly be anything else — a plan that
+  // withholds the instructions is a plan that sells a product nobody can learn.
+  //
+  // IT HAS NO `permission_resources` ROW, deliberately, so it needs no migration and can
+  // never be restricted. Same class as `/dashboard` and the Personal pages, whose rows
+  // 20260806000006 deleted: this page reads no family data at all, and the one screen that
+  // explains permissions should not be the screen a misconfigured permission can hide. The
+  // reasoning is at length on app/(protected)/help/page.tsx.
+  //
+  // The ENTRY is still required even so — `viewableResources()` walks this list to build
+  // the rail, so a page missing from here has no nav item however viewable it resolves to.
+  // Every chapter lives beneath `/help` and inherits this entry by prefix.
+  {
+    href: '/help',
+    label: 'How-To Manual',
+    status: 'live',
+    tier: 'free',
+    blurb: 'How every screen works, what each control does, and where to look when something is missing.',
+  },
 
   // Announcements is LIVE, with its admin counterpart. Both were on the roadmap and
   // neither needed a migration to come back: `announcements` and `admin/announcements`
