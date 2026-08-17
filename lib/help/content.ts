@@ -522,7 +522,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'how-it-reads',
             heading: 'How the canvas reads',
             blocks: [
-              p('The tree draws four generations around one person: grandparents at the top, then parents, then that person and their spouse, then children. Brothers and sisters are listed underneath rather than drawn in the row, because they share the focus person\'s generation and would crowd it out.'),
+              p('The tree draws the generations around one person, oldest at the top: their ancestors, then that person and their spouse, then their descendants. Each band is labelled — **Grandparents**, **Children**, **Great-grandchildren** — and past great- it counts, so five generations down reads **3rd great-grandchildren** rather than a row of "great"s nobody can total. Brothers and sisters are listed underneath rather than drawn in the row, because they share the focus person\'s generation and would crowd it out.'),
+              p('**How deep it goes depends on the mode.** Reading, you get three generations above and five below. Editing narrows it to two above and one below — the generations either side of the person you are working on — because every extra band is another row of **+** cards for relatives you are not currently adding.'),
+              p('A generation with a great many people in it stops at twenty-four cards and says how many are left. Nobody is lost: **Everyone in this family**, under the canvas, lists the whole roster and every name re-centres the tree.'),
               p('It opens on you. If you married in and have no parents or children recorded, it opens on the relative you are attached to instead and says so, with a **Centre on me** link.'),
               p('Where somebody has more than one marriage, each spouse card carries the word for it — **Wife**, **Ex-wife**, **Partner** — and the children below are split into a panel per marriage, plus **Other children** for anybody whose other parent is not one of them. The split comes from the parent connections the children already carry; nothing is guessed at.'),
             ],

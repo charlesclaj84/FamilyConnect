@@ -15,6 +15,7 @@ import {
 } from '@/components/family-tree/PersonRecordDialog'
 import {
   TREE_RELATIONSHIPS, leafIds, bloodlineIds, auditBloodlineAnchor, relationshipMeta,
+  generationsFrom, generationLabel,
   type TreeRelation,
 } from '@/lib/family-tree'
 import {
@@ -27,10 +28,22 @@ import {
  * was retired on 2026-08-13 (see the page for what that removal did and did not cost).
  *
  * ── THE MODEL IS ANCESTRY'S, AND THAT IS DELIBERATE ─────────────────────────────────
- * One person is in FOCUS, and the canvas draws the four generations around them:
- * grandparents, parents, the focus with their spouses and siblings, and children.
- * Clicking anybody re-focuses on them, so a family walks its tree one step at a time
- * instead of trying to render three hundred people at once.
+ * One person is in FOCUS, and the canvas draws the generations around them. Clicking
+ * anybody re-focuses on them, so a family walks its tree one step at a time instead of
+ * trying to render three hundred people at once.
+ *
+ * ── HOW DEEP DEPENDS ON THE MODE, since 2026-08-17 ──────────────────────────────────
+ * VIEW draws three generations up and five down; EDIT draws two up and one down. Reading
+ * and building want opposite things from the same diagram: a great-grandmother should see
+ * her great-great-grandchildren without walking down two people to find them, and somebody
+ * placing a relative should see only the gaps that belong to the person in the middle,
+ * because every extra band in Edit is another row of dashed "+" cards for relatives they
+ * are not currently adding. `levelsUp` / `levelsDown` is where that is decided, and the
+ * mode hint states it — a canvas that silently collapses on pressing Edit reads as a fault.
+ *
+ * The bands are generated from `generationsFrom` rather than hard-coded, which is what made
+ * the depth a parameter at all. Two of them still carry controls (the parents' own "+"
+ * slots, the grandparents' per-parent ones) and those are keyed on distance.
  *
  * That is not a simplification of a "whole family on one canvas" design — it IS the
  * design, and for the reason ancestry.com arrived at it: a family of a hundred and forty
@@ -247,22 +260,68 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
     )
   }
 
-  const parents = peopleFor(focus.id, 'parent')
-  const children = peopleFor(focus.id, 'child')
   const spouses = peopleFor(focus.id, 'spouse')
   const siblings = peopleFor(focus.id, 'sibling')
 
-  // GRANDPARENTS ARE DERIVED, never read from a "Paternal Grandfather" row. That is what
-  // keeps them correct when the middle generation is filled in later: record somebody's
-  // father today and their grandparents appear from HIS parents, rather than from a
-  // second set of rows that would then disagree with him.
-  // DEDUPED, because two of the focus person's parents can share one. Cousins who married
-  // is the ordinary way that happens and it is not rare in a family large enough to want
-  // this product — the same grandmother would otherwise be drawn twice, under one React
-  // key, which is a duplicate-key warning and a card that cannot be told from its twin.
-  const grandparents = [...new Map(
-    parents.flatMap(p => peopleFor(p.id, 'parent')).map(g => [g.id, g]),
-  ).values()]
+  // ── HOW DEEP THE CANVAS GOES, and it is not the same in both modes ─────────────────
+  //
+  // VIEW reads: three generations up and five down, so a great-grandmother sees her
+  // great-great-grandchildren from her own card instead of walking down two people to
+  // find them. EDIT builds: two up and one down, which is every gap that belongs to the
+  // person in the middle and nothing else.
+  //
+  // That asymmetry is the point rather than a limitation of the editor. Each extra band in
+  // Edit is another row of "+" cards for relatives you are not currently placing, and the
+  // dashed slots are the loudest thing on the canvas — a five-deep edit view is a screen of
+  // furniture with a tree behind it. The mode hint says the depth changes, because a canvas
+  // that silently shrinks when you press Edit reads as something having gone wrong.
+  const levelsUp = canAct ? 2 : 3
+  const levelsDown = canAct ? 1 : 5
+
+  // THE BLOODLINE FILTER, APPLIED ONCE, HERE. `related` filters edge by edge as it walks;
+  // the generation walk needs the same answer but cannot ask per edge, so the filter goes
+  // on the edge list it is handed. Both ends are tested: an edge into somebody off screen
+  // must not be a route through them to their descendants.
+  const visibleEdges = showingBlood
+    ? tree.edges.filter(e => inView(e.from) && inView(e.to))
+    : tree.edges
+
+  const peopleAt = (ids: string[]): TreePerson[] =>
+    ids.map(id => byId.get(id)).filter((p): p is TreePerson => Boolean(p))
+
+  const upLevels = generationsFrom(tree.people, visibleEdges, focus.id, 'parent', levelsUp)
+  const downLevels = generationsFrom(tree.people, visibleEdges, focus.id, 'child', levelsDown)
+
+  /**
+   * The bands to draw, as rows.
+   *
+   * `generationsFrom` stops at the first empty level, so VIEW renders only bands that have
+   * somebody in them — no "Great-grandchildren" heading over a family that has none. EDIT
+   * renders every band it is allowed regardless, because two of them hold the "+" slots and
+   * the sentence explaining where grandparents come from, and those have to be reachable on
+   * a tree that is empty.
+   */
+  const upDepth = canAct ? levelsUp : upLevels.length
+  const downDepth = canAct ? levelsDown : downLevels.length
+
+  // Deepest first: the canvas draws the oldest generation at the top.
+  const aboveRows = Array.from({ length: upDepth }, (_, i) => upDepth - i)
+    .map(distance => ({ distance, people: peopleAt(upLevels[distance - 1] ?? []) }))
+  const belowRows = Array.from({ length: downDepth }, (_, i) => i + 1)
+    .map(distance => ({ distance, people: peopleAt(downLevels[distance - 1] ?? []) }))
+
+  // The two bands the rest of this component still names directly: the parents own the
+  // grandparent "+" slots and the father/mother test, and the children are grouped by
+  // marriage. Read from the walk rather than re-queried, so one answer feeds both.
+  const parents = aboveRows.find(r => r.distance === 1)?.people ?? []
+  const children = belowRows.find(r => r.distance === 1)?.people ?? []
+
+  // GRANDPARENTS ARE DERIVED, never read from a "Paternal Grandfather" row — which is now a
+  // property of the walk rather than a line of its own: `aboveRows` at distance 2 IS the
+  // parents' parents. That is what keeps them correct when the middle generation is filled
+  // in later (record somebody's father today and their grandparents appear from HIS
+  // parents), and `generationsFrom` dedupes globally, so cousins who married cannot put one
+  // grandmother in two bands.
 
   // Who can still be linked to a given ANCHOR: everybody except the anchor and the people
   // already attached to them in ANY direction. Without the second half the picker offers
@@ -438,10 +497,14 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
               </button>
             ))}
           </div>
+          {/* THE DEPTH IS PART OF THE MODE, so the hint says so. A canvas that quietly
+              collapses from eight bands to four when you press Edit reads as something
+              having gone wrong, and the reason it collapses — the "+" slots belong to the
+              person in the middle — is not guessable from the result. */}
           <p className="text-xs text-muted-foreground">
             {editing
-              ? 'Add relatives, correct records and remove connections. Nothing here removes anybody from the family.'
-              : 'Reading the tree. Switch to Edit to add relatives or change a connection.'}
+              ? 'Add relatives, correct records and remove connections. Editing shows the generations either side of this person, so the gaps you can fill are the ones next to them. Nothing here removes anybody from the family.'
+              : 'Reading the tree — three generations up and five down. Switch to Edit to add relatives or change a connection.'}
           </p>
         </div>
       )}
@@ -626,57 +689,79 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
       <div className="overflow-x-auto rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] sm:p-8">
         <div className="mx-auto flex min-w-fit flex-col items-center gap-0">
 
-          <Generation label="Grandparents">
-            {grandparents.map(p => card(p))}
+          {/* ── THE GENERATIONS ABOVE, oldest band first ──────────────────────────────
+              Generated rather than hard-coded, so View can reach three deep and Edit stays
+              at two — see `levelsUp`. Two of these bands carry controls and the rest are
+              cards, which is why the slot blocks below are keyed on `distance` rather than
+              rendered per row. */}
+          {aboveRows.map((row, i) => (
+            <Fragment key={`up-${row.distance}`}>
+              <Generation label={generationLabel(row.distance, 'up')}>
+                <GenerationCards
+                  people={row.people}
+                  render={p => card(p, {
+                    // The unlink control belongs only to a connection the FOCUS person
+                    // owns. A grandparent's edge runs to a parent, not to the focus, so
+                    // detaching it from here would be removing somebody else's link.
+                    edge: row.distance === 1
+                      ? related(focus.id, 'parent').find(e => e.to === p.id)
+                      : undefined,
+                  })}
+                />
 
-            {/* ── ADDING A GRANDPARENT FROM HERE ────────────────────────────────────
-                One pair of slots per PARENT, anchored on that parent, because a
-                grandparent is somebody's mother or father and the tree has no other way
-                to say which side they are on. Building it any other way would mean
-                inventing a "grandparent" relationship type — the thing `relationFor`
-                deliberately refuses to map, for the reason it gives: a grandparent is two
-                parent edges, and a row filed as one edge draws somebody's grandfather
-                where their father belongs.
+                {canAct && row.distance === 1 && (
+                  <>
+                    {!hasFather && addButton(focus, 'Father')}
+                    {!hasMother && addButton(focus, 'Mother')}
+                  </>
+                )}
 
-                The slots are named for the parent so two sets of them are never a coin
-                toss, and the dialog they open asks whether the link is blood exactly as it
-                does everywhere else — which is the other half of the request. Before this,
-                reaching a grandparent meant clicking through to the parent first, and
-                nothing on the canvas said so. */}
-            {canAct && parents.map(parent => {
-              const parentEdges = related(parent.id, 'parent')
-              const hasDad = parentEdges.some(e => byId.get(e.to)?.gender === 'male')
-              const hasMum = parentEdges.some(e => byId.get(e.to)?.gender === 'female')
-              const who = parent.firstName || displayName(parent)
-              return (
-                <Fragment key={parent.id}>
-                  {!hasDad && addButton(parent, 'Father', `Add ${who}'s father`)}
-                  {!hasMum && addButton(parent, 'Mother', `Add ${who}'s mother`)}
-                </Fragment>
-              )
-            })}
+                {/* ── ADDING A GRANDPARENT FROM HERE ────────────────────────────────
+                    One pair of slots per PARENT, anchored on that parent, because a
+                    grandparent is somebody's mother or father and the tree has no other
+                    way to say which side they are on. Building it any other way would mean
+                    inventing a "grandparent" relationship type — the thing `relationFor`
+                    deliberately refuses to map, for the reason it gives: a grandparent is
+                    two parent edges, and a row filed as one edge draws somebody's
+                    grandfather where their father belongs.
 
-            {/* Only when the row is genuinely empty. In edit mode with a parent recorded
-                there are slots to press, and a sentence explaining that grandparents
-                appear on their own would be contradicted by the two "+" cards beside it. */}
-            {grandparents.length === 0 && (!canAct || parents.length === 0) && (
-              <p className="max-w-xs text-center text-xs text-muted-foreground">
-                {parents.length === 0
-                  ? `Record ${focus.firstName || 'this person'}'s parents first — grandparents hang off them.`
-                  : `Grandparents appear on their own once ${focus.firstName || 'this person'}'s parents have parents recorded.`}
-              </p>
-            )}
-          </Generation>
+                    The slots are named for the parent so two sets of them are never a coin
+                    toss, and the dialog they open asks whether the link is blood exactly as
+                    it does everywhere else. Only at distance 2: past that the same argument
+                    applies one generation further out and the answer is to centre on the
+                    grandparent, which is one click. */}
+                {canAct && row.distance === 2 && parents.map(parent => {
+                  const parentEdges = related(parent.id, 'parent')
+                  const hasDad = parentEdges.some(e => byId.get(e.to)?.gender === 'male')
+                  const hasMum = parentEdges.some(e => byId.get(e.to)?.gender === 'female')
+                  const who = parent.firstName || displayName(parent)
+                  return (
+                    <Fragment key={parent.id}>
+                      {!hasDad && addButton(parent, 'Father', `Add ${who}'s father`)}
+                      {!hasMum && addButton(parent, 'Mother', `Add ${who}'s mother`)}
+                    </Fragment>
+                  )
+                })}
 
-          <Connector show={grandparents.length > 0 && parents.length > 0} />
+                {/* Only when the band is genuinely empty AND has no slots in it. In edit
+                    mode with a parent recorded there are "+" cards to press, and a sentence
+                    saying grandparents appear on their own would be contradicted by them.
+                    In view mode an empty band is never rendered at all — the walk stops at
+                    the first gap — so this only ever speaks for Edit. */}
+                {row.people.length === 0 && row.distance === 2 && parents.length === 0 && (
+                  <p className="max-w-xs text-center text-xs text-muted-foreground">
+                    Record {focus.firstName || 'this person'}&apos;s parents first —
+                    grandparents hang off them.
+                  </p>
+                )}
+              </Generation>
 
-          <Generation label="Parents">
-            {parents.map(p => card(p, { edge: related(focus.id, 'parent').find(e => e.to === p.id) }))}
-            {!hasFather && addButton(focus, 'Father')}
-            {!hasMother && addButton(focus, 'Mother')}
-          </Generation>
-
-          <Connector show={parents.length > 0} />
+              {/* Between this band and whatever is under it: the next band up the list, or
+                  the focus row, which always has somebody in it. */}
+              <Connector show={row.people.length > 0
+                && (i === aboveRows.length - 1 || aboveRows[i + 1].people.length > 0)} />
+            </Fragment>
+          ))}
 
           <Generation label={spouses.length > 1
             ? 'This person, and their marriages'
@@ -767,13 +852,35 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
             </section>
           ) : (
             <Generation label="Children">
-              {children.map(p => card(p, { edge: related(focus.id, 'child').find(e => e.to === p.id) }))}
+              <GenerationCards
+                people={children}
+                render={p => card(p, { edge: related(focus.id, 'child').find(e => e.to === p.id) })}
+              />
               <div className="flex flex-wrap gap-2">
                 {TREE_RELATIONSHIPS.filter(r => r.relation === 'child')
                   .map(r => addButton(focus, r.type))}
               </div>
             </Generation>
           )}
+
+          {/* ── THE GENERATIONS BELOW THE CHILDREN ────────────────────────────────────
+              View only, because `levelsDown` is 1 in Edit — see the note there. These are
+              plain bands of cards: no "+" slots, because a grandchild is added from their
+              own parent's card, and no marriage grouping, because grouping a band of
+              grandchildren would need a panel per child rather than per marriage and would
+              caption most of the tree.
+
+              No detach control either. These cards are reached through somebody else's
+              connection, so an unlink here would be removing a link the focus person does
+              not own — the same reason a grandparent above carries no `edge`. */}
+          {belowRows.filter(row => row.distance > 1).map(row => (
+            <Fragment key={`down-${row.distance}`}>
+              <Connector show={row.people.length > 0} />
+              <Generation label={generationLabel(row.distance, 'down')}>
+                <GenerationCards people={row.people} render={p => card(p)} />
+              </Generation>
+            </Fragment>
+          ))}
         </div>
       </div>
 
@@ -1028,6 +1135,46 @@ function MarriageGroup({ caption, empty, hasChildren, canAct, children }: {
           )}
       </div>
     </section>
+  )
+}
+
+/**
+ * How many cards one generation band draws before it stops and says how many are left.
+ *
+ * Five generations down is where this stops being hypothetical: a founding couple with five
+ * children, four grandchildren each and three after that puts sixty cards in one band and a
+ * hundred and twenty in the next. Those render — React does not mind — but a band that wraps
+ * to eight lines is not a diagram of anything, and the page below it becomes unreachable.
+ *
+ * 24 is roughly four wrapped lines at a desktop width, which still reads as one generation.
+ */
+const BAND_LIMIT = 24
+
+/**
+ * The cards in one band, with an honest overflow.
+ *
+ * NEVER TRUNCATE QUIETLY — the rule `PersonMultiSelect`'s overflow count follows, and it
+ * matters more here: a band that stopped at 24 while LOOKING complete is how somebody
+ * concludes a great-grandchild is not in the family. So the count is stated, and it names
+ * where the rest are, which is the roster index at the bottom of the page — every name in it
+ * re-centres the tree, so nobody in the overflow is more than one click away.
+ */
+function GenerationCards({ people, render }: {
+  people: TreePerson[]
+  render: (person: TreePerson) => React.ReactNode
+}) {
+  const shown = people.slice(0, BAND_LIMIT)
+  const hidden = people.length - shown.length
+  return (
+    <>
+      {shown.map(render)}
+      {hidden > 0 && (
+        <p className="max-w-[10rem] self-center text-center text-xs text-muted-foreground">
+          + {hidden} more in this generation. Find them under{' '}
+          <span className="font-medium">Everyone in this family</span> below.
+        </p>
+      )}
+    </>
   )
 }
 

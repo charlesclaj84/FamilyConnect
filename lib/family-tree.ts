@@ -444,6 +444,113 @@ export function auditBloodlineAnchor(
   return { parentIds: [...(parents.get(anchorId) ?? [])], rootIds: roots }
 }
 
+/**
+ * The people at each generation above — or below — one person, nearest generation first.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────
+ * The canvas used to hard-code its four bands: grandparents, parents, the focus, children.
+ * That is two generations up and one down, which is the right shape for BUILDING a tree —
+ * every gap you can see belongs to the person in the middle — and much too shallow for
+ * reading one. A great-grandmother could not see her great-grandchildren from her own card
+ * at all; she had to walk down two people to find them.
+ *
+ * So the depth is a parameter and the bands are generated. `direction` is the relation to
+ * follow: `'parent'` walks up, `'child'` walks down. `getFamilyTree` normalizes every
+ * stored row into both directions, so either walk is complete whichever way the rows were
+ * written.
+ *
+ * ── NEAREST GENERATION WINS, AND A PERSON APPEARS ONCE ──────────────────────────────
+ * Cousins who married is the ordinary way one person ends up at two distances — a
+ * grandparent who is also a great-grandparent — and drawing them in both bands would say
+ * the family has two of them. `seen` is global across the walk rather than per level, so
+ * the closer relationship is the one drawn. It is also what stops a cycle
+ * (`person_relationships` does not forbid somebody being their own grandfather) from
+ * running forever.
+ *
+ * ── IT STOPS AT THE FIRST EMPTY BAND ────────────────────────────────────────────────
+ * Nobody's children have children if nobody has children, so a gap cannot be followed by
+ * a populated level. Truncating here means the caller can render every band it is given
+ * without testing any of them, and never draws an empty "Great-grandchildren" heading
+ * under a family that has none.
+ *
+ * ── `link_kind` IS NOT CONSULTED, DELIBERATELY ──────────────────────────────────────
+ * A step-child is still a child and belongs on the canvas. Which relatives are on screen
+ * at all is the Bloodline filter's job, and the caller applies it by handing this function
+ * an already-filtered edge list — one rule, applied once, rather than two places deciding
+ * who is visible.
+ */
+export function generationsFrom(
+  people: readonly { id: string }[],
+  edges: readonly TreeLink[],
+  startId: string,
+  direction: 'parent' | 'child',
+  depth: number,
+): string[][] {
+  const known = new Set(people.map(p => p.id))
+  if (!known.has(startId) || depth <= 0) return []
+
+  const step = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (edge.relation !== direction) continue
+    if (!known.has(edge.from) || !known.has(edge.to)) continue
+    const list = step.get(edge.from)
+    if (list) list.push(edge.to); else step.set(edge.from, [edge.to])
+  }
+
+  const seen = new Set<string>([startId])
+  const levels: string[][] = []
+  let frontier = [startId]
+
+  for (let d = 0; d < depth; d++) {
+    const level: string[] = []
+    for (const id of frontier) {
+      for (const to of step.get(id) ?? []) {
+        if (seen.has(to)) continue
+        seen.add(to)
+        level.push(to)
+      }
+    }
+    if (level.length === 0) break
+    levels.push(level)
+    frontier = level
+  }
+
+  return levels
+}
+
+/**
+ * What a generation band is called — "Parents", "Great-grandchildren", "3rd
+ * great-grandparents".
+ *
+ * Genealogy's own convention, which is why it is a table for the first three and a formula
+ * after: English has words for a parent, a grandparent and a great-grandparent, and past
+ * that it counts. "2nd great-grandparents" rather than "great-great-grandparents" because
+ * the reader has to count the greats in the second form, and at five generations down
+ * nobody does it correctly.
+ *
+ * PLURAL ALWAYS. It names the band rather than the person in it, and a band holding one
+ * child is still the children's row — the same reason the focus band is captioned "This
+ * person" whether or not they have a spouse beside them.
+ */
+export function generationLabel(distance: number, direction: 'up' | 'down'): string {
+  const near = direction === 'up'
+    ? ['Parents', 'Grandparents', 'Great-grandparents']
+    : ['Children', 'Grandchildren', 'Great-grandchildren']
+  if (distance <= 0) return direction === 'up' ? 'Ancestors' : 'Descendants'
+  if (distance <= near.length) return near[distance - 1]
+  return `${ordinal(distance - 2)} ${near[2].toLowerCase()}`
+}
+
+/** 1st, 2nd, 3rd, 4th. Only ever called with small numbers — a band depth. */
+function ordinal(n: number): string {
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th'
+    : n % 10 === 1 ? 'st'
+      : n % 10 === 2 ? 'nd'
+        : n % 10 === 3 ? 'rd'
+          : 'th'
+  return `${n}${suffix}`
+}
+
 /** What the dashboard widget and the canvas both want to know about a tree. */
 export interface TreeSummary {
   /** Everybody in the family, connected or not. */
