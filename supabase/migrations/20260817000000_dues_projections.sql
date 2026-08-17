@@ -100,6 +100,19 @@ SELECT DISTINCT p.family_code, 'dues-projections', 'restricted'
 ON CONFLICT (family_code, resource_key) DO NOTHING;
 
 -- ── 3. Whoever already runs the family's money gets it ─────────────────────
+-- !! THIS SECTION IS WRONG AND IS CORRECTED BY 20260817000001. Left as it ran, because
+-- !! editing an applied migration changes fresh databases only and would put this file
+-- !! out of step with what hosted actually did.
+-- !!
+-- !! `transactions/dues-payments` is a NON-ADMIN key, and
+-- !! seed_family_permission_templates() gives the General template view 'any' on every
+-- !! non-admin resource — so the condition below is true for every member of every
+-- !! family, and this granted all of them a screen §2 had just restricted. The follow-up
+-- !! deletes the over-grant and re-grants from `admin/account/dues:view = any`, which is
+-- !! an admin key and therefore actually distinguishes an administrator.
+-- !!
+-- !! A local `db reset` could not have caught it: this is a backfill over families that
+-- !! already exist, and a fresh database has none. See the follow-up's header.
 -- Restricted with nobody granted is a screen that exists and cannot be opened, so the
 -- grant follows the one that already answers "may this person see what the family
 -- collected": `transactions/dues-payments` at scope 'any' — the same key
