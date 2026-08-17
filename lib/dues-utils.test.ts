@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ageShareOfPeriod,
+  duesEligibility,
   annualTotalCents,
   currentPeriodStart,
   duesPlanMath,
@@ -467,6 +468,57 @@ describe('when the rule does not apply at all', () => {
     const s = share('2026-04-09', { startAge: 0 })
     expect(s.responsibleFrom).toBe('2026-04-09')
     expect(s.monthsOwed).toBe(8)
+  })
+})
+
+// ── Who owes a due at all ───────────────────────────────────────────────────────────
+//
+// A separate question from how much, and the reason it is separate is that `start_age` is
+// on a timer and `bloodline_only` is not: a child grows into a due, somebody who married
+// in never does. The one case that decides the design is the third — what an UNKNOWN
+// bloodline means.
+
+describe('duesEligibility', () => {
+  const eligible = (over: {
+    bloodlineOnly?: boolean | null
+    bloodline?: ReadonlySet<string> | null
+    personId?: string
+  }) => duesEligibility({
+    bloodlineOnly: over.bloodlineOnly ?? false,
+    bloodline: over.bloodline === undefined ? null : over.bloodline,
+    personId: over.personId ?? 'ada',
+  })
+
+  it('is owed by everybody when the due is not restricted', () => {
+    // And the bloodline is not even consulted — an unset anchor is irrelevant to a due
+    // open to the whole family, so this must not depend on it.
+    expect(eligible({ bloodlineOnly: false, bloodline: null })).toBe('owed')
+    expect(eligible({ bloodlineOnly: null, bloodline: null })).toBe('owed')
+    expect(eligible({ bloodlineOnly: undefined, bloodline: null })).toBe('owed')
+  })
+
+  it('is owed by somebody in the bloodline', () => {
+    expect(eligible({ bloodlineOnly: true, bloodline: new Set(['ada']) })).toBe('owed')
+  })
+
+  it('is not owed by somebody outside it', () => {
+    expect(eligible({ bloodlineOnly: true, bloodline: new Set(['ben']) }))
+      .toBe('not-in-bloodline')
+  })
+
+  it('BILLS NOBODY when the bloodline is unknown, and says which of the two it is', () => {
+    // The case the whole function exists for. `bloodlineIds` returns null when the family
+    // has no anchor, and reading that as an empty set would be indistinguishable from
+    // "nobody is blood" — which is the same ANSWER here but a different FACT, and the
+    // screens have to be able to explain it. Billing everybody instead would charge the
+    // step-children the family ticked the box to exclude, silently.
+    expect(eligible({ bloodlineOnly: true, bloodline: null })).toBe('bloodline-unknown')
+  })
+
+  it('distinguishes an unknown bloodline from an empty one', () => {
+    // An empty set is a real answer — the anchor is set and nobody qualifies — and it is
+    // NOT the same state as having no anchor at all.
+    expect(eligible({ bloodlineOnly: true, bloodline: new Set() })).toBe('not-in-bloodline')
   })
 })
 

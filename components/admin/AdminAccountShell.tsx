@@ -115,6 +115,8 @@ interface Props {
   /** Adults a donation drive can be for — see AdminIncomeClient. Empty when the
    *  caller cannot view Donations, because the page gates the fetch. */
   members: BeneficiaryOption[]
+  /** Whether the family has a bloodline to restrict a due to — see AdminIncomeClient. */
+  hasBloodline: boolean
 }
 
 /**
@@ -147,6 +149,7 @@ export function AdminAccountShell({
   initialAllocations,
   rights,
   members,
+  hasBloodline,
 }: Props) {
   // Only the sections this caller may view, and only the rails that still hold one.
   // Derived from the same rights the server actions enforce, so a visible rail always
@@ -284,6 +287,7 @@ export function AdminAccountShell({
             scheduleUsage={scheduleUsage}
             rights={rights}
             members={members}
+            hasBloodline={hasBloodline}
           />
           <AdminFundsClient
             section={section}

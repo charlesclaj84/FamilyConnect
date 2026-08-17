@@ -77,6 +77,12 @@ export interface DuesScheduleLike {
    * whatever their age" (20260814000000). Read by `ageShareOfPeriod` and by nothing else.
    */
   start_age?: number | null
+  /**
+   * TRUE: only members in the family's bloodline owe this. Read by `duesEligibility` and
+   * by nothing else — a set-membership question rather than arithmetic, which is why it
+   * does not touch any of the figures in this module.
+   */
+  bloodline_only?: boolean | null
 }
 
 /** The schedule's total obligation for one year, in cents. */
@@ -174,6 +180,54 @@ export function currentPeriodStart(schedule: DuesScheduleLike): string {
   const anniversary = Date.UTC(y, month - 1, day)
   const startYear = now.getTime() < anniversary ? y - 1 : y
   return `${startYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/**
+ * Whether a member owes a due at all, before any question of how much.
+ *
+ * ── WHY IT IS A SEPARATE QUESTION FROM THE AGE RULE ─────────────────────────────────
+ * `start_age` reduces what somebody owes and eventually stops reducing it: a child who is
+ * exempt this year is a payer in a few. `bloodline_only` is not on a timer — a member who
+ * married in never becomes blood — so the two produce different answers to "will they ever
+ * pay this", and a screen that folded them together would tell somebody's wife she was
+ * "not yet due" on a due she will never owe.
+ *
+ * ── 'unknown' IS THE ANSWER THAT MATTERS ────────────────────────────────────────────
+ * `bloodlineIds` returns null when the family has no anchor to walk from, and its own
+ * header is explicit that callers must not read that as an empty set. Here the stakes are
+ * money: an unknown bloodline could plausibly mean "bill nobody" or "bill everybody", and
+ * the two are wrong in opposite directions.
+ *
+ * BILL NOBODY, and say so. Billing everybody would charge the step-children the family
+ * ticked this box to exclude, silently and with no way to notice — the failure lands on the
+ * people it was meant to protect. Billing nobody is visible: the family collects less than
+ * they expected and the projection reports why. Under-collecting loudly beats over-billing
+ * quietly, and the Accounting form refuses to set the flag without an anchor so this state
+ * is hard to reach in the first place.
+ *
+ * Pure, and takes the bloodline as an argument, because computing it needs the whole tree
+ * and this needs to be checkable without one.
+ */
+export type DuesEligibility =
+  /** They owe it — either it is open to everybody, or they are in the bloodline. */
+  | 'owed'
+  /** Bloodline-only, and they are not in it. They will never owe it. */
+  | 'not-in-bloodline'
+  /** Bloodline-only, and the family has not said which line it descends from. */
+  | 'bloodline-unknown'
+
+export function duesEligibility(input: {
+  bloodlineOnly: boolean | null | undefined
+  /**
+   * `bloodlineIds(...)` for this family. NULL means "do not know" and is not an empty
+   * set — see the header.
+   */
+  bloodline: ReadonlySet<string> | null
+  personId: string
+}): DuesEligibility {
+  if (!input.bloodlineOnly) return 'owed'
+  if (input.bloodline === null) return 'bloodline-unknown'
+  return input.bloodline.has(input.personId) ? 'owed' : 'not-in-bloodline'
 }
 
 /** How many months of an annual period there are. Named so the arithmetic reads. */

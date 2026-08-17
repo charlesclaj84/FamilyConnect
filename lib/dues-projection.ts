@@ -1,5 +1,6 @@
 import {
   annualTotalCents, ageShareOfPeriod, proratedAnnualCents, currentPeriodStart,
+  duesEligibility,
   type DuesScheduleLike,
 } from '@/lib/dues-utils'
 
@@ -75,6 +76,15 @@ export interface ProjectionTotals {
 export type DuesStanding =
   /** Below the schedule's `start_age` for this whole period. Owes nothing yet. */
   | 'exempt'
+  /**
+   * Bloodline-only, and this member is not in it — or the family has not named the line.
+   *
+   * ITS OWN STANDING RATHER THAN A KIND OF 'exempt', because the two are different
+   * promises. A child who is exempt becomes a payer; a member who married in never does,
+   * so folding them together would report somebody's wife as "not yet due" on a due she
+   * will never owe.
+   */
+  | 'excluded'
   /** Declined an optional due. Owes nothing. */
   | 'declined'
   /** Settled in full, by money or by waiver. */
@@ -92,6 +102,14 @@ export interface ScheduleProjection extends ProjectionTotals {
   periodStart: string
   /** The schedule's full annual figure, before any member's age or opt-out. */
   annualCents: number
+  /** Only the bloodline owes it. */
+  bloodlineOnly: boolean
+  /**
+   * Bloodline-only, and the family has no anchor to work the bloodline out from — so
+   * NOBODY owes it. Surfaced rather than left as a suspiciously low expected figure: it is
+   * the one state on this screen a treasurer cannot diagnose from the numbers.
+   */
+  bloodlineUnknown: boolean
   /** Members who owe something on it this period. */
   payingMembers: number
   counts: Record<DuesStanding, number>
@@ -166,7 +184,7 @@ function add(a: ProjectionTotals, b: ProjectionTotals): ProjectionTotals {
 
 /** Least settled first — the order the member table sorts by, and `standing` picks. */
 const STANDING_RANK: Record<DuesStanding, number> = {
-  unpaid: 0, partial: 1, settled: 2, declined: 3, exempt: 4,
+  unpaid: 0, partial: 1, settled: 2, declined: 3, exempt: 4, excluded: 5,
 }
 
 export function projectDues(input: {
@@ -177,8 +195,19 @@ export function projectDues(input: {
   plans: readonly ProjectionPlan[]
   /** Approved people with no account. Reported, never billed. */
   recordsExcluded?: number
+  /**
+   * Who is in the family's bloodline — `bloodlineIds(...)`, or NULL for "do not know".
+   *
+   * Only consulted for a schedule with `bloodline_only`. NULL is not an empty set and
+   * `duesEligibility` is what draws that distinction: it answers 'bloodline-unknown', the
+   * schedule bills nobody, and `bloodlineUnknown` on the row is what lets the screen say
+   * so rather than showing an unexplained zero. Omitting it entirely is the same as not
+   * knowing, which is the safe default for a caller that has not loaded the tree.
+   */
+  bloodline?: ReadonlySet<string> | null
 }): DuesProjection {
   const { schedules, members, payments, plans } = input
+  const bloodline = input.bloodline ?? null
 
   const declined = new Set(
     plans.filter(p => p.optedOut).map(p => `${p.personId}:${p.scheduleId}`),
@@ -219,7 +248,7 @@ export function projectDues(input: {
     let totals = ZERO
     let payingMembers = 0
     const counts: Record<DuesStanding, number> = {
-      exempt: 0, declined: 0, settled: 0, partial: 0, unpaid: 0,
+      exempt: 0, excluded: 0, declined: 0, settled: 0, partial: 0, unpaid: 0,
     }
 
     for (const member of members) {
@@ -233,19 +262,35 @@ export function projectDues(input: {
       // database: a plan row that predates 20260807000003's guard, or one whose schedule
       // was made required after the member opted out, must read as owed.
       const optedOut = !schedule.required && declined.has(key)
+      // WHETHER THEY OWE IT AT ALL, before any question of how much. A bloodline-only due
+      // is owed by nobody when the family has not named its line — see `duesEligibility`,
+      // which is where the reasoning for that direction lives.
+      const eligibility = duesEligibility({
+        bloodlineOnly: schedule.bloodline_only,
+        bloodline,
+        personId: member.personId,
+      })
+      const excluded = eligibility !== 'owed'
 
       const collectedCents = paid.get(key) ?? 0
       const waivedCents = waived.get(key) ?? 0
       const pendingCents = pending.get(key) ?? 0
-      const expectedCents = optedOut ? 0 : proratedAnnualCents(annualCents, share)
+      const expectedCents = optedOut || excluded
+        ? 0
+        : proratedAnnualCents(annualCents, share)
       const outstandingCents = Math.max(0, expectedCents - collectedCents - waivedCents)
 
+      // ORDER MATTERS, and 'excluded' comes FIRST. A member outside the bloodline will
+      // never owe this due, so reporting them as 'exempt' because they are also a child —
+      // or as 'settled' because they owe nothing — would both be answers to a question
+      // nobody asked. What is true of them is that the due is not theirs.
       const standing: DuesStanding =
-        share.exempt ? 'exempt'
-          : optedOut ? 'declined'
-            : outstandingCents <= 0 ? 'settled'
-              : collectedCents + waivedCents > 0 ? 'partial'
-                : 'unpaid'
+        excluded ? 'excluded'
+          : share.exempt ? 'exempt'
+            : optedOut ? 'declined'
+              : outstandingCents <= 0 ? 'settled'
+                : collectedCents + waivedCents > 0 ? 'partial'
+                  : 'unpaid'
 
       counts[standing]++
       if (expectedCents > 0) payingMembers++
@@ -272,6 +317,11 @@ export function projectDues(input: {
       required: schedule.required,
       periodStart,
       annualCents,
+      bloodlineOnly: Boolean(schedule.bloodline_only),
+      // Only true where the flag is set AND there is no bloodline to apply it with. A
+      // schedule open to everybody does not care that the anchor is unset, so saying so on
+      // its row would be a warning about nothing.
+      bloodlineUnknown: Boolean(schedule.bloodline_only) && bloodline === null,
       payingMembers,
       counts,
       ...totals,

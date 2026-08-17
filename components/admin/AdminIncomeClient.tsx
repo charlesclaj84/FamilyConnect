@@ -75,6 +75,12 @@ interface Props {
    * Donations section — the page gates the fetch, not the field (AGENTS.md §5).
    */
   members: BeneficiaryOption[]
+  /**
+   * Whether this family has a bloodline at all — `families.bloodline_anchor_id`, or a
+   * founder to fall back on. Decides whether "Bloodline only" can be ticked; a family
+   * without one would be creating a due nobody owes.
+   */
+  hasBloodline: boolean
 }
 
 /**
@@ -143,6 +149,8 @@ interface ScheduleForm {
    * birth"; '' means the family has no age rule on this due.
    */
   startAge: string
+  /** Dues only. Only members in the family's bloodline owe it. */
+  bloodlineOnly: boolean
   /** Donations only. The people the drive is for, and so the people who cannot see it. */
   beneficiaryIds: string[]
 }
@@ -150,7 +158,7 @@ interface ScheduleForm {
 const EMPTY_SCHEDULE_FORM: ScheduleForm = {
   label: '', amount: '', goal: '', frequency: 'annual',
   startDate: '', endDate: '', description: '', required: true,
-  startAge: '', beneficiaryIds: [],
+  startAge: '', bloodlineOnly: false, beneficiaryIds: [],
 }
 
 /**
@@ -182,6 +190,7 @@ function formOfSchedule(s: DuesSchedule): ScheduleForm {
     // `String(0)` is '0' and null becomes '', which is the distinction the field exists
     // to keep — see `startAge` on ScheduleForm.
     startAge: s.start_age == null ? '' : String(s.start_age),
+    bloodlineOnly: s.bloodline_only,
     beneficiaryIds: s.beneficiary_person_ids,
   }
 }
@@ -240,11 +249,19 @@ function RequiredToggle({ checked, onChange }: {
  * recorded against it. Creating one with a past end date stays allowed, deliberately —
  * that is how a treasurer enters last year's dues in order to record its history.
  */
-function ScheduleFields({ kind, form, onChange, members, locked = false, endDateMin, autoFocus = false }: {
+function ScheduleFields({
+  kind, form, onChange, members, hasBloodline, locked = false, endDateMin, autoFocus = false,
+}: {
   kind: ScheduleKind
   form: ScheduleForm
   onChange: (patch: Partial<ScheduleForm>) => void
   members: BeneficiaryOption[]
+  /**
+   * Whether the family has named the ancestor its line descends from. False disables the
+   * bloodline-only control, because without an anchor there is no bloodline and the due
+   * would be owed by nobody — see the field.
+   */
+  hasBloodline: boolean
   locked?: boolean
   endDateMin?: string
   autoFocus?: boolean
@@ -347,6 +364,41 @@ function ScheduleFields({ kind, form, onChange, members, locked = false, endDate
         </div>
       )}
 
+      {/* ── OWED BY THE BLOODLINE ALONE ──────────────────────────────────────────────
+          Dues only: nobody owes a gift, so there is nothing for a bloodline to narrow.
+
+          IT DEPENDS ON A SETTING ON ANOTHER SCREEN, which is the whole reason this control
+          is not a bare checkbox. Who is in the bloodline is worked out by walking blood
+          relationships up from the person the family says its line descends from, and a
+          family that has not named that person has no bloodline — so the due would be owed
+          by NOBODY. The control is therefore disabled until the anchor is set, with the way
+          to set it, rather than offered and then silently collecting nothing.
+
+          Frozen once payments exist, alongside the amount and the starting age: moving it
+          restates what every member owed for the periods already posted against. */}
+      {!isDonation && (
+        <div className="space-y-1.5">
+          <label className={cn('flex items-center gap-2 select-none',
+            hasBloodline && !locked ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')}>
+            <input
+              type="checkbox"
+              checked={form.bloodlineOnly}
+              disabled={locked || !hasBloodline}
+              onChange={e => onChange({ bloodlineOnly: e.target.checked })}
+              className="h-4 w-4 rounded border-input accent-primary"
+            />
+            <span className="text-sm font-medium">Bloodline only</span>
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {!hasBloodline
+              ? <>Your family has not said which ancestor its line descends from, so there is no bloodline to restrict this to. Set <strong className="font-medium">Bloodline descends from</strong> on the <a href="/family-tree">family tree</a> first.</>
+              : form.bloodlineOnly
+                ? 'Only members descended from the family’s line owe this. Anybody who married in, and any step, adopted or foster relative, owes nothing and will not see it on their Dues screen.'
+                : 'Every member owes this, however they came into the family.'}
+          </p>
+        </div>
+      )}
+
       {/* Dues only. A donation is optional by definition — the field would be a checkbox
           that cannot be unticked. */}
       {!isDonation && <RequiredToggle checked={form.required} onChange={next => onChange({ required: next })} />}
@@ -410,6 +462,7 @@ const LOCK_NOTE: Record<ScheduleKind, string> = {
 
 export function AdminIncomeClient({
   section, creating, onCloseCreate, initialSchedules, scheduleUsage, rights, members,
+  hasBloodline,
 }: Props) {
   // The section on screen decides which grant applies: a Dues row is governed by
   // admin/account/dues, a Donation row by admin/account/donations.
@@ -558,6 +611,10 @@ export function AdminIncomeClient({
             // an omitted key could never CLEAR an age rule. Removing one has to be
             // expressible, and emptying the box is how it is said.
             start_age: startAgeOf(editForm),
+            // Always sent, false included, for the reason the age is: `undefined` means
+            // "not sent" to the action and would leave the column alone, so an omitted key
+            // could never LIFT a bloodline restriction. Removing one has to be expressible.
+            bloodline_only: editForm.bloodlineOnly,
           }
       const result = await updateDuesSchedule(id, {
         label: editForm.label,
@@ -606,6 +663,10 @@ export function AdminIncomeClient({
         // gift is not owed, so there is no age at which somebody starts owing it. The
         // action pins it and a CHECK holds it, and this line keeps the type honest.
         start_age: isDonation ? null : startAgeOf(newForm),
+        // Forced false for a donation for the same reason `required` is: nobody owes a
+        // gift, so there is no bloodline to narrow it to. The action pins it and a CHECK
+        // holds it; this keeps the type honest.
+        bloodline_only: isDonation ? false : newForm.bloodlineOnly,
         due_month: null,
         due_day: null,
         start_date: newForm.startDate || null,
@@ -670,6 +731,7 @@ export function AdminIncomeClient({
                 form={newForm}
                 onChange={patchNew}
                 members={members}
+                hasBloodline={hasBloodline}
                 autoFocus
               />
               <FormError message={error} />
@@ -723,6 +785,7 @@ export function AdminIncomeClient({
                   form={editForm}
                   onChange={patchEdit}
                   members={members}
+                  hasBloodline={hasBloodline}
                   locked={editing.locked}
                   endDateMin={editing.kind === 'dues' ? todayLocal() : undefined}
                   autoFocus
@@ -804,6 +867,11 @@ export function AdminIncomeClient({
                                 value={s.start_age == null ? null : `age ${s.start_age}+`}
                                 prefix="From"
                               />
+                              {/* WHO OWES IT, the other half. On the row for the same
+                                  reason the age is: it changes what a member is billed,
+                                  and an administrator comparing two dues should not have
+                                  to open both to find out which one the in-laws pay. */}
+                              <MetaIf value={s.bloodline_only ? 'Bloodline only' : null} />
                             </>
                           )}
                           <MetaIf value={dateRange(s.start_date, s.end_date)} />

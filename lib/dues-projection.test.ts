@@ -53,12 +53,17 @@ const run = (over: {
   payments?: readonly ProjectionPayment[]
   plans?: readonly ProjectionPlan[]
   recordsExcluded?: number
+  bloodline?: ReadonlySet<string> | null
 }) => projectDues({
   schedules: over.schedules ?? [ANNUAL],
   members: over.members ?? ADULTS,
   payments: over.payments ?? [],
   plans: over.plans ?? [],
   recordsExcluded: over.recordsExcluded,
+  // Passed straight through, `undefined` included: "not supplied" has to stay
+  // distinguishable from `null`, because one of the cases below is precisely that a caller
+  // who never loaded the tree must not accidentally bill the whole family.
+  bloodline: over.bloodline,
 })
 
 const pay = (
@@ -270,6 +275,85 @@ describe('the answers about who was counted', () => {
     expect(p.membersCounted).toBe(0)
     expect(p.expectedCents).toBe(0)
     expect(p.schedules[0].payingMembers).toBe(0)
+  })
+})
+
+describe('a due the bloodline alone owes', () => {
+  const BLOOD: ProjectionSchedule = { ...ANNUAL, bloodline_only: true }
+
+  it('bills the bloodline and nobody else', () => {
+    const p = run({ schedules: [BLOOD], bloodline: new Set(['ada']) })
+
+    expect(p.expectedCents).toBe(12_000)     // Ada's, not Ada's and Ben's
+    expect(p.payingMembers).toBe(1)
+    expect(p.schedules[0].counts).toMatchObject({ unpaid: 1, excluded: 1 })
+    expect(p.schedules[0].bloodlineOnly).toBe(true)
+    expect(p.schedules[0].bloodlineUnknown).toBe(false)
+  })
+
+  it('reports the excluded member as "not theirs", never as settled or exempt', () => {
+    // Both would be answers to a question nobody asked. Settled says they paid; exempt
+    // says they will pay later. Neither is true of somebody who married in.
+    const p = run({ schedules: [BLOOD], bloodline: new Set(['ada']) })
+    const ben = p.members.find(m => m.personId === 'ben')!
+
+    expect(ben.standing).toBe('excluded')
+    expect(ben.expectedCents).toBe(0)
+    expect(ben.liableSchedules).toBe(0)
+  })
+
+  it('takes precedence over the age rule', () => {
+    // A child who married in is not "not yet due" on a due they will never owe. The
+    // ordering in projectDues is what makes this true, and it is the reason the two are
+    // separate standings rather than one.
+    const p = run({
+      schedules: [{ ...BLOOD, start_age: 18 }],
+      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 8}-04-01` }],
+      bloodline: new Set(['someone-else']),
+    })
+
+    expect(p.schedules[0].counts).toMatchObject({ excluded: 1, exempt: 0 })
+  })
+
+  it('BILLS NOBODY when the family has no bloodline, and says so', () => {
+    // The direction that matters. Billing everybody would charge the step-children the
+    // family ticked this box to exclude, silently. Billing nobody is visible — and
+    // `bloodlineUnknown` is what makes it explicable rather than an unexplained zero.
+    const p = run({ schedules: [BLOOD], bloodline: null })
+
+    expect(p.expectedCents).toBe(0)
+    expect(p.payingMembers).toBe(0)
+    expect(p.schedules[0].bloodlineUnknown).toBe(true)
+    expect(p.schedules[0].counts.excluded).toBe(2)
+  })
+
+  it('treats an omitted bloodline as not knowing, not as an empty set', () => {
+    // A caller that never loaded the tree must not accidentally bill the whole family.
+    const p = run({ schedules: [BLOOD] })
+    expect(p.expectedCents).toBe(0)
+    expect(p.schedules[0].bloodlineUnknown).toBe(true)
+  })
+
+  it('says nothing about the bloodline on a due open to everybody', () => {
+    // The flag is off, so an unset anchor is irrelevant and a warning here would be a
+    // warning about nothing.
+    const p = run({ schedules: [ANNUAL], bloodline: null })
+
+    expect(p.schedules[0].bloodlineOnly).toBe(false)
+    expect(p.schedules[0].bloodlineUnknown).toBe(false)
+    expect(p.expectedCents).toBe(24_000)
+  })
+
+  it('leaves a member owing a second, unrestricted due', () => {
+    // Ben is outside the line, so he owes nothing on the restricted due and everything on
+    // the open one. His row reports the least settled standing he holds, which is the
+    // levy's — not 'excluded', which would read as owing nothing at all.
+    const p = run({ schedules: [BLOOD, LEVY], bloodline: new Set(['ada']) })
+    const ben = p.members.find(m => m.personId === 'ben')!
+
+    expect(ben.expectedCents).toBe(6_000)
+    expect(ben.liableSchedules).toBe(1)
+    expect(ben.standing).toBe('unpaid')
   })
 })
 

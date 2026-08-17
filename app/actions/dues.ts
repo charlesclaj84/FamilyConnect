@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   annualTotalCents,
   ageShareOfPeriod,
+  duesEligibility,
   proratedAnnualCents,
   duesPlanMath,
   currentPeriodStart,
@@ -17,6 +18,9 @@ import {
   type ScheduleKind,
 } from '@/lib/dues-utils'
 import { projectDues, type DuesProjection } from '@/lib/dues-projection'
+import {
+  bloodlineIds, isLinkKind, relationFor, type LinkKind, type TreeLink,
+} from '@/lib/family-tree'
 import { routeContribution, type RoutingFund } from '@/lib/fund-routing'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 
@@ -59,6 +63,21 @@ export interface DuesSchedule {
    * age at which they start.
    */
   start_age: number | null
+  /**
+   * DUES ONLY: only members in the family's bloodline owe this (20260817000002).
+   *
+   * Derived at read time from `person_relationships.link_kind` and
+   * `families.bloodline_anchor_id`, never stored per member — blood is a property of the
+   * LINK (§4c), so a flag on the person would have to be wrong about one of a step-child's
+   * two parents. Correcting a relationship, or moving the bloodline anchor, therefore
+   * changes who owes this; that is the intended behaviour rather than a wart.
+   *
+   * A FAMILY WITH NO BLOODLINE ANCHOR BILLS NOBODY FOR IT. See `duesEligibility` for why
+   * that direction and not the other.
+   *
+   * Always false for a donation, held by a CHECK: nobody owes a gift.
+   */
+  bloodline_only: boolean
   /**
    * TRUE: every member owes this and cannot decline it.
    * FALSE: optional — a member may opt out (see DuesSummary.optedOut).
@@ -343,6 +362,7 @@ function mapSchedule(
     kind?: string | null
     required?: boolean | null
     start_age?: number | null
+    bloodline_only?: boolean | null
     donation_beneficiaries?: { person_id: string }[] | null
   },
 ): DuesSchedule {
@@ -367,6 +387,9 @@ function mapSchedule(
     // Null for a donation and for any database that has not run 20260814000000 — both of
     // which mean "no age rule", which is exactly what null means everywhere that reads it.
     start_age: kind === 'donation' ? null : (s.start_age ?? null),
+    // False for a donation and for a database that has not run 20260817000002 — both of
+    // which mean "everybody who owes it, owes it", the behaviour before the column.
+    bloodline_only: kind === 'donation' ? false : Boolean(s.bloodline_only),
   }
 }
 
@@ -386,7 +409,7 @@ function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined
     // sensible row.
     ? {
         amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null,
-        required: false, start_age: null,
+        required: false, start_age: null, bloodline_only: false,
       }
     : { goal_cents: null }
 }
@@ -793,8 +816,9 @@ export async function createDuesSchedule(
     .insert({
       ...columns,
       kind,
-      // Before kindInvariants, which pins it to null for a donation and must win.
+      // Before kindInvariants, which pins both to a donation's values and must win.
       start_age: normalizeStartAge(input.start_age),
+      bloodline_only: Boolean(input.bloodline_only),
       ...kindInvariants(kind, input.goal_cents),
       family_code: familyCode,
       active: true,
@@ -846,7 +870,7 @@ export async function updateDuesSchedule(
   // reachable on its own.
   const { data: existing } = await admin
     .from('dues_schedules')
-    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age')
+    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_only')
     .eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
@@ -901,12 +925,13 @@ export async function updateDuesSchedule(
     || moved(input.amount_cents, existing.amount_cents)
     || moved(input.frequency, existing.frequency)
     || moved(input.start_age, existing.start_age)
+    || moved(input.bloodline_only, existing.bloodline_only)
   if (movingTerms) {
     const usage = (await loadScheduleUsage(admin, familyCode))[id]
     if (kind === 'dues' && usage?.used) {
       return {
         success: false,
-        message: 'Payments have been recorded against this due, so its start date, amount, frequency and starting age can no longer change. You can still change the end date.',
+        message: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age and bloodline setting can no longer change. You can still change the end date.',
       }
     }
     if (kind === 'donation' && usage?.funded && movingStart) {
@@ -931,6 +956,7 @@ export async function updateDuesSchedule(
       // this action, and normalizing an absent key would write null over a rule the form
       // never showed — which is how a partial update silently clears a column.
       ...(input.start_age !== undefined ? { start_age: normalizeStartAge(input.start_age) } : {}),
+      ...(input.bloodline_only !== undefined ? { bloodline_only: Boolean(input.bloodline_only) } : {}),
       ...kindInvariants(kind, goalCents),
     })
     .eq('id', id)
@@ -987,6 +1013,9 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const myPersonId = await getMyPersonId(user.id)
   if (!myPersonId) return []
   const myPerson = { id: myPersonId }
+  // Needed only to resolve the bloodline further down, and read here so the whole of that
+  // resolution takes its family from the caller's own membership rather than from a row.
+  const familyCode = await getMyFamilyCode(user.id)
 
   const [schedulesResult, paymentsResult, plansResult, meResult] = await Promise.all([
     supabase.from('dues_schedules').select('*').eq('active', true).order('label'),
@@ -1030,7 +1059,35 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   // wrong the moment a render straddles midnight.
   const today = new Date().toISOString().slice(0, 10)
 
-  return schedules.map(schedule => {
+  // ── DUES THE BLOODLINE ALONE OWES ─────────────────────────────────────────────────
+  // Resolved only when some active schedule actually restricts to it, so this costs one
+  // boolean for every family that does not use the flag — which today is all of them. See
+  // `familyBloodline`: working it out means reading the whole roster and every relationship,
+  // and this runs on a screen every member opens.
+  //
+  // A SCHEDULE THEY ARE NOT ELIGIBLE FOR IS DROPPED, not returned with a zero. That is a
+  // deliberate difference from the age rule, which keeps its row as "Not yet due" with the
+  // date it starts — that row is useful because the due is coming. A due restricted to the
+  // bloodline is never coming for somebody who married in, so a row explaining their
+  // exclusion would be a permanent line on their own screen about how they joined the
+  // family. AGENTS.md made exactly this call about the tree's cards, where the step/adopted
+  // pills were removed because a word about how somebody joined, printed on their face,
+  // reads as a correction attached to a person. The Dues screen lists what you owe; this is
+  // not yours, so it is not there.
+  //
+  // 'bloodline-unknown' drops the row too, for everybody. The family has not said which
+  // line it descends from, so nobody owes it — and the place that failure is reported is
+  // the Accounting form, which refuses the flag without an anchor, and Dues Projections,
+  // which names it on the schedule's row.
+  const bloodline = await familyBloodline(
+    createAdminClient(), familyCode ?? '', schedules.some(s => s.bloodline_only),
+  )
+
+  return schedules.filter(schedule => duesEligibility({
+    bloodlineOnly: schedule.bloodline_only,
+    bloodline,
+    personId: myPerson.id,
+  }) === 'owed').map(schedule => {
     const explicit = planBySchedule.get(schedule.id)
     const cadence = explicit ?? defaultCadence(schedule.frequency)
     // A required due cannot be opted out of, and the check is HERE as well as in the
@@ -1449,6 +1506,102 @@ export async function getFamilyDuesCollected(): Promise<number | null> {
 }
 
 /**
+ * Who is in this family's bloodline, for the two readers that price dues.
+ *
+ * ── IT IS SKIPPED ENTIRELY WHEN NOTHING NEEDS IT ────────────────────────────────────
+ * `needed` is false unless some active dues schedule actually carries `bloodline_only`, and
+ * that guard is the reason this is affordable at all. Working the bloodline out means
+ * reading the whole roster AND every relationship in the family — the two queries
+ * `getFamilyTree` makes — and `getMyDuesSummary` runs on a screen every member opens. No
+ * family uses this flag today, so today it costs one boolean.
+ *
+ * ── NULL IS "DO NOT KNOW", AND IS RETURNED FOR THREE DIFFERENT REASONS ──────────────
+ * No anchor set and no founder row to fall back on; an anchor pointing at somebody outside
+ * the roster; or a read that failed. All three mean the same thing to a caller and all
+ * three must NOT be read as an empty set — `duesEligibility` is what enforces that, and it
+ * bills nobody rather than everybody. A refused query is folded in deliberately: §8's rule
+ * is that an empty result and a refusal are different things, and here the safe direction
+ * for a failure is the one that under-bills.
+ *
+ * ── THE ADMIN CLIENT, FOR THE REASON `getFamilyTree` USES IT ────────────────────────
+ * The `people` SELECT policy hides applicants from anybody without `admin/approvals`, and a
+ * half-visible roster produces a half-walked tree — which here would silently drop members
+ * OUT of the bloodline and stop billing them. `.eq('family_code', …)` on both reads, from
+ * the caller's own membership (§3).
+ *
+ * DELIBERATELY NOT `getFamilyTree()` ITSELF, which gates on `family-tree:view` and returns
+ * an EMPTY tree to anyone it refuses. An empty tree yields an empty bloodline, which is
+ * exactly the value that must never be mistaken for a real one — a member without that
+ * grant would stop owing their dues. This reads what it needs and takes its authorization
+ * from the action that called it.
+ */
+async function familyBloodline(
+  admin: ReturnType<typeof createAdminClient>,
+  familyCode: string,
+  needed: boolean,
+): Promise<ReadonlySet<string> | null> {
+  if (!needed) return null
+
+  const [peopleRes, edgeRes, familyRes] = await Promise.all([
+    admin.from('people').select('id, user_id').eq('family_code', familyCode),
+    admin.from('person_relationships')
+      .select('person_id, related_person_id, relationship_type_id, link_kind')
+      .eq('family_code', familyCode),
+    admin.from('families').select('created_by, bloodline_anchor_id')
+      .eq('family_code', familyCode).maybeSingle(),
+  ])
+
+  if (peopleRes.error || edgeRes.error || familyRes.error) {
+    console.error('[dues] could not resolve the bloodline for ' + familyCode + ': '
+      + (peopleRes.error?.message ?? edgeRes.error?.message ?? familyRes.error?.message))
+    return null
+  }
+
+  // The relationship vocabulary is global and unscoped by design — `relationship_types`
+  // has no family_code and is the same twenty rows for everybody (20260602000003).
+  const { data: types } = await admin.from('relationship_types').select('id, name')
+  const nameById = new Map(
+    ((types ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name]),
+  )
+
+  const roster = (peopleRes.data ?? []) as { id: string; user_id: string | null }[]
+  const people = roster.map(p => ({ id: p.id }))
+
+  // BOTH DIRECTIONS, exactly as `getFamilyTree` normalizes them, because whether the
+  // inverse row was ever written depends on whether anybody knew a gender at the time. A
+  // one-directional walk here would drop half the parentage and under-bill accordingly.
+  const edges: TreeLink[] = []
+  for (const row of (edgeRes.data ?? []) as {
+    person_id: string; related_person_id: string
+    relationship_type_id: string; link_kind: string | null
+  }[]) {
+    const relation = relationFor(nameById.get(row.relationship_type_id) ?? '')
+    if (!relation) continue
+    const kind: LinkKind = isLinkKind(row.link_kind ?? '') ? (row.link_kind as LinkKind) : 'blood'
+    edges.push({ from: row.person_id, to: row.related_person_id, relation, kind })
+    edges.push({
+      from: row.related_person_id, to: row.person_id,
+      relation: relation === 'parent' ? 'child' : relation === 'child' ? 'parent' : relation,
+      kind,
+    })
+  }
+
+  // The family's stated line first, the founder only as a fallback — the same resolution
+  // `getFamilyTree` performs, and it must stay the same: two answers to "whose line is
+  // this" would mean the tree and the bill disagreeing about who is blood.
+  const family = familyRes.data as
+    { created_by: string | null; bloodline_anchor_id: string | null } | null
+  const chosen = family?.bloodline_anchor_id
+  const anchor = (chosen && roster.some(p => p.id === chosen))
+    ? chosen
+    : (family?.created_by
+      ? roster.find(p => p.user_id === family.created_by)?.id ?? null
+      : null)
+
+  return bloodlineIds(people, edges, anchor)
+}
+
+/**
  * A member as the projection screen names them. Same shape `SelectablePerson` uses, so
  * `disambiguatedName` works on it unchanged — two Martha Allens matter more on this screen
  * than on most, because chasing the wrong one for $120 is the mistake it would cause.
@@ -1516,7 +1669,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
 
   const [schedulesRes, peopleRes, paymentsRes, plansRes] = await Promise.all([
     admin.from('dues_schedules')
-      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, required, kind')
+      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_only, required, kind')
       .eq('family_code', familyCode).eq('active', true).order('label'),
     // ACCOUNTS ONLY, and `membership_status` as well. §4b draws the first line — "a record
     // cannot pay or be paid" — and an applicant has not joined, so neither belongs in a
@@ -1565,10 +1718,17 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
       due_month: s.due_month as number | null,
       due_day: s.due_day as number | null,
       start_age: s.start_age as number | null,
+      bloodline_only: Boolean(s.bloodline_only),
     }))
+
+  // Only when a schedule actually restricts to the bloodline — see `familyBloodline`.
+  const bloodline = await familyBloodline(
+    admin, familyCode, schedules.some(s => s.bloodline_only),
+  )
 
   const projection = projectDues({
     schedules,
+    bloodline,
     members: accounts.map(p => ({ personId: p.id, dateOfBirth: p.date_of_birth })),
     payments: (paymentsRes.data ?? []).map(r => ({
       personId: r.person_id as string,

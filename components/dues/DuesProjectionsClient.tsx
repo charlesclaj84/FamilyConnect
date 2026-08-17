@@ -63,10 +63,19 @@ const STANDING: Record<DuesStanding, { label: string; className: string; hint: s
   // Muted rather than affirm, and the distinction is load-bearing: a child below the age a
   // due starts at has not paid anything, and colouring them green would read as settled.
   exempt:   { label: 'Not yet due',  className: 'bg-muted text-muted-foreground',           hint: 'Below the age this due starts at.' },
+  // "Not theirs" rather than "not blood". The screen has to account for the money, and it
+  // can do that without labelling a relative by how they joined the family — the same call
+  // AGENTS.md records for the tree's cards, where the step and adopted pills came off
+  // because a word about somebody's route into the family, printed beside their name, reads
+  // as a correction attached to a person. The hint says which due it is about; the pill
+  // does not say anything about them.
+  excluded: { label: 'Not theirs',   className: 'bg-muted text-muted-foreground',           hint: 'This due is owed by the bloodline only.' },
 }
 
 /** Least settled first, so the people to chase are at the top before anybody sorts. */
-const STANDING_ORDER: readonly DuesStanding[] = ['unpaid', 'partial', 'settled', 'declined', 'exempt']
+const STANDING_ORDER: readonly DuesStanding[] = [
+  'unpaid', 'partial', 'settled', 'declined', 'exempt', 'excluded',
+]
 
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
   const { projection, people } = result
@@ -191,6 +200,26 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       )}>
                         {s.required ? 'Required' : 'Optional'}
                       </span>
+                      {s.bloodlineOnly && (
+                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
+                          title="Only members descended from the family's line owe this.">
+                          Bloodline only
+                        </span>
+                      )}
+                      {/* THE ONE STATE ON THIS SCREEN A TREASURER CANNOT DIAGNOSE FROM THE
+                          NUMBERS. Bloodline-only with no bloodline to apply means nobody
+                          owes it, so Expected reads $0.00 and there is nothing in the
+                          figures to say why. `--brand-withheld` and not `--destructive`:
+                          nothing has failed and nothing was deleted — a capability is
+                          being withheld, which is exactly what that role is for. */}
+                      {s.bloodlineUnknown && (
+                        <p className="mt-1 text-xs text-brand-withheld">
+                          Nobody owes this: your family has not said which ancestor its line
+                          descends from, so there is no bloodline to charge. Set{' '}
+                          <strong className="font-medium">Bloodline descends from</strong> on
+                          the family tree.
+                        </p>
+                      )}
                       {/* THE PERIOD, on every row. Two schedules can be measured over two
                           different years, and a table that did not say so would be adding
                           up figures a reader assumes share a window. */}

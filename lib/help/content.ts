@@ -813,6 +813,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'bloodline-dues',
+            heading: 'Dues only the bloodline owes',
+            blocks: [
+              p('A family can restrict a due to the members descended from its line — a burial fund for the line, a cemetery plot. If one of your family\'s dues works that way and you married into the family, it is not yours and it does not appear on this screen at all.'),
+              p('That is deliberate rather than an omission: a due you will never owe listed as something you are not paying would be a permanent note about how you joined the family, on your own screen. What you owe is what is here.'),
+            ],
+          },
+          {
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
@@ -971,7 +979,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Settled', text: 'Paid in full, or forgiven.' },
                 { term: 'Declined', text: 'Opted out of an optional due.' },
                 { term: 'Not yet due', text: 'Below the age that due starts at. Not the same as settled — they have paid nothing and owe nothing.' },
+                { term: 'Not theirs', text: 'The due is restricted to the bloodline and this member is outside it. Unlike "Not yet due", it will never become theirs.' },
               ),
+              note('A bloodline-only due on a family that has not named its line is owed by nobody, and its row says so rather than showing an unexplained $0.00 expected.'),
               p('**Only those who owe** narrows the table, and the filter box searches any part of any name.'),
             ],
           },
@@ -998,6 +1008,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('The start date matters. It anchors the ladder of due dates, and the form prefills today — which is fine, and worth a moment\'s thought if you are entering last year\'s schedule.'),
               p('**Members start paying at age** is how a family says the children do not pay. Leave it blank and everybody owes the due whatever their age. Put 18 in it and a member owes nothing until they turn 18, then the months of that year after their birthday, then the full amount every year afterwards — a $120 due and a July birthday is $50 that year. The row shows it as **From age 18+**.'),
               note('A member with no date of birth recorded owes the due in full, because the product will not guess at an age. Adding a child to the [family tree](/family-tree) without an email address asks for a birthday for exactly this reason.'),
+              p('**Bloodline only** restricts a due to the members descended from the family\'s line. Anybody who married in, and any step, adopted or foster relative, owes nothing and does not see it on their own Dues screen at all — a due that is never theirs is not listed as something they are not paying.'),
+              note('The control is unavailable until your family has said which ancestor its line descends from, because without that there is no bloodline and the due would be owed by nobody. Set **Bloodline descends from** on the [family tree](/family-tree) first. Who is in the bloodline is worked out from the tree every time, so correcting a relationship — or moving that setting — changes who owes the due.'),
               note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date and starting age are then fixed — every payment already recorded was made against those terms. The page tells you when one is in use. The end date can still change.'),
             ],
           },

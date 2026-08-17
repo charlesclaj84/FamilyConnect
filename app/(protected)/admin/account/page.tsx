@@ -68,7 +68,10 @@ export default async function AdminAccountPage({
   // reach the browser whether or not a component renders them, so loading the funds or
   // the dues schedules for someone who may not see that section would publish them
   // regardless of which pane is showing (AGENTS.md §4).
-  const [schedules, scheduleUsage, fundsData, allocations, milestonesResult, membersResult] = await Promise.all([
+  const [
+    schedules, scheduleUsage, fundsData, allocations, milestonesResult, membersResult,
+    bloodlineResult,
+  ] = await Promise.all([
     rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
     // Gated on the same pair as the schedules themselves: it says which of them the
     // ledger has been posted against, which is only meaningful beside the list.
@@ -96,7 +99,28 @@ export default async function AdminAccountPage({
           .not('user_id', 'is', null)
           .order('last_name')
       : Promise.resolve({ data: [] }),
+    // ── DOES THIS FAMILY HAVE A BLOODLINE AT ALL ────────────────────────────────
+    // Two columns, and the answer is whether "Bloodline only" can be offered on a dues
+    // schedule. A family with neither a stated anchor nor a founder has no bloodline, so
+    // a due restricted to it would be owed by NOBODY — the control is disabled rather
+    // than offered and then silently collecting nothing (see the field in
+    // AdminIncomeClient).
+    //
+    // Gated on the Dues section, because that is the only place the flag appears. Two
+    // columns is not a leak by any measure, but §5's rule is not about size: a fetch a
+    // caller is not entitled to is a fetch that should not run.
+    rights.dues.view
+      ? admin.from('families').select('bloodline_anchor_id, created_by')
+          .eq('family_code', familyCode).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
+
+  // EITHER of them is enough, matching how getFamilyTree and familyBloodline resolve the
+  // anchor: the family's stated choice first, the founder as the fallback. A family with
+  // both null cannot compute a bloodline, and that is the only case this disables for.
+  const family = bloodlineResult.data as
+    { bloodline_anchor_id: string | null; created_by: string | null } | null
+  const hasBloodline = Boolean(family?.bloodline_anchor_id ?? family?.created_by)
 
   // ONE MEASURE AT EVERY WIDTH, since 2026-08-13. This was `max-w-4xl … xl:max-w-6xl`,
   // narrower than the pages either side of it until 1280px, on the argument that the
@@ -116,6 +140,7 @@ export default async function AdminAccountPage({
         allMilestones={milestonesResult.data ?? []}
         initialAllocations={allocations}
         rights={rights}
+        hasBloodline={hasBloodline}
         members={(membersResult.data ?? []).map(m => ({
           id: m.id,
           first_name: m.first_name,
