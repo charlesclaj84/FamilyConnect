@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet } from 'lucide-react'
+import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet, AlertTriangle } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -14,7 +14,7 @@ import {
   PersonRecordDialog, type TreeConnection,
 } from '@/components/family-tree/PersonRecordDialog'
 import {
-  TREE_RELATIONSHIPS, leafIds, bloodlineIds, relationshipMeta,
+  TREE_RELATIONSHIPS, leafIds, bloodlineIds, auditBloodlineAnchor, relationshipMeta,
   type TreeRelation,
 } from '@/lib/family-tree'
 import {
@@ -166,6 +166,15 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
   // all rather than answering with a guess.
   const bloodline = useMemo(
     () => bloodlineIds(tree.people, tree.edges, tree.bloodlineAnchorId),
+    [tree.people, tree.edges, tree.bloodlineAnchorId],
+  )
+
+  // IS THE ANCHOR STANDING HIGH ENOUGH. Non-empty `parentIds` means the bloodline is being
+  // walked from somebody who has parents recorded, so BOTH their lines are in it — which is
+  // how a mother who married in comes back as blood. See `auditBloodlineAnchor`, and the
+  // block below, which is the only thing that ever said so on screen.
+  const anchorAudit = useMemo(
+    () => auditBloodlineAnchor(tree.people, tree.edges, tree.bloodlineAnchorId),
     [tree.people, tree.edges, tree.bloodlineAnchorId],
   )
   const canFilterBlood = bloodline !== null && bloodline.size < tree.people.length
@@ -484,6 +493,7 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
           Offered on `admin/family:edit`, the grant that renames the family, because it is
           the same kind of decision: one setting that changes what every member sees. */}
       {canSetAnchor && bloodline !== null && (
+        <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <label htmlFor="bloodline-anchor" className="font-medium">
             Bloodline descends from
@@ -516,6 +526,79 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
             Everyone who shares an ancestor with them is a blood relative; their spouses
             are not.
           </span>
+        </div>
+
+        {/* ── THE ANCHOR IS STANDING TOO LOW ────────────────────────────────────────
+            The one thing about this setting nobody could see, and the reason the whole
+            feature reads as broken the first time a family records a parent.
+
+            The bloodline is everybody who shares an ancestor WITH THE ANCHOR, and the
+            anchor's ancestors run up through both of its parents. So the moment the anchor
+            has a mother recorded, she and her whole line are blood — which is true of her
+            relationship to the anchor and is not what the family means by its line.
+
+            What a member reaches for instead is the mother connection's blood/step control,
+            and it is the wrong lever: she really is their blood mother, so marking it step
+            records a falsehood and mis-classifies her own relatives on the way past. This
+            block is what points at the right one.
+
+            A plain muted well with an AlertTriangle, matching the record-mode notice in
+            AddRelativeDialog. Deliberately NOT `--destructive` (nothing failed) and not
+            `--brand-withheld` (no capability is going away) — see AGENTS.md on both. */}
+        {anchorAudit && anchorAudit.parentIds.length > 0 && (
+          <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="space-y-1.5">
+              <p>
+                The bloodline is being worked out from{' '}
+                <span className="font-medium text-foreground">
+                  {nameOf.get(tree.bloodlineAnchorId ?? '') ?? 'the person named above'}
+                </span>
+                , who has {anchorAudit.parentIds.length === 1 ? 'a parent' : 'parents'} on the
+                tree — so{' '}
+                {anchorAudit.parentIds
+                  .map(id => nameOf.get(id) ?? 'that parent')
+                  .join(' and ')}{' '}
+                and everybody they descend from count as blood, on both sides. A spouse who
+                married in is included that way.
+              </p>
+              <p>
+                If your family&apos;s line runs through one of them, name that person
+                instead. Do not mark a real parent as step to get them out of the view —
+                they are a blood parent, and recording otherwise makes the tree wrong in a
+                way nothing else can correct.
+              </p>
+              {/* THE TOPMOST ANCESTORS, as one click each. Usually two — a father's line
+                  and a mother's — and which of them the family descends from is precisely
+                  the fact only the family knows, so nothing here picks. */}
+              {anchorAudit.rootIds.filter(id => id !== tree.bloodlineAnchorId).length > 0 && (
+                <p className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span>Oldest recorded on each line:</span>
+                  {anchorAudit.rootIds
+                    .filter(id => id !== tree.bloodlineAnchorId)
+                    .map(id => (
+                      <button
+                        key={id}
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => {
+                          setError('')
+                          startTransition(async () => {
+                            const r = await setBloodlineAnchor(id)
+                            if (!r.success) { setError(r.message ?? 'Could not change that.'); return }
+                            router.refresh()
+                          })
+                        }}
+                        className="rounded-lg border px-2 py-0.5 font-medium text-brand-accent transition-colors hover:bg-brand-soft/40 disabled:opacity-60"
+                      >
+                        Use {nameOf.get(id) ?? 'them'}
+                      </button>
+                    ))}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         </div>
       )}
 

@@ -590,6 +590,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Full family** shows everybody. **Bloodline** shows only the people descended from the family\'s line, hiding spouses and step, adopted and foster connections.'),
               p('It is one answer for the whole family, not one per viewer — two members cannot disagree about who is in the family\'s bloodline. It is worked out by walking from a single person, and **Bloodline descends from** is where somebody with the Settings permission names them.'),
               note('The default — whoever created the family — is usually the wrong choice. A family started by a son walks upward through his mother, which brings his father\'s former wife back in as blood. Naming the oldest recorded ancestor instead is what makes the toggle mean what people expect.'),
+              p('The tree says so when it applies: if the person the bloodline descends from has parents recorded, a notice under the setting names them, explains that both their lines count as blood, and offers the oldest recorded ancestor on each as a one-click choice.'),
+              p('**Somebody appearing as blood who married into the family is an anchor problem, not a connection problem.** The temptation is to open their card and mark the parent connection as step — do not. If she really is somebody\'s mother, that connection is blood, and recording otherwise makes the tree wrong about her and about every relative of hers you add later. Move the setting up a generation instead: the walk then never reaches her, and her children keep their droplet because their line still runs through their father.'),
             ],
           },
           {

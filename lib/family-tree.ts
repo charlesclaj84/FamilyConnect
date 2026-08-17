@@ -351,6 +351,99 @@ export function bloodlineIds(
   return blood
 }
 
+/**
+ * Whether the bloodline anchor is standing far enough up the tree, and where it could go.
+ *
+ * ── THE PROBLEM THIS EXISTS TO SURFACE ──────────────────────────────────────────────
+ * `bloodlineIds` keeps everybody who shares an ancestor with the anchor, and the anchor's
+ * ancestors are computed from the anchor upward — through BOTH of its parents. So the
+ * moment the anchor has a mother recorded, she and everybody she descends from are in the
+ * bloodline, whether or not the family's line runs through her.
+ *
+ * That is not a bug in the walk; a mother and son really are blood relatives, which is the
+ * question the walk answers. It is the anchor being in the wrong place, and it is the
+ * reported case almost word for word: a family created by a SON, anchored on him by
+ * default, so his father's former wife comes back as blood while the current wife
+ * correctly does not.
+ *
+ * The lever a member reaches for instead is the mother connection's `link_kind`, and it is
+ * the wrong one — she IS his blood mother, so marking it 'step' records something false and
+ * silently mis-classifies her own relatives too. Nothing on screen said so, which is why
+ * this function is here rather than a paragraph in the help manual.
+ *
+ * ── WHAT IT RETURNS, AND WHY BOTH FIELDS ────────────────────────────────────────────
+ * `parentIds` answers *is the anchor too low* — non-empty means the bloodline is being
+ * computed from somebody's parents rather than from them. `rootIds` answers *where should
+ * it go*: the people at the top of every line the anchor descends from, which is the set a
+ * family chooses between. Usually two — a father's line and a mother's — and choosing is
+ * exactly the fact only the family knows, which is why nothing here picks one.
+ *
+ * NULL FOR NO ANCHOR, matching `bloodlineIds`: there is no answer to audit, and an empty
+ * audit would read as "the anchor is fine".
+ *
+ * Only 'blood' parent links are walked, so this asks the same question of the graph that
+ * `bloodlineIds` does. An adoptive father is not a route to a line by blood.
+ */
+export interface AnchorAudit {
+  /** The anchor's own blood parents. Empty when the anchor is already the top of its line. */
+  parentIds: string[]
+  /**
+   * The topmost blood ancestors of the anchor — people with no blood parent recorded.
+   *
+   * `[anchorId]` when the anchor has no parents, which is the healthy case and is why
+   * callers test `parentIds` rather than this to decide whether to say anything.
+   */
+  rootIds: string[]
+}
+
+export function auditBloodlineAnchor(
+  people: readonly { id: string }[],
+  edges: readonly TreeLink[],
+  anchorId: string | null | undefined,
+): AnchorAudit | null {
+  if (!anchorId) return null
+  const known = new Set(people.map(p => p.id))
+  if (!known.has(anchorId)) return null
+
+  // Same shape as `bloodlineIds` builds, and deliberately not shared with it: that
+  // function is hot and this one runs once per render of a control most members never see.
+  const parents = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (edge.relation !== 'parent') continue
+    if (edge.kind !== 'blood') continue
+    if (!known.has(edge.from) || !known.has(edge.to)) continue
+    const list = parents.get(edge.from)
+    if (list) list.push(edge.to); else parents.set(edge.from, [edge.to])
+  }
+
+  // Breadth-first upward, so `rootIds` comes back nearest-first — the father before the
+  // great-grandfather, which is the order a family would read them in. `seen` guards the
+  // cycle `person_relationships` does not forbid; the same reasoning as `summarizeTree`.
+  const roots: string[] = []
+  const seen = new Set<string>([anchorId])
+  let frontier = [anchorId]
+  while (frontier.length > 0) {
+    const next: string[] = []
+    for (const id of frontier) {
+      const up = parents.get(id) ?? []
+      if (up.length === 0) {
+        // A person with no blood parent recorded is the top of a line. The anchor itself
+        // qualifies, which is what makes the no-parents case return `[anchorId]`.
+        if (!roots.includes(id)) roots.push(id)
+        continue
+      }
+      for (const parent of up) {
+        if (seen.has(parent)) continue
+        seen.add(parent)
+        next.push(parent)
+      }
+    }
+    frontier = next
+  }
+
+  return { parentIds: [...(parents.get(anchorId) ?? [])], rootIds: roots }
+}
+
 /** What the dashboard widget and the canvas both want to know about a tree. */
 export interface TreeSummary {
   /** Everybody in the family, connected or not. */

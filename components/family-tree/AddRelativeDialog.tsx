@@ -275,10 +275,21 @@ export function AddRelativeDialog({
                   )
                 })}
               </div>
+              {/* WHAT THE FIELD RECORDS, not what the Bloodline view will show. This used
+                  to say "Blood relatives appear in the Bloodline view", which is a promise
+                  the field cannot keep for a PARENT: whether somebody appears there depends
+                  on which ancestor the family's line descends from, and adding a mother
+                  correctly marked blood put her in the view. The member's only visible
+                  recourse was to mark a real parent as step, which is a falsehood the tree
+                  then carries forever. Say what the link means; point at the setting that
+                  decides membership. */}
               <p className="text-xs text-muted-foreground">
                 {linkKind === 'blood'
-                  ? 'Blood relatives appear in the Bloodline view of the tree.'
-                  : `Recorded as ${linkKindLabel(linkKind, meta.label)} — they will not appear in the Bloodline view.`}
+                  ? 'A blood relationship — the bloodline travels down this link.'
+                  : `Recorded as ${linkKindLabel(linkKind, meta.label)}. The bloodline does not travel down this link.`}
+                {meta.relation === 'parent' && (
+                  <> Who actually appears in the Bloodline view is decided by <strong className="font-medium">Bloodline descends from</strong>, above the tree — a parent of yours is your blood relative without being part of your family&apos;s line.</>
+                )}
               </p>
             </div>
           )}
