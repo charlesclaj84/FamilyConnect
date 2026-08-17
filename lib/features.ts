@@ -203,6 +203,30 @@ export const FEATURES: readonly Feature[] = [
     tier: 'free',
     blurb: 'Every payment, donation, contribution, disbursement and fund transfer the family has recorded.',
   },
+  // ── What the family is owed, as opposed to what it took ───────────────────
+  // `plus`, and that is NOT a judgement made here — `lib/plans.ts` already sells "Dues
+  // collected against outstanding" on the Plus card under "The numbers leadership asks
+  // for". Shipping this Free would leave a paid bullet describing a free feature, which
+  // is the drift FutureFeature.md §4 exists to catch, running the other way.
+  //
+  // It does NOT flip `/admin/reports`, which is the other route that bullet covers.
+  // Reports promises four things — membership, dues collected vs. outstanding, RSVP
+  // turnout, t-shirt counts — and delivering one of them under that name would put a
+  // live screen behind a card that still advertises three it does not do. This route
+  // claims exactly what it does; Reports stays `future` until it can claim the rest.
+  //
+  // RESTRICTED BY DEFAULT, unlike almost everything else in this category. Every figure
+  // is family-wide and the member table names people against what they still owe, so
+  // 20260817000000 backfills `resource_visibility` rather than letting the key fall
+  // through to `everyone` (§6). The grant follows `transactions/dues-payments:view` at
+  // scope 'any': anybody who can already read the whole ledger can read a sum of it.
+  {
+    href: '/dues-projections',
+    label: 'Dues Projections',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'What the family should collect in dues this year, what has come in, and who has still to pay.',
+  },
   // The how-to manual. `free`, and it could not sensibly be anything else — a plan that
   // withholds the instructions is a plan that sells a product nobody can learn.
   //

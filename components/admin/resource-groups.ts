@@ -75,8 +75,15 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     tests `auth_permission(...) = 'any'` rather than auth_can(). Both halves have to
  *     agree with this list — an 'own' set here would be a switch the database and the
  *     action both read as a denial, which is worse than a switch wired to nothing.
+ *
+ *     `dues-projections` is the third, and the one where offering 'own' would GRANT
+ *     rather than deny. It is a family-wide roll-up — every member's standing, by name —
+ *     and there is no own version of it: the member's own answer is /dues, on its own
+ *     key. `getDuesProjection()` therefore uses canAny(), so an 'own' set here would
+ *     read as a denial and the cell would light up as a grant that hands back nothing.
+ *     Dropping the button is what keeps the grid honest about that.
  */
-const NO_OWNER_KEYS: readonly string[] = ['admin/family']
+const NO_OWNER_KEYS: readonly string[] = ['admin/family', 'dues-projections']
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []

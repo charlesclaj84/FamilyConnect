@@ -278,6 +278,44 @@ export const CASES = [
   }),
   read('dues.getDonationProgress', 'app/actions/dues.ts', 'getDonationProgress'),
 
+  // ── The family-wide dues projection ───────────────────────────────────────
+  // TAKES NO ARGUMENTS, so there is no id for an attacker to pass and this is not the
+  // usual §4 shape. What it can still get wrong is bigger: it reads four tables on the
+  // SERVICE ROLE — dues_payments' SELECT policy opens with `person_id = auth_person_id()`,
+  // so the user's client would report one member's own $50 as the family's whole year —
+  // and family isolation is therefore four hand-written `.eq('family_code', …)` clauses
+  // and nothing else (§3). Drop one and BRAVO's treasurer projects ALPHA's dues.
+  //
+  // The assertion is on the FIGURES rather than on a row marker, because a leak here does
+  // not add a recognisable row, it adds money. bravoAdmin must see BRAVO's own expected
+  // total; the control sees ALPHA's, which is a different number for a different roster.
+  //
+  // NOTE WHAT IS DELIBERATELY NOT ASSERTED: the amounts. The fixture seeds dues schedules
+  // with no `start_date`, which §7b names as the reason an arithmetic assertion here is
+  // worthless — `currentPeriodStart` falls back to 1 January and the projection maths goes
+  // untested either way. `membersCounted` is the right thing to assert in this suite: it
+  // is a count of ROWS the family scoping selected, which is exactly what these cases are
+  // about. The arithmetic lives in lib/dues-projection.test.ts, under `npm test`.
+  //
+  // TO SEE IT FAIL — required before treating this as evidence: drop the
+  // `.eq('family_code', familyCode)` from the `people` read in getDuesProjection() and
+  // re-run. Both halves should report the two families' rosters added together.
+  read('dues.getDuesProjection', 'app/actions/dues.ts', 'getDuesProjection', {
+    // THE CONTROL IS ALPHA'S ADMINISTRATOR, not its plain member, and that is a fact about
+    // the feature rather than a convenience. 20260817000000 registers this key
+    // `restricted` and grants it only where `transactions/dues-payments:view` is already
+    // 'any' — so alphaMember, the suite's default owner, is correctly refused and returns
+    // null. A control that failed there would report this case as proving nothing, which
+    // is exactly what the runner said the first time it ran.
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r, fx) =>
+      r !== null
+      && r.people.every(p => p.id !== fx.users.alphaMember.personId)
+      && r.projection.membersCounted === r.people.length,
+    expectPositive: (r, fx) =>
+      r !== null && r.people.some(p => p.id === fx.users.alphaMember.personId),
+  }),
+
   // ── A drive is hidden from the people it is FOR ───────────────────────────
   // A THIRD KIND OF CLAIM, alongside "can BRAVO reach ALPHA" and "can an ALPHA
   // administrator see another member's own things". This one is: can a caller holding
@@ -1349,6 +1387,25 @@ export const PENDING_CASES = [
     expectAttack: (r) => r === null,
     expectPositive: (r, fx) =>
       r === fx.alpha.payment.amount_cents + fx.alpha.hiddenDonationPayment.amount_cents,
+  }),
+  // Every member's outstanding balance, by name, to somebody the family has not admitted.
+  // `getDuesProjection` gates on `canAny`, and a pending member resolves no template grant
+  // — so the honest answer is `null` rather than a zeroed shape, for the reason
+  // getFamilyDuesCollected returns null above: an empty projection reads as "your family
+  // owes nothing", which is a different and false claim.
+  //
+  // [not evidence for the family conjuncts] Same labelling as the case above it, and for
+  // the same reason: the guard refuses a pending caller before any query runs, so this half
+  // would pass with every `.eq('family_code', …)` removed. It is evidence for the GUARD.
+  // The conjuncts are covered by the main case, which does go red.
+  read('dues.getDuesProjection (pending member)', 'app/actions/dues.ts', 'getDuesProjection', {
+    attacker: 'alphaPending',
+    // Entitled, for the reason the main case above states: this key is restricted and a
+    // plain member does not hold it.
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r) => r === null,
+    expectPositive: (r, fx) =>
+      r !== null && r.people.some(p => p.id === fx.users.alphaMember.personId),
   }),
   read('announcements.getAnnouncements (pending member)', 'app/actions/announcements.ts', 'getAnnouncements', {
     attacker: 'alphaPending',

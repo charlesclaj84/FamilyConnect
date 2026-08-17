@@ -24,6 +24,7 @@ import {
   FileText,
   Vote,
   BarChart3,
+  TrendingUp,
   Camera,
   ChevronDown,
   ArrowRightLeft,
@@ -190,6 +191,10 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       { href: '/donations',        label: 'Donations',       icon: HeartHandshake },
       { href: '/payment-history',  label: 'Payment History', icon: History },
       { href: '/transactions',     label: 'Transactions',    icon: ArrowRightLeft },
+      // Between the ledger and the P&L, which is where it sits in the permission grid
+      // too (sort_order 116, straight after Transactions at 115). It is the forward
+      // reading of the same money: Transactions is what came in, this is what should.
+      { href: '/dues-projections', label: 'Dues Projections', icon: TrendingUp },
       { href: '/family-finances',  label: 'Family Finances', icon: BarChart3 },
     ],
   })

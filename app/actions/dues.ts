@@ -16,6 +16,7 @@ import {
   type PayCadence,
   type ScheduleKind,
 } from '@/lib/dues-utils'
+import { projectDues, type DuesProjection } from '@/lib/dues-projection'
 import { routeContribution, type RoutingFund } from '@/lib/fund-routing'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 
@@ -1445,6 +1446,157 @@ export async function getFamilyDuesCollected(): Promise<number | null> {
 
   if (error) return null
   return (data ?? []).reduce((sum, row) => sum + (row.amount_cents ?? 0), 0)
+}
+
+/**
+ * A member as the projection screen names them. Same shape `SelectablePerson` uses, so
+ * `disambiguatedName` works on it unchanged — two Martha Allens matter more on this screen
+ * than on most, because chasing the wrong one for $120 is the mistake it would cause.
+ */
+export interface ProjectionPerson {
+  id: string
+  first_name: string
+  last_name: string
+  nick_name: string | null
+  date_of_birth: string | null
+}
+
+export interface DuesProjectionResult {
+  projection: DuesProjection
+  /** The roster the member rows are joined to by id. */
+  people: ProjectionPerson[]
+}
+
+/**
+ * What the family should collect in dues this year, what it has, and from whom.
+ *
+ * ── RETURNS `null` FOR ANYONE WITHOUT THE GRANT, and that is the function's shape rather
+ * than an edge case — the same call `getFamilyDuesCollected` makes and for the same
+ * reason. Every figure here is family-wide, so a caller who may not ask must get nothing
+ * back to render rather than a zeroed skeleton that reads as "your family has collected
+ * nothing".
+ *
+ * `canAny`, NOT `can`. `can()` is true for scope 'own', and there is no own version of a
+ * family-wide projection — the member's own answer is /dues, computed by
+ * getMyDuesSummary(). An own-scoped grant on this key would otherwise hand somebody every
+ * member's balance by name. `dues-projections` is in `NO_OWNER_KEYS` so Members & Access
+ * does not offer the switch either, and this is the half that enforces it.
+ *
+ * ── THE ADMIN CLIENT, AND WHY IT HAS TO BE ──────────────────────────────────────────
+ * `dues_payments`'s SELECT policy opens with `person_id = auth_person_id()` — the clause
+ * that makes /dues work for everybody regardless of every grant beneath it — so through
+ * the user's client this projection would be one member's own row and would report their
+ * $120 as the family's entire year. The service role sees past that, which is exactly why
+ * §3's obligation is discharged by hand: `.eq('family_code', familyCode)` on all four
+ * reads, from the caller's own membership and never from an argument. There is no
+ * parameter on this function at all, so there is no client-supplied id to check.
+ *
+ * ── WHAT CROSSES THE BOUNDARY ───────────────────────────────────────────────────────
+ * Totals and one row per member. No payment rows, no dates, no methods, no references —
+ * the ledger is `/transactions`, behind its own grants, and a projection does not need to
+ * republish it. What it does publish is every member's standing by name, which is why the
+ * resource is `restricted` by default rather than `everyone` (§6).
+ *
+ * ── THE ARITHMETIC IS NOT HERE ──────────────────────────────────────────────────────
+ * `projectDues` in lib/dues-projection.ts, pure and tested. This function decides who may
+ * ask and reads four tables; every reduction that pulls a figure down — the age rule,
+ * opting out, waivers, the period boundary — is checkable without a database because of
+ * that split (§7b).
+ */
+export async function getDuesProjection(): Promise<DuesProjectionResult | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  if (!(await canAny(user.id, 'dues-projections', 'view'))) return null
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return null
+  const admin = createAdminClient()
+
+  const [schedulesRes, peopleRes, paymentsRes, plansRes] = await Promise.all([
+    admin.from('dues_schedules')
+      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, required, kind')
+      .eq('family_code', familyCode).eq('active', true).order('label'),
+    // ACCOUNTS ONLY, and `membership_status` as well. §4b draws the first line — "a record
+    // cannot pay or be paid" — and an applicant has not joined, so neither belongs in a
+    // figure the treasurer is going to present. `user_id` is selected so the records can be
+    // counted and reported rather than silently dropped.
+    admin.from('people')
+      .select('id, first_name, last_name, nick_name, date_of_birth, user_id')
+      .eq('family_code', familyCode).eq('membership_status', 'approved')
+      .order('last_name').order('first_name'),
+    admin.from('dues_payments')
+      .select('person_id, schedule_id, amount_cents, status, payment_date')
+      .eq('family_code', familyCode).not('schedule_id', 'is', null),
+    admin.from('dues_member_plans')
+      .select('person_id, schedule_id, opted_out')
+      .eq('family_code', familyCode),
+  ])
+
+  // §8: `data` alone cannot tell a refused query from an empty table, and here the two
+  // deserve very different answers. An empty `dues_payments` really is "nobody has paid";
+  // a REFUSED one is an outage wearing that sentence, and a treasurer reading "$0
+  // collected" over a year of payments would take it to a board meeting.
+  if (schedulesRes.error || peopleRes.error || paymentsRes.error || plansRes.error) {
+    console.error('[dues-projection] could not read the projection for ' + familyCode + ': '
+      + (schedulesRes.error?.message ?? peopleRes.error?.message
+        ?? paymentsRes.error?.message ?? plansRes.error?.message))
+    return null
+  }
+
+  type PersonRow = ProjectionPerson & { user_id: string | null }
+  const roster = (peopleRes.data ?? []) as PersonRow[]
+  const accounts = roster.filter(p => p.user_id)
+
+  // DUES ONLY. A donation is offered, never owed, so a drive in this total would invent a
+  // debt — and the beneficiary policies from 20260811000000 do not apply to the admin
+  // client, so nothing else would keep it out.
+  const schedules = (schedulesRes.data ?? [])
+    .filter(s => s.kind !== 'donation')
+    .map(s => ({
+      id: s.id as string,
+      label: s.label as string,
+      required: s.required ?? true,
+      amount_cents: s.amount_cents as number,
+      frequency: s.frequency as string,
+      start_date: s.start_date as string | null,
+      end_date: s.end_date as string | null,
+      due_month: s.due_month as number | null,
+      due_day: s.due_day as number | null,
+      start_age: s.start_age as number | null,
+    }))
+
+  const projection = projectDues({
+    schedules,
+    members: accounts.map(p => ({ personId: p.id, dateOfBirth: p.date_of_birth })),
+    payments: (paymentsRes.data ?? []).map(r => ({
+      personId: r.person_id as string,
+      scheduleId: r.schedule_id as string,
+      amountCents: r.amount_cents as number,
+      status: r.status as string,
+      paymentDate: r.payment_date as string,
+    })),
+    plans: (plansRes.data ?? []).map(r => ({
+      personId: r.person_id as string,
+      scheduleId: r.schedule_id as string,
+      optedOut: Boolean(r.opted_out),
+    })),
+    recordsExcluded: roster.length - accounts.length,
+  })
+
+  // `user_id` is dropped rather than passed through: it identifies an auth account and this
+  // screen has no use for it. Only the four columns the name helper reads cross the wire.
+  return {
+    projection,
+    people: accounts.map(p => ({
+      id: p.id,
+      first_name: p.first_name,
+      last_name: p.last_name,
+      nick_name: p.nick_name,
+      date_of_birth: p.date_of_birth,
+    })),
+  }
 }
 
 export async function getMyPaymentHistory(): Promise<DuesPayment[]> {

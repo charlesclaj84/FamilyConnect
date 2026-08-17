@@ -917,6 +917,67 @@ export const HELP_PARTS: readonly HelpPart[] = [
         ],
       },
       {
+        slug: 'dues-projections',
+        title: 'Dues Projections',
+        summary: 'What the family should collect this year, what has come in, and who still owes.',
+        route: '/dues-projections',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it answers',
+            blocks: [
+              p('[Transactions](/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
+              p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/transactions); changing what a due costs is under [Accounting](/admin/account).'),
+            ],
+          },
+          {
+            id: 'figures',
+            heading: 'The four figures',
+            blocks: [
+              defs(
+                { term: 'Expected this year', text: 'What the members counted here owe for their schedules\' current periods. Everything else on the screen is a fraction of it.' },
+                { term: 'Collected', text: 'Money that actually arrived. A reversal nets itself out, so a corrected payment leaves the figure where it belongs.' },
+                { term: 'Waived', text: 'Forgiven. It settles the due and comes off what is still owed — and it is never counted as money, because none arrived.' },
+                { term: 'Still to collect', text: 'Expected, less what has been settled either way. The number the screen exists for.' },
+              ),
+              p('A fifth appears only when there is any: money **awaiting settlement**, which is a payment started and not yet confirmed. It is not counted as collected and has not been taken off what is owed.'),
+            ],
+          },
+          {
+            id: 'year',
+            heading: 'Which year',
+            blocks: [
+              p('Each schedule\'s own. A due anchored on 1 April and a levy anchored on 1 January genuinely have two years in progress, so every row states the period it was measured over and the family total is the sum of them.'),
+              note('This is why the totals here agree with what each member sees on their own [Dues](/dues) screen. A single calendar year would have been tidier and would have disagreed with every member\'s balance.'),
+            ],
+          },
+          {
+            id: 'who-is-counted',
+            heading: 'Who is counted',
+            blocks: [
+              p('Approved members **with an account**. Somebody recorded on the family tree without one is family, and is not somebody a cheque is expected from — the screen says how many those are so the member count can be reconciled against the [Directory](/members).'),
+              p('Three things reduce what a member owes, and all three are honoured: a due that starts at an age, an optional due they have declined, and anything the family has waived.'),
+              note('Anyone with no date of birth recorded owes an age-limited due in full, because an age is never guessed at. If a figure looks too high, that is the first thing to check.'),
+            ],
+          },
+          {
+            id: 'standings',
+            heading: 'Where each member stands',
+            blocks: [
+              p('The member table leads with the people to chase. A row reports the **least** settled standing that member holds on any schedule, so somebody paid up on three dues and owing a fourth is listed as owing.'),
+              defs(
+                { term: 'Nothing paid', text: 'Owes the whole amount for this period.' },
+                { term: 'Part paid', text: 'Something in, not all of it.' },
+                { term: 'Settled', text: 'Paid in full, or forgiven.' },
+                { term: 'Declined', text: 'Opted out of an optional due.' },
+                { term: 'Not yet due', text: 'Below the age that due starts at. Not the same as settled — they have paid nothing and owe nothing.' },
+              ),
+              p('**Only those who owe** narrows the table, and the filter box searches any part of any name.'),
+            ],
+          },
+        ],
+      },
+      {
         slug: 'accounting',
         title: 'Accounting',
         summary: 'Setting up dues schedules, donation drives, funds, routing and milestones.',
