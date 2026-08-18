@@ -108,8 +108,23 @@ DECLARE
   -- table is empty by DESIGN — nothing seeds it and nothing needs to — or whether
   -- it is empty because something emptied it, which is the case this file exists
   -- to catch.
+  --
+  -- `genorra_staff` (20260817000005) is the second, and it earns the entry the same way. It
+  -- is the list of GENORRA employees who may open the cross-family staff console: it has no
+  -- `family_code`, and its only foreign key points into `auth`, so §2 cannot reach it from
+  -- anywhere — and it is EMPTY BY DESIGN. Rows are inserted by hand with SQL, deliberately,
+  -- so a laptop has none, a fresh hosted project has none, and a database where nobody has
+  -- been granted staff access is correct rather than damaged. Nothing seeds it and nothing
+  -- can: there is no set of "the right" staff for a migration to restore.
+  --
+  -- It is deliberately ABSENT from truncate_entire_database.sql's keep-list, and that belongs
+  -- here too since this is where the classification lives: `genorra_staff.user_id` is
+  -- ON DELETE CASCADE from `auth.users`, and that script empties `auth.users`, so a staff row
+  -- goes with the account it names whether or not the table is truncated. A keep-list entry
+  -- would read as a guarantee it does not make.
   allowed_empty CONSTANT text[] := ARRAY[
-    'user_family_settings'
+    'user_family_settings',
+    'genorra_staff'
   ];
   i        int;
   v_count  bigint;

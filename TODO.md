@@ -456,72 +456,24 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## A family cannot be deleted
-
-**Action:** decide what deleting a family *means* before building it — the schema will
-not do it for you.
-
-**The rename half shipped 2026-08-12** and is no longer open. What it left behind that
-this half will build on, so it is not rediscovered:
-
-* **A family settings surface exists.** `/admin/family`, registered by
-  `20260812000000` as the resource `admin/family` — `'restricted'` per family, `view`
-  and `edit` only. A delete would be a third action on that key (or a key of its own,
-  if the family wants to hand out renaming without handing out destruction, which is
-  probably the right call and is a product decision nobody has made).
-* **`families` now has an UPDATE policy**, `family renamed by settings admins` — the
-  second policy the table has ever carried. It tests
-  `auth_permission('admin/family','edit') = 'any'` rather than `auth_can()`, because a
-  family has no owner and `'own'` must not be a way in.
-* **`family_code` is immutable.** `families_guard_family_code` refuses any change to
-  it, for every role. That is the *rename* half of the same problem this section is
-  about: 34 tables carry the code and none has a foreign key back, so re-keying a
-  family would silently empty it. A delete has to reckon with the same absence.
-
-### Deleting is the dangerous half, and the schema does not help
-
-**34 tables carry `family_code`, and not one of them has a foreign key to `families`.**
-So `DELETE FROM families WHERE family_code = …` removes exactly one row and orphans
-everything else — no cascade fires, because there is nothing to cascade from. The
-obvious implementation leaves every dues payment, fund, chat room and member row in the
-database, invisible to the app and belonging to a family that no longer exists.
-
-Two places the schema does anticipate it, both worth reading first:
-
-* `funds_protect_system` releases a system fund for deletion **only** once the
-  `families` row is gone. That is the intended order — family first, then the sweep —
-  and it is the one spot where family deletion is designed for rather than overlooked.
-  `20260812000000`'s verify block is that order run in miniature, against a throwaway
-  family it creates and removes: families, then funds, then the templates. It is four
-  lines and it is the only worked example of the sequence in the tree.
-* The append-only ledgers (`dues_payments`, `fund_disbursements`, `20260806000002`)
-  refuse a delete except as the cascade from a person or fund already gone. A sweep
-  either runs in dependency order or stands those guards down deliberately.
-
-[supabase/scripts/reset_families.sql](supabase/scripts/reset_families.sql) already
-carries that sweep for the data half and deliberately keeps the `families` row. A real
-delete is that list, plus the row, plus the family's templates, `resource_visibility`
-and system fund. Read it before writing a third copy of the list — and note its §11,
-which exists because a hand-written list of tables goes stale the moment a migration
-adds one. It already did: `donation_beneficiaries` (`20260811000000`) landed between
-that script being written and being run.
-
-Two product questions to settle before any of it is built:
-
-1. **Does deleting a family delete its members' accounts?** It must not. Membership is
-   many-to-many since `20260617000000`, so an account can belong to several families;
-   deleting one family has to delete its `people` rows and leave `auth.users` alone, or
-   removing a test family signs somebody out of their real one.
-2. **Is there an "archived" state, or only gone?** There is no half-way house today: a
-   family with no members is *unreachable*, not merely empty, because every page resolves
-   the caller through a people row and `families.created_by` nulls itself when that
-   account goes. Anything short of a full delete needs a state that does not exist yet.
-
-## Seven functions have a mutable `search_path`, and one of them is SECURITY DEFINER
+## Six functions have a mutable `search_path`, and one of them is SECURITY DEFINER
 
 **Action:** set `search_path = ''` on `auth_uid_is_room_participant` first — it is the only
-one of the seven where this is a privilege question rather than tidiness. Carefully: see the
+one of the six where this is a privilege question rather than tidiness. Carefully: see the
 trap below.
+
+**SEVEN UNTIL 2026-08-18, and it is six now:** `fund_balance_cents` has gained its
+`search_path` somewhere along the way, so the list below is one longer than the advisors
+report. Re-measured on that date against the local stack —
+`npx supabase db advisors --local --type security --level warn` — and the survivors are
+`auth_uid_is_room_participant`, `_perm_predicate`, `cancel_overdue_event_assignments`,
+`set_updated_at`, `update_funds_updated_at` and `update_photo_collections_updated_at`.
+
+Worth stating because it is the thing a reader would want to know: **every function added
+since is clean.** `seed_global_lookups`, `is_genorra_staff` (both arities),
+`staff_set_family_status`, `families_guard_removal`, `consume_family_removal_challenge` and
+`auth_permission`'s rewrite all set `search_path = ''`, and none of them appears in the
+advisors output. The six are the residue of older files, not a habit.
 
 Found 2026-08-12 by `npx supabase db advisors --local --type security --level warn`, which
 `migrate.yml` now runs against hosted on every merge. Seven `function_search_path_mutable`
@@ -615,6 +567,28 @@ that make this safe and are worth knowing before doing it:
 
 Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
 narrowed from three to two the same day, when the cross-tab sign-out was validated.
+
+## `/admin/boardpositions` is the last route still on the roadmap, and it is now unblocked
+
+**Action:** decide whether to flip `status: 'future'` → `'live'` in `lib/features.ts`. The page,
+the actions and the permission resource all exist. **Read the whole of this entry first** — the
+flip is one word and the review it owes is not.
+
+Two things that were in the way are now gone. `family_roles` was EMPTY on hosted, which is what
+that page reads, and `20260817000003` restored its 25 global rows. And regions and chapters — the
+scoped-leadership half the board positions hang off — went live on 2026-08-18.
+
+**What it owes before the flip, and this is the whole point of the entry.** Relighting
+`/admin/chapters` on 2026-08-18 turned up eight live security holes in
+`app/actions/admin/chapters.ts`: service-role deletes with no `family_code` conjunct, reads with
+no permission check, an unchecked client-supplied `region_id`, a cross-family `MAX(sort_order)`.
+Every one had been reachable the whole time the route said Coming Soon, because **Coming Soon
+withholds a page and never an action** — now a section of AGENTS.md.
+
+`app/actions/admin/chapters.ts` is the same module the four board-position actions live in, so
+those four were swept in that pass and are already scoped and re-keyed. What has *not* been
+reviewed is the page and its client component — `AdminUserRolesClient` — against §1, §5 and the
+table rules. Do that, then flip.
 
 ## `permission_table_map` names a table that does not exist
 

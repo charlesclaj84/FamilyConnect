@@ -4,16 +4,37 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Two words that name two different products
+# Three words that name three different products
 
-When an instruction here says **Home** or **Dashboard**, it means one of these and never
-the other. They are not two views of one app — they are two apps, with different
+When an instruction here says **Home**, **Dashboard** or **Staff**, it means one of these and
+never another. They are not three views of one app — they are three apps, with different
 audiences, different routers and different rules.
 
 | Word | Who is looking at it | Where it lives |
 |---|---|---|
 | **Home** | Somebody **not** signed in. The public marketing site at genorra.com — the landing page and everything around it that sells the product. | `app/page.tsx`, `app/(marketing)/*`, `components/marketing/*` |
 | **Dashboard** | A signed-in **member**, working with their family. The whole product behind the login. | `app/(protected)/*`, and `app/(protected)/dashboard` specifically when the landing screen is meant |
+| **Staff** | A GENORRA **employee**, working across every family at once. Added 2026-08-18. | `app/(staff)/*`, `app/actions/staff/*`, `components/staff/*`, `lib/auth/staff.ts` |
+
+**This said "two" until 2026-08-18** and the third is not a variation on the second. Every rule
+below about family isolation is a rule the Dashboard obeys and the Staff console deliberately does
+NOT: its whole job is to read across families, so §3's "re-apply what RLS would have done" is
+inverted there and each of its actions says so in its own header, because a reviewer's reflex is
+that a missing `.eq('family_code', …)` is a bug.
+
+What holds it shut instead is narrower and has to stay that way:
+
+* **`genorra_staff` has RLS enabled and ZERO policies**, so `anon` and `authenticated` can read no
+  row of it at all. Staffness is resolved on the SERVER through the service role and passed down
+  as a prop; there is no client-side check to spoof and no flag in user metadata.
+* **Access is granted BY HAND, with SQL.** There is no UI for it and there must not be one until
+  there is a reason — a screen that grants cross-family access is a screen worth attacking.
+* **Every page under `app/(staff)` guards itself and 404s**, never a "denied" screen: a staff
+  console should not advertise that it exists. The layout guard is a convenience, not the gate —
+  §2's argument about pages and actions, one level up.
+* **It has no `permission_resources` row and must not.** Staffness is orthogonal to the family
+  permission model, and putting it in that grid would tell a family's administrator the console
+  exists.
 
 The distinction is load-bearing, not vocabulary policing, because the two halves are
 governed by opposite rules and a change aimed at one is usually wrong in the other:
@@ -31,7 +52,8 @@ governed by opposite rules and a change aimed at one is usually wrong in the oth
 * **"Dashboard" has a narrow sense too** — `/dashboard`, the screen a member lands on.
   Which one is meant is usually plain from the instruction; when it is not, ask.
 
-"Back Office" in a vendor design handoff means Dashboard.
+"Back Office" in a vendor design handoff means Dashboard — **not Staff.** A vendor has never seen
+the staff console and is not designing for it.
 
 # Authorization is not optional
 
@@ -316,11 +338,44 @@ which side a surface wants is a real decision rather than a default:
 | Surface | Who |
 |---|---|
 | Member Directory, dashboard "Family Members" tile, family tree | everybody — a recorded grandfather is in the family |
-| dues and disbursement pickers, chapters, Reports' `totalMembers` | accounts only — a record cannot pay or be paid |
+| dues and disbursement PICKERS, chapters, Reports' `totalMembers` | accounts only — a record cannot pay or be paid |
+| Dues Projections | **every approved person**, account or not — see below |
 
 The Directory needed no change for this: `tg_person_stamp_membership_status` returns early
 for `user_id IS NULL`, so an unclaimed row keeps the `'approved'` default and was always
 listed. The dashboard tile was the one that disagreed with it, and now does not.
+
+**PROJECTIONS ARE THE EXCEPTION, and the distinction is a PICKER versus a PROJECTION.** Added
+2026-08-18. "Accounts only" is right for a picker, because you cannot record a payment from
+somebody who cannot log in — and it is wrong for a projection, because a projection is what the
+family is **owed**, and a recorded relative who never finished registering owes it exactly as
+much as one who did. Leaving them out did not make the figure conservative; it made it wrong,
+and it hid precisely the people an organizer needs to chase.
+
+So `/dues-projections` counts every person whose membership is `'approved'`, and reports each as
+**Active** (has an account), **Invited** (no account, an open invitation exists) or **Pending
+Invite** (no account, nobody has asked them). WRITES ARE STILL ACCOUNTS-ONLY — the Transactions
+picker is untouched, and the ledger still cannot name an account-less person.
+
+Two things about it that look like they should be otherwise:
+
+* **The roster is NOT gated on the bloodline**, although the request that prompted this said
+  "bloodline members". Two reasons, and the second is decisive. `bloodline_only` on a schedule is
+  the one place descent may decide who owes a due (§4c), so gating the ROSTER on descent would
+  bill a step-son and not a blood son on a schedule that had said descent was irrelevant. And
+  `bloodlineIds()` answers `null` for a family with no anchor — a bloodline-gated roster would
+  therefore count *nobody* in most families, silently. The bloodline keeps its one job and the
+  two rules stay orthogonal.
+* **A pending, rejected or disabled membership is still excluded**, by the roster rather than by
+  the status function. Somebody who has not been admitted has not joined, and nothing is owed by
+  them yet.
+
+`family_invitations` is what decides Invited, and it has **three** foreign keys to `people`
+(`invited_by`, `accepted_by`, `invited_person_id`) — so a bare `people(...)` embed on it is
+PGRST201, which §8 explains answers `[]`. It is joined in TypeScript instead. The link is also
+matched on the ADDRESS as well as `invited_person_id`, because only `invitePersonRecord` writes
+that column: the invite-by-email dialog takes no person at all, and `resendInvitation` re-mints
+without carrying the link across.
 
 ## 4c. Blood is a property of the LINK, and it is not derivable
 
@@ -609,6 +664,20 @@ two to `funds` — where the money left and where it landed, which is the whole 
 the row. Name the constraint. And check the relationship
 exists at all before embedding it — `event_rsvp` has no foreign key to `people`, so
 `event_rsvp(people(...))` is PGRST200, equally silent.
+
+**Two more joined the list on 2026-08-18, and one of them is the shape this section warns about
+arriving by accident.** `family_invitations` has **three** paths to `people` — `invited_by`,
+`accepted_by` and `invited_person_id` (`20260813000004`) — which is why Dues Projections joins it
+in TypeScript rather than embedding it: filing every invited relative under "nobody has asked
+them" is the silent `[]` this rule exists to prevent.
+
+And `families` now has **two**, which it did not before: `bloodline_anchor_id`
+(`20260813000008`) and `removed_by` (`20260817000006`). Adding one column to one table made a bare
+`people(...)` embed on `families` PGRST201 everywhere — verified against the live stack, and the
+error names both constraints. Nothing in the tree embeds it today, so nothing broke; the point is
+that nothing had to, and next time it might. That is the `announcements` lesson in a second
+costume, and it is why the sweep below is worth running after ANY migration that adds a foreign
+key, not only after one that adds a junction table.
 
 **A JUNCTION TABLE BREAKS EMBEDS ON TABLES YOU DID NOT TOUCH,** and `announcements` is
 how that was learned. It has exactly ONE foreign key to `people` (`author_id`) and its
@@ -980,6 +1049,61 @@ undo the decision it announces — catches nothing PostgREST produces. The write
 `lib/notifications.ts` therefore read `error` and log it. Discarding it made a refused
 insert indistinguishable from a delivered one at every layer.
 
+# A family can be REMOVED, which destroys nothing
+
+`families.status` is `'active'` or `'removed'` (`20260817000006`), with `removed_at` and
+`removed_by` for the record. Removal is a soft disable: **no row anywhere is deleted**, and a
+restore brings the family back with every dues payment, photograph and chat message where it was.
+`/admin/family` offers it behind its own grant, `admin/family/remove` at `delete`, and behind a
+six-digit code emailed to the acting administrator.
+
+Six things about it are load-bearing, and the first two are the ones a future change will get
+wrong.
+
+* **THE TEST IS NOT IN `auth_family_code()`, deliberately.** That resolver is a `LIMIT 1` over an
+  `ORDER BY`, so a `status = 'active'` conjunct there would not HIDE a removed family — it would
+  SKIP to the caller's next one, silently moving which family a request is acting in. And
+  `lib/auth/family.ts` promises the TypeScript resolver mirrors that function exactly, while
+  `resolveActiveCode` has no skip, so the app and the policies would then disagree. **Enforcement
+  is app-layer by design.** No RLS policy consults `families.status` and none may start to.
+* **It withholds SCREENS, never rows** — the same boundary the tier gate keeps, and the server
+  ACTIONS behind those screens are deliberately not removal-checked, because a restored family
+  must find its records untouched. `requireFamilyActive` is folded into `requireView` and
+  `requireViewOrPending` for `requireTier`'s reason: a second line every page must also remember
+  is a line three pages will not have. It REDIRECTS to `/dashboard` rather than 404ing, because a
+  family's own members are entitled to know, and `FamilyRemoved` is where they are told.
+  `REMOVED_FAMILY_RESOURCES` in `lib/auth/family.ts` is the exemption list — it lives there rather
+  than beside `PENDING_RESOURCES` because `permissions.ts` imports that module and the reverse
+  would be a cycle.
+* **`families_guard_removal` refuses the `authenticated` role outright**, so removal and restore
+  go through the SERVICE ROLE. `families` has an UPDATE policy admitting `admin/family:edit`, and
+  a policy has no opinion about which column changed — without the guard,
+  `PATCH /families {"status":"removed"}` from devtools would remove a family past the emailed
+  code entirely. Same shape as `families_guard_family_code` and `people_guard_permission_template`.
+* **A stranger is told nothing.** Six doors refuse a removed family — `validate_family_code`,
+  `join_family_by_code`, `peek_family_invitation` (granted to `anon`), `redeem_family_invitation`,
+  `set_active_family`'s callers, and `registerUser` — and each answers the message it already gave
+  for a code that never existed, character for character. Telling a guesser "that family was
+  removed" is an enumeration signal; the family's own members learn the truth from their
+  membership instead.
+* **`set_active_family` still ALLOWS switching into a removed family**, and that is a decision.
+  Refusing would report "not a member", which is false, and would leave somebody with no route to
+  find out what happened to a family they belong to. The switcher and `/my-families` therefore
+  list a removed family **as removed** rather than hiding it — hiding it loses a family with no
+  explanation.
+* **Restore is not in the member-facing product.** It lives in the GENORRA staff console, through
+  `staff_set_family_status`, which refuses anyone `is_genorra_staff()` does not recognise. The
+  copy on the removal panel says so, because a reversible action whose reversal is invisible reads
+  as an irreversible one.
+
+The emailed code is a `family_removal_challenges` row holding a SHA-256, never the code; 15
+minutes, five attempts, single use. It is minted in TypeScript and verified in SQL, and the split
+is deliberate: the plaintext has to exist in the Node process because that process composes the
+email, whereas verifying is a five-branch read-modify-write that races itself from the app — so
+`consume_family_removal_challenge` does it in one statement under `FOR UPDATE`. The challenge is
+resolved from `(family_code, requested_by)` and the hash is only ever COMPARED, never used to find
+the row.
+
 # The signed-in app signs itself out when left idle
 
 `components/layout/IdleTimeout.tsx`, mounted once by `app/(protected)/layout.tsx`. 60
@@ -1299,6 +1423,32 @@ fail differently on purpose:
 Answering both with one screen was the obvious shortcut and is wrong in both directions:
 telling a paying family that a shipped feature is "coming soon" is a lie, and telling a
 free family to wait for something they could have this afternoon is a sale nobody made.
+
+## COMING SOON WITHHOLDS A PAGE. IT DOES NOT WITHHOLD AN ACTION
+
+`status: 'future'` is read by `proxy.ts`, at the edge, and all it does is refuse a **route**.
+The server actions behind that route keep their URLs and stay callable by anyone signed in, for
+exactly as long as the feature is "not shipped".
+
+This is not a hypothetical. `/admin/chapters` sat behind `'future'` for months, and when it was
+relit on 2026-08-18 its action module turned out to predate §3, §4 and the permission model —
+every one of these had been a live endpoint the whole time:
+
+* `deleteRegion` and `deleteChapter` had **no `family_code` conjunct at all**. `.eq('id', id)`
+  was the entire predicate, on the service-role client, so any signed-in user could delete
+  another family's regions and chapters by id.
+* `getRegions` and `getChapters` demanded a session and nothing else — no permission check.
+* `createChapter` wrote a client-supplied `region_id` onto a row with no `belongsToFamily` (§4).
+* `createCustomRole` took `MAX(sort_order)` across **every family in the product**.
+* `deleteCustomRole` had no family conjunct either, and four board-position actions were keyed
+  on the wrong resource.
+
+**So a roadmap feature's actions owe the same §1–§5 review as a shipped one**, and the review has
+to happen when the code is WRITTEN rather than when the flag flips. Gating the route is a product
+decision; it is not a security boundary, and it buys nothing at all for the endpoints underneath.
+
+The corollary for reviewing: `grep "status: 'future'"` in `lib/features.ts` is a list of action
+modules nobody has exercised recently. `/admin/boardpositions` is the one still on it.
 
 **Every `FEATURES` entry states a `tier`, and the field has no default.** A new feature
 has to decide, because the failure mode of forgetting is invisible and expensive: it

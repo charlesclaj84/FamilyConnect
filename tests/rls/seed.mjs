@@ -279,7 +279,15 @@ async function teardown(db) {
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
     // ADDED 2026-08-17 with the three sweep rows. event_rsvp and event_assignments
-    // cascade from `events` above and need no line of their own; event_types does NOT
+    // cascade from `events` above and need no line of their own — and since 2026-08-18
+    // neither do `event_budget_items` or `event_expenses`, both of which are ON DELETE
+    // CASCADE from `events` too. `event_expenses` is worth one sentence because it looks
+    // like it ought to be here: it is a MONEY table but NOT an append-only one
+    // (20260807000002 gave it the recorded_by trigger and nothing else), so a direct
+    // DELETE would work — it simply has nothing left to delete by the time this runs.
+    // Its other two references are both SET NULL, `fund_id` from `funds` above and
+    // `recorded_by` from `people` below, so neither removes the row.
+    // event_types does NOT
     // (it is family-scoped configuration, not a child of an event) and
     // event_blueprint_items cascades from it. Listed AFTER `events`, because an
     // assignment points at a blueprint item and the event is what takes it away.
@@ -641,6 +649,55 @@ export async function seed() {
       file_path: `${code}/event.jpg`, caption: `${code} event photo`,
     }).select().single())
 
+    // ── FIVE ROWS ADDED 2026-08-18, FOR THE MONEY-DELETION GUARD ──────────────────
+    //
+    // `lib/money-attached.ts` refuses a delete when money points at the record, and until
+    // now the fixture could not reach two of its five kinds at all: nothing here seeded an
+    // `event_budget_items` or an `event_expenses` row, so `deleteEvent` and
+    // `deleteEventBudgetItem` had no funded subject to be refused over and no unfunded one
+    // to prove they can still delete. `MONEY_CASES` in cases.mjs is what reads these.
+    //
+    // A SPARE EVENT WITH NO SPEND. `f.event` gains an expense below and is therefore
+    // permanently undeletable, so a control needs its own row — `deletableChild`'s rule,
+    // and AGENTS.md §7's first fixture failure mode: a control that removes `f.event`
+    // would take the RSVP, the assignment, the photo and both budget lines with it and
+    // every case after it would pass over nothing.
+    f.deletableEvent = must('deletable event', await db.from('events').insert({
+      family_code: code, name: `${code} spare reunion`, status: 'approved',
+      created_by: owner.userId, event_date: '2026-10-01',
+    }).select().single())
+
+    // TWO BUDGET LINES ON `f.event`, and the difference between them is the whole point:
+    // the expense below is charged to the first and to nothing else, so one line is funded
+    // and one is not. Both sit on `f.event` rather than one on each event, so that
+    // `f.deletableEvent` stays genuinely empty — an event with a budget line still deletes
+    // (budget items CASCADE and carry no money), but leaving it bare keeps the reason a
+    // delete succeeds down to one fact.
+    f.budgetItem = must('budget item', await db.from('event_budget_items').insert({
+      event_id: f.event.id, family_code: code, title: `${code} catering`,
+      budget_cents: 40000, sort_order: 1, created_by: owner.personId,
+    }).select().single())
+
+    f.deletableBudgetItem = must('deletable budget item', await db.from('event_budget_items').insert({
+      event_id: f.event.id, family_code: code, title: `${code} spare line`,
+      budget_cents: 1000, sort_order: 2, created_by: owner.personId,
+    }).select().single())
+
+    // THE SPEND ITSELF, and `fund_id` IS DELIBERATELY NULL. `event_expenses.fund_id` is one
+    // of the four references `moneyAttachedTo('fund', …)` counts, so pointing this at
+    // `f.fund` would make the fund case's message name an expense as well and — worse —
+    // give `f.deletableFund` a reason to be undeletable if it were ever pointed there. The
+    // column is nullable and an event's spend does not need a fund to be spend.
+    //
+    // `recorded_by` is REQUIRED on insert (20260807000002's trigger, with an empty source
+    // list, which means every row of this table) and the trigger binds the service role
+    // this fixture writes through. Without it the whole suite dies here.
+    f.expense = must('event expense', await db.from('event_expenses').insert({
+      event_id: f.event.id, budget_item_id: f.budgetItem.id, fund_id: null,
+      family_code: code, amount_cents: 12500, spent_date: '2026-07-06',
+      description: `${code} catering deposit`, recorded_by: owner.personId,
+    }).select().single())
+
     // ── THREE ROWS ADDED 2026-08-17, FOR THE SWEEP CASES ──────────────────────────
     // `event_rsvp`, `event_assignments` and `user_roles` are three of the nine tables
     // `20260806000011` §6 added `auth_membership_approved()` to, and until now the fixture
@@ -733,6 +790,18 @@ export async function seed() {
       recorded_by: owner.personId,
     }).select().single())
 
+    // A SCHEDULE WITH NO MONEY AGAINST IT, so `deleteDuesSchedule` has a subject it is
+    // allowed to remove. `f.schedule` has the payment above and is therefore permanently
+    // undeletable, and every other schedule here is read by a case that would then be
+    // asserting over a row that had gone — `deletableChild`'s rule again.
+    //
+    // `active: false` on purpose. Nothing about the delete path reads the column, and an
+    // inactive row stays out of `getMyDuesSummary` and `getDuesProjection`, both of which
+    // filter on it — so adding this cannot move a figure another case asserts.
+    f.deletableSchedule = must('deletable dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} spare dues`, amount_cents: 1000, active: false,
+    }).select().single())
+
     // ── A drive the family's ADMINISTRATOR is the beneficiary of ──────────────
     // The surprise-gift case from 20260811000000, and the actor is the administrator
     // on purpose. They hold scope 'any' on every resource their family can confer, so
@@ -774,14 +843,32 @@ export async function seed() {
       fund_id: f.fund.id, family_code: code, name: `${code} milestone`, amount_cents: 25000,
     }).select().single())
 
+    // A SECOND MILESTONE THAT NOTHING HAS BEEN PAID AGAINST, for `deleteMilestone`'s
+    // control. `f.milestone` is what the disbursement below is attributed to, so the guard
+    // refuses that one for good — this is the row that proves the action can still delete.
+    f.deletableMilestone = must('deletable milestone', await db.from('fund_milestones').insert({
+      fund_id: f.fund.id, family_code: code, name: `${code} spare milestone`,
+      amount_cents: 5000, sort_order: 2,
+    }).select().single())
+
     f.contribution = must('contribution', await db.from('fund_contributions').insert({
       fund_id: f.fund.id, family_code: code, amount_cents: 7500,
       contributor_person_id: owner.personId, recorded_by: owner.personId,
       contributed_date: '2026-07-02',
     }).select().single())
 
+    // `milestone_id` ADDED 2026-08-18, and it is what gives `f.milestone` money against it
+    // — `moneyAttachedTo('fund_milestone', …)` counts disbursements by this column and
+    // nothing else in the fixture wrote it. Attributing the EXISTING payout rather than
+    // seeding a second one is deliberate: the amount is load-bearing further down (see the
+    // note on `f.transfer`), and another disbursement would move the fund's balance and
+    // break `transferBetweenFunds`'s control for a reason that is not a bug.
+    //
+    // fund_disbursements is APPEND-ONLY (20260807000002) and permits no UPDATE at all, so
+    // this has to be set at insert. A case cannot arrange it in `setup`.
     f.disbursement = must('disbursement', await db.from('fund_disbursements').insert({
       fund_id: f.fund.id, family_code: code, person_id: owner.personId,
+      milestone_id: f.milestone.id,
       amount_cents: 2500, disbursed_date: '2026-07-03', recorded_by: owner.personId,
     }).select().single())
 
@@ -806,6 +893,20 @@ export async function seed() {
       family_code: code, from_fund_id: f.fund.id, to_fund_id: f.secondFund.id,
       amount_cents: 2000, transferred_date: '2026-07-05',
       reason: `${code} transfer`, recorded_by: owner.personId,
+    }).select().single())
+
+    // A THIRD FUND WITH NO MONEY OF ANY KIND, for `deleteFund`'s control — and it has to be
+    // a third, because `f.fund` and `f.secondFund` are both ends of the transfer above and
+    // `moneyAttachedTo('fund', …)` counts a transfer from EITHER side.
+    //
+    // NO ALLOCATION ROW, deliberately: `fund_allocations` is UNIQUE (family_code, fund_id)
+    // and gives 100% to `f.fund`, and a fund with no row is 0%, so this changes nothing
+    // about dues routing. NO `system_key` either — `funds_protect_system` (20260807000003)
+    // makes such a fund permanently undeletable while its family exists, which would make
+    // the control fail for a reason that is not the guard.
+    f.deletableFund = must('deletable fund', await db.from('funds').insert({
+      family_code: code, name: `${code} spare fund`,
+      created_by: owner.personId, active: true,
     }).select().single())
 
     f.election = must('election', await db.from('elections').insert({
@@ -888,6 +989,31 @@ export async function seed() {
       date_of_birth: '1950-02-02',
     }).select().single())
 
+    // ── two more records, for the three states on Dues Projections ───────────
+    // That screen counts EVERY approved person, account or not, and reports each as Active,
+    // Invited or Pending Invite. Two of those three are states a record can hold, and they
+    // need a row each — `deletableChild`'s reason, applied to a read rather than a write:
+    // borrowing `child` would tie this case to whatever `invitePersonRecord`'s attack half
+    // left behind, and borrowing `ancestor` would tie it to `linkPersonToCurrentUser`'s.
+    //
+    // DELIBERATELY UNATTACHED to the tree. They are about the roster, not about the graph,
+    // and giving them edges would move `leafIds` for every family-tree case to buy nothing.
+    f.invitedRecord = must('invited record', await db.from('people').insert({
+      family_code: code, first_name: `${code}Invited`, last_name: code,
+      date_of_birth: '1970-03-03', created_by: familyAdmin.userId,
+      primary_email: `invited.record.${side}@rls.test`,
+    }).select().single())
+
+    f.uninvitedRecord = must('uninvited record', await db.from('people').insert({
+      family_code: code, first_name: `${code}Uninvited`, last_name: code,
+      date_of_birth: '1971-04-04', created_by: familyAdmin.userId,
+      // A REAL ADDRESS ON A ROW NOBODY HAS ASKED, which is what makes the attack half of
+      // `dues.getDuesProjection` sharp: ALPHA seeds an open invitation to BRAVO's address
+      // below, so a projection that read invitations without `.eq('family_code', …)` would
+      // report this person as Invited in the family that never asked them.
+      primary_email: `uninvited.record.${side}@rls.test`,
+    }).select().single())
+
     const rels = must('relationships', await db.from('person_relationships').insert([
       { person_id: owner.personId, related_person_id: other.personId,
         relationship_type_id: types.Wife, family_code: code, is_step: false,
@@ -924,6 +1050,20 @@ export async function seed() {
       token_hash: tokenHash(`rls-revocable-token-${code}`),
       pre_approved: false,
       invited_by: familyAdmin.personId,
+    }).select().single())
+
+    // A FOURTH, and the only one that NAMES A PERSON — `invited_person_id`, which is what
+    // `invitePersonRecord` writes (20260813000004). Every other invitation here is addressed
+    // to somebody with no `people` row at all, so without this the 'invited' state on Dues
+    // Projections would be unreachable and its case could not tell it from 'pending-invite'.
+    f.recordInvitation = must('record invitation', await db.from('family_invitations').insert({
+      family_code: code,
+      email: `invited.record.${side}@rls.test`,
+      first_name: `${code}Invited`, last_name: code,
+      token_hash: tokenHash(`rls-record-invite-token-${code}`),
+      pre_approved: false,
+      invited_by: familyAdmin.personId,
+      invited_person_id: f.invitedRecord.id,
     }).select().single())
 
     // A THIRD one, ALPHA only, addressed to somebody who actually has an account —
@@ -973,6 +1113,25 @@ export async function seed() {
         email: 'resend.alpha@rls.test',
         first_name: 'Resend', last_name: 'Target',
         token_hash: tokenHash(`rls-resend-token-${code}`),
+        pre_approved: false,
+        invited_by: familyAdmin.personId,
+      }).select().single())
+
+      // ONE FAMILY'S INVITATION TO THE OTHER FAMILY'S ADDRESS, which is legal and ordinary:
+      // two families can both know somebody, and `create_family_invitation` puts no
+      // constraint between the address and anybody's `people` row. It is the detector for
+      // the `.eq('family_code', …)` on the invitations read in `getDuesProjection` — without
+      // it, BRAVO's projection reports BRAVOTESTUninvited as Invited on the strength of a row
+      // ALPHA wrote.
+      //
+      // `invited_person_id` is deliberately NULL. The id branch could not reach across
+      // families through the app anyway — the RPC checks the row is in the target family — so
+      // seeding one would test a row the product cannot produce. The ADDRESS branch can.
+      f.crossFamilyInvitation = must('cross-family invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: 'uninvited.record.bravo@rls.test',
+        first_name: 'Uninvited', last_name: 'Record',
+        token_hash: tokenHash(`rls-cross-family-invite-token-${code}`),
         pre_approved: false,
         invited_by: familyAdmin.personId,
       }).select().single())

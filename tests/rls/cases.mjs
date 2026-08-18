@@ -44,6 +44,13 @@ export function alphaMarkers(fx) {
     a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
+    // The money-free spares MONEY_CASES delete, and the two event-money rows. Ids only:
+    // each is ALPHA's by construction, so a BRAVO response carrying one is a leak like any
+    // other, and every default-checked read gains the assertion for nothing. Their NAMES are
+    // deliberately not listed — `f.deletableFund` is "ALPHATEST spare fund", which no
+    // substring test would distinguish from a marker that is already here.
+    a.deletableSchedule.id, a.deletableFund.id, a.deletableMilestone.id,
+    a.deletableEvent.id, a.budgetItem.id, a.deletableBudgetItem.id, a.expense.id,
     // The transfer, and the fund it exists to move money into. `reason` is the one
     // free-text field on a transfer row, so it is the string that would show up in a
     // leaked ledger — marked like every other piece of ALPHA prose below.
@@ -56,6 +63,9 @@ export function alphaMarkers(fx) {
     a.contribution.id, a.disbursement.id, a.allocation.id, a.election.id,
     a.notification.id, a.otherNotification.id,
     a.child.id, a.ancestor.id, a.ownerPersonId, a.otherPersonId,
+    // The two records Dues Projections' three states need. ALPHA-only values like every
+    // other id here, so every default-checked case gains the assertion for free.
+    a.invitedRecord.id, a.uninvitedRecord.id,
     a.nominationElection.id, a.plan.id,
     // ALPHA's applicants. Their rows are the PII that admin/approvals unlocks, and the
     // `people` SELECT policy hides them from every caller who cannot view that
@@ -302,6 +312,23 @@ export const CASES = [
   // TO SEE IT FAIL — required before treating this as evidence: drop the
   // `.eq('family_code', familyCode)` from the `people` read in getDuesProjection() and
   // re-run. Both halves should report the two families' rosters added together.
+  //
+  // THREE MORE MUTATIONS were run on 2026-08-18, when the roster stopped being accounts-only
+  // and the three states arrived. Observed, not expected, with
+  // `node --import ./tests/rls/register.mjs ./tests/rls/run.mjs getDuesProjection`:
+  //
+  //   `.filter(p => p.user_id)` put back on `roster`      BOTH halves FAIL — the control
+  //     (the accounts-only behaviour this reverses)          loses ALPHA's record, the attack
+  //                                                          loses BRAVO's own
+  //   `.eq('family_code', familyCode)` dropped from the    ATTACK fails: BRAVOTESTUninvited
+  //     new `family_invitations` read                         comes back 'invited' on the
+  //                                                          strength of ALPHA's row
+  //   `invitationOpen: invited.has(p.id)` → `false`        BOTH halves FAIL — 'invited'
+  //                                                          collapses into 'pending-invite'
+  //
+  // The second is the one worth reading: it is the ONLY assertion in the suite covering the
+  // fifth read this action gained, and it fails on the attack half alone, by design. The
+  // fixture pair it leans on is `crossFamilyInvitation` and `uninvitedRecord` in seed.mjs.
   read('dues.getDuesProjection', 'app/actions/dues.ts', 'getDuesProjection', {
     // THE CONTROL IS ALPHA'S ADMINISTRATOR, not its plain member, and that is a fact about
     // the feature rather than a convenience. 20260817000000 registers this key
@@ -313,9 +340,28 @@ export const CASES = [
     expectAttack: (r, fx) =>
       r !== null
       && r.people.every(p => p.id !== fx.users.alphaMember.personId)
-      && r.projection.membersCounted === r.people.length,
+      && r.people.every(p => p.id !== fx.alpha.invitedRecord.id)
+      && r.projection.membersCounted === r.people.length
+      // BRAVO's OWN records ARE in BRAVO's projection, which is what stops the two lines
+      // above from passing on an empty roster — and is the attack half of the roster change.
+      && r.people.some(p => p.id === fx.bravo.invitedRecord.id)
+      && projectionStatus(r, fx.bravo.invitedRecord.id) === 'invited'
+      // THE DETECTOR for the family conjunct on the NEW invitations read. ALPHA holds an open
+      // invitation to this person's address (see `crossFamilyInvitation` in seed.mjs), so a
+      // projection that read `family_invitations` unscoped would report BRAVO's own record as
+      // Invited on the strength of a row ALPHA wrote.
+      && projectionStatus(r, fx.bravo.uninvitedRecord.id) === 'pending-invite',
     expectPositive: (r, fx) =>
-      r !== null && r.people.some(p => p.id === fx.users.alphaMember.personId),
+      r !== null
+      && r.people.some(p => p.id === fx.users.alphaMember.personId)
+      && projectionStatus(r, fx.users.alphaMember.personId) === 'active'
+      // THE ROSTER ASSERTION, and the reason this control was strengthened on 2026-08-18: a
+      // person with NO ACCOUNT is counted, because a projection is what the family is owed and
+      // a recorded relative owes it. Put `.filter(p => p.user_id)` back on the roster in
+      // getDuesProjection and this is the half that goes red.
+      && r.people.some(p => p.id === fx.alpha.invitedRecord.id)
+      && projectionStatus(r, fx.alpha.invitedRecord.id) === 'invited'
+      && projectionStatus(r, fx.alpha.uninvitedRecord.id) === 'pending-invite',
   }),
 
   // ── A drive is hidden from the people it is FOR ───────────────────────────
@@ -622,6 +668,18 @@ const resetAlphaName = async (db) => {
 }
 
 /** Snapshot of a table's rows for a family — the ground truth a write test needs. */
+/**
+ * Which of Dues Projections' three states one person came out as — 'active', 'invited' or
+ * 'pending-invite', or undefined for somebody the projection did not count at all.
+ *
+ * A helper rather than an inline `.find(...)` because both halves of `dues.getDuesProjection`
+ * ask it four times between them, and the interesting failure is `undefined`: a person missing
+ * from `projection.members` reads as "not counted", which is exactly the accounts-only
+ * behaviour the case exists to refuse.
+ */
+const projectionStatus = (r, personId) =>
+  r?.projection?.members?.find(m => m.personId === personId)?.status
+
 const snapshot = (table, cols, filter) => async (db) => {
   let q = db.from(table).select(cols).order('id')
   for (const [col, val] of Object.entries(filter)) q = q.eq(col, val)
@@ -3277,6 +3335,444 @@ export const REMOVAL_CASES = [
   },
 ]
 
+// ── THE MONEY-DELETION GUARD ────────────────────────────────────────────────────────
+//
+// `lib/money-attached.ts` refuses to delete a record money points at. Five actions consult
+// it, and NOTHING ANYWHERE PROVED ANY OF THEM DID until this block: the module's two pure
+// halves are covered by `lib/money-attached.test.ts`, and that file's header records the
+// mutation that survived it — deleting the `isUuid(id)` call changes nothing under vitest,
+// because `moneyAttachedTo` needs a database. Wiring is what this block asserts.
+//
+// THESE ARE NOT, MOSTLY, CROSS-FAMILY CASES, and the shape is inverted from the rest of the
+// file in a way worth reading before adding another. The usual write case is "BRAVO must
+// change nothing / ALPHA must change something". Here the interesting claim is that ALPHA's
+// OWN ADMINISTRATOR — every grant the family can confer, scope 'any' on everything — must
+// change nothing either, because the record is funded. So `attacker: 'alphaAdmin'`.
+//
+// AND THE CONTROL IS A DIFFERENT ROW RATHER THAN `positive: 'not-applicable'`. The runner
+// requires the control half to CHANGE something and reports "owner's own write did nothing"
+// as a failure, so the obvious reading of this shape is a skipped control. That was rejected:
+// a genuine control exists here, which is the same administrator deleting the MONEY-FREE
+// twin of the same kind of record, and it is the half that stops the attack assertion being
+// vacuous — an action that refuses every delete for every caller (a renamed grant, a typo in
+// the resource key, a guard that returns early) satisfies "the row is still there" perfectly.
+// So each case carries `positiveArgs` pointing at a spare row, and ONE probe watching BOTH:
+//
+//   attack   alphaAdmin deletes the FUNDED row      → both rows still present
+//   control  alphaAdmin deletes the MONEY-FREE row  → the spare is gone
+//
+// That is the `bothSpareChapters` pattern (see the note on it above) applied to a pair of
+// rows in one family rather than one row in each of two, and for the same reason: the runner
+// calls one probe for both halves, so a probe watching either row alone would report the
+// other half as a no-op.
+//
+// THE SPARES ARE SEEDED, NOT CREATED HERE, and `resetMoneyFreeRecords` puts each one back by
+// id before both halves of every case — `deletableChild`'s rule, and AGENTS.md §7's first
+// fixture failure mode. Every control below deletes its spare, so without the reset the case
+// after it would probe a row that had gone and read "unchanged" twice.
+//
+// ── CHECKED BY MUTATION, 2026-08-18 ─────────────────────────────────────────────────
+// Commands and observed results are recorded per case. The one general note: mutating the
+// guard makes an ATTACK half delete a fixture row that the rest of the fixture hangs off
+// (`f.fund` cascades its contribution, disbursement, transfer and milestones; `f.event`
+// cascades its photo, RSVP, assignment, budget lines and expense), which is why this block
+// is pushed LAST. Restore the guard and re-run the whole suite before trusting anything else
+// in the file.
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * Put every money-free spare row back: existing, and exactly as the fixture seeded it.
+ *
+ * RE-INSERTS BY ID, because every positive control in this block DELETES one of these. The
+ * columns are the ones the fixture states explicitly — a probe compares what it projects, so
+ * a restore that changed a value would make the next half's "before" differ from the last
+ * half's "after" and report a finding that was the setup's doing.
+ *
+ * Both families, though only ALPHA's rows are ever the subject: the attack half of the
+ * cross-family cases passes ALPHA's id, so BRAVO's spares are never touched. Resetting both
+ * costs one round trip and means a future case can attack in either direction without
+ * discovering that half the fixture is not restored.
+ */
+const resetMoneyFreeRecords = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    const rows = [
+      ['dues_schedules', {
+        id: f.deletableSchedule.id, family_code: f.familyCode,
+        label: f.deletableSchedule.label, amount_cents: f.deletableSchedule.amount_cents,
+        active: false,
+      }],
+      ['funds', {
+        id: f.deletableFund.id, family_code: f.familyCode, name: f.deletableFund.name,
+        created_by: f.deletableFund.created_by, active: true,
+      }],
+      // AFTER `funds`, and it has to be: fund_milestones.fund_id REFERENCES funds(id), and
+      // this milestone hangs off `f.fund` rather than off the spare — but a restore that ran
+      // before its parent existed would fail on the foreign key for a case that had deleted
+      // one. Ordering the list is cheaper than reasoning about which case ran last.
+      ['fund_milestones', {
+        id: f.deletableMilestone.id, fund_id: f.fund.id, family_code: f.familyCode,
+        name: f.deletableMilestone.name, amount_cents: f.deletableMilestone.amount_cents,
+        sort_order: f.deletableMilestone.sort_order,
+      }],
+      ['events', {
+        id: f.deletableEvent.id, family_code: f.familyCode, name: f.deletableEvent.name,
+        status: 'approved', created_by: f.deletableEvent.created_by,
+        event_date: f.deletableEvent.event_date,
+      }],
+      // AFTER `events`, same reason: event_budget_items.event_id REFERENCES events(id). This
+      // line sits on `f.event`, which no case deletes, so the ordering is documentation
+      // rather than a live dependency — keep it anyway.
+      ['event_budget_items', {
+        id: f.deletableBudgetItem.id, event_id: f.event.id, family_code: f.familyCode,
+        title: f.deletableBudgetItem.title, budget_cents: f.deletableBudgetItem.budget_cents,
+        sort_order: f.deletableBudgetItem.sort_order,
+        created_by: f.deletableBudgetItem.created_by,
+      }],
+    ]
+    for (const [table, row] of rows) {
+      const { error } = await db.from(table).upsert(row)
+      if (error) throw new Error(`setup ${table}: ${error.message}`)
+    }
+  }
+}
+
+/**
+ * The funded row and its money-free twin, in one string.
+ *
+ * The reason is `bothSpareChapters`': one probe serves both halves of a case, and here the
+ * halves aim at different rows on purpose. `.in()` rather than two queries so a row that has
+ * gone simply drops out of the array, which is the change the runner is looking for.
+ */
+const moneyPairProbe = (table, cols, ids) => async (db, fx) => {
+  const { data, error } = await db.from(table).select(cols).in('id', ids(fx)).order('id')
+  if (error) throw new Error(`probe ${table}: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+export const MONEY_CASES = [
+  // ── 1. THE REFUSAL, ONE CASE PER ACTION ───────────────────────────────────────────
+  //
+  // TO SEE EACH OF THESE FAIL — required before treating any of them as evidence. Delete the
+  // `moneyAttachedTo`/`attached.any` block from the action named in the case and re-run it:
+  //
+  //   node --import ./tests/rls/register.mjs ./tests/rls/run.mjs deleteDuesSchedule
+  //
+  // The ATTACK half goes red with ROW MUTATED and the funded row missing from the probe. The
+  // control half stays green, which is the point of having it: exactly one assertion moves.
+  {
+    kind: 'write',
+    id: 'dues.deleteDuesSchedule (a due with payments against it)',
+    mod: 'app/actions/dues.ts', fn: 'deleteDuesSchedule',
+    // THE REPORTED BUG, at its original size: a due with $50.00 collected against it, and
+    // `dues_payments.schedule_id` is ON DELETE SET NULL — so before 2026-08-17 the delete
+    // succeeded and the payment survived attributed to nothing, irreversibly, because that
+    // table is append-only and permits no update.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.schedule.id],
+    setup: resetMoneyFreeRecords,
+    probe: moneyPairProbe('dues_schedules', 'id, label',
+      fx => [fx.alpha.schedule.id, fx.alpha.deletableSchedule.id]),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableSchedule.id],
+  },
+  {
+    kind: 'write',
+    id: 'funds.deleteFund (a fund with money in it)',
+    mod: 'app/actions/funds.ts', fn: 'deleteFund',
+    // FOUR KINDS OF MONEY point at `f.fund` — a contribution, a disbursement, a transfer and
+    // (deliberately) no event expense — and three of the four CASCADE, so a successful delete
+    // does not orphan the ledger, it erases it and the family's collected total drops. The
+    // old check looked at transfers alone, which is why the probe is worth reading as a pair
+    // with the spare: a guard narrowed back to transfers passes nothing here.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.fund.id],
+    setup: resetMoneyFreeRecords,
+    probe: moneyPairProbe('funds', 'id, name',
+      fx => [fx.alpha.fund.id, fx.alpha.deletableFund.id]),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableFund.id],
+  },
+  {
+    kind: 'write',
+    id: 'funds.deleteMilestone (a milestone a disbursement is attributed to)',
+    mod: 'app/actions/funds.ts', fn: 'deleteMilestone',
+    // `fund_disbursements.milestone_id` is ON DELETE SET NULL: the payout stays in the ledger
+    // and what it was FOR is gone. The fixture attributes its one disbursement to `f.milestone`
+    // for exactly this case — see the note in seed.mjs on why the existing row was pointed at
+    // it rather than a second one being seeded.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.milestone.id],
+    setup: resetMoneyFreeRecords,
+    probe: moneyPairProbe('fund_milestones', 'id, name',
+      fx => [fx.alpha.milestone.id, fx.alpha.deletableMilestone.id]),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableMilestone.id],
+  },
+  {
+    kind: 'write',
+    id: 'admin/events.deleteEvent (an event with recorded spend)',
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
+    // `event_expenses.event_id` is ON DELETE CASCADE, so this is the erasing kind: the
+    // family's outgoings drop by the amount of the expense and nothing says they ever
+    // included it.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.event.id],
+    setup: resetMoneyFreeRecords,
+    probe: moneyPairProbe('events', 'id, name',
+      fx => [fx.alpha.event.id, fx.alpha.deletableEvent.id]),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableEvent.id],
+  },
+  {
+    kind: 'write',
+    id: 'admin/events.deleteEventBudgetItem (a budget line with an expense against it)',
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
+    // `event_expenses.budget_item_id` is ON DELETE SET NULL — the orphaning kind. Both budget
+    // lines sit on the same event, so the pair differs in one fact only: whether the expense
+    // names it.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.budgetItem.id],
+    setup: resetMoneyFreeRecords,
+    probe: moneyPairProbe('event_budget_items', 'id, title',
+      fx => [fx.alpha.budgetItem.id, fx.alpha.deletableBudgetItem.id]),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableBudgetItem.id],
+  },
+
+  // ── 2. THE GUARD DID NOT REPLACE THE PERMISSION MODEL ─────────────────────────────
+  //
+  // A refusal that applies to everybody is not a guard, it is an outage, and the five cases
+  // above cannot tell the two apart on their own — their control proves the action deletes
+  // for an administrator, and these prove it does NOT for the two callers who must never
+  // reach it. All three subjects are the MONEY-FREE spare, so the money guard is out of the
+  // result and what refuses is family scoping or the grant.
+  {
+    kind: 'write',
+    id: "funds.deleteFund (another family's fund)",
+    mod: 'app/actions/funds.ts', fn: 'deleteFund',
+    // The default attacker. `deleteFund` runs on the service-role client, so `.eq('family_code',
+    // familyCode)` on both the existence read and the DELETE is the whole of the defence —
+    // there is no policy underneath. Same PAIR finding as `deleteChapter` above: either
+    // conjunct alone is sufficient, so this is evidence for the pair and not for either.
+    args: fx => [fx.alpha.deletableFund.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('funds', 'id, name, family_code',
+      { id: fx.alpha.deletableFund.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'funds.deleteFund (same family, member with no grant)',
+    mod: 'app/actions/funds.ts', fn: 'deleteFund',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and approved,
+    // holds ALPHA's General template, and the only thing that may refuse them is
+    // `admin/account/funds:delete`. A guard bolted on above the grant check — or a grant check
+    // moved below it — would show up here and nowhere else.
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.deletableFund.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('funds', 'id, name, family_code',
+      { id: fx.alpha.deletableFund.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "dues.deleteDuesSchedule (another family's due)",
+    mod: 'app/actions/dues.ts', fn: 'deleteDuesSchedule',
+    args: fx => [fx.alpha.deletableSchedule.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('dues_schedules', 'id, label, family_code',
+      { id: fx.alpha.deletableSchedule.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "funds.deleteMilestone (another family's milestone)",
+    mod: 'app/actions/funds.ts', fn: 'deleteMilestone',
+    args: fx => [fx.alpha.deletableMilestone.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('fund_milestones', 'id, name, family_code',
+      { id: fx.alpha.deletableMilestone.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── 3. THE TWO EVENT DELETES HAD NO FAMILY CONJUNCT AT ALL ────────────────────────
+  //
+  // Until 2026-08-17 both of these took a bare id from the client and ran it through the
+  // SERVICE-ROLE client, so an events administrator in one family deleted another family's
+  // reunion — and its budget, its RSVPs and its photographs with it — by id. AGENTS.md §3.
+  // `getAuthenticatedAdmin()` had always returned the family code; the actions simply did not
+  // use it.
+  //
+  // TO SEE THESE FAIL: drop `.eq('family_code', familyCode)` from the DELETE in the action
+  // named. There is no second conjunct on either of these to stand in for it — no existence
+  // read, no policy — so unlike the `deleteChapter` pair, one mutation is the whole test.
+  {
+    kind: 'write',
+    id: "admin/events.deleteEvent (another family's event)",
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
+    args: fx => [fx.alpha.deletableEvent.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('events', 'id, name, family_code',
+      { id: fx.alpha.deletableEvent.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/events.deleteEventBudgetItem (another family's budget line)",
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
+    args: fx => [fx.alpha.deletableBudgetItem.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('event_budget_items', 'id, title, family_code',
+      { id: fx.alpha.deletableBudgetItem.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── 4. THE CRAFTED ID, and read what it does and does not prove ───────────────────
+  //
+  // `moneyAttachedTo` builds a PostgREST `or` expression by INTERPOLATING the id it was
+  // handed, which is a value that arrived in an HTTP request, and `isUuid(id)` is what makes
+  // that safe. Nothing under vitest can prove the check is CALLED — the surviving mutation
+  // recorded at the head of lib/money-attached.test.ts is exactly that — so it is asserted
+  // here, and this is the only case in this block that is read-shaped.
+  //
+  // WHY THIS ACTION. Three of the five read the row by `.eq('id', id)` before consulting the
+  // guard, and a non-uuid makes THAT query fail (22P02) so the action answers "not found"
+  // without the guard being reached at all. `deleteEvent` and `deleteEventBudgetItem` have no
+  // such read: `moneyAttachedTo` is the first thing they do with the id.
+  //
+  // WHY IT ASSERTS THE MESSAGE AND NOT A ROW, which is the finding rather than a preference,
+  // and it is the opposite of what the shape suggests. MEASURED against the local stack,
+  // 2026-08-18:
+  //
+  //   .eq('id', '<uuid>,fund_id.eq.<uuid>')   → 22P02, data null. postgrest-js encodes an
+  //                                             `eq` value and PostgREST reads the remainder
+  //                                             as a literal, so a filter VALUE is not
+  //                                             injectable — only `.or()`, whose whole
+  //                                             decoded value is parsed as an expression, is.
+  //   the DELETE with that same id            → 22P02, nothing deleted.
+  //
+  // So the row was never in danger: every one of the five actions ends in `.eq('id', id)` on
+  // a uuid column, which refuses a crafted id independently of this guard. A probe therefore
+  // cannot tell a wired `isUuid` from an unwired one — both leave the record standing — and a
+  // write-shaped case here would be a green tick over nothing. What DOES differ is the
+  // sentence the administrator gets, and that is what this asserts.
+  //
+  // AND WHY THE ID IS TWO ZERO UUIDS rather than the real event id plus an injected disjunct.
+  // `.or()` takes a comma-separated list of DISJUNCTS, so injecting one can only ever WIDEN
+  // the match — which is the safe direction, `any: true`, refuse. Handing it the real id would
+  // make the unguarded path count the real expense and produce the SAME refusal, so the case
+  // would pass under the mutation. Two ids that match nothing are what make the unguarded
+  // path fall through to the delete.
+  //
+  // CHECKED BY MUTATION, 2026-08-18. Delete the `if (!familyCode || !isUuid(id))` line from
+  // `moneyAttachedTo` and re-run:
+  //
+  //   node --import ./tests/rls/register.mjs ./tests/rls/run.mjs "crafted PostgREST"
+  //
+  // OBSERVED: the case goes red. `error` becomes
+  // `invalid input syntax for type uuid: "00000000-…-000000000000,fund_id.eq.00000000-…"`
+  // — the counts came back 0, `attached.any` was false, and the DELETE itself was what
+  // refused. Restore the line and it is the money sentence again.
+  read('admin/events.deleteEvent (a crafted PostgREST filter fragment for an id)',
+    'app/actions/admin/events.ts', 'deleteEvent', {
+      // ALPHA'S OWN ADMINISTRATOR, so the permission layer is out of the result and the only
+      // thing that can shape the answer is what the action does with the id.
+      attacker: 'alphaAdmin',
+      // `fund_id` is a real column on `event_expenses`, which is the table this kind counts,
+      // so this is the fragment an attacker would actually send rather than a nonsense string.
+      args: () => [`${ZERO_UUID},fund_id.eq.${ZERO_UUID}`],
+      // `moneyAttachedMessage` over an all-zero count says "money" rather than naming a
+      // payment, which is the fail-toward-refusing branch working as documented. Matching the
+      // clause rather than the whole sentence keeps this from breaking on a copy edit.
+      expectAttack: (r) => r?.success === false
+        && /has money recorded against it, so it cannot be deleted/.test(r.error ?? ''),
+      positive: 'not-applicable',
+      why: 'no caller has a legitimate crafted id to pass — there is no more-entitled actor to run this as, and the deleteEvent case in section 1 above proves the action still deletes an event nobody has spent against',
+    }),
+
+  // ── 3. THE FAMILY SCOPING THESE TWO ACTIONS DID NOT HAVE ──────────────────────────
+  //
+  // Separate from everything above, and not about money at all. `deleteEvent` and
+  // `deleteEventBudgetItem` ran on the SERVICE-ROLE client with no `family_code` conjunct —
+  // `.eq('id', id)` was the whole predicate — so an events administrator in one family could
+  // delete another family's reunion, and every RSVP, assignment, photo, budget line and
+  // expense that cascades from it, by passing its id. `getAuthenticatedAdmin` has always
+  // returned the family code; these two simply never used it (AGENTS.md §3). Both gained the
+  // conjunct on this branch, and these are the cases that make that a claim with evidence.
+  //
+  // WHY THEY ARE NEEDED WHEN SECTION 1 ALREADY DELETES EVENTS. Section 1's actors are all
+  // `alphaAdmin` acting on ALPHA, which is the money question and says nothing about
+  // isolation. These aim BRAVO's administrator — scope 'any' on every resource in their own
+  // family — at ALPHA's ids, so whatever they still reach, they reach because family scoping
+  // failed rather than because nobody checked a grant.
+  //
+  // THE SUBJECT IS THE SPARE, NOT THE FUNDED ROW, and that is the whole design of these two.
+  // Aimed at `f.event` the money guard would refuse the attacker first and the case would go
+  // green with the `.eq` deleted — evidence for the wrong layer. `f.deletableEvent` has no
+  // spend, so the ONLY thing standing between BRAVO's administrator and it is the family
+  // conjunct.
+  //
+  // ── THE CONTROL IS `alphaAdmin`, AND `bravoAdmin` CANNOT BE IT. FOUND BY RUNNING. ──
+  // The first version had both halves symmetric — BRAVO's administrator deleting BRAVO's own
+  // spare as the control — which passed when the two cases were run alone and FAILED in the
+  // full suite with "owner's own write did nothing".
+  //
+  // The cause is an ordering hazard worth knowing about for any case added at the end of this
+  // file. `my-families.createFamily` runs bravoAdmin as its attacker, twice, and creating a
+  // family MAKES IT THE CREATOR'S ACTIVE ONE. By the time MONEY_CASES runs, bravoAdmin holds
+  // three memberships and `user_family_settings.active_family_code` points at one of the
+  // families those cases minted — measured: `VAJ2Y2, WZW4H2, BRAVOTEST`, active `VAJ2Y2`. So
+  // `getMyFamilyCode(bravoAdmin)` no longer answers BRAVOTEST, and a write scoped to their
+  // active family cannot touch BRAVO's spare. Nothing was wrong with the action.
+  //
+  // So these use the canonical cross-family shape every other case in this file uses: BOTH
+  // halves pass ALPHA's id, and only the caller changes. It is order-independent, because it
+  // asks nothing about which family the ATTACKER is currently in — which is the right
+  // question anyway. `alphaAdmin` is safe as the control: measured, they end the run with
+  // exactly one membership, ALPHATEST, and no active-family override.
+  //
+  // CHECKED BY MUTATION, 2026-08-18. Both conjuncts removed at once — `.eq('family_code',
+  // familyCode)` from `deleteEvent`'s DELETE and from `deleteEventBudgetItem`'s — then
+  //
+  //   node --import ./tests/rls/register.mjs ./tests/rls/run.mjs "cross-family,"
+  //
+  // OBSERVED: `2 actions · 4 assertions · 2 passed · 2 failed`, both ATTACK halves red with
+  // ROW MUTATED and the runner reporting `2 ISOLATION FAILURE(S) — another family's data was
+  // reachable`. Both CONTROL halves stayed green, so exactly one assertion per case moves.
+  // Restored, and green again at 4/4 alone and 378/378 in the full suite.
+  //
+  // Re-run after the control actor changed from `bravoAdmin` to `alphaAdmin` (see below) —
+  // the earlier result was evidence for a case shape that no longer exists, and a mutation
+  // log describing a version of the case that is not in the file is worse than none.
+  //
+  // `resetMoneyFreeRecords` upserts BOTH families' spares, so a mutation run does not leave
+  // the fixture short for the run after it.
+  {
+    kind: 'write',
+    id: 'admin/events.deleteEvent (cross-family, an event with no money against it)',
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
+    args: fx => [fx.alpha.deletableEvent.id],
+    setup: resetMoneyFreeRecords,
+    // ALPHA's spare alone. A pair probe would add nothing here — both halves aim at the SAME
+    // row and what distinguishes them is who is calling.
+    probe: (db, fx) => snapshot('events', 'id, name',
+      { id: fx.alpha.deletableEvent.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/events.deleteEventBudgetItem (cross-family, a line with no expense against it)',
+    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
+    args: fx => [fx.alpha.deletableBudgetItem.id],
+    setup: resetMoneyFreeRecords,
+    probe: (db, fx) => snapshot('event_budget_items', 'id, title',
+      { id: fx.alpha.deletableBudgetItem.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+]
+
 // Order is load-bearing, and only here: APPROVAL_CASES decides two memberships and
 // leaves a third behind, so it runs after everything that reads the fixture.
 // SWEEP_CASES before APPROVAL_CASES for the same reason APPROVAL_CASES is last: those
@@ -3285,7 +3781,14 @@ export const REMOVAL_CASES = [
 // REMOVAL_CASES sits between them and touches nothing either of them reads — its
 // destructive control is aimed at CHARLIE, a family nothing else in this file mentions,
 // which is exactly why that family exists.
-CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ...APPROVAL_CASES)
+// MONEY_CASES IS AFTER APPROVAL_CASES, which is a second place order matters and a different
+// reason: nothing it reads is touched by the approvals (its actors are alphaAdmin, alphaMember
+// and bravoAdmin, and APPROVAL_CASES decides `applicant`, `rejectable` and `spare`), while a
+// MUTATION of the money guard makes one of its attack halves delete `f.fund` or `f.event` and
+// take a large part of the fixture with it. Last means a deliberate mutation reports one
+// finding instead of a cascade.
+CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ...APPROVAL_CASES,
+  ...MONEY_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.

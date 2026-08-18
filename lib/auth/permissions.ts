@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  getViewingMembership, isApproved,
+  getViewingMembership, isApproved, isActiveFamily, REMOVED_FAMILY_RESOURCES,
   type FamilyMembership, type MembershipStatus,
 } from '@/lib/auth/family'
 import { FEATURES, TAB_RESOURCES, requiredTier } from '@/lib/features'
@@ -308,8 +308,59 @@ export async function canOn(
  * the data underneath, so this is the friendly layer, not the only one.
  */
 export async function requireView(userId: string, resource: string): Promise<void> {
+  await requireFamilyActive(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
+}
+
+/**
+ * Send a member of a REMOVED family to the one screen that explains it.
+ *
+ * ── WHY IT IS FOLDED IN HERE, LIKE THE TIER CHECK ───────────────────────────────────
+ * The dashboard already refuses a removed family, and until this was added that was the
+ * ONLY refusal — so every other page stayed reachable by typing its URL. The member saw
+ * their family's roster and its figures on a screen belonging to a family the product had
+ * just told them was gone.
+ *
+ * The argument for folding it in is `requireTier`'s own, verbatim: a second line every page
+ * must also remember is a line three pages will not have. A page written next year is
+ * covered without its author knowing this exists.
+ *
+ * ── WHY IT REDIRECTS RATHER THAN 404s ───────────────────────────────────────────────
+ * The same shape as the tier wall, for the same reason. A 404 is right for a page an
+ * administrator has RESTRICTED, because confirming it exists would leak how the family is
+ * organized. A removed family is the opposite kind of fact: its own members are entitled to
+ * know, and `/dashboard` is where `FamilyRemoved` tells them. A 404 here would be the
+ * product declining to explain something it did on purpose.
+ *
+ * ── WHAT IT WITHHOLDS, AND WHAT IT MUST NOT ─────────────────────────────────────────
+ * SCREENS, never rows — the boundary the tier gate keeps, and here for a sharper reason.
+ * No RLS policy consults `families.status` and none may start to: `20260817000006`
+ * deliberately keeps the test out of `auth_family_code()`, because a conjunct there SKIPS
+ * to the caller's NEXT family rather than hiding this one, and the app and the policies
+ * would then disagree about which family a request is acting in. So the database answers
+ * normally and this is the whole of the app layer's contribution.
+ *
+ * It follows that the server ACTIONS behind these pages are deliberately NOT
+ * removal-checked. A restored family must find every record exactly where it left them,
+ * which is the same argument `requireTier` makes about a downgrade.
+ *
+ * `REMOVED_FAMILY_RESOURCES` is the exemption list, and it lives in `lib/auth/family.ts`
+ * rather than beside `PENDING_RESOURCES` below because this module imports that one and the
+ * reverse would be a cycle. Its four keys are the screens that still make sense: the notice
+ * itself, the member's own profile, the family switcher, and the manual.
+ */
+export async function requireFamilyActive(userId: string, resource: string): Promise<void> {
+  if (REMOVED_FAMILY_RESOURCES.includes(resource)) return
+
+  const membership = await getViewingMembership(userId)
+  // No membership at all is not this function's business. `requireView`'s own `can()` and
+  // `requireViewOrPending`'s `notFound()` already answer it, and answering it here would
+  // redirect somebody who belongs to no family to a dashboard that bounces them straight
+  // back — a loop, for a case that is already handled correctly one line down.
+  if (!membership) return
+
+  if (!isActiveFamily(membership.familyStatus)) redirect('/dashboard')
 }
 
 /**
@@ -384,6 +435,11 @@ export async function requireViewOrPending(
   // have not been admitted to, which is both confusing and a disclosure about somebody
   // else's billing. Answering "you are awaiting approval" first is correct in every
   // ordering of those two facts.
+  // AFTER the pending branch and BEFORE the tier check, which is the order the dashboard
+  // already uses. Pending first, because "you are awaiting approval" is the more specific
+  // truth for somebody who never got in; removal before tier, because a removed family's
+  // plan is not a fact worth sending anybody to /upgrade over.
+  await requireFamilyActive(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
   return { pending: false }

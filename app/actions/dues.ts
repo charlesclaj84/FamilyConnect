@@ -22,7 +22,9 @@ import {
   type DuesScheduleLike,
   type ScheduleKind,
 } from '@/lib/dues-utils'
-import { projectDues, type DuesProjection } from '@/lib/dues-projection'
+import {
+  projectDues, invitedPersonIds, type DuesProjection, type OpenInvitation,
+} from '@/lib/dues-projection'
 import {
   bloodlineIds, isLinkKind, relationFor, type LinkKind, type TreeLink,
 } from '@/lib/family-tree'
@@ -1894,7 +1896,16 @@ export interface ProjectionPerson {
 
 export interface DuesProjectionResult {
   projection: DuesProjection
-  /** The roster the member rows are joined to by id. */
+  /**
+   * The roster the member rows are joined to by id — EVERY approved person in the family,
+   * whether or not they have an account.
+   *
+   * It was accounts only until 2026-08-18. A projection is what the family is OWED and a
+   * recorded relative owes it, so leaving them out reported a debt smaller than the real one;
+   * `lib/dues-projection.ts`'s header carries the whole argument, including why the roster is
+   * NOT gated on the bloodline. `primary_email` is read to resolve invitations and is
+   * deliberately not on this shape — see the mapping at the end of `getDuesProjection`.
+   */
   people: ProjectionPerson[]
   /**
    * Region and chapter NAMES, keyed by id, for the schedules that are scoped to one.
@@ -1934,11 +1945,28 @@ export interface DuesProjectionResult {
  * reads, from the caller's own membership and never from an argument. There is no
  * parameter on this function at all, so there is no client-supplied id to check.
  *
+ * ── WHO IS COUNTED, AND WHY IT IS NO LONGER ACCOUNTS ONLY ───────────────────────────
+ * Every approved person in the family — the Member Directory's own set — rather than only the
+ * ones with an auth account. §4b's table says dues surfaces are accounts-only because "a
+ * record cannot pay or be paid", and that is right about a PICKER and wrong here: this screen
+ * is what the family is owed, and a grandmother on the tree who never finished registering
+ * owes her dues. `lib/dues-projection.ts`'s header is where that reversal is argued out,
+ * including why the roster is not gated on the bloodline.
+ *
+ * A FIFTH READ CAME WITH IT: the family's OPEN invitations, which is what separates somebody
+ * the family has asked from somebody it has not. It rides in the same `Promise.all` and is not
+ * made conditional on the roster containing an accountless row, because deciding that would
+ * need the roster back first and cost a second round trip to save an indexed read on a table
+ * with a handful of rows.
+ *
  * ── WHAT CROSSES THE BOUNDARY ───────────────────────────────────────────────────────
- * Totals and one row per member. No payment rows, no dates, no methods, no references —
+ * Totals and one row per person. No payment rows, no dates, no methods, no references —
  * the ledger is `/transactions`, behind its own grants, and a projection does not need to
  * republish it. What it does publish is every member's standing by name, which is why the
- * resource is `restricted` by default rather than `everyone` (§6).
+ * resource is `restricted` by default rather than `everyone` (§6). Since the roster grew, that
+ * now includes the names of people with no account; their names are already on the family tree
+ * and in the Directory, and no ADDRESS crosses — `primary_email` is read for the invitation
+ * join and dropped before the return.
  *
  * ── THE ARITHMETIC IS NOT HERE ──────────────────────────────────────────────────────
  * `projectDues` in lib/dues-projection.ts, pure and tested. This function decides who may
@@ -1957,20 +1985,29 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
   if (!familyCode) return null
   const admin = createAdminClient()
 
-  const [schedulesRes, peopleRes, paymentsRes, plansRes] = await Promise.all([
+  // ONE CLOCK for the invitation window below, read once so two rows a microsecond apart
+  // cannot be judged against two different "now"s.
+  const now = new Date().toISOString()
+
+  const [schedulesRes, peopleRes, paymentsRes, plansRes, invitesRes] = await Promise.all([
     admin.from('dues_schedules')
       .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_only, scope, region_id, chapter_id, required, kind')
       .eq('family_code', familyCode).eq('active', true).order('label'),
-    // ACCOUNTS ONLY, and `membership_status` as well. §4b draws the first line — "a record
-    // cannot pay or be paid" — and an applicant has not joined, so neither belongs in a
-    // figure the treasurer is going to present. `user_id` is selected so the records can be
-    // counted and reported rather than silently dropped.
+    // APPROVED, AND THAT IS THE ONLY TEST — no `user_id` filter, which is the change of
+    // 2026-08-18 and the reason the header has a section about §4b. This is the Member
+    // Directory's own set, so the two counts can no longer disagree; an applicant is still
+    // out, because they have not joined and nothing is owed by them yet.
+    //
+    // `user_id` is selected to DERIVE the three states rather than to filter on, and
+    // `primary_email` to join the open invitations to the people they are about — see
+    // `invitedPersonIds`. Neither reaches the browser.
+    //
     // `chapter_id` rides along for the SCOPE rule, and it is selected unconditionally
     // rather than only when a scoped schedule exists: this query is the roster and cannot
     // be re-run cheaply, so deciding per request whether to include one column would buy
     // nothing and could get it wrong. Null means the member is under National.
     admin.from('people')
-      .select('id, first_name, last_name, nick_name, date_of_birth, chapter_id, user_id')
+      .select('id, first_name, last_name, nick_name, date_of_birth, chapter_id, user_id, primary_email')
       .eq('family_code', familyCode).eq('membership_status', 'approved')
       .order('last_name').order('first_name'),
     admin.from('dues_payments')
@@ -1979,6 +2016,19 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     admin.from('dues_member_plans')
       .select('person_id, schedule_id, opted_out')
       .eq('family_code', familyCode),
+    // OPEN INVITATIONS: not accepted, not revoked, not expired. The same three conditions
+    // `peek_family_invitation` applies, so the screen and the link agree about what an open
+    // invitation is — an expired token cannot be redeemed, and reporting the family as having
+    // asked would report work as done.
+    //
+    // NO EMBED. `family_invitations` has THREE foreign keys to `people` — `invited_by`,
+    // `accepted_by` and `invited_person_id` — so a bare `people(...)` here is PGRST201, which
+    // §8 says arrives as `[]` and would silently file every invited relative under "nobody has
+    // asked them". Two plain columns and a join in TypeScript instead.
+    admin.from('family_invitations')
+      .select('email, invited_person_id')
+      .eq('family_code', familyCode)
+      .is('accepted_at', null).is('revoked_at', null).gt('expires_at', now),
   ])
 
   // §8: `data` alone cannot tell a refused query from an empty table, and here the two
@@ -1992,9 +2042,27 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     return null
   }
 
-  type PersonRow = ProjectionPerson & { chapter_id: string | null; user_id: string | null }
+  type PersonRow = ProjectionPerson & {
+    chapter_id: string | null; user_id: string | null; primary_email: string | null
+  }
   const roster = (peopleRes.data ?? []) as PersonRow[]
-  const accounts = roster.filter(p => p.user_id)
+
+  // §8 AGAIN, AND A DIFFERENT ANSWER FROM THE FOUR ABOVE. A refused invitations read costs
+  // one LABEL and no money: every accountless person then reads 'Pending Invite', which says
+  // "ask them" — recoverable, and visible. Failing the whole page instead would withhold four
+  // correct figures because a fifth caption is unavailable, and failing toward 'Invited' would
+  // report work as already done. Logged so the outage is not silent.
+  if (invitesRes.error) {
+    console.error('[dues-projection] could not read open invitations for ' + familyCode + ': '
+      + invitesRes.error.message)
+  }
+  const invited = invitedPersonIds(
+    roster.map(p => ({
+      personId: p.id, hasAccount: Boolean(p.user_id), email: p.primary_email,
+    })),
+    ((invitesRes.data ?? []) as { email: string; invited_person_id: string | null }[])
+      .map((r): OpenInvitation => ({ personId: r.invited_person_id, email: r.email })),
+  )
 
   // DUES ONLY. A donation is offered, never owed, so a drive in this total would invent a
   // debt — and the beneficiary policies from 20260811000000 do not apply to the admin
@@ -2036,8 +2104,14 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     schedules,
     bloodline,
     chapterRegions,
-    members: accounts.map(p => ({
-      personId: p.id, dateOfBirth: p.date_of_birth, chapterId: p.chapter_id,
+    // THE WHOLE APPROVED ROSTER. `hasAccount` and `invitationOpen` are what `memberStatus`
+    // derives Active / Invited / Pending Invite from; neither changes a figure.
+    members: roster.map(p => ({
+      personId: p.id,
+      dateOfBirth: p.date_of_birth,
+      chapterId: p.chapter_id,
+      hasAccount: Boolean(p.user_id),
+      invitationOpen: invited.has(p.id),
     })),
     payments: (paymentsRes.data ?? []).map(r => ({
       personId: r.person_id as string,
@@ -2051,15 +2125,17 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
       scheduleId: r.schedule_id as string,
       optedOut: Boolean(r.opted_out),
     })),
-    recordsExcluded: roster.length - accounts.length,
   })
 
-  // `user_id` AND `chapter_id` are dropped rather than passed through: the first identifies
-  // an auth account and the second has already done its work inside `projectDues`. Only the
-  // four columns the name helper reads cross the wire (§5).
+  // `user_id`, `chapter_id` AND `primary_email` are dropped rather than passed through: the
+  // first two have already done their work inside `projectDues` (the status and the scope
+  // rule), and the address was only ever read to join the open invitations. Only the four
+  // columns the name helper needs cross the wire (§5) — a roster of email addresses is PII
+  // this screen has no use for, and the RSC payload would carry it whether or not anything
+  // rendered it.
   return {
     projection,
-    people: accounts.map(p => ({
+    people: roster.map(p => ({
       id: p.id,
       first_name: p.first_name,
       last_name: p.last_name,
