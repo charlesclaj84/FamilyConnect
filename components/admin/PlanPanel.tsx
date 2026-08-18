@@ -12,7 +12,8 @@ import { verifyCurrentPassword } from '@/lib/supabase/client'
 import { useServerState } from '@/lib/use-server-state'
 import { setFamilyTier } from '@/app/actions/admin/family'
 import {
-  PLAN_ORDER, TIER_IS_SOLD, planAddsBetween, planChange,
+  PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice, monthsFreeOnAnnual,
+  planAddsBetween, planChange,
   type PlanChange, type PlanHighlight,
 } from '@/lib/plans'
 import {
@@ -191,6 +192,10 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
         {PLAN_ORDER.map(plan => {
           const included = tierMeets(current, plan)
           const isCurrent = plan === current
+          // `null` for Free, which has no price rather than a price of zero — see the
+          // comment beside the figure below.
+          const price = TIER_PRICE[plan]
+          const months = price ? monthsFreeOnAnnual(price) : null
           return (
             <li
               key={plan}
@@ -225,9 +230,29 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                   plan's card with — `TIER_TAGLINE` exists so the two cannot drift. */}
               <p className="mt-1 text-sm text-muted-foreground">{TIER_TAGLINE[plan]}</p>
 
-              {/* NO PRICE, ON ANY ROW. Pricing has not been announced, and a figure
-                  invented for an in-product screen is a commercial representation people
-                  budget against exactly as one on /pricing would be. See lib/plans.ts. */}
+              {/* THE PRICE, since 2026-08-17, and it is the same number `/pricing` shows —
+                  `TIER_PRICE` in lib/plans.ts is the one place it is written down, for the
+                  reason that file's header gives: two copies of a figure is how an
+                  administrator comes to read $10 here and $12 on the marketing site.
+
+                  Free renders nothing. It has no price rather than a price of zero, and
+                  "$0/month" on the row a family is already on is a number where a word
+                  belongs — the tagline above has already said what Free is.
+
+                  NOT A CHECKOUT, and the row says so separately: `TIER_IS_SOLD` is what
+                  draws the "Not sold yet" pill above, and it is false for both priced tiers.
+                  A figure and a purchase are different facts. */}
+              {price && (
+                <p className="mt-1 text-sm">
+                  <span className="font-semibold text-brand-ink">
+                    {formatPlanPrice(price.monthlyCents)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {' '}/month · or {formatPlanPrice(price.yearlyCents)} a year paid in advance
+                    {months ? ` (${months === 2 ? 'two' : months} months free)` : ''}
+                  </span>
+                </p>
+              )}
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 {/* A `<button>` STYLED AS A LINK, deliberately: it opens a dialog rather
@@ -552,7 +577,18 @@ function PlanDetailDialog({ plan, current, onClose }: {
             // already open, and the cut is what makes that sentence sayable at all.
             : `Your family is on ${TIER_LABEL[current]}. Here is what ${TIER_LABEL[plan]} `
               + 'would add, beside what you already have.'}
-        {!TIER_IS_SOLD[plan] && ' There is no payment step yet — nothing here is billed.'}
+        {!TIER_IS_SOLD[plan] && (() => {
+          // THE PRICE BELONGS IN THIS SENTENCE, not only on the row behind the dialog.
+          // Whoever opened "Features" is deciding, and the panel's own row is now covered
+          // by the dialog they opened to decide with. `TIER_PRICE` again — one figure,
+          // three renderings.
+          const price = TIER_PRICE[plan]
+          const rate = price
+            ? ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, or `
+              + `${formatPlanPrice(price.yearlyCents)} for the year paid in advance.`
+            : ''
+          return `${rate} There is no payment step yet — nothing here is billed.`
+        })()}
       </p>
 
       <div className={cn('mt-5 grid gap-3', splitAt && 'sm:grid-cols-2 sm:gap-4')}>

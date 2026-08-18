@@ -118,9 +118,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-top-bar',
             heading: 'The bar across the top',
             blocks: [
-              p('Four controls sit at the top right of every page.'),
+              p('Five controls sit at the top right of every page.'),
               defs(
                 { term: 'Family switcher', text: 'Shown when your account belongs to more than one family. Picking a different family reloads the page you are on as that family.' },
+                { term: 'Help', text: 'A question mark, linking to the chapter of this manual that describes the screen you are on. It is not there on the few screens no chapter covers yet, and not on these help pages.' },
                 { term: 'Bell', text: 'Your notifications, plus a standing row for any family with people waiting to be approved — including families you are not currently looking at.' },
                 { term: 'Appearance', text: 'Light, Dark, or System. It is remembered in this browser.' },
                 { term: 'Your name', text: 'Opens the account menu: [My Profile](/personal-info), [My Families](/my-families), appearance, and sign out.' },
@@ -188,6 +189,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'confirm-your-email',
+            heading: 'Confirming your email address',
+            blocks: [
+              p('However you register — a new family, a family code, or an invitation — a confirmation link is emailed to the address you signed up with, and the account cannot sign in until that link has been opened. It works once and expires after an hour, so use the newest message rather than an older one further up the same thread.'),
+              p('If you try to sign in before opening it, the sign-in page says the address is not confirmed and offers **Send the link again** underneath the form. Look in the spam folder before pressing it: a link that arrived and was overlooked is much the commonest reason for this, and another copy of it does not help.'),
+              note('Nobody is told whether that email arrived — not you, and not us — so the page says what it asked for rather than promising delivery. If nothing ever comes, the likeliest answer is that the address is not the one the account was registered with.'),
+            ],
+          },
+          {
             id: 'waiting',
             heading: 'While you are waiting',
             blocks: [
@@ -237,6 +247,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'One profile per family',
             blocks: [
               note('If you belong to more than one family, you have a separate profile in each. Editing this page changes the family you are currently viewing and nothing else — which is deliberate, because the address you give your in-laws is not always the one you give your cousins.'),
+            ],
+          },
+          {
+            id: 'chapter',
+            heading: 'Your chapter',
+            blocks: [
+              p('The block headed with your family\'s name holds one field that belongs to that family alone: which **Chapter** you are in. It appears only once the family has created some; if it has not, the block says so.'),
+              p('It decides two things. Your household moves with you — anybody recorded under you with no account of their own follows — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
             ],
           },
           {
@@ -821,6 +839,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'chapter-dues',
+            heading: 'Dues for one region or chapter',
+            blocks: [
+              p('A family can attach a due to one region or one chapter — a hall the Texas chapter rents, a scholarship the Eastern region funds. If a due of your family\'s belongs to a part of the family you are not in, it is not yours and does not appear on this screen, for the same reason a bloodline-only due does not.'),
+              p('Your chapter is on [My Profile](/personal-info), and you set it yourself. **If you have not chosen one you are under National**: you owe every family-wide due and no regional or chapter one. So if you expected a chapter\'s due to show up here and it has not, the first thing to check is that your profile says which chapter you are in.'),
+            ],
+          },
+          {
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
@@ -963,9 +989,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'who-is-counted',
             heading: 'Who is counted',
             blocks: [
-              p('Approved members **with an account**. Somebody recorded on the family tree without one is family, and is not somebody a cheque is expected from — the screen says how many those are so the member count can be reconciled against the [Directory](/members).'),
-              p('Three things reduce what a member owes, and all three are honoured: a due that starts at an age, an optional due they have declined, and anything the family has waived.'),
+              p('Everybody the family has approved — the same list the [Member Directory](/members) shows. Somebody recorded on the [family tree](/family-tree) who has never signed in owes their dues exactly as much as anybody else does, so they are counted. Leaving them out never made the debt smaller; it made this screen report a smaller one.'),
+              p('The **Status** column answers a different question from the money: whether there is anybody to send an invoice to.'),
+              defs(
+                { term: 'Active', text: 'They have an account, and the due shows on their own [Dues](/dues) screen.' },
+                { term: 'Invited', text: 'No account yet, and an invitation is still open. The family has asked, and the ball is with them.' },
+                { term: 'Pending Invite', text: 'Recorded in the family and never asked to join. This is the one of the three you can act on — invite them from the [family tree](/family-tree).' },
+              ),
+              note('An invitation that has **expired** reads as Pending Invite rather than Invited. An expired link cannot be accepted, so the family has to ask again, and saying otherwise would report work as done.'),
+              p('**Still to collect** says underneath it how much of itself is owed by people with no account. That is part of the total and never a deduction from it: the family is owed the money whether or not there is an inbox to send the bill to.'),
+              p('Five things reduce what somebody owes, and all five are honoured: a due that starts at an age, a due only the bloodline owes, a due for one region or chapter, an optional due they have declined, and anything the family has waived.'),
               note('Anyone with no date of birth recorded owes an age-limited due in full, because an age is never guessed at. If a figure looks too high, that is the first thing to check.'),
+              note('Somebody still waiting to be approved is **not** counted. They have not joined the family yet, so nothing is owed by them.'),
             ],
           },
           {
@@ -980,7 +1015,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Declined', text: 'Opted out of an optional due.' },
                 { term: 'Not yet due', text: 'Below the age that due starts at. Not the same as settled — they have paid nothing and owe nothing.' },
                 { term: 'Not theirs', text: 'The due is restricted to the bloodline and this member is outside it. Unlike "Not yet due", it will never become theirs.' },
+                { term: 'Elsewhere', text: 'The due is for one region or chapter and they are in another — or in none, which puts them under National. Unlike "Not theirs", this one changes if they change chapter.' },
               ),
+              note('**Standing** and **Status** are two different columns, and the row worth looking at is one that is both Nothing paid and Pending Invite. Standing is about the money; Status is about whether anybody can be asked for it.'),
               note('A bloodline-only due on a family that has not named its line is owed by nobody, and its row says so rather than showing an unexplained $0.00 expected.'),
               p('**Only those who owe** narrows the table, and the filter box searches any part of any name.'),
             ],
@@ -1010,7 +1047,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('A member with no date of birth recorded owes the due in full, because the product will not guess at an age. Adding a child to the [family tree](/family-tree) without an email address asks for a birthday for exactly this reason.'),
               p('**Bloodline only** restricts a due to the members descended from the family\'s line. Anybody who married in, and any step, adopted or foster relative, owes nothing and does not see it on their own Dues screen at all — a due that is never theirs is not listed as something they are not paying.'),
               note('The control is unavailable until your family has said which ancestor its line descends from, because without that there is no bloodline and the due would be owed by nobody. Set **Bloodline descends from** on the [family tree](/family-tree) first. Who is in the bloodline is worked out from the tree every time, so correcting a relationship — or moving that setting — changes who owes the due.'),
-              note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date and starting age are then fixed — every payment already recorded was made against those terms. The page tells you when one is in use. The end date can still change.'),
+              p('**Owed by** says which part of the family owes it: National — the whole family — or one region, or one chapter. It only appears once your family has a region or a chapter to choose; until then every due is National, which is what National means. A member with no chapter is under National and owes nothing scoped, so a chapter due bills only the people who have said they are in that chapter. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
+              note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date, starting age, bloodline setting and **Owed by** are then fixed — every payment already recorded was made against those terms. Changing who owes a due would restate whether people owed it for periods already billed, which is why it is on that list. The page tells you when one is in use. The end date can still change.'),
             ],
           },
           {
@@ -1057,7 +1095,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
   {
     id: 'admin',
     title: 'Running the family',
-    blurb: 'Who is in the family, what each of them may do, and what the family is called.',
+    blurb: 'Who is in the family, what each of them may do, how it is divided up, and what it is called.',
     chapters: [
       {
         slug: 'members-and-access',
@@ -1120,9 +1158,62 @@ export const HELP_PARTS: readonly HelpPart[] = [
         ],
       },
       {
+        slug: 'regions-and-chapters',
+        title: 'Regions & Chapters',
+        summary: 'Dividing a large family into regions and chapters, and what a member\'s chapter decides.',
+        route: '/admin/chapters',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Two levels, and National',
+            blocks: [
+              p('[Regions & Chapters](/admin/chapters) is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('**National** is the third thing on the screen and it is not a region you create. It is what everything belongs to until you file it somewhere else: a chapter with no region is under National, and so is any member who has not picked a chapter. It cannot be renamed, deleted or turned off, and every family has it.'),
+              note('Members choose their own chapter, on [My Profile](/personal-info). Nobody is assigned one from here — this screen decides which chapters EXIST.'),
+            ],
+          },
+          {
+            id: 'adding',
+            heading: 'Adding and moving',
+            blocks: [
+              steps(
+                'Type a name under **Add a region** and press **Add region**. "National" is refused, because it already exists.',
+                'Type a name under **Add a chapter**, choose **In region** — or leave it at National — and press **Add chapter**.',
+                'To move a chapter later, change the **Region** cell on its row. It saves immediately.',
+              ),
+              p('Moving a chapter between regions changes who owes a regional due, straight away. That is intended: the members really are in the new region now, so the new region\'s dues really are theirs.'),
+            ],
+          },
+          {
+            id: 'deleting',
+            heading: 'Deleting one, and when you cannot',
+            blocks: [
+              p('Deleting a region moves its chapters to National. Nobody\'s membership changes and no record is touched; the confirmation says how many chapters will move.'),
+              p('A chapter or region cannot be deleted while something still points at it. The row\'s Delete button is unavailable and says what is in the way — members in the chapter, a dues schedule scoped to it, an announcement addressed to it, or a board position held there.'),
+              p('That is a refusal rather than a tidy-up on your behalf, and deliberately so: somebody\'s chapter decides what they owe and who leads them, so moving fourteen people as a side effect of a delete is not a decision to make by accident. Move the members, re-scope the dues, then delete.'),
+              note('Nothing here is a dead end. Re-scope a due to the whole family under [Accounting](/admin/account?section=dues) and the region deletes.'),
+            ],
+          },
+          {
+            id: 'dues',
+            heading: 'What a chapter decides about money',
+            blocks: [
+              p('A dues schedule is owed by the whole family, by one region, or by one chapter — set with **Owed by** on the dues form under [Accounting](/admin/account?section=dues). See [Accounting](/help/accounting#dues).'),
+              defs(
+                { term: 'National', text: 'Every member owes it. The default, and the only option until you have created a region or a chapter.' },
+                { term: 'A region', text: 'Only members whose CHAPTER is in that region owe it.' },
+                { term: 'A chapter', text: 'Only members in that chapter owe it.' },
+              ),
+              p('**A member with no chapter is under National**, so a regional or chapter due does not apply to them at all — it does not appear on their [Dues](/dues) screen and they are never billed for it. That is the state every family starts in, and it is the commonest reason a new chapter due collects nothing: [Dues Projections](/dues-projections) says so on the schedule\'s row when nobody in the family is in the part it is for.'),
+              note('A member\'s region is worked out through their chapter every time it is asked. There is no separate region to set on a person, and moving a chapter into another region moves everybody in it with no further step.'),
+            ],
+          },
+        ],
+      },
+      {
         slug: 'family-settings',
         title: 'Settings',
-        summary: 'The family\'s name, the code relatives join with, and the plan it is on.',
+        summary: 'The family\'s name, the code relatives join with, the plan it is on, and how to switch it off.',
         route: '/admin/family',
         sections: [
           {
@@ -1144,7 +1235,19 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The panel at the top of the page shows which plan the family is on and what it includes, and is where an administrator moves it. See [Plans](/help/plans).'),
+              p('The panel at the top of the page shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
+            ],
+          },
+          {
+            id: 'removal',
+            heading: 'Removing the family',
+            blocks: [
+              p('**Remove this family**, at the bottom of the page, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
+              note('Nothing is deleted. Every payment, fund, photograph, event, message, document and person stays exactly where it is. Removing closes the family\'s doors; it destroys no records at all.'),
+              p('It takes two steps. **Email me a removal code** sends six digits to the address you sign in with — not to an address you type, and not to anybody else. **Enter the code and remove** then asks for those digits and for a confirmation. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries; ask for another with **Send another code**.'),
+              p('Members of a removed family are not left guessing. Signing in shows a screen saying the family was removed and that nothing was deleted, [My Families](/my-families) lists it with a **Removed** badge, and the family menu at the top of the page badges it too — so an account that belongs to more than one family carries on in the others exactly as before.'),
+              p('**Only GENORRA support can bring a family back.** There is no button for it anywhere in the product, deliberately: a family that could un-remove itself would not have been removed. If it was a mistake, write to support and ask.'),
             ],
           },
         ],
@@ -1215,6 +1318,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Three plans',
             blocks: [
               p('Free, Plus and Premium, and they are inclusive — Plus is everything in Free and more, Premium is everything in Plus and more. What each one includes is listed on the plan panel at the top of [Settings](/admin/family), which is the copy that is kept current.'),
+              p('Each paid plan shows two prices on that panel: one for paying monthly, and a lower one for the whole year paid in advance. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
+              note('Free is free, and not a trial. Plus and Premium have prices and are not on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Both cards say so.'),
             ],
           },
           {
@@ -1242,6 +1347,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
         title: 'If something looks wrong',
         summary: 'The handful of things that surprise people, and what is actually happening.',
         sections: [
+          {
+            id: 'cannot-sign-in',
+            heading: 'I cannot sign in at all',
+            blocks: [
+              p('If the sign-in page answers that your email address is not confirmed, the account exists and your password was right — it is waiting on the link that was emailed when it was registered. Press **Send the link again** in the panel underneath the form, then open the newest message. Each link works once and expires after an hour, so an older email in the same thread will not let you in.'),
+              p('Nothing tells us whether that email arrived, so the panel says what it asked for rather than claiming it was delivered. Check the spam folder, and if nothing comes at all, the address may not be the one the account was registered with — see [Confirming your email address](/help/joining-a-family#confirm-your-email).'),
+              p('A wrong password answers differently, and so does an address with no account: both say the credentials are invalid rather than naming the confirmation. If that is what you are seeing, ask for a reset link from the sign-in page instead.'),
+            ],
+          },
           {
             id: 'missing-page',
             heading: 'A page I was told about is not in my rail',
@@ -1282,6 +1396,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'I was approved but nothing changed',
             blocks: [
               p('It should change on its own within a minute, or as soon as you come back to the tab — the page checks rather than making you sign in again. If it has not, reloading the page will do it.'),
+            ],
+          },
+          {
+            id: 'what-is-this-screen',
+            heading: 'I do not understand what a screen is for',
+            blocks: [
+              p('Every screen with a chapter has a question mark at the top right, next to the bell, and it goes straight to that chapter. A few screens also carry a question mark beside one particular control — the Bloodline toggle on the [Family Tree](/family-tree), the plan on [Settings](/admin/family) — and that one goes to the paragraph about that control rather than to the top of the chapter.'),
+              p('If the question mark is not there, no chapter documents that screen yet. [The contents page](/help) lists everything the manual covers.'),
             ],
           },
         ],

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Clock, Home, Star } from 'lucide-react'
+import { Check, ChevronDown, Clock, Home, PowerOff, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
 import type { FamilyMembership } from '@/lib/auth/family'
 import {
@@ -126,6 +126,25 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                         screen, so the badge is what makes that a choice rather than a
                         surprise. It matters most for the account this menu exists for:
                         one waiting on two families at once. */}
+                    {/* A REMOVED FAMILY STAYS IN THIS LIST, badged. The alternative —
+                        dropping it — takes away the only route back to the screen that
+                        explains what happened to it, and a family disappearing from the
+                        switcher with no account of itself is the "the product is broken"
+                        conclusion 20260817000006 chose to keep set_active_family() open in
+                        order to avoid. Selecting it lands on the notice screen, so the
+                        badge is what makes that a choice rather than a surprise — exactly
+                        the argument the Pending badge below carries.
+
+                        `--brand-withheld`, not `--destructive`: nothing has been deleted.
+                        Tested positively for 'active', like every gate on this column. */}
+                    {family.familyStatus !== 'active' && (
+                      <span
+                        className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-withheld"
+                        title="This family has been removed"
+                      >
+                        <PowerOff className="h-3 w-3" /> Removed
+                      </span>
+                    )}
                     {family.status === 'pending' && (
                       <span
                         // --brand-accent, not text-amber-700. The amber was a raw

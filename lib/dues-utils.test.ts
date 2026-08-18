@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   ageShareOfPeriod,
   duesEligibility,
+  duesScope,
+  duesScopeMatch,
   annualTotalCents,
   currentPeriodStart,
   duesPlanMath,
@@ -23,6 +25,20 @@ import {
  *
  * `today` is a parameter of the function under test, so nothing here depends on when it is
  * run. That is the whole reason the parameter exists.
+ *
+ * ── THE SCOPE BLOCK WAS CHECKED BY MUTATION, per AGENTS.md §7b ──────────────────────
+ * A green run is not evidence until it has been seen to fail. Four mutations of
+ * `lib/dues-utils.ts`, each run against the whole suite; observed results, not expected:
+ *
+ *   `if (!chapterId) return 'no-chapter'` -> `'owed'`
+ *      2 failed — this file's "NO chapter" case and dues-projection's
+ *   dropping `memberRegion !== null &&` from the regional comparison
+ *      1 failed — "never matches a regional due whose own region is missing", which is the
+ *      one shape that would otherwise bill a member under National for a region's levy
+ *   the chapter comparison replaced by `return 'owed'`
+ *      6 failed across both files
+ *   `duesScope` returning the raw column instead of normalizing it
+ *      1 failed — "reads everything else as national"
  */
 
 /** $600 a year, billed annually, opening on New Year's Day. The worked example. */
@@ -519,6 +535,121 @@ describe('duesEligibility', () => {
     // An empty set is a real answer — the anchor is set and nobody qualifies — and it is
     // NOT the same state as having no anchor at all.
     expect(eligible({ bloodlineOnly: true, bloodline: new Set() })).toBe('not-in-bloodline')
+  })
+})
+
+// ── WHICH PART OF THE FAMILY OWES A DUE ─────────────────────────────────────────────
+//
+// The third reduction, and a different KIND from the other two: `start_age` is on a timer
+// and `bloodline_only` never moves, while this one changes the day somebody switches chapter
+// or a chapter switches region. The two cases that decide the design are the member with NO
+// chapter (under National, owes nothing scoped) and the region, which is DERIVED through the
+// chapter and is never stored on the person.
+
+describe('duesScope, which normalizes what the column holds', () => {
+  const of = (scope: unknown): string =>
+    duesScope({ amount_cents: 0, frequency: 'annual', scope: scope as string | null })
+
+  it('reads the two targeted values', () => {
+    expect(of('regional')).toBe('regional')
+    expect(of('chapter')).toBe('chapter')
+  })
+
+  it('reads everything else as national', () => {
+    // The column being absent (a database that has not run 20260817000008), NULL, and a
+    // word nothing recognizes. All three mean the schedule names no part of the family, and
+    // the only schedule that names no part of the family is a national one.
+    expect(of(undefined)).toBe('national')
+    expect(of(null)).toBe('national')
+    expect(of('national')).toBe('national')
+    expect(of('planetary')).toBe('national')
+    expect(of('')).toBe('national')
+  })
+})
+
+describe('duesScopeMatch', () => {
+  // Ada is in Houston, which is in Texas. Atlanta is a real chapter under National — the
+  // state that makes "another region" distinguishable from "no chapter at all".
+  const CHAPTERS = new Map<string, string | null>([['houston', 'texas'], ['atlanta', null]])
+  const match = (over: {
+    scope?: string | null
+    region_id?: string | null
+    chapter_id?: string | null
+    memberChapterId?: string | null
+    chapterRegions?: ReadonlyMap<string, string | null>
+  }) => duesScopeMatch({
+    schedule: {
+      amount_cents: 12_000, frequency: 'annual',
+      scope: over.scope ?? 'national',
+      region_id: over.region_id ?? null,
+      chapter_id: over.chapter_id ?? null,
+    },
+    memberChapterId: over.memberChapterId === undefined ? 'houston' : over.memberChapterId,
+    chapterRegions: over.chapterRegions ?? CHAPTERS,
+  })
+
+  it('is owed by everybody when the due is national', () => {
+    // And the chapter is not consulted at all, which is what makes National free of every
+    // setup step: a family with no chapters, and a member in none, still owes it.
+    expect(match({ scope: 'national' })).toBe('owed')
+    expect(match({ scope: null, memberChapterId: null })).toBe('owed')
+    expect(match({ scope: undefined, memberChapterId: null, chapterRegions: new Map() }))
+      .toBe('owed')
+  })
+
+  it('is owed by a member IN the chapter', () => {
+    expect(match({ scope: 'chapter', chapter_id: 'houston' })).toBe('owed')
+  })
+
+  it('is not owed by a member in a different chapter', () => {
+    expect(match({ scope: 'chapter', chapter_id: 'dallas' })).toBe('other-chapter')
+  })
+
+  it('is owed by a member whose CHAPTER is in the region', () => {
+    // Derived, not stored: nothing on the member says "texas". Houston is what puts them
+    // in it, which is why moving a chapter between regions changes who owes this.
+    expect(match({ scope: 'regional', region_id: 'texas' })).toBe('owed')
+  })
+
+  it('is not owed by a member whose chapter is in another region', () => {
+    expect(match({ scope: 'regional', region_id: 'eastern' })).toBe('other-region')
+  })
+
+  it('is not owed by a member whose chapter is under National', () => {
+    // Atlanta maps to null. A chapter with no region is not in every region — it is in
+    // none, which is what National means one level down.
+    expect(match({ scope: 'regional', region_id: 'texas', memberChapterId: 'atlanta' }))
+      .toBe('other-region')
+  })
+
+  it('is not owed by a member with NO chapter, and says which case that is', () => {
+    // The rule the help chapter states: an unplaced member is under National. Reported
+    // distinctly from 'other-chapter' because the fix differs — they need a chapter, not a
+    // different one.
+    expect(match({ scope: 'chapter', chapter_id: 'houston', memberChapterId: null }))
+      .toBe('no-chapter')
+    expect(match({ scope: 'regional', region_id: 'texas', memberChapterId: null }))
+      .toBe('no-chapter')
+  })
+
+  it('does not owe a regional due when the chapter map is empty', () => {
+    // A caller that did not load chapters, or whose read was refused. Under-billing is
+    // visible on Dues Projections; over-billing the wrong half of the family is not.
+    expect(match({ scope: 'regional', region_id: 'texas', chapterRegions: new Map() }))
+      .toBe('other-region')
+  })
+
+  it('never matches a regional due whose own region is missing', () => {
+    // A row the CHECK from 20260817000008 refuses, and the one shape that would otherwise
+    // bill everybody: a member under National (region null) matching a schedule with a null
+    // region. `?? null` on both sides is what closes it.
+    expect(match({ scope: 'regional', region_id: null, memberChapterId: 'atlanta' }))
+      .toBe('other-region')
+  })
+
+  it('never matches a chapter due whose own chapter is missing', () => {
+    expect(match({ scope: 'chapter', chapter_id: null, memberChapterId: 'houston' }))
+      .toBe('other-chapter')
   })
 })
 

@@ -82,8 +82,22 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     key. `getDuesProjection()` therefore uses canAny(), so an 'own' set here would
  *     read as a denial and the cell would light up as a grant that hands back nothing.
  *     Dropping the button is what keeps the grid honest about that.
+ *
+ *     `admin/family/remove` is the fourth, and it inherits its parent's reason exactly:
+ *     there is one family row and nobody owns it, so `removeFamily()` gates with
+ *     requireDelete — which is requireScope(…, 'delete') and therefore canAny(). An 'own'
+ *     set here would read as a denial at the server while lighting the cell up as a grant.
+ *     20260817000006 §4 asks for this line by name.
+ *
+ *     `admin/chapters` is the fifth, and it was already true before the key was reachable:
+ *     `permission_table_map` gives both `regions` and `chapters` `own_expr = 'false'`, so
+ *     the composed policies read an 'own' grant as `… = 'own' AND false` — a denial. Every
+ *     write in `app/actions/admin/chapters.ts` uses `requireScope`, which is canAny, for the
+ *     same reason: a region belongs to the family and nobody owns one.
  */
-const NO_OWNER_KEYS: readonly string[] = ['admin/family', 'dues-projections']
+const NO_OWNER_KEYS: readonly string[] = [
+  'admin/family', 'admin/family/remove', 'dues-projections', 'admin/chapters',
+]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []

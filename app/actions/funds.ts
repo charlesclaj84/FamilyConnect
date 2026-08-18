@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { canAny } from '@/lib/auth/permissions'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
 import { formatCurrency } from '@/lib/currency-utils'
@@ -565,30 +566,25 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
     }
   }
 
-  // A fund that has taken part in a transfer is not deletable, and this is the gate
-  // rather than a database constraint on purpose.
+  // ── MONEY, ALL FOUR KINDS OF IT ────────────────────────────────────────────────
+  // This was a transfers-only check until 2026-08-17, and the reasoning it carried is
+  // still right and still recorded in lib/money-attached.ts: the guard belongs in the
+  // action rather than in a RESTRICT constraint, because RESTRICT would make a fund
+  // permanently undeletable with a bare 23503 for a message and would deadlock the RLS
+  // fixture's teardown against the append-only triggers, whose only permitted delete path
+  // is precisely the cascade.
   //
-  // Both foreign keys on fund_transfers are ON DELETE CASCADE, matching every other
-  // money table — which here would mean deleting THIS fund silently erases the record
-  // of the OTHER one receiving money it still holds, changing a balance nobody asked
-  // to change. RESTRICT was the alternative and is worse: it would make a fund
-  // permanently undeletable with a bare 23503 for a message, and it would deadlock the
-  // RLS fixture's teardown against the append-only trigger, whose only permitted
-  // delete path is precisely that cascade.
+  // What it was WRONG about is which money counts. `fund_contributions.fund_id` and
+  // `fund_disbursements.fund_id` are both ON DELETE CASCADE, so deleting a fund with a
+  // balance did not orphan its ledger — it ERASED it, and the family's collected total
+  // silently dropped. The transfer case was caught because it changes another fund's
+  // balance; the plainer case, of destroying this fund's own history, was not.
   //
-  // So the cascade stays as the cleanup path of last resort, and the decision is made
-  // here, in words, where the person clicking Delete can read it.
-  const { data: entangled } = await admin
-    .from('fund_transfers')
-    .select('id')
-    .eq('family_code', familyCode)
-    .or(`from_fund_id.eq.${id},to_fund_id.eq.${id}`)
-    .limit(1)
-  if (entangled && entangled.length > 0) {
-    return {
-      success: false,
-      message: `${existing.name} has transfers recorded against it. Deleting it would rewrite the balance of the fund on the other side, so it cannot be removed.`,
-    }
+  // `event_expenses.fund_id` is SET NULL and is in the list too: an event's spend charged
+  // to nothing is a figure with no source.
+  const attached = await moneyAttachedTo('fund', id, familyCode)
+  if (attached.any) {
+    return { success: false, message: moneyAttachedMessage(existing.name, attached) }
   }
 
   // Family-scoped: this deletes a balance and every milestone hanging off it, and the
@@ -661,6 +657,25 @@ export async function deleteMilestone(id: string): Promise<{ success: boolean; m
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/account/milestones', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
+
+  // A milestone is what a disbursement was FOR, and `fund_disbursements.milestone_id` is
+  // ON DELETE SET NULL — so deleting one that has been paid against leaves the payout in
+  // the ledger attributed to nothing, permanently, because that table is append-only and
+  // permits no update. The money is still counted; the reason it left is gone.
+  //
+  // The name is read for the message rather than for the delete: `.eq('family_code', …)`
+  // below is what scopes the write, and this row would be `null` for another family's id.
+  const { data: existing } = await admin
+    .from('fund_milestones').select('name').eq('id', id).eq('family_code', familyCode).maybeSingle()
+  if (!existing) return { success: false, message: 'Milestone not found' }
+
+  const attached = await moneyAttachedTo('fund_milestone', id, familyCode)
+  if (attached.any) {
+    return {
+      success: false,
+      message: moneyAttachedMessage(existing.name ? `“${existing.name}”` : 'This milestone', attached),
+    }
+  }
 
   const { error } = await admin.from('fund_milestones').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }

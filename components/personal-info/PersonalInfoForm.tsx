@@ -26,6 +26,7 @@ import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity
 import {
   PROFILE_SECTION_LABELS, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
+import { formatPhone } from '@/lib/phone-format'
 
 // ── `useWatch`, never `watch()` ────────────────────────────────────────────────
 //
@@ -239,6 +240,18 @@ function ChapterBlock({
         Your chapter applies to this family only — the rest of your profile is shared
         across every family you belong to. Changing it moves your household with you.
       </p>
+      {/* WHAT IT DECIDES ABOUT MONEY, said here because this is the only screen that sets
+          it and 20260817000008 made it consequential: a due can belong to one region or one
+          chapter, and somebody with no chapter is under National and owes neither. A member
+          wondering why a chapter's due is not on their Dues screen has to be able to find
+          the answer at the control that causes it. */}
+      {chapters.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          It can also decide what you owe: a family can attach dues to one region or one
+          chapter. Choosing nothing leaves you under National, owing the family-wide dues
+          and none of the local ones.
+        </p>
+      )}
     </div>
   )
 }
@@ -380,7 +393,7 @@ function GeneralSection({
             <Field label="Nickname"       value={existing?.nick_name ?? null} />
             <Field label="Suffix"         value={existing?.suffix} />
             <Field label="Email"          value={existing?.primary_email} />
-            <Field label="Phone"          value={existing?.primary_phone} />
+            <Field label="Phone"          value={formatPhone(existing?.primary_phone)} />
             {/* genderLabel() rather than the raw column: the row holds 'male', the
                 screen says Male. It returns '' for a value it does not recognise, so
                 Field falls through to "Not set" instead of printing a token. */}

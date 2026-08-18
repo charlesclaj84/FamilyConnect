@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  getViewingMembership, isApproved,
+  getViewingMembership, isApproved, isActiveFamily, REMOVED_FAMILY_RESOURCES,
   type FamilyMembership, type MembershipStatus,
 } from '@/lib/auth/family'
 import { FEATURES, TAB_RESOURCES, requiredTier } from '@/lib/features'
@@ -21,7 +21,21 @@ import { tierMeets } from '@/lib/tiers'
  *      (resource, action). A person is assigned at most one template and it is the
  *      whole of their access.
  *   2. Default. For 'view', the family's page visibility ('everyone' => any,
- *      'restricted' => none). For create/edit/delete, none — it fails closed.
+ *      'restricted' => none) — and where the family has NO visibility row, an ADMIN
+ *      key denies while everything else allows. For create/edit/delete, none.
+ *
+ * THE ADMIN HALF OF STEP 2 ARRIVED 2026-08-17 (20260817000004) and closes Phase 3's
+ * second leftover. `resource_visibility` is written by migrations and by
+ * `seed_family_permission_templates()` and by nothing else — there is no UI for it —
+ * so an absent row is the ORDINARY state for a key whose migration forgot §6's
+ * backfill, not an unusual one. Defaulting that to 'everyone' is how `admin/approvals`
+ * came to be born world-readable and then backfilled out of it; defaulting it to
+ * 'restricted' makes the same omission fail loudly instead.
+ *
+ * "Admin" is two tests, because only one of them can answer for an unregistered key:
+ * `category = 'admin'` where the resource is registered, and the `admin/` prefix where
+ * it is not. The migration asserts the two cannot disagree for a registered row, which
+ * is what licenses the prefix — see `isAdminResource` below.
  *
  * There is no second layer to reconcile. 20260807000000 replaced group membership
  * (N groups, unioned, beating a per-person override grid) with a single template,
@@ -72,6 +86,31 @@ export interface PermissionSet {
 }
 
 const key = (resource: string, action: PermissionAction) => `${resource}:${action}`
+
+/**
+ * Whether a resource key is one an ADMINISTRATOR holds rather than one a member does —
+ * which decides what happens when the family has said nothing about it.
+ *
+ * ── THE PREFIX IS THE TEST, AND THAT IS A DECISION ──────────────────────────────────
+ * `permission_resources.category` is the database's answer, and reading it here would
+ * mean a third admin-client query on a resolver the sidebar already calls for every
+ * resource in the catalogue. The prefix is free, pure, and needs no round trip.
+ *
+ * It is sound because `20260817000004` §1 ASSERTS the two signals cannot disagree: every
+ * `category = 'admin'` row is shaped `admin/…` and every `admin/…` row is
+ * `category = 'admin'`, in both directions, or the migration refuses to apply. So the
+ * catalogue cannot drift out from under this without a deploy failing first.
+ *
+ * It is also the only test available for the case this exists for — a key with no
+ * `permission_resources` row at all, which has no category to read. The SQL twin does the
+ * same thing in the same order: category where there is one, prefix where there is not.
+ *
+ * The legacy branch of `resolveScope` has used this prefix since 20260618000000, for the
+ * same reason and with the same words.
+ */
+function isAdminResource(resource: string): boolean {
+  return resource.startsWith('admin/')
+}
 
 const EMPTY: PermissionSet = {
   personId: '', familyCode: '', resolved: new Map(), restricted: new Set(),
@@ -189,7 +228,17 @@ export function resolveScope(
   const explicit = perms.resolved.get(key(resource, action))
   if (explicit) return explicit
 
-  if (action === 'view') return perms.restricted.has(resource) ? 'none' : 'any'
+  // THE DEFAULT, and its admin half is the 2026-08-17 change (20260817000004). An
+  // explicit grant above still wins either way — this decides only what the ABSENCE of
+  // an answer means, and for an admin key the absence must not mean "everyone".
+  //
+  // Mirrors auth_permission()'s default branch exactly, which is not a style note: the
+  // database enforces the same rule through RLS and a divergence here renders
+  // affordances the policies will refuse, or hides ones they would allow.
+  if (action === 'view') {
+    if (perms.restricted.has(resource)) return 'none'
+    return isAdminResource(resource) ? 'none' : 'any'
+  }
   return 'none'
 }
 
@@ -259,8 +308,59 @@ export async function canOn(
  * the data underneath, so this is the friendly layer, not the only one.
  */
 export async function requireView(userId: string, resource: string): Promise<void> {
+  await requireFamilyActive(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
+}
+
+/**
+ * Send a member of a REMOVED family to the one screen that explains it.
+ *
+ * ── WHY IT IS FOLDED IN HERE, LIKE THE TIER CHECK ───────────────────────────────────
+ * The dashboard already refuses a removed family, and until this was added that was the
+ * ONLY refusal — so every other page stayed reachable by typing its URL. The member saw
+ * their family's roster and its figures on a screen belonging to a family the product had
+ * just told them was gone.
+ *
+ * The argument for folding it in is `requireTier`'s own, verbatim: a second line every page
+ * must also remember is a line three pages will not have. A page written next year is
+ * covered without its author knowing this exists.
+ *
+ * ── WHY IT REDIRECTS RATHER THAN 404s ───────────────────────────────────────────────
+ * The same shape as the tier wall, for the same reason. A 404 is right for a page an
+ * administrator has RESTRICTED, because confirming it exists would leak how the family is
+ * organized. A removed family is the opposite kind of fact: its own members are entitled to
+ * know, and `/dashboard` is where `FamilyRemoved` tells them. A 404 here would be the
+ * product declining to explain something it did on purpose.
+ *
+ * ── WHAT IT WITHHOLDS, AND WHAT IT MUST NOT ─────────────────────────────────────────
+ * SCREENS, never rows — the boundary the tier gate keeps, and here for a sharper reason.
+ * No RLS policy consults `families.status` and none may start to: `20260817000006`
+ * deliberately keeps the test out of `auth_family_code()`, because a conjunct there SKIPS
+ * to the caller's NEXT family rather than hiding this one, and the app and the policies
+ * would then disagree about which family a request is acting in. So the database answers
+ * normally and this is the whole of the app layer's contribution.
+ *
+ * It follows that the server ACTIONS behind these pages are deliberately NOT
+ * removal-checked. A restored family must find every record exactly where it left them,
+ * which is the same argument `requireTier` makes about a downgrade.
+ *
+ * `REMOVED_FAMILY_RESOURCES` is the exemption list, and it lives in `lib/auth/family.ts`
+ * rather than beside `PENDING_RESOURCES` below because this module imports that one and the
+ * reverse would be a cycle. Its four keys are the screens that still make sense: the notice
+ * itself, the member's own profile, the family switcher, and the manual.
+ */
+export async function requireFamilyActive(userId: string, resource: string): Promise<void> {
+  if (REMOVED_FAMILY_RESOURCES.includes(resource)) return
+
+  const membership = await getViewingMembership(userId)
+  // No membership at all is not this function's business. `requireView`'s own `can()` and
+  // `requireViewOrPending`'s `notFound()` already answer it, and answering it here would
+  // redirect somebody who belongs to no family to a dashboard that bounces them straight
+  // back — a loop, for a case that is already handled correctly one line down.
+  if (!membership) return
+
+  if (!isActiveFamily(membership.familyStatus)) redirect('/dashboard')
 }
 
 /**
@@ -335,6 +435,11 @@ export async function requireViewOrPending(
   // have not been admitted to, which is both confusing and a disclosure about somebody
   // else's billing. Answering "you are awaiting approval" first is correct in every
   // ordering of those two facts.
+  // AFTER the pending branch and BEFORE the tier check, which is the order the dashboard
+  // already uses. Pending first, because "you are awaiting approval" is the more specific
+  // truth for somebody who never got in; removal before tier, because a removed family's
+  // plan is not a fact worth sending anybody to /upgrade over.
+  await requireFamilyActive(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
   return { pending: false }
@@ -471,9 +576,17 @@ export async function scopeInFamilies(
     }
     // The same fall-through resolveScope applies, and for the same reason: a resource
     // registered by a later migration has no row in a template that already existed.
+    //
+    // THE ADMIN CONJUNCT IS HERE TOO, and this is the copy TODO.md forgot when it said
+    // the fix needed "auth_permission() and resolveScope() changed together". There are
+    // THREE resolvers, and this one's only consumer is `getPendingApprovalQueues()` on
+    // the key `admin/approvals` — an admin key. Left behind, the bell would tell an
+    // administrator a queue was waiting in a family whose page then answered 404.
     out.set(
       row.family_code,
-      action === 'view' ? (restricted.has(row.family_code) ? 'none' : 'any') : 'none',
+      action === 'view'
+        ? (restricted.has(row.family_code) || isAdminResource(resource) ? 'none' : 'any')
+        : 'none',
     )
   }
 

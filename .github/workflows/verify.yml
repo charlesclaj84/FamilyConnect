@@ -1,7 +1,7 @@
 # Everything that must be true before a merge is allowed to apply migrations to the
 # production database. Nothing here touches a hosted project.
 #
-# The point of this file is that deploy.yml applies migrations UNATTENDED on merge to
+# The point of this file is that migrate.yml applies migrations UNATTENDED on merge to
 # master. That is only safe if the chain has been proved to apply to an empty database
 # first, which AGENTS.md has always asked for ("Verify with `npx supabase db reset`, not
 # by reading") and which nothing has ever enforced.
@@ -14,7 +14,7 @@ on:
     branches: [dev]
 
 # A second push to the same PR asks the same question again, so abandon the first run.
-# Production deploys are the opposite case — see the note in deploy.yml.
+# Production migrations are the opposite case — see the note in migrate.yml.
 concurrency:
   group: verify-${{ github.ref }}
   cancel-in-progress: true
@@ -42,10 +42,36 @@ jobs:
       - name: Migration chain checks
         run: npm run db:check
 
+      # ADDED 2026-08-17, and worth saying why it was not here before: it simply was not.
+      # AGENTS.md §7b describes `npm test` as one of the repo's two real runners — vitest over
+      # the pure modules under `lib/` — and it has been laptop-only since the day it was
+      # written, which means every assertion in it (`lib/dues-utils.test.ts`,
+      # `lib/help/inline.test.ts`) gated exactly nothing on a pull request. A test nobody runs
+      # is a comment. Needs no database and no network, so it sits with the other cheap checks.
+      - name: Unit tests
+        run: npm test
+
+      # The manual, checked mechanically. Same shape and same reason as `db:check` above: no
+      # database, no network, exits 1 on a finding. It cannot check that a chapter still
+      # describes its screen — nothing can — but it removes the mechanical half from a
+      # reviewer's attention so the unmechanical half gets it.
+      - name: Help manual checks
+        run: npm run help:check
+
+      # Phase 3's third leftover, turned from a rule into a gate. The two `people` guards
+      # bound the ROLE the browser speaks as, not the column — deliberately, because
+      # link-person and the RLS fixture both need the service role to move
+      # `membership_status`. That left "any new service-role write to `people` owes the same
+      # look" as prose in AGENTS.md, which is only ever as good as the next person having
+      # read it. This fails until the new write has a stated verdict against the three
+      # questions. Static; no database, no network.
+      - name: Service-role writes to `people` are reviewed
+        run: npm run audit:people
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in
-          # deploy.yml, and `npx supabase` without a pin fetches whatever npm served that
+          # migrate.yml, and `npx supabase` without a pin fetches whatever npm served that
           # day — an unreviewed CLI upgrade between two deploys is not a thing to discover
           # from a schema change.
           version: 2.114.0
@@ -65,7 +91,7 @@ jobs:
         run: npm run db:check -- --local --expect-applied
 
       # A superseded policy sitting beside its `perm:` replacement. Here this proves the
-      # REPO's chain cannot produce one; deploy.yml asks the same question of hosted,
+      # REPO's chain cannot produce one; migrate.yml asks the same question of hosted,
       # where the cause would be a hand-run file instead.
       - name: No superseded policy beside its replacement
         run: supabase db query --local -f supabase/scripts/audit_policy_shadowing.sql

@@ -96,21 +96,46 @@ directory's own rule says it belongs.
 Pushing proves the bytes arrived, not that the mail renders — send yourself a real signup
 before calling it done.
 
-### [ ] An unconfirmed account is a dead end
+### [ ] Confirm `rate_limit_email_sent` on hosted
 
-**Action:** decide whether the app offers to resend a confirmation, or whether this is a
-support case handled by hand.
+**Action:** one look at Authentication → Rate Limits, and nothing to run.
 
-Email confirmation is on and working on hosted, which is what makes this live rather than
-hypothetical: an account that registered and never clicked the link **cannot sign in at
-all**, and nothing in the app offers to resend. The member sees a failure with no route
-out, and the only fix today is somebody with dashboard access.
+`config.toml` sets `[auth.rate_limit] email_sent = 30` per hour, and says in as many words
+that the file is not read for it — the dashboard is. Nothing in the repo can check it, which
+is what puts this here.
 
-`/login` is where they end up, so that is where the offer belongs. Two things to decide
-before building it: whether an unauthenticated "resend to this address" endpoint is
-acceptable (it discloses whether an address has an account, and it is a mail-sending
-endpoint reachable by anyone — rate limiting is not optional), and whether it should
-instead be surfaced only after a failed sign-in, which narrows both problems.
+It became worth confirming on 2026-08-17, when `/login` gained a **Send the link again**
+button. `email_sent` is a PROJECT-WIDE hourly cap shared with every signup, reset, invitation
+and reauthentication email, so an abused resend does not merely annoy one address — it
+starves legitimate registrations. That, rather than the abused address, is the reason the
+number matters.
+
+The button is throttled on the client (one press per page load, no countdown) and that is
+honesty rather than a control: `/auth/v1/resend` is reachable without our page. If real abuse
+ever appears, `[auth.captcha]` plus `ResendParams`' `captchaToken` is the lever GoTrue already
+provides.
+
+### [ ] The `production` environment carries all three credentials and a `master` branch rule
+
+**Action:** one look at Settings → Environments → production, and nothing to run.
+
+`migrate.yml` reads `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` as environment
+**secrets** and `SUPABASE_PROJECT_ID` as an environment **variable**. All three live there
+rather than on the repository, for the reason the comment beside `environment: production`
+gives: repository secrets are readable by every workflow, `verify.yml` included, and that one
+runs `on: pull_request` from any branch a collaborator can push. Nothing in this repo can see
+whether they are set, which is what puts this on this list — the job's preflight names them
+and points at that screen, and it is the only thing that will ever tell you.
+
+**Set the environment's deployment branch rule to `master` as well.** With
+`workflow_dispatch` gone (2026-08-17) nothing but a push to `master` triggers that workflow,
+so the rule is no longer closing an open path — it is what makes the restriction a property
+of the *environment* rather than of this file happening to have exactly one trigger. A
+workflow added later on a branch, whatever it declares, then gets no credentials at all.
+
+Worth confirming at the same time that runs show up in the Environments tab, since that tab
+is the "recorded" half of the whole mechanism — the history of what reached production and
+when.
 
 ### [ ] Confirm the hosted `claude_probe` role has lapsed
 
@@ -372,58 +397,6 @@ that, and for demo photography it is very likely not worth one.
 
 Found 2026-08-12 while implementing the kit.
 
-## `truncate_entire_database.sql` empties the global lookups, and nothing puts them back
-
-**Action:** decide whether the script should re-seed the global tables it empties, or refuse
-to touch them at all. Either is defensible; the present state — empties them and walks away —
-is not.
-
-The script TRUNCATEs every base table in `public` by catalogue, deliberately and correctly
-for a full purge. But four of those tables are not family data at all: `relationship_types`,
-`permission_resources`, `permission_table_map`, and any lookup added after this is written.
-They are seeded **only** by migrations, and a migration hosted has already recorded as
-applied never runs again — so on hosted the purge is a one-way door.
-
-That is not hypothetical. Hosted ran with `relationship_types` **empty** until
-`20260813000005` re-seeded it, and the cost was every screen that names a relationship:
-`/family-tree` answered "That relationship type is not set up" on every addition and drew a
-canvas of people with no edges at all, and the five lookups in `app/actions/children.ts`
-(deleted later the same day — see §4b of AGENTS.md) plus
-`link-person`, `personal-info` and `events` were broken the same way. It went unnoticed
-because a fresh `db reset` seeds the table from the original migration, so local was always
-right and only production was wrong.
-
-`permission_resources` (38 rows) and `permission_table_map` (40) survived the same purge —
-but by luck rather than by design: their seeding migrations happened to still be pending when
-it ran, and applied afterwards. Next time the timing will not oblige, and an empty
-`permission_resources` fails **open** (§6: an unregistered resource defaults to viewable),
-which is a silent one rather than a loud one.
-
-Note that `reset_families.sql` gets this right already — its §11 keep-list names all three as
-"global configuration, not family data" and it never deletes from them. The two scripts
-disagree about what a global lookup is, and only one of them has thought about it.
-
-Found 2026-08-13, from the family-tree report.
-
-## The migration pipeline's `workflow_dispatch` path has never been exercised
-
-**Action:** run it once from Actions → Migrate → Run workflow on `master`, and watch what
-Vercel does with the build.
-
-`migrate.yml` offers `workflow_dispatch` so a failed run can be retried without an empty
-commit. The reasoning is that a re-run writes a fresh commit status, and a fresh status is
-what Vercel's `Database migrations` Deployment Check is watching — so a held build should
-release. **That is reasoned from the docs, not observed.** The normal push path is verified
-end to end; this one is not.
-
-Worth knowing before you need it during an incident, which is the only time anybody reaches
-for it. If a dispatch does *not* release a held build, `Force Promote` on the deployment is
-the escape hatch, and this section should be rewritten to say so.
-
-Two things to check while doing it: that the environment's deployment branch rule still lets
-`master` through (a dispatch from any other ref should get no credentials at all, which is
-the point of that rule), and that the run appears in the Environments tab like a push does.
-
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
 **Action:** decide how a registrant proves they are the pre-entered person, then either
@@ -483,72 +456,24 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## A family cannot be deleted
-
-**Action:** decide what deleting a family *means* before building it — the schema will
-not do it for you.
-
-**The rename half shipped 2026-08-12** and is no longer open. What it left behind that
-this half will build on, so it is not rediscovered:
-
-* **A family settings surface exists.** `/admin/family`, registered by
-  `20260812000000` as the resource `admin/family` — `'restricted'` per family, `view`
-  and `edit` only. A delete would be a third action on that key (or a key of its own,
-  if the family wants to hand out renaming without handing out destruction, which is
-  probably the right call and is a product decision nobody has made).
-* **`families` now has an UPDATE policy**, `family renamed by settings admins` — the
-  second policy the table has ever carried. It tests
-  `auth_permission('admin/family','edit') = 'any'` rather than `auth_can()`, because a
-  family has no owner and `'own'` must not be a way in.
-* **`family_code` is immutable.** `families_guard_family_code` refuses any change to
-  it, for every role. That is the *rename* half of the same problem this section is
-  about: 34 tables carry the code and none has a foreign key back, so re-keying a
-  family would silently empty it. A delete has to reckon with the same absence.
-
-### Deleting is the dangerous half, and the schema does not help
-
-**34 tables carry `family_code`, and not one of them has a foreign key to `families`.**
-So `DELETE FROM families WHERE family_code = …` removes exactly one row and orphans
-everything else — no cascade fires, because there is nothing to cascade from. The
-obvious implementation leaves every dues payment, fund, chat room and member row in the
-database, invisible to the app and belonging to a family that no longer exists.
-
-Two places the schema does anticipate it, both worth reading first:
-
-* `funds_protect_system` releases a system fund for deletion **only** once the
-  `families` row is gone. That is the intended order — family first, then the sweep —
-  and it is the one spot where family deletion is designed for rather than overlooked.
-  `20260812000000`'s verify block is that order run in miniature, against a throwaway
-  family it creates and removes: families, then funds, then the templates. It is four
-  lines and it is the only worked example of the sequence in the tree.
-* The append-only ledgers (`dues_payments`, `fund_disbursements`, `20260806000002`)
-  refuse a delete except as the cascade from a person or fund already gone. A sweep
-  either runs in dependency order or stands those guards down deliberately.
-
-[supabase/scripts/reset_families.sql](supabase/scripts/reset_families.sql) already
-carries that sweep for the data half and deliberately keeps the `families` row. A real
-delete is that list, plus the row, plus the family's templates, `resource_visibility`
-and system fund. Read it before writing a third copy of the list — and note its §11,
-which exists because a hand-written list of tables goes stale the moment a migration
-adds one. It already did: `donation_beneficiaries` (`20260811000000`) landed between
-that script being written and being run.
-
-Two product questions to settle before any of it is built:
-
-1. **Does deleting a family delete its members' accounts?** It must not. Membership is
-   many-to-many since `20260617000000`, so an account can belong to several families;
-   deleting one family has to delete its `people` rows and leave `auth.users` alone, or
-   removing a test family signs somebody out of their real one.
-2. **Is there an "archived" state, or only gone?** There is no half-way house today: a
-   family with no members is *unreachable*, not merely empty, because every page resolves
-   the caller through a people row and `families.created_by` nulls itself when that
-   account goes. Anything short of a full delete needs a state that does not exist yet.
-
-## Seven functions have a mutable `search_path`, and one of them is SECURITY DEFINER
+## Six functions have a mutable `search_path`, and one of them is SECURITY DEFINER
 
 **Action:** set `search_path = ''` on `auth_uid_is_room_participant` first — it is the only
-one of the seven where this is a privilege question rather than tidiness. Carefully: see the
+one of the six where this is a privilege question rather than tidiness. Carefully: see the
 trap below.
+
+**SEVEN UNTIL 2026-08-18, and it is six now:** `fund_balance_cents` has gained its
+`search_path` somewhere along the way, so the list below is one longer than the advisors
+report. Re-measured on that date against the local stack —
+`npx supabase db advisors --local --type security --level warn` — and the survivors are
+`auth_uid_is_room_participant`, `_perm_predicate`, `cancel_overdue_event_assignments`,
+`set_updated_at`, `update_funds_updated_at` and `update_photo_collections_updated_at`.
+
+Worth stating because it is the thing a reader would want to know: **every function added
+since is clean.** `seed_global_lookups`, `is_genorra_staff` (both arities),
+`staff_set_family_status`, `families_guard_removal`, `consume_family_removal_challenge` and
+`auth_permission`'s rewrite all set `search_path = ''`, and none of them appears in the
+advisors output. The six are the residue of older files, not a habit.
 
 Found 2026-08-12 by `npx supabase db advisors --local --type security --level warn`, which
 `migrate.yml` now runs against hosted on every merge. Seven `function_search_path_mutable`
@@ -643,28 +568,42 @@ that make this safe and are worth knowing before doing it:
 Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
 narrowed from three to two the same day, when the cross-tab sign-out was validated.
 
-## Phase 3 leftovers
+## `/admin/boardpositions` is the last route still on the roadmap, and it is now unblocked
 
-Phase 3 (join a family by code, behind an approval gate) shipped and is on hosted. Three
-things it owed are still owed:
+**Action:** decide whether to flip `status: 'future'` → `'live'` in `lib/features.ts`. The page,
+the actions and the permission resource all exist. **Read the whole of this entry first** — the
+flip is one word and the review it owes is not.
 
-1. **The §6 sweep has no test through an action, by construction.** What it closes is
-   reachable only by calling PostgREST directly with an applicant's JWT, and `tests/rls`
-   calls exported actions. Standing in for it: §8 of the migration recomputes the swept
-   table list and RAISEs if any policy on any of them lacks the conjunct, so a sweep
-   that matches nothing fails the deploy. A raw-query harness is the real answer and is
-   not built — recorded in `UNCOVERED` in `cases.mjs`.
-2. **The fail-closed default for admin resources is still unbuilt.** Blocker 4's
-   stronger fix — deny `view` on an unregistered or unset `category='admin'` key rather
-   than allowing it — needs `auth_permission()` and `resolveScope()` changed together,
-   and would mean `admin/approvals` could not have been born world-readable in the first
-   place instead of being backfilled out of it. Every admin key is currently correct by
-   backfill, which is a state that has to be re-established by hand each time one is
-   added.
-3. **A `people` row can still be moved between statuses by the service role.** By
-   design — `link-person.ts` needs it and `tests/rls` seeds with it — but it means the
-   guard is a boundary around the `authenticated` role, not around the column. Any new
-   service-role write to `people` owes the same look `updateUserProfile` just got.
+Two things that were in the way are now gone. `family_roles` was EMPTY on hosted, which is what
+that page reads, and `20260817000003` restored its 25 global rows. And regions and chapters — the
+scoped-leadership half the board positions hang off — went live on 2026-08-18.
+
+**What it owes before the flip, and this is the whole point of the entry.** Relighting
+`/admin/chapters` on 2026-08-18 turned up eight live security holes in
+`app/actions/admin/chapters.ts`: service-role deletes with no `family_code` conjunct, reads with
+no permission check, an unchecked client-supplied `region_id`, a cross-family `MAX(sort_order)`.
+Every one had been reachable the whole time the route said Coming Soon, because **Coming Soon
+withholds a page and never an action** — now a section of AGENTS.md.
+
+`app/actions/admin/chapters.ts` is the same module the four board-position actions live in, so
+those four were swept in that pass and are already scoped and re-keyed. What has *not* been
+reviewed is the page and its client component — `AdminUserRolesClient` — against §1, §5 and the
+table rules. Do that, then flip.
+
+## `permission_table_map` names a table that does not exist
+
+**Action:** drop the `adults` row in a migration, or say in the sweep's header that the skip
+is expected. One line either way; it is here because it is easy to mistake for a bug.
+
+`permission_table_map` carries a row for `adults`, with an `auth.uid()`-based `self_expr` —
+so every migration that computes a sweep list from that table names it, and
+`to_regclass('public.adults')` is NULL because `20260602000003` dropped the table.
+`20260806000011` §6 handles it correctly, skipping with a `RAISE NOTICE`. Nothing is broken.
+
+What it costs is a reader's time, twice over: a `NOTICE` in a migration log that looks like a
+finding, and a raw probe written against the computed list that fails with 42P01 rather than
+telling you anything. Found 2026-08-17 while writing `SWEEP_CASES`, which deliberately omits
+it and says so.
 
 ## 30 eslint warnings, and whether the gate should fail on them
 
@@ -683,36 +622,6 @@ deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
   `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
 
 `--max-warnings 0` is only honest once the middle group has an answer.
-
-## The help manual has no `help:check`, so its rule is asking rather than enforcing
-
-**Action:** write `scripts/help-check.mjs`, wire it as `npm run help:check`, and add a step
-to `verify.yml` beside Lint.
-
-AGENTS.md now says a change to a screen owes an edit to the chapter that documents it, and
-that rule has exactly the enforcement `db:check` had before it existed: none. Two things
-were verified by hand before `/help` shipped and both are mechanical, which is the whole
-argument for a script — a checkable rule and an uncheckable one decay at very different
-rates, and this file is full of the second kind.
-
-What it should assert, all of it derivable from `lib/help/content.ts` with no database and
-no network — the same shape as `npm run db:check`, which exits 1 on a finding so it reads
-as a test:
-
-* every internal `[label](/route)` resolves — a `/help/<slug>` to a real chapter, a
-  `#anchor` to a real section id in it, anything else to a route `getFeature()` knows;
-* every chapter's `route` is registered in `FEATURES`;
-* no two chapters or sections share a slug or an id, since both end up in shared links.
-
-What it CANNOT assert is the thing the rule is actually about: that the prose still
-describes the screen. Nothing can. The check is worth having because it removes the
-mechanical half from a reviewer's attention so the unmechanical half gets it — not because
-a green run means the manual is true.
-
-Worth a thought while writing it: whether it also fails when a live `FEATURES` entry has no
-chapter at all. That would catch the real regression — a screen shipping undocumented —
-and it would have to start life allowing the roadmap entries, which have no chapters by
-design.
 
 ## Authorization
 

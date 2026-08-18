@@ -3,6 +3,7 @@
 import { randomInt } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getFamilyStatus, isActiveFamily } from '@/lib/auth/family'
 import { redeemInvitationForNewUser } from '@/lib/invitations'
 import { notifyMembershipRequest } from '@/lib/notifications'
 
@@ -136,6 +137,35 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       .maybeSingle()
     if (data) joinFamilyName = (data.family_name as string) ?? ''
     if (!data) {
+      return {
+        success: false,
+        field: 'familyCode',
+        message: 'Family code not found. Check with your family and try again.',
+      }
+    }
+
+    // ── THE SIXTH DOOR INTO A FAMILY, AND THE ONLY ONE WITH NO SESSION ──────────────
+    // 20260817000006 closed the other four in SQL — validate_family_code,
+    // join_family_by_code, peek_family_invitation and redeem_family_invitation all refuse
+    // a removed family now. This one is app-layer because it is app-layer already: the
+    // lookup above is a plain service-role read, made before any account exists, and there
+    // is no RPC underneath it to have carried the conjunct.
+    //
+    // THE MESSAGE IS THE ONE A STRANGER GETS FOR A CODE THAT NEVER EXISTED, character for
+    // character. Distinguishing "this family was removed" from "no such family" turns this
+    // form into an oracle a guesser can walk — a family code is six characters from a
+    // 30-letter alphabet and "not found" is already the answer to 729 million of them, so
+    // a removed family must not be the one that answers differently. That is the rule the
+    // whole of §6 of that migration follows.
+    //
+    // READ SEPARATELY rather than added to the select above, and this is the same choice
+    // `getMyFamilies` and `getFamilySettings` make: PostgREST answers 42703 for a column
+    // that is not there and kills the WHOLE query, so a `status` in that select would take
+    // registration down for everybody against a database that is behind on migrations —
+    // and it would fail as "Family code not found", which is unfalsifiable from the
+    // outside. `getFamilyStatus` owns that error and falls back to 'active', which is not
+    // leniency but the truth: a database without the column has never removed a family.
+    if (!isActiveFamily(await getFamilyStatus(code))) {
       return {
         success: false,
         field: 'familyCode',

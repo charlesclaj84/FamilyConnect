@@ -93,6 +93,30 @@ const tokenHash = (token) => createHash('sha256').update(token).digest('hex')
 export const ALPHA = 'ALPHATEST'
 export const BRAVO = 'BRAVOTEST'
 
+/**
+ * A THIRD FAMILY, and it exists for one case: the family that actually gets removed.
+ *
+ * `removeFamily`'s positive control has to genuinely remove something, and it must not be
+ * ALPHA. That is `deletableChild`'s rule stated at the level of a whole family — a control
+ * that mutates a row later cases depend on turns those cases into vacuous passes, and
+ * ALPHA's `families` row is read by `admin/family.getFamilySettings`, by both `renameFamily`
+ * cases and by every marker in this fixture. A family removed halfway through the run would
+ * take all of that with it.
+ *
+ * It is seeded ACTIVE, and ends the run REMOVED. That sequence is deliberate: the removal
+ * cases restore it in their own `setup` (each half of a write case re-snapshots, so the
+ * control has to have something left to remove), and nothing after them reads it.
+ *
+ * It holds one person — its own approved administrator — and none of the twenty-odd rows
+ * ALPHA and BRAVO get. Nothing about removal reads a fund or a photograph, and seeding
+ * them would only slow every run down.
+ *
+ * NEVER USE `charlieAdmin` AS AN ATTACKING ACTOR. They belong to a family whose whole
+ * purpose is to be destroyed by a positive control, so an isolation assertion resting on
+ * them would be resting on a moving fixture.
+ */
+export const CHARLIE = 'CHARLTEST'
+
 const PASSWORD = 'rls-harness-pw-2026!'
 
 /**
@@ -171,6 +195,11 @@ export const USERS = {
   // row, so BRAVO-side callers legitimately see it and marking it would report leaks
   // that are not leaks.
   outsideInvitee: { email: 'outside.invitee@rls.test', family: BRAVO, admin: false },
+  // CHARLIE's administrator, and its only member — the actor whose family a removal
+  // control is allowed to destroy. Approved, and holding scope 'any' on everything its own
+  // family can confer, exactly like the other two administrators: a positive control that
+  // failed for want of a grant would prove nothing about removal.
+  charlieAdmin: { email: 'charlie.admin@rls.test', family: CHARLIE, admin: true },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -179,7 +208,11 @@ const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
 
 /** Delete anything a previous run left behind, so the suite is re-runnable. */
 async function teardown(db) {
-  const codes = [ALPHA, BRAVO]
+  // CHARLIE is swept like the other two. It ends every run REMOVED, and `families` has no
+  // guard on DELETE — `families_guard_removal` is a BEFORE UPDATE trigger about the
+  // `authenticated` role, and this sweep is the service role deleting the row outright —
+  // so a removed family needs no special handling here.
+  const codes = [ALPHA, BRAVO, CHARLIE]
 
   // Children that carry no family_code, reached through their parent.
   const { data: rooms } = await db.from('chat_rooms').select('id').in('family_code', codes)
@@ -245,10 +278,30 @@ async function teardown(db) {
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
+    // ADDED 2026-08-17 with the three sweep rows. event_rsvp and event_assignments
+    // cascade from `events` above and need no line of their own — and since 2026-08-18
+    // neither do `event_budget_items` or `event_expenses`, both of which are ON DELETE
+    // CASCADE from `events` too. `event_expenses` is worth one sentence because it looks
+    // like it ought to be here: it is a MONEY table but NOT an append-only one
+    // (20260807000002 gave it the recorded_by trigger and nothing else), so a direct
+    // DELETE would work — it simply has nothing left to delete by the time this runs.
+    // Its other two references are both SET NULL, `fund_id` from `funds` above and
+    // `recorded_by` from `people` below, so neither removes the row.
+    // event_types does NOT
+    // (it is family-scoped configuration, not a child of an event) and
+    // event_blueprint_items cascades from it. Listed AFTER `events`, because an
+    // assignment points at a blueprint item and the event is what takes it away.
+    'event_blueprint_items', 'event_types',
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
     'resource_visibility',
+    // Keyed on family_code with no foreign key to `families`, like resource_visibility
+    // above it, so nothing else here removes it. Listed BEFORE `people`, because
+    // `requested_by` REFERENCES people(id) — ON DELETE SET NULL, so leaving it would
+    // silently blank the column rather than fail, and a challenge row belonging to nobody
+    // would outlive the run it was seeded for.
+    'family_removal_challenges',
     'people',
     // AFTER `people`, and it has to be. dues_payments is append-only — 20260806000002
     // refuses a DELETE even to the service role — with ONE exception: the ON DELETE
@@ -273,6 +326,19 @@ async function teardown(db) {
     // "duplicate key value violates unique constraint chapters_family_code_name_key",
     // before a single case executed. Seeding a row means sweeping it.
     'chapters',
+    // The family's own CUSTOM board positions. Its global rows carry a NULL family_code and
+    // are product data no migration will re-seed (AGENTS.md, "Four tables in `public` are
+    // product data"), so this sweep must never reach them — `.in('family_code', codes)`
+    // cannot match NULL, which is what keeps it safe. Listed after `user_roles` above,
+    // whose role_id cascades from here.
+    'family_roles',
+    // AFTER `chapters`, and it has to be: `chapters.region_id` REFERENCES regions(id), and
+    // since 20260817000008 `dues_schedules.region_id` does too — so the rows pointing here
+    // go first. Added 2026-08-18 with the region seeded below, for the reason the note on
+    // `chapters` gives: a seeded row with a UNIQUE (family_code, name) that is not swept
+    // makes the whole suite single-use, green on a fresh database and dead in teardown on
+    // the very next run.
+    'regions',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)
@@ -302,11 +368,17 @@ export async function seed() {
   const db = admin()
   await teardown(db)
 
-  const fx = { alpha: {}, bravo: {}, users: {} }
+  const fx = { alpha: {}, bravo: {}, charlie: {}, users: {} }
 
-  for (const code of [ALPHA, BRAVO]) {
-    must(`family ${code}`, await db.from('families')
+  // The `families` row ids are KEPT, which they were not before: the raw PATCH probe that
+  // reaches `families_guard_removal` addresses the row by primary key (rawUpdate is
+  // `.eq('id', …)`), and that trigger is reachable no other way.
+  for (const code of [ALPHA, BRAVO, CHARLIE]) {
+    const row = must(`family ${code}`, await db.from('families')
       .insert({ family_code: code, family_name: `${code} Family` }).select().single())
+    const side = code === ALPHA ? 'alpha' : code === BRAVO ? 'bravo' : 'charlie'
+    fx[side].familyCode = code
+    fx[side].familyRowId = row.id
   }
 
   // ── users + their people rows ──────────────────────────────────────────────
@@ -384,7 +456,7 @@ export async function seed() {
 
   // ── an administrator in each family: scope 'any' on everything ────────────
   const resources = must('resources', await db.from('permission_resources').select('key'))
-  for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin']]) {
+  for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin'], [CHARLIE, 'charlieAdmin']]) {
     // Upsert, not insert: the families trigger created this template when the family
     // row went in. Claiming it here rather than reading it keeps the harness's
     // description on the row, so it is obvious which one this is.
@@ -407,8 +479,16 @@ export async function seed() {
     must(`${who} grants`, await db.from('template_permissions')
       .upsert(grants, { onConflict: 'template_id,resource_key,action' }))
 
-    // One column, not a membership row — see the header. Service role, so
-    // people_guard_permission_template does not fire.
+    // One column, not a membership row — see the header.
+    //
+    // THE TRIGGER FIRES; IT DOES NOT RAISE. This comment said "does not fire" and that is
+    // the wrong mental model, which matters because the distinction is the whole of Phase
+    // 3's third leftover. Triggers are unaffected by RLS and by role, so
+    // `people_guard_permission_template` runs for this UPDATE like any other — it simply
+    // finds `current_user = 'service_role'` rather than `'authenticated'` and returns. The
+    // boundary is around the ROLE, not around the column, and a comment that blurs the two
+    // is how the next reader concludes the column is guarded outright.
+    // `npm run audit:people` is what keeps that boundary honest on the app side.
     must(`${who} template assignment`, await db.from('people')
       .update({ permission_template_id: template.id })
       .eq('id', fx.users[who].personId))
@@ -418,7 +498,7 @@ export async function seed() {
   // whose attacker silently ended up on General would make every attack assertion
   // pass because the permission layer refused it, which is the one thing the
   // administrator-as-attacker design exists to rule out.
-  for (const who of ['alphaAdmin', 'bravoAdmin']) {
+  for (const who of ['alphaAdmin', 'bravoAdmin', 'charlieAdmin']) {
     const { data: check } = await db.from('people')
       .select('permission_template_id, permission_templates(name)')
       .eq('id', fx.users[who].personId).single()
@@ -438,6 +518,9 @@ export async function seed() {
   for (const [side, code] of [['alpha', ALPHA], ['bravo', BRAVO]]) {
     const owner = side === 'alpha' ? fx.users.alphaMember : fx.users.bravoMember
     const other = side === 'alpha' ? fx.users.alphaOther : fx.users.bravoAdmin
+    // The family's ADMINISTRATOR. Note this is NOT `other` — that is `alphaOther` on the
+    // ALPHA side and only coincides with the administrator on BRAVO. The board position
+    // seeded below goes to this one, which is why that sweep case's control is `alphaAdmin`.
     const familyAdmin = side === 'alpha' ? fx.users.alphaAdmin : fx.users.bravoAdmin
     const f = fx[side]
     f.familyCode = code
@@ -466,8 +549,84 @@ export async function seed() {
     // every action writing it owes the §4 reference check and the suite needs a real
     // foreign id to hand them. Before this the fixture had none, and
     // `announcements.getChapters` was carrying `positive: 'not-applicable'` saying so.
+    // A REGION IN EACH FAMILY, and the chapter below sits in it. Seeded 2026-08-18, when
+    // 20260817000008 gave `dues_schedules` a `region_id` and `chapter_id`: those are two more
+    // ids a caller can supply, so the §4 cases need a real foreign one to hand across the
+    // family boundary. It is also what makes `deleteRegion`'s control meaningful — a region
+    // with a chapter in it is the case where the delete SUCCEEDS and the chapter moves to
+    // National, which is the one reference in `lib/scope-attached.ts` that permits a delete.
+    f.region = must('region', await db.from('regions').insert({
+      family_code: code, name: `${code} region`,
+    }).select().single())
+
     f.chapter = must('chapter', await db.from('chapters').insert({
-      family_code: code, name: `${code} chapter`,
+      family_code: code, name: `${code} chapter`, region_id: f.region.id,
+    }).select().single())
+
+    // A SECOND REGION, with nothing in it, so a control that DELETES one does not remove a
+    // row every case after it depends on. Same reason `deletableChild` exists, and AGENTS.md
+    // §7 names this failure mode explicitly: a positive control that mutates a row a later
+    // case reads turns a real finding into a pass.
+    f.deletableRegion = must('deletable region', await db.from('regions').insert({
+      family_code: code, name: `${code} spare region`,
+    }).select().single())
+
+    // AND A SECOND CHAPTER, empty, for the same reason on the chapter side.
+    f.deletableChapter = must('deletable chapter', await db.from('chapters').insert({
+      family_code: code, name: `${code} spare chapter`,
+    }).select().single())
+
+    // AND `other` GOES INTO THE FIRST CHAPTER, which is inside the first region. That is
+    // what gives the scope rule a positive control: the member with no chapter is under
+    // National and must NOT be offered the regional due, and somebody whose chapter is in
+    // that region MUST be — one assertion is worthless without the other.
+    //
+    // `alphaOther`/`bravoOther` rather than the default member, because the personal-info
+    // chapter cases null and re-set the default member's `chapter_id` in their own setup and
+    // two cases must not depend on each other's order.
+    {
+      const { error } = await db.from('people')
+        .update({ chapter_id: f.chapter.id }).eq('id', other.personId)
+      if (error) throw new Error(`seed ${code}: placing other in a chapter: ${error.message}`)
+    }
+
+    // A THIRD CHAPTER, WITH SOMEBODY IN IT — the state `lib/scope-attached.ts` exists to
+    // refuse a delete over. It gets `f.child` (a recorded person with no account, seeded
+    // below) rather than a member, so nothing else in the suite reads the row it occupies:
+    // the personal-info chapter cases null and re-set `alphaMember`'s chapter themselves,
+    // and pointing this at that row would make two cases depend on each other's order.
+    f.occupiedChapter = must('occupied chapter', await db.from('chapters').insert({
+      family_code: code, name: `${code} occupied chapter`,
+    }).select().single())
+
+    // A SCHEDULE THAT EXISTS TO BE RE-SCOPED, and nothing else reads it. `f.schedule` has a
+    // payment against it, so 20260807000001's freeze refuses every term change including the
+    // scope — a control pointed there would fail for a reason that is not a bug — and
+    // re-scoping `f.optionalSchedule` would silently drop it out of `getMyDuesSummary` for
+    // every actor with no chapter, which is most of them. AGENTS.md §7's first fixture
+    // failure mode, avoided by giving the case its own row.
+    f.scopableSchedule = must('scopable dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} scopable dues`, amount_cents: 2500, active: true,
+    }).select().single())
+
+    // AND ONE ALREADY SCOPED TO THE REGION, which is what makes that region undeletable.
+    // Seeded in that state rather than arranged by a case, because the case asserting it is
+    // read-shaped: `lib/scope-attached.ts`'s refusal is a SENTENCE, a before/after probe
+    // cannot tell it from the foreign key refusing the same delete, and a read case has no
+    // `setup` hook to arrange the world with.
+    f.regionalSchedule = must('regional dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} regional dues`, amount_cents: 3500, active: true,
+      scope: 'regional', region_id: f.region.id,
+    }).select().single())
+
+    // A CUSTOM BOARD POSITION. `family_roles` is the hybrid table AGENTS.md warns about:
+    // its NULL-family_code rows are product data seeded by migrations, and a family's own
+    // custom positions carry their code. `deleteCustomRole` had no family conjunct at all,
+    // so this is the row that proves one family cannot delete another's — and it is seeded
+    // per family so the attack and the control each have their own.
+    f.customRole = must('custom role', await db.from('family_roles').insert({
+      family_code: code, name: `${code} Historian`, category: 'appointed_position',
+      scope: 'national', is_global: false, sort_order: 900,
     }).select().single())
 
     f.announcement = must('announcement', await db.from('announcements').insert({
@@ -488,6 +647,103 @@ export async function seed() {
     f.eventPhoto = must('event photo', await db.from('event_photos').insert({
       event_id: f.event.id, family_code: code, uploader_id: owner.personId,
       file_path: `${code}/event.jpg`, caption: `${code} event photo`,
+    }).select().single())
+
+    // ── FIVE ROWS ADDED 2026-08-18, FOR THE MONEY-DELETION GUARD ──────────────────
+    //
+    // `lib/money-attached.ts` refuses a delete when money points at the record, and until
+    // now the fixture could not reach two of its five kinds at all: nothing here seeded an
+    // `event_budget_items` or an `event_expenses` row, so `deleteEvent` and
+    // `deleteEventBudgetItem` had no funded subject to be refused over and no unfunded one
+    // to prove they can still delete. `MONEY_CASES` in cases.mjs is what reads these.
+    //
+    // A SPARE EVENT WITH NO SPEND. `f.event` gains an expense below and is therefore
+    // permanently undeletable, so a control needs its own row — `deletableChild`'s rule,
+    // and AGENTS.md §7's first fixture failure mode: a control that removes `f.event`
+    // would take the RSVP, the assignment, the photo and both budget lines with it and
+    // every case after it would pass over nothing.
+    f.deletableEvent = must('deletable event', await db.from('events').insert({
+      family_code: code, name: `${code} spare reunion`, status: 'approved',
+      created_by: owner.userId, event_date: '2026-10-01',
+    }).select().single())
+
+    // TWO BUDGET LINES ON `f.event`, and the difference between them is the whole point:
+    // the expense below is charged to the first and to nothing else, so one line is funded
+    // and one is not. Both sit on `f.event` rather than one on each event, so that
+    // `f.deletableEvent` stays genuinely empty — an event with a budget line still deletes
+    // (budget items CASCADE and carry no money), but leaving it bare keeps the reason a
+    // delete succeeds down to one fact.
+    f.budgetItem = must('budget item', await db.from('event_budget_items').insert({
+      event_id: f.event.id, family_code: code, title: `${code} catering`,
+      budget_cents: 40000, sort_order: 1, created_by: owner.personId,
+    }).select().single())
+
+    f.deletableBudgetItem = must('deletable budget item', await db.from('event_budget_items').insert({
+      event_id: f.event.id, family_code: code, title: `${code} spare line`,
+      budget_cents: 1000, sort_order: 2, created_by: owner.personId,
+    }).select().single())
+
+    // THE SPEND ITSELF, and `fund_id` IS DELIBERATELY NULL. `event_expenses.fund_id` is one
+    // of the four references `moneyAttachedTo('fund', …)` counts, so pointing this at
+    // `f.fund` would make the fund case's message name an expense as well and — worse —
+    // give `f.deletableFund` a reason to be undeletable if it were ever pointed there. The
+    // column is nullable and an event's spend does not need a fund to be spend.
+    //
+    // `recorded_by` is REQUIRED on insert (20260807000002's trigger, with an empty source
+    // list, which means every row of this table) and the trigger binds the service role
+    // this fixture writes through. Without it the whole suite dies here.
+    f.expense = must('event expense', await db.from('event_expenses').insert({
+      event_id: f.event.id, budget_item_id: f.budgetItem.id, fund_id: null,
+      family_code: code, amount_cents: 12500, spent_date: '2026-07-06',
+      description: `${code} catering deposit`, recorded_by: owner.personId,
+    }).select().single())
+
+    // ── THREE ROWS ADDED 2026-08-17, FOR THE SWEEP CASES ──────────────────────────
+    // `event_rsvp`, `event_assignments` and `user_roles` are three of the nine tables
+    // `20260806000011` §6 added `auth_membership_approved()` to, and until now the fixture
+    // seeded none of them. That cost nothing while nothing tested them — and the moment
+    // `SWEEP_CASES` did, all three positive controls failed and the runner said so:
+    // "owner saw none of their own data — this case proves nothing".
+    //
+    // That is the failure mode AGENTS.md §7 exists to name, caught by the mechanism built
+    // to catch it. These rows are what turn three vacuous attack assertions into real ones.
+    // They are NOT marked `positive: 'not-applicable'`: a control genuinely applies here —
+    // a member really may read their own family's RSVPs — the fixture simply had no row.
+    // AUTH USER IDS, NOT people ids, on all three of these — checked against
+    // pg_constraint rather than assumed, and the first attempt got it wrong.
+    // `event_rsvp.submitted_by`, `event_assignments.assigned_to/assigned_by` and
+    // `user_roles.user_id` all reference auth.users(id). AGENTS.md §8 notes the same fact
+    // from the other direction: event_rsvp has no foreign key to `people` at all, which is
+    // why `event_rsvp(people(...))` answers PGRST200.
+    f.rsvp = must('event rsvp', await db.from('event_rsvp').insert({
+      event_id: f.event.id, submitted_by: owner.userId, is_attending: true,
+    }).select().single())
+
+    // An assignment needs a blueprint item to point at, and a blueprint item needs an
+    // event type. Both are seeded here rather than reused because nothing else in the
+    // fixture creates either.
+    f.eventType = must('event type', await db.from('event_types').insert({
+      family_code: code, name: `${code} gathering`, created_by: owner.userId,
+    }).select().single())
+
+    f.blueprintItem = must('blueprint item', await db.from('event_blueprint_items').insert({
+      event_type_id: f.eventType.id, title: `${code} bring the cake`, sort_order: 1,
+    }).select().single())
+
+    f.assignment = must('event assignment', await db.from('event_assignments').insert({
+      event_id: f.event.id, blueprint_item_id: f.blueprintItem.id,
+      assigned_to: owner.userId, assigned_by: owner.userId,
+    }).select().single())
+
+    // A board position, given to the ADMINISTRATOR — which is why that sweep case's
+    // control is `alphaAdmin` rather than `alphaMember`. `role_id` comes from the global
+    // `family_roles` lookup (the 25 built-in positions), so this depends on
+    // `seed_global_lookups()` having run: if it is empty the insert fails loudly here
+    // rather than the case going green over a missing row.
+    const presidentRole = must('president role', await db.from('family_roles')
+      .select('id').eq('name', 'President').is('family_code', null).single())
+    f.userRole = must('user role', await db.from('user_roles').insert({
+      family_code: code, user_id: familyAdmin.userId, role_id: presidentRole.id,
     }).select().single())
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
@@ -534,6 +790,18 @@ export async function seed() {
       recorded_by: owner.personId,
     }).select().single())
 
+    // A SCHEDULE WITH NO MONEY AGAINST IT, so `deleteDuesSchedule` has a subject it is
+    // allowed to remove. `f.schedule` has the payment above and is therefore permanently
+    // undeletable, and every other schedule here is read by a case that would then be
+    // asserting over a row that had gone — `deletableChild`'s rule again.
+    //
+    // `active: false` on purpose. Nothing about the delete path reads the column, and an
+    // inactive row stays out of `getMyDuesSummary` and `getDuesProjection`, both of which
+    // filter on it — so adding this cannot move a figure another case asserts.
+    f.deletableSchedule = must('deletable dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} spare dues`, amount_cents: 1000, active: false,
+    }).select().single())
+
     // ── A drive the family's ADMINISTRATOR is the beneficiary of ──────────────
     // The surprise-gift case from 20260811000000, and the actor is the administrator
     // on purpose. They hold scope 'any' on every resource their family can confer, so
@@ -575,14 +843,32 @@ export async function seed() {
       fund_id: f.fund.id, family_code: code, name: `${code} milestone`, amount_cents: 25000,
     }).select().single())
 
+    // A SECOND MILESTONE THAT NOTHING HAS BEEN PAID AGAINST, for `deleteMilestone`'s
+    // control. `f.milestone` is what the disbursement below is attributed to, so the guard
+    // refuses that one for good — this is the row that proves the action can still delete.
+    f.deletableMilestone = must('deletable milestone', await db.from('fund_milestones').insert({
+      fund_id: f.fund.id, family_code: code, name: `${code} spare milestone`,
+      amount_cents: 5000, sort_order: 2,
+    }).select().single())
+
     f.contribution = must('contribution', await db.from('fund_contributions').insert({
       fund_id: f.fund.id, family_code: code, amount_cents: 7500,
       contributor_person_id: owner.personId, recorded_by: owner.personId,
       contributed_date: '2026-07-02',
     }).select().single())
 
+    // `milestone_id` ADDED 2026-08-18, and it is what gives `f.milestone` money against it
+    // — `moneyAttachedTo('fund_milestone', …)` counts disbursements by this column and
+    // nothing else in the fixture wrote it. Attributing the EXISTING payout rather than
+    // seeding a second one is deliberate: the amount is load-bearing further down (see the
+    // note on `f.transfer`), and another disbursement would move the fund's balance and
+    // break `transferBetweenFunds`'s control for a reason that is not a bug.
+    //
+    // fund_disbursements is APPEND-ONLY (20260807000002) and permits no UPDATE at all, so
+    // this has to be set at insert. A case cannot arrange it in `setup`.
     f.disbursement = must('disbursement', await db.from('fund_disbursements').insert({
       fund_id: f.fund.id, family_code: code, person_id: owner.personId,
+      milestone_id: f.milestone.id,
       amount_cents: 2500, disbursed_date: '2026-07-03', recorded_by: owner.personId,
     }).select().single())
 
@@ -607,6 +893,20 @@ export async function seed() {
       family_code: code, from_fund_id: f.fund.id, to_fund_id: f.secondFund.id,
       amount_cents: 2000, transferred_date: '2026-07-05',
       reason: `${code} transfer`, recorded_by: owner.personId,
+    }).select().single())
+
+    // A THIRD FUND WITH NO MONEY OF ANY KIND, for `deleteFund`'s control — and it has to be
+    // a third, because `f.fund` and `f.secondFund` are both ends of the transfer above and
+    // `moneyAttachedTo('fund', …)` counts a transfer from EITHER side.
+    //
+    // NO ALLOCATION ROW, deliberately: `fund_allocations` is UNIQUE (family_code, fund_id)
+    // and gives 100% to `f.fund`, and a fund with no row is 0%, so this changes nothing
+    // about dues routing. NO `system_key` either — `funds_protect_system` (20260807000003)
+    // makes such a fund permanently undeletable while its family exists, which would make
+    // the control fail for a reason that is not the guard.
+    f.deletableFund = must('deletable fund', await db.from('funds').insert({
+      family_code: code, name: `${code} spare fund`,
+      created_by: owner.personId, active: true,
     }).select().single())
 
     f.election = must('election', await db.from('elections').insert({
@@ -668,6 +968,11 @@ export async function seed() {
     f.child = must('child', await db.from('people').insert({
       family_code: code, first_name: `${code}Child`, last_name: code,
       date_of_birth: '2015-04-04', created_by: familyAdmin.userId,
+      // IN THE OCCUPIED CHAPTER, which is what makes that chapter undeletable — the state
+      // `admin/chapters.deleteChapter (a chapter somebody is in)` asserts. Set here rather
+      // than by an UPDATE afterwards because `people.chapter_id` has no trigger overriding
+      // it, unlike `membership_status`.
+      chapter_id: f.occupiedChapter.id,
     }).select().single())
 
     // A SECOND ONE, so a destructive positive control has its own row to ruin. Without it
@@ -682,6 +987,31 @@ export async function seed() {
     f.ancestor = must('ancestor', await db.from('people').insert({
       family_code: code, first_name: `${code}Father`, last_name: code,
       date_of_birth: '1950-02-02',
+    }).select().single())
+
+    // ── two more records, for the three states on Dues Projections ───────────
+    // That screen counts EVERY approved person, account or not, and reports each as Active,
+    // Invited or Pending Invite. Two of those three are states a record can hold, and they
+    // need a row each — `deletableChild`'s reason, applied to a read rather than a write:
+    // borrowing `child` would tie this case to whatever `invitePersonRecord`'s attack half
+    // left behind, and borrowing `ancestor` would tie it to `linkPersonToCurrentUser`'s.
+    //
+    // DELIBERATELY UNATTACHED to the tree. They are about the roster, not about the graph,
+    // and giving them edges would move `leafIds` for every family-tree case to buy nothing.
+    f.invitedRecord = must('invited record', await db.from('people').insert({
+      family_code: code, first_name: `${code}Invited`, last_name: code,
+      date_of_birth: '1970-03-03', created_by: familyAdmin.userId,
+      primary_email: `invited.record.${side}@rls.test`,
+    }).select().single())
+
+    f.uninvitedRecord = must('uninvited record', await db.from('people').insert({
+      family_code: code, first_name: `${code}Uninvited`, last_name: code,
+      date_of_birth: '1971-04-04', created_by: familyAdmin.userId,
+      // A REAL ADDRESS ON A ROW NOBODY HAS ASKED, which is what makes the attack half of
+      // `dues.getDuesProjection` sharp: ALPHA seeds an open invitation to BRAVO's address
+      // below, so a projection that read invitations without `.eq('family_code', …)` would
+      // report this person as Invited in the family that never asked them.
+      primary_email: `uninvited.record.${side}@rls.test`,
     }).select().single())
 
     const rels = must('relationships', await db.from('person_relationships').insert([
@@ -720,6 +1050,20 @@ export async function seed() {
       token_hash: tokenHash(`rls-revocable-token-${code}`),
       pre_approved: false,
       invited_by: familyAdmin.personId,
+    }).select().single())
+
+    // A FOURTH, and the only one that NAMES A PERSON — `invited_person_id`, which is what
+    // `invitePersonRecord` writes (20260813000004). Every other invitation here is addressed
+    // to somebody with no `people` row at all, so without this the 'invited' state on Dues
+    // Projections would be unreachable and its case could not tell it from 'pending-invite'.
+    f.recordInvitation = must('record invitation', await db.from('family_invitations').insert({
+      family_code: code,
+      email: `invited.record.${side}@rls.test`,
+      first_name: `${code}Invited`, last_name: code,
+      token_hash: tokenHash(`rls-record-invite-token-${code}`),
+      pre_approved: false,
+      invited_by: familyAdmin.personId,
+      invited_person_id: f.invitedRecord.id,
     }).select().single())
 
     // A THIRD one, ALPHA only, addressed to somebody who actually has an account —
@@ -769,6 +1113,25 @@ export async function seed() {
         email: 'resend.alpha@rls.test',
         first_name: 'Resend', last_name: 'Target',
         token_hash: tokenHash(`rls-resend-token-${code}`),
+        pre_approved: false,
+        invited_by: familyAdmin.personId,
+      }).select().single())
+
+      // ONE FAMILY'S INVITATION TO THE OTHER FAMILY'S ADDRESS, which is legal and ordinary:
+      // two families can both know somebody, and `create_family_invitation` puts no
+      // constraint between the address and anybody's `people` row. It is the detector for
+      // the `.eq('family_code', …)` on the invitations read in `getDuesProjection` — without
+      // it, BRAVO's projection reports BRAVOTESTUninvited as Invited on the strength of a row
+      // ALPHA wrote.
+      //
+      // `invited_person_id` is deliberately NULL. The id branch could not reach across
+      // families through the app anyway — the RPC checks the row is in the target family — so
+      // seeding one would test a row the product cannot produce. The ADDRESS branch can.
+      f.crossFamilyInvitation = must('cross-family invitation', await db.from('family_invitations').insert({
+        family_code: code,
+        email: 'uninvited.record.bravo@rls.test',
+        first_name: 'Uninvited', last_name: 'Record',
+        token_hash: tokenHash(`rls-cross-family-invite-token-${code}`),
         pre_approved: false,
         invited_by: familyAdmin.personId,
       }).select().single())

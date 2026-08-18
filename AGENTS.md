@@ -4,16 +4,37 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Two words that name two different products
+# Three words that name three different products
 
-When an instruction here says **Home** or **Dashboard**, it means one of these and never
-the other. They are not two views of one app — they are two apps, with different
+When an instruction here says **Home**, **Dashboard** or **Staff**, it means one of these and
+never another. They are not three views of one app — they are three apps, with different
 audiences, different routers and different rules.
 
 | Word | Who is looking at it | Where it lives |
 |---|---|---|
 | **Home** | Somebody **not** signed in. The public marketing site at genorra.com — the landing page and everything around it that sells the product. | `app/page.tsx`, `app/(marketing)/*`, `components/marketing/*` |
 | **Dashboard** | A signed-in **member**, working with their family. The whole product behind the login. | `app/(protected)/*`, and `app/(protected)/dashboard` specifically when the landing screen is meant |
+| **Staff** | A GENORRA **employee**, working across every family at once. Added 2026-08-18. | `app/(staff)/*`, `app/actions/staff/*`, `components/staff/*`, `lib/auth/staff.ts` |
+
+**This said "two" until 2026-08-18** and the third is not a variation on the second. Every rule
+below about family isolation is a rule the Dashboard obeys and the Staff console deliberately does
+NOT: its whole job is to read across families, so §3's "re-apply what RLS would have done" is
+inverted there and each of its actions says so in its own header, because a reviewer's reflex is
+that a missing `.eq('family_code', …)` is a bug.
+
+What holds it shut instead is narrower and has to stay that way:
+
+* **`genorra_staff` has RLS enabled and ZERO policies**, so `anon` and `authenticated` can read no
+  row of it at all. Staffness is resolved on the SERVER through the service role and passed down
+  as a prop; there is no client-side check to spoof and no flag in user metadata.
+* **Access is granted BY HAND, with SQL.** There is no UI for it and there must not be one until
+  there is a reason — a screen that grants cross-family access is a screen worth attacking.
+* **Every page under `app/(staff)` guards itself and 404s**, never a "denied" screen: a staff
+  console should not advertise that it exists. The layout guard is a convenience, not the gate —
+  §2's argument about pages and actions, one level up.
+* **It has no `permission_resources` row and must not.** Staffness is orthogonal to the family
+  permission model, and putting it in that grid would tell a family's administrator the console
+  exists.
 
 The distinction is load-bearing, not vocabulary policing, because the two halves are
 governed by opposite rules and a change aimed at one is usually wrong in the other:
@@ -31,7 +52,8 @@ governed by opposite rules and a change aimed at one is usually wrong in the oth
 * **"Dashboard" has a narrow sense too** — `/dashboard`, the screen a member lands on.
   Which one is meant is usually plain from the instruction; when it is not, ask.
 
-"Back Office" in a vendor design handoff means Dashboard.
+"Back Office" in a vendor design handoff means Dashboard — **not Staff.** A vendor has never seen
+the staff console and is not designing for it.
 
 # Authorization is not optional
 
@@ -186,6 +208,34 @@ family reach another's records.
 Prefer the user's client (`createClient()`) where RLS can do the work; reach for the
 admin client only when the query genuinely needs to see past it, and say why.
 
+### A service-role write to `people` answers three questions, and `npm run audit:people` demands it
+
+`people` is the one table where the service role can reach a column the browser cannot.
+`people_guard_membership_status` and `people_guard_permission_template` both test
+`current_user = 'authenticated'`, so they are a boundary around **the role the browser speaks
+as**, not around the column. That is deliberate and cannot easily be otherwise: `link-person`
+carries a membership across two rows, `tests/rls/seed.mjs` has to state the statuses
+explicitly (the stamp trigger overrides insert values, so without those UPDATEs the whole
+suite would go green testing nothing), and a SECURITY DEFINER trigger sees its own owner as
+`current_user` for every caller alike — which is why `20260806000011` chose INVOKER and
+asserts `NOT prosecdef`.
+
+So the obligation is on the caller, and it is `updateUserProfile`'s three questions:
+
+1. **Family-scoped?** `.eq('family_code', familyCode)` beside `.eq('id', …)`.
+2. **Columns allow-listed?** `pickProfileColumns(data)`. A `Partial<T>` annotation is erased
+   at runtime and the action is a public HTTP endpoint.
+3. **Every referenced id verified?** `belongsToFamily(…)` for each id written onto the row.
+
+That used to be a sentence in this file, which is only ever as good as the next person having
+read it. It is now a gate: `scripts/people-writes.mjs` sweeps `app/`, `lib/` and `components/`
+for `people` writes on the admin client and fails until each one has a stated verdict — and
+it is a step in `verify.yml`. **It checks that a verdict exists, never that it is true**; the
+judgement stays a person's, and the verdicts are where that judgement is written down. Two
+database functions move `membership_status` and are invisible to any grep of this shape
+(`redeem_family_invitation`, `set_membership_status`); both are named in the script so their
+absence is recorded rather than assumed.
+
 ## 4. RLS checks the row — not the ids the row references
 
 The one hole Row Level Security structurally cannot close, and it applies on the
@@ -288,11 +338,44 @@ which side a surface wants is a real decision rather than a default:
 | Surface | Who |
 |---|---|
 | Member Directory, dashboard "Family Members" tile, family tree | everybody — a recorded grandfather is in the family |
-| dues and disbursement pickers, chapters, Reports' `totalMembers` | accounts only — a record cannot pay or be paid |
+| dues and disbursement PICKERS, chapters, Reports' `totalMembers` | accounts only — a record cannot pay or be paid |
+| Dues Projections | **every approved person**, account or not — see below |
 
 The Directory needed no change for this: `tg_person_stamp_membership_status` returns early
 for `user_id IS NULL`, so an unclaimed row keeps the `'approved'` default and was always
 listed. The dashboard tile was the one that disagreed with it, and now does not.
+
+**PROJECTIONS ARE THE EXCEPTION, and the distinction is a PICKER versus a PROJECTION.** Added
+2026-08-18. "Accounts only" is right for a picker, because you cannot record a payment from
+somebody who cannot log in — and it is wrong for a projection, because a projection is what the
+family is **owed**, and a recorded relative who never finished registering owes it exactly as
+much as one who did. Leaving them out did not make the figure conservative; it made it wrong,
+and it hid precisely the people an organizer needs to chase.
+
+So `/dues-projections` counts every person whose membership is `'approved'`, and reports each as
+**Active** (has an account), **Invited** (no account, an open invitation exists) or **Pending
+Invite** (no account, nobody has asked them). WRITES ARE STILL ACCOUNTS-ONLY — the Transactions
+picker is untouched, and the ledger still cannot name an account-less person.
+
+Two things about it that look like they should be otherwise:
+
+* **The roster is NOT gated on the bloodline**, although the request that prompted this said
+  "bloodline members". Two reasons, and the second is decisive. `bloodline_only` on a schedule is
+  the one place descent may decide who owes a due (§4c), so gating the ROSTER on descent would
+  bill a step-son and not a blood son on a schedule that had said descent was irrelevant. And
+  `bloodlineIds()` answers `null` for a family with no anchor — a bloodline-gated roster would
+  therefore count *nobody* in most families, silently. The bloodline keeps its one job and the
+  two rules stay orthogonal.
+* **A pending, rejected or disabled membership is still excluded**, by the roster rather than by
+  the status function. Somebody who has not been admitted has not joined, and nothing is owed by
+  them yet.
+
+`family_invitations` is what decides Invited, and it has **three** foreign keys to `people`
+(`invited_by`, `accepted_by`, `invited_person_id`) — so a bare `people(...)` embed on it is
+PGRST201, which §8 explains answers `[]`. It is joined in TypeScript instead. The link is also
+matched on the ADDRESS as well as `invited_person_id`, because only `invitePersonRecord` writes
+that column: the invite-by-email dialog takes no person at all, and `resendInvitation` re-mints
+without carrying the link across.
 
 ## 4c. Blood is a property of the LINK, and it is not derivable
 
@@ -367,21 +450,44 @@ Decide what the caller may *see*, fetch only that, and let the UI follow.
 ## 6. New permissioned surfaces need a migration
 
 A new page needs a row in `permission_resources` so administrators can restrict it on
-Members & Access. Without one it still works — an unregistered resource defaults
-to viewable — but it can never be turned off, which is a silent default nobody can fix
-from the UI. Add the row in a new migration *and* in the seed in `20260618000000`,
+Members & Access. Without one it still works — an unregistered **non-admin** resource
+defaults to viewable — but it can never be turned off, which is a silent default nobody can
+fix from the UI. Add the row in a new migration *and* in the seed in `20260618000000`,
 whose insert is `ON CONFLICT DO UPDATE` and would otherwise revert it on replay.
+
+**An `admin/` key is the exception, and since `20260817000004` it fails CLOSED.** Where the
+family has no `resource_visibility` row, `view` resolves to `'none'` for a resource whose
+category is `'admin'` — and for an unregistered key shaped `admin/…`, which is the case a
+category cannot answer for. Everything else keeps the `'everyone'` default. That closes
+Phase 3's second leftover: `admin/approvals` shipped world-readable and had to be backfilled
+out of it, and every family created before `20260618000000` had no visibility rows at all.
+The `admin/` prefix is a sound stand-in for the category because that migration **asserts**
+the two can never disagree, in both directions, or it refuses to apply.
+
+Three resolvers implement this rule and all three must move together — `auth_permission()`
+in SQL, and `resolveScope()` **and `scopeInFamilies()`** in `lib/auth/permissions.ts`. TODO
+named the first two; the third carries its own copy of the fall-through and its one consumer
+is the bell, on `admin/approvals`. Left behind, it would tell an administrator that a queue
+was waiting in a family whose page then answered 404.
 
 Since `20260807000000` the row is not quite enough on its own. A member's access is
 the grid on their one **permission template**, and that grid is materialized — every
 template carries an explicit row for every resource and action, so the screen can show
 the whole answer without explaining a fall-through. A resource registered later has no
 row in the templates that already exist, so it falls back to `resource_visibility`:
-`'everyone'` for view, and none for the rest. That is a working default, not a
-complete one. A new resource that should be restricted needs its per-family
-`resource_visibility` backfill in the same migration, exactly as `20260806000007` and
-`20260806000010` do — and a new resource that a system template should positively
-grant needs that backfill too, or only families created afterwards will have it.
+`'everyone'` for view (`'restricted'` for an admin key, per above), and none for the rest.
+That is a working default, not a complete one. A new resource that should be restricted needs
+its per-family `resource_visibility` backfill in the same migration, exactly as
+`20260806000007` and `20260806000010` do — and a new resource that a system template should
+positively grant needs that backfill too, or only families created afterwards will have it.
+
+**The visibility backfill for an admin key is still required, and its reason has changed.**
+It is no longer what makes the key safe — absence now denies — it is what makes the grid
+render a switch an administrator can move. So forgetting it is a screen nobody can grant
+rather than a screen everybody can read, which is the right way round and is still a bug.
+The Administrators grant in the same migration is the half that must not be skipped either
+way: "restricted with nobody granted is a screen that exists and cannot be opened", and in
+the worst ordering the screen that just locked is the one that could unlock it.
 
 ## 6b. One template per member — no second layer
 
@@ -559,6 +665,20 @@ the row. Name the constraint. And check the relationship
 exists at all before embedding it — `event_rsvp` has no foreign key to `people`, so
 `event_rsvp(people(...))` is PGRST200, equally silent.
 
+**Two more joined the list on 2026-08-18, and one of them is the shape this section warns about
+arriving by accident.** `family_invitations` has **three** paths to `people` — `invited_by`,
+`accepted_by` and `invited_person_id` (`20260813000004`) — which is why Dues Projections joins it
+in TypeScript rather than embedding it: filing every invited relative under "nobody has asked
+them" is the silent `[]` this rule exists to prevent.
+
+And `families` now has **two**, which it did not before: `bloodline_anchor_id`
+(`20260813000008`) and `removed_by` (`20260817000006`). Adding one column to one table made a bare
+`people(...)` embed on `families` PGRST201 everywhere — verified against the live stack, and the
+error names both constraints. Nothing in the tree embeds it today, so nothing broke; the point is
+that nothing had to, and next time it might. That is the `announcements` lesson in a second
+costume, and it is why the sweep below is worth running after ANY migration that adds a foreign
+key, not only after one that adds a junction table.
+
 **A JUNCTION TABLE BREAKS EMBEDS ON TABLES YOU DID NOT TOUCH,** and `announcements` is
 how that was learned. It has exactly ONE foreign key to `people` (`author_id`) and its
 bare `people(...)` embed was correct for a year. Then `announcement_unpins` arrived with
@@ -708,6 +828,56 @@ migration that sorts before an applied one, an unversioned `.sql` sitting in
 `supabase/scripts/audit_policy_shadowing.sql` is the detector for the one case the ledger
 cannot see: a bare `psql -f` changes no version, so only the policies themselves show it.
 Run it against hosted after **any** hand intervention.
+
+## Four tables in `public` are product data, and emptying one is a one-way door
+
+`relationship_types`, `permission_resources`, `permission_table_map`, and the
+`family_code IS NULL` rows of `family_roles`. They are seeded **only** by migrations — and a
+migration a database has already recorded as applied never runs again — so if one is emptied
+on hosted, nothing in the app, the chain or a `db reset` will ever put it back.
+
+That is not hypothetical; `truncate_entire_database.sql` emptied all four.
+`relationship_types` stayed empty for weeks, during which `/family-tree` answered "That
+relationship type is not set up" on every addition and drew a canvas of people with no edges
+at all. `family_roles` stayed empty longer and nobody noticed: `/admin/boardpositions`
+renders nothing, the board-position picker on Members & Access has nothing to offer, and the
+Directory's title column is blank — none of it an error. `permission_resources` and
+`permission_table_map` survived on luck, their seeding migrations happening to still be
+pending when the purge ran.
+
+Four things follow, and the third is the one that made this invisible for so long.
+
+* **`db reset` re-seeds a laptop from the original migrations, so local is always right.**
+  Only production can be wrong, which is why this has to be asked of a *database* rather than
+  of the repo. `npm run db:check` compares versions, not rows, and is blind to it.
+  `supabase/scripts/audit_global_lookups.sql` is the detector and is a step in `migrate.yml`,
+  so hosted is asked on every deploy.
+* **Every assertion about a purge has to run in BOTH directions.** `reset_families.sql` §11
+  has always checked that no table which should be empty holds rows — the direction that
+  catches a hand-written delete list going stale as the schema grows. *Nothing* checked that
+  a table which should be full is not empty, which is the direction that catches this. A
+  one-way assertion cannot see this class of damage at all.
+* **No structural test finds this set, because `family_roles` is a hybrid.**
+  `20260604000002` gave it a `family_code` so a family could define custom roles beside the 25
+  built-in board positions, so it has the very column every "is this family data?" test looks
+  for. Its global rows are the ones where that column is NULL. A new lookup therefore has to
+  be *named*, in three places in the same commit: the keep-list in
+  `truncate_entire_database.sql` §1, the keep-list in `reset_families.sql` §11, and
+  `audit_global_lookups.sql`. What catches a miss is that audit's second check, which derives
+  its candidates instead — any `public` table that is empty and has no transitive foreign-key
+  path to a `family_code`.
+* **`seed_global_lookups()` (`20260817000003`) is the ONE reseeder, and it covers two of the
+  four.** The migration calls it, which is how the repair reaches hosted, and the purge script
+  calls it, which is what makes a purge survivable — so a vocabulary change edits one function
+  and both callers are correct with no further edit. It deliberately does **not** cover
+  `permission_resources` or `permission_table_map`: their rows are assembled by about twenty
+  migrations of inserts, label and `sort_order` edits, `actions` narrowings and seven deletes,
+  and the map holds the `own_expr`/`self_expr` fragments `20260618000001` composed the policies
+  from. A copy of either would be stale from the next migration and stale *invisibly* — a wrong
+  `actions` array renders grid switches nothing reads. Those two are asserted rather than
+  reseeded, so losing them is loud. An empty `permission_resources` fails **open**: every
+  resource resolves to view `'any'`, admin pages included, while every write fails closed — and
+  Members & Access cannot repair it, because it renders from that table.
 
 ## Two things about editing migrations that follow from this
 
@@ -879,6 +1049,61 @@ undo the decision it announces — catches nothing PostgREST produces. The write
 `lib/notifications.ts` therefore read `error` and log it. Discarding it made a refused
 insert indistinguishable from a delivered one at every layer.
 
+# A family can be REMOVED, which destroys nothing
+
+`families.status` is `'active'` or `'removed'` (`20260817000006`), with `removed_at` and
+`removed_by` for the record. Removal is a soft disable: **no row anywhere is deleted**, and a
+restore brings the family back with every dues payment, photograph and chat message where it was.
+`/admin/family` offers it behind its own grant, `admin/family/remove` at `delete`, and behind a
+six-digit code emailed to the acting administrator.
+
+Six things about it are load-bearing, and the first two are the ones a future change will get
+wrong.
+
+* **THE TEST IS NOT IN `auth_family_code()`, deliberately.** That resolver is a `LIMIT 1` over an
+  `ORDER BY`, so a `status = 'active'` conjunct there would not HIDE a removed family — it would
+  SKIP to the caller's next one, silently moving which family a request is acting in. And
+  `lib/auth/family.ts` promises the TypeScript resolver mirrors that function exactly, while
+  `resolveActiveCode` has no skip, so the app and the policies would then disagree. **Enforcement
+  is app-layer by design.** No RLS policy consults `families.status` and none may start to.
+* **It withholds SCREENS, never rows** — the same boundary the tier gate keeps, and the server
+  ACTIONS behind those screens are deliberately not removal-checked, because a restored family
+  must find its records untouched. `requireFamilyActive` is folded into `requireView` and
+  `requireViewOrPending` for `requireTier`'s reason: a second line every page must also remember
+  is a line three pages will not have. It REDIRECTS to `/dashboard` rather than 404ing, because a
+  family's own members are entitled to know, and `FamilyRemoved` is where they are told.
+  `REMOVED_FAMILY_RESOURCES` in `lib/auth/family.ts` is the exemption list — it lives there rather
+  than beside `PENDING_RESOURCES` because `permissions.ts` imports that module and the reverse
+  would be a cycle.
+* **`families_guard_removal` refuses the `authenticated` role outright**, so removal and restore
+  go through the SERVICE ROLE. `families` has an UPDATE policy admitting `admin/family:edit`, and
+  a policy has no opinion about which column changed — without the guard,
+  `PATCH /families {"status":"removed"}` from devtools would remove a family past the emailed
+  code entirely. Same shape as `families_guard_family_code` and `people_guard_permission_template`.
+* **A stranger is told nothing.** Six doors refuse a removed family — `validate_family_code`,
+  `join_family_by_code`, `peek_family_invitation` (granted to `anon`), `redeem_family_invitation`,
+  `set_active_family`'s callers, and `registerUser` — and each answers the message it already gave
+  for a code that never existed, character for character. Telling a guesser "that family was
+  removed" is an enumeration signal; the family's own members learn the truth from their
+  membership instead.
+* **`set_active_family` still ALLOWS switching into a removed family**, and that is a decision.
+  Refusing would report "not a member", which is false, and would leave somebody with no route to
+  find out what happened to a family they belong to. The switcher and `/my-families` therefore
+  list a removed family **as removed** rather than hiding it — hiding it loses a family with no
+  explanation.
+* **Restore is not in the member-facing product.** It lives in the GENORRA staff console, through
+  `staff_set_family_status`, which refuses anyone `is_genorra_staff()` does not recognise. The
+  copy on the removal panel says so, because a reversible action whose reversal is invisible reads
+  as an irreversible one.
+
+The emailed code is a `family_removal_challenges` row holding a SHA-256, never the code; 15
+minutes, five attempts, single use. It is minted in TypeScript and verified in SQL, and the split
+is deliberate: the plaintext has to exist in the Node process because that process composes the
+email, whereas verifying is a five-branch read-modify-write that races itself from the app — so
+`consume_family_removal_challenge` does it in one statement under `FOR UPDATE`. The challenge is
+resolved from `(family_code, requested_by)` and the hash is only ever COMPARED, never used to find
+the row.
+
 # The signed-in app signs itself out when left idle
 
 `components/layout/IdleTimeout.tsx`, mounted once by `app/(protected)/layout.tsx`. 60
@@ -1008,6 +1233,25 @@ URL, so a `sendEmail` export is an **open relay** — any signed-in user could P
 arbitrary recipient, subject and body and have it delivered over GENORRA's authenticated
 domain, carrying our SPF and DKIM. That is phishing with the product's reputation
 attached, not spam. Keep the senders in plain modules and let actions import them.
+
+**And some mail is not ours to send at all.** GoTrue already publishes
+`POST /auth/v1/resend` and `POST /auth/v1/recover`, reachable with the anon key that ships in
+the browser bundle — so wrapping either in a `'use server'` function creates a *second*
+public endpoint whose only job is to reach the first. One that takes an email address as a
+parameter, which is the mail cannon `resendConfirmationEmail` takes no arguments to avoid;
+and one that hides every caller behind our server's address in front of the only rate limiter
+there is. `ForgotPasswordForm` and the resend offer in `LoginForm` therefore call GoTrue
+**from the browser**, unauthenticated, with no action between.
+
+The cost is that neither can report what happened, and the copy has to be written for that.
+Measured 2026-08-17: resend answers `200` for an unconfirmed address, a confirmed one and an
+address with no account alike. The one thing that *does* vary is
+`over_email_send_rate_limit` — and it fires only for an address with a **pending**
+confirmation, so the refusal is precisely the account-enumeration answer the `200` exists to
+withhold. Both screens therefore report ONE sentence for success, rate limit and transport
+failure alike, and neither ever surfaces GoTrue's own message.
+`PendingApprovalScreen` is the exception that shows the rule: it may say "Sent" because it
+read `email_confirmed_at` off a real session first.
 
 Two more that have already shaped call sites:
 
@@ -1180,6 +1424,32 @@ Answering both with one screen was the obvious shortcut and is wrong in both dir
 telling a paying family that a shipped feature is "coming soon" is a lie, and telling a
 free family to wait for something they could have this afternoon is a sale nobody made.
 
+## COMING SOON WITHHOLDS A PAGE. IT DOES NOT WITHHOLD AN ACTION
+
+`status: 'future'` is read by `proxy.ts`, at the edge, and all it does is refuse a **route**.
+The server actions behind that route keep their URLs and stay callable by anyone signed in, for
+exactly as long as the feature is "not shipped".
+
+This is not a hypothetical. `/admin/chapters` sat behind `'future'` for months, and when it was
+relit on 2026-08-18 its action module turned out to predate §3, §4 and the permission model —
+every one of these had been a live endpoint the whole time:
+
+* `deleteRegion` and `deleteChapter` had **no `family_code` conjunct at all**. `.eq('id', id)`
+  was the entire predicate, on the service-role client, so any signed-in user could delete
+  another family's regions and chapters by id.
+* `getRegions` and `getChapters` demanded a session and nothing else — no permission check.
+* `createChapter` wrote a client-supplied `region_id` onto a row with no `belongsToFamily` (§4).
+* `createCustomRole` took `MAX(sort_order)` across **every family in the product**.
+* `deleteCustomRole` had no family conjunct either, and four board-position actions were keyed
+  on the wrong resource.
+
+**So a roadmap feature's actions owe the same §1–§5 review as a shipped one**, and the review has
+to happen when the code is WRITTEN rather than when the flag flips. Gating the route is a product
+decision; it is not a security boundary, and it buys nothing at all for the endpoints underneath.
+
+The corollary for reviewing: `grep "status: 'future'"` in `lib/features.ts` is a list of action
+modules nobody has exercised recently. `/admin/boardpositions` is the one still on it.
+
 **Every `FEATURES` entry states a `tier`, and the field has no default.** A new feature
 has to decide, because the failure mode of forgetting is invisible and expensive: it
 ships to every family on every plan and nothing anywhere says so. That is exactly how
@@ -1238,9 +1508,13 @@ cards now changes more than a document: check whether a route has to move with i
 
 # The product explains itself, and the explanation is part of the screen
 
-`/help` is the in-product manual — twenty chapters over eight parts, covering every live
-screen in the Dashboard. The whole of it is `lib/help/content.ts`, and the pages that draw
-it are `app/(protected)/help/`.
+`/help` is the in-product manual, covering every live screen in the Dashboard. The whole of
+it is `lib/help/content.ts`, and the pages that draw it are `app/(protected)/help/`.
+
+**No count is written down here on purpose.** This paragraph said "twenty chapters over eight
+parts" while the manual had grown to twenty-four, which is the same staleness the rule below
+is about, one level up. `npm run help:check` prints the parts, chapters and sections it walked
+on every run, so the number is always derived and never a copy.
 
 **It names controls verbatim** — "press **New DM**", "the **Group** column", "**Disable
 member** from the row menu" — because that is the only kind of instruction worth reading.
@@ -1296,12 +1570,65 @@ Four things about it that are decisions, not accidents:
   the sidebar's copy of what `requireViewOrPending()` admits, so change one and change the
   other.
 
-**Two things are worth checking by running them**, and both were, before it shipped:
-every internal `[link](/route)` resolves to a registered route or a real chapter and
-anchor, and every chapter's `route` is in `FEATURES`. There is no `npm run help:check` yet
-— TODO.md carries it, and until it exists this paragraph is the only thing asking.
-`lib/help/inline.test.ts` is the part that IS enforced, under `npm test`, and it was
-checked by mutation the way §7b requires.
+**`npm run help:check` is the enforcement, and it is a step in `verify.yml`.** It asserts
+six things, all of them derived from `lib/help/content.ts` with no database and no network:
+every internal `[link](/route)` resolves — a `/help/<slug>` to a real chapter, a `#anchor` to
+a real section id *in that chapter*, anything else to a route `getFeature()` knows; every
+chapter's `route` is a `FEATURES` href, exactly once; no duplicate chapter slug, part id, or
+section id within a chapter; no inline markup in the five fields the pages interpolate raw;
+**every live screen has a chapter**, or an entry in the script's `UNDOCUMENTED_OK` giving
+the reason it does not; and **every `<HelpLink slug="…" section="…">` placed in the app
+resolves to a real chapter and section**. The fifth is what catches the actual regression — a
+screen shipping undocumented — and there are three allowances today, each printed on every run
+so the gap stays visible rather than blending into the green. The sixth is the *only*
+enforcement those two props have: `HelpLink` deliberately does not import `content.ts`,
+because most of its call sites are `'use client'` and the import would bundle the whole
+manual — so a renamed section id otherwise leaves a link that loads the right chapter and
+silently does not scroll.
+
+Three things about it are worth knowing before editing either file:
+
+* **It walks the DATA, not the source.** `content.ts`'s own doc comment contains
+  `[a link](/route)` as an example, so a regex over the file text reports a broken link on day
+  one. Importing the module and using the real `parseInline` is what makes 47 checked links
+  and 48 textual occurrences the right answer.
+* **Section ids are unique per CHAPTER and must not be asserted globally.** The anchor is
+  `/help/<slug>#<id>`, and `what-it-is` legitimately appears in four chapters. A global rule
+  fails eight times immediately, and a global anchor *set* would pass
+  `/help/summary#reversals`, which does not exist.
+* **A chapter route is checked by exact href membership, never `getFeature()`** — that
+  function longest-prefix-matches, so `/admin/nonexistent` resolves to the `/admin` catch-all
+  and would pass.
+
+It cannot check the thing the rule is actually about: whether the prose still describes the
+screen. Nothing can, the script says so on every clean run, and that is why the rule above is
+still addressed to a person. `lib/help/inline.test.ts` is enforced too, under `npm test`,
+which has been a `verify.yml` step since 2026-08-17 — before that it ran on laptops only, and
+this paragraph claimed otherwise. Both were checked by mutation the way §7 and §7b require;
+the mutations for the checker are listed in its header.
+
+## Two ways into the manual, and only one of them is automatic
+
+`components/help/ContextHelpLink.tsx` is a question mark in the top bar that resolves
+`usePathname()` against `HELP_ROUTE_INDEX` — **derived** from the chapters
+(`lib/help/routes.ts`), so it cannot name a chapter that is not there, and it renders `null`
+when no chapter covers the path. That last property is what makes it safe to mount on every
+screen: the affordance degrades to nothing rather than to a broken link.
+
+It is a client component **precisely because the shell does not re-render on a client-side
+navigation** (see "The shell is built once"). A server-resolved answer would freeze at
+whichever page happened to load first. The index is passed down as a **prop** rather than
+imported, because importing `lib/help/routes.ts` from a `'use client'` file drags all ~79KB of
+`content.ts` into the browser bundle — which is also why `lib/help/route-match.ts` has no
+imports at all and deliberately re-states `getFeature()`'s longest-prefix rule instead of
+importing it.
+
+`components/help/HelpLink.tsx` is placed **by hand, and sparingly** — seven today, each beside
+one control where a member can be confidently wrong. An icon on everything is an icon on
+nothing, which is the same argument `HelpAvailabilityBadge` already makes about badges. Adding
+one is a judgement rather than a default, and the test is whether there is a paragraph
+somebody standing at that control needs and would not go looking for. Its `slug`/`section`
+props are plain strings that nothing but `help:check` can validate — see above.
 
 # Colours live in one place
 

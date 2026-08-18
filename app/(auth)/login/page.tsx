@@ -116,9 +116,16 @@ export default async function LoginPage({
               and set a new one.
             </li>
             <li>
+              {/* "Look in your spam folder before trying again" until 2026-08-17, which
+                  described a loop with no exit — trying again is refused for the same
+                  reason every time. `LoginForm` now offers to resend on exactly this
+                  refusal, so the bullet says where the offer appears. The spam advice
+                  stays first: a link delivered and overlooked is the common case, and one
+                  more email does not help with it. */}
               <AsideTerm>Never confirmed your email?</AsideTerm> Registering sends a
               confirmation link, and an account stays inactive until it is opened. Look in
-              your spam folder before trying again.
+              your spam folder first — then sign in above, and the form will offer to send
+              the link again.
             </li>
             <li>
               <AsideTerm>Joined with a family code?</AsideTerm> An administrator of that

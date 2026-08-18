@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { Lock, ArrowRight, Check, Crown } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { FEATURES } from '@/lib/features'
-import { PLAN_ADDS } from '@/lib/plans'
+import {
+  PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice, monthsFreeOnAnnual,
+} from '@/lib/plans'
 import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tiers'
 
 /**
@@ -18,10 +20,17 @@ import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tier
  * ── WHAT IT MAY AND MAY NOT SAY ─────────────────────────────────────────────────────
  * It names the feature, the plan that includes it, and the OTHER features on that plan —
  * all of which is published on `/pricing` and identical for every customer, so none of it
- * discloses anything about this family. What it must never do is name a NUMBER. Pricing
- * has not been announced (`PRICING_IS_ANNOUNCED` on `/pricing` is false and explains at
- * length why there is no placeholder figure), and a price invented here would be a
- * commercial representation on a page a member reads as authoritative.
+ * discloses anything about this family.
+ *
+ * IT NOW NAMES THE PRICE TOO, since 2026-08-17, and the rule it used to state is unchanged
+ * rather than relaxed: it must not name an INVENTED number. `TIER_PRICE` in `lib/plans.ts`
+ * is the real figure and the same one `/pricing` renders, so this screen is quoting rather
+ * than guessing — which is what makes it safe on a page a member reads as authoritative.
+ *
+ * And it says in the same breath that nothing can be bought yet (`TIER_IS_SOLD`). This is
+ * the screen where that matters most: it is the one place in the product where somebody
+ * WANTED a feature and was refused, so it is the one place a price with no way to pay would
+ * read as a broken checkout rather than as information.
  *
  * ── IT NO LONGER LINKS TO `/pricing`, since 2026-08-13 ──────────────────────────────
  * That link took a signed-in member out of the Dashboard and onto Home, where the answer
@@ -66,6 +75,12 @@ export function UpgradeScreen({
     && !tierMeets(currentTier, f.tier)
     && f.label !== label,
   )
+
+  // `null` only if this ever renders for Free, which `requireTier` cannot produce — Free is
+  // the floor, so `tierMeets` is always true for it and no page redirects here. Read
+  // defensively anyway rather than asserted: a screen is the wrong place to throw.
+  const price = TIER_PRICE[required]
+  const months = price ? monthsFreeOnAnnual(price) : null
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center sm:px-6">
@@ -128,6 +143,26 @@ export function UpgradeScreen({
         <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
           Everything on {TIER_LABEL[currentTier]} comes with it.
         </p>
+
+        {/* THE PRICE, LAST — after what the plan does, never before it. Somebody who
+            reached this screen was refused a feature, so the question they arrived with is
+            "what is this?" and the price is what they ask second. A figure above the
+            benefit list would answer the second question first.
+
+            Both rates, because the annual one is the better deal and is easy to miss, and
+            the saving is DERIVED so the sentence cannot contradict the two numbers beside
+            it. `monthsFreeOnAnnual` returns null when it does not divide into whole months,
+            in which case the claim is simply not made. */}
+        {price && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {formatPlanPrice(price.monthlyCents)} a month
+            </span>
+            , or {formatPlanPrice(price.yearlyCents)} for the year paid in advance
+            {months ? ` — ${months === 2 ? 'two' : months} months free` : ''}.
+            {!TIER_IS_SOLD[required] && ' Not on sale yet; nothing is billed today.'}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap justify-center gap-2">

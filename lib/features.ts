@@ -456,10 +456,31 @@ export const FEATURES: readonly Feature[] = [
     tier: 'free',
     blurb: 'Review the people asking to join your family, and admit or decline them.',
   },
+  // Regions & Chapters is LIVE (2026-08-18), and dues can now be scoped to one
+  // (20260817000008). The route, its actions, its client and its `admin/chapters`
+  // permission resource all existed and were wired, so no migration was needed to
+  // REGISTER anything — the key has been in `permission_resources` since 20260618000000,
+  // it is category 'admin' and so born 'restricted' per family, and
+  // `seed_family_permission_templates()` gives Administrators every action on every admin
+  // key. The rail item in `Sidebar.tsx` was already there too.
+  //
+  // FLIPPING THE WORD WAS NOT THE WHOLE JOB, and this is the entry to read before flipping
+  // another old route. Everything in `app/actions/admin/chapters.ts` predates §3, §4 and
+  // the permission model, and every one of those actions was a live HTTP endpoint the
+  // entire time it was gated — Coming Soon withholds the PAGE, never the actions. Two
+  // cross-family deletes, one unchecked reference and two ungated reads came back with it;
+  // that file's header lists them.
+  //
+  // STILL `plus`. /pricing sells "Split a large family into chapters with their own
+  // leadership" on the Plus card and `/features` prints the same, so shipping it Free would
+  // leave a paid bullet describing a free feature. National is unaffected by that and has
+  // to be: it is the ABSENCE of a region rather than a row, so every family on every plan
+  // has it, and a Free family's schedules are all National by construction — see
+  // 20260817000008, which states the whole argument.
   {
     href: '/admin/chapters',
     label: 'Regions & Chapters',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Organize a large family into regional chapters with scoped leadership.',
   },
@@ -470,6 +491,20 @@ export const FEATURES: readonly Feature[] = [
   //
   // Back on the roadmap. The page and its permission resource both still exist and are
   // wired correctly — only the status moved — so shipping it again is this one word.
+  //
+  // AND THAT SENTENCE IS NOW KNOWN TO BE OPTIMISTIC, which is the useful thing to record
+  // here. Regions & Chapters was described the same way and it was not: its actions were
+  // written before §3 and §4 and carried two cross-family deletes. The four board-position
+  // actions live in `app/actions/admin/chapters.ts`, were gated on `admin/chapters` until
+  // 2026-08-18 (the wrong key — `permission_table_map` points `family_roles` at
+  // `admin/boardpositions`), and `deleteCustomRole` had no `family_code` conjunct at all.
+  // Those are fixed and covered by tests/rls; what has NOT been done is reading this page
+  // and its client with the same care. Do that before flipping the word.
+  //
+  // ITS DATA WAS EMPTY UNTIL 20260817000003. `family_roles`'s global rows — the 25 built-in
+  // board positions — are seeded only by migrations, and `truncate_entire_database.sql` had
+  // emptied them; the page rendered nothing, with no error anywhere. That reseed is what
+  // makes shipping this possible at all.
   {
     href: '/admin/boardpositions',
     label: 'Board Positions',

@@ -1,13 +1,22 @@
 'use server'
 
+import { createHash, randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAny } from '@/lib/auth/permissions'
-import { requireEdit, requireRead } from '@/lib/auth/guard'
+import { requireDelete, requireEdit, requireRead } from '@/lib/auth/guard'
+import { getFamilyStatus, type FamilyStatus } from '@/lib/auth/family'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { isFamilyTier, type FamilyTier } from '@/lib/tiers'
-import { FAMILY_RESOURCE, MAX_FAMILY_NAME } from '@/components/admin/family-settings'
+// PLAIN MODULES, imported here and never re-exported. Everything exported from a
+// `'use server'` file gets a URL, so a `sendEmail` re-export would be an open relay
+// carrying GENORRA's SPF and DKIM — see the header of lib/email/send.ts.
+import { sendEmail, emailOrigin, deliveryNote } from '@/lib/email/send'
+import { familyRemovalCodeEmail } from '@/lib/email/templates'
+import {
+  FAMILY_RESOURCE, MAX_FAMILY_NAME, REMOVE_FAMILY_RESOURCE,
+} from '@/components/admin/family-settings'
 
 /**
  * Family Settings — the family's own identity, as opposed to the eighteen admin
@@ -43,6 +52,26 @@ export interface FamilySettings {
   tier: FamilyTier
   /** Whether to render the form at all. The write re-checks; this only shapes the UI. */
   canEdit: boolean
+  /**
+   * Whether this caller holds `admin/family/remove:delete` — a SEPARATE grant from
+   * `canEdit`, because ending a family is a different decision from naming it
+   * (20260817000006 §4).
+   *
+   * Resolved here rather than in the component so the section is not FETCHED for somebody
+   * who cannot use it (AGENTS.md §5). There is not much to withhold — the control renders
+   * no family data — but the rule is about where the decision is made, and a page that
+   * resolves one grant server-side and another in the browser has two answers to keep in
+   * step.
+   */
+  canRemove: boolean
+  /**
+   * Whether the family is still available (20260817000006).
+   *
+   * Read so this page can say so: an administrator of a removed family arriving here
+   * should be told what happened rather than offered a button that has already been
+   * pressed. It is NOT what protects anything — `removeFamily` re-derives it.
+   */
+  status: FamilyStatus
 }
 
 export type RenameFamilyResult =
@@ -72,7 +101,7 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
   if (!g.ok || !g.familyCode) return null
 
   const supabase = await createClient()
-  const [family, members, editable, tier] = await Promise.all([
+  const [family, members, editable, removable, tier, status] = await Promise.all([
     supabase
       .from('families')
       .select('family_code, family_name, created_at')
@@ -84,6 +113,10 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
       .eq('family_code', g.familyCode)
       .eq('membership_status', 'approved'),
     canAny(g.userId, FAMILY_RESOURCE, 'edit'),
+    // `canAny`, matching what `requireDelete` in removeFamily resolves to — a family has
+    // one row and nobody's personal copy of it, so scope 'own' must not be a way in. The
+    // grid agrees: `admin/family/remove` is in NO_OWNER_KEYS, so no 'own' button is drawn.
+    canAny(g.userId, REMOVE_FAMILY_RESOURCE, 'delete'),
     // Read separately rather than added to the select above, on purpose: `tier` reaches
     // this app only through `getMyFamilyTier`, which normalizes an unknown or absent
     // value to Free and logs a refused query. Selecting the column here as well would be
@@ -92,6 +125,11 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
     // kills the WHOLE query, so a database behind on migrations would take the family's
     // NAME down along with its plan.
     getMyFamilyTier(g.userId),
+    // And `status` for the same reason again, one migration later. It is the newest column
+    // on this table, so it is the one most likely to be missing from a database that is
+    // behind — and 42703 kills the WHOLE query, which would take the family's name down
+    // with it. Its own reader, its own error, its own fallback.
+    getFamilyStatus(g.familyCode),
   ])
 
   // The error is read rather than discarded (AGENTS.md §8): `null` from maybeSingle()
@@ -113,7 +151,9 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
     memberCount: members.count ?? 0,
     createdAt: row?.created_at ?? null,
     canEdit: editable,
+    canRemove: removable,
     tier,
+    status,
   }
 }
 
@@ -250,6 +290,274 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
   // until the next full navigation.
   revalidatePath('/', 'layout')
   return { success: true, tier }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────────────
+ * REMOVING A FAMILY
+ *
+ * Two actions and one emailed code. Removal DISABLES a family — `families.status` moves
+ * to 'removed' and nothing else happens anywhere. No row is deleted, by these functions
+ * or by anything they enable, and 20260817000006's header sets out at length why deleting
+ * is not on the table: nothing has a foreign key to `families`, 34 tables carry
+ * `family_code`, and `gen_family_code()`'s uniqueness loop reads the row that would go.
+ *
+ * THERE IS NO RESTORE HERE, DELIBERATELY. The only route back is
+ * `staff_set_family_status()` from the GENORRA staff console (`app/(staff)`), because a
+ * family that can un-remove itself has not been removed. Do not add a member-facing one.
+ *
+ * WHY AN EMAILED CODE AT ALL. The grant is the authorization; the code is proof that the
+ * person holding the session is the person who owns the mailbox. It is the one action in
+ * the product that switches the whole family off in a single click, and the grant that
+ * admits it is one an administrator may have been given months ago and forgotten.
+ * ──────────────────────────────────────────────────────────────────────────────────── */
+
+/** Digits in the emailed code. */
+const REMOVAL_CODE_LENGTH = 6
+
+/**
+ * How long a code lasts. Stated once, because the email prints it and the challenge is
+ * written with it — two copies is how the sentence somebody reads stops describing the
+ * timer they are racing.
+ */
+const REMOVAL_CODE_MINUTES = 15
+
+export type RemovalCodeResult =
+  | {
+      success: true
+      /**
+       * Where it went, so the screen can say so. The caller's OWN address, resolved from
+       * their session — this discloses nothing they are not already looking at.
+       */
+      sentTo: string
+      /** False when the mail did not go. The UI owes the truth about that. */
+      emailed: boolean
+      /** `deliveryNote()`'s sentence, or null. */
+      note: string | null
+      minutes: number
+    }
+  | { success: false; message: string }
+
+export type RemoveFamilyResult =
+  | { success: true }
+  | { success: false; message: string }
+
+/** SHA-256 hex, matching `encode(digest(code,'sha256'),'hex')` in the database. */
+const hashCode = (code: string): string =>
+  createHash('sha256').update(code).digest('hex')
+
+/**
+ * Email the acting administrator a code that confirms removing their family.
+ *
+ * ── IT TAKES NO ARGUMENTS AT ALL, AND THAT IS THE SECURITY DESIGN ──────────────────
+ * Two separate reasons, and both are rules this codebase has already paid for:
+ *
+ *   * NO ADDRESS. This is a `'use server'` export and therefore a public HTTP endpoint.
+ *     An `email` parameter would make it a mail cannon aimed at any address the caller
+ *     chose, delivered over GENORRA's authenticated domain with our SPF and DKIM on it —
+ *     which is phishing with the product's reputation attached. `resendConfirmationEmail`
+ *     takes no arguments for exactly this, and neither does this.
+ *   * NO FAMILY. The target is derived from the caller's own membership, exactly as
+ *     `auth_family_code()` derives it inside the policies, so the two cannot disagree.
+ *     `renameFamily`'s header has the long version.
+ *
+ * ── THE CODE IS GENERATED HERE, NOT IN SQL ─────────────────────────────────────────
+ * `node:crypto`'s `randomInt`, which is rejection-sampled over the platform CSPRNG and is
+ * the generator `app/actions/register.ts` already uses for family codes. The alternative —
+ * a SQL minting function over `extensions.gen_random_bytes` — would have to RETURN the
+ * plaintext through PostgREST to get it to the process that composes the email, putting
+ * the secret on a second wire and into a second set of logs for nothing. Only the SHA-256
+ * is stored, so this is the only place the digits exist outside the recipient's inbox.
+ *
+ * The range is 100000–999999 rather than 0–999999: a code with a leading zero is one
+ * somebody retypes as five digits, and 900,000 possibilities behind a five-attempt cap is
+ * not meaningfully weaker than a million.
+ *
+ * ── SENDING FAILS SOFT, SO THIS REPORTS WHAT HAPPENED ──────────────────────────────
+ * `sendEmail()` never throws. The challenge is already minted by the time it is called, so
+ * a mail outage cannot roll it back — and rendering a code box over an email that did not
+ * go is precisely the failure `inviteMember` was rewritten to avoid.
+ *
+ * IT DOES NOT HAND THE CODE BACK, and that is where this deliberately parts company with
+ * `inviteMember`. That action returns the invitation token when the send fails, because
+ * the credential is for somebody ELSE and the inviter needs a way to deliver it. Here the
+ * recipient IS the caller, so returning the digits would hand them both factors and make
+ * the whole gate a formality. They are told the mail did not go, and can ask again.
+ */
+export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
+  const g = await requireDelete(REMOVE_FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  // The challenge is resolved from (family_code, requested_by), so a caller with no
+  // `people` row in this family has nothing to resolve against. Refused here rather than
+  // written as a NULL nothing could ever match.
+  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+
+  // The session's own address — read from GoTrue rather than from `people.primary_email`,
+  // because a `people` row may legitimately hold a GENERATED placeholder address
+  // (AGENTS.md §4b) and mailing one is mailing nobody. This is the mailbox the caller
+  // signs in with, which is what "the acting administrator" means.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const to = user?.email?.trim() ?? ''
+  if (!to) {
+    return { success: false, message: 'This account has no email address to send a code to.' }
+  }
+
+  const admin = createAdminClient()
+
+  // The family's display name, for the message. §3: the service role has no RLS, so the
+  // `.eq('family_code', …)` from the caller's own membership IS the scoping.
+  const { data: family, error: familyError } = await admin
+    .from('families')
+    .select('family_name')
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (familyError) {
+    console.error(`[admin/family] could not read families for ${g.familyCode}: ${familyError.message}`)
+    return { success: false, message: 'Could not send a code just now. Please try again.' }
+  }
+  const familyName = (family?.family_name as string) ?? g.familyCode
+
+  const code = String(randomInt(100_000, 1_000_000))
+
+  // SUPERSEDE ANYTHING STILL OPEN before writing the new one. Without this, asking twice
+  // leaves two live codes and the older one keeps working — the verifying function takes
+  // the NEWEST unspent challenge, so the stale row would be unreachable rather than
+  // dangerous, but a code somebody has in their inbox and cannot use is worse than one
+  // that has visibly expired.
+  const { error: supersedeError } = await admin
+    .from('family_removal_challenges')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('family_code', g.familyCode)
+    .eq('requested_by', g.personId)
+    .is('consumed_at', null)
+  if (supersedeError) {
+    console.error(`[admin/family] could not close open removal challenges for ${g.familyCode}: ${supersedeError.message}`)
+    return { success: false, message: 'Could not send a code just now. Please try again.' }
+  }
+
+  const { error: insertError } = await admin
+    .from('family_removal_challenges')
+    .insert({
+      family_code: g.familyCode,
+      requested_by: g.personId,
+      code_hash: hashCode(code),
+      expires_at: new Date(Date.now() + REMOVAL_CODE_MINUTES * 60_000).toISOString(),
+    })
+  if (insertError) {
+    console.error(`[admin/family] could not mint a removal challenge for ${g.familyCode}: ${insertError.message}`)
+    return { success: false, message: 'Could not send a code just now. Please try again.' }
+  }
+
+  const mail = familyRemovalCodeEmail({
+    origin: emailOrigin(),
+    familyName,
+    code,
+    expiresInMinutes: REMOVAL_CODE_MINUTES,
+  })
+  const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, tag: mail.tag })
+
+  return {
+    success: true,
+    sentTo: to,
+    emailed: sent.sent,
+    note: deliveryNote(sent),
+    minutes: REMOVAL_CODE_MINUTES,
+  }
+}
+
+/**
+ * Remove the family the caller is currently acting in.
+ *
+ * ── THE CODE IS VERIFIED AND CONSUMED IN ONE STATEMENT ─────────────────────────────
+ * `consume_family_removal_challenge()` (20260817000007) does it under `FOR UPDATE`. A
+ * read-then-write here would race itself — two tabs, or one double click, and the same
+ * challenge is spent twice or a wrong guess and a right one interleave so only one of two
+ * failures is counted. That function also owns the attempt cap, the expiry and the single
+ * use, so none of them can be forgotten by a rewrite of this action.
+ *
+ * NO CHALLENGE ID CROSSES FROM THE CLIENT. The only argument is the six digits somebody
+ * typed; the row is resolved from (family_code, requested_by), both derived from the
+ * session — the same shape `appeal_membership_decision` uses, and the reason a guessed
+ * code cannot spend another family's challenge.
+ *
+ * ── AND THEN THE SERVICE ROLE, BECAUSE THE GUARD REFUSES THE BROWSER ───────────────
+ * `families_guard_removal` (20260817000006 §2) refuses any change to status/removed_at/
+ * removed_by made by the `authenticated` role. That is what makes the emailed code mean
+ * anything: without it, an administrator holding only the RENAME grant could PATCH
+ * `{"status":"removed"}` straight at PostgREST from devtools, past this action entirely.
+ * So the write goes through `createAdminClient()` — and with the service role there is no
+ * policy behind `.eq('family_code', …)`, which makes that filter the isolation rather than
+ * a belt beside braces (AGENTS.md §3).
+ *
+ * `.eq('status', 'active')` is the positive test 20260817000006 asks every gate for: never
+ * `<> 'removed'`, so a third status added later is refused here rather than admitted.
+ */
+export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
+  const g = await requireDelete(REMOVE_FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+
+  // Narrowed rather than trusted. This is a public endpoint, so the argument arrives from
+  // an HTTP request and the form is not in its path; a shape check here is a message the
+  // caller can read instead of a wasted attempt against the cap.
+  const typed = (code ?? '').trim()
+  if (!new RegExp(`^\\d{${REMOVAL_CODE_LENGTH}}$`).test(typed)) {
+    return { success: false, message: 'That code is not right.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: challenge, error: challengeError } = await admin
+    .rpc('consume_family_removal_challenge', {
+      p_family_code: g.familyCode,
+      p_person_id: g.personId,
+      p_code_hash: hashCode(typed),
+    })
+    .maybeSingle<{ ok: boolean; message: string | null; attempts_left: number }>()
+
+  // The error is READ (AGENTS.md §8): a refused RPC and a refused CODE are opposite facts
+  // and `data` cannot tell them apart — `null` from maybeSingle() is what both look like.
+  if (challengeError) {
+    console.error(`[admin/family] removal challenge failed for ${g.familyCode}: ${challengeError.message}`)
+    return { success: false, message: 'Could not confirm that code. Please try again.' }
+  }
+  if (!challenge?.ok) {
+    return { success: false, message: challenge?.message ?? 'That code is not right.' }
+  }
+
+  const { data, error } = await admin
+    .from('families')
+    .update({
+      status: 'removed',
+      removed_at: new Date().toISOString(),
+      removed_by: g.personId,
+    })
+    .eq('family_code', g.familyCode)
+    .eq('status', 'active')
+    .select('status')
+
+  if (error) {
+    console.error(`[admin/family] removal refused for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not remove the family. Please try again.' }
+  }
+  // Zero rows is one of two things, and neither is a success: the family is already
+  // removed, or it has a `people` row and no `families` row (the pre-table case
+  // `getFamilySettings` falls back for). Reported rather than returned as success over an
+  // unchanged row — and the code is spent either way, which is the contract.
+  if (!data || data.length === 0) {
+    return {
+      success: false,
+      message: 'This family is already removed, or has no settings record to remove.',
+    }
+  }
+
+  // THE WHOLE LAYOUT. Removal changes what the rail may show, what the switcher says about
+  // this family, and which screen the dashboard renders — a revalidation confined to
+  // /admin/family would leave every one of those describing a family that is gone.
+  revalidatePath('/', 'layout')
+  return { success: true }
 }
 
 // NO `planLabel` HELPER HERE, and the reason is a build error rather than taste: every

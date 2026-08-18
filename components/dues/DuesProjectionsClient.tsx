@@ -9,7 +9,8 @@ import { formatDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
-import { collectedPercent, type DuesStanding } from '@/lib/dues-projection'
+import { HelpLink } from '@/components/help/HelpLink'
+import { collectedPercent, type DuesStanding, type MemberStatus } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
 
 /**
@@ -36,6 +37,24 @@ import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
  * and a levy from 1 January has two years in progress. The per-schedule table states the
  * period each row was measured over rather than implying one family-wide year, because the
  * alternative is a headline that disagrees with what every member sees on /dues.
+ *
+ * ── EVERY APPROVED PERSON IS IN IT, AND THE ROW SAYS WHETHER YOU CAN ASK THEM ───────
+ * The roster stopped being accounts-only on 2026-08-18 — a projection is what the family is
+ * OWED, and a grandmother recorded on the tree who never finished registering owes her dues
+ * just as much as her son does. `lib/dues-projection.ts`'s header argues that out.
+ *
+ * It puts something on screen that was not there before: money owed by people the family has
+ * no way to invoice. So the **Status** column carries Active / Invited / Pending Invite, the
+ * caption under the figures says how many of each there are, and **Still to collect** says how
+ * much of itself belongs to somebody with no account. Without those three the screen would
+ * report a bigger number with no explanation of why it cannot be chased, which is a different
+ * kind of dishonesty from the one the roster change fixed.
+ *
+ * NONE OF THE THREE IS A COLOUR THIS SCREEN ALREADY USES FOR MONEY. `--brand-withheld` is
+ * spoken for here — it is what an outstanding figure is printed in — so borrowing it for a
+ * membership state would make one colour mean two things in adjacent cells of the same row.
+ * Status is Heritage soft, Warmth, and muted; not `--destructive`, because nobody has failed
+ * at anything by not having been invited yet.
  *
  * ── THE MEMBER TABLE IS BUILT FOR A HUNDRED AND FIFTY ───────────────────────────────
  * A real `<table>` with `<th scope="col">`, a filter box over `matchesPersonQuery` so "jose"
@@ -70,15 +89,78 @@ const STANDING: Record<DuesStanding, { label: string; className: string; hint: s
   // as a correction attached to a person. The hint says which due it is about; the pill
   // does not say anything about them.
   excluded: { label: 'Not theirs',   className: 'bg-muted text-muted-foreground',           hint: 'This due is owed by the bloodline only.' },
+  // "Elsewhere", and deliberately NOT folded into 'Not theirs'. Both mean the member owes
+  // nothing, and one of them is reversible: they move chapter, or their chapter moves
+  // region, and the due becomes theirs. Wording it as geography also keeps the pill silent
+  // about how anybody joined the family, which is the same call 'Not theirs' makes.
+  'out-of-scope': { label: 'Elsewhere', className: 'bg-muted text-muted-foreground',        hint: 'This due is for one region or chapter, and they are in another — or in none, which puts them under National.' },
 }
 
 /** Least settled first, so the people to chase are at the top before anybody sorts. */
 const STANDING_ORDER: readonly DuesStanding[] = [
-  'unpaid', 'partial', 'settled', 'declined', 'exempt', 'excluded',
+  'unpaid', 'partial', 'settled', 'declined', 'exempt', 'excluded', 'out-of-scope',
 ]
 
+/**
+ * Whether the family can ask this person for the money. A SECOND AXIS, not a standing.
+ *
+ * Two columns rather than one because they are two questions, and folding them would answer
+ * the wrong one: "Pending Invite" is not a reason somebody owes nothing, and a single pill
+ * would have to choose which of the two facts to hide. The words are the ones the requirement
+ * asked for, verbatim, so the help chapter and the screen use one vocabulary.
+ */
+const MEMBER_STATUS: Record<MemberStatus, { label: string; hint: string; className: string }> = {
+  // Heritage soft — a resting pill for the ordinary state. It is deliberately not affirm:
+  // affirm on this screen means money in, and having an account is not a payment.
+  active: {
+    label: 'Active',
+    hint: 'They have an account and can see this due on their own Dues screen.',
+    className: 'bg-brand-soft text-brand-on-soft',
+  },
+  // The one filled Warmth chip in this column: something is in progress and the ball is with
+  // them, which is neither the resting state nor nothing having happened.
+  invited: {
+    label: 'Invited',
+    hint: 'No account yet, and an invitation is open. They have been asked.',
+    className: 'bg-brand-warm text-brand-on-warm',
+  },
+  // Muted, because nothing has happened yet — which is the honest reading. NOT
+  // `--brand-withheld`: on this screen that token is what an outstanding figure is printed in,
+  // and a second meaning for it two cells away would make the colour say nothing at all.
+  'pending-invite': {
+    label: 'Pending Invite',
+    hint: 'Recorded in the family and not yet asked to join, so there is nobody to invoice.',
+    className: 'bg-muted text-muted-foreground',
+  },
+}
+
+/** Reachable first, so the caption reads from "we can ask them" down to "we cannot". */
+const MEMBER_STATUS_ORDER: readonly MemberStatus[] = ['active', 'invited', 'pending-invite']
+
+/**
+ * "Texas region" / "Houston chapter", or null for a national due.
+ *
+ * The name comes from `placeNames`, and a MISSING one falls back to the bare word rather
+ * than to the uuid: an id renders to a reader as a fault, and the row's `scope` is enough to
+ * say what kind of place it is even when the name did not come back.
+ */
+function scopeCaption(
+  s: { scope: string; regionId: string | null; chapterId: string | null },
+  placeNames: Record<string, string>,
+): string | null {
+  if (s.scope === 'regional') {
+    const name = s.regionId ? placeNames[s.regionId] : undefined
+    return name ? `${name} region` : 'One region'
+  }
+  if (s.scope === 'chapter') {
+    const name = s.chapterId ? placeNames[s.chapterId] : undefined
+    return name ? `${name} chapter` : 'One chapter'
+  }
+  return null
+}
+
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
-  const { projection, people } = result
+  const { projection, people, placeNames } = result
   const [query, setQuery] = useState('')
   const [onlyOwing, setOnlyOwing] = useState(false)
 
@@ -111,6 +193,17 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
 
   const percent = collectedPercent(projection)
   const owing = projection.members.filter(m => m.outstandingCents > 0).length
+
+  // "12 Active · 1 Invited · 3 Pending Invite", and only the states that are actually there.
+  // Built from `statusCounts`, which `projectDues` derives from the same call the pills render
+  // from — so the sentence and the column cannot disagree. A state with nobody in it is left
+  // out for the reason the standing pills are: a row of zeroes is noise, and "0 Invited" reads
+  // as a broken figure rather than as an absence.
+  const statusSummary = MEMBER_STATUS_ORDER
+    .filter(k => projection.statusCounts[k] > 0)
+    .map(k => `${projection.statusCounts[k]} ${MEMBER_STATUS[k].label}`)
+    .join(' · ')
+  const unreachable = projection.statusCounts.invited + projection.statusCounts['pending-invite']
 
   return (
     <div className="space-y-6">
@@ -152,17 +245,40 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
         </p>
       )}
 
-      {/* HOW THE MEMBER COUNT WAS ARRIVED AT. A figure here that quietly disagrees with the
-          Member Directory next door is a figure nobody trusts, so the difference is stated
-          rather than left to be discovered. */}
+      {/* HOW MUCH OF "STILL TO COLLECT" NOBODY CAN BE INVOICED FOR. Without this the figure
+          above reads as a list of people to chase, and part of it belongs to relatives who
+          cannot see a due, let alone pay one — which is the one thing counting them introduced.
+          It is a SUBSET and says so: the family is owed it either way, which is why they are
+          counted at all.
+
+          `--brand-withheld`, the same role the tile above prints its total in, so a reader
+          connects the two figures rather than reading this as a separate number. Not
+          `--destructive`: nothing has failed, and nothing was deleted. */}
+      {projection.unregisteredOutstandingCents > 0 && (
+        <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          <span className="font-medium text-brand-withheld">{formatCurrency(projection.unregisteredOutstandingCents)}</span>
+          {' '}of what is still to collect is owed
+          by {unreachable === 1 ? 'one member' : `${unreachable} members`} with no
+          account — {projection.statusCounts.invited} invited
+          and {projection.statusCounts['pending-invite']} not yet asked to join. It is part of the
+          total above, not a deduction from it: the family is owed the money whether or not there
+          is an inbox to send the invoice to.
+        </p>
+      )}
+
+      {/* WHO IS IN THESE FIGURES. This used to reconcile a smaller count against the Member
+          Directory's; it now states that the two ARE the same list, which is the property the
+          roster change bought. What replaces the reconciliation is the split a treasurer cannot
+          get anywhere else — how many of the people who owe money can actually be invoiced. */}
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>
-          Counted over {projection.membersCounted} approved {projection.membersCounted === 1 ? 'member' : 'members'} with an account.
-          {projection.recordsExcluded > 0 && (
-            <> {projection.recordsExcluded} more {projection.recordsExcluded === 1 ? 'person is' : 'people are'} recorded
-            in the family without one — a record cannot pay, so nothing is expected from them.</>
-          )}
+          Counted over {projection.membersCounted} approved {projection.membersCounted === 1 ? 'member' : 'members'} —
+          the same list the Member Directory shows, whether or not they have finished
+          registering.
+          {statusSummary && <> {statusSummary}.</>}
+          {' '}A due is owed either way; the <strong className="font-medium">Status</strong> column
+          says whether there is anybody to send an invoice to.
           {' '}Anybody with no date of birth recorded owes a due in full, because an age is
           never guessed at.
         </span>
@@ -206,6 +322,17 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           Bloodline only
                         </span>
                       )}
+                      {/* WHICH PART OF THE FAMILY OWES IT. On the row and not only in the
+                          totals, because a scoped due's Expected figure is a fraction of a
+                          national one's for a reason that is nowhere in the numbers. Only
+                          rendered when there IS a scope: "National" on every row of a family
+                          that has no chapters would be noise on every row. */}
+                      {scopeCaption(s, placeNames) && (
+                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm"
+                          title="Only members in this part of the family owe this due. A member with no chapter is under National and owes nothing scoped.">
+                          {scopeCaption(s, placeNames)}
+                        </span>
+                      )}
                       {/* THE ONE STATE ON THIS SCREEN A TREASURER CANNOT DIAGNOSE FROM THE
                           NUMBERS. Bloodline-only with no bloodline to apply means nobody
                           owes it, so Expected reads $0.00 and there is nothing in the
@@ -218,6 +345,19 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           descends from, so there is no bloodline to charge. Set{' '}
                           <strong className="font-medium">Bloodline descends from</strong> on
                           the family tree.
+                        </p>
+                      )}
+                      {/* THE OTHER STATE A TREASURER CANNOT DIAGNOSE FROM THE NUMBERS, and
+                          the commoner of the two: a due scoped to a chapter nobody has
+                          joined yet bills nothing, so Expected reads $0.00 with no
+                          explanation in the figures. `--brand-withheld` for the same reason
+                          as above — nothing has failed and nothing was deleted. */}
+                      {s.scopeEmpty && (
+                        <p className="mt-1 text-xs text-brand-withheld">
+                          Nobody owes this: no member of the family is in{' '}
+                          {scopeCaption(s, placeNames) ?? 'that part of the family'}. Members
+                          choose their chapter on their own profile, and anybody with no
+                          chapter is under National.
                         </p>
                       )}
                       {/* THE PERIOD, on every row. Two schedules can be measured over two
@@ -265,7 +405,28 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       <section className="space-y-3">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>
-            <h2 className="text-lg">By member</h2>
+            <h2 className="flex items-center gap-1 text-lg">
+              By member
+              {/* WHO IS IN THIS TABLE IS THE FIRST THING A TREASURER DOUBTS, and it is not
+                  answerable from the table itself: it lists every approved person in the
+                  family, so a grandmother recorded on the tree is in it and owes her dues —
+                  the Status column is what says nobody can invoice her yet. Five separate
+                  reductions — an age-limited due, the bloodline, the region or chapter a due
+                  is for, a declined optional due, a waiver — are all honoured silently in the
+                  figures, and a missing date of birth makes an age-limited due bill in full,
+                  which is the commonest reason a row looks too high.
+                  `dues-projections#who-is-counted` is that whole list.
+
+                  An icon on the heading, not the inline variant: the row already carries a
+                  filter box and a checkbox, and words here would compete with the controls
+                  somebody came to use. */}
+              <HelpLink
+                slug="dues-projections"
+                section="who-is-counted"
+                label="Help: who is counted in these figures"
+                className="size-6"
+              />
+            </h2>
             <p className="text-xs text-muted-foreground">
               Least settled first. {rows.length} of {projection.members.length} shown.
             </p>
@@ -295,7 +456,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
 
         {projection.members.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No approved members with an account, so there is nobody to project dues for.
+            Nobody in the family has been approved yet, so there is nothing to project.
           </p>
         ) : (
           <div className="overflow-visible rounded-xl border">
@@ -304,6 +465,10 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <th scope="col" className="px-3 py-2 font-semibold">Member</th>
                   <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Standing</th>
+                  {/* THE SECOND AXIS. It folds like Standing does and is restated in the same
+                      meta line, so a phone loses neither — see the header for why they are two
+                      columns rather than one pill. */}
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Status</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Dues</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Expected</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Paid</th>
@@ -313,7 +478,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                    <td colSpan={7} className="px-3 py-6 text-center text-xs text-muted-foreground">
                       No members match that filter.
                     </td>
                   </tr>
@@ -325,12 +490,23 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       {STANDING[r.standing].label}
                     </span>
                   )
+                  // ONE ELEMENT, RENDERED TWICE — the folded column and the meta line — which is
+                  // what AGENTS.md asks for when a column folds by moving its content: two copies
+                  // of a rendering drift, and a variable cannot.
+                  const statusPill = (
+                    <span title={MEMBER_STATUS[r.status].hint}
+                      className={cn('inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        MEMBER_STATUS[r.status].className)}>
+                      {MEMBER_STATUS[r.status].label}
+                    </span>
+                  )
                   return (
                     <tr key={r.personId} className="border-b align-top last:border-0 hover:bg-muted/30 sm:align-middle">
                       <td className="px-3 py-2.5">
                         <span className="font-medium">{r.name}</span>
                         <RowMeta className="gap-x-2">
                           {pill}
+                          {statusPill}
                           <MetaIf value={`${r.liableSchedules} ${r.liableSchedules === 1 ? 'due' : 'dues'}`} />
                           <MetaDot />
                           <MetaIf value={formatCurrency(r.expectedCents)} prefix="Expected" />
@@ -345,6 +521,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{pill}</td>
+                      <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{statusPill}</td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{r.liableSchedules}</td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.expectedCents)}</td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.collectedCents)}</td>
@@ -399,6 +576,10 @@ export function ProjectionsLegend() {
         Each schedule is measured over its own year, so the totals are the sum of them
       </span>
       <span>· A waiver settles a due without being income</span>
+      {/* WHO IS COUNTED, in the one line under the heading, because it is the fact about this
+          screen most likely to surprise somebody who last read it when the roster was
+          accounts-only. */}
+      <span>· Everybody in the family is counted, whether or not they have an account yet</span>
       <span>· Nobody is chased here — recording a payment is on Transactions</span>
     </p>
   )

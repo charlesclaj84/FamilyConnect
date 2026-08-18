@@ -55,7 +55,11 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
 
   if (error) {
-    return fail('That confirmation link has expired or has already been used. Sign in to request a new one.')
+    // "Sign in to request a new one" until 2026-08-17, and by then it was false: there was
+    // nothing to request. Signing in with an unconfirmed account is refused outright, which
+    // is what made this the dead end TODO.md called it. `LoginForm` now offers **Send the
+    // link again** on exactly that refusal, so the sentence names the thing that happens.
+    return fail('That confirmation link has expired or has already been used. Try signing in below and we will offer to send you a fresh one.')
   }
 
   // Recovery lands on the password form rather than the dashboard — the user asked to

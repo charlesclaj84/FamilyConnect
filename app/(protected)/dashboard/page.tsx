@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
+import { FamilyRemoved } from '@/components/membership/FamilyRemoved'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilies, getMyFamilyCode, isActiveFamily } from '@/lib/auth/family'
 import { getMyRoles } from '@/app/actions/admin/users'
 import { getLinkPersonBannerData } from '@/app/actions/link-person'
 import { getAnnouncementFeed, getChapters } from '@/app/actions/announcements'
@@ -98,6 +99,26 @@ export default async function DashboardPage() {
   // everything this screen exists to withhold from somebody the family has not admitted.
   const gate = await requireViewOrPending(user.id, 'dashboard')
   if (gate.pending) return <PendingApproval membership={gate.membership} />
+
+  // ── AND THE SECOND EARLY RETURN, FOR A FAMILY THAT HAS BEEN REMOVED ────────────────
+  // Same position and same reasoning as the pending branch above it: ABOVE every fetch,
+  // because what follows is the family's roster count, its dues total and its notification
+  // feed, and props reach the browser in the RSC payload whether a component renders them
+  // or not (AGENTS.md §5).
+  //
+  // It has to be here rather than in `requireViewOrPending`, and that is a real constraint
+  // rather than a preference: 20260817000006 deliberately keeps the removal test out of
+  // `auth_family_code()` (a conjunct there SKIPS to the next family instead of hiding this
+  // one), so there is no database-side answer for a guard to mirror — enforcement is
+  // app-layer by design, and this is the screen that does it. See `FamilyRemoved`.
+  //
+  // `getMyFamilies` is cache()d per request and the shell has already warmed it, so both
+  // calls here are free.
+  const myFamilies = await getMyFamilies(user.id)
+  const viewing = myFamilies.find(f => f.isActive) ?? myFamilies[0]
+  if (viewing && !isActiveFamily(viewing.familyStatus)) {
+    return <FamilyRemoved membership={viewing} families={myFamilies} />
+  }
 
   const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Member'
   const lastName  = user.user_metadata?.last_name ?? ''

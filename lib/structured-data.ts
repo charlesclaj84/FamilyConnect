@@ -3,6 +3,8 @@ import {
   APP_VALUES, BRAND_APP_ICON_SRC, BRAND_SOCIAL_PROFILES,
 } from '@/lib/brand'
 import { SITE_URL } from '@/lib/site'
+import { TIER_PRICE, TIER_IS_SOLD } from '@/lib/plans'
+import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 
 /**
  * Schema.org structured data — what the pages say about themselves to a machine.
@@ -140,15 +142,97 @@ function webApplication() {
       'Photo collections',
       'Shared documents',
     ],
-    offers: {
+    // ONE OFFER HERE, DELIBERATELY, and it is the free one.
+    //
+    // The paid figures are real since 2026-08-17, and they belong on `/pricing`'s graph
+    // rather than on this node — because THE LANDING PAGE SHOWS NO PRICES. This file's
+    // one rule is that markup must not claim anything the page does not show, and a
+    // landing page advertising $10 and $25 in JSON-LD while displaying neither is exactly
+    // the mismatch that gets rich results removed wholesale.
+    //
+    // It still comes from `tierOffer('free')` rather than being typed out, so the free
+    // claim on this page and the free column on `/pricing` cannot drift apart.
+    offers: tierOffer('free'),
+  }
+}
+
+/**
+ * One tier as an `Offer`, derived from `TIER_PRICE` and `TIER_IS_SOLD` in `lib/plans.ts`.
+ *
+ * ── WHY `priceSpecification` AND NOT `price` FOR THE PAID TIERS ──────────────
+ * Because each has TWO rates — month to month, or the year paid in advance — and a bare
+ * `price` can carry one number. Two sibling `Offer`s per tier would be the other shape and
+ * is worse: a consumer showing "from $10" alongside "from $100" for the same plan reads as
+ * two products. An array of `UnitPriceSpecification`s with `billingDuration` says what is
+ * actually true, which is one offer purchasable on two cycles.
+ *
+ * ── `availability` IS THE HONEST HALF ───────────────────────────────────────
+ * A price is announced and neither paid tier can be bought — `TIER_IS_SOLD` is false for
+ * both, there is no billing, and `/pricing` says Coming soon on both cards with a disabled
+ * button. `PreOrder` is the vocabulary for exactly that. Marking them `InStock` because a
+ * figure exists would be a claim the page contradicts on the same screen.
+ *
+ * Free is `InStock` because it genuinely is, and `price: '0'` rather than a specification:
+ * there is nothing to bill and no cycle to state.
+ */
+function tierOffer(tier: FamilyTier) {
+  const price = TIER_PRICE[tier]
+  const availability = TIER_IS_SOLD[tier]
+    ? 'https://schema.org/InStock'
+    : 'https://schema.org/PreOrder'
+
+  if (!price) {
+    return {
       '@type': 'Offer',
+      name: TIER_LABEL[tier],
       price: '0',
       priceCurrency: 'USD',
+      availability,
       // Mirrors the closing call to action. If the product ever stops having a
       // free account, this comes out in the same commit as that button.
       description: 'Free account',
-    },
+    }
   }
+
+  return {
+    '@type': 'Offer',
+    name: TIER_LABEL[tier],
+    priceCurrency: 'USD',
+    availability,
+    priceSpecification: [
+      {
+        '@type': 'UnitPriceSpecification',
+        price: (price.monthlyCents / 100).toFixed(2),
+        priceCurrency: 'USD',
+        billingDuration: 1,
+        billingIncrement: 1,
+        unitCode: 'MON',
+      },
+      {
+        '@type': 'UnitPriceSpecification',
+        price: (price.yearlyCents / 100).toFixed(2),
+        priceCurrency: 'USD',
+        billingDuration: 12,
+        billingIncrement: 12,
+        unitCode: 'MON',
+        description: 'Paid in advance for the year',
+      },
+    ],
+  }
+}
+
+/**
+ * The `WebApplication` node as `/pricing` may state it: the same `@id` as the landing
+ * page's, so the two are ONE entity rather than two products with one name, carrying all
+ * three offers because that page shows all three.
+ *
+ * Everything except `offers` is spread from `webApplication()` rather than restated, which
+ * is the point — the feature list, the description and the publisher pointer have exactly
+ * one definition, and this node differs from the landing page's in the one field the two
+ * pages genuinely differ about.
+ */
+function pricedApplication() {
+  return { ...webApplication(), offers: TIERS.map(tierOffer) }
 }
 
 /**
@@ -211,23 +295,34 @@ function webPage(opts: { path: string; name: string; description: string }) {
  * pointing at one node makes them one entity, and it is the `WebSite` node Google reads
  * to decide what to print above a result instead of `genorra.com`.
  *
- * DELIBERATELY WITHOUT `webApplication()`. That node carries the feature list and the free
- * `Offer`, both traceable to specific things the LANDING page shows. Repeating it on five
- * more pages would be five more places for the claim to drift out of step with the page
- * under it — see this file's header. `/pricing` is the one exception and says so itself.
+ * DELIBERATELY WITHOUT `webApplication()` BY DEFAULT. That node carries the feature list
+ * and an `Offer`, both traceable to specific things the LANDING page shows. Repeating it on
+ * five more pages would be five more places for the claim to drift out of step with the page
+ * under it — see this file's header.
+ *
+ * `/pricing` is the one exception, and `plans: true` is how it says so — the ONE page that
+ * displays all three tiers and both rates for each, which is precisely what makes it the one
+ * page entitled to state them in markup. It emits the node under the SAME `@id` as the
+ * landing page's, so the two are one entity differing in one field.
  *
  * `faq` is optional and, when present, MUST be questions genuinely answered in the visible
  * copy of that page. An FAQPage node whose answers are not on the page is the exact
- * mismatch that gets rich results removed wholesale rather than ignored.
+ * mismatch that gets rich results removed wholesale rather than ignored. That applies to the
+ * price the FAQ quotes as much as to anything else: both come from `TIER_PRICE`, so the
+ * answer, the card and the markup are three renderings of one number.
  */
 export function marketingPageGraph(opts: {
   path: string
   name: string
   description: string
   faq?: readonly { question: string; answer: string }[]
+  /** `/pricing` only — see above. Emits the application node with all three tier offers. */
+  plans?: boolean
 }) {
   const url = `${SITE_URL}${opts.path}`
   const nodes: object[] = [organization(), website(), webPage(opts)]
+
+  if (opts.plans) nodes.push(pricedApplication())
 
   if (opts.faq?.length) {
     nodes.push({
