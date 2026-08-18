@@ -13,6 +13,8 @@
     "test:rls": "node --import ./tests/rls/register.mjs ./tests/rls/run.mjs",
     "db:check": "node scripts/migrations.mjs check",
     "db:audit": "npx supabase db query -f supabase/scripts/audit_policy_shadowing.sql",
+    "audit:people": "node scripts/people-writes.mjs",
+    "help:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/help-check.mjs",
     "email:check": "node scripts/auth-templates.mjs check",
     "email:push": "node scripts/auth-templates.mjs push",
     "email:pull": "node scripts/auth-templates.mjs pull",

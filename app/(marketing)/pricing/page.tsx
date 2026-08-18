@@ -9,6 +9,9 @@ import { Testimonials } from '@/components/marketing/Testimonials'
 import { PageHero, SectionHeading, CtaBand, ComingSoonBadge, MoreLink } from '@/components/marketing/sections'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import {
+  TIER_PRICE, annualSavingCents, formatPlanPrice, monthsFreeOnAnnual,
+} from '@/lib/plans'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
@@ -23,24 +26,32 @@ export const metadata: Metadata = {
 }
 
 /**
- * ── THE ONE THING TO EDIT ON THIS PAGE ──────────────────────────────────────
+ * ── ANNOUNCED 2026-08-17 ────────────────────────────────────────────────────
  *
- * `false` while paid pricing has not been decided. It keeps the premium tier on the page
- * as a roadmap card with NO NUMBER ON IT, which is the only honest way to show a plan
- * whose price nobody has set.
+ * The figures are real: Plus is $10 a month or $100 for the year paid in advance, Premium
+ * $25 or $250. They live in `TIER_PRICE` in `lib/plans.ts` rather than here, because the
+ * in-product plan panel and the upgrade screen show the same numbers and two copies of a
+ * price is how a member comes to read $10 on one screen and $12 on the next. See that
+ * file's header for why the price is shared and the benefit LISTS deliberately are not.
  *
- * WHY THERE IS NO PLACEHOLDER PRICE. A figure on a pricing page is a commercial
- * representation: people budget against it, boards approve against it, and in several
- * jurisdictions advertising a price you do not honour is actionable rather than
- * embarrassing. "$9/mo" typed in as a stand-in is indistinguishable from a real offer to
- * every visitor and every crawler that indexes it — and the cached search result outlives
- * the edit that was going to fix it. So the number is absent until it is real.
+ * WHAT THIS FLAG STILL DOES, now that it is true: it is what allows a figure to render on a
+ * tier whose `available` is false. Announcing a price and selling a plan are separate facts
+ * and this page states both — the card carries the number AND says "Coming soon", because
+ * there is no billing yet. Collapsing the two would give the page a price with a working
+ * button behind it and nothing to charge with.
  *
- * TO SWITCH IT ON: set this to true and fill in `PLUS_PRICE`. Then add a `Product` with an
- * `Offer` to `lib/structured-data.ts` — page first, markup second, which is the order that
- * file's header insists on.
+ * WHY IT REMAINS A FLAG RATHER THAN BEING DELETED. Because the rule it protects is about
+ * PLACEHOLDERS, and that rule has not changed: a figure on a pricing page is a commercial
+ * representation people budget against and crawlers cache, and a cached search result
+ * outlives the edit that was going to fix it. Setting a price back to `null` and this back
+ * to `false` is the supported way to withdraw one; typing a stand-in figure into
+ * `TIER_PRICE` is not.
+ *
+ * DONE WITH THE FLIP, as the note here used to require: `lib/structured-data.ts` now emits
+ * an `Offer` per priced tier, with `availability: PreOrder` on the two that cannot be
+ * bought. Page first, markup second, which is the order that file's header insists on.
  */
-const PRICING_IS_ANNOUNCED = false
+const PRICING_IS_ANNOUNCED = true
 
 /**
  * ── THE PLAN TABLE — THIS IS WHAT YOU EDIT ──────────────────────────────────
@@ -69,9 +80,11 @@ const PRICING_IS_ANNOUNCED = false
  *  * It is also the honest shape of the offer. A customer reading Premium needs to know
  *    they keep everything below it, and "Everything in Plus" says that in three words.
  *
- * `price: null` renders "Price to be announced" and disables the button. Set `PLUS_PRICE`
- * / `PREMIUM_PRICE` and flip `PRICING_IS_ANNOUNCED` when the numbers are real — see the
- * note above it for why there is no placeholder figure.
+ * `price: null` renders NOTHING in the price slot — no figure and no "to be announced" line,
+ * since the card already says Coming soon beside its name. Plus and Premium now carry real
+ * figures, derived from `TIER_PRICE` in `lib/plans.ts`; `available` is still false on both,
+ * so both keep the Coming soon badge and the disabled button. A price and a purchase are
+ * separate facts and this page states both.
  *
  * `adds` carries only what has actually been decided. Add to them freely — the card grows.
  * Premium is the one to watch: it began as the family website `LivingSitePreview`
@@ -89,8 +102,15 @@ interface PlanFeature {
 interface Plan {
   name: string
   tagline: string
-  /** null while the price is not announced. */
-  price: { amount: string; period: string } | null
+  /**
+   * The headline figure and its period, plus an optional second line for the annual rate.
+   *
+   * `null` while a price is not announced — which is still a supported state; see the note
+   * on `PRICING_IS_ANNOUNCED`. Free carries a hand-written `$0 / forever` rather than coming
+   * from `TIER_PRICE`, because Free has no price rather than a price of zero and `$0` is a
+   * marketing statement rather than an amount anybody is charged.
+   */
+  price: { amount: string; period: string; annual?: string } | null
   /** Name of the tier this one contains, or null for the base tier. */
   inheritsFrom: string | null
   /** What THIS tier adds on top of the one it inherits. */
@@ -109,8 +129,61 @@ interface Plan {
   icon: LucideIcon
 }
 
-const PLUS_PRICE: Plan['price'] = null
-const PREMIUM_PRICE: Plan['price'] = null
+/**
+ * Both paid figures, derived from `TIER_PRICE` in `lib/plans.ts` — the one place the numbers
+ * are written down, shared with the in-product plan panel and the upgrade screen.
+ *
+ * THE ANNUAL LINE IS DERIVED, INCLUDING ITS ARGUMENT. `monthsFreeOnAnnual()` works the
+ * saving out from the two figures and returns `null` when it does not divide into whole
+ * months, so "two months free" can never contradict the numbers above it — and a future
+ * price that saves 1.6 months falls back to the currency amount instead of rounding into a
+ * claim. That is the same rule as everything else on this page: no sentence about a number
+ * that is typed beside the number.
+ */
+function planPrice(tier: 'plus' | 'premium'): Plan['price'] {
+  const price = TIER_PRICE[tier]
+  if (!price) return null
+
+  const months = monthsFreeOnAnnual(price)
+  const saving = months
+    ? `${months === 2 ? 'two' : months} months free`
+    : `save ${formatPlanPrice(annualSavingCents(price))}`
+
+  return {
+    amount: formatPlanPrice(price.monthlyCents),
+    period: '/month',
+    annual: `or ${formatPlanPrice(price.yearlyCents)} a year paid in advance — ${saving}`,
+  }
+}
+
+const PLUS_PRICE: Plan['price'] = planPrice('plus')
+const PREMIUM_PRICE: Plan['price'] = planPrice('premium')
+
+/**
+ * The price FAQ's answer, built from the same figures the cards render.
+ *
+ * It says what neither card can: that the prices are set and neither plan can be bought
+ * yet. A visitor reading a figure beside a Coming soon badge deserves that sentence
+ * somewhere, and the FAQ is where a price question is actually asked.
+ */
+function plusPremiumPriceAnswer(): string {
+  const plus = TIER_PRICE.plus
+  const premium = TIER_PRICE.premium
+  if (!plus || !premium) {
+    return 'Neither has been announced yet. Create a free account and you will hear first.'
+  }
+
+  const rate = (p: typeof plus) =>
+    `${formatPlanPrice(p.monthlyCents)} a month, or ${formatPlanPrice(p.yearlyCents)} for the year paid in advance`
+  const months = monthsFreeOnAnnual(plus)
+  const saving = months === monthsFreeOnAnnual(premium) && months
+    ? ` Paying for the year up front is ${months === 2 ? 'two' : months} months free on either plan.`
+    : ''
+
+  return `Plus is ${rate(plus)}. Premium is ${rate(premium)}.${saving} ` +
+    'Neither is on sale yet — there is no billing in the product, so both cards say Coming ' +
+    'soon. Create a free account and you will hear when they open.'
+}
 
 /**
  * ── HOW THIS COPY IS WRITTEN, so the next edit keeps doing it ────────────────
@@ -296,12 +369,12 @@ const FAQ = [
   },
   {
     question: 'What will Plus and Premium cost?',
-    // Trimmed to the answer. The previous version explained WHY there is no figure — that
-    // we would rather show nothing than a number families might budget against — which is
-    // sound reasoning and none of the reader's business. They asked a price question; the
-    // honest answer is that there is not one yet and how to find out when there is.
-    answer:
-      'Neither has been announced yet. Create a free account and you will hear first.',
+    // ANSWERED FROM `TIER_PRICE`, not typed. An FAQPage node whose answer contradicts the
+    // card three inches above it is the mismatch this whole file is careful about, and a
+    // hand-written "$10 a month" here is one price change away from being that. The saving
+    // sentence is derived too, and disappears rather than rounds if a future price stops
+    // dividing into whole months.
+    answer: plusPremiumPriceAnswer(),
   },
   {
     question: 'Do you sell our family’s data?',
@@ -320,6 +393,10 @@ export default function PricingPage() {
           name: PAGE_TITLE,
           description: PAGE_DESCRIPTION,
           faq: FAQ,
+          // The one page entitled to state the tier offers in markup, because it is the one
+          // page that displays all three of them. Both rates per tier, and `PreOrder` on the
+          // two that cannot be bought yet — see `tierOffer` in lib/structured-data.ts.
+          plans: true,
         })}
       />
 
@@ -393,16 +470,31 @@ export default function PricingPage() {
                         The rule the absence protects is unchanged: no placeholder FIGURE.
                         A number here is a commercial representation people budget against
                         and crawlers cache, and the cached result outlives the edit that was
-                        going to fix it. Set `PRICING_IS_ANNOUNCED` and the price constants
-                        and the real figure appears in this slot. */}
-                    <div className="mt-6 min-h-14">
+                        going to fix it. Set a price back to `null` and the slot empties.
+
+                        THE ANNUAL LINE SITS UNDER THE MONTHLY ONE, not beside it. A toggle
+                        between two rates is the usual treatment and it is the wrong one for
+                        three cards read side by side: it hides half of each offer behind a
+                        control, and the visitor comparing Plus with Premium then has to
+                        remember which way it was set. Both figures on the card, monthly
+                        first because it is the smaller commitment and the one being led
+                        with. `min-h-14` grows to `min-h-20` so a card with an annual line
+                        and a card without still share a baseline for the button below. */}
+                    <div className="mt-6 min-h-20">
                     {priced && plan.price && (
-                      <p className="flex items-baseline gap-2">
-                        <span className="text-5xl font-semibold text-brand-ink">
-                          {plan.price.amount}
-                        </span>
-                        <span className="text-muted-foreground">{plan.price.period}</span>
-                      </p>
+                      <>
+                        <p className="flex items-baseline gap-2">
+                          <span className="text-5xl font-semibold text-brand-ink">
+                            {plan.price.amount}
+                          </span>
+                          <span className="text-muted-foreground">{plan.price.period}</span>
+                        </p>
+                        {plan.price.annual && (
+                          <p className="mt-1.5 text-sm text-muted-foreground">
+                            {plan.price.annual}
+                          </p>
+                        )}
+                      </>
                     )}
                     </div>
 

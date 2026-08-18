@@ -21,18 +21,30 @@
  * marketing bullet frequently spans several routes, and several routes are sold in no
  * bullet at all.
  *
- * ── WHAT MAY NOT APPEAR HERE ────────────────────────────────────────────────────────
- * A PRICE. Pricing has not been announced (`PRICING_IS_ANNOUNCED` on `/pricing` is false,
- * and explains at length why there is no placeholder figure), and a number invented here
- * would be a commercial representation on a screen a member reads as authoritative. When
- * there is a real figure it belongs on `/pricing` first and here second.
+ * ── THE PRICE LIVES HERE, AND IT IS THE ONE THING `/pricing` DOES SHARE ─────────────
+ * This section used to say a price MAY NOT appear here, on the grounds that none had been
+ * decided. Two have been (2026-08-17), so `TIER_PRICE` below is the figure and both the
+ * marketing page and the two in-product surfaces read it from here.
+ *
+ * That is not a contradiction of the paragraph above, and the distinction is worth being
+ * precise about, because it is the whole reason one is shared and the other is not:
+ *
+ *   * A BENEFIT LIST does not correspond one to one with anything. One marketing bullet
+ *     spans several routes, several routes are sold in no bullet at all, and the words a
+ *     buyer needs are not the words a member needs. Deriving either list from the other
+ *     would mean inventing a correspondence that does not exist — so `PLAN_ADDS` and
+ *     `PLANS[]` stay separate and are kept in step by hand.
+ *   * A PRICE is one number per tier. There is no correspondence to invent, and two copies
+ *     of a number is exactly how a member comes to be shown $10 on one screen and $12 on
+ *     the next. It goes in one place, and this is the pure module both halves can import.
  *
  * PURE — data only, no React, no database, no `server-only`. Imported by a server page, a
- * client panel and the upgrade screen; the rule that keeps that safe is the one
- * `lib/tiers.ts` and `lib/features.ts` both state.
+ * client panel, the upgrade screen and the marketing pricing page; the rule that keeps that
+ * safe is the one `lib/tiers.ts` and `lib/features.ts` both state.
  */
 
 import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
+import { formatCurrency } from '@/lib/currency-utils'
 
 export interface PlanHighlight {
   /** The benefit, in the fewest words that land it. */
@@ -136,12 +148,84 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
 }
 
 /**
+ * What a tier costs. `null` for Free, which has no price rather than a price of zero — the
+ * difference matters to every caller, because "Free" is the word and "$0.00" is a figure
+ * nobody should render.
+ *
+ * CENTS, INTEGER, like every other money value in this codebase (`installmentCents`,
+ * `remainingBalanceCents`, `formatCurrency`). Floating-point dollars are how a total comes
+ * out at $99.99999999.
+ *
+ * `yearly` is the whole twelve months paid in advance, NOT a discounted monthly rate — so it
+ * is compared against twelve times `monthly` rather than being derived from it. Both figures
+ * today work out to ten months for twelve, which is a real argument and therefore worth
+ * stating on the page; `annualSavingCents()` and `monthsFreeOnAnnual()` derive it so the
+ * sentence cannot drift from the numbers above it.
+ */
+export interface TierPrice {
+  /** Per month, month to month. */
+  monthlyCents: number
+  /** Charged once, covering twelve months. */
+  yearlyCents: number
+}
+
+export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
+  free: null,
+  plus: { monthlyCents: 1_000, yearlyCents: 10_000 },
+  premium: { monthlyCents: 2_500, yearlyCents: 25_000 },
+}
+
+/** What paying for the year up front saves against twelve monthly payments. */
+export function annualSavingCents(price: TierPrice): number {
+  return price.monthlyCents * 12 - price.yearlyCents
+}
+
+/**
+ * The saving expressed as months, when it divides evenly — "two months free" lands where
+ * "$20 a year" does not.
+ *
+ * `null` when it does not divide, which is the honest answer rather than a rounded one: a
+ * price change that made the saving 1.6 months would otherwise be advertised as "1 month
+ * free" or "2 months free", and both are wrong. Callers fall back to the currency figure.
+ */
+export function monthsFreeOnAnnual(price: TierPrice): number | null {
+  const saving = annualSavingCents(price)
+  if (saving <= 0 || saving % price.monthlyCents !== 0) return null
+  return saving / price.monthlyCents
+}
+
+/**
+ * "$10" rather than "$10.00" for a whole number of dollars.
+ *
+ * A price is scanned, not audited, and the two trailing zeroes are noise at 48px. Anything
+ * with cents in it keeps them, so a future $12.50 renders correctly without a second helper —
+ * which is the reason this wraps `formatCurrency` instead of replacing it.
+ *
+ * NO `cents % 100 === 0` GUARD, and its absence is deliberate rather than an omission. The
+ * first version had one, and mutation-testing this file found it to be dead code: `$12.50`
+ * and `$12.05` do not end in `.00`, so the anchored regex already declines to touch them and
+ * the guard could not change an answer. Two expressions of one condition, one of which never
+ * decides anything, is a thing a later reader has to work out from scratch — so the regex is
+ * left to do the whole job. `lib/plans.test.ts` pins both branches by value.
+ */
+export function formatPlanPrice(cents: number): string {
+  return formatCurrency(cents).replace(/\.00$/, '')
+}
+
+/**
  * Whether a tier can be BOUGHT today, as opposed to merely existing.
  *
  * Mirrors `PLANS[].available` on `/pricing`, which says "Available now" on Free and "Not
  * yet available" on the other two — because nothing has been sold and there is no billing.
  * Read it before writing any copy that implies a purchase: the plan panel is scaffolding
  * for a decision, not a checkout, and it says so.
+ *
+ * A PRICE AND A PURCHASE ARE NOW SEPARATE FACTS, since 2026-08-17. `TIER_PRICE` says what
+ * Plus and Premium cost; this says neither can be bought yet. Both are true, and collapsing
+ * them was the temptation to resist: a figure on the card with no way to pay is honest —
+ * "here is what it will cost" — whereas a button that takes a decision nothing can charge
+ * for is not. Every surface that shows a price must still read this before it shows a
+ * control.
  */
 export const TIER_IS_SOLD: Record<FamilyTier, boolean> = {
   free: true,

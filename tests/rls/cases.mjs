@@ -33,6 +33,7 @@
 // and it calls seed() regardless — but it is why `node -e "import('./cases.mjs')"`
 // now needs `npx supabase start` first.
 import { ALPHA } from './seed.mjs'
+import { SWEEP_NOTIFICATION_TITLE } from './raw/sweep.mjs'
 
 /** Values that exist only in ALPHA. Finding one in a BRAVO response is a leak. */
 export function alphaMarkers(fx) {
@@ -1704,6 +1705,267 @@ export const PENDING_CASES = [
 ]
 
 /**
+ * PHASE 3'S LAST STRUCTURAL GAP — the policies no server action can reach.
+ *
+ * ── WHY THESE LOOK DIFFERENT FROM EVERY OTHER CASE ──────────────────────────────────
+ * They name `tests/rls/raw/sweep.mjs` as their module instead of an action under `app/`.
+ * That module speaks PostgREST directly, as the current actor, using the same real JWT the
+ * `@/lib/supabase/server` stub already builds — see `tests/rls/raw.mjs` for the full
+ * argument, and note that it substitutes NOTHING, so `hooks.mjs`'s "three jobs and
+ * deliberately no more than three" is untouched.
+ *
+ * The reason is structural rather than a shortcut. `20260806000011` §6 added
+ * `auth_membership_approved()` to every policy whose only conjunct was
+ * `family_code = auth_family_code()`, and what that closes is an APPLICANT — somebody
+ * inside the family boundary whom the family has not admitted. The sharpest of those
+ * policies is `notifications` INSERT, and it is deliberately reachable by no action at all:
+ * notifications are written only by `lib/notifications.ts`, a plain module with no URL,
+ * precisely so nothing exposes an arbitrary-recipient notifier. So the action-shaped suite
+ * could not reach the thing protecting it, and `UNCOVERED` below said so from Phase 3 until
+ * these cases were written on 2026-08-17.
+ *
+ * ── WHAT USED TO STAND IN FOR THEM, AND WHY IT NO LONGER DOES ───────────────────────
+ * §8 of that migration recomputes the swept table list and RAISEs if a policy on any of
+ * them lacks the conjunct. That was a real check and it has EXPIRED: its hard-coded half
+ * names `user_groups`, `user_group_members` and `group_permissions`, and `20260807000000`
+ * renamed the first two and dropped the other two outright. It is therefore a point-in-time
+ * assertion — correct on a full replay, and impossible to re-run against today's schema.
+ * Worse, `permission_templates` and `template_permissions` are not in the sweep set at all:
+ * their policies carry the conjunct because `20260807000000` wrote them that way, and
+ * nothing in the chain asserts it. These cases are what covers all of that now.
+ *
+ * ── THE ATTACKER, AND WHY THE CONTROL MATTERS MORE HERE THAN USUAL ──────────────────
+ * `alphaPending` throughout: an applicant in ALPHA, for whom `auth_family_code()` resolves
+ * ALPHATEST deliberately and permanently. So the family conjunct in every policy below is
+ * SATISFIED for them, and the approval conjunct is the only thing refusing — which is
+ * exactly what makes these evidence for it.
+ *
+ * The control is `alphaMember`, and it is load-bearing rather than ceremonial: a probe that
+ * returned `[]` for everybody (a renamed column, an unattached JWT, a PostgREST refusal for
+ * some other reason) would pass every attack assertion trivially.
+ *
+ * ── MUTATION-CHECKED 2026-08-17, AND THE RESULT IS A MAP ────────────────────────────
+ * Two mutations were run, cumulatively, each re-creating one function without its
+ * `membership_status = 'approved'` conjunct, followed by `npm run test:rls raw:`:
+ *
+ *   M1  public.auth_membership_approved()   the conjunct §6 swept in
+ *   M2  public.auth_person_id()             the other Phase 3 gate — an applicant
+ *                                           resolves to NO person, which collapses every
+ *                                           own/self expression AND makes
+ *                                           auth_permission() return 'none'
+ *
+ * What went red, measured rather than read off the policies:
+ *
+ *   under M1   permission_templates · template_permissions · resource_visibility
+ *              person_relationships · notifications INSERT
+ *   under M2   + event_rsvp · event_assignments
+ *   never      chat_participants · user_roles
+ *
+ * So the nine cases are evidence for THREE different layers, and each is labelled with
+ * the one it actually tests. That distinction is the whole value of having run the
+ * mutation instead of trusting the migration: five of these protect the table by the
+ * conjunct §6 added, two protect it by `auth_person_id()` collapsing the permission
+ * lookup, and two are refused before either is consulted. A block that claimed all nine
+ * were evidence for the sweep would be wrong about four of them.
+ *
+ * ── AND THE MUTATION FOUND A BUG IN THE HARNESS, WHICH IS THE POINT ─────────────────
+ * On the first run the notifications case stayed GREEN under M1, which should have been
+ * impossible — its INSERT policy is `family AND true AND auth_membership_approved()` and
+ * nothing else. The cause was `rawInsert` calling `.select()`: PostgreSQL ANDs the SELECT
+ * policy into any INSERT carrying a RETURNING clause, and `notifications`' SELECT policy
+ * admits only rows addressed to the caller, so the statement failed on the RETURNING with
+ * the INSERT policy already neutered. The case was evidence for nothing. `raw.mjs` no
+ * longer selects, and the case now trips under M1 as it must. A green run really is not
+ * evidence until it has been seen to fail.
+ */
+export const SWEEP_CASES = [
+  // ── (b) tables: family scoping was the whole of the question before §6 ─────────────
+  //
+  // [crux] The family's entire access map, to somebody the family has not admitted. NOT in
+  // the sweep set at all — 20260807000000 wrote these policies with the conjunct itself and
+  // nothing in the chain checks it, so this pair is the only assertion anywhere that they
+  // still carry it.
+  read('raw:permission_templates SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectPermissionTemplates', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  read('raw:template_permissions SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectTemplatePermissions', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  // Which pages this family has switched off — a map of how the family is organized.
+  read('raw:resource_visibility SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectResourceVisibility', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  // [crux] The whole family tree — every person and how they are related. The action-level
+  // case `family-tree.getFamilyTree (pending member)` covers the GUARD on that page; this
+  // covers the policy underneath, which is what protects the table from a direct call.
+  read('raw:person_relationships SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectPersonRelationships', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+
+  // [crux] THE HEADLINE, and the case this whole harness exists for: an unadmitted
+  // applicant writing a title and a LINK into another member's bell. `kind: 'write'`, so
+  // the probe is what judges it — a refusal and a landed row are the two outcomes and the
+  // error alone could not tell them apart.
+  {
+    kind: 'write',
+    id: 'raw:notifications INSERT (applicant reaching every bell)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'insertNotification',
+    attacker: 'alphaPending',
+    // The applicant's OWN family and one of its real members. The claim is not that they
+    // cross a family boundary — they do not — it is that they reach their own family's
+    // members without having been admitted to it.
+    args: fx => ['ALPHATEST', fx.alpha.ownerPersonId],
+    // FILTERED ON THE MARKER TITLE, not counted. The fixture seeds notifications of its
+    // own, so a count would move for reasons unrelated to this probe; the title is written
+    // by the probe and by nothing else.
+    probe: (db) => snapshot('notifications', 'id, title, recipient_id',
+      { title: SWEEP_NOTIFICATION_TITLE })(db),
+    // And a member of the family genuinely MAY notify another member — that is what the
+    // policy says, and what `lib/notifications.ts` relies on. Without this half, a policy
+    // that refused everybody would pass the attack assertion and the case would be
+    // decoration.
+    positiveActor: 'alphaMember',
+    // Each half of a write case re-snapshots, so the row the control lands has to be gone
+    // before the next half reads the table. The attack leaves nothing behind by
+    // construction; the control does, so it is cleared here — the same job `resetAlphaName`
+    // does further up, and necessary because `notifications` has no append-only guard to
+    // make the leftover row someone else's problem.
+    setup: async (db) => {
+      await db.from('notifications').delete().eq('title', SWEEP_NOTIFICATION_TITLE)
+    },
+  },
+
+  // ── (a) tables: a self branch OR-ed OUTSIDE the permission check ──────────────────
+  // The subtler half of the sweep. Each policy reads roughly "family AND (this row is mine
+  // OR I hold the grant) AND approved" — and the middle disjunct is what an applicant
+  // could satisfy, because a row genuinely theirs is still theirs.
+  //
+  // THE MUTATION SPLIT THESE FOUR INTO THREE ANSWERS. Read the header first; each label
+  // below records which layer the case is actually evidence for, and only two of the four
+  // are evidence for the sweep at all.
+
+  // [not evidence for §6, nor for auth_person_id] Green under BOTH mutations. The policy
+  // leads with `auth_uid_is_room_participant(room_id)`, and the applicant is in no room —
+  // the fixture adds only the owner and the other member — so that call refuses before
+  // either Phase 3 gate is reached. It is a real assertion about a real protection, just
+  // not about this one. The function it IS evidence for is the SECURITY DEFINER one
+  // AGENTS.md §2b calls load-bearing for chat because Realtime evaluates it with no call
+  // site in the tree; this is the only test of it anywhere.
+  read('raw:chat_participants SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectChatParticipants', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  // [evidence for auth_person_id(), not for §6] Green under M1 and red under M2, and the
+  // reason is worth knowing: `events` is not an admin key, so General grants view 'any' on
+  // it — the permission disjunct WOULD admit the applicant. What stops it is that
+  // `auth_person_id()` is NULL for them, which makes `auth_permission()` return 'none'
+  // before the grant is ever consulted. Two gates, and this table is held by the other one.
+  read('raw:event_rsvp SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectEventRsvp', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  // [evidence for auth_person_id(), not for §6] Same shape as event_rsvp above.
+  read('raw:event_assignments SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectEventAssignments', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    expectPositive: (r) => r.count > 0,
+  }),
+  // [not evidence for §6, nor for auth_person_id] Green under both, and this one is the
+  // PERMISSION layer doing the work: the disjunct needs
+  // `auth_permission('admin/boardpositions', 'view') = 'any'`, the applicant holds General,
+  // and General's grid says 'none' for every admin key. So the case is evidence that a
+  // plain template cannot read the board roster — which is worth asserting and is a
+  // different claim from the one this block is named for.
+  read('raw:user_roles SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectUserRoles', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => r.count === 0,
+    // ALPHA's administrator, not a plain member, and for exactly the reason above: the
+    // grant is what admits the read, and only the Administrators template holds it.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r) => r.count > 0,
+  }),
+
+  // ── The two guards on `people`, reached where only a raw call can reach them ───────
+  //
+  // [not evidence for the §6 sweep] Both stay green under the mutation named above,
+  // deliberately: they are evidence for a TRIGGER, and their own mutation is
+  // `DROP TRIGGER people_guard_membership_status ON public.people` (and the template one),
+  // after which both must go red. Labelled rather than moved, because they belong beside
+  // the probes that can reach them and nowhere else in this file can.
+  //
+  // WHY THEY ARE NOT ALREADY COVERED: `personal-info.saveProfileSection (pending member
+  // self-approving)` above tests the same intent through the action, and there
+  // `pickProfileColumns` strips the column before any SQL runs — so the trigger is never
+  // reached and that case is evidence for the ALLOW-LIST. A raw PATCH is what exercises the
+  // guard itself.
+  {
+    kind: 'write',
+    id: 'raw:people PATCH membership_status (applicant approving themselves)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'selfApprove',
+    attacker: 'alphaPending',
+    // THEIR OWN ROW, which the `people` UPDATE policy genuinely admits them to write. That
+    // is the whole point: family isolation is not what is being tested here, the column
+    // boundary is.
+    args: fx => [fx.users.alphaPending.personId],
+    probe: (db, fx) => snapshot('people', 'id, membership_status',
+      { id: fx.users.alphaPending.personId })(db),
+    positive: 'not-applicable',
+    why: 'the guard refuses this column for the `authenticated` role outright, so no caller has a legitimate raw PATCH to run; set_membership_status() is the only way in and admin/approvals.approveApplicant exercises it',
+  },
+  {
+    kind: 'write',
+    id: 'raw:people PATCH permission_template_id (applicant promoting themselves)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'selfPromote',
+    attacker: 'alphaPending',
+    // ALPHA's own Administrators template, so nothing about this is cross-family either.
+    args: fx => [fx.users.alphaPending.personId, fx.alpha.adminTemplateId],
+    probe: (db, fx) => snapshot('people', 'id, permission_template_id',
+      { id: fx.users.alphaPending.personId })(db),
+    positive: 'not-applicable',
+    why: 'people_guard_permission_template refuses the `authenticated` role outright; apply_permission_template() is the only way in and admin/permissions.applyTemplate exercises it',
+  },
+
+  // ── The fail-closed admin default (20260817000004) ────────────────────────────────
+  //
+  // [not evidence for the §6 sweep] Its own mutation is restoring
+  // `COALESCE(…, 'everyone')` in `auth_permission()`'s default branch, after which the
+  // attack half below returns 'any' and goes red.
+  //
+  // WHY A SYNTHETIC KEY. Every admin key that EXISTS carries an explicit `'restricted'`
+  // visibility row and an explicit grid cell, so no real key reaches the default branch at
+  // all — which is why the flip was a no-op on live data and why no existing case can be
+  // evidence for it. The honest test needs a key nobody has backfilled, which is precisely
+  // the state a future migration's omission would produce.
+  {
+    kind: 'read',
+    id: 'raw:auth_permission — an unbackfilled ADMIN key denies view',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'permissionFor',
+    // A plain APPROVED member, not an applicant: an applicant resolves 'none' for
+    // everything through auth_person_id() and would pass this without the default branch
+    // being consulted at all.
+    attacker: 'alphaMember',
+    args: () => ['admin/zz-unbackfilled'],
+    expectAttack: (r) => r.data === 'none',
+    // The MIRROR, and it is what keeps this change narrow: a non-admin key with no
+    // visibility row must still resolve 'any', or the same migration has quietly closed the
+    // Member Directory for every family created after it.
+    positiveActor: 'alphaMember',
+    positiveArgs: () => ['zz-unbackfilled-general'],
+    expectPositive: (r) => r.data === 'any',
+  },
+]
+
+/**
  * PHASE 3 — the approvals surface itself.
  *
  * The attacker is BRAVO's administrator as usual, and here they hold `admin/approvals`
@@ -2271,7 +2533,10 @@ export const APPROVAL_CASES = [
 
 // Order is load-bearing, and only here: APPROVAL_CASES decides two memberships and
 // leaves a third behind, so it runs after everything that reads the fixture.
-CASES.push(...MORE_CASES, ...PENDING_CASES, ...APPROVAL_CASES)
+// SWEEP_CASES before APPROVAL_CASES for the same reason APPROVAL_CASES is last: those
+// decide two memberships and leave a third behind, and every sweep case depends on
+// `alphaPending` still being pending.
+CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...APPROVAL_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.
@@ -2288,20 +2553,26 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...APPROVAL_CASES)
  *     cross-family case to construct. Their risk is the permission layer, not
  *     family isolation.
  *
- *   The notifications INSERT policy, and the rest of 20260806000011 §6's sweep
- *     A structural gap rather than a missing case. The sweep narrows policies on
- *     tables that no server action lets an unapproved caller touch — the
- *     notifications INSERT ("any member may notify any member", so an applicant
- *     could reach every bell in the family), and the "readable in family" SELECTs on
- *     permission_templates, template_permissions and resource_visibility.
- *     Every one of those is reachable only by calling PostgREST directly with the
- *     applicant's own JWT, and this suite calls exported ACTIONS. Adding it means a
- *     raw-query harness alongside this one, which is worth doing and is not this.
+ *   20260806000011 §6's sweep — COVERED SINCE 2026-08-17, see SWEEP_CASES above
+ *     This entry said the sweep was a structural gap: its policies are reachable only by
+ *     calling PostgREST directly with an applicant's JWT, and this suite calls exported
+ *     ACTIONS. That was true and is no longer — `tests/rls/raw.mjs` speaks PostgREST as
+ *     the current actor, substituting nothing, and `SWEEP_CASES` covers nine policies plus
+ *     the two `people` guards and the fail-closed admin default.
  *
- *     What stands in for it meanwhile is not nothing: §8 of that migration recomputes
- *     the swept table list from permission_table_map and RAISEs if a single policy on
- *     any of them lacks the conjunct, so the sweep silently matching zero rows fails
- *     the deploy rather than passing the tests.
+ *     WHAT ALSO CHANGED IS THE THING THAT USED TO STAND IN FOR IT. This entry credited §8
+ *     of that migration with recomputing the swept table list and RAISEing on a missing
+ *     conjunct. It does, and it has EXPIRED: its hard-coded half names `user_groups`,
+ *     `user_group_members` and `group_permissions`, and `20260807000000` renamed the first
+ *     two and dropped the other two. So it is correct on a full replay and cannot be
+ *     re-run against today's schema at all. Do not reach for it as a substitute again.
+ *
+ *   The two `people` guards, through the ACTION rather than raw
+ *     `people_guard_membership_status` and `people_guard_permission_template` are exercised
+ *     by raw PATCH in SWEEP_CASES, which is the only way to reach the triggers themselves.
+ *     What is NOT covered is a service-role write bypassing them — by design, since the
+ *     guards bound the `authenticated` role rather than the column. That obligation is
+ *     enforced statically instead: `npm run audit:people`, a step in verify.yml.
  */
 export const UNCOVERED = [
   'documents.uploadDocument', 'photos.uploadPhoto',

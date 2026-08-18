@@ -3,6 +3,8 @@ import { NotificationBell } from '@/components/layout/NotificationBell'
 import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { AccountMenu } from '@/components/layout/AccountMenu'
 import { MobileNav } from '@/components/layout/Sidebar'
+import { ContextHelpLink } from '@/components/help/ContextHelpLink'
+import { HELP_ROUTE_INDEX } from '@/lib/help/routes'
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalQueues } from '@/app/actions/admin/approvals'
 import { getMyFamilies, getMyFamilyCode } from '@/lib/auth/family'
@@ -152,13 +154,36 @@ export default async function TopBar({
             so on a wide screen `justify-between` had one item to distribute and parked it
             at the START. The controls sat top-LEFT of the workspace, which is the one
             place the Golden Master does not put them. Pushing from this element instead
-            is correct whether or not the trigger is there. */}
+            is correct whether or not the trigger is there.
+
+            THE ORDER, right to left, is by how often a control is reached for. The account
+            portrait keeps the corner — it is the anchor everything else is measured from,
+            and moving it is the one change a member would notice on every page. The bell is
+            next, because it is the control something happens IN. Help is leftmost of the
+            three, being the rarest: it is the thing somebody goes looking for once, on the
+            one screen they did not understand, and putting it on the corner would spend the
+            most valuable position in the bar on the least-used destination. The family
+            switcher sits outside all of that, first, because for most accounts it renders
+            nothing at all. */}
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
           {/* Renders NOTHING for a single-family account, which is most of them — and is
               why this bar matches the Golden Master's three controls for most people
               while still giving a multi-family member the one piece of state they cannot
               afford to have hidden. */}
           <FamilySwitcher families={families} />
+          {/* The chapter about the screen the member is on, or nothing at all when no
+              chapter covers it (see the component — it degrades to nothing, never to a
+              broken link).
+
+              NO `key`, unlike the bell below. It holds no family data and no state of any
+              kind — `usePathname()` is all it reads, and the answer is the same for every
+              member of every family — so neither the `key={familyCode}` rule nor
+              `ShellWatcher` has anything to do with it.
+
+              THE INDEX IS RESOLVED HERE, on the server, and handed down. It derives from
+              `lib/help/content.ts`, which is the whole manual; importing it from the client
+              component would ship ~79KB of prose to the browser on every page. */}
+          <ContextHelpLink entries={HELP_ROUTE_INDEX} />
           {showBell && (
             // KEYED, for the reason the <main> in app/(protected)/layout.tsx is keyed: a
             // family switch is a `router.refresh()`, which merges new server props without

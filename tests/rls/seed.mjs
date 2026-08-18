@@ -245,6 +245,12 @@ async function teardown(db) {
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
     'person_relationships', 'events', 'user_roles', 'family_invitations',
+    // ADDED 2026-08-17 with the three sweep rows. event_rsvp and event_assignments
+    // cascade from `events` above and need no line of their own; event_types does NOT
+    // (it is family-scoped configuration, not a child of an event) and
+    // event_blueprint_items cascades from it. Listed AFTER `events`, because an
+    // assignment points at a blueprint item and the event is what takes it away.
+    'event_blueprint_items', 'event_types',
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
@@ -407,8 +413,16 @@ export async function seed() {
     must(`${who} grants`, await db.from('template_permissions')
       .upsert(grants, { onConflict: 'template_id,resource_key,action' }))
 
-    // One column, not a membership row — see the header. Service role, so
-    // people_guard_permission_template does not fire.
+    // One column, not a membership row — see the header.
+    //
+    // THE TRIGGER FIRES; IT DOES NOT RAISE. This comment said "does not fire" and that is
+    // the wrong mental model, which matters because the distinction is the whole of Phase
+    // 3's third leftover. Triggers are unaffected by RLS and by role, so
+    // `people_guard_permission_template` runs for this UPDATE like any other — it simply
+    // finds `current_user = 'service_role'` rather than `'authenticated'` and returns. The
+    // boundary is around the ROLE, not around the column, and a comment that blurs the two
+    // is how the next reader concludes the column is guarded outright.
+    // `npm run audit:people` is what keeps that boundary honest on the app side.
     must(`${who} template assignment`, await db.from('people')
       .update({ permission_template_id: template.id })
       .eq('id', fx.users[who].personId))
@@ -438,6 +452,9 @@ export async function seed() {
   for (const [side, code] of [['alpha', ALPHA], ['bravo', BRAVO]]) {
     const owner = side === 'alpha' ? fx.users.alphaMember : fx.users.bravoMember
     const other = side === 'alpha' ? fx.users.alphaOther : fx.users.bravoAdmin
+    // The family's ADMINISTRATOR. Note this is NOT `other` — that is `alphaOther` on the
+    // ALPHA side and only coincides with the administrator on BRAVO. The board position
+    // seeded below goes to this one, which is why that sweep case's control is `alphaAdmin`.
     const familyAdmin = side === 'alpha' ? fx.users.alphaAdmin : fx.users.bravoAdmin
     const f = fx[side]
     f.familyCode = code
@@ -488,6 +505,54 @@ export async function seed() {
     f.eventPhoto = must('event photo', await db.from('event_photos').insert({
       event_id: f.event.id, family_code: code, uploader_id: owner.personId,
       file_path: `${code}/event.jpg`, caption: `${code} event photo`,
+    }).select().single())
+
+    // ── THREE ROWS ADDED 2026-08-17, FOR THE SWEEP CASES ──────────────────────────
+    // `event_rsvp`, `event_assignments` and `user_roles` are three of the nine tables
+    // `20260806000011` §6 added `auth_membership_approved()` to, and until now the fixture
+    // seeded none of them. That cost nothing while nothing tested them — and the moment
+    // `SWEEP_CASES` did, all three positive controls failed and the runner said so:
+    // "owner saw none of their own data — this case proves nothing".
+    //
+    // That is the failure mode AGENTS.md §7 exists to name, caught by the mechanism built
+    // to catch it. These rows are what turn three vacuous attack assertions into real ones.
+    // They are NOT marked `positive: 'not-applicable'`: a control genuinely applies here —
+    // a member really may read their own family's RSVPs — the fixture simply had no row.
+    // AUTH USER IDS, NOT people ids, on all three of these — checked against
+    // pg_constraint rather than assumed, and the first attempt got it wrong.
+    // `event_rsvp.submitted_by`, `event_assignments.assigned_to/assigned_by` and
+    // `user_roles.user_id` all reference auth.users(id). AGENTS.md §8 notes the same fact
+    // from the other direction: event_rsvp has no foreign key to `people` at all, which is
+    // why `event_rsvp(people(...))` answers PGRST200.
+    f.rsvp = must('event rsvp', await db.from('event_rsvp').insert({
+      event_id: f.event.id, submitted_by: owner.userId, is_attending: true,
+    }).select().single())
+
+    // An assignment needs a blueprint item to point at, and a blueprint item needs an
+    // event type. Both are seeded here rather than reused because nothing else in the
+    // fixture creates either.
+    f.eventType = must('event type', await db.from('event_types').insert({
+      family_code: code, name: `${code} gathering`, created_by: owner.userId,
+    }).select().single())
+
+    f.blueprintItem = must('blueprint item', await db.from('event_blueprint_items').insert({
+      event_type_id: f.eventType.id, title: `${code} bring the cake`, sort_order: 1,
+    }).select().single())
+
+    f.assignment = must('event assignment', await db.from('event_assignments').insert({
+      event_id: f.event.id, blueprint_item_id: f.blueprintItem.id,
+      assigned_to: owner.userId, assigned_by: owner.userId,
+    }).select().single())
+
+    // A board position, given to the ADMINISTRATOR — which is why that sweep case's
+    // control is `alphaAdmin` rather than `alphaMember`. `role_id` comes from the global
+    // `family_roles` lookup (the 25 built-in positions), so this depends on
+    // `seed_global_lookups()` having run: if it is empty the insert fails loudly here
+    // rather than the case going green over a missing row.
+    const presidentRole = must('president role', await db.from('family_roles')
+      .select('id').eq('name', 'President').is('family_code', null).single())
+    f.userRole = must('user role', await db.from('user_roles').insert({
+      family_code: code, user_id: familyAdmin.userId, role_id: presidentRole.id,
     }).select().single())
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({

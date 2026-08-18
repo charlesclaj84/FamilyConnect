@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/date-utils'
 import { renameFamily, type FamilySettings } from '@/app/actions/admin/family'
 import { MAX_FAMILY_NAME } from '@/components/admin/family-settings'
 import { PlanPanel } from '@/components/admin/PlanPanel'
+import { HelpLink } from '@/components/help/HelpLink'
 
 /**
  * One field, and three facts that are not editable.
@@ -94,8 +95,26 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           Shown to everyone who can view this page, not only to whoever can rename the
           family. Hiding it would leave a member reaching an upgrade screen with nowhere in
           the product to find out what they already have. The BUTTONS are gated separately,
-          inside the panel, on the same `canEdit` the name field uses. */}
-      <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
+          inside the panel, on the same `canEdit` the name field uses.
+
+          THE HELP LINK SITS OUTSIDE THE PANEL, not in it, and that is a boundary rather
+          than a placement whim: `PlanPanel` is about the three plans and what each includes,
+          and where to read more about them belongs to the PAGE. It is the inline variant
+          because there is room above the panel and because the sentence is the point — the
+          question somebody arrives with is "what does changing this actually do to us?", and
+          the answer (screens close, no record is deleted, moving back up restores them) is
+          `family-settings#plan` rather than anything on this screen. It sits UNDER the panel
+          so it reads as "more about this" rather than as a caption over the first thing on
+          the page. */}
+      <div className="space-y-2">
+        <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
+        <HelpLink
+          variant="inline"
+          slug="family-settings"
+          section="plan"
+          label="What changing the plan does"
+        />
+      </div>
 
       <section className="rounded-xl border bg-card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Family name</h2>

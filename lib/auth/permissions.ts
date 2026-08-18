@@ -21,7 +21,21 @@ import { tierMeets } from '@/lib/tiers'
  *      (resource, action). A person is assigned at most one template and it is the
  *      whole of their access.
  *   2. Default. For 'view', the family's page visibility ('everyone' => any,
- *      'restricted' => none). For create/edit/delete, none — it fails closed.
+ *      'restricted' => none) — and where the family has NO visibility row, an ADMIN
+ *      key denies while everything else allows. For create/edit/delete, none.
+ *
+ * THE ADMIN HALF OF STEP 2 ARRIVED 2026-08-17 (20260817000004) and closes Phase 3's
+ * second leftover. `resource_visibility` is written by migrations and by
+ * `seed_family_permission_templates()` and by nothing else — there is no UI for it —
+ * so an absent row is the ORDINARY state for a key whose migration forgot §6's
+ * backfill, not an unusual one. Defaulting that to 'everyone' is how `admin/approvals`
+ * came to be born world-readable and then backfilled out of it; defaulting it to
+ * 'restricted' makes the same omission fail loudly instead.
+ *
+ * "Admin" is two tests, because only one of them can answer for an unregistered key:
+ * `category = 'admin'` where the resource is registered, and the `admin/` prefix where
+ * it is not. The migration asserts the two cannot disagree for a registered row, which
+ * is what licenses the prefix — see `isAdminResource` below.
  *
  * There is no second layer to reconcile. 20260807000000 replaced group membership
  * (N groups, unioned, beating a per-person override grid) with a single template,
@@ -72,6 +86,31 @@ export interface PermissionSet {
 }
 
 const key = (resource: string, action: PermissionAction) => `${resource}:${action}`
+
+/**
+ * Whether a resource key is one an ADMINISTRATOR holds rather than one a member does —
+ * which decides what happens when the family has said nothing about it.
+ *
+ * ── THE PREFIX IS THE TEST, AND THAT IS A DECISION ──────────────────────────────────
+ * `permission_resources.category` is the database's answer, and reading it here would
+ * mean a third admin-client query on a resolver the sidebar already calls for every
+ * resource in the catalogue. The prefix is free, pure, and needs no round trip.
+ *
+ * It is sound because `20260817000004` §1 ASSERTS the two signals cannot disagree: every
+ * `category = 'admin'` row is shaped `admin/…` and every `admin/…` row is
+ * `category = 'admin'`, in both directions, or the migration refuses to apply. So the
+ * catalogue cannot drift out from under this without a deploy failing first.
+ *
+ * It is also the only test available for the case this exists for — a key with no
+ * `permission_resources` row at all, which has no category to read. The SQL twin does the
+ * same thing in the same order: category where there is one, prefix where there is not.
+ *
+ * The legacy branch of `resolveScope` has used this prefix since 20260618000000, for the
+ * same reason and with the same words.
+ */
+function isAdminResource(resource: string): boolean {
+  return resource.startsWith('admin/')
+}
 
 const EMPTY: PermissionSet = {
   personId: '', familyCode: '', resolved: new Map(), restricted: new Set(),
@@ -189,7 +228,17 @@ export function resolveScope(
   const explicit = perms.resolved.get(key(resource, action))
   if (explicit) return explicit
 
-  if (action === 'view') return perms.restricted.has(resource) ? 'none' : 'any'
+  // THE DEFAULT, and its admin half is the 2026-08-17 change (20260817000004). An
+  // explicit grant above still wins either way — this decides only what the ABSENCE of
+  // an answer means, and for an admin key the absence must not mean "everyone".
+  //
+  // Mirrors auth_permission()'s default branch exactly, which is not a style note: the
+  // database enforces the same rule through RLS and a divergence here renders
+  // affordances the policies will refuse, or hides ones they would allow.
+  if (action === 'view') {
+    if (perms.restricted.has(resource)) return 'none'
+    return isAdminResource(resource) ? 'none' : 'any'
+  }
   return 'none'
 }
 
@@ -471,9 +520,17 @@ export async function scopeInFamilies(
     }
     // The same fall-through resolveScope applies, and for the same reason: a resource
     // registered by a later migration has no row in a template that already existed.
+    //
+    // THE ADMIN CONJUNCT IS HERE TOO, and this is the copy TODO.md forgot when it said
+    // the fix needed "auth_permission() and resolveScope() changed together". There are
+    // THREE resolvers, and this one's only consumer is `getPendingApprovalQueues()` on
+    // the key `admin/approvals` — an admin key. Left behind, the bell would tell an
+    // administrator a queue was waiting in a family whose page then answered 404.
     out.set(
       row.family_code,
-      action === 'view' ? (restricted.has(row.family_code) ? 'none' : 'any') : 'none',
+      action === 'view'
+        ? (restricted.has(row.family_code) || isAdminResource(resource) ? 'none' : 'any')
+        : 'none',
     )
   }
 

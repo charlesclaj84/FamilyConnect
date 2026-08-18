@@ -23,6 +23,9 @@
  * A plain module, not a `'use server'` one: Next.js allows only async functions to be
  * exported from those, and both call sites need the set itself.
  */
+import { NAME_CASE_COLUMNS, toNameCase } from '@/lib/name-case'
+import { PHONE_COLUMNS, normalizePhone } from '@/lib/phone-format'
+
 export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   'prefix', 'first_name', 'middle_name', 'last_name', 'nick_name', 'suffix',
   'primary_email', 'primary_phone',
@@ -60,19 +63,59 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
 const ALLOWED = new Set<string>(WRITABLE_PROFILE_COLUMNS)
 
 /**
- * Drop every key that is not a writable profile column.
+ * Drop every key that is not a writable profile column, and NORMALISE the ones that have a
+ * canonical form.
  *
  * Silently, rather than erroring: an unknown field is version skew between a cached
  * client bundle and the server, and the fields that ARE known should still save.
  * Deliberately an allow-list and not a deny-list — a column added to `people` next
  * month is unwritable by default instead of writable until somebody remembers.
+ *
+ * ── WHY NORMALISATION LIVES HERE, IN THE FILTER, RATHER THAN BESIDE IT ──────────────
+ * This function's header used to say it "decides which keys reach the row and says nothing
+ * about their contents", and that separation was clean right up to the point where it had a
+ * cost. Two columns have a canonical form — a name's capitalisation and a phone number's
+ * country code — and both were being stored however they happened to be typed, so the
+ * directory held "mary allen", "MARY ALLEN" and "Mary Allen" as three kinds of record and
+ * four renderings of one phone number.
+ *
+ * A second exported function would have been tidier and would be applied at two of the three
+ * call sites within a year. THIS is the chokepoint every profile write already passes
+ * through — `saveProfileSection`, `updateUserProfile` and `editPersonRecord` — and it is
+ * exactly the argument that put the allow-list here rather than in each action. One
+ * function, enforced by construction; the alternative is enforced by memory.
+ *
+ * BOTH NORMALISERS ARE CONSERVATIVE BY DESIGN and neither can reject a value. Read their
+ * headers before widening either: `toNameCase` leaves any mixed-case name untouched because
+ * mixed case is a signal of intent, and `normalizePhone` returns anything it does not
+ * recognise unchanged rather than guessing. A normaliser that refuses a save, or that
+ * "corrects" `McDonald`, is a worse bug than the inconsistency it set out to fix.
+ *
+ * `undefined` is passed through by both, so a PATCH that omits a field still omits it —
+ * writing a normalised `null` over a name the form never showed is how a partial update
+ * silently clears a column.
  */
 export function pickProfileColumns<T extends Record<string, unknown>>(
   input: T,
 ): Partial<T> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input ?? {})) {
-    if (ALLOWED.has(key)) out[key] = value
+    if (!ALLOWED.has(key)) continue
+
+    // Only strings are normalised. A caller could hand any JSON value for any key — these
+    // are public endpoints — and handing a number to a string normaliser would coerce it
+    // into the row as text. Leave a non-string exactly as it arrived and let the column's
+    // own type or CHECK constraint refuse it, which is the layer that can.
+    if (typeof value === 'string' && NAME_COLUMNS.has(key)) {
+      out[key] = toNameCase(value)
+    } else if (typeof value === 'string' && PHONE_SET.has(key)) {
+      out[key] = normalizePhone(value)
+    } else {
+      out[key] = value
+    }
   }
   return out as Partial<T>
 }
+
+const NAME_COLUMNS = new Set<string>(NAME_CASE_COLUMNS)
+const PHONE_SET = new Set<string>(PHONE_COLUMNS)

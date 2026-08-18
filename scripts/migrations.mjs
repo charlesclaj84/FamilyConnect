@@ -26,9 +26,11 @@
  *       decided every read.
  *
  *   The fix is structural and lives in .github/workflows: `db push` runs from CI on
- *   merge to master, before the code deploy is triggered, and nowhere else. This script
- *   is the part that can be run at any time to ask whether that held — the same job
- *   `npm run email:check` does for the auth templates.
+ *   merge to master, and nowhere else. It does not trigger the deploy — that phrasing is
+ *   deploy-hook-era and was wrong — it GATES one: Vercel builds every push to master and a
+ *   Deployment Check named `Database migrations` holds the build unaliased until
+ *   `migrate.yml` passes. This script is the part that can be run at any time to ask whether
+ *   that held — the same job `npm run email:check` does for the auth templates.
  *
  * WHAT IT DELIBERATELY DOES NOT CHECK
  *   Whether an applied migration's FILE still matches what the database ran. It

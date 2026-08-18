@@ -17,6 +17,7 @@ import { COLLAPSING_CELL, MetaDot, MetaIf } from '@/components/ui/table-collapse
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { setMyDuesPlan, setMyDuesOptOut, type DuesSummary } from '@/app/actions/dues'
+import { HelpLink } from '@/components/help/HelpLink'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
 import { SortTh, type SortDir } from '@/components/account/sortable-header'
@@ -206,6 +207,25 @@ export function DuesPlanSection({ summary }: { summary: DuesSummary[] }) {
         <DuesBalanceKpi summary={rows} />
         <NextInstallmentsCard summary={rows} />
       </div>
+
+      {/* THE ONE QUESTION THIS SCREEN RELIABLY RAISES, answered where it is raised.
+          "Next Installment" on the card above and "Installment" in the table below are two
+          different figures — the next payment carries whatever the calendar has already
+          asked for and the money has not covered — and a member seeing a larger number
+          than their installment reads it as an error. `my-dues#next-payment` is the
+          paragraph that separates them.
+
+          Placed here rather than on the card, because the card is shared with
+          [Summary](/account-summary) and this is the screen the question is asked on. It is
+          also the one help link on this page: the top bar already points at the chapter as
+          a whole, so a second, third and fourth icon on the cadence picker and the opt-out
+          would only make this one harder to see (see components/help/HelpLink.tsx). */}
+      <HelpLink
+        variant="inline"
+        slug="my-dues"
+        section="next-payment"
+        label="Why the next payment can differ from the installment"
+      />
 
       <div>
         <FormError message={error} className="mb-3" />

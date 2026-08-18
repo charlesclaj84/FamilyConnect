@@ -158,7 +158,18 @@ BEGIN
   DELETE FROM family_invitations;
   DELETE FROM person_relationships;
   DELETE FROM family_role_exclusions;
-  DELETE FROM family_roles;
+  -- THE CUSTOM HALF ONLY, since 2026-08-17. `family_roles` is a hybrid: the 25
+  -- built-in board positions are GLOBAL (`family_code IS NULL`, `is_global`), and
+  -- `createCustomRole` writes per-family rows beside them. This used to delete the
+  -- lot, which emptied a global lookup that only a migration can restore — the
+  -- same one-way door truncate_entire_database.sql went through on hosted, and the
+  -- reason 20260817000003 exists. §11's keep-list names the table for this reason.
+  --
+  -- The visible consequence, and it is a deliberate yes: a reset family now
+  -- arrives with its board positions already listed rather than blank. That is
+  -- what "just created" means for a real family — the two `families` triggers in
+  -- the inventory above do not create them because they are not per-family.
+  DELETE FROM family_roles WHERE family_code IS NOT NULL;
   DELETE FROM user_roles;
   DELETE FROM chapters;
   DELETE FROM regions;
@@ -264,8 +275,15 @@ BEGIN
            -- surviving account's own rows.
            'families', 'people', 'funds',
            'permission_templates', 'template_permissions', 'resource_visibility',
-           -- Global configuration, not family data.
+           -- Global configuration, not family data. `family_roles` joined this
+           -- list on 2026-08-17 and is the one that needs explaining: it is a
+           -- HYBRID, so it is on the keep-list for its 25 global board positions
+           -- (`family_code IS NULL`) while §7 still deletes its per-family custom
+           -- rows. That is why it was missed for so long — every "is this a global
+           -- lookup?" test asks whether the table has a `family_code` column, and
+           -- this one does.
            'permission_resources', 'permission_table_map', 'relationship_types',
+           'family_roles',
            -- The kept account's active-family pointer.
            'user_family_settings')
      AND (xpath('/row/c/text()', query_to_xml(

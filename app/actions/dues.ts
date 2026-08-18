@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import {
   annualTotalCents,
   ageShareOfPeriod,
@@ -988,11 +989,35 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
   // its kind can choose the grant — deleting a schedule takes every member's
   // obligation with it, so it needs the unrestricted one.
   const { data: existing } = await admin
-    .from('dues_schedules').select('kind').eq('id', id).eq('family_code', familyCode).maybeSingle()
+    .from('dues_schedules').select('kind, label').eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
   if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'delete'))) {
     return { success: false, message: 'Not authorized' }
+  }
+
+  // MONEY FIRST, and this was missing until 2026-08-17 — a schedule with payments recorded
+  // against it could be deleted, and the delete succeeded.
+  //
+  // What that did is worse than allowing it: `dues_payments.schedule_id` is
+  // ON DELETE SET NULL, so the payments SURVIVED with their schedule nulled. The money
+  // stayed in every total and nothing anywhere said what it had been collected for — and
+  // it is irreversible, because the append-only trigger on that table permits exactly one
+  // delete path (the cascade from a parent already gone) and no update at all, so the
+  // attribution cannot be put back.
+  //
+  // The check is ABOVE the grant check being irrelevant: it comes after, because a caller
+  // with no grant should be told they are not authorized rather than being told about the
+  // family's finances. See lib/money-attached.ts for why this is not a RESTRICT constraint.
+  const attached = await moneyAttachedTo('dues_schedule', id, familyCode)
+  if (attached.any) {
+    return {
+      success: false,
+      message: moneyAttachedMessage(
+        existing.label ? `“${existing.label}”` : kind === 'donation' ? 'This donation drive' : 'This due',
+        attached,
+      ),
+    }
   }
 
   const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)

@@ -9,6 +9,7 @@ import { FormError } from '@/components/ui/form-message'
 import { NickName } from '@/components/ui/person-name'
 import { cn } from '@/lib/utils'
 import { disambiguatedName } from '@/lib/name-utils'
+import { HelpLink } from '@/components/help/HelpLink'
 import { AddRelativeDialog } from '@/components/family-tree/AddRelativeDialog'
 import {
   PersonRecordDialog, type TreeConnection,
@@ -540,6 +541,21 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
               ? `Showing the ${bloodline!.size} people descended from this family's line. Spouses, step and adopted relatives are hidden.`
               : `Everyone in the family — ${tree.people.length} people, ${bloodline!.size} of them by blood.`}
           </p>
+          {/* THE TOGGLE IS THE MOST MISREAD CONTROL ON THIS PAGE, which is why it gets one
+              of the seven placed help links in the app. The sentence beside it says what is
+              being shown; it cannot also explain that the answer is FAMILY-WIDE rather than
+              per viewer, that it is walked from one named anchor, and that somebody who
+              married in appearing as blood is an anchor problem to be fixed above the tree
+              rather than a connection to be mis-recorded as step. That last one is the
+              actual damage — the tree then carries a falsehood about her and about every
+              relative of hers added later — and `family-tree#bloodline` is where it is
+              spelled out. */}
+          <HelpLink
+            slug="family-tree"
+            section="bloodline"
+            label="Help: the Bloodline toggle"
+            className="size-6"
+          />
         </div>
       )}
 

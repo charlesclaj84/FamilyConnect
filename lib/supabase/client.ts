@@ -1,5 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { isInvalidCredentials } from '@/lib/auth/auth-errors'
 
 export function createClient() {
   return createBrowserClient(
@@ -105,11 +106,12 @@ export async function verifyCurrentPassword(password: string): Promise<PasswordC
   })
   if (!error) return { ok: true }
 
-  const wrong =
-    error.code === 'invalid_credentials' ||
-    /invalid login credentials/i.test(error.message)
-
-  return wrong
+  // `isInvalidCredentials` rather than the `code || message` pair that used to sit here.
+  // The sign-in form needs the identical shape for `email_not_confirmed`, and two hand-typed
+  // copies of "read the typed code, fall back to the prose" are two chances to get the order
+  // — or the fallback's existence — wrong. lib/auth/auth-errors.ts holds the reasoning and is
+  // the thing under test.
+  return isInvalidCredentials(error)
     ? { ok: false, reason: 'wrong', message: 'That is not your password.' }
     : {
         ok: false,

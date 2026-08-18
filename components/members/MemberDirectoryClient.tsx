@@ -8,6 +8,7 @@ import { NickName } from '@/components/ui/person-name'
 import { cn } from '@/lib/utils'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import type { MemberRecord } from '@/app/actions/members'
+import { formatPhone } from '@/lib/phone-format'
 
 interface Props {
   members: MemberRecord[]
@@ -131,7 +132,7 @@ export function MemberDirectoryClient({ members }: Props) {
                               down rather than across, so this one stacks — `RowMeta`'s
                               default inline run is for two or three short values. */}
                           <RowMeta className="flex-col items-start gap-y-0.5">
-                            <MetaIf value={member.primary_phone} />
+                            <MetaIf value={formatPhone(member.primary_phone) || null} />
                             {member.primary_email && (
                               <span className="break-all">{member.primary_email}</span>
                             )}
@@ -146,7 +147,7 @@ export function MemberDirectoryClient({ members }: Props) {
                       </div>
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
-                      {member.primary_phone ?? '—'}
+                      {formatPhone(member.primary_phone) || '—'}
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.primary_email ?? '—'}</td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.location ?? '—'}</td>

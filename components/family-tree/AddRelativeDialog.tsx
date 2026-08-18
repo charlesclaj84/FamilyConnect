@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { PersonPicker } from '@/components/ui/person-picker'
+import { HelpLink } from '@/components/help/HelpLink'
 import { cn } from '@/lib/utils'
 import { addRelative, type AddRelativeMode, type TreePerson } from '@/app/actions/family-tree'
 import { relationshipMeta, LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
@@ -241,6 +242,28 @@ export function AddRelativeDialog({
             <p className="text-xs text-muted-foreground">
               {mode === 'record' ? recordHint(isChild) : MODES.find(m => m.id === mode)!.hint}
             </p>
+            {/* ON THE RECORD MODE ONLY, because it is the only one of the three whose
+                consequences are not visible from the form. "No email address" reads like a
+                lesser kind of person and is not one — it is the same `people` row, editable
+                by any approved member, and it stops being a record the day somebody invites
+                them. That there is no "convert to adult" step is the specific thing people
+                come looking for, and `family-tree#records` is where it is answered.
+
+                Inline rather than an icon: this is a sentence's worth of explanation, the
+                dialog has the width for the words, and a bare question mark sitting under a
+                hint paragraph would read as being about the paragraph.
+
+                The other two modes need nothing here — linking someone already present and
+                emailing an invitation both do exactly what their hint says. */}
+            {mode === 'record' && (
+              <HelpLink
+                variant="inline"
+                slug="family-tree"
+                section="records"
+                label="What a record is, and how they get an account later"
+                className="text-xs"
+              />
+            )}
           </div>
 
           {/* HOW THEY ARE RELATED, and only for a link blood could travel down. A marriage

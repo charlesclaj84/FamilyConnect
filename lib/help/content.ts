@@ -118,9 +118,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-top-bar',
             heading: 'The bar across the top',
             blocks: [
-              p('Four controls sit at the top right of every page.'),
+              p('Five controls sit at the top right of every page.'),
               defs(
                 { term: 'Family switcher', text: 'Shown when your account belongs to more than one family. Picking a different family reloads the page you are on as that family.' },
+                { term: 'Help', text: 'A question mark, linking to the chapter of this manual that describes the screen you are on. It is not there on the few screens no chapter covers yet, and not on these help pages.' },
                 { term: 'Bell', text: 'Your notifications, plus a standing row for any family with people waiting to be approved — including families you are not currently looking at.' },
                 { term: 'Appearance', text: 'Light, Dark, or System. It is remembered in this browser.' },
                 { term: 'Your name', text: 'Opens the account menu: [My Profile](/personal-info), [My Families](/my-families), appearance, and sign out.' },
@@ -185,6 +186,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('An invitation is a link emailed to one address. It is better than a code for the person sending it, because it can pre-approve you: follow the link, set a password, and you are in without waiting.'),
               p('An invitation that does not pre-approve puts you in the queue like a code does. Either way the link is for the address it was sent to — if you are signed in as somebody else when you open it, the product says so rather than quietly attaching the invitation to the wrong account.'),
+            ],
+          },
+          {
+            id: 'confirm-your-email',
+            heading: 'Confirming your email address',
+            blocks: [
+              p('However you register — a new family, a family code, or an invitation — a confirmation link is emailed to the address you signed up with, and the account cannot sign in until that link has been opened. It works once and expires after an hour, so use the newest message rather than an older one further up the same thread.'),
+              p('If you try to sign in before opening it, the sign-in page says the address is not confirmed and offers **Send the link again** underneath the form. Look in the spam folder before pressing it: a link that arrived and was overlooked is much the commonest reason for this, and another copy of it does not help.'),
+              note('Nobody is told whether that email arrived — not you, and not us — so the page says what it asked for rather than promising delivery. If nothing ever comes, the likeliest answer is that the address is not the one the account was registered with.'),
             ],
           },
           {
@@ -1144,7 +1154,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The panel at the top of the page shows which plan the family is on and what it includes, and is where an administrator moves it. See [Plans](/help/plans).'),
+              p('The panel at the top of the page shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
             ],
           },
         ],
@@ -1215,6 +1226,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Three plans',
             blocks: [
               p('Free, Plus and Premium, and they are inclusive — Plus is everything in Free and more, Premium is everything in Plus and more. What each one includes is listed on the plan panel at the top of [Settings](/admin/family), which is the copy that is kept current.'),
+              p('Each paid plan shows two prices on that panel: one for paying monthly, and a lower one for the whole year paid in advance. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
+              note('Free is free, and not a trial. Plus and Premium have prices and are not on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Both cards say so.'),
             ],
           },
           {
@@ -1242,6 +1255,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
         title: 'If something looks wrong',
         summary: 'The handful of things that surprise people, and what is actually happening.',
         sections: [
+          {
+            id: 'cannot-sign-in',
+            heading: 'I cannot sign in at all',
+            blocks: [
+              p('If the sign-in page answers that your email address is not confirmed, the account exists and your password was right — it is waiting on the link that was emailed when it was registered. Press **Send the link again** in the panel underneath the form, then open the newest message. Each link works once and expires after an hour, so an older email in the same thread will not let you in.'),
+              p('Nothing tells us whether that email arrived, so the panel says what it asked for rather than claiming it was delivered. Check the spam folder, and if nothing comes at all, the address may not be the one the account was registered with — see [Confirming your email address](/help/joining-a-family#confirm-your-email).'),
+              p('A wrong password answers differently, and so does an address with no account: both say the credentials are invalid rather than naming the confirmation. If that is what you are seeing, ask for a reset link from the sign-in page instead.'),
+            ],
+          },
           {
             id: 'missing-page',
             heading: 'A page I was told about is not in my rail',
@@ -1282,6 +1304,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'I was approved but nothing changed',
             blocks: [
               p('It should change on its own within a minute, or as soon as you come back to the tab — the page checks rather than making you sign in again. If it has not, reloading the page will do it.'),
+            ],
+          },
+          {
+            id: 'what-is-this-screen',
+            heading: 'I do not understand what a screen is for',
+            blocks: [
+              p('Every screen with a chapter has a question mark at the top right, next to the bell, and it goes straight to that chapter. A few screens also carry a question mark beside one particular control — the Bloodline toggle on the [Family Tree](/family-tree), the plan on [Settings](/admin/family) — and that one goes to the paragraph about that control rather than to the top of the chapter.'),
+              p('If the question mark is not there, no chapter documents that screen yet. [The contents page](/help) lists everything the manual covers.'),
             ],
           },
         ],

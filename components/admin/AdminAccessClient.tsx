@@ -28,10 +28,12 @@ import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
+import { HelpLink } from '@/components/help/HelpLink'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import type { Applicant } from '@/app/actions/admin/approvals'
 import type { FamilyInvitation } from '@/app/actions/invitations'
+import { formatPhone } from '@/lib/phone-format'
 
 /**
  * Members & Access — one screen for what used to be three.
@@ -376,7 +378,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
             template is always shown: it is what this page is FOR, so unlike a missing
             phone number it is never omitted, and "No template" is a real answer. */}
         <RowMeta className="flex-col items-start gap-y-0.5">
-          <MetaIf value={member.phone} />
+          <MetaIf value={formatPhone(member.phone) || null} />
           {member.email && <span className="break-all">{member.email}</span>}
           <MetaIf value={member.location} />
           <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
@@ -384,7 +386,7 @@ function MemberRow({ member, templates, rights, busy, run }: {
           </span>
         </RowMeta>
       </td>
-      <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>{member.phone ?? '—'}</td>
+      <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>{formatPhone(member.phone) || '—'}</td>
       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.email ?? '—'}</td>
       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.location ?? '—'}</td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
@@ -654,9 +656,32 @@ function TemplatesTab({
       {/* ── Template list ────────────────────────────────────────────── */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Templates
-          </h2>
+          {/* THE ONE PLACED HELP LINK ON THIS SCREEN, and it is on this tab rather than on
+              Members or Pending Approval because this is the tab where a reader can be
+              confidently wrong. A grid of switches looks self-explanatory and is not: what
+              a scope of 'own' means, why a row shows two actions and not four, and that a
+              member has exactly ONE template with nothing layered over it are all facts the
+              screen assumes. `members-and-access#templates` states them.
+
+              An icon, not the inline variant: this is a column heading with a create button
+              on the other end of it, and words here would out-weigh both.
+
+              The top bar's icon already points at this chapter as a whole from every tab,
+              so this is the section-level shortcut and not a duplicate of it — see
+              components/help/HelpLink.tsx on why there is not one of these per pane. */}
+          {/* A `div`, not a `span`: an `h2` is flow content and a `span` is phrasing, so a
+              span wrapping it is invalid even though every browser renders it. */}
+          <div className="flex min-w-0 items-center gap-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Templates
+            </h2>
+            <HelpLink
+              slug="members-and-access"
+              section="templates"
+              label="Help: Permission templates"
+              className="size-6"
+            />
+          </div>
           {rights.create && (
             <button type="button" onClick={() => setCreating(c => !c)}
               className="rounded-lg p-1 hover:bg-muted" aria-label="New template">

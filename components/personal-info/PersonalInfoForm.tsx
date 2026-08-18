@@ -26,6 +26,7 @@ import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity
 import {
   PROFILE_SECTION_LABELS, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
+import { formatPhone } from '@/lib/phone-format'
 
 // ── `useWatch`, never `watch()` ────────────────────────────────────────────────
 //
@@ -380,7 +381,7 @@ function GeneralSection({
             <Field label="Nickname"       value={existing?.nick_name ?? null} />
             <Field label="Suffix"         value={existing?.suffix} />
             <Field label="Email"          value={existing?.primary_email} />
-            <Field label="Phone"          value={existing?.primary_phone} />
+            <Field label="Phone"          value={formatPhone(existing?.primary_phone)} />
             {/* genderLabel() rather than the raw column: the row holds 'male', the
                 screen says Male. It returns '' for a value it does not recognise, so
                 Field falls through to "Not set" instead of printing a token. */}

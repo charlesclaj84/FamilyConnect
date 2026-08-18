@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { HelpLink } from '@/components/help/HelpLink'
 import { collectedPercent, type DuesStanding } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
 
@@ -265,7 +266,27 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       <section className="space-y-3">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>
-            <h2 className="text-lg">By member</h2>
+            <h2 className="flex items-center gap-1 text-lg">
+              By member
+              {/* WHO IS IN THIS TABLE IS THE FIRST THING A TREASURER DOUBTS, and it is not
+                  answerable from the table itself: it lists approved members WITH AN
+                  ACCOUNT, so a grandmother recorded on the tree is family and is deliberately
+                  absent, and the count above will not match the Directory's. Three separate
+                  reductions — an age-limited due, a declined optional due, a waiver — are all
+                  honoured silently in the figures, and a missing date of birth makes an
+                  age-limited due bill in full, which is the commonest reason a row looks too
+                  high. `dues-projections#who-is-counted` is that whole list.
+
+                  An icon on the heading, not the inline variant: the row already carries a
+                  filter box and a checkbox, and words here would compete with the controls
+                  somebody came to use. */}
+              <HelpLink
+                slug="dues-projections"
+                section="who-is-counted"
+                label="Help: who is counted in these figures"
+                className="size-6"
+              />
+            </h2>
             <p className="text-xs text-muted-foreground">
               Least settled first. {rows.length} of {projection.members.length} shown.
             </p>

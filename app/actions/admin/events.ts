@@ -6,6 +6,7 @@ import { can } from '@/lib/auth/permissions'
 import { requireRead } from '@/lib/auth/guard'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 
 export interface AdminEvent {
   id: string
@@ -421,10 +422,26 @@ export async function cancelEvent(id: string): Promise<{ success: boolean; error
 }
 
 export async function deleteEvent(id: string): Promise<{ success: boolean; error?: string }> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
 
-  const { error } = await admin.from('events').delete().eq('id', id)
+  // ── TWO THINGS ADDED 2026-08-17, and the first is not about money ───────────────
+  //
+  // `.eq('family_code', familyCode)` — this runs on the SERVICE-ROLE client, so RLS is not
+  // confining it, and it took a bare id from the client and deleted whatever it named.
+  // `getAuthenticatedAdmin` has always returned the family code and this action simply did
+  // not use it, so an events administrator in one family could delete another family's
+  // reunion by id. AGENTS.md §3.
+  //
+  // And the money: `event_expenses.event_id` is ON DELETE CASCADE, so deleting an event
+  // with recorded spend ERASED that spend rather than orphaning it — the family's outgoings
+  // silently dropped. Same rule as a funded due; see lib/money-attached.ts.
+  const attached = await moneyAttachedTo('event', id, familyCode)
+  if (attached.any) {
+    return { success: false, error: moneyAttachedMessage('This event', attached) }
+  }
+
+  const { error } = await admin.from('events').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/events')
   revalidatePath('/events')
@@ -947,10 +964,20 @@ export async function updateEventBudgetItem(
 }
 
 export async function deleteEventBudgetItem(id: string): Promise<{ success: boolean; error?: string }> {
-  const { admin } = await getAuthenticatedAdmin()
+  const { admin, familyCode } = await getAuthenticatedAdmin()
   if (!admin) return { success: false, error: 'Not authorized' }
 
-  const { data, error } = await admin.from('event_budget_items').delete().eq('id', id).select('event_id').single()
+  // Family-scoped and money-checked, both added 2026-08-17 for the reasons on `deleteEvent`
+  // above. `event_expenses.budget_item_id` is ON DELETE SET NULL, so this one ORPHANS rather
+  // than erases: the expense stays in the family's outgoings with nothing saying which line
+  // of the budget it was spent against.
+  const attached = await moneyAttachedTo('event_budget_item', id, familyCode)
+  if (attached.any) {
+    return { success: false, error: moneyAttachedMessage('This budget line', attached) }
+  }
+
+  const { data, error } = await admin.from('event_budget_items')
+    .delete().eq('id', id).eq('family_code', familyCode).select('event_id').maybeSingle()
   if (error) return { success: false, error: error.message }
   if (data?.event_id) revalidatePath(`/admin/events/${data.event_id}`)
   revalidatePath('/family-finances')

@@ -96,21 +96,46 @@ directory's own rule says it belongs.
 Pushing proves the bytes arrived, not that the mail renders — send yourself a real signup
 before calling it done.
 
-### [ ] An unconfirmed account is a dead end
+### [ ] Confirm `rate_limit_email_sent` on hosted
 
-**Action:** decide whether the app offers to resend a confirmation, or whether this is a
-support case handled by hand.
+**Action:** one look at Authentication → Rate Limits, and nothing to run.
 
-Email confirmation is on and working on hosted, which is what makes this live rather than
-hypothetical: an account that registered and never clicked the link **cannot sign in at
-all**, and nothing in the app offers to resend. The member sees a failure with no route
-out, and the only fix today is somebody with dashboard access.
+`config.toml` sets `[auth.rate_limit] email_sent = 30` per hour, and says in as many words
+that the file is not read for it — the dashboard is. Nothing in the repo can check it, which
+is what puts this here.
 
-`/login` is where they end up, so that is where the offer belongs. Two things to decide
-before building it: whether an unauthenticated "resend to this address" endpoint is
-acceptable (it discloses whether an address has an account, and it is a mail-sending
-endpoint reachable by anyone — rate limiting is not optional), and whether it should
-instead be surfaced only after a failed sign-in, which narrows both problems.
+It became worth confirming on 2026-08-17, when `/login` gained a **Send the link again**
+button. `email_sent` is a PROJECT-WIDE hourly cap shared with every signup, reset, invitation
+and reauthentication email, so an abused resend does not merely annoy one address — it
+starves legitimate registrations. That, rather than the abused address, is the reason the
+number matters.
+
+The button is throttled on the client (one press per page load, no countdown) and that is
+honesty rather than a control: `/auth/v1/resend` is reachable without our page. If real abuse
+ever appears, `[auth.captcha]` plus `ResendParams`' `captchaToken` is the lever GoTrue already
+provides.
+
+### [ ] The `production` environment carries all three credentials and a `master` branch rule
+
+**Action:** one look at Settings → Environments → production, and nothing to run.
+
+`migrate.yml` reads `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` as environment
+**secrets** and `SUPABASE_PROJECT_ID` as an environment **variable**. All three live there
+rather than on the repository, for the reason the comment beside `environment: production`
+gives: repository secrets are readable by every workflow, `verify.yml` included, and that one
+runs `on: pull_request` from any branch a collaborator can push. Nothing in this repo can see
+whether they are set, which is what puts this on this list — the job's preflight names them
+and points at that screen, and it is the only thing that will ever tell you.
+
+**Set the environment's deployment branch rule to `master` as well.** With
+`workflow_dispatch` gone (2026-08-17) nothing but a push to `master` triggers that workflow,
+so the rule is no longer closing an open path — it is what makes the restriction a property
+of the *environment* rather than of this file happening to have exactly one trigger. A
+workflow added later on a branch, whatever it declares, then gets no credentials at all.
+
+Worth confirming at the same time that runs show up in the Environments tab, since that tab
+is the "recorded" half of the whole mechanism — the history of what reached production and
+when.
 
 ### [ ] Confirm the hosted `claude_probe` role has lapsed
 
@@ -372,58 +397,6 @@ that, and for demo photography it is very likely not worth one.
 
 Found 2026-08-12 while implementing the kit.
 
-## `truncate_entire_database.sql` empties the global lookups, and nothing puts them back
-
-**Action:** decide whether the script should re-seed the global tables it empties, or refuse
-to touch them at all. Either is defensible; the present state — empties them and walks away —
-is not.
-
-The script TRUNCATEs every base table in `public` by catalogue, deliberately and correctly
-for a full purge. But four of those tables are not family data at all: `relationship_types`,
-`permission_resources`, `permission_table_map`, and any lookup added after this is written.
-They are seeded **only** by migrations, and a migration hosted has already recorded as
-applied never runs again — so on hosted the purge is a one-way door.
-
-That is not hypothetical. Hosted ran with `relationship_types` **empty** until
-`20260813000005` re-seeded it, and the cost was every screen that names a relationship:
-`/family-tree` answered "That relationship type is not set up" on every addition and drew a
-canvas of people with no edges at all, and the five lookups in `app/actions/children.ts`
-(deleted later the same day — see §4b of AGENTS.md) plus
-`link-person`, `personal-info` and `events` were broken the same way. It went unnoticed
-because a fresh `db reset` seeds the table from the original migration, so local was always
-right and only production was wrong.
-
-`permission_resources` (38 rows) and `permission_table_map` (40) survived the same purge —
-but by luck rather than by design: their seeding migrations happened to still be pending when
-it ran, and applied afterwards. Next time the timing will not oblige, and an empty
-`permission_resources` fails **open** (§6: an unregistered resource defaults to viewable),
-which is a silent one rather than a loud one.
-
-Note that `reset_families.sql` gets this right already — its §11 keep-list names all three as
-"global configuration, not family data" and it never deletes from them. The two scripts
-disagree about what a global lookup is, and only one of them has thought about it.
-
-Found 2026-08-13, from the family-tree report.
-
-## The migration pipeline's `workflow_dispatch` path has never been exercised
-
-**Action:** run it once from Actions → Migrate → Run workflow on `master`, and watch what
-Vercel does with the build.
-
-`migrate.yml` offers `workflow_dispatch` so a failed run can be retried without an empty
-commit. The reasoning is that a re-run writes a fresh commit status, and a fresh status is
-what Vercel's `Database migrations` Deployment Check is watching — so a held build should
-release. **That is reasoned from the docs, not observed.** The normal push path is verified
-end to end; this one is not.
-
-Worth knowing before you need it during an incident, which is the only time anybody reaches
-for it. If a dispatch does *not* release a held build, `Force Promote` on the deployment is
-the escape hatch, and this section should be rewritten to say so.
-
-Two things to check while doing it: that the environment's deployment branch rule still lets
-`master` through (a dispatch from any other ref should get no credentials at all, which is
-the point of that rule), and that the run appears in the Environments tab like a push does.
-
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
 **Action:** decide how a registrant proves they are the pre-entered person, then either
@@ -643,28 +616,20 @@ that make this safe and are worth knowing before doing it:
 Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
 narrowed from three to two the same day, when the cross-tab sign-out was validated.
 
-## Phase 3 leftovers
+## `permission_table_map` names a table that does not exist
 
-Phase 3 (join a family by code, behind an approval gate) shipped and is on hosted. Three
-things it owed are still owed:
+**Action:** drop the `adults` row in a migration, or say in the sweep's header that the skip
+is expected. One line either way; it is here because it is easy to mistake for a bug.
 
-1. **The §6 sweep has no test through an action, by construction.** What it closes is
-   reachable only by calling PostgREST directly with an applicant's JWT, and `tests/rls`
-   calls exported actions. Standing in for it: §8 of the migration recomputes the swept
-   table list and RAISEs if any policy on any of them lacks the conjunct, so a sweep
-   that matches nothing fails the deploy. A raw-query harness is the real answer and is
-   not built — recorded in `UNCOVERED` in `cases.mjs`.
-2. **The fail-closed default for admin resources is still unbuilt.** Blocker 4's
-   stronger fix — deny `view` on an unregistered or unset `category='admin'` key rather
-   than allowing it — needs `auth_permission()` and `resolveScope()` changed together,
-   and would mean `admin/approvals` could not have been born world-readable in the first
-   place instead of being backfilled out of it. Every admin key is currently correct by
-   backfill, which is a state that has to be re-established by hand each time one is
-   added.
-3. **A `people` row can still be moved between statuses by the service role.** By
-   design — `link-person.ts` needs it and `tests/rls` seeds with it — but it means the
-   guard is a boundary around the `authenticated` role, not around the column. Any new
-   service-role write to `people` owes the same look `updateUserProfile` just got.
+`permission_table_map` carries a row for `adults`, with an `auth.uid()`-based `self_expr` —
+so every migration that computes a sweep list from that table names it, and
+`to_regclass('public.adults')` is NULL because `20260602000003` dropped the table.
+`20260806000011` §6 handles it correctly, skipping with a `RAISE NOTICE`. Nothing is broken.
+
+What it costs is a reader's time, twice over: a `NOTICE` in a migration log that looks like a
+finding, and a raw probe written against the computed list that fails with 42P01 rather than
+telling you anything. Found 2026-08-17 while writing `SWEEP_CASES`, which deliberately omits
+it and says so.
 
 ## 30 eslint warnings, and whether the gate should fail on them
 
@@ -683,36 +648,6 @@ deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
   `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
 
 `--max-warnings 0` is only honest once the middle group has an answer.
-
-## The help manual has no `help:check`, so its rule is asking rather than enforcing
-
-**Action:** write `scripts/help-check.mjs`, wire it as `npm run help:check`, and add a step
-to `verify.yml` beside Lint.
-
-AGENTS.md now says a change to a screen owes an edit to the chapter that documents it, and
-that rule has exactly the enforcement `db:check` had before it existed: none. Two things
-were verified by hand before `/help` shipped and both are mechanical, which is the whole
-argument for a script — a checkable rule and an uncheckable one decay at very different
-rates, and this file is full of the second kind.
-
-What it should assert, all of it derivable from `lib/help/content.ts` with no database and
-no network — the same shape as `npm run db:check`, which exits 1 on a finding so it reads
-as a test:
-
-* every internal `[label](/route)` resolves — a `/help/<slug>` to a real chapter, a
-  `#anchor` to a real section id in it, anything else to a route `getFeature()` knows;
-* every chapter's `route` is registered in `FEATURES`;
-* no two chapters or sections share a slug or an id, since both end up in shared links.
-
-What it CANNOT assert is the thing the rule is actually about: that the prose still
-describes the screen. Nothing can. The check is worth having because it removes the
-mechanical half from a reviewer's attention so the unmechanical half gets it — not because
-a green run means the manual is true.
-
-Worth a thought while writing it: whether it also fails when a live `FEATURES` entry has no
-chapter at all. That would catch the real regression — a screen shipping undocumented —
-and it would have to start life allowing the roadmap entries, which have no chapters by
-design.
 
 ## Authorization
 

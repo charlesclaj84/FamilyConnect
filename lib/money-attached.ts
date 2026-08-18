@@ -1,0 +1,227 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * Has money already been recorded against this record?
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────
+ * A dues schedule with $4,000 collected against it could be deleted from the Accounting
+ * screen, and the delete SUCCEEDED. Reported 2026-08-17, and it is the shape rather than
+ * the one screen: five records in this schema can be deleted while money points at them,
+ * and the schema does two DIFFERENT wrong things depending on which:
+ *
+ *   dues_schedules      dues_payments.schedule_id      ON DELETE SET NULL   ORPHANS it
+ *   fund_milestones     fund_disbursements.milestone_id ON DELETE SET NULL  ORPHANS it
+ *   event_budget_items  event_expenses.budget_item_id   ON DELETE SET NULL  ORPHANS it
+ *   funds               fund_contributions.fund_id      ON DELETE CASCADE   DESTROYS it
+ *                       fund_disbursements.fund_id      ON DELETE CASCADE   DESTROYS it
+ *   events              event_expenses.event_id         ON DELETE CASCADE   DESTROYS it
+ *
+ * The SET NULL cases leave the ledger rows intact and unattributable — the money is still
+ * counted, and nothing says what it was for. The CASCADE cases are worse: the rows go, so
+ * the family's collected total silently DROPS. Both are irreversible, and both survived
+ * every existing guard because the append-only triggers on `dues_payments` and
+ * `fund_disbursements` permit exactly one delete path — the cascade from a parent that is
+ * already gone — which is the path being taken.
+ *
+ * So: one rule, in one place, consulted by every delete action that can reach money.
+ * Five copies of it would be five chances to omit one, which is how there came to be
+ * three.
+ *
+ * ── WHY THE GUARD IS HERE AND NOT A FOREIGN-KEY CONSTRAINT ─────────────────────────
+ * `ON DELETE RESTRICT` is the obvious fix and this codebase has already rejected it, with
+ * a reason worth preserving. `deleteFund`'s existing transfer check states it: RESTRICT
+ * would make the record permanently undeletable with a bare 23503 for a message, and it
+ * would deadlock the RLS fixture's teardown against the append-only triggers, whose only
+ * permitted delete path is precisely that cascade. The same is true of the two destructive
+ * scripts in `supabase/scripts/`, which delete parents and let the cascade clear the
+ * children.
+ *
+ * So the cascade stays as the cleanup path of last resort, and the decision is made here,
+ * in words, where the person clicking Delete can read them.
+ *
+ * WHAT THAT COSTS, stated plainly: these deletes run on the SERVICE-ROLE client, so there
+ * is no policy underneath them and this check is the ONLY thing standing between a
+ * mis-click and destroyed money. A `BEFORE DELETE` trigger would be the second layer
+ * AGENTS.md would normally insist on, and it is not free — it entangles both destructive
+ * scripts, which would each need to stand it down the way `reset_families.sql` already
+ * stands down the two immutability triggers, and update the assertion that counts them
+ * back. TODO.md carries it.
+ *
+ * ── NOT A SERVER ACTION, and it must not become one ────────────────────────────────
+ * A plain module has no URL. It reads through the SERVICE ROLE deliberately: the question
+ * is "does ANY money point at this row", and the answer must not depend on whether the
+ * caller holds view permission on the ledger — a family that restricts Transactions would
+ * otherwise be told its funded schedule is safe to delete. Same reasoning, and the same
+ * client, as `belongsToFamily`.
+ *
+ * NO `import 'server-only'`, matching `lib/auth/family.ts` and `lib/notifications.ts`,
+ * which reach for the same client and carry none. `createAdminClient()` reads its key at
+ * CALL time and throws without it, so the module imports cleanly under vitest — which is
+ * what lets the two pure exports below be tested at all (AGENTS.md §7b). A `server-only`
+ * import would buy a build error for a mistake nothing in the tree has made, at the cost of
+ * making the testable half untestable.
+ */
+
+/** What money is attached, so a message can name it rather than say "something". */
+export interface MoneyAttached {
+  /** True when anything below is non-zero. The only field most callers need. */
+  any: boolean
+  /** Dues or donation payments recorded against it, reversals included. */
+  payments: number
+  /** Contributions into it. */
+  contributions: number
+  /** Disbursements out of it, or attributed to it. */
+  disbursements: number
+  /** Transfers it has been either side of. */
+  transfers: number
+  /** Event expenses charged to it. */
+  expenses: number
+}
+
+const NONE: MoneyAttached = {
+  any: false, payments: 0, contributions: 0, disbursements: 0, transfers: 0, expenses: 0,
+}
+
+/**
+ * The records this rule covers. Adding a sixth means adding it here AND consulting it in
+ * that record's delete action — the audit in `scripts/money-guard.mjs` is what notices when
+ * only one of the two is done.
+ */
+export type MoneyBearing =
+  | 'dues_schedule'
+  | 'fund'
+  | 'fund_milestone'
+  | 'event'
+  | 'event_budget_item'
+
+/**
+ * COUNT-ONLY QUERIES, one per referencing table, `head: true` so no rows come back.
+ *
+ * `family_code` is on every one of these tables and is applied to every query — not
+ * decoration: the service role has no RLS, so without it an id from another family would
+ * answer honestly about that family's money and this guard would report "nothing attached"
+ * for a row it cannot see. §3.
+ *
+ * Every count reads the error and treats a REFUSED query as money present. That is the
+ * opposite of this file's usual §8 advice and it is deliberate: the failure modes are not
+ * symmetric. Reporting "no money attached" because PostgREST was unhappy deletes a funded
+ * record; reporting "money attached" because PostgREST was unhappy refuses a delete that a
+ * retry will allow. One is irreversible.
+ */
+export async function moneyAttachedTo(
+  kind: MoneyBearing,
+  id: string,
+  familyCode: string,
+): Promise<MoneyAttached> {
+  // FAIL TOWARD REFUSING, on every early exit in this function. See the note above about
+  // the asymmetry: a false "nothing attached" deletes a funded record irreversibly, and a
+  // false "money attached" refuses a delete a retry will allow.
+  if (!familyCode || !isUuid(id)) return { ...NONE, any: true }
+
+  const admin = createAdminClient()
+
+  /**
+   * `filter` is a PostgREST `or` expression, and one code path covers both shapes — a
+   * single equality and the two-column transfer test — because `.or()` accepts either.
+   *
+   * WHICH IS WHY `id` IS UUID-CHECKED ABOVE. A filter STRING built from a value that
+   * arrived in an HTTP request is an injection surface: a crafted `id` could rewrite the
+   * expression, and the direction it would fail in is "no money attached", which permits
+   * the delete. `deleteFund` has carried the same `.or()` since transfers shipped, without
+   * the check; this is where it gets one. A uuid contains no character `.or()` treats as
+   * syntax, so validating the shape closes it completely rather than by escaping.
+   */
+  const count = async (table: string, filter: string): Promise<number> => {
+    const { count: n, error } = await admin
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('family_code', familyCode)
+      .or(filter)
+    if (error) {
+      console.error(`[money-attached] ${table} count refused for ${kind} ${id}: ${error.message}`)
+      return 1
+    }
+    return n ?? 0
+  }
+
+  switch (kind) {
+    case 'dues_schedule': {
+      // Both kinds of schedule live in this table — a due and a donation drive — and both
+      // are paid into `dues_payments`. One query covers them.
+      const payments = await count('dues_payments', `schedule_id.eq.${id}`)
+      return { ...NONE, payments, any: payments > 0 }
+    }
+    case 'fund': {
+      // FOUR referencing tables, and every one of them matters. Contributions and
+      // disbursements CASCADE, so deleting the fund destroys them; transfers CASCADE and
+      // would rewrite the OTHER fund's balance; expenses SET NULL and would leave an
+      // event's spend charged to nothing. `deleteFund` refused on transfers alone.
+      const [contributions, disbursements, transfers, expenses] = await Promise.all([
+        count('fund_contributions', `fund_id.eq.${id}`),
+        count('fund_disbursements', `fund_id.eq.${id}`),
+        count('fund_transfers', `from_fund_id.eq.${id},to_fund_id.eq.${id}`),
+        count('event_expenses', `fund_id.eq.${id}`),
+      ])
+      return {
+        ...NONE,
+        contributions, disbursements, transfers, expenses,
+        any: contributions + disbursements + transfers + expenses > 0,
+      }
+    }
+    case 'fund_milestone': {
+      const disbursements = await count('fund_disbursements', `milestone_id.eq.${id}`)
+      return { ...NONE, disbursements, any: disbursements > 0 }
+    }
+    case 'event': {
+      const expenses = await count('event_expenses', `event_id.eq.${id}`)
+      return { ...NONE, expenses, any: expenses > 0 }
+    }
+    case 'event_budget_item': {
+      const expenses = await count('event_expenses', `budget_item_id.eq.${id}`)
+      return { ...NONE, expenses, any: expenses > 0 }
+    }
+  }
+}
+
+/**
+ * Exactly the canonical 8-4-4-4-12 hex form, which is what `gen_random_uuid()` produces
+ * and what every id in this schema is.
+ *
+ * Deliberately strict rather than permissive: its whole job is to guarantee the value
+ * carries no character a PostgREST filter expression treats as syntax, so anything it is
+ * unsure about must fail.
+ */
+export function isUuid(value: string | null | undefined): boolean {
+  return typeof value === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+/**
+ * The sentence an administrator reads, naming what is actually in the way.
+ *
+ * `noun` is what they pressed Delete on, in their words — "this due", "the Reunion fund".
+ * The message says what exists, what deleting would do to it, and what to do instead,
+ * because "cannot be deleted" with no reason reads as a bug.
+ *
+ * DEACTIVATION IS THE ALTERNATIVE and it is named, because it exists: `funds.active` and
+ * `dues_schedules.active` both stop a record being used without touching a row. A refusal
+ * that offers no route forward is the thing that gets worked around with a DB console.
+ */
+export function moneyAttachedMessage(noun: string, attached: MoneyAttached): string {
+  const parts: string[] = []
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+  if (attached.payments) parts.push(plural(attached.payments, 'payment', 'payments'))
+  if (attached.contributions) parts.push(plural(attached.contributions, 'contribution', 'contributions'))
+  if (attached.disbursements) parts.push(plural(attached.disbursements, 'disbursement', 'disbursements'))
+  if (attached.transfers) parts.push(plural(attached.transfers, 'transfer', 'transfers'))
+  if (attached.expenses) parts.push(plural(attached.expenses, 'expense', 'expenses'))
+
+  const what = parts.length > 1
+    ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+    : parts[0] ?? 'money'
+
+  return `${noun} has ${what} recorded against it, so it cannot be deleted — the family's `
+    + 'books have to keep adding up. Mark it inactive instead, which stops it being used '
+    + 'and leaves every figure where it is.'
+}
