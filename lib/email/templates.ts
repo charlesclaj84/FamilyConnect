@@ -1,9 +1,10 @@
 /**
- * The two emails the APPLICATION sends, as opposed to the five GoTrue sends.
+ * The three emails the APPLICATION sends, as opposed to the five GoTrue sends.
  *
- * Both carry data GoTrue has never heard of — which family, who invited you — which is
- * the whole reason they cannot be templates in `supabase/templates/`. Chrome and voice
- * come from ./layout.ts; the reasoning behind both is in supabase/templates/README.md.
+ * All three carry data GoTrue has never heard of — which family, who invited you, which
+ * family somebody is about to switch off — which is the whole reason they cannot be
+ * templates in `supabase/templates/`. Chrome and voice come from ./layout.ts; the
+ * reasoning behind both is in supabase/templates/README.md.
  *
  * A plain module, deliberately: see the header of ./send.ts.
  */
@@ -129,6 +130,61 @@ export function familyInvitationEmail(o: {
       footnote:
         'If this is not something you were expecting, you can safely ignore it. No '
         + 'account is created until you accept, and nobody is told either way.',
+    }),
+  }
+}
+
+/**
+ * The six-digit code that confirms removing a family.
+ *
+ * ── IT GOES TO THE PERSON WHO ASKED, AND NOWHERE ELSE ──────────────────────────────
+ * `requestFamilyRemovalCode` takes no arguments at all and resolves the address from the
+ * session, which is what stops this being a mail cannon (the rule `resendConfirmationEmail`
+ * is built on). So the recipient here is by construction the acting administrator, and the
+ * copy can address them as such rather than hedging about who might be reading.
+ *
+ * ── NO BUTTON, DELIBERATELY ────────────────────────────────────────────────────────
+ * Every other message this module composes ends in a link, because every other one is
+ * asking somebody to come and do something. This one is a factor in a confirmation that is
+ * already open in another window: the code is the payload, and a "Remove the family" button
+ * in an email would be a one-click removal reachable from anybody who ever sees the
+ * message — a forwarded inbox, a shared laptop, a mail client preview. The code is typed
+ * into a form that has already proved who is sitting in front of it.
+ *
+ * ── IT SAYS WHAT REMOVAL IS, BECAUSE THIS MAY BE THE WARNING ───────────────────────
+ * If somebody else has got at the account, this email is the first and possibly only
+ * notice its owner gets. So it states plainly what the code does, that nothing is deleted,
+ * and what to do if they did not ask — which is the same job a password-reset notification
+ * does and the reason that copy exists.
+ */
+export function familyRemovalCodeEmail(o: {
+  origin: string
+  familyName: string
+  /** The digits. Never logged, never put in the subject, never stored in plaintext. */
+  code: string
+  /** How long it lasts, for the fine print. Comes from the action, so the two agree. */
+  expiresInMinutes: number
+}): ComposedEmail {
+  const family = esc(o.familyName)
+  return {
+    subject: `Your code to remove ${o.familyName}`,
+    tag: 'family-removal-code',
+    html: renderEmailFrom(o.origin, {
+      preheader: `The code lasts ${o.expiresInMinutes} minutes and can be used once.`,
+      heading: 'Confirm removing this family',
+      paragraphs: [
+        `Somebody signed in as you asked to remove <strong style="font-weight:600;">${family}</strong> from ${esc(APP_NAME)}. Type this code into the confirmation to finish:`,
+        // MONOSPACE AND SPACED OUT, because this is read off a screen and typed into
+        // another one. The inline style is the same sanctioned exception every colour in
+        // this module is: a mail client loads no stylesheet of ours.
+        `<div style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:32px; font-weight:700; letter-spacing:8px; text-align:center; padding:8px 0;">${esc(o.code)}</div>`,
+        'Removing a family closes it for everybody in it — nobody can open it, join it or accept an invitation to it. <strong style="font-weight:600;">Nothing is deleted.</strong> Every payment, photograph, event and person stays exactly where it is, and GENORRA support can put the family back.',
+      ],
+      fine: `This code lasts ${o.expiresInMinutes} minutes and can be used once.`,
+      footnote:
+        'If you did not ask for this, do nothing — the code expires on its own and the '
+        + 'family stays exactly as it is. Then change your password, because somebody '
+        + 'else is signed in as you.',
     }),
   }
 }

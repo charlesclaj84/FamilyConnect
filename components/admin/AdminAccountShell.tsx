@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { AdminIncomeClient, type BeneficiaryOption } from '@/components/admin/AdminIncomeClient'
+import { AdminIncomeClient, type BeneficiaryOption, type ScopeOptions } from '@/components/admin/AdminIncomeClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 import {
   SECTION_LABELS, type AccountSection, type AccountRights,
@@ -117,6 +117,9 @@ interface Props {
   members: BeneficiaryOption[]
   /** Whether the family has a bloodline to restrict a due to — see AdminIncomeClient. */
   hasBloodline: boolean
+  /** The regions and chapters a due can be scoped to — see AdminIncomeClient. Empty when
+   *  the caller cannot view Dues, because the page gates the fetch. */
+  scopeOptions: ScopeOptions
 }
 
 /**
@@ -150,6 +153,7 @@ export function AdminAccountShell({
   rights,
   members,
   hasBloodline,
+  scopeOptions,
 }: Props) {
   // Only the sections this caller may view, and only the rails that still hold one.
   // Derived from the same rights the server actions enforce, so a visible rail always
@@ -288,6 +292,7 @@ export function AdminAccountShell({
             rights={rights}
             members={members}
             hasBloodline={hasBloodline}
+            scopeOptions={scopeOptions}
           />
           <AdminFundsClient
             section={section}

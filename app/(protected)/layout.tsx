@@ -1,9 +1,13 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
-import { getMyFamilyCode, getViewingMembership, isApproved } from '@/lib/auth/family'
+import {
+  getMyFamilyCode, getViewingMembership, isApproved, isActiveFamily,
+  REMOVED_FAMILY_RESOURCES,
+} from '@/lib/auth/family'
 import { getMyShellState } from '@/app/actions/membership'
 import { getMyAssignmentCount } from '@/app/actions/event-planning'
+import { isGenorraStaff } from '@/lib/auth/staff'
 import TopBar from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
@@ -51,6 +55,21 @@ export default async function ProtectedLayout({ children }: { children: React.Re
    */
   let shellFingerprint = ''
   let watchClosely = false
+  /**
+   * Whether this account may open the GENORRA staff console, resolved HERE and handed
+   * down as a prop.
+   *
+   * IT IS A SERVER ANSWER, and it has to be. `genorra_staff` has RLS enabled and no
+   * policy at all, so the browser cannot read it — a client-side check would have nothing
+   * to check against, and inventing one (a flag in user metadata, a claim on the JWT)
+   * would put a privileged boolean somewhere its owner can write. See `lib/auth/staff.ts`.
+   *
+   * It costs one memoized query for the whole request, and it decides ONE link. That link
+   * is the only thing in the member product that knows the console exists; every route
+   * under `app/(staff)` 404s a caller without a row, so a member who never sees the link
+   * cannot find the console by guessing at a URL either.
+   */
+  let isStaff = false
 
   try {
     const supabase = await createClient()
@@ -65,7 +84,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, assignmentCount, code, shell, membership] = await Promise.all([
+      const [resources, assignmentCount, code, shell, membership, staff] = await Promise.all([
         viewableResources(user.id),
         getMyAssignmentCount(),
         getMyFamilyCode(user.id),
@@ -74,17 +93,44 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         // each resolved once per request whoever asks first.
         getMyShellState(),
         getViewingMembership(user.id),
+        // One row, keyed on the user id, through the service role — the only client that
+        // can see `genorra_staff` at all. Memoized per request, so the staff layout
+        // asking again on the other window costs nothing here.
+        isGenorraStaff(user.id),
       ])
-      viewable = [...resources]
+      // ── A REMOVED FAMILY GETS THE PERSONAL PAGES AND NOTHING ELSE ─────────────────
+      // Navigation, not authorization, and the distinction is written out at length on
+      // REMOVED_FAMILY_RESOURCES. Every page still gates on `requireView`, which knows
+      // nothing about `families.status` — so this stops the shell advertising twenty
+      // destinations into a family that has been switched off, and does not pretend to be
+      // the thing that closes them. The honest statement of what happened is the notice
+      // screen the dashboard renders (`components/membership/FamilyRemoved.tsx`).
+      //
+      // Tested POSITIVELY for 'active', like every other gate about this column: a status
+      // added later reduces the rail rather than quietly keeping it whole.
+      //
+      // `Boolean(membership) &&` first, because a caller who belongs to NO family has no
+      // family to have been removed — `isActiveFamily(undefined)` is correctly false, and
+      // acting on that would narrow the rail for a state this has nothing to say about.
+      const familyRemoved = Boolean(membership) && !isActiveFamily(membership?.familyStatus)
+      viewable = familyRemoved
+        ? [...resources].filter(r => REMOVED_FAMILY_RESOURCES.includes(r))
+        : [...resources]
       hasAssignments = assignmentCount > 0
       familyCode = code
       shellFingerprint = shell.fingerprint
+      isStaff = staff
       // Positively 'approved' is what makes this total: pending, rejected and disabled
       // all put the caller in front of a shell that is missing most of itself, and all
       // three can be changed by somebody else while they watch. `isApproved` is the same
       // predicate every gate in the app tests, so a fifth status would land here denied
       // — which, for a watcher, is the safe direction.
-      watchClosely = Boolean(membership) && !isApproved(membership?.status)
+      //
+      // A REMOVED FAMILY IS THE SECOND WAY TO BE LOOKING AT A REDUCED SHELL, and it is
+      // exactly the situation the watcher exists for: the member did not do anything, an
+      // administrator elsewhere did, and a restore is somebody else's action too. Watching
+      // only `membership_status` would leave both directions invisible to an open tab.
+      watchClosely = (Boolean(membership) && !isApproved(membership?.status)) || familyRemoved
     }
   } catch {
     // Non-fatal
@@ -180,7 +226,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
                 what puts the shape over the bar's background is tree order alone. Moving
                 this line above TopBar hides the top third of the bite again. */}
             <div className="relative z-10">
-              <TopBar hasAssignments={hasAssignments} viewable={viewable} />
+              <TopBar hasAssignments={hasAssignments} viewable={viewable} isStaff={isStaff} />
               <ShellSwoop />
               {children}
             </div>

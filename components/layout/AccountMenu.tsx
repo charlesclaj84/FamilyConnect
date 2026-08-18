@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, LogOut, UserCircle, Users } from 'lucide-react'
+import { ChevronDown, ExternalLink, LogOut, ShieldCheck, UserCircle, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { clearIdleActivity } from '@/lib/idle-timeout'
 import { Avatar } from '@/components/ui/Avatar'
@@ -19,6 +19,17 @@ interface Props {
   email: string
   initials: string
   avatarUrl?: string | null
+  /**
+   * Whether this account may open the GENORRA staff console.
+   *
+   * RESOLVED ON THE SERVER and handed down — see `app/(protected)/layout.tsx`. It cannot
+   * be worked out here: `genorra_staff` has RLS enabled with no policy, so the browser
+   * cannot read it, and the alternative a client check would need (a flag in user
+   * metadata) is writable by its owner through GoTrue's own endpoint. This prop is the
+   * whole of what the browser is told, and it decides a link rather than an access —
+   * every route under `/staff` gates itself again and 404s a caller without a row.
+   */
+  isStaff?: boolean
 }
 
 /**
@@ -39,6 +50,12 @@ interface Props {
  *     first. My Profile is directly under it because that is where the answer is edited.
  *   * **Appearance.** A three-state toggle nobody presses twice a day. It kept a slot in
  *     the bar only because there was nowhere else to put it.
+ *   * **The GENORRA staff console**, for the handful of accounts that have it, and for
+ *     nobody else. It is in this menu rather than in the rail because it is a property of
+ *     the ACCOUNT and not of the family: the rail is built from `viewableResources()`,
+ *     which answers per family, and a link that appears there would read as one of this
+ *     family's screens. It is ruled off from the two items above it and labelled as
+ *     leaving the product, because it does — a different app, in a different window.
  *   * **Sign out.** Destructive-adjacent and final, so it is last, ruled off, and the only
  *     item in the menu that is not brand-ink.
  *
@@ -48,7 +65,7 @@ interface Props {
  * nothing at all for a single-family account, which is why the bar still matches the
  * Golden Master for most people.
  */
-export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
+export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -141,6 +158,51 @@ export function AccountMenu({ name, email, initials, avatarUrl }: Props) {
                 <span className="opacity-90">Appearance</span>
                 <ThemeToggle />
               </div>
+              {/* THE STAFF CONSOLE, and only for staff.
+                  ─────────────────────────────────────────────────────────────────
+                  `isStaff` is a SERVER answer (see the prop). This renders nothing at
+                  all for everybody else — not a disabled item, not a greyed one — so the
+                  menu of a member who is not staff says nothing about a console existing.
+                  That is the same decision `requireStaff()` makes by answering 404
+                  instead of "not authorized"; a visible-but-inert item here would give
+                  away in the account menu exactly what the 404 is protecting.
+
+                  `target="_blank"` because it is a different application: a support
+                  engineer works the console BESIDE the family they are looking at, and a
+                  same-tab navigation would throw away whatever they were reading. The
+                  console's own layout inherits nothing from this shell, so there is no
+                  going "back" to a half-built version of it either.
+
+                  `rel="noopener"` is not optional on a `_blank` link: without it the new
+                  document gets a live `window.opener` handle to this one and can navigate
+                  it. It costs nothing and the omission is the kind that is never noticed.
+
+                  A ruled section of its own, above sign-out, so it reads as leaving the
+                  product rather than as a third personal page. */}
+              {isStaff && (
+                <div className="mt-1 border-t pt-1">
+                  <Link
+                    href="/staff"
+                    target="_blank"
+                    rel="noopener"
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted"
+                  >
+                    <ShieldCheck className="h-4 w-4 shrink-0 opacity-70" />
+                    <span className="min-w-0 flex-1">
+                      GENORRA staff console
+                      {/* Said in words, not left to the icon. "Opens in a new window" is
+                          the one thing a link that changes context owes its reader, and a
+                          bare arrow glyph is decoration to anyone using a screen reader. */}
+                      <span className="block text-xs text-muted-foreground">
+                        Every family · opens in a new window
+                      </span>
+                    </span>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+                  </Link>
+                </div>
+              )}
             </div>
 
             <div className="shrink-0 border-t py-1">

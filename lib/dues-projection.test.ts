@@ -16,6 +16,22 @@ import {
  * every schedule below states an explicit `start_date` and the payments are dated inside
  * its period — see the note on ANNUAL. That is the one impurity and it is the reason the
  * period-boundary case is written the way it is.
+ *
+ * ── THE SCOPE BLOCK WAS CHECKED BY MUTATION, per AGENTS.md §7b ──────────────────────
+ * Three mutations of `lib/dues-projection.ts`; observed results, not expected:
+ *
+ *   dropping `|| outOfScope` from `expectedCents`      6 failed
+ *   `excluded` tested before `outOfScope`              1 failed — the precedence case
+ *   dropping `duesScope(schedule) !== 'national'`
+ *     from `scopeEmpty`                               229 PASSED — see below
+ *
+ * THE THIRD ONE IS NOT EVIDENCE AND IS LABELLED RATHER THAN LEFT LOOKING LIKE IT IS, which
+ * is what AGENTS.md §7 asks for when a mutation does not trip. That conjunct is provably
+ * redundant today: `duesScopeMatch` answers 'owed' for every member of a national due, so
+ * `counts['out-of-scope']` is zero and can never equal a non-zero member count. It is kept
+ * as a statement of intent — `scopeEmpty` is a fact about a SCOPED due — and because the
+ * emergent property it leans on is one line of `duesScopeMatch` away from changing. No test
+ * here can distinguish the two versions, and none pretends to.
  */
 
 /**
@@ -54,6 +70,7 @@ const run = (over: {
   plans?: readonly ProjectionPlan[]
   recordsExcluded?: number
   bloodline?: ReadonlySet<string> | null
+  chapterRegions?: ReadonlyMap<string, string | null>
 }) => projectDues({
   schedules: over.schedules ?? [ANNUAL],
   members: over.members ?? ADULTS,
@@ -64,6 +81,9 @@ const run = (over: {
   // distinguishable from `null`, because one of the cases below is precisely that a caller
   // who never loaded the tree must not accidentally bill the whole family.
   bloodline: over.bloodline,
+  // Also passed straight through. Omitted is the same as a family with no chapters, which
+  // is a case below rather than a default worth hiding.
+  chapterRegions: over.chapterRegions,
 })
 
 const pay = (
@@ -352,6 +372,120 @@ describe('a due the bloodline alone owes', () => {
     const ben = p.members.find(m => m.personId === 'ben')!
 
     expect(ben.expectedCents).toBe(6_000)
+    expect(ben.liableSchedules).toBe(1)
+    expect(ben.standing).toBe('unpaid')
+  })
+})
+
+describe('a due one region or chapter owes', () => {
+  // Ada is in the Houston chapter, which is in the Texas region. Ben is in Atlanta, which
+  // is under National — a real state, and the one that makes 'other-region' distinguishable
+  // from 'no-chapter'.
+  const CHAPTER_REGIONS = new Map<string, string | null>([
+    ['houston', 'texas'],
+    ['atlanta', null],
+  ])
+  const PLACED: ProjectionMember[] = [
+    { personId: 'ada', dateOfBirth: null, chapterId: 'houston' },
+    { personId: 'ben', dateOfBirth: null, chapterId: 'atlanta' },
+  ]
+  const CHAPTER_DUE: ProjectionSchedule = {
+    ...ANNUAL, scope: 'chapter', chapter_id: 'houston', region_id: null,
+  }
+  const REGION_DUE: ProjectionSchedule = {
+    ...ANNUAL, scope: 'regional', region_id: 'texas', chapter_id: null,
+  }
+
+  it('bills only the members in that chapter', () => {
+    const p = run({ schedules: [CHAPTER_DUE], members: PLACED, chapterRegions: CHAPTER_REGIONS })
+
+    expect(p.expectedCents).toBe(12_000)     // Ada's, not Ada's and Ben's
+    expect(p.payingMembers).toBe(1)
+    expect(p.schedules[0].counts).toMatchObject({ unpaid: 1, 'out-of-scope': 1 })
+    expect(p.schedules[0].scope).toBe('chapter')
+    expect(p.schedules[0].chapterId).toBe('houston')
+  })
+
+  it('bills only the members whose CHAPTER is in that region', () => {
+    // The derivation is the whole point: nothing on the member says "texas", and nothing
+    // may. Ada is in it through Houston; Ben is not, because Atlanta is under National.
+    const p = run({ schedules: [REGION_DUE], members: PLACED, chapterRegions: CHAPTER_REGIONS })
+
+    expect(p.expectedCents).toBe(12_000)
+    expect(p.schedules[0].counts).toMatchObject({ unpaid: 1, 'out-of-scope': 1 })
+    expect(p.schedules[0].regionId).toBe('texas')
+  })
+
+  it('bills a member with NO chapter nothing scoped, and everything national', () => {
+    // The rule that has to be stated somewhere a reader will find it: an unplaced member is
+    // under National. They owe the national due in full and neither scoped one.
+    const p = run({
+      schedules: [ANNUAL, CHAPTER_DUE, REGION_DUE],
+      members: [{ personId: 'nomad', dateOfBirth: null, chapterId: null }],
+      chapterRegions: CHAPTER_REGIONS,
+    })
+
+    expect(p.expectedCents).toBe(12_000)
+    const [national, chapter, region] = p.schedules
+    expect(national.counts).toMatchObject({ unpaid: 1 })
+    expect(chapter.counts).toMatchObject({ 'out-of-scope': 1 })
+    expect(region.counts).toMatchObject({ 'out-of-scope': 1 })
+  })
+
+  it('reports out-of-scope AHEAD of the bloodline, not as a kind of it', () => {
+    // A Georgia member is not "not blood" on a Texas due — the due was never addressed to
+    // them, so the bloodline question does not arise. The ordering in projectDues is what
+    // makes this true, and it is why the two are separate standings.
+    const p = run({
+      schedules: [{ ...CHAPTER_DUE, bloodline_only: true }],
+      members: PLACED,
+      chapterRegions: CHAPTER_REGIONS,
+      bloodline: new Set(['ada']),
+    })
+
+    expect(p.schedules[0].counts).toMatchObject({ 'out-of-scope': 1, excluded: 0, unpaid: 1 })
+  })
+
+  it('reports a scoped due that bills NOBODY, rather than an unexplained zero', () => {
+    // The commonest mistake with this feature: a chapter created before anybody has joined
+    // it. Expected reads $0.00 and there is nothing in the figures to say why.
+    const p = run({
+      schedules: [{ ...CHAPTER_DUE, chapter_id: 'dallas' }],
+      members: PLACED,
+      chapterRegions: CHAPTER_REGIONS,
+    })
+
+    expect(p.expectedCents).toBe(0)
+    expect(p.schedules[0].scopeEmpty).toBe(true)
+  })
+
+  it('says nothing about scope on a national due', () => {
+    // A warning about nothing. Every family with no chapters is in this state, so a
+    // `scopeEmpty` here would fire for all of them.
+    const p = run({ schedules: [ANNUAL], members: PLACED, chapterRegions: CHAPTER_REGIONS })
+
+    expect(p.schedules[0].scope).toBe('national')
+    expect(p.schedules[0].scopeEmpty).toBe(false)
+    expect(p.expectedCents).toBe(24_000)
+  })
+
+  it('bills nobody when the chapter map is missing, rather than everybody', () => {
+    // A caller that did not load chapters — or whose read was refused — must not
+    // accidentally bill the whole family for one region's levy. Under-collecting is
+    // visible; over-billing the wrong half of the family is not.
+    const p = run({ schedules: [REGION_DUE], members: PLACED })
+
+    expect(p.expectedCents).toBe(0)
+    expect(p.schedules[0].counts['out-of-scope']).toBe(2)
+  })
+
+  it('leaves a member owing the national due beside a chapter due that is not theirs', () => {
+    const p = run({
+      schedules: [CHAPTER_DUE, ANNUAL], members: PLACED, chapterRegions: CHAPTER_REGIONS,
+    })
+    const ben = p.members.find(m => m.personId === 'ben')!
+
+    expect(ben.expectedCents).toBe(12_000)
     expect(ben.liableSchedules).toBe(1)
     expect(ben.standing).toBe('unpaid')
   })

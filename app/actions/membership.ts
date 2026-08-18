@@ -167,8 +167,17 @@ export async function getMyShellState(): Promise<ShellState> {
 
   // Sorted, so the fingerprint depends on the facts and not on the order a query
   // happened to return them in — an unstable string here would refresh the page forever.
+  //
+  // `familyStatus` JOINED THE VECTOR with 20260817000006, and it had to: removal changes
+  // what the shell may show — the rail collapses to the personal pages and the dashboard
+  // renders a notice instead of itself — while `membership_status` does not move at all.
+  // Without it, an administrator removing a family would leave every other member sitting
+  // in front of a full rail into it until they happened to reload, and a RESTORE would
+  // change nothing for anyone with a tab open. It is folded for EVERY family rather than
+  // for the active one for the same reason the memberships are: an account viewing one
+  // family whose other is removed still has a switcher and a My Families page to correct.
   const memberships = families
-    .map(f => `${f.familyCode}:${f.status}${f.isActive ? ':active' : ''}`)
+    .map(f => `${f.familyCode}:${f.status}:${f.familyStatus}${f.isActive ? ':active' : ''}`)
     .sort()
     .join(',')
 

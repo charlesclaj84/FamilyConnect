@@ -1,7 +1,7 @@
 import {
   annualTotalCents, ageShareOfPeriod, proratedAnnualCents, currentPeriodStart,
-  duesEligibility,
-  type DuesScheduleLike,
+  duesEligibility, duesScope, duesScopeMatch,
+  type DuesScheduleLike, type DuesScope,
 } from '@/lib/dues-utils'
 
 /**
@@ -30,12 +30,17 @@ import {
  * every row carries the period it was measured over.
  *
  * ── EXPECTED IS NOT "AMOUNT × MEMBERS" ──────────────────────────────────────────────
- * Three things reduce what a member owes below the schedule's headline figure, and all three
- * have to be honoured here or the projection is a bigger number than anybody will ever pay:
+ * Five things reduce what a member owes below the schedule's headline figure, and every one
+ * has to be honoured here or the projection is a bigger number than anybody will ever pay:
  *
  *   the age rule     `dues_schedules.start_age` (20260814000000). A member reaching the age
  *                    in July owes the months after their birthday month — five twelfths —
  *                    and nothing at all in the years before. `ageShareOfPeriod` decides it.
+ *   the bloodline    `bloodline_only` (20260817000002). Owed by the descendants alone, so
+ *                    anybody who married in owes nothing. `duesEligibility` decides it.
+ *   the scope        `scope` (20260817000008). A regional or chapter due is owed only by the
+ *                    members filed there, and a member in NO chapter is under National and
+ *                    owes neither. `duesScopeMatch` decides it.
  *   opting out       an OPTIONAL due a member has declined is owed by nobody, so it leaves
  *                    the expected total rather than sitting in it as a debt nobody will pay.
  *   a waiver         settles the obligation without money arriving. It comes off what is
@@ -85,6 +90,17 @@ export type DuesStanding =
    * will never owe.
    */
   | 'excluded'
+  /**
+   * The due is scoped to a region or a chapter that is not theirs — or they are in no
+   * chapter at all, which puts them under National (20260817000008).
+   *
+   * ITS OWN STANDING RATHER THAN A KIND OF 'excluded', and the distinction is the same one
+   * that separates 'excluded' from 'exempt': a bloodline exclusion is permanent, and this
+   * is not. A member who moves chapter, or whose chapter moves region, starts owing this
+   * tomorrow — so reporting them in the words used for somebody excluded by their marriage
+   * would be a different claim about a reversible fact.
+   */
+  | 'out-of-scope'
   /** Declined an optional due. Owes nothing. */
   | 'declined'
   /** Settled in full, by money or by waiver. */
@@ -110,6 +126,22 @@ export interface ScheduleProjection extends ProjectionTotals {
    * the one state on this screen a treasurer cannot diagnose from the numbers.
    */
   bloodlineUnknown: boolean
+  /** Which part of the family owes it (20260817000008). */
+  scope: DuesScope
+  /** The region it is scoped to, when `scope` is 'regional'. The screen names it. */
+  regionId: string | null
+  /** The chapter it is scoped to, when `scope` is 'chapter'. */
+  chapterId: string | null
+  /**
+   * Scoped to a region or a chapter, and NOBODY in the family is in it — so it bills
+   * nothing at all.
+   *
+   * Surfaced for the same reason as `bloodlineUnknown`, and it is the commoner mistake of
+   * the two: a family that creates the Texas chapter and a Texas due before anybody has
+   * picked their chapter sees Expected read $0.00 with nothing in the figures to explain
+   * it. A treasurer cannot diagnose this from the numbers, so the screen says it.
+   */
+  scopeEmpty: boolean
   /** Members who owe something on it this period. */
   payingMembers: number
   counts: Record<DuesStanding, number>
@@ -145,6 +177,15 @@ export interface ProjectionMember {
   personId: string
   /** `people.date_of_birth`. Null means not recorded, which the age rule reads as adult. */
   dateOfBirth: string | null
+  /**
+   * `people.chapter_id` in this family, or null for a member in no chapter — who is under
+   * National and owes no regional or chapter due (20260817000008).
+   *
+   * Optional so a caller that has not loaded chapters passes nothing and every member reads
+   * as unplaced. That is only correct for a family with no scoped schedules, which is why
+   * `getDuesProjection` always selects the column rather than deciding whether it needs to.
+   */
+  chapterId?: string | null
 }
 
 export interface ProjectionPayment {
@@ -184,7 +225,7 @@ function add(a: ProjectionTotals, b: ProjectionTotals): ProjectionTotals {
 
 /** Least settled first — the order the member table sorts by, and `standing` picks. */
 const STANDING_RANK: Record<DuesStanding, number> = {
-  unpaid: 0, partial: 1, settled: 2, declined: 3, exempt: 4, excluded: 5,
+  unpaid: 0, partial: 1, settled: 2, declined: 3, exempt: 4, excluded: 5, 'out-of-scope': 6,
 }
 
 export function projectDues(input: {
@@ -205,9 +246,20 @@ export function projectDues(input: {
    * knowing, which is the safe default for a caller that has not loaded the tree.
    */
   bloodline?: ReadonlySet<string> | null
+  /**
+   * `chapters` as chapter id -> region id, which is what a member's REGION is derived from
+   * (20260817000008). A chapter under National maps to null.
+   *
+   * Only consulted for a schedule whose `scope` is not 'national'. Omitting it is the same
+   * as a family with no chapters: every regional and chapter due then bills nobody, which
+   * is exactly what is true of such a family. There is no `people.region_id` and none may
+   * be added — see `duesScopeMatch`.
+   */
+  chapterRegions?: ReadonlyMap<string, string | null>
 }): DuesProjection {
   const { schedules, members, payments, plans } = input
   const bloodline = input.bloodline ?? null
+  const chapterRegions = input.chapterRegions ?? new Map<string, string | null>()
 
   const declined = new Set(
     plans.filter(p => p.optedOut).map(p => `${p.personId}:${p.scheduleId}`),
@@ -248,7 +300,7 @@ export function projectDues(input: {
     let totals = ZERO
     let payingMembers = 0
     const counts: Record<DuesStanding, number> = {
-      exempt: 0, excluded: 0, declined: 0, settled: 0, partial: 0, unpaid: 0,
+      exempt: 0, excluded: 0, 'out-of-scope': 0, declined: 0, settled: 0, partial: 0, unpaid: 0,
     }
 
     for (const member of members) {
@@ -271,26 +323,40 @@ export function projectDues(input: {
         personId: member.personId,
       })
       const excluded = eligibility !== 'owed'
+      // WHOSE PART OF THE FAMILY IT IS FOR, which is a third and separate reduction — see
+      // `duesScopeMatch`. A member in no chapter is under National and owes nothing scoped.
+      const outOfScope = duesScopeMatch({
+        schedule,
+        memberChapterId: member.chapterId ?? null,
+        chapterRegions,
+      }) !== 'owed'
 
       const collectedCents = paid.get(key) ?? 0
       const waivedCents = waived.get(key) ?? 0
       const pendingCents = pending.get(key) ?? 0
-      const expectedCents = optedOut || excluded
+      const expectedCents = optedOut || excluded || outOfScope
         ? 0
         : proratedAnnualCents(annualCents, share)
       const outstandingCents = Math.max(0, expectedCents - collectedCents - waivedCents)
 
-      // ORDER MATTERS, and 'excluded' comes FIRST. A member outside the bloodline will
-      // never owe this due, so reporting them as 'exempt' because they are also a child —
-      // or as 'settled' because they owe nothing — would both be answers to a question
-      // nobody asked. What is true of them is that the due is not theirs.
+      // ORDER MATTERS, and 'out-of-scope' comes FIRST — ahead of 'excluded', which used to
+      // lead. A due scoped to another chapter was never ADDRESSED to this member, so the
+      // bloodline question does not arise: answering "not blood" about a Texas due for a
+      // Georgia member is an answer to a question nobody asked, and it names how they
+      // joined the family to explain something geography already explains.
+      //
+      // The rest of the order is unchanged and for the reason it always was: a member
+      // outside the bloodline will never owe this, so reporting them as 'exempt' because
+      // they are also a child — or as 'settled' because they owe nothing — would both be
+      // wrong. What is true of them is that the due is not theirs.
       const standing: DuesStanding =
-        excluded ? 'excluded'
-          : share.exempt ? 'exempt'
-            : optedOut ? 'declined'
-              : outstandingCents <= 0 ? 'settled'
-                : collectedCents + waivedCents > 0 ? 'partial'
-                  : 'unpaid'
+        outOfScope ? 'out-of-scope'
+          : excluded ? 'excluded'
+            : share.exempt ? 'exempt'
+              : optedOut ? 'declined'
+                : outstandingCents <= 0 ? 'settled'
+                  : collectedCents + waivedCents > 0 ? 'partial'
+                    : 'unpaid'
 
       counts[standing]++
       if (expectedCents > 0) payingMembers++
@@ -322,6 +388,23 @@ export function projectDues(input: {
       // schedule open to everybody does not care that the anchor is unset, so saying so on
       // its row would be a warning about nothing.
       bloodlineUnknown: Boolean(schedule.bloodline_only) && bloodline === null,
+      scope: duesScope(schedule),
+      regionId: schedule.region_id ?? null,
+      chapterId: schedule.chapter_id ?? null,
+      // Scoped, and every member counted came out out-of-scope. Derived from the counts
+      // rather than from the roster, so it cannot disagree with the pills beside it. A family
+      // with no members at all is not this state: it has nothing to report either way, which
+      // is what the zero member count above already says.
+      //
+      // THE FIRST CONJUNCT IS PROVABLY REDUNDANT AND IS KEPT ANYWAY, which the test file
+      // records rather than leaving for somebody to discover: `duesScopeMatch` answers
+      // 'owed' for every member of a national due, so `counts['out-of-scope']` is zero and
+      // cannot equal a non-zero member count. Removing it breaks no test — the mutation was
+      // run. It stays because `scopeEmpty` is a claim about a SCOPED due, and the property it
+      // would otherwise lean on is one line of `duesScopeMatch` away from changing.
+      scopeEmpty: duesScope(schedule) !== 'national'
+        && members.length > 0
+        && counts['out-of-scope'] === members.length,
       payingMembers,
       counts,
       ...totals,

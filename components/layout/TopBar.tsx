@@ -54,9 +54,24 @@ import { cn } from '@/lib/utils'
 export default async function TopBar({
   hasAssignments,
   viewable,
+  isStaff = false,
 }: {
   hasAssignments: boolean
   viewable: string[]
+  /**
+   * Whether this account may open the GENORRA staff console. Passed straight through to
+   * `AccountMenu`, which renders the one link that leads there.
+   *
+   * RESOLVED IN THE LAYOUT, not here, although this component already reads the session.
+   * The layout is where every other shell-wide fact about the caller is resolved, and
+   * putting the staff read beside those keeps it inside the same `Promise.all` and the
+   * same memoized request. This component only carries it the last hop.
+   *
+   * It defaults to false, so a caller that has not thought about it withholds the link
+   * rather than publishing it — the fail-closed direction for a boolean whose true value
+   * reveals that a cross-family console exists.
+   */
+  isStaff?: boolean
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -204,7 +219,13 @@ export default async function TopBar({
               pendingQueues={pendingQueues}
             />
           )}
-          <AccountMenu name={name} email={user?.email ?? ''} initials={initials} avatarUrl={avatarUrl} />
+          <AccountMenu
+            name={name}
+            email={user?.email ?? ''}
+            initials={initials}
+            avatarUrl={avatarUrl}
+            isStaff={isStaff}
+          />
         </div>
       </div>
     </header>

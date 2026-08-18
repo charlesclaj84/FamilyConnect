@@ -142,6 +142,46 @@ export async function selfPromote(ownPersonId, templateId) {
   return rawUpdate('people', ownPersonId, { permission_template_id: templateId })
 }
 
+// ── The guard on `families`, and the only way to reach it (20260817000006 §2) ─────────
+
+/**
+ * Removing a family from devtools, by PATCH, straight at the column.
+ *
+ * THIS IS THE ATTACK THE EMAILED CODE EXISTS TO STOP BEING POSSIBLE, and no server action
+ * can express it. `families` has carried an UPDATE policy since `20260812000000` that
+ * admits an administrator holding `admin/family:edit = 'any'` to their own family's row —
+ * and a policy has no opinion about WHICH column changed. So without the trigger:
+ *
+ *     PATCH /rest/v1/families?family_code=eq.MINE   {"status": "removed"}
+ *
+ * removes the family with the RENAME grant, past `admin/family/remove`, past the
+ * confirmation code, past `removeFamily()` entirely. The code would be a dialog rather
+ * than a gate.
+ *
+ * The subject is the caller's OWN family, addressed by primary key, and the actor holds
+ * every grant their family can confer. Nothing about family isolation is being tested here
+ * — the column boundary is, exactly as `selfApprove` above tests one on `people`.
+ *
+ * Expect `42501` and the guard's own message. `rawUpdate` carries a `.select()`, which ANDs
+ * the SELECT policy in; that policy admits a member's own family, so the row is reachable
+ * and the trigger is genuinely what refuses.
+ */
+export async function removeFamilyByPatch(familyRowId) {
+  return rawUpdate('families', familyRowId, { status: 'removed' })
+}
+
+/**
+ * And the record columns, which `families_guard_removal` covers for their own sake.
+ *
+ * A PATCH that sets `removed_by` while leaving `status` alone is a false accusation with no
+ * other symptom — the family stays open and its row now says somebody switched it off. The
+ * guard tests all three columns with IS DISTINCT FROM for exactly this, and a version that
+ * watched only `status` would pass every other assertion in this file.
+ */
+export async function forgeRemovalRecord(familyRowId, personId) {
+  return rawUpdate('families', familyRowId, { removed_by: personId })
+}
+
 // ── The fail-closed admin default (20260817000004) ───────────────────────────────────
 
 /**

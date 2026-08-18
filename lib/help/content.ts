@@ -250,6 +250,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'chapter',
+            heading: 'Your chapter',
+            blocks: [
+              p('The block headed with your family\'s name holds one field that belongs to that family alone: which **Chapter** you are in. It appears only once the family has created some; if it has not, the block says so.'),
+              p('It decides two things. Your household moves with you — anybody recorded under you with no account of their own follows — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
+            ],
+          },
+          {
             id: 'password',
             heading: 'Changing your password',
             blocks: [
@@ -831,6 +839,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'chapter-dues',
+            heading: 'Dues for one region or chapter',
+            blocks: [
+              p('A family can attach a due to one region or one chapter — a hall the Texas chapter rents, a scholarship the Eastern region funds. If a due of your family\'s belongs to a part of the family you are not in, it is not yours and does not appear on this screen, for the same reason a bloodline-only due does not.'),
+              p('Your chapter is on [My Profile](/personal-info), and you set it yourself. **If you have not chosen one you are under National**: you owe every family-wide due and no regional or chapter one. So if you expected a chapter\'s due to show up here and it has not, the first thing to check is that your profile says which chapter you are in.'),
+            ],
+          },
+          {
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
@@ -1020,7 +1036,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('A member with no date of birth recorded owes the due in full, because the product will not guess at an age. Adding a child to the [family tree](/family-tree) without an email address asks for a birthday for exactly this reason.'),
               p('**Bloodline only** restricts a due to the members descended from the family\'s line. Anybody who married in, and any step, adopted or foster relative, owes nothing and does not see it on their own Dues screen at all — a due that is never theirs is not listed as something they are not paying.'),
               note('The control is unavailable until your family has said which ancestor its line descends from, because without that there is no bloodline and the due would be owed by nobody. Set **Bloodline descends from** on the [family tree](/family-tree) first. Who is in the bloodline is worked out from the tree every time, so correcting a relationship — or moving that setting — changes who owes the due.'),
-              note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date and starting age are then fixed — every payment already recorded was made against those terms. The page tells you when one is in use. The end date can still change.'),
+              p('**Owed by** says which part of the family owes it: National — the whole family — or one region, or one chapter. It only appears once your family has a region or a chapter to choose; until then every due is National, which is what National means. A member with no chapter is under National and owes nothing scoped, so a chapter due bills only the people who have said they are in that chapter. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
+              note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date, starting age, bloodline setting and **Owed by** are then fixed — every payment already recorded was made against those terms. Changing who owes a due would restate whether people owed it for periods already billed, which is why it is on that list. The page tells you when one is in use. The end date can still change.'),
             ],
           },
           {
@@ -1067,7 +1084,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
   {
     id: 'admin',
     title: 'Running the family',
-    blurb: 'Who is in the family, what each of them may do, and what the family is called.',
+    blurb: 'Who is in the family, what each of them may do, how it is divided up, and what it is called.',
     chapters: [
       {
         slug: 'members-and-access',
@@ -1130,9 +1147,62 @@ export const HELP_PARTS: readonly HelpPart[] = [
         ],
       },
       {
+        slug: 'regions-and-chapters',
+        title: 'Regions & Chapters',
+        summary: 'Dividing a large family into regions and chapters, and what a member\'s chapter decides.',
+        route: '/admin/chapters',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Two levels, and National',
+            blocks: [
+              p('[Regions & Chapters](/admin/chapters) is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('**National** is the third thing on the screen and it is not a region you create. It is what everything belongs to until you file it somewhere else: a chapter with no region is under National, and so is any member who has not picked a chapter. It cannot be renamed, deleted or turned off, and every family has it.'),
+              note('Members choose their own chapter, on [My Profile](/personal-info). Nobody is assigned one from here — this screen decides which chapters EXIST.'),
+            ],
+          },
+          {
+            id: 'adding',
+            heading: 'Adding and moving',
+            blocks: [
+              steps(
+                'Type a name under **Add a region** and press **Add region**. "National" is refused, because it already exists.',
+                'Type a name under **Add a chapter**, choose **In region** — or leave it at National — and press **Add chapter**.',
+                'To move a chapter later, change the **Region** cell on its row. It saves immediately.',
+              ),
+              p('Moving a chapter between regions changes who owes a regional due, straight away. That is intended: the members really are in the new region now, so the new region\'s dues really are theirs.'),
+            ],
+          },
+          {
+            id: 'deleting',
+            heading: 'Deleting one, and when you cannot',
+            blocks: [
+              p('Deleting a region moves its chapters to National. Nobody\'s membership changes and no record is touched; the confirmation says how many chapters will move.'),
+              p('A chapter or region cannot be deleted while something still points at it. The row\'s Delete button is unavailable and says what is in the way — members in the chapter, a dues schedule scoped to it, an announcement addressed to it, or a board position held there.'),
+              p('That is a refusal rather than a tidy-up on your behalf, and deliberately so: somebody\'s chapter decides what they owe and who leads them, so moving fourteen people as a side effect of a delete is not a decision to make by accident. Move the members, re-scope the dues, then delete.'),
+              note('Nothing here is a dead end. Re-scope a due to the whole family under [Accounting](/admin/account?section=dues) and the region deletes.'),
+            ],
+          },
+          {
+            id: 'dues',
+            heading: 'What a chapter decides about money',
+            blocks: [
+              p('A dues schedule is owed by the whole family, by one region, or by one chapter — set with **Owed by** on the dues form under [Accounting](/admin/account?section=dues). See [Accounting](/help/accounting#dues).'),
+              defs(
+                { term: 'National', text: 'Every member owes it. The default, and the only option until you have created a region or a chapter.' },
+                { term: 'A region', text: 'Only members whose CHAPTER is in that region owe it.' },
+                { term: 'A chapter', text: 'Only members in that chapter owe it.' },
+              ),
+              p('**A member with no chapter is under National**, so a regional or chapter due does not apply to them at all — it does not appear on their [Dues](/dues) screen and they are never billed for it. That is the state every family starts in, and it is the commonest reason a new chapter due collects nothing: [Dues Projections](/dues-projections) says so on the schedule\'s row when nobody in the family is in the part it is for.'),
+              note('A member\'s region is worked out through their chapter every time it is asked. There is no separate region to set on a person, and moving a chapter into another region moves everybody in it with no further step.'),
+            ],
+          },
+        ],
+      },
+      {
         slug: 'family-settings',
         title: 'Settings',
-        summary: 'The family\'s name, the code relatives join with, and the plan it is on.',
+        summary: 'The family\'s name, the code relatives join with, the plan it is on, and how to switch it off.',
         route: '/admin/family',
         sections: [
           {
@@ -1156,6 +1226,17 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('The panel at the top of the page shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
               p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
+            ],
+          },
+          {
+            id: 'removal',
+            heading: 'Removing the family',
+            blocks: [
+              p('**Remove this family**, at the bottom of the page, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
+              note('Nothing is deleted. Every payment, fund, photograph, event, message, document and person stays exactly where it is. Removing closes the family\'s doors; it destroys no records at all.'),
+              p('It takes two steps. **Email me a removal code** sends six digits to the address you sign in with — not to an address you type, and not to anybody else. **Enter the code and remove** then asks for those digits and for a confirmation. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries; ask for another with **Send another code**.'),
+              p('Members of a removed family are not left guessing. Signing in shows a screen saying the family was removed and that nothing was deleted, [My Families](/my-families) lists it with a **Removed** badge, and the family menu at the top of the page badges it too — so an account that belongs to more than one family carries on in the others exactly as before.'),
+              p('**Only GENORRA support can bring a family back.** There is no button for it anywhere in the product, deliberately: a family that could un-remove itself would not have been removed. If it was a mistake, write to support and ask.'),
             ],
           },
         ],

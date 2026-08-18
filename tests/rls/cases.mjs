@@ -32,7 +32,8 @@
 // `supabase status` at load. That costs nothing today — run.mjs is the only importer
 // and it calls seed() regardless — but it is why `node -e "import('./cases.mjs')"`
 // now needs `npx supabase start` first.
-import { ALPHA } from './seed.mjs'
+import { createHash } from 'node:crypto'
+import { ALPHA, BRAVO, CHARLIE } from './seed.mjs'
 import { SWEEP_NOTIFICATION_TITLE } from './raw/sweep.mjs'
 
 /** Values that exist only in ALPHA. Finding one in a BRAVO response is a leak. */
@@ -705,8 +706,410 @@ const bankGrantsProbe = async (db, fx) => {
  * actions checks the family of the id it is handed — RLS is the only thing
  * standing between BRAVO's administrator and ALPHA's records.
  */
+
+/**
+ * The label every schedule created by a scope case carries, so the probe can find them
+ * without knowing which family they landed in.
+ *
+ * ONE LABEL FOR BOTH HALVES, and the setup clears it before each: the attack must create
+ * NOTHING, and the control must create exactly one row. A per-run label would make the
+ * attack's row invisible to the control's probe, which is the vacuous-probe failure mode
+ * AGENTS.md §7 warns about.
+ */
+const SCOPE_CASE_LABEL = 'scope-case dues'
+const SCOPE_CASE_CHAPTER = 'scope-case chapter'
+
+/** A dues schedule as `createDuesSchedule` takes one, with a scope pointed wherever. */
+const scopedScheduleInput = (over) => ({
+  label: SCOPE_CASE_LABEL,
+  amount_cents: 1000,
+  frequency: 'annual',
+  due_month: null,
+  due_day: null,
+  start_date: null,
+  end_date: null,
+  description: null,
+  kind: 'dues',
+  goal_cents: null,
+  start_age: null,
+  bloodline_only: false,
+  required: true,
+  scope: 'national',
+  region_id: null,
+  chapter_id: null,
+  beneficiary_person_ids: [],
+  ...over,
+})
+
+const clearScopeCaseSchedules = async (db) => {
+  const { error } = await db.from('dues_schedules').delete().eq('label', SCOPE_CASE_LABEL)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+const clearScopeCaseChapters = async (db) => {
+  const { error } = await db.from('chapters').delete().eq('name', SCOPE_CASE_CHAPTER)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * Put both families' spare chapters back: existing, and in their own family's spare region.
+ *
+ * RE-INSERTS BY ID rather than assuming the row is there, because one of the cases sharing
+ * this setup DELETES it. Without that the case after it would probe a row that is gone and
+ * read "unchanged" for both halves — a green tick over an assertion about nothing.
+ */
+const resetSpareChapters = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    const region = await db.from('regions').upsert({
+      id: f.deletableRegion.id, family_code: f.familyCode, name: f.deletableRegion.name,
+    })
+    if (region.error) throw new Error(`setup: ${region.error.message}`)
+    const chapter = await db.from('chapters').upsert({
+      id: f.deletableChapter.id, family_code: f.familyCode,
+      name: f.deletableChapter.name, region_id: f.deletableRegion.id,
+    })
+    if (chapter.error) throw new Error(`setup: ${chapter.error.message}`)
+  }
+}
+
+/** Both families' scopable schedules back to National, so a re-scope is a visible change. */
+const resetScopableSchedules = async (db, fx) => {
+  const { error } = await db.from('dues_schedules')
+    .update({ scope: 'national', region_id: null, chapter_id: null })
+    .in('id', [fx.alpha.scopableSchedule.id, fx.bravo.scopableSchedule.id])
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * Both families' spare chapters, in one string.
+ *
+ * The runner calls ONE probe for both halves of a case, and the cases that need this attack
+ * BRAVO's row while the control moves ALPHA's — so a probe watching either alone would say
+ * "unchanged" for the half it was not looking at. That is the second fixture failure mode
+ * AGENTS.md §7 names, and it turns a real finding into a pass in both directions.
+ */
+const bothSpareChapters = async (db, fx) => {
+  const { data, error } = await db.from('chapters').select('id, region_id')
+    .in('id', [fx.alpha.deletableChapter.id, fx.bravo.deletableChapter.id]).order('id')
+  if (error) throw new Error(`probe: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+/** Both families' scopable schedules, for the reason above. */
+const bothScopableSchedules = async (db, fx) => {
+  const { data, error } = await db.from('dues_schedules')
+    .select('id, scope, region_id, chapter_id')
+    .in('id', [fx.alpha.scopableSchedule.id, fx.bravo.scopableSchedule.id]).order('id')
+  if (error) throw new Error(`probe: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+/** Both families' custom board positions back, since one case deletes one. */
+const resetCustomRoles = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    const { error } = await db.from('family_roles').upsert({
+      id: f.customRole.id, family_code: f.familyCode, name: f.customRole.name,
+      category: 'appointed_position', scope: 'national', is_global: false,
+      sort_order: f.customRole.sort_order,
+    })
+    if (error) throw new Error(`setup: ${error.message}`)
+  }
+}
+
 export const MORE_CASES = [
   // ── reads taking an ALPHA id ──────────────────────────────────────────────
+  // -- REGIONS & CHAPTERS ----------------------------------------------------
+  //
+  // Live since 2026-08-18. Every action in app/actions/admin/chapters.ts was written before
+  // AGENTS.md §3 and §4 existed, and every one of them was a public HTTP endpoint the whole
+  // time the ROUTE served Coming Soon — that gate withholds a page, never an action. Two
+  // cross-family deletes, one unchecked reference and two ungated reads came back with the
+  // page, and these cases are what would have caught each of them.
+  //
+  // CHECKED BY MUTATION, 2026-08-18, and the results are recorded because two of them are
+  // not what a reading of the code would predict. Observed, not expected:
+  //
+  //   drop `belongsToFamily` from createChapter          FAIL  createChapter (region from …)
+  //   drop both from setChapterRegion                    FAIL  setChapterRegion (region …)
+  //   drop `scopeAttachedTo` from deleteChapter          FAIL  deleteChapter (a chapter …)
+  //   drop `scopeAttachedTo` from deleteRegion           FAIL  deleteRegion (a region a due …)
+  //   drop `belongsToFamily` from createDuesSchedule      FAIL  both create-scope cases
+  //   drop `belongsToFamily` from updateDuesSchedule      FAIL  updateDuesSchedule (region …)
+  //
+  //   drop BOTH `family_code` conjuncts from deleteChapter    FAIL  (another family's chapter)
+  //   drop ONLY the one on the existence read                 PASSES
+  //
+  // THAT PAIR IS THE FINDING. Each delete here has two conjuncts — one on the row it reads
+  // first, one on the DELETE — and either alone is sufficient, so the case is evidence for
+  // the PAIR and not for either. `deleteRegion` and `deleteCustomRole` behave identically,
+  // and were mutated the same way. Do not "simplify" one of them away on the strength of a
+  // green suite.
+  //
+  //   swap getRegions's guard for `requireMember()`           PASSES
+  //   swap it for a bare `auth.getUser()` + getMyFamilyCode   FAIL  getRegions (pending member)
+  //
+  // AND THAT IS THE SECOND FINDING: no cross-family case can test a GRANT, because BRAVO's
+  // administrator holds `admin/chapters` in BRAVO and the read is then correctly scoped
+  // there whatever the guard says. Every permission-based guard also refuses an unapproved
+  // caller (`resolveScope` answers 'none' the moment `approved` is false), so the only
+  // mutation that reproduces the bug is the code that WAS there before 2026-08-18: a
+  // session, a family code, and no check. The four PENDING cases further down are where
+  // these guards are actually asserted, and all four fail under that mutation.
+  read('admin/chapters.getRegions', 'app/actions/admin/chapters.ts', 'getRegions', {
+    // THE CONTROL RUNS AS ALPHA'S ADMINISTRATOR, and that is the permission model being
+    // honest rather than the fixture being bent: `admin/chapters` is an admin key, born
+    // 'restricted' per family, so a plain member reads no regions and `[]` is their correct
+    // answer. Same reason `announcements.getChapters` above is pinned the same way.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(x => x.id === fx.alpha.region.id),
+  }),
+  // NO `positiveActor` HERE, deliberately, and the difference is worth reading. This one
+  // gates on `requireMember()` rather than on the chapter grant, because /personal-info
+  // offers every member a chapter to belong to and cannot do it without the list — so a
+  // plain member IS the right control, and pinning it to the administrator would pass
+  // whether or not that stayed true.
+  read('admin/chapters.getChapters', 'app/actions/admin/chapters.ts', 'getChapters', {
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(x => x.id === fx.alpha.chapter.id),
+  }),
+  read('admin/chapters.getScopeUsage', 'app/actions/admin/chapters.ts', 'getScopeUsage', {
+    positiveActor: 'alphaAdmin',
+    // The occupied chapter has ALPHA's child in it, so the control has something to count.
+    // Asserted on the FIGURE and not merely on the shape: `{ regions: {}, chapters: {} }` is
+    // what a refused read returns, and it would satisfy any assertion about the keys.
+    expectPositive: (r, fx) => r?.chapters?.[fx.alpha.occupiedChapter.id]?.members === 1,
+    expectAttack: (r, fx) => !JSON.stringify(r ?? null).includes(fx.alpha.occupiedChapter.id),
+  }),
+  {
+    kind: 'write',
+    id: 'admin/chapters.createChapter (region from another family)',
+    mod: 'app/actions/admin/chapters.ts', fn: 'createChapter',
+    // §4 in its purest form: the chapter row lands in the ATTACKER's own family and so
+    // satisfies every policy on `chapters`, while the `region_id` it carries points into
+    // ALPHA. The foreign key constrains existence, not ownership, so the database is content
+    // too — `belongsToFamily('regions', ...)` is the whole of the defence.
+    args: fx => [SCOPE_CASE_CHAPTER, fx.alpha.region.id],
+    // Both halves create a row, so the probe watches for a chapter carrying ALPHA's region.
+    // The attack must add none; the control adds one in ALPHA.
+    setup: clearScopeCaseChapters,
+    probe: (db, fx) => snapshot('chapters', 'id, family_code, name, region_id',
+      { region_id: fx.alpha.region.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/chapters.setChapterRegion (another family's chapter)",
+    mod: 'app/actions/admin/chapters.ts', fn: 'setChapterRegion',
+    // The attacker moves ALPHA's spare chapter out of its region. That row's family_code is
+    // ALPHA's, so the `belongsToFamily('chapters', ...)` check and the `family_code` conjunct
+    // on the UPDATE are the only things between BRAVO's administrator and rewriting it.
+    args: fx => [fx.alpha.deletableChapter.id, null],
+    setup: resetSpareChapters,
+    probe: (db, fx) => snapshot('chapters', 'id, region_id',
+      { id: fx.alpha.deletableChapter.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/chapters.setChapterRegion (region from another family)',
+    mod: 'app/actions/admin/chapters.ts', fn: 'setChapterRegion',
+    // The other id, and the other direction: BRAVO's administrator moves BRAVO's OWN chapter
+    // into ALPHA's region. Every policy is satisfied — the row is genuinely theirs — so the
+    // reference check is the only thing that can refuse it. §4 exactly, and the reason this
+    // action checks BOTH of its ids.
+    args: fx => [fx.bravo.deletableChapter.id, fx.alpha.region.id],
+    setup: resetSpareChapters,
+    // BOTH ROWS, because the runner uses ONE probe for both halves and the two halves
+    // target different families: the attack must leave BRAVO's chapter alone, and the
+    // control must move ALPHA's. A probe watching only the attacker's row would report the
+    // control as a no-op and fail it for a reason that is not a bug.
+    probe: bothSpareChapters,
+    // The same call with ids that belong together: ALPHA's chapter, ALPHA's region. The
+    // setup clears both, so the control has somewhere to move from.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableChapter.id, fx.alpha.region.id],
+  },
+  {
+    kind: 'write',
+    id: "admin/chapters.deleteChapter (another family's chapter)",
+    mod: 'app/actions/admin/chapters.ts', fn: 'deleteChapter',
+    args: fx => [fx.alpha.deletableChapter.id],
+    setup: resetSpareChapters,
+    probe: (db, fx) => snapshot('chapters', 'id, name',
+      { id: fx.alpha.deletableChapter.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  // ── THE GUARD'S JOB IS THE SENTENCE, so these two assert the sentence ──────
+  //
+  // NOT CROSS-FAMILY CASES, and not `kind: 'write'` either. Both are ALPHA's own
+  // administrator — every grant the family can confer — asking to delete something
+  // `lib/scope-attached.ts` refuses, and the reason they are read-shaped is a mutation
+  // result rather than a preference:
+  //
+  //   disabling the `scopeAttachedTo` check in `deleteChapter` left a write-shaped case
+  //   GREEN, because `people.chapter_id` is NO ACTION and the DATABASE refuses the delete
+  //   too. The row survived either way, so the probe could not tell the two apart.
+  //
+  // So a probe cannot be evidence here. What the guard actually adds is a sentence naming
+  // the fourteen relatives in the way instead of "violates foreign key constraint
+  // people_chapter_id_fkey", and that is what these check. Disable either guard and the
+  // message becomes the raw one; the regex fails.
+  read('admin/chapters.deleteChapter (a chapter somebody is in)',
+    'app/actions/admin/chapters.ts', 'deleteChapter', {
+      attacker: 'alphaAdmin',
+      args: fx => [fx.alpha.occupiedChapter.id],
+      expectAttack: (r) => r?.success === false && /still has 1 member attached/.test(r.error ?? ''),
+      positive: 'not-applicable',
+      why: 'nobody may delete a chapter somebody is in — there is no more-entitled caller to run as, and the deletable-chapter case above proves the action can delete at all',
+    }),
+  {
+    kind: 'write',
+    id: "admin/chapters.deleteRegion (another family's region)",
+    mod: 'app/actions/admin/chapters.ts', fn: 'deleteRegion',
+    args: fx => [fx.alpha.deletableRegion.id],
+    // THE PROBE WATCHES BOTH HALVES of what deleting a region does: the region going, and its
+    // chapter arriving under National. That second half is the one reference in
+    // `lib/scope-attached.ts` that PERMITS a delete rather than refusing it, and nothing pure
+    // can test the rule — see the surviving mutation recorded in lib/scope-attached.test.ts.
+    // This control is where it is asserted.
+    setup: resetSpareChapters,
+    probe: async (db, fx) => {
+      const [regions, chapters] = await Promise.all([
+        db.from('regions').select('id, name').eq('id', fx.alpha.deletableRegion.id),
+        db.from('chapters').select('id, region_id').eq('id', fx.alpha.deletableChapter.id),
+      ])
+      if (regions.error || chapters.error) {
+        throw new Error(`probe: ${regions.error?.message ?? chapters.error?.message}`)
+      }
+      return JSON.stringify([regions.data, chapters.data])
+    },
+    positiveActor: 'alphaAdmin',
+  },
+  // The money half of the same guard, read-shaped for the reason above. It also documents
+  // why `dues_schedules.region_id` is NO ACTION rather than SET NULL: SET NULL would leave
+  // `scope = 'regional'` with no region, which the CHECK from 20260817000008 refuses — so
+  // the delete fails either way, with a message about a column nobody touched.
+  //
+  // The setup is inside the case rather than shared, because it is the only one that needs a
+  // schedule pointed at a region, and `resetScopableSchedules` puts it back for the dues
+  // cases further down.
+  read('admin/chapters.deleteRegion (a region a dues schedule is scoped to)',
+    'app/actions/admin/chapters.ts', 'deleteRegion', {
+      attacker: 'alphaAdmin',
+      args: fx => [fx.alpha.region.id],
+      expectAttack: (r) => r?.success === false
+        && /still has 1 dues schedule attached/.test(r.error ?? ''),
+      positive: 'not-applicable',
+      why: 'nobody may delete a region a due is scoped to — the deletable-region case above proves the action can delete at all',
+    }),
+  {
+    kind: 'write',
+    id: "admin/chapters.deleteCustomRole (another family's custom board position)",
+    mod: 'app/actions/admin/chapters.ts', fn: 'deleteCustomRole',
+    // `family_roles` is the HYBRID table AGENTS.md warns about: global rows carry a NULL
+    // family_code and a family's own custom positions carry theirs. The action had
+    // `.eq('id', id).eq('is_global', false)` and no family conjunct at all, so BRAVO's
+    // administrator could delete ALPHA's custom position by id — the same shape as the two
+    // deletes above, on a table nobody was looking at because /admin/boardpositions is still
+    // Coming Soon. The ACTION was reachable regardless.
+    args: fx => [fx.alpha.customRole.id],
+    setup: resetCustomRoles,
+    probe: (db, fx) => snapshot('family_roles', 'id, name, family_code',
+      { id: fx.alpha.customRole.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // -- A DUES SCHEDULE'S SCOPE IS TWO MORE IDS FROM THE CLIENT ----------------
+  //
+  // The "NOT COVERED" note at the foot of this file excused `createDuesSchedule` on the
+  // grounds that it creates a row in the caller's own family and there is no other family's
+  // id to supply. That was true until 20260817000008, which gave it a `region_id` and a
+  // `chapter_id` — so the exemption is gone, and the note now says so.
+  {
+    kind: 'write',
+    id: 'dues.createDuesSchedule (region from another family)',
+    mod: 'app/actions/dues.ts', fn: 'createDuesSchedule',
+    // THE USER CLIENT, so RLS is underneath this insert — and RLS checks the row, never the
+    // ids the row references. The row's family_code is the attacker's own and every policy is
+    // satisfied while `region_id` points into ALPHA.
+    args: fx => [scopedScheduleInput({ scope: 'regional', region_id: fx.alpha.region.id })],
+    setup: clearScopeCaseSchedules,
+    probe: (db) => snapshot('dues_schedules',
+      'id, family_code, label, scope, region_id, chapter_id', { label: SCOPE_CASE_LABEL })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'dues.createDuesSchedule (chapter from another family)',
+    mod: 'app/actions/dues.ts', fn: 'createDuesSchedule',
+    args: fx => [scopedScheduleInput({ scope: 'chapter', chapter_id: fx.alpha.chapter.id })],
+    setup: clearScopeCaseSchedules,
+    probe: (db) => snapshot('dues_schedules',
+      'id, family_code, label, scope, region_id, chapter_id', { label: SCOPE_CASE_LABEL })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'dues.updateDuesSchedule (region from another family)',
+    mod: 'app/actions/dues.ts', fn: 'updateDuesSchedule',
+    // THE ADMIN CLIENT this time, so there is no policy underneath at all: the two
+    // `family_code` conjuncts and the `belongsToFamily` call are the whole defence. The
+    // attacker rewrites their OWN schedule to be owed by ALPHA's region, which every policy
+    // permits because the row is genuinely theirs.
+    args: fx => [fx.bravo.scopableSchedule.id, {
+      scope: 'regional', region_id: fx.alpha.region.id, chapter_id: null,
+    }],
+    setup: resetScopableSchedules,
+    // Both schedules, for the reason `bothSpareChapters` gives: one probe, two families.
+    probe: bothScopableSchedules,
+    // The same call with ids that belong together: ALPHA's schedule, ALPHA's region.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.scopableSchedule.id, {
+      scope: 'regional', region_id: fx.alpha.region.id, chapter_id: null,
+    }],
+  },
+  read('dues.getDuesScopeOptions', 'app/actions/dues.ts', 'getDuesScopeOptions', {
+    // Gated on `admin/account/dues:view`, which ALPHA's General template does not hold — so
+    // the control is the administrator. The attack is BRAVO's administrator, who holds it in
+    // BRAVO and must still see none of ALPHA's places.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r?.regions)
+      && r.regions.some(x => x.id === fx.alpha.region.id)
+      && r.chapters.some(x => x.id === fx.alpha.chapter.id),
+  }),
+  // ── AND THE RULE ITSELF, END TO END ────────────────────────────────────────
+  //
+  // NOT AN ISOLATION CASE, and the only one of these that is not. The arithmetic of who owes
+  // a scoped due is `duesScopeMatch`, tested pure under `npm test` where a figure can be
+  // checked at all (§7b) — but nothing there can say the action CALLS it, reads the right
+  // column, or resolves a member's region through the right table. That is what this asserts,
+  // through the real action against real policies.
+  //
+  // BOTH HALVES ARE INSIDE ALPHA, which is why the attacker/control pair reads oddly here:
+  // `alphaMember` has no chapter, so the seeded regional due must NOT reach them, and
+  // `alphaOther` is in ALPHA's chapter, which is in ALPHA's region, so it MUST. One
+  // assertion without the other is worthless — the "absent" half passes for any reason at
+  // all, including the schedule not existing.
+  //
+  // CHECKED BY MUTATION, and each half caught a different one. Observed:
+  //   drop the `duesScopeMatch` conjunct from the filter    FAIL attack  (the due reaches
+  //                                                          a member with no chapter)
+  //   pass `false` for `familyChapterRegions`'s `needed`    FAIL control (the map is empty,
+  //                                                          so nobody is in any region)
+  //   never read `people.chapter_id`                        FAIL control (same shape, from
+  //                                                          the other side)
+  read('dues.getMyDuesSummary (a regional due skips a member with no chapter)',
+    'app/actions/dues.ts', 'getMyDuesSummary', {
+      attacker: 'alphaMember',
+      expectAttack: (r, fx) => Array.isArray(r)
+        && r.some(row => row.schedule.id === fx.alpha.schedule.id)
+        && !r.some(row => row.schedule.id === fx.alpha.regionalSchedule.id),
+      positiveActor: 'alphaOther',
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(row => row.schedule.id === fx.alpha.regionalSchedule.id),
+    }),
+
   read('elections.getElectionDetail', 'app/actions/elections.ts', 'getElectionDetail', {
     args: fx => [fx.alpha.election.id],
   }),
@@ -835,7 +1238,16 @@ export const MORE_CASES = [
     // they get a perfectly legitimate answer — it just must not be ALPHA's.
     expectAttack: r => r === null || r.familyCode !== ALPHA,
     positiveActor: 'alphaAdmin',
-    expectPositive: r => r?.familyCode === ALPHA && r.canEdit === true,
+    // `canRemove` and `status` joined this in 20260817000006's app layer, and both are
+    // asserted rather than left to the shape: `canRemove` is a SECOND grant resolved
+    // server-side so the removal section is not fetched for somebody who cannot use it
+    // (§5), and `status` decides whether this page offers the control or reports that it
+    // has already been used. A version of getFamilySettings that stopped resolving either
+    // would hand the component `undefined` and render silently — the section would simply
+    // never appear, which is the failure mode nobody notices.
+    expectPositive: r =>
+      r?.familyCode === ALPHA && r.canEdit === true
+      && r.canRemove === true && r.status === 'active',
   }),
   {
     kind: 'write',
@@ -1411,6 +1823,62 @@ export const PENDING_CASES = [
   read('announcements.getAnnouncements (pending member)', 'app/actions/announcements.ts', 'getAnnouncements', {
     attacker: 'alphaPending',
   }),
+
+  // ── REGIONS & CHAPTERS, to somebody the family has not admitted ────────────
+  //
+  // [crux for the GUARDS, and the only axis that can be] The cross-family cases on these
+  // actions cannot test a grant at all: BRAVO's administrator holds `admin/chapters` in
+  // BRAVO, so `g.familyCode` resolves to BRAVO and the read is correctly scoped there
+  // whatever the guard says. Verified by mutating `getRegions`'s guard down to
+  // `requireMember()` — all four cross-family assertions stayed green.
+  //
+  // An applicant is inside ALPHA's boundary by every test those cases apply, so these are
+  // where the guards are actually asserted. Each returns an EMPTY answer rather than
+  // throwing, which is why the markers scan is the assertion.
+  read('admin/chapters.getRegions (pending member)', 'app/actions/admin/chapters.ts', 'getRegions', {
+    attacker: 'alphaPending',
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r) => Array.isArray(r) && r.length === 0,
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(x => x.id === fx.alpha.region.id),
+  }),
+  // THE SHARPEST OF THE THREE, because this one is deliberately open to every APPROVED
+  // member — /personal-info offers them a chapter and cannot without the list — so
+  // `requireMember()` is the whole of the gate and there is no grant underneath it to catch
+  // a mistake. It is also the check the function did not have before 2026-08-18: it demanded
+  // a session and nothing else.
+  read('admin/chapters.getChapters (pending member)', 'app/actions/admin/chapters.ts', 'getChapters', {
+    attacker: 'alphaPending',
+    expectAttack: (r) => Array.isArray(r) && r.length === 0,
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(x => x.id === fx.alpha.chapter.id),
+  }),
+  read('admin/chapters.getScopeUsage (pending member)', 'app/actions/admin/chapters.ts', 'getScopeUsage', {
+    attacker: 'alphaPending',
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r) => Object.keys(r?.chapters ?? {}).length === 0,
+    expectPositive: (r, fx) => r?.chapters?.[fx.alpha.occupiedChapter.id]?.members === 1,
+  }),
+  read('dues.getDuesScopeOptions (pending member)', 'app/actions/dues.ts', 'getDuesScopeOptions', {
+    attacker: 'alphaPending',
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r) => (r?.regions?.length ?? 0) === 0 && (r?.chapters?.length ?? 0) === 0,
+    expectPositive: (r, fx) => r.regions.some(x => x.id === fx.alpha.region.id),
+  }),
+  {
+    kind: 'write',
+    id: 'admin/chapters.createRegion (pending member)',
+    mod: 'app/actions/admin/chapters.ts', fn: 'createRegion',
+    attacker: 'alphaPending',
+    // An applicant naming a region in the family they are waiting to join. `regions` has no
+    // INSERT policy at all, so this write goes through the service-role client and the guard
+    // is the ONLY thing in the way — there is no policy underneath to catch it.
+    args: () => ['scope-case region'],
+    setup: async (db) => {
+      const { error } = await db.from('regions').delete().eq('name', 'scope-case region')
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: (db) => snapshot('regions', 'id, family_code, name', { name: 'scope-case region' })(db),
+    positiveActor: 'alphaAdmin',
+  },
   read('documents.getDocuments (pending member)', 'app/actions/documents.ts', 'getDocuments', {
     attacker: 'alphaPending',
   }),
@@ -2531,12 +2999,293 @@ export const APPROVAL_CASES = [
   },
 ]
 
+/**
+ * The six digits every removal challenge in this fixture is minted with.
+ *
+ * SEEDED THROUGH THE SERVICE ROLE rather than read back from a mailbox, because the code
+ * only ever exists in the process that mails it — `requestFamilyRemovalCode` stores the
+ * SHA-256 and nothing else. The hash is computed here exactly as the action computes it
+ * (`encode(digest(code,'sha256'),'hex')`), which is the same trick `seed.mjs` uses for
+ * invitation tokens and for the same reason: seeding a known plaintext is what lets a case
+ * type one family's code at another family's action.
+ */
+const REMOVAL_CODE = '424242'
+const REMOVAL_CODE_HASH = createHash('sha256').update(REMOVAL_CODE).digest('hex')
+
+/** Every family a removal case may touch. Three, because the attack must move none. */
+const REMOVAL_FAMILIES = [ALPHA, BRAVO, CHARLIE]
+
+/** No open challenge anywhere, so a minting case starts from a known empty state. */
+const clearRemovalChallenges = async (db) => {
+  const { error } = await db.from('family_removal_challenges')
+    .delete().in('family_code', REMOVAL_FAMILIES)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * Put the three families back to 'active' and re-mint one live challenge per actor.
+ *
+ * BOTH HALVES OF EVERY REMOVAL CASE RUN THIS, which is what `runWrite` gives it by calling
+ * `setup` before the attack and again before the control — the same job `resetAlphaName`
+ * does for the rename cases, and necessary for the same reason: the control genuinely
+ * removes CHARLIE, so without the reset the second half would find nothing left to remove
+ * and "the probe did not move" would be the fixture agreeing with itself.
+ *
+ * `bravoAdmin` is deliberately NOT given one. Their case asks whether ALPHA's six digits
+ * are worth anything to somebody outside ALPHA, and the answer has to come from the
+ * resolution pair (family_code, requested_by) rather than from an absent grant.
+ */
+const resetRemoval = async (db, fx) => {
+  // ── FIRST, WHAT THE LAST HALF LEFT BEHIND — and this is not tidying up ────────────
+  // `runWrite`'s control assertion is `ctlBefore !== ctlAfter`, which cannot tell removing
+  // CHARLIE apart from removing EVERYTHING: both move the probe. So an over-broad UPDATE
+  // in the action — `.eq('family_code', g.familyCode)` deleted, say, which is the whole of
+  // the isolation once the service role is in play (AGENTS.md §3) — would leave both halves
+  // green while every family in the database went down with CHARLIE.
+  //
+  // This is the assertion that catches it: before restoring anything, nothing but CHARLIE
+  // may be found removed. Verified by mutation on 2026-08-18 — dropping that `.eq` turns
+  // the second removal case into a harness FAIL naming ALPHATEST and BRAVOTEST, where
+  // before this check the whole suite stayed green.
+  const { data: found, error: readError } = await db.from('families')
+    .select('family_code, status').in('family_code', [ALPHA, BRAVO])
+  if (readError) throw new Error(`setup: ${readError.message}`)
+  const spilled = (found ?? []).filter(f => f.status !== 'active').map(f => f.family_code)
+  if (spilled.length) {
+    throw new Error(
+      `a previous removal reached ${spilled.join(', ')} as well as its own family. `
+      + 'A removal must move ONE family\'s row.',
+    )
+  }
+
+  const { error: restored } = await db.from('families')
+    .update({ status: 'active', removed_at: null, removed_by: null })
+    .in('family_code', REMOVAL_FAMILIES)
+  if (restored) throw new Error(`setup: ${restored.message}`)
+
+  await clearRemovalChallenges(db)
+
+  const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  const { error } = await db.from('family_removal_challenges').insert([
+    { family_code: ALPHA, requested_by: fx.users.alphaAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaMember.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaPending.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: CHARLIE, requested_by: fx.users.charlieAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+  ])
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * All three families' removal state.
+ *
+ * `status` IS IN THE PROJECTION, and it is the column the whole case turns on — a snapshot
+ * of `id, family_code, family_name` would make a successful removal look like a no-op and
+ * every assertion below would pass while testing nothing. That is one of the two fixture
+ * failures AGENTS.md §7 names by hand. `removed_at` and `removed_by` are here because the
+ * guard covers them for their own sake and one case forges only those.
+ *
+ * THREE FAMILIES, not one. The attack must move none of them: not ALPHA, whose code the
+ * attacker typed, and not BRAVO, which is the family they would remove if the challenge
+ * were resolved from the digits instead of from the caller.
+ */
+const familyStatusProbe = async (db) => {
+  const { data, error } = await db.from('families')
+    .select('family_code, status, removed_at, removed_by')
+    .in('family_code', REMOVAL_FAMILIES)
+    .order('family_code')
+  if (error) throw new Error(`probe families: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+/**
+ * REMOVING A FAMILY — the two actions, and the trigger underneath them.
+ *
+ * ── THE SUBJECT IS CHARLIE, AND THAT IS THE WHOLE FIXTURE DESIGN ────────────────────
+ * `removeFamily`'s positive control has to genuinely remove a family, which makes it the
+ * most destructive control in this suite. Pointed at ALPHA it would take out the row
+ * `admin/family.getFamilySettings`, both `renameFamily` cases and every marker in
+ * `alphaMarkers` rest on — the §7 failure mode `deletableChild` exists to name, at the
+ * scale of a whole family. So `seed.mjs` seeds a third one whose only job is to be removed.
+ *
+ * Each write case re-snapshots for its control, so `resetRemoval` puts every family back to
+ * 'active' and re-mints the challenges before BOTH halves. Without that the control would
+ * be removing a family the attack had already left removed, and "the probe did not move"
+ * would mean the fixture agreeing with itself.
+ *
+ * ── EVERY ACTOR GETS A VALID CODE, INCLUDING THE ONES WHO MUST BE REFUSED ───────────
+ * `alphaMember` and `alphaPending` are handed real, unexpired challenges of their own. That
+ * is the same principle that makes the attacker of record an administrator: if the refusal
+ * could be the missing code rather than the missing grant, the case is evidence for
+ * nothing. Only `bravoAdmin` has none — deliberately, because their case IS about the
+ * challenge, and it asks whether knowing ALPHA's six digits buys an outsider anything.
+ *
+ * ── WHAT EACH CASE IS EVIDENCE FOR, established by mutation on 2026-08-18 ───────────
+ * Four runs, each removing one layer and re-running `npm run test:rls`. These are the
+ * observed results, and two of them are not what the first guess said they would be:
+ *
+ *   A. Both actions' guard preamble replaced by a bare `auth.getUser()` — so they gate on
+ *      being signed in and nothing else.
+ *        -> FOUR failures, ROW MUTATED: 'same family, member with no grant' and 'pending
+ *           member', on BOTH actions. Cross-family stays green, and correctly so —
+ *           bravoAdmin can only ever act on BRAVO, and the code layer refuses them there.
+ *      NOTE that `requireDelete(…)` -> `requireRead(FAMILY_RESOURCE)` is NOT a sufficient
+ *      mutation and was tried first: `admin/family` is a restricted admin key, so a plain
+ *      member is refused by the view grant instead and all eight assertions stay green.
+ *      A mutation has to remove the LAST layer, not a layer.
+ *   B. `consume_family_removal_challenge` rewritten to find the newest unspent challenge
+ *      globally — both `family_code` and `requested_by` dropped from its WHERE.
+ *        -> cross-family FAILS: BRAVO's administrator types ALPHA's six digits, spends
+ *           ALPHA's challenge, and BRAVOTEST comes back `status: "removed"`. That pair of
+ *           conjuncts is what this case is evidence for.
+ *      Dropping EITHER ONE alone leaves the suite green, because bravoAdmin's person id and
+ *      family code both miss. Recorded because it is the interesting half: the case is
+ *      evidence for the pair, not for either conjunct on its own.
+ *   C. `.eq('family_code', g.familyCode)` deleted from removeFamily's UPDATE — the service
+ *      role has no RLS, so that filter IS the isolation (AGENTS.md §3).
+ *        -> FOUR failures, all `harness`: 'a previous removal reached BRAVOTEST, ALPHATEST
+ *           as well as its own family.'
+ *      THIS ONE WENT UNDETECTED AT FIRST, and the fix is `resetRemoval`'s opening
+ *      assertion — see the comment there. `runWrite` judges a control by "the probe moved",
+ *      which cannot tell removing CHARLIE apart from removing everything.
+ *   D. `DROP TRIGGER families_guard_removal ON public.families`
+ *        -> both raw PATCH cases FAIL with ROW MUTATED — ALPHATEST comes back
+ *           `status: "removed"` for the first and `removed_by: <alphaOther>` for the
+ *           second (checked on its own, since the first leaves ALPHA removed and C's
+ *           assertion then reports the second as a harness error). Nothing else in the
+ *           suite moves, which is the finding: the trigger is reachable by no action.
+ */
+export const REMOVAL_CASES = [
+  // ── requesting the code ───────────────────────────────────────────────────────────
+  {
+    kind: 'write',
+    id: 'admin/family.requestFamilyRemovalCode (cross-family)',
+    mod: 'app/actions/admin/family.ts', fn: 'requestFamilyRemovalCode',
+    // NO ARGUMENTS, on purpose — the action takes none, so there is no ALPHA id for BRAVO
+    // to pass and the usual "attacker supplies the owner's id" shape does not apply. What
+    // this asserts instead is that the derivation cannot be widened: a code is minted for
+    // the CALLER's family, and ALPHA's must be that family for nobody but ALPHA.
+    args: () => [],
+    setup: clearRemovalChallenges,
+    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+      { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.requestFamilyRemovalCode (same family, member with no grant)',
+    mod: 'app/actions/admin/family.ts', fn: 'requestFamilyRemovalCode',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and
+    // approved; the only thing that may refuse them is `admin/family/remove:delete`, which
+    // is a SEPARATE grant from the one that renames the family — so a member who can
+    // rename must still be refused here.
+    attacker: 'alphaMember',
+    args: () => [],
+    setup: clearRemovalChallenges,
+    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+      { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.requestFamilyRemovalCode (pending member)',
+    mod: 'app/actions/admin/family.ts', fn: 'requestFamilyRemovalCode',
+    // Inside the family boundary by every test the cross-family cases apply —
+    // auth_family_code() resolves ALPHATEST for them deliberately — and admitted by
+    // nobody. A code mailed to an applicant would be a mailbox the family never chose to
+    // trust holding one half of the removal gate.
+    attacker: 'alphaPending',
+    args: () => [],
+    setup: clearRemovalChallenges,
+    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+      { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── spending it ───────────────────────────────────────────────────────────────────
+  {
+    kind: 'write',
+    id: 'admin/family.removeFamily (cross-family)',
+    mod: 'app/actions/admin/family.ts', fn: 'removeFamily',
+    // ALPHA'S OWN CODE, typed by BRAVO's administrator. This is the sharpest form the
+    // argument can take: the attacker holds every grant BRAVO can confer AND the six
+    // digits ALPHA was mailed, and must still remove nothing — not ALPHA, whose challenge
+    // it is, and not BRAVO, because the challenge is resolved from their family and their
+    // person rather than from the code they typed.
+    args: () => [REMOVAL_CODE],
+    setup: resetRemoval,
+    probe: familyStatusProbe,
+    positiveActor: 'charlieAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.removeFamily (same family, member with no grant)',
+    mod: 'app/actions/admin/family.ts', fn: 'removeFamily',
+    // A VALID CHALLENGE OF THEIR OWN is seeded for this actor, so the code layer cannot be
+    // what refuses them and the grant is left holding it alone.
+    attacker: 'alphaMember',
+    args: () => [REMOVAL_CODE],
+    setup: resetRemoval,
+    probe: familyStatusProbe,
+    positiveActor: 'charlieAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.removeFamily (pending member)',
+    mod: 'app/actions/admin/family.ts', fn: 'removeFamily',
+    // Also handed a valid challenge, for the reason above. An applicant who has typed a
+    // family code must not be able to switch that family off.
+    attacker: 'alphaPending',
+    args: () => [REMOVAL_CODE],
+    setup: resetRemoval,
+    probe: familyStatusProbe,
+    positiveActor: 'charlieAdmin',
+  },
+
+  // ── the guard, reached where only a raw call can reach it ─────────────────────────
+  //
+  // [not evidence for family isolation] Both stay green under every mutation above, and
+  // both go red on `DROP TRIGGER families_guard_removal ON public.families`. They are
+  // evidence for the TRIGGER, which is what makes the emailed code a gate rather than a
+  // dialog — see `removeFamilyByPatch` in raw/sweep.mjs for the PATCH they reproduce.
+  {
+    kind: 'write',
+    id: 'raw:families PATCH status (administrator removing from devtools)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'removeFamilyByPatch',
+    // ALPHA'S OWN ADMINISTRATOR, on ALPHA'S OWN ROW, which the UPDATE policy genuinely
+    // admits them to write. That is the whole point: this is the column boundary, not
+    // family isolation, and the actor is the one person the policy says yes to.
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.familyRowId],
+    setup: resetRemoval,
+    probe: familyStatusProbe,
+    positive: 'not-applicable',
+    why: 'families_guard_removal refuses these columns for the `authenticated` role outright, so no caller has a legitimate raw PATCH to run; removeFamily() through the service role is the only way in and its own cases exercise it',
+  },
+  {
+    kind: 'write',
+    id: 'raw:families PATCH removed_by (forging the record without the act)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'forgeRemovalRecord',
+    attacker: 'alphaAdmin',
+    // Naming somebody else as the person who removed the family, while leaving `status`
+    // alone. The family stays open and its row says a member switched it off — a false
+    // accusation with no other symptom, which is why the guard watches all three columns.
+    args: fx => [fx.alpha.familyRowId, fx.alpha.otherPersonId],
+    setup: resetRemoval,
+    probe: familyStatusProbe,
+    positive: 'not-applicable',
+    why: 'the record of a removal is written by removeFamily() through the service role and by nothing else; there is no legitimate authenticated write to reproduce',
+  },
+]
+
 // Order is load-bearing, and only here: APPROVAL_CASES decides two memberships and
 // leaves a third behind, so it runs after everything that reads the fixture.
 // SWEEP_CASES before APPROVAL_CASES for the same reason APPROVAL_CASES is last: those
 // decide two memberships and leave a third behind, and every sweep case depends on
 // `alphaPending` still being pending.
-CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...APPROVAL_CASES)
+// REMOVAL_CASES sits between them and touches nothing either of them reads — its
+// destructive control is aimed at CHARLIE, a family nothing else in this file mentions,
+// which is exactly why that family exists.
+CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ...APPROVAL_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.
@@ -2547,11 +3296,19 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...APPROVAL_CASES)
  *     policies this suite exercises. Testing them properly means seeding buckets
  *     and asserting on object paths — worth doing, but a different harness.
  *
- *   createFund, createElection, createCollection, createDuesSchedule, addChild
+ *   createFund, createElection, createCollection, addChild
  *     Create rows in the CALLER's own family, derived from their own
  *     auth_family_code(). There is no other family's id to supply, so there is no
  *     cross-family case to construct. Their risk is the permission layer, not
  *     family isolation.
+ *
+ *     `createDuesSchedule` WAS ON THIS LIST AND CAME OFF IT, 2026-08-18, and the reason is
+ *     the lesson rather than the entry: 20260817000008 gave a dues schedule a `region_id`
+ *     and a `chapter_id`, so an action whose exemption rested on "there is no foreign id to
+ *     supply" acquired two. The exemption expired silently — nothing in the suite or the
+ *     schema could have said so — which is why this list is a list of REASONS and not of
+ *     names. Any migration that adds a foreign key to a table an exempt action writes has to
+ *     be read against it.
  *
  *   20260806000011 §6's sweep — COVERED SINCE 2026-08-17, see SWEEP_CASES above
  *     This entry said the sweep was a structural gap: its policies are reachable only by

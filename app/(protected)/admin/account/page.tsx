@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
-import { getDuesSchedules, getScheduleUsage } from '@/app/actions/dues'
+import { getDuesSchedules, getScheduleUsage, getDuesScopeOptions } from '@/app/actions/dues'
 import { getFunds, getFundAllocations } from '@/app/actions/funds'
 import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
 import {
@@ -70,7 +70,7 @@ export default async function AdminAccountPage({
   // regardless of which pane is showing (AGENTS.md §4).
   const [
     schedules, scheduleUsage, fundsData, allocations, milestonesResult, membersResult,
-    bloodlineResult,
+    bloodlineResult, scopeOptions,
   ] = await Promise.all([
     rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
     // Gated on the same pair as the schedules themselves: it says which of them the
@@ -113,6 +113,16 @@ export default async function AdminAccountPage({
       ? admin.from('families').select('bloodline_anchor_id, created_by')
           .eq('family_code', familyCode).maybeSingle()
       : Promise.resolve({ data: null }),
+    // ── WHICH PARTS OF THE FAMILY A DUE CAN BE SCOPED TO ────────────────────────
+    // The regions and chapters that EXIST (20260817000008). Gated on the Dues section,
+    // because that is the only place the scope field appears — and offering only what
+    // exists is the point: a family with neither gets no field at all rather than a
+    // disabled control over the single value it would have.
+    //
+    // NOT `getRegions()`/`getChapters()`, which are gated on `admin/chapters` — the grant
+    // to EDIT the family's structure. Maintaining what members owe and drawing the map are
+    // different jobs, and the treasurer needs to read the second without holding it.
+    rights.dues.view ? getDuesScopeOptions() : Promise.resolve({ regions: [], chapters: [] }),
   ])
 
   // EITHER of them is enough, matching how getFamilyTree and familyBloodline resolve the
@@ -141,6 +151,7 @@ export default async function AdminAccountPage({
         initialAllocations={allocations}
         rights={rights}
         hasBloodline={hasBloodline}
+        scopeOptions={scopeOptions}
         members={(membersResult.data ?? []).map(m => ({
           id: m.id,
           first_name: m.first_name,

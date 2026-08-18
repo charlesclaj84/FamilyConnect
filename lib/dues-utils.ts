@@ -83,6 +83,19 @@ export interface DuesScheduleLike {
    * does not touch any of the figures in this module.
    */
   bloodline_only?: boolean | null
+  /**
+   * Which part of the family owes this (20260817000008). Read by `duesScopeMatch` and by
+   * nothing else — like `bloodline_only`, it decides WHO rather than HOW MUCH, so it
+   * touches none of the arithmetic in this module.
+   *
+   * Optional and defaulted to 'national' by `duesScope()`, so a database that has not run
+   * the migration reads as "everybody owes it", which is what every row in it means.
+   */
+  scope?: string | null
+  /** Set exactly when `scope` is 'regional'. */
+  region_id?: string | null
+  /** Set exactly when `scope` is 'chapter'. */
+  chapter_id?: string | null
 }
 
 /** The schedule's total obligation for one year, in cents. */
@@ -228,6 +241,112 @@ export function duesEligibility(input: {
   if (!input.bloodlineOnly) return 'owed'
   if (input.bloodline === null) return 'bloodline-unknown'
   return input.bloodline.has(input.personId) ? 'owed' : 'not-in-bloodline'
+}
+
+/**
+ * Which part of the family owes a due (20260817000008).
+ *
+ * The same three words `family_roles.scope` and `user_roles.scope` have used since
+ * 20260604000002, deliberately: a board position scoped to a chapter and a due scoped to a
+ * chapter mean the same thing about the same row in `chapters`.
+ */
+export type DuesScope = 'national' | 'regional' | 'chapter'
+
+/**
+ * A schedule's scope, defaulted.
+ *
+ * ANYTHING THAT IS NOT ONE OF THE OTHER TWO IS NATIONAL — which covers the column being
+ * absent (a database that has not run 20260817000008), NULL, and a word nothing recognizes.
+ * The same call `mapSchedule` makes about `kind`, and for the same reason: a read must never
+ * lose a schedule to an unapplied migration, and the worst case here is that scoping does
+ * not exist yet, which is true of that database.
+ *
+ * FAILING TOWARD NATIONAL IS THE DELIBERATE DIRECTION. It bills MORE people rather than
+ * fewer, which is the opposite of the choice `duesEligibility` makes for an unknown
+ * bloodline — and the difference is that there is no unknown here. A garbled scope is not a
+ * fact the family stated and could not compute; it is a value the CHECK constraint cannot
+ * hold, so treating it as "the whole family owes it" restores the schedule's meaning before
+ * anybody typed a region into it.
+ */
+export function duesScope(schedule: DuesScheduleLike): DuesScope {
+  return schedule.scope === 'regional' ? 'regional'
+    : schedule.scope === 'chapter' ? 'chapter'
+      : 'national'
+}
+
+/**
+ * Whether a due is addressed to this member's part of the family.
+ *
+ * ── A SEPARATE QUESTION FROM THE BLOODLINE AND FROM THE AGE RULE ────────────────────
+ * Three reductions now decide whether somebody owes a due at all, and they are three
+ * functions rather than one because they are three different promises to the person:
+ *
+ *   start_age        they grow into it. On a timer.
+ *   bloodline_only   they never will — a member who married in is not blood.
+ *   scope            it was never addressed to them, and could be tomorrow: moving
+ *                    chapter, or a chapter moving region, changes the answer.
+ *
+ * Folding the last two together would tell a Georgia member that a Texas due is "not
+ * theirs" in the same words used for a due their marriage excludes them from. The screens
+ * report them separately for that reason.
+ *
+ * ── A MEMBER WITH NO CHAPTER IS UNDER NATIONAL ──────────────────────────────────────
+ * They owe every national due and no regional or chapter one. It is the only coherent
+ * answer — there is no region to compare a regional due against — and it is also the safe
+ * direction: an unplaced member is never billed for a hall they do not use. Every family
+ * starts here, because a family with no chapters has no member in one.
+ *
+ * ── THE REGION IS DERIVED, NOT STORED ──────────────────────────────────────────────
+ * `chapterRegions` maps chapter id -> region id (or null for a chapter under National),
+ * which is `chapters` read once. There is no `people.region_id` and none may be added: it
+ * would be a second copy of a fact `chapters` holds, wrong from the first time a chapter
+ * moved between regions — which `setChapterRegion` makes an ordinary act. Same argument as
+ * `is_minor` (20260813000006).
+ *
+ * PASSED IN RATHER THAN LOOKED UP, so this is checkable without a database, and so the one
+ * read that resolves it happens once per request rather than once per member per schedule.
+ *
+ * ── NO `today` PARAMETER, AND IT IS NOT AN OMISSION ────────────────────────────────
+ * §7b asks a pure module to take whatever it would otherwise read from the world. Scope has
+ * no time in it at all: the answer is a property of the schedule and of where the member is
+ * filed, so it cannot change halfway through a period. `end_date` is what retires a due,
+ * and that is already `duesPlanMath`'s business.
+ */
+export type DuesScopeMatch =
+  /** Addressed to them — national, or their own region or chapter. */
+  | 'owed'
+  /** Regional, and their chapter is in a different region. */
+  | 'other-region'
+  /** Chapter-scoped, and they are in a different chapter. */
+  | 'other-chapter'
+  /** Regional or chapter-scoped, and they are in no chapter at all — so under National. */
+  | 'no-chapter'
+
+export function duesScopeMatch(input: {
+  schedule: DuesScheduleLike
+  /** `people.chapter_id` in this family. Null means they are under National. */
+  memberChapterId: string | null | undefined
+  /** `chapters` as id -> region id. A chapter under National maps to null. */
+  chapterRegions: ReadonlyMap<string, string | null>
+}): DuesScopeMatch {
+  const scope = duesScope(input.schedule)
+  if (scope === 'national') return 'owed'
+
+  const chapterId = input.memberChapterId ?? null
+  if (!chapterId) return 'no-chapter'
+
+  if (scope === 'chapter') {
+    return input.schedule.chapter_id === chapterId ? 'owed' : 'other-chapter'
+  }
+
+  // A chapter this family does not have resolves to `undefined` rather than null, and both
+  // mean "not in the schedule's region". Read through `?? null` so a chapter that is under
+  // National cannot accidentally match a schedule whose `region_id` is somehow null — a row
+  // the CHECK constraint refuses, and the one shape that would otherwise bill everybody.
+  const memberRegion = input.chapterRegions.get(chapterId) ?? null
+  return memberRegion !== null && memberRegion === input.schedule.region_id
+    ? 'owed'
+    : 'other-region'
 }
 
 /** How many months of an annual period there are. Named so the arithmetic reads. */

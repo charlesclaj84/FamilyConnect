@@ -81,6 +81,11 @@ interface Props {
    * without one would be creating a due nobody owes.
    */
   hasBloodline: boolean
+  /**
+   * The regions and chapters a due can be scoped to — see `ScopeOptions`. Gated on the Dues
+   * section by the page, so a donations-only treasurer is handed nothing (AGENTS.md §5).
+   */
+  scopeOptions: ScopeOptions
 }
 
 /**
@@ -89,6 +94,18 @@ interface Props {
  * the shell unchanged, so the two must stay the same type by construction.
  */
 export type BeneficiaryOption = SelectablePerson
+
+/**
+ * The regions and chapters a due can be scoped to — `getDuesScopeOptions()`.
+ *
+ * EMPTY IS THE COMMON CASE and is not a failure: a family with no regions and no chapters
+ * has one option, National, and the form does not render the field at all. Free families
+ * cannot open Regions & Chapters, so this is empty for every one of them.
+ */
+export interface ScopeOptions {
+  regions: { id: string; name: string }[]
+  chapters: { id: string; name: string; region_id: string | null }[]
+}
 
 const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time']
 
@@ -151,14 +168,50 @@ interface ScheduleForm {
   startAge: string
   /** Dues only. Only members in the family's bloodline owe it. */
   bloodlineOnly: boolean
+  /**
+   * Dues only. Which part of the family owes it (20260817000008).
+   *
+   * ONE FIELD FOR THREE COLUMNS, held as `'national'` or `region:<id>` / `chapter:<id>`,
+   * because that is what a single `<select>` can be. The alternative — a scope select plus a
+   * target select that only means something for two of its three values — is a control that
+   * can express states the database refuses, and the form would then have to police an
+   * invariant it never needed to represent. `scopeOf` splits it back into the triple the
+   * action wants.
+   */
+  scope: string
   /** Donations only. The people the drive is for, and so the people who cannot see it. */
   beneficiaryIds: string[]
 }
 
+/** The one value that always exists, on every plan — National is the absence of a region. */
+const NATIONAL = 'national'
+
 const EMPTY_SCHEDULE_FORM: ScheduleForm = {
   label: '', amount: '', goal: '', frequency: 'annual',
   startDate: '', endDate: '', description: '', required: true,
-  startAge: '', bloodlineOnly: false, beneficiaryIds: [],
+  startAge: '', bloodlineOnly: false, scope: NATIONAL, beneficiaryIds: [],
+}
+
+/** The form's one scope field, split into the three columns the action writes. */
+function scopeOf(form: ScheduleForm): {
+  scope: 'national' | 'regional' | 'chapter'
+  region_id: string | null
+  chapter_id: string | null
+} {
+  if (form.scope.startsWith('region:')) {
+    return { scope: 'regional', region_id: form.scope.slice('region:'.length), chapter_id: null }
+  }
+  if (form.scope.startsWith('chapter:')) {
+    return { scope: 'chapter', region_id: null, chapter_id: form.scope.slice('chapter:'.length) }
+  }
+  return { scope: NATIONAL, region_id: null, chapter_id: null }
+}
+
+/** A stored row's three columns, as the form's one field. */
+function scopeValueOf(s: DuesSchedule): string {
+  if (s.scope === 'regional' && s.region_id) return `region:${s.region_id}`
+  if (s.scope === 'chapter' && s.chapter_id) return `chapter:${s.chapter_id}`
+  return NATIONAL
 }
 
 /**
@@ -191,6 +244,7 @@ function formOfSchedule(s: DuesSchedule): ScheduleForm {
     // to keep — see `startAge` on ScheduleForm.
     startAge: s.start_age == null ? '' : String(s.start_age),
     bloodlineOnly: s.bloodline_only,
+    scope: scopeValueOf(s),
     beneficiaryIds: s.beneficiary_person_ids,
   }
 }
@@ -250,7 +304,8 @@ function RequiredToggle({ checked, onChange }: {
  * that is how a treasurer enters last year's dues in order to record its history.
  */
 function ScheduleFields({
-  kind, form, onChange, members, hasBloodline, locked = false, endDateMin, autoFocus = false,
+  kind, form, onChange, members, hasBloodline, scopeOptions,
+  locked = false, endDateMin, autoFocus = false,
 }: {
   kind: ScheduleKind
   form: ScheduleForm
@@ -262,6 +317,8 @@ function ScheduleFields({
    * would be owed by nobody — see the field.
    */
   hasBloodline: boolean
+  /** The regions and chapters that EXIST. Empty means the scope field is not rendered. */
+  scopeOptions: ScopeOptions
   locked?: boolean
   endDateMin?: string
   autoFocus?: boolean
@@ -399,6 +456,59 @@ function ScheduleFields({
         </div>
       )}
 
+      {/* ── WHICH PART OF THE FAMILY OWES IT ─────────────────────────────────────────
+          Dues only: nobody owes a gift, so there is no part of the family that owes it, and
+          a CHECK holds a donation at National. A drive concerning one chapter is a
+          visibility question — that is what "This drive is for" below does.
+
+          OFFERED ONLY WHEN THERE IS SOMETHING TO OFFER. With no regions and no chapters the
+          whole field is absent rather than rendered as a disabled select over the single
+          value it would have: a control with one option is not a choice, and a disabled one
+          reads as a feature being withheld from a family that has simply not divided itself
+          up yet. Every schedule in that family is National, which is what National means.
+
+          NATIONAL IS ALWAYS THE FIRST OPTION and always exists — it is the absence of a
+          region rather than a row, so no plan and no setup can take it away.
+
+          FROZEN once payments exist, alongside the amount, the starting age and the
+          bloodline — and this is the strongest member of that set. Moving a due from
+          National to one chapter does not restate what a member owed for a period already
+          billed; it restates whether they owed it at all. */}
+      {!isDonation && (scopeOptions.regions.length > 0 || scopeOptions.chapters.length > 0) && (
+        <div className="space-y-1.5">
+          <Label htmlFor="schedule-scope">Owed by</Label>
+          <Select
+            id="schedule-scope"
+            value={form.scope}
+            disabled={locked}
+            onChange={e => onChange({ scope: e.target.value })}
+          >
+            <option value={NATIONAL}>National — the whole family</option>
+            {scopeOptions.regions.length > 0 && (
+              <optgroup label="One region">
+                {scopeOptions.regions.map(r => (
+                  <option key={r.id} value={`region:${r.id}`}>{r.name} region</option>
+                ))}
+              </optgroup>
+            )}
+            {scopeOptions.chapters.length > 0 && (
+              <optgroup label="One chapter">
+                {scopeOptions.chapters.map(c => (
+                  <option key={c.id} value={`chapter:${c.id}`}>{c.name} chapter</option>
+                ))}
+              </optgroup>
+            )}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {form.scope === NATIONAL
+              ? 'Every member of the family owes this.'
+              : form.scope.startsWith('region:')
+                ? 'Only members whose chapter is in that region owe this. A member with no chapter is under National and owes nothing regional.'
+                : 'Only members in that chapter owe this. A member with no chapter is under National and owes nothing scoped.'}
+          </p>
+        </div>
+      )}
+
       {/* Dues only. A donation is optional by definition — the field would be a checkbox
           that cannot be unticked. */}
       {!isDonation && <RequiredToggle checked={form.required} onChange={next => onChange({ required: next })} />}
@@ -433,6 +543,28 @@ function ScheduleFields({
 }
 
 /**
+ * "Texas region" / "Houston chapter", or null for a due the whole family owes.
+ *
+ * Reads the NAME out of the same option list the form offers, rather than taking a second
+ * copy from the server: the page fetches it once, both the field and the row need it, and a
+ * schedule pointing at a region the list does not have would be a row from another family.
+ * A missing name falls back to the bare word — never the uuid, which reads to a treasurer as
+ * a fault.
+ */
+function scopeCaption(s: DuesSchedule, options: ScopeOptions): string | null {
+  if (s.kind === 'donation') return null
+  if (s.scope === 'regional') {
+    const name = options.regions.find(r => r.id === s.region_id)?.name
+    return name ? `${name} region` : 'One region'
+  }
+  if (s.scope === 'chapter') {
+    const name = options.chapters.find(c => c.id === s.chapter_id)?.name
+    return name ? `${name} chapter` : 'One chapter'
+  }
+  return null
+}
+
+/**
  * "Martha Allen and George Allen", or null when there is nothing to say.
  *
  * Null rather than an empty string so `MetaIf` drops the whole item, prefix included —
@@ -456,13 +588,13 @@ function beneficiaryCaption(s: DuesSchedule, members: BeneficiaryOption[]): stri
 
 /** What is frozen once a schedule has been transacted against, in the editor's words. */
 const LOCK_NOTE: Record<ScheduleKind, string> = {
-  dues: 'Payments have been recorded against this due, so its start date, amount and frequency are fixed — every one of those payments was made against these terms. The end date can still change.',
+  dues: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age, bloodline setting and who owes it are fixed — every one of those payments was made against these terms. The end date can still change.',
   donation: 'This donation has received funds, so its start date is fixed.',
 }
 
 export function AdminIncomeClient({
   section, creating, onCloseCreate, initialSchedules, scheduleUsage, rights, members,
-  hasBloodline,
+  hasBloodline, scopeOptions,
 }: Props) {
   // The section on screen decides which grant applies: a Dues row is governed by
   // admin/account/dues, a Donation row by admin/account/donations.
@@ -615,6 +747,12 @@ export function AdminIncomeClient({
             // "not sent" to the action and would leave the column alone, so an omitted key
             // could never LIFT a bloodline restriction. Removing one has to be expressible.
             bloodline_only: editForm.bloodlineOnly,
+            // The three scope columns, always, for the same reason — and always as a TRIPLE,
+            // because the CHECK from 20260817000008 is over all three at once and a patch
+            // carrying one of them is a row the database refuses. `undefined` on `scope` is
+            // what tells the action the patch did not mention it, so sending the triple is
+            // also how "put this back to National" is said.
+            ...scopeOf(editForm),
           }
       const result = await updateDuesSchedule(id, {
         label: editForm.label,
@@ -667,6 +805,12 @@ export function AdminIncomeClient({
         // gift, so there is no bloodline to narrow it to. The action pins it and a CHECK
         // holds it; this keeps the type honest.
         bloodline_only: isDonation ? false : newForm.bloodlineOnly,
+        // National for a donation for the reason `required` is forced false there: nobody
+        // owes a gift, so no part of the family owes it. The action pins it and a CHECK
+        // holds it; this keeps the type honest.
+        ...(isDonation
+          ? { scope: 'national' as const, region_id: null, chapter_id: null }
+          : scopeOf(newForm)),
         due_month: null,
         due_day: null,
         start_date: newForm.startDate || null,
@@ -732,6 +876,7 @@ export function AdminIncomeClient({
                 onChange={patchNew}
                 members={members}
                 hasBloodline={hasBloodline}
+                scopeOptions={scopeOptions}
                 autoFocus
               />
               <FormError message={error} />
@@ -786,6 +931,7 @@ export function AdminIncomeClient({
                   onChange={patchEdit}
                   members={members}
                   hasBloodline={hasBloodline}
+                  scopeOptions={scopeOptions}
                   locked={editing.locked}
                   endDateMin={editing.kind === 'dues' ? todayLocal() : undefined}
                   autoFocus
@@ -847,6 +993,23 @@ export function AdminIncomeClient({
                         >
                           {s.label}
                         </span>
+                        {/* WHICH PART OF THE FAMILY OWES IT — beside the name, in the first
+                            cell, so it is visible at EVERY width.
+                            NOT in the `RowMeta` line below, and that is a deliberate
+                            difference from the two facts that are: `RowMeta` is `sm:hidden`,
+                            so anything living only there is invisible on a desktop. The age
+                            rule and the bloodline flag are in that line and are therefore
+                            phone-only today, which their own comments claim they are not —
+                            a pre-existing gap, not one to copy. Who owes a due is the thing
+                            an administrator is comparing two rows for.
+                            Only rendered when it is not the whole family: "National" on
+                            every row of a family that has no chapters is noise on every row,
+                            and National is what a due means when it says nothing. */}
+                        {scopeCaption(s, scopeOptions) && (
+                          <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm">
+                            {scopeCaption(s, scopeOptions)}
+                          </span>
+                        )}
                         <RowMeta className="gap-x-2">
                           {s.kind !== 'donation' && (
                             <>

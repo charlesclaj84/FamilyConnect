@@ -240,6 +240,18 @@ function ChapterBlock({
         Your chapter applies to this family only — the rest of your profile is shared
         across every family you belong to. Changing it moves your household with you.
       </p>
+      {/* WHAT IT DECIDES ABOUT MONEY, said here because this is the only screen that sets
+          it and 20260817000008 made it consequential: a due can belong to one region or one
+          chapter, and somebody with no chapter is under National and owes neither. A member
+          wondering why a chapter's due is not on their Dues screen has to be able to find
+          the answer at the control that causes it. */}
+      {chapters.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          It can also decide what you owe: a family can attach dues to one region or one
+          chapter. Choosing nothing leaves you under National, owing the family-wide dues
+          and none of the local ones.
+        </p>
+      )}
     </div>
   )
 }

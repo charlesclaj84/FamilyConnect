@@ -106,6 +106,20 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- Note that 20260812000000 re-asserts 'Family Settings'/155 in between, and
   -- 20260812000001 then corrects it, so a full replay still lands here.
   ('admin/family',        'Settings',               'admin',      260),
+  -- Added by 20260817000006, which lets an administrator REMOVE a family — internally a
+  -- status on the row, destroying nothing. Listed here for the reason admin/family and
+  -- admin/approvals are: the visibility loop at the FOOT of this file is what gives a
+  -- fresh database its 'restricted' row for every admin key, and every dynamic loop
+  -- between here and that migration reads permission_resources rather than a literal
+  -- list — so registering it early is what carries it through the chain instead of
+  -- leaving it to be retro-fitted at the end.
+  --
+  -- Deliberately WITHOUT `actions` and `subsection`: neither column exists this early
+  -- (20260806000000 and 20260806000010 add them), so naming either here would abort the
+  -- chain on an empty database. The row is created with the default four actions and
+  -- narrowed to the single `delete` by 20260817000006 §4, which also deletes the
+  -- view/create/edit grants any intervening materialization handed out.
+  ('admin/family/remove', 'Remove Family',          'admin',      261),
   -- Renamed by 20260807000000, which merged Groups & Permissions into this page:
   -- one template per member replaced group membership plus per-person overrides, so
   -- the two screens became one — 'Members & Access'. Shortened to 'Members' by

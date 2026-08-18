@@ -71,15 +71,42 @@ const STANDING: Record<DuesStanding, { label: string; className: string; hint: s
   // as a correction attached to a person. The hint says which due it is about; the pill
   // does not say anything about them.
   excluded: { label: 'Not theirs',   className: 'bg-muted text-muted-foreground',           hint: 'This due is owed by the bloodline only.' },
+  // "Elsewhere", and deliberately NOT folded into 'Not theirs'. Both mean the member owes
+  // nothing, and one of them is reversible: they move chapter, or their chapter moves
+  // region, and the due becomes theirs. Wording it as geography also keeps the pill silent
+  // about how anybody joined the family, which is the same call 'Not theirs' makes.
+  'out-of-scope': { label: 'Elsewhere', className: 'bg-muted text-muted-foreground',        hint: 'This due is for one region or chapter, and they are in another — or in none, which puts them under National.' },
 }
 
 /** Least settled first, so the people to chase are at the top before anybody sorts. */
 const STANDING_ORDER: readonly DuesStanding[] = [
-  'unpaid', 'partial', 'settled', 'declined', 'exempt', 'excluded',
+  'unpaid', 'partial', 'settled', 'declined', 'exempt', 'excluded', 'out-of-scope',
 ]
 
+/**
+ * "Texas region" / "Houston chapter", or null for a national due.
+ *
+ * The name comes from `placeNames`, and a MISSING one falls back to the bare word rather
+ * than to the uuid: an id renders to a reader as a fault, and the row's `scope` is enough to
+ * say what kind of place it is even when the name did not come back.
+ */
+function scopeCaption(
+  s: { scope: string; regionId: string | null; chapterId: string | null },
+  placeNames: Record<string, string>,
+): string | null {
+  if (s.scope === 'regional') {
+    const name = s.regionId ? placeNames[s.regionId] : undefined
+    return name ? `${name} region` : 'One region'
+  }
+  if (s.scope === 'chapter') {
+    const name = s.chapterId ? placeNames[s.chapterId] : undefined
+    return name ? `${name} chapter` : 'One chapter'
+  }
+  return null
+}
+
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
-  const { projection, people } = result
+  const { projection, people, placeNames } = result
   const [query, setQuery] = useState('')
   const [onlyOwing, setOnlyOwing] = useState(false)
 
@@ -207,6 +234,17 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           Bloodline only
                         </span>
                       )}
+                      {/* WHICH PART OF THE FAMILY OWES IT. On the row and not only in the
+                          totals, because a scoped due's Expected figure is a fraction of a
+                          national one's for a reason that is nowhere in the numbers. Only
+                          rendered when there IS a scope: "National" on every row of a family
+                          that has no chapters would be noise on every row. */}
+                      {scopeCaption(s, placeNames) && (
+                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm"
+                          title="Only members in this part of the family owe this due. A member with no chapter is under National and owes nothing scoped.">
+                          {scopeCaption(s, placeNames)}
+                        </span>
+                      )}
                       {/* THE ONE STATE ON THIS SCREEN A TREASURER CANNOT DIAGNOSE FROM THE
                           NUMBERS. Bloodline-only with no bloodline to apply means nobody
                           owes it, so Expected reads $0.00 and there is nothing in the
@@ -219,6 +257,19 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           descends from, so there is no bloodline to charge. Set{' '}
                           <strong className="font-medium">Bloodline descends from</strong> on
                           the family tree.
+                        </p>
+                      )}
+                      {/* THE OTHER STATE A TREASURER CANNOT DIAGNOSE FROM THE NUMBERS, and
+                          the commoner of the two: a due scoped to a chapter nobody has
+                          joined yet bills nothing, so Expected reads $0.00 with no
+                          explanation in the figures. `--brand-withheld` for the same reason
+                          as above — nothing has failed and nothing was deleted. */}
+                      {s.scopeEmpty && (
+                        <p className="mt-1 text-xs text-brand-withheld">
+                          Nobody owes this: no member of the family is in{' '}
+                          {scopeCaption(s, placeNames) ?? 'that part of the family'}. Members
+                          choose their chapter on their own profile, and anybody with no
+                          chapter is under National.
                         </p>
                       )}
                       {/* THE PERIOD, on every row. Two schedules can be measured over two

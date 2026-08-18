@@ -93,6 +93,30 @@ const tokenHash = (token) => createHash('sha256').update(token).digest('hex')
 export const ALPHA = 'ALPHATEST'
 export const BRAVO = 'BRAVOTEST'
 
+/**
+ * A THIRD FAMILY, and it exists for one case: the family that actually gets removed.
+ *
+ * `removeFamily`'s positive control has to genuinely remove something, and it must not be
+ * ALPHA. That is `deletableChild`'s rule stated at the level of a whole family — a control
+ * that mutates a row later cases depend on turns those cases into vacuous passes, and
+ * ALPHA's `families` row is read by `admin/family.getFamilySettings`, by both `renameFamily`
+ * cases and by every marker in this fixture. A family removed halfway through the run would
+ * take all of that with it.
+ *
+ * It is seeded ACTIVE, and ends the run REMOVED. That sequence is deliberate: the removal
+ * cases restore it in their own `setup` (each half of a write case re-snapshots, so the
+ * control has to have something left to remove), and nothing after them reads it.
+ *
+ * It holds one person — its own approved administrator — and none of the twenty-odd rows
+ * ALPHA and BRAVO get. Nothing about removal reads a fund or a photograph, and seeding
+ * them would only slow every run down.
+ *
+ * NEVER USE `charlieAdmin` AS AN ATTACKING ACTOR. They belong to a family whose whole
+ * purpose is to be destroyed by a positive control, so an isolation assertion resting on
+ * them would be resting on a moving fixture.
+ */
+export const CHARLIE = 'CHARLTEST'
+
 const PASSWORD = 'rls-harness-pw-2026!'
 
 /**
@@ -171,6 +195,11 @@ export const USERS = {
   // row, so BRAVO-side callers legitimately see it and marking it would report leaks
   // that are not leaks.
   outsideInvitee: { email: 'outside.invitee@rls.test', family: BRAVO, admin: false },
+  // CHARLIE's administrator, and its only member — the actor whose family a removal
+  // control is allowed to destroy. Approved, and holding scope 'any' on everything its own
+  // family can confer, exactly like the other two administrators: a positive control that
+  // failed for want of a grant would prove nothing about removal.
+  charlieAdmin: { email: 'charlie.admin@rls.test', family: CHARLIE, admin: true },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -179,7 +208,11 @@ const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
 
 /** Delete anything a previous run left behind, so the suite is re-runnable. */
 async function teardown(db) {
-  const codes = [ALPHA, BRAVO]
+  // CHARLIE is swept like the other two. It ends every run REMOVED, and `families` has no
+  // guard on DELETE — `families_guard_removal` is a BEFORE UPDATE trigger about the
+  // `authenticated` role, and this sweep is the service role deleting the row outright —
+  // so a removed family needs no special handling here.
+  const codes = [ALPHA, BRAVO, CHARLIE]
 
   // Children that carry no family_code, reached through their parent.
   const { data: rooms } = await db.from('chat_rooms').select('id').in('family_code', codes)
@@ -255,6 +288,12 @@ async function teardown(db) {
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
     'resource_visibility',
+    // Keyed on family_code with no foreign key to `families`, like resource_visibility
+    // above it, so nothing else here removes it. Listed BEFORE `people`, because
+    // `requested_by` REFERENCES people(id) — ON DELETE SET NULL, so leaving it would
+    // silently blank the column rather than fail, and a challenge row belonging to nobody
+    // would outlive the run it was seeded for.
+    'family_removal_challenges',
     'people',
     // AFTER `people`, and it has to be. dues_payments is append-only — 20260806000002
     // refuses a DELETE even to the service role — with ONE exception: the ON DELETE
@@ -279,6 +318,19 @@ async function teardown(db) {
     // "duplicate key value violates unique constraint chapters_family_code_name_key",
     // before a single case executed. Seeding a row means sweeping it.
     'chapters',
+    // The family's own CUSTOM board positions. Its global rows carry a NULL family_code and
+    // are product data no migration will re-seed (AGENTS.md, "Four tables in `public` are
+    // product data"), so this sweep must never reach them — `.in('family_code', codes)`
+    // cannot match NULL, which is what keeps it safe. Listed after `user_roles` above,
+    // whose role_id cascades from here.
+    'family_roles',
+    // AFTER `chapters`, and it has to be: `chapters.region_id` REFERENCES regions(id), and
+    // since 20260817000008 `dues_schedules.region_id` does too — so the rows pointing here
+    // go first. Added 2026-08-18 with the region seeded below, for the reason the note on
+    // `chapters` gives: a seeded row with a UNIQUE (family_code, name) that is not swept
+    // makes the whole suite single-use, green on a fresh database and dead in teardown on
+    // the very next run.
+    'regions',
   ]
   for (const table of scoped) {
     const { error } = await db.from(table).delete().in('family_code', codes)
@@ -308,11 +360,17 @@ export async function seed() {
   const db = admin()
   await teardown(db)
 
-  const fx = { alpha: {}, bravo: {}, users: {} }
+  const fx = { alpha: {}, bravo: {}, charlie: {}, users: {} }
 
-  for (const code of [ALPHA, BRAVO]) {
-    must(`family ${code}`, await db.from('families')
+  // The `families` row ids are KEPT, which they were not before: the raw PATCH probe that
+  // reaches `families_guard_removal` addresses the row by primary key (rawUpdate is
+  // `.eq('id', …)`), and that trigger is reachable no other way.
+  for (const code of [ALPHA, BRAVO, CHARLIE]) {
+    const row = must(`family ${code}`, await db.from('families')
       .insert({ family_code: code, family_name: `${code} Family` }).select().single())
+    const side = code === ALPHA ? 'alpha' : code === BRAVO ? 'bravo' : 'charlie'
+    fx[side].familyCode = code
+    fx[side].familyRowId = row.id
   }
 
   // ── users + their people rows ──────────────────────────────────────────────
@@ -390,7 +448,7 @@ export async function seed() {
 
   // ── an administrator in each family: scope 'any' on everything ────────────
   const resources = must('resources', await db.from('permission_resources').select('key'))
-  for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin']]) {
+  for (const [code, who] of [[ALPHA, 'alphaAdmin'], [BRAVO, 'bravoAdmin'], [CHARLIE, 'charlieAdmin']]) {
     // Upsert, not insert: the families trigger created this template when the family
     // row went in. Claiming it here rather than reading it keeps the harness's
     // description on the row, so it is obvious which one this is.
@@ -432,7 +490,7 @@ export async function seed() {
   // whose attacker silently ended up on General would make every attack assertion
   // pass because the permission layer refused it, which is the one thing the
   // administrator-as-attacker design exists to rule out.
-  for (const who of ['alphaAdmin', 'bravoAdmin']) {
+  for (const who of ['alphaAdmin', 'bravoAdmin', 'charlieAdmin']) {
     const { data: check } = await db.from('people')
       .select('permission_template_id, permission_templates(name)')
       .eq('id', fx.users[who].personId).single()
@@ -483,8 +541,84 @@ export async function seed() {
     // every action writing it owes the §4 reference check and the suite needs a real
     // foreign id to hand them. Before this the fixture had none, and
     // `announcements.getChapters` was carrying `positive: 'not-applicable'` saying so.
+    // A REGION IN EACH FAMILY, and the chapter below sits in it. Seeded 2026-08-18, when
+    // 20260817000008 gave `dues_schedules` a `region_id` and `chapter_id`: those are two more
+    // ids a caller can supply, so the §4 cases need a real foreign one to hand across the
+    // family boundary. It is also what makes `deleteRegion`'s control meaningful — a region
+    // with a chapter in it is the case where the delete SUCCEEDS and the chapter moves to
+    // National, which is the one reference in `lib/scope-attached.ts` that permits a delete.
+    f.region = must('region', await db.from('regions').insert({
+      family_code: code, name: `${code} region`,
+    }).select().single())
+
     f.chapter = must('chapter', await db.from('chapters').insert({
-      family_code: code, name: `${code} chapter`,
+      family_code: code, name: `${code} chapter`, region_id: f.region.id,
+    }).select().single())
+
+    // A SECOND REGION, with nothing in it, so a control that DELETES one does not remove a
+    // row every case after it depends on. Same reason `deletableChild` exists, and AGENTS.md
+    // §7 names this failure mode explicitly: a positive control that mutates a row a later
+    // case reads turns a real finding into a pass.
+    f.deletableRegion = must('deletable region', await db.from('regions').insert({
+      family_code: code, name: `${code} spare region`,
+    }).select().single())
+
+    // AND A SECOND CHAPTER, empty, for the same reason on the chapter side.
+    f.deletableChapter = must('deletable chapter', await db.from('chapters').insert({
+      family_code: code, name: `${code} spare chapter`,
+    }).select().single())
+
+    // AND `other` GOES INTO THE FIRST CHAPTER, which is inside the first region. That is
+    // what gives the scope rule a positive control: the member with no chapter is under
+    // National and must NOT be offered the regional due, and somebody whose chapter is in
+    // that region MUST be — one assertion is worthless without the other.
+    //
+    // `alphaOther`/`bravoOther` rather than the default member, because the personal-info
+    // chapter cases null and re-set the default member's `chapter_id` in their own setup and
+    // two cases must not depend on each other's order.
+    {
+      const { error } = await db.from('people')
+        .update({ chapter_id: f.chapter.id }).eq('id', other.personId)
+      if (error) throw new Error(`seed ${code}: placing other in a chapter: ${error.message}`)
+    }
+
+    // A THIRD CHAPTER, WITH SOMEBODY IN IT — the state `lib/scope-attached.ts` exists to
+    // refuse a delete over. It gets `f.child` (a recorded person with no account, seeded
+    // below) rather than a member, so nothing else in the suite reads the row it occupies:
+    // the personal-info chapter cases null and re-set `alphaMember`'s chapter themselves,
+    // and pointing this at that row would make two cases depend on each other's order.
+    f.occupiedChapter = must('occupied chapter', await db.from('chapters').insert({
+      family_code: code, name: `${code} occupied chapter`,
+    }).select().single())
+
+    // A SCHEDULE THAT EXISTS TO BE RE-SCOPED, and nothing else reads it. `f.schedule` has a
+    // payment against it, so 20260807000001's freeze refuses every term change including the
+    // scope — a control pointed there would fail for a reason that is not a bug — and
+    // re-scoping `f.optionalSchedule` would silently drop it out of `getMyDuesSummary` for
+    // every actor with no chapter, which is most of them. AGENTS.md §7's first fixture
+    // failure mode, avoided by giving the case its own row.
+    f.scopableSchedule = must('scopable dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} scopable dues`, amount_cents: 2500, active: true,
+    }).select().single())
+
+    // AND ONE ALREADY SCOPED TO THE REGION, which is what makes that region undeletable.
+    // Seeded in that state rather than arranged by a case, because the case asserting it is
+    // read-shaped: `lib/scope-attached.ts`'s refusal is a SENTENCE, a before/after probe
+    // cannot tell it from the foreign key refusing the same delete, and a read case has no
+    // `setup` hook to arrange the world with.
+    f.regionalSchedule = must('regional dues schedule', await db.from('dues_schedules').insert({
+      family_code: code, label: `${code} regional dues`, amount_cents: 3500, active: true,
+      scope: 'regional', region_id: f.region.id,
+    }).select().single())
+
+    // A CUSTOM BOARD POSITION. `family_roles` is the hybrid table AGENTS.md warns about:
+    // its NULL-family_code rows are product data seeded by migrations, and a family's own
+    // custom positions carry their code. `deleteCustomRole` had no family conjunct at all,
+    // so this is the row that proves one family cannot delete another's — and it is seeded
+    // per family so the attack and the control each have their own.
+    f.customRole = must('custom role', await db.from('family_roles').insert({
+      family_code: code, name: `${code} Historian`, category: 'appointed_position',
+      scope: 'national', is_global: false, sort_order: 900,
     }).select().single())
 
     f.announcement = must('announcement', await db.from('announcements').insert({
@@ -733,6 +867,11 @@ export async function seed() {
     f.child = must('child', await db.from('people').insert({
       family_code: code, first_name: `${code}Child`, last_name: code,
       date_of_birth: '2015-04-04', created_by: familyAdmin.userId,
+      // IN THE OCCUPIED CHAPTER, which is what makes that chapter undeletable — the state
+      // `admin/chapters.deleteChapter (a chapter somebody is in)` asserts. Set here rather
+      // than by an UPDATE afterwards because `people.chapter_id` has no trigger overriding
+      // it, unlike `membership_status`.
+      chapter_id: f.occupiedChapter.id,
     }).select().single())
 
     // A SECOND ONE, so a destructive positive control has its own row to ruin. Without it

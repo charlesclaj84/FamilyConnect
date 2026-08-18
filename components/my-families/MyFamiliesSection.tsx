@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Home, Star, Check, Eye, Clock, Ban } from 'lucide-react'
+import { Home, Star, Check, Eye, Clock, Ban, PowerOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -77,6 +77,12 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
         {families.map(family => {
           const busy = isPending && pendingCode === family.familyCode
           const approved = family.status === 'approved'
+          // LISTED, NEVER HIDDEN. Dropping a removed family from this page would take the
+          // one screen that could explain what happened to it and make the family vanish
+          // with no account of itself — which is exactly the conclusion "the product is
+          // broken" that 20260817000006 chose to allow the switch in order to avoid.
+          // Tested positively for 'active', like every other gate on this column.
+          const removed = family.familyStatus !== 'active'
           return (
             <div
               key={family.familyCode}
@@ -92,6 +98,15 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   {family.status === 'pending' && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-legacy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-legacy">
                       <Clock className="h-3 w-3" /> Pending
+                    </span>
+                  )}
+                  {/* `--brand-withheld`, not `--destructive`: the family is switched off
+                      and every record it holds is untouched, so the alarm colour would be
+                      describing something that has not happened. Foreground on a tint of
+                      itself, because that token has no `on-` partner by design. */}
+                  {removed && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-withheld/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-withheld">
+                      <PowerOff className="h-3 w-3" /> Removed
                     </span>
                   )}
                   {family.status === 'rejected' && (
@@ -113,6 +128,16 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Family Code: <span className="font-mono">{family.familyCode}</span>
                 </p>
+                {/* SAID HERE AS WELL AS ON THE NOTICE SCREEN, because this page is the one
+                    a multi-family account reaches without ever selecting the removed
+                    family — the badge alone would leave "removed" meaning whatever they
+                    guessed. Nothing is deleted is the half people do not assume. */}
+                {removed && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Switched off by an administrator. Nothing was deleted, and only GENORRA
+                    support can bring it back.
+                  </p>
+                )}
               </div>
 
               {/* Every APPROVED membership, viewed or not — since 20260806000014 the
@@ -129,8 +154,16 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   there is none, so a hidden button was a control that existed, sat in the
                   DOM and the RSC payload, and answered "You are not an approved member of
                   that family" to anyone who un-hid it. A pending row shows its badge and
-                  no actions at all. */}
-              {approved && (
+                  no actions at all.
+
+                  AND NOT FOR A REMOVED FAMILY EITHER, for a reason 20260817000006 records
+                  as a known gap rather than closing in SQL: `create_family_invitation()`
+                  will still MINT an invitation into a removed family, while every door
+                  that would redeem one is shut — so the button produces a dead link and a
+                  relative told to expect an email that leads nowhere. That migration says
+                  "the app layer is where a member is told the family is gone before they
+                  get as far as inviting somebody to it"; this is that line. */}
+              {approved && !removed && (
                 <div className="flex shrink-0 items-center gap-2">
                   <InviteMemberDialog
                     label="Invite Member"
@@ -143,8 +176,12 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
 
               {/* "View this family" used to live here. Removed — the navbar
                   FamilySwitcher does the same job from every page, so this was a second
-                  control for one action, and the only one that had to be found first. */}
-              <div className={cn('shrink-0 items-center gap-2', multi && approved ? 'flex' : 'hidden')}>
+                  control for one action, and the only one that had to be found first.
+
+                  `!removed` for the same reason the invite button is withheld: opening on
+                  login into a family that can only render a notice screen is not a default
+                  anybody would choose deliberately. */}
+              <div className={cn('shrink-0 items-center gap-2', multi && approved && !removed ? 'flex' : 'hidden')}>
                 <button
                   type="button"
                   disabled={isPending || family.isDefault}

@@ -271,6 +271,21 @@ export async function createAnnouncement(
   const scope = input.scope
   const pinned = isAdmin ? input.pinned : false
 
+  // §4. This insert runs on the SERVICE-ROLE client — deliberately, so an ordinary member
+  // can post at all — so there is no policy underneath it, and the `chapter_id` arriving
+  // from the client was written onto the row unchecked. The row carries the caller's own
+  // family_code and would satisfy every policy anyway; the chapter it names could be
+  // another family's, which is precisely the shape §4 is about and the same one the
+  // `people.chapter_id` cases in tests/rls exist for.
+  //
+  // The damage was small and real: `addressedTo` matches such a post to nobody in this
+  // family, so an announcement written for "a chapter" would be readable on the board and
+  // addressed to no one — a foreign id filed inside this family's records either way.
+  if (scope === 'chapter' && input.chapter_id
+      && !(await belongsToFamily('chapters', input.chapter_id, familyCode))) {
+    return { success: false, message: 'Chapter not found' }
+  }
+
   // Service-role insert so non-admin members can post (RLS limits inserts to admins).
   const { data, error } = await admin.from('announcements').insert({
     family_code: familyCode,

@@ -10,12 +10,16 @@ import {
   annualTotalCents,
   ageShareOfPeriod,
   duesEligibility,
+  duesScope,
+  duesScopeMatch,
   proratedAnnualCents,
   duesPlanMath,
   currentPeriodStart,
   defaultCadence,
   type AgeShare,
+  type DuesScope,
   type PayCadence,
+  type DuesScheduleLike,
   type ScheduleKind,
 } from '@/lib/dues-utils'
 import { projectDues, type DuesProjection } from '@/lib/dues-projection'
@@ -79,6 +83,29 @@ export interface DuesSchedule {
    * Always false for a donation, held by a CHECK: nobody owes a gift.
    */
   bloodline_only: boolean
+  /**
+   * DUES ONLY: which part of the family owes this (20260817000008).
+   *
+   *   national   everybody who would otherwise owe it. The default, and what every
+   *              schedule meant before the column existed.
+   *   regional   only members whose CHAPTER'S REGION is `region_id`.
+   *   chapter    only members in `chapter_id`.
+   *
+   * NATIONAL IS THE ABSENCE OF A REGION rather than a row, so it exists on every plan and
+   * needs no seeding — and a member with no chapter is under it, which means a regional or
+   * chapter due does not apply to them at all. A member's region is DERIVED through
+   * `people.chapter_id -> chapters.region_id`; there is no `people.region_id` and none may
+   * be added.
+   *
+   * Always 'national' for a donation, held by a CHECK: nobody owes a gift, so there is no
+   * part of the family that owes it. A drive concerning one chapter is a visibility
+   * question and belongs on `donation_beneficiaries`.
+   */
+  scope: DuesScope
+  /** Set exactly when `scope` is 'regional'. Held by a CHECK. */
+  region_id: string | null
+  /** Set exactly when `scope` is 'chapter'. Held by a CHECK. */
+  chapter_id: string | null
   /**
    * TRUE: every member owes this and cannot decline it.
    * FALSE: optional — a member may opt out (see DuesSummary.optedOut).
@@ -364,6 +391,9 @@ function mapSchedule(
     required?: boolean | null
     start_age?: number | null
     bloodline_only?: boolean | null
+    scope?: string | null
+    region_id?: string | null
+    chapter_id?: string | null
     donation_beneficiaries?: { person_id: string }[] | null
   },
 ): DuesSchedule {
@@ -391,6 +421,13 @@ function mapSchedule(
     // False for a donation and for a database that has not run 20260817000002 — both of
     // which mean "everybody who owes it, owes it", the behaviour before the column.
     bloodline_only: kind === 'donation' ? false : Boolean(s.bloodline_only),
+    // 'national' for a donation and for a database that has not run 20260817000008 — both
+    // of which mean "the whole family", the behaviour before the column. `duesScope`
+    // normalizes anything unrecognized to the same answer; see its header for why failing
+    // toward billing MORE people is right here and wrong for the bloodline.
+    scope: kind === 'donation' ? 'national' : duesScope(s),
+    region_id: kind === 'donation' ? null : (s.region_id ?? null),
+    chapter_id: kind === 'donation' ? null : (s.chapter_id ?? null),
   }
 }
 
@@ -408,11 +445,59 @@ function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined
     // database, so a stale form cannot post a donation nobody may decline — or one that
     // starts at an age nobody owes it from — and get a constraint violation instead of a
     // sensible row.
+    //
+    // `scope` joins them for the same reason and one of its own: nobody owes a gift, so
+    // there is no part of the family that owes it, and a scoped drive would be a control
+    // that changes nothing. Both target ids are nulled with it, because the invariant from
+    // 20260817000008 refuses 'national' carrying either.
     ? {
         amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null,
         required: false, start_age: null, bloodline_only: false,
+        scope: 'national' as DuesScope, region_id: null, chapter_id: null,
       }
     : { goal_cents: null }
+}
+
+/**
+ * `scope`, `region_id` and `chapter_id` as they are safe to write — and never one without
+ * the other two.
+ *
+ * ── WHY THE THREE MOVE TOGETHER ─────────────────────────────────────────────────────
+ * The CHECK from 20260817000008 is over all three at once: national means both ids NULL,
+ * regional means a region and no chapter, chapter means a chapter and no region. So a write
+ * that sets `scope` and leaves an id behind is refused by the database with a constraint
+ * violation — which is the right outcome and a terrible message. Returning the whole triple
+ * from one place is what stops any call site being able to send half of it.
+ *
+ * ── AN UNRECOGNIZED OR UNTARGETED SCOPE IS NATIONAL ────────────────────────────────
+ * Both write actions are `'use server'` exports with URLs of their own, so the form is not
+ * in their request path and `scope: 'chapter'` with no `chapter_id` can arrive — from a
+ * stale client, or from a request somebody wrote by hand. The honest reading of "chapter,
+ * but which chapter is not stated" is that no part of the family was named, and the only
+ * schedule that names no part of the family is a national one.
+ *
+ * FAILING TO NATIONAL BILLS MORE PEOPLE, NOT FEWER, and that is deliberate here — see
+ * `duesScope`. It restores what the schedule meant before anybody typed a scope into it,
+ * and it is visible: the row says National on the Accounting list and on every projection.
+ * Failing the other way would silently un-bill a chapter.
+ *
+ * IT DOES NOT CHECK THE FAMILY. That is §4 and it is the caller's job, because the answer
+ * needs a database round trip — `belongsToFamily`, at both call sites, before the id is
+ * written onto a row whose own `family_code` satisfies every policy.
+ */
+function normalizeScope(input: {
+  scope?: string | null
+  region_id?: string | null
+  chapter_id?: string | null
+}): { scope: DuesScope; region_id: string | null; chapter_id: string | null } {
+  const scope = duesScope({ amount_cents: 0, frequency: 'annual', ...input })
+  if (scope === 'regional' && input.region_id) {
+    return { scope, region_id: input.region_id, chapter_id: null }
+  }
+  if (scope === 'chapter' && input.chapter_id) {
+    return { scope, region_id: null, chapter_id: input.chapter_id }
+  }
+  return { scope: 'national', region_id: null, chapter_id: null }
 }
 
 /**
@@ -812,14 +897,32 @@ export async function createDuesSchedule(
   const { beneficiary_person_ids, ...columns } = input
   const beneficiaryIds = kind === 'donation' ? (beneficiary_person_ids ?? []) : []
 
+  // ── §4: THE SCOPE'S TARGET IS AN ID FROM THE CLIENT ─────────────────────────────
+  // This insert runs on the USER client, so RLS is underneath it — and RLS checks the ROW,
+  // never the ids the row references. The row carries the caller's own family_code and so
+  // satisfies every policy on `dues_schedules` while `region_id` points into another
+  // family, which is the exact shape §4 is about. Until 20260817000008 this action had no
+  // foreign id to supply, which is why cases.mjs listed it as having no cross-family case
+  // to construct; it has two now, and one case each.
+  const scoped = normalizeScope(input)
+  if (kind === 'dues' && scoped.region_id
+      && !(await belongsToFamily('regions', scoped.region_id, familyCode ?? ''))) {
+    return { success: false, message: 'Region not found' }
+  }
+  if (kind === 'dues' && scoped.chapter_id
+      && !(await belongsToFamily('chapters', scoped.chapter_id, familyCode ?? ''))) {
+    return { success: false, message: 'Chapter not found' }
+  }
+
   const { data, error } = await supabase
     .from('dues_schedules')
     .insert({
       ...columns,
       kind,
-      // Before kindInvariants, which pins both to a donation's values and must win.
+      // Before kindInvariants, which pins all of these to a donation's values and must win.
       start_age: normalizeStartAge(input.start_age),
       bloodline_only: Boolean(input.bloodline_only),
+      ...scoped,
       ...kindInvariants(kind, input.goal_cents),
       family_code: familyCode,
       active: true,
@@ -871,7 +974,7 @@ export async function updateDuesSchedule(
   // reachable on its own.
   const { data: existing } = await admin
     .from('dues_schedules')
-    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_only')
+    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_only, scope, region_id, chapter_id')
     .eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: 'Schedule not found' }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
@@ -922,17 +1025,33 @@ export async function updateDuesSchedule(
   // moving it restates what every member owed for the periods already posted against —
   // lowering it from 21 to 18 makes three years of nineteen-year-olds retrospectively in
   // arrears on a due nobody billed them for. Same argument as the amount.
+  // The scope's three columns are read as ONE fact: `normalizeScope` cannot be applied to a
+  // patch that does not mention it, so `undefined` means "not sent" here as everywhere else,
+  // and the triple is only re-derived when the caller actually sent a scope.
+  const scoped = input.scope === undefined ? null : normalizeScope(input)
+  const movingScope = scoped !== null && (
+    scoped.scope !== (existing.scope ?? 'national')
+    || (scoped.region_id ?? null) !== (existing.region_id ?? null)
+    || (scoped.chapter_id ?? null) !== (existing.chapter_id ?? null)
+  )
+
   const movingTerms = movingStart
     || moved(input.amount_cents, existing.amount_cents)
     || moved(input.frequency, existing.frequency)
     || moved(input.start_age, existing.start_age)
     || moved(input.bloodline_only, existing.bloodline_only)
+    // WHO OWES IT AT ALL is the strongest member of this set. Moving a due from National to
+    // one chapter does not restate what a member owed for a period already billed — it
+    // restates WHETHER THEY OWED IT, so last March's payment by a member of another chapter
+    // becomes a payment against a due that was never theirs. 20260817000008 puts it in the
+    // trigger's frozen set as well, which is the layer that decides.
+    || movingScope
   if (movingTerms) {
     const usage = (await loadScheduleUsage(admin, familyCode))[id]
     if (kind === 'dues' && usage?.used) {
       return {
         success: false,
-        message: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age and bloodline setting can no longer change. You can still change the end date.',
+        message: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age, bloodline setting and who owes it can no longer change. You can still change the end date.',
       }
     }
     if (kind === 'donation' && usage?.funded && movingStart) {
@@ -943,16 +1062,44 @@ export async function updateDuesSchedule(
     }
   }
 
+  // §4 again, and this one is sharper than the create: this statement runs on the ADMIN
+  // client, so there is no policy underneath it at all — the two `family_code` conjuncts and
+  // these two checks are the whole of the defence.
+  if (kind === 'dues' && scoped?.region_id
+      && !(await belongsToFamily('regions', scoped.region_id, familyCode ?? ''))) {
+    return { success: false, message: 'Region not found' }
+  }
+  if (kind === 'dues' && scoped?.chapter_id
+      && !(await belongsToFamily('chapters', scoped.chapter_id, familyCode ?? ''))) {
+    return { success: false, message: 'Chapter not found' }
+  }
+
   // Same reason as on create: a join table cannot ride along in the column spread.
   // `undefined` means "not sent" and leaves the set alone; an explicit [] clears it,
   // which is how a drive stops being hidden from anyone.
+  //
   const { beneficiary_person_ids, ...columns } = input
+  // AND THE THREE SCOPE COLUMNS COME OUT TOO, for a different reason: they are ONE fact and
+  // `normalizeScope` owns it, so a raw `region_id` in the patch must never reach the row on
+  // its own — an id with no `scope` beside it is a row the CHECK from 20260817000008
+  // refuses, and one with a stale scope is a bill sent to the wrong half of the family.
+  //
+  // `delete` rather than three more names in the destructure above: every one of them would
+  // be an unused binding, which is a lint warning, and `void scope` to silence it reads as
+  // if the value mattered.
+  delete columns.scope
+  delete columns.region_id
+  delete columns.chapter_id
 
   const { error } = await admin
     .from('dues_schedules')
     .update({
       ...columns,
       kind,
+      // Only when the caller actually sent a scope — `null` means the patch did not mention
+      // it, and writing the triple anyway would reset a chapter due to National on any edit
+      // that omitted the field.
+      ...(scoped ?? {}),
       // Only when it was SENT. `undefined` means "not in this patch" everywhere else in
       // this action, and normalizing an absent key would write null over a rule the form
       // never showed — which is how a partial update silently clears a column.
@@ -1053,12 +1200,18 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
     // `getMyPersonId` has already resolved the ACTIVE family's row, so this is scoped by
     // id rather than by user_id: a member of two families has a row in each, and reading
     // by user_id alone would match two and fail.
-    supabase.from('people').select('date_of_birth').eq('id', myPerson.id).maybeSingle(),
+    //
+    // `chapter_id` rides along for the SCOPE rule (20260817000008): which part of the
+    // family a due is addressed to is decided against this one column, and null means the
+    // member is under National — see `duesScopeMatch`.
+    supabase.from('people').select('date_of_birth, chapter_id').eq('id', myPerson.id).maybeSingle(),
   ])
 
   // Null when not recorded, which `ageShareOfPeriod` reads as FULLY LIABLE on purpose —
   // see its header, and `computeIsMinor`, which makes the same call for the same reason.
-  const myDateOfBirth = (meResult.data as { date_of_birth: string | null } | null)?.date_of_birth ?? null
+  const me = meResult.data as { date_of_birth: string | null; chapter_id: string | null } | null
+  const myDateOfBirth = me?.date_of_birth ?? null
+  const myChapterId = me?.chapter_id ?? null
 
   // Dues only. A donation is optional, so it must never reach a remaining balance, a
   // next-installment date or the dashboard's "you owe" card — every one of which is
@@ -1104,14 +1257,38 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   // line it descends from, so nobody owes it — and the place that failure is reported is
   // the Accounting form, which refuses the flag without an anchor, and Dues Projections,
   // which names it on the schedule's row.
+  const admin = createAdminClient()
   const bloodline = await familyBloodline(
-    createAdminClient(), familyCode ?? '', schedules.some(s => s.bloodline_only),
+    admin, familyCode ?? '', schedules.some(s => s.bloodline_only),
+  )
+
+  // ── DUES THIS PART OF THE FAMILY OWES ────────────────────────────────────────────
+  // Resolved only when some active schedule is scoped REGIONALLY — a chapter-scoped due
+  // needs no map. See `familyChapterRegions`.
+  //
+  // A SCHEDULE ADDRESSED SOMEWHERE ELSE IS DROPPED, not returned with a zero, exactly as a
+  // bloodline-only due is for somebody who married in — and the reasoning carries over
+  // whole: the Dues screen lists what YOU owe, and the Texas chapter's hall is not a debt a
+  // Georgia member is failing to pay. It differs from the age rule for the same reason that
+  // one keeps its row: an age-limited due is coming, and this one is not addressed to them
+  // at all.
+  //
+  // A MEMBER IN NO CHAPTER SEES NATIONAL DUES ONLY, which is the state every family starts
+  // in and every member starts in. Dues Projections is where a treasurer sees that a scoped
+  // due is billing nobody; nothing here can say it, because from one member's screen there
+  // is nothing to say.
+  const chapterRegions = await familyChapterRegions(
+    admin, familyCode ?? '', schedules.some(s => s.scope === 'regional'),
   )
 
   return schedules.filter(schedule => duesEligibility({
     bloodlineOnly: schedule.bloodline_only,
     bloodline,
     personId: myPerson.id,
+  }) === 'owed' && duesScopeMatch({
+    schedule,
+    memberChapterId: myChapterId,
+    chapterRegions,
   }) === 'owed').map(schedule => {
     const explicit = planBySchedule.get(schedule.id)
     const cadence = explicit ?? defaultCadence(schedule.frequency)
@@ -1627,6 +1804,82 @@ async function familyBloodline(
 }
 
 /**
+ * `chapters` as chapter id -> region id, which is what a member's REGION is derived from.
+ *
+ * ── SKIPPED ENTIRELY WHEN NOTHING NEEDS IT ──────────────────────────────────────────
+ * `needed` is false unless some active schedule is scoped REGIONALLY. A chapter-scoped due
+ * needs no map at all — `people.chapter_id` and the schedule's `chapter_id` are the whole
+ * comparison — and a national one needs nothing. The same shape, and the same reason, as
+ * `familyBloodline`: /dues is a screen every member opens, so a read it does not need must
+ * not happen. For a family with no regions, which is every family today, this costs one
+ * boolean.
+ *
+ * ── THE ADMIN CLIENT, AND WHY IT HAS TO BE ─────────────────────────────────────────
+ * The composed SELECT policy on `chapters` demands `admin/chapters:view = 'any'`, an
+ * administrator-only key, so through the user's client an ordinary member reads NO chapters
+ * — and would then stop owing every regional due in the family. That is the same trap
+ * `familyBloodline` documents about `getFamilyTree`: a half-visible read produces a
+ * half-billed member. `.eq('family_code', …)` from the caller's own membership (§3).
+ *
+ * ── A FAILED READ UNDER-BILLS, DELIBERATELY ────────────────────────────────────────
+ * An empty map makes every regional due read as out-of-scope for everybody, which bills
+ * nobody. Same direction `duesEligibility` takes for an unknown bloodline and for the same
+ * reason: over-billing quietly charges people the family deliberately excluded, while
+ * under-billing is visible — Dues Projections reports the schedule as billing nobody, which
+ * is `scopeEmpty` on its row.
+ */
+async function familyChapterRegions(
+  admin: ReturnType<typeof createAdminClient>,
+  familyCode: string,
+  needed: boolean,
+): Promise<ReadonlyMap<string, string | null>> {
+  const empty = new Map<string, string | null>()
+  if (!needed || !familyCode) return empty
+
+  const { data, error } = await admin
+    .from('chapters').select('id, region_id').eq('family_code', familyCode)
+  if (error) {
+    console.error(`[dues] could not resolve chapter regions for ${familyCode}: ${error.message}`)
+    return empty
+  }
+  return new Map((data ?? []).map(c => [c.id as string, (c.region_id as string | null) ?? null]))
+}
+
+/**
+ * What the regions and chapters a schedule is scoped to are CALLED — id -> name.
+ *
+ * A label, and nothing decides anything from it. Read only when some schedule is actually
+ * scoped, and family-scoped by hand because the service role applies no RLS (§3). Both
+ * tables in one map: uuids from two tables cannot collide, and the caller already knows
+ * which kind it is asking about from the schedule's `scope`.
+ *
+ * A REFUSED READ LOSES A CAPTION AND NOTHING ELSE, which is why this one does not fail
+ * toward anything — the figures beside it are computed from `familyChapterRegions`, and the
+ * screen falls back to the bare words "region" and "chapter" rather than printing a uuid.
+ */
+async function familyPlaceNames(
+  admin: ReturnType<typeof createAdminClient>,
+  familyCode: string,
+  needed: boolean,
+): Promise<Record<string, string>> {
+  if (!needed || !familyCode) return {}
+  const [regionsRes, chaptersRes] = await Promise.all([
+    admin.from('regions').select('id, name').eq('family_code', familyCode),
+    admin.from('chapters').select('id, name').eq('family_code', familyCode),
+  ])
+  if (regionsRes.error || chaptersRes.error) {
+    console.error('[dues] could not read region/chapter names for ' + familyCode + ': '
+      + (regionsRes.error?.message ?? chaptersRes.error?.message))
+    return {}
+  }
+  const out: Record<string, string> = {}
+  for (const r of [...(regionsRes.data ?? []), ...(chaptersRes.data ?? [])]) {
+    out[r.id as string] = r.name as string
+  }
+  return out
+}
+
+/**
  * A member as the projection screen names them. Same shape `SelectablePerson` uses, so
  * `disambiguatedName` works on it unchanged — two Martha Allens matter more on this screen
  * than on most, because chasing the wrong one for $120 is the mistake it would cause.
@@ -1643,6 +1896,18 @@ export interface DuesProjectionResult {
   projection: DuesProjection
   /** The roster the member rows are joined to by id. */
   people: ProjectionPerson[]
+  /**
+   * Region and chapter NAMES, keyed by id, for the schedules that are scoped to one.
+   *
+   * One map rather than two: the ids are uuids from two tables that cannot collide, and the
+   * screen's question is "what is this place called" without caring which kind it is — the
+   * row already knows that from `scope`.
+   *
+   * EMPTY WHEN NOTHING IS SCOPED, so a family that has never used regions or chapters pays
+   * nothing for the feature (§5: not fetching is what keeps it off the wire). A missing name
+   * renders as the plain word "region" or "chapter"; a raw uuid is never shown to a reader.
+   */
+  placeNames: Record<string, string>
 }
 
 /**
@@ -1694,14 +1959,18 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
 
   const [schedulesRes, peopleRes, paymentsRes, plansRes] = await Promise.all([
     admin.from('dues_schedules')
-      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_only, required, kind')
+      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_only, scope, region_id, chapter_id, required, kind')
       .eq('family_code', familyCode).eq('active', true).order('label'),
     // ACCOUNTS ONLY, and `membership_status` as well. §4b draws the first line — "a record
     // cannot pay or be paid" — and an applicant has not joined, so neither belongs in a
     // figure the treasurer is going to present. `user_id` is selected so the records can be
     // counted and reported rather than silently dropped.
+    // `chapter_id` rides along for the SCOPE rule, and it is selected unconditionally
+    // rather than only when a scoped schedule exists: this query is the roster and cannot
+    // be re-run cheaply, so deciding per request whether to include one column would buy
+    // nothing and could get it wrong. Null means the member is under National.
     admin.from('people')
-      .select('id, first_name, last_name, nick_name, date_of_birth, user_id')
+      .select('id, first_name, last_name, nick_name, date_of_birth, chapter_id, user_id')
       .eq('family_code', familyCode).eq('membership_status', 'approved')
       .order('last_name').order('first_name'),
     admin.from('dues_payments')
@@ -1723,7 +1992,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     return null
   }
 
-  type PersonRow = ProjectionPerson & { user_id: string | null }
+  type PersonRow = ProjectionPerson & { chapter_id: string | null; user_id: string | null }
   const roster = (peopleRes.data ?? []) as PersonRow[]
   const accounts = roster.filter(p => p.user_id)
 
@@ -1744,17 +2013,32 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
       due_day: s.due_day as number | null,
       start_age: s.start_age as number | null,
       bloodline_only: Boolean(s.bloodline_only),
+      // `duesScope` takes a DuesScheduleLike and normalizes anything it does not recognize
+      // to 'national' — which is what a database that has not run 20260817000008 answers.
+      // The row from the untyped client satisfies that shape by having the columns; the
+      // cast names it once rather than repeating `as string | null` per field.
+      scope: duesScope(s as DuesScheduleLike),
+      region_id: (s.region_id as string | null) ?? null,
+      chapter_id: (s.chapter_id as string | null) ?? null,
     }))
 
   // Only when a schedule actually restricts to the bloodline — see `familyBloodline`.
   const bloodline = await familyBloodline(
     admin, familyCode, schedules.some(s => s.bloodline_only),
   )
+  // And only when one is scoped REGIONALLY — see `familyChapterRegions`. A chapter-scoped
+  // due is answered by `people.chapter_id` alone.
+  const chapterRegions = await familyChapterRegions(
+    admin, familyCode, schedules.some(s => s.scope === 'regional'),
+  )
 
   const projection = projectDues({
     schedules,
     bloodline,
-    members: accounts.map(p => ({ personId: p.id, dateOfBirth: p.date_of_birth })),
+    chapterRegions,
+    members: accounts.map(p => ({
+      personId: p.id, dateOfBirth: p.date_of_birth, chapterId: p.chapter_id,
+    })),
     payments: (paymentsRes.data ?? []).map(r => ({
       personId: r.person_id as string,
       scheduleId: r.schedule_id as string,
@@ -1770,8 +2054,9 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     recordsExcluded: roster.length - accounts.length,
   })
 
-  // `user_id` is dropped rather than passed through: it identifies an auth account and this
-  // screen has no use for it. Only the four columns the name helper reads cross the wire.
+  // `user_id` AND `chapter_id` are dropped rather than passed through: the first identifies
+  // an auth account and the second has already done its work inside `projectDues`. Only the
+  // four columns the name helper reads cross the wire (§5).
   return {
     projection,
     people: accounts.map(p => ({
@@ -1781,6 +2066,59 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
       nick_name: p.nick_name,
       date_of_birth: p.date_of_birth,
     })),
+    placeNames: await familyPlaceNames(
+      admin, familyCode, schedules.some(s => s.scope !== 'national'),
+    ),
+  }
+}
+
+/**
+ * The regions and chapters a dues schedule can be scoped to.
+ *
+ * ── WHY IT IS NOT `getRegions()` AND `getChapters()` ───────────────────────────────
+ * Those two are gated on `admin/chapters`, which is the grant to EDIT the family's
+ * structure. This list is a field on the dues form, and the person who maintains what
+ * members owe is not necessarily the person who draws the map — so it is gated on the
+ * section that renders it, `admin/account/dues:view`, and on nothing else. Names of regions
+ * and chapters are family structure rather than PII, and a treasurer setting up a regional
+ * due has to be able to see which regions exist.
+ *
+ * ── IT OFFERS ONLY WHAT EXISTS ─────────────────────────────────────────────────────
+ * Empty arrays for a family with no regions and no chapters — which is every Free family,
+ * since `/admin/chapters` is `tier: 'plus'` — and the form then offers National alone
+ * rather than a disabled tease for something they cannot create from that screen. National
+ * is not in either list because it is not a row: it is the absence of a region, and the
+ * form's own default.
+ */
+export async function getDuesScopeOptions(): Promise<{
+  regions: { id: string; name: string }[]
+  chapters: { id: string; name: string; region_id: string | null }[]
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { regions: [], chapters: [] }
+  if (!(await can(user.id, 'admin/account/dues', 'view'))) return { regions: [], chapters: [] }
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { regions: [], chapters: [] }
+  // The admin client, for the reason `familyChapterRegions` gives: the policy on both
+  // tables demands `admin/chapters:view = 'any'`, so a treasurer without that key would see
+  // an empty picker and no explanation. Family-scoped by hand (§3).
+  const admin = createAdminClient()
+  const [regionsRes, chaptersRes] = await Promise.all([
+    admin.from('regions').select('id, name').eq('family_code', familyCode).order('name'),
+    admin.from('chapters').select('id, name, region_id').eq('family_code', familyCode).order('name'),
+  ])
+  // §8: an empty picker and a refused query are the same shape and very different facts —
+  // the first is a family with no chapters, the second is a treasurer told they have none.
+  if (regionsRes.error || chaptersRes.error) {
+    console.error('[dues] could not read scope options for ' + familyCode + ': '
+      + (regionsRes.error?.message ?? chaptersRes.error?.message))
+    return { regions: [], chapters: [] }
+  }
+  return {
+    regions: (regionsRes.data ?? []) as { id: string; name: string }[],
+    chapters: (chaptersRes.data ?? []) as { id: string; name: string; region_id: string | null }[],
   }
 }
 

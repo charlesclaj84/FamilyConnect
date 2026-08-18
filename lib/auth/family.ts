@@ -37,6 +37,56 @@ export type MembershipStatus = 'pending' | 'approved' | 'rejected' | 'disabled'
 export const isApproved = (status: MembershipStatus | null | undefined): boolean =>
   status === 'approved'
 
+/**
+ * Where the FAMILY stands, as opposed to where the membership does. Mirrors
+ * families.status and its CHECK constraint (20260817000006).
+ *
+ * A removed family is DISABLED, never deleted: no row is destroyed anywhere, and the only
+ * route back is `staff_set_family_status()` from the GENORRA staff console. The member
+ * product deliberately has no restore — a family that can un-remove itself has not been
+ * removed.
+ *
+ * `isActiveFamily` tests POSITIVELY, for the reason `isApproved` above does and that
+ * migration's header states at length: never `!== 'removed'`, never `removed_at IS NULL`.
+ * That discipline is what let 'disabled' join `membership_status` without a sweep, and it
+ * is what will make a third family status denied everywhere on arrival rather than
+ * admitted by whichever gate was written first.
+ */
+export type FamilyStatus = 'active' | 'removed'
+
+export const isActiveFamily = (status: FamilyStatus | null | undefined): boolean =>
+  status === 'active'
+
+/**
+ * What the rail may offer somebody whose family has been removed.
+ *
+ * ── IT IS NAVIGATION, NOT A GATE, AND THE DIFFERENCE MATTERS ────────────────────────
+ * `app/(protected)/layout.tsx` narrows `viewableResources()` to this list when the family
+ * being viewed is not active. That stops the shell advertising twenty destinations into a
+ * family that has been switched off; it does NOT stop somebody typing one of those
+ * addresses, because every page still gates on `requireView`, which knows nothing about
+ * `families.status`. AGENTS.md §5 is emphatic that hiding a control is not protecting the
+ * data behind it, and this does not pretend otherwise — the honest statement of what has
+ * happened is the notice screen on the dashboard.
+ *
+ * That is a deliberate boundary rather than an oversight: removal withholds a FAMILY's
+ * doors, not its members' access to their own records, exactly as a tier downgrade
+ * withholds screens and never rows. Nothing is deleted, and a restore has to put every
+ * member back exactly where they were.
+ *
+ * ── WHY IT IS NOT `PENDING_RESOURCES` ───────────────────────────────────────────────
+ * It is the same four keys today and it answers a different question, so it is a different
+ * constant. It also cannot be that one: `PENDING_RESOURCES` lives in
+ * `lib/auth/permissions.ts`, which imports from THIS file, and importing it back would be
+ * a cycle. If the two lists ever diverge, this is where the removal half is decided.
+ */
+export const REMOVED_FAMILY_RESOURCES: readonly string[] = [
+  'dashboard',
+  'personal-info',
+  'my-families',
+  'help',
+]
+
 export interface FamilyMembership {
   familyCode: string
   familyName: string
@@ -53,6 +103,16 @@ export interface FamilyMembership {
    * the same column, so the database denies every resource regardless.
    */
   status: MembershipStatus
+  /**
+   * Whether the FAMILY itself is still available (20260817000006).
+   *
+   * A second, independent axis from `status` above, and both are needed: an approved
+   * member of a removed family and a pending member of an active one are different
+   * situations with different screens, and neither column can stand in for the other.
+   *
+   * 'active' when nothing could answer — see `loadFamilyStatuses`.
+   */
+  familyStatus: FamilyStatus
 }
 
 interface PersonRow {
@@ -109,9 +169,18 @@ export const getMyFamilies = cache(async (userId: string): Promise<FamilyMembers
   // until 20260617000000 is applied, and a family may have no display row. Either
   // way we fall back to the oldest membership / the raw code, so the app keeps
   // working before the migration is applied.
-  const [settings, names] = await Promise.all([
+  //
+  // THE STATUSES ARE A SEPARATE QUERY, AND THAT IS THE POINT OF IT. Adding `status` to
+  // `loadFamilyNames`'s select would be one round trip fewer and would reintroduce Phase
+  // 3's incident in miniature: PostgREST answers 42703 for a column that is not there and
+  // kills the WHOLE query, so a database behind on 20260817000006 would lose every
+  // family's NAME along with its status — every family in the switcher reduced to its raw
+  // code, silently, because that function discards its error. Two queries fail
+  // independently, which is what makes the fallback below survivable.
+  const [settings, names, statuses] = await Promise.all([
     loadSettings(userId),
     loadFamilyNames(codes),
+    loadFamilyStatuses(codes),
   ])
 
   const activeCode = resolveActiveCode(people, settings)
@@ -130,6 +199,7 @@ export const getMyFamilies = cache(async (userId: string): Promise<FamilyMembers
       // that field, which is what the error branch above exists to report. An earlier
       // version of this comment claimed otherwise and was wrong.
       status: (p.membership_status ?? 'approved') as MembershipStatus,
+      familyStatus: statuses.get(p.family_code) ?? 'active',
     }))
     .sort((a, b) => a.familyName.localeCompare(b.familyName))
 })
@@ -167,6 +237,72 @@ async function loadFamilyNames(codes: string[]): Promise<Map<string, string>> {
   } catch {
     return new Map()
   }
+}
+
+/**
+ * Which of these families are still available, keyed by code.
+ *
+ * ── AN ABSENT ANSWER MEANS 'active', AND THAT IS CORRECT RATHER THAN CONVENIENT ─────
+ * Three things land in that branch and all three genuinely describe an active family:
+ * a code with no `families` row (a family predating that table, which `familyName`
+ * already falls back for), a query PostgREST refused, and a database that has not had
+ * 20260817000006 applied.
+ *
+ * The last is the one worth stating. A database without the column has never removed a
+ * family — there was nothing to remove one with — so 'active' is the true answer there,
+ * not a lenient one. And the alternative fails catastrophically in the other direction:
+ * defaulting to 'removed' would put every member of every family in the estate in front
+ * of the notice screen the moment a migration lagged a deploy.
+ *
+ * The error is READ rather than discarded (AGENTS.md §8) because a whole estate quietly
+ * reading as active looks exactly like a whole estate that has never removed anything.
+ *
+ * NARROWED, NOT CAST. `families_status_check` already confines the column to two values,
+ * so an unrecognised one can only come from a database whose constraint has moved without
+ * this file hearing about it — and the safe direction there is the one every other gate
+ * in this codebase takes: treat what you do not recognise as the state you cannot act on.
+ * A third status therefore reads as NOT active, which is what AGENTS.md §6b asks for.
+ */
+async function loadFamilyStatuses(codes: string[]): Promise<Map<string, FamilyStatus>> {
+  if (codes.length === 0) return new Map()
+
+  const { data, error } = await createAdminClient()
+    .from('families')
+    .select('family_code, status')
+    .in('family_code', codes)
+
+  if (error) {
+    console.error(
+      `[auth] could not read families.status for ${codes.join(', ')}: ${error.message}. ` +
+      'Every family will be treated as available until this is fixed. If this is ' +
+      '"column ... does not exist", the app is running against a database that is behind ' +
+      'supabase/migrations — 20260817000006 adds it.',
+    )
+    return new Map()
+  }
+
+  const rows = (data ?? []) as { family_code: string; status: string | null }[]
+  return new Map(rows.map(f => [f.family_code, f.status === 'active' ? 'active' : 'removed']))
+}
+
+/**
+ * One family's status, by code, for callers that have no membership list in hand.
+ *
+ * `registerUser` is the reason it exists: the family-code path there runs with NO SESSION
+ * at all, so there is nothing to resolve memberships from and `getMyFamilies` cannot
+ * answer. It is the same shape as `getFamilyTier` beside it — admin client, hand-applied
+ * scoping to the one code, error read and logged, and a fallback that keeps the product
+ * working against a database that is behind.
+ *
+ * IT DOES NOT CHECK WHOSE FAMILY THIS IS, and cannot: it is handed a string. Callers that
+ * take a code from a client owe the same thing they always owe one — proof that the caller
+ * is entitled to it, or (as in registration) a flow where the code is a public join key
+ * and the answer discloses nothing a stranger could not already get.
+ */
+export async function getFamilyStatus(familyCode: string): Promise<FamilyStatus> {
+  if (!familyCode) return 'active'
+  const statuses = await loadFamilyStatuses([familyCode])
+  return statuses.get(familyCode) ?? 'active'
 }
 
 /** active → default → oldest, considering only real memberships. */
