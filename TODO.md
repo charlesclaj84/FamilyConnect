@@ -590,6 +590,31 @@ those four were swept in that pass and are already scoped and re-keyed. What has
 reviewed is the page and its client component — `AdminUserRolesClient` — against §1, §5 and the
 table rules. Do that, then flip.
 
+## `family_roles.name` is UNIQUE globally, so one family can take a name from everybody
+
+**Action:** replace `family_roles_name_key` with `UNIQUE (name, family_code)` plus a partial
+unique index for the global rows (`UNIQUE (name) WHERE family_code IS NULL`), in a migration.
+Do it before `/admin/boardpositions` goes live, because that page is what lets a family create
+the colliding row in the first place.
+
+`family_roles` is a hybrid table: 25 global board positions with `family_code IS NULL,
+is_global = true`, and per-family custom roles alongside them. The constraint is `UNIQUE (name)`
+**alone**, which is wrong for that shape in two directions at once. Two families cannot both
+call a role "Reunion Treasurer", and — the sharper one — a single family creating a role named
+`'President'` takes that name from the global list, so no OTHER family is ever offered it.
+
+Nothing is broken today: hosted's `family_roles` was empty until `20260817000003` seeded it, and
+`/admin/boardpositions` is still `'future'`, so there is no UI that can create a family-scoped
+row. That is why this is an entry and not an incident.
+
+**It has already cost one thing**, which is how it was found. `20260817000003`'s seeder tolerates
+the collision (`ON CONFLICT (name) DO NOTHING`, deliberately) while its own §4a assertion demanded
+all 25 rows be global — a self-contradiction that aborts the migration on any database where a
+family has renamed a role. Fixed 2026-08-18 by testing that each name is *accounted for* and
+`RAISE WARNING`-ing the collisions; the warning names this entry as the real repair.
+
+Recorded 2026-08-18.
+
 ## `permission_table_map` names a table that does not exist
 
 **Action:** drop the `adults` row in a migration, or say in the sweep's header that the skip

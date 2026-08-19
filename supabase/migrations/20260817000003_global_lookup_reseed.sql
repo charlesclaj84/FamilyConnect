@@ -198,9 +198,37 @@ SELECT public.seed_global_lookups();
 DO $mig$
 DECLARE
   v_missing text;
+  v_taken   text;
   v_count   bigint;
 BEGIN
-  -- 4a. Every board position this function claims to seed is present and global.
+  -- 4a. Every board position this function claims to seed is ACCOUNTED FOR.
+  --
+  -- ── THIS ASSERTION AND THE SEEDER USED TO CONTRADICT EACH OTHER ───────────
+  -- The insert above is `ON CONFLICT (name) DO NOTHING` and its comment says, in as
+  -- many words, that a family which has already created a custom role called
+  -- 'President' holds the only row that name can have and is left alone —
+  -- `family_roles_name_key` is UNIQUE on `name` ALONE, globally across every family.
+  --
+  -- This block then demanded all 25 exist with `family_code IS NULL AND is_global`.
+  -- Those two cannot both be true, and the migration ABORTS on any database where a
+  -- family ever named a custom role after a built-in position.
+  --
+  -- It passed every local run because no fixture family does that, and it is exactly
+  -- the class of failure AGENTS.md warns about: a verify block that is right about an
+  -- empty database and wrong about a real one. Reproduced deliberately before this fix
+  -- — insert a custom 'President', run the seeder, and the old assertion raises.
+  --
+  -- HOSTED RAN THE PRE-FIX VERSION OF THIS BLOCK, on 2026-08-18, and passed: its
+  -- `family_roles` was EMPTY (TODO.md's /admin/boardpositions entry records why), so the
+  -- 25 inserts hit no conflict and every one of them landed global. The correction below
+  -- therefore reaches fresh databases only, which is what editing an applied migration
+  -- ever does — AGENTS.md is explicit about it. It is worth making anyway: the next
+  -- `db reset` on a laptop whose family has renamed a role is the failure, and the
+  -- assertion was wrong on its own terms regardless of which databases noticed.
+  --
+  -- SO THE TEST IS NOW "ACCOUNTED FOR" RATHER THAN "GLOBAL": present as a global row,
+  -- OR the name is legitimately held by a family's custom role. A name in neither state
+  -- is genuinely missing and still aborts.
   SELECT string_agg(want.name, ', ' ORDER BY want.name) INTO v_missing
     FROM (VALUES
       ('President'), ('Vice President'), ('Secretary'), ('Treasurer'),
@@ -213,11 +241,39 @@ BEGIN
       ('Hospitality Chair'), ('Sponsorship Chair'), ('Volunteer Coordinator')
     ) AS want(name)
    WHERE NOT EXISTS (
-     SELECT 1 FROM public.family_roles fr
-      WHERE fr.name = want.name AND fr.family_code IS NULL AND fr.is_global = true
+     SELECT 1 FROM public.family_roles fr WHERE fr.name = want.name
    );
   IF v_missing IS NOT NULL THEN
-    RAISE EXCEPTION 'ROLLBACK: global board position(s) missing or not marked global: %', v_missing;
+    RAISE EXCEPTION 'ROLLBACK: board position(s) absent from family_roles entirely: %', v_missing;
+  END IF;
+
+  -- AND THE COLLISION IS REPORTED, never swallowed. A family holding a built-in name as
+  -- its own custom role means that position is missing from the GLOBAL list for every
+  -- other family — /admin/boardpositions will not offer it to them. That is a real
+  -- product oddity and the operator should hear about it; it is not, however, a reason to
+  -- refuse a migration whose job is to restore the other 24.
+  --
+  -- The fix is a schema change rather than a data one — `UNIQUE (name)` is wrong for a
+  -- hybrid table and should be `UNIQUE (name, family_code)` with a partial unique index
+  -- for the globals. TODO.md carries it; doing it here would be a second, unrelated
+  -- migration smuggled into this one.
+  SELECT string_agg(format('%s (held by %s)', fr.name, fr.family_code), ', ' ORDER BY fr.name)
+    INTO v_taken
+    FROM public.family_roles fr
+   WHERE fr.family_code IS NOT NULL
+     AND fr.name IN (
+       'President','Vice President','Secretary','Treasurer','Sergeant-at-Arms',
+       'Assistant Secretary','Assistant Treasurer','Immediate Past President',
+       'Parliamentarian','Chaplain','Historian','Public Relations Officer',
+       'Communications Officer','Membership Chair','Fundraising Chair','Events Chair',
+       'Community Service Chair','Youth Chair','Scholarship Chair','Technology Chair',
+       'Safety & Security Chair','Family Reunion Chair','Hospitality Chair',
+       'Sponsorship Chair','Volunteer Coordinator');
+  IF v_taken IS NOT NULL THEN
+    RAISE WARNING
+      'family_roles: built-in board position name(s) held by a family custom role, so the '
+      'GLOBAL row is absent and no other family is offered it: %. '
+      'Cause: family_roles_name_key is UNIQUE (name) alone. See TODO.md.', v_taken;
   END IF;
 
   -- 4b. And relationship_types, the table the first purge actually cost us.
