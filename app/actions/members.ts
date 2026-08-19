@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { computeIsMinor } from '@/lib/age-utils'
 import { formatRoleTitle } from '@/lib/role-utils'
+import { chapterPlaces } from '@/lib/chapter-places'
 
 export interface MemberRecord {
   id: string
@@ -83,114 +84,21 @@ interface RoleRow {
   family_roles: { name: string } | null
 }
 
-/** One chapter, as the two member tables name it. `regionName` null = National. */
-interface ChapterPlace {
-  chapterName: string
-  regionName: string | null
-}
-
-interface ChapterRow {
-  id: string
-  name: string
-  regions: { name: string } | null
-}
-
 /**
- * What each of these chapters is called, and which region it sits in — id -> both names.
+ * `chapterPlaces` LIVES IN lib/chapter-places.ts, and for one day it lived in BOTH this file
+ * and the other member table's, verbatim.
  *
- * ── REGION IS WALKED, NEVER STORED, AND THERE IS NO `people.region_id` ──────────────
- * `people.chapter_id -> chapters.region_id -> regions.name`, resolved at read time, every
- * time. 20260817000008's header states the rule and the reason a stored copy is worse than
- * an extra query: a chapter moving between regions is an ordinary thing for a family with
- * regions to do — `setChapterRegion` exists precisely for it — and a denormalized
- * `people.region_id` would then be wrong for every member of that chapter, silently, until
- * somebody noticed a regional due billing the wrong half of the family. Do not add the
- * column. It is the same argument `lib/age-utils.ts` makes about a stored `is_minor`, one
- * table over.
+ * Neither could share it: both are `'use server'` modules, everything exported from one of
+ * those gets a public URL, and a chapter-and-region lookup taking a `familyCode` and a list of
+ * ids as parameters is the shape AGENTS.md §2b tells you not to publish. A plain module both
+ * import is the way out — the same answer `lib/notifications.ts` and
+ * `lib/announcement-audience.ts` are built on.
  *
- * ── THE ADMIN CLIENT, AND THAT IS A DECISION WITH TWO PRECEDENTS ────────────────────
- * The composed SELECT policies on `chapters` and `regions` both demand
- * `admin/chapters:view = 'any'` — `permission_table_map` gives each of them
- * `own_expr = 'false'`, and 20260618000001 composed the rest — so through the USER client an
- * ordinary member reads NO chapter and NO region. That is not hypothetical: it is what this
- * action did until today, with a bare `chapters(name)` embed, which is why the Directory's
- * Chapter column has been blank for every reader without the administrator grant and its
- * chapter filter has been offering an empty list. A column that is empty for almost every
- * reader is not a column — and a Region column built the same way would print "National"
- * over a member of the Eastern region, which is a wrong answer rather than a missing one.
- *
- * Two things in the tree already answer this exact question the same way, on the same two
- * tables, and both argue it out loud: `familyChapterRegions` in app/actions/dues.ts ("a
- * half-visible read produces a half-billed member") and `getDuesScopeOptions` in the same
- * file ("names of regions and chapters are family structure rather than PII, and a
- * treasurer setting up a regional due has to be able to see which regions exist"). What
- * `admin/chapters` protects is EDITING the family's shape, and every write in
- * app/actions/admin/chapters.ts still demands it.
- *
- * ── AND IT PUBLISHES NOTHING THE CALLER DID NOT ALREADY HAVE (AGENTS.md §5) ─────────
- * That is the test to apply before widening any projection — "moving a value into a dialog
- * is not a reason to start fetching it for somebody who could not see it before" — and a
- * NAME resolved from an id is the one case where it is answered by construction rather than
- * by judgement:
- *
- *   * `chapter_id` is already in this action's projection and already on `MemberRecord`, for
- *     every person in the family, for every caller. The id was never withheld.
- *   * Every approved member can already read every chapter name in the family, by name,
- *     through `getChapters()` — which is `requireMember()` and nothing else, because
- *     /personal-info cannot offer a member a chapter to belong to without the list.
- *
- * So a client holding this action's output could already have joined the two by hand. Doing
- * the join on the server changes who can know what by exactly nothing; it changes only
- * whether the screen has to.
- *
- * ── §3, TWICE OVER ─────────────────────────────────────────────────────────────────
- * The service role applies no RLS, so `.eq('family_code', …)` is here by hand — and it is
- * not only the rule, it is what makes a `chapter_id` pointing outside this family resolve to
- * NOTHING rather than naming another family's chapter on this family's screen. `.in('id',
- * …)` narrows to the rows already released to this caller; the family conjunct is what makes
- * that safe. Same shape `searchMembers` uses for permission-template names.
- *
- * Skipped entirely for a family with no chapters — which is most of them, `/admin/chapters`
- * being `tier: 'plus'` — so the two member tables cost no extra round trip to gain two
- * columns they will render as "—" and "National".
+ * IT MATTERS THAT THERE IS ONE COPY. Region and Chapter are two of the four columns AGENTS.md's
+ * "A table is a table" requires the Member Directory and Members & Access to agree on, so an
+ * answer that differed between them would be the exact drift that section exists to stop — and
+ * the two copies had already begun to, differing in the prefix they logged a refused read under.
  */
-async function chapterPlaces(
-  familyCode: string,
-  chapterIds: readonly string[],
-): Promise<ReadonlyMap<string, ChapterPlace>> {
-  const places = new Map<string, ChapterPlace>()
-  if (!familyCode || chapterIds.length === 0) return places
-
-  const { data, error } = await createAdminClient()
-    .from('chapters')
-    // THE CONSTRAINT IS NAMED, following `getChapters()` in app/actions/admin/chapters.ts,
-    // which measured this after 20260817000008 and recorded the answer: the bare embed still
-    // resolves, because PostgREST infers a many-to-many path only where the junction's two
-    // foreign-key columns ARE its primary key, and both tables pointing at `chapters` and
-    // `regions` together (`dues_schedules`, `user_roles`) have a surrogate `id`.
-    // `chapters.region_id` is the only direct path either way — re-checked against
-    // `pg_constraint` for this batch, and 20260819000000/…0001 added no third. Naming it
-    // costs nothing, and what it forecloses is PGRST201: AGENTS.md §8's failure, where the
-    // whole query dies and the screen renders "no region" over a family that has four.
-    .select('id, name, regions!chapters_region_id_fkey(name)')
-    .eq('family_code', familyCode)
-    .in('id', chapterIds)
-
-  // §8. `data` alone cannot tell a refused query from a family with no chapters, and those
-  // are very different facts to be printing in a Region column.
-  if (error) {
-    console.error(`[members] could not resolve chapter regions for ${familyCode}: ${error.message}`)
-    return places
-  }
-
-  for (const c of (data ?? []) as unknown as ChapterRow[]) {
-    places.set(c.id, {
-      chapterName: c.name,
-      regionName: c.regions?.name ?? null,
-    })
-  }
-  return places
-}
 
 export async function getMembers(): Promise<MemberRecord[]> {
   const supabase = await createClient()
