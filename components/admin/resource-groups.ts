@@ -94,9 +94,42 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     the composed policies read an 'own' grant as `… = 'own' AND false` — a denial. Every
  *     write in `app/actions/admin/chapters.ts` uses `requireScope`, which is canAny, for the
  *     same reason: a region belongs to the family and nobody owns one.
+ *
+ *     `gatherings/budget` is the sixth, and it is the `dues-projections` case again rather than
+ *     the `admin/family` one. It gates the money band on a gathering — what the family budgeted,
+ *     which fund it draws on, that fund's balance, and whether the two are in the red — which is
+ *     a family-wide roll-up with no own version of it. A member's own answer to "what am I
+ *     responsible for" is [My Gathering Tasks], on its own key. So `getGatheringDetail` resolves
+ *     it with canAny, `permission_table_map` gives it no row at all (it gates a SCREEN BAND, not a
+ *     table, and 20260819000000 asserts that absence), and an 'own' set here would read as a
+ *     denial at the server while lighting the cell up as a grant.
+ *
+ *     Note the sibling key `gatherings` is deliberately NOT here: a gathering has a `created_by`,
+ *     that column is its `own_expr` in `permission_table_map`, and the composed SELECT policy
+ *     honours it — so all three scopes are real for that one.
+ *
+ *     `admin/gatherings` is the seventh, and it is the strongest case on this list rather than
+ *     the weakest. It has NO `permission_table_map` row at all — every Gatherings table maps to
+ *     `gatherings` or `admin/gathering-templates` (20260819000000 §5c) — so there is no
+ *     `own_expr` anywhere for a composed policy to honour, and no policy in the database
+ *     evaluates this key. And every one of its four actions is resolved with `canAny`:
+ *     `app/actions/admin/gatherings.ts` uses `requireScope(…, 'view')` deliberately in place of
+ *     `requireRead` (its own comment says why — there is no coherent "own" version of the
+ *     organizer console), then `requireScope(…, 'create')`, `requireEdit` and `requireDelete`,
+ *     all three of which are `requireScope` and therefore `canAny`, which refuses `'own'`. So an
+ *     administrator setting Own on any of those cells has granted nothing and been shown a lit
+ *     switch.
+ *
+ *     Its sibling `admin/gathering-templates` is deliberately NOT here, and the difference is
+ *     one row: `permission_table_map` gives `gathering_templates` a real `own_expr`
+ *     (`created_by = public.auth_person_id()`) and `perm:gathering_templates:select` honours it,
+ *     so an Own VIEW grant genuinely narrows a user-client read there. That is the same mixed
+ *     shape `admin/events` already has — real for view, `canAny` for the writes — and this list
+ *     is per-KEY rather than per-action, so the pair is not an oversight in either direction.
  */
 const NO_OWNER_KEYS: readonly string[] = [
   'admin/family', 'admin/family/remove', 'dues-projections', 'admin/chapters',
+  'gatherings/budget', 'admin/gatherings',
 ]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {

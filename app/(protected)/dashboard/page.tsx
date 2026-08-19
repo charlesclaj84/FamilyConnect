@@ -24,6 +24,8 @@ import { QuickActions } from '@/components/dashboard/QuickActions'
 import { FamilyTreeCard } from '@/components/dashboard/FamilyTreeCard'
 import { DonationDrivesCard } from '@/components/dashboard/DonationDrivesCard'
 import { getFamilyTreeSummary } from '@/app/actions/family-tree'
+import { getPremierGathering, getUpcomingGatheringCount } from '@/app/actions/gatherings'
+import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
@@ -38,18 +40,32 @@ export const metadata = { title: 'Dashboard' }
  * The member's landing screen, in the Golden Master's visual language.
  *
  * ── WHAT THIS PAGE IS NOT ────────────────────────────────────────────────────────────
- * The kit (`public/dashboard/`) composes nine panels. Four of them are omitted here and
+ * The kit (`public/dashboard/`) composes nine panels. Three of them are omitted here and
  * every omission is a fact about the product rather than a shortcut:
  *
- *   Event hero + Upcoming Events   `/events` IS live now, so this omission has changed
- *                                  character: it is no longer waiting on a flag, it is
- *                                  waiting on a panel nobody has written. The data and the
- *                                  actions exist; the band under the greeting is where they
- *                                  go. Do not read this row as "blocked" any more.
+ *   Upcoming Events (a row card)   `/events` is live and its data and actions exist, so
+ *                                  this is not blocked on a flag — it is a panel nobody
+ *                                  has written. The kit's own row card leans on a
+ *                                  thumbnail per event, and `events` has no image column,
+ *                                  so honouring it is a schema decision and not a layout
+ *                                  one. See the note on the family photograph below.
  *   Family hero photograph         No column, no bucket, no schema. The kit's own image
  *                                  is stock photography with the design burnt into it.
  *   Recent Activity (a feed)       No table records who did what. See RecentUpdates,
  *                                  which answers the question the data can answer.
+ *
+ * THE EVENT HERO WAS ON THAT LIST UNTIL 2026-08-19 AND IS NOW ON THE PAGE — the band this
+ * file used to describe as "where they go" is filled, by `PremierGatheringHero`. What fills
+ * it is a GATHERING rather than an event, and that is the substance of the change rather
+ * than a substitution: Gatherings ships beside Events with a `gatherings.is_premier` flag
+ * whose entire job is "put this across the top of the Dashboard", which is the fact the kit's
+ * hero needed and the events schema never had. Everything else the kit draws in that band —
+ * the eyebrow, the title, the date and place lines, the gold CTA pill and the hairline along
+ * the swoop — is built. The photograph is not, for the reason the row above gives.
+ *
+ * The kit's fourth At a Glance tile landed with it, for the same reason: it is an olive
+ * calendar chip over a count and a "View calendar" caption, and until there was something to
+ * count there was nothing to put in it.
  *
  * FAMILY TREE HIGHLIGHTS WAS ON THAT LIST AND IS NOW ON THE PAGE. It was omitted on two
  * grounds — the tree was "the beta scaffold, no data behind it at all", and "nothing
@@ -58,7 +74,7 @@ export const metadata = { title: 'Dashboard' }
  * are meant to have: a statement of what is missing, checked when the missing thing lands,
  * rather than a permanent absence nobody revisits. See `FamilyTreeCard`.
  *
- * Nothing renders a placeholder for the remaining two, and the policy outlived the
+ * Nothing renders a placeholder for the remaining three, and the policy outlived the
  * sentence that used to state it: "omitted entirely until Events ships, no placeholder, no
  * badge" was written when Events was gated, and Events has now shipped without these
  * panels arriving with it. The rule that survives is the useful half — the layout narrows
@@ -69,7 +85,7 @@ export const metadata = { title: 'Dashboard' }
  * `announcementsLive` below is read from the registry, so flipping `/announcements` to live
  * both un-gated the page and started fetching the pinned news for this screen. No edit here
  * was needed. That is what a panel wired to the registry looks like, and it is precisely
- * what the two rows above do not have.
+ * what the three rows above do not have.
  *
  * ── THE ORDER OF THIS FUNCTION IS THE SECURITY MODEL ─────────────────────────────────
  * Read top to bottom, it is: resolve the caller, refuse a pending one, resolve every
@@ -134,7 +150,7 @@ export default async function DashboardPage() {
   const announcementsLive = isFeatureLive('/announcements')
   const [
     canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
-    canViewDonations,
+    canViewDonations, canViewGatherings, canViewCalendar,
   ] = await Promise.all([
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
@@ -169,6 +185,23 @@ export default async function DashboardPage() {
     // panes to screens; it was `account-summary/donations`, and the migration copied
     // every family's grant across, so nothing about who sees this card changed.
     isFeatureLive('/donations') ? can(user.id, 'donations', 'view') : false,
+    // The premier gathering band. `gatherings` is the key `/gatherings` and every one of its
+    // reads gate on, and the band's whole content is one row of that table — a title, a
+    // location, dates and a task count — so it borrows that grant rather than getting a
+    // `dashboard/*` key of its own (the rule in components/dashboard/tiles.ts).
+    //
+    // `can`, not `canAny`: `gatherings.created_by` is a real owner and the SELECT policy has
+    // an `own_expr` for it, so a member who may only see the gatherings they created is
+    // legitimately entitled to this band — and the policy, not this line, decides whether
+    // the premier one is among them.
+    isFeatureLive('/gatherings') ? can(user.id, 'gatherings', 'view') : false,
+    // The "Upcoming Gatherings" tile. `calendar`, NOT `gatherings`, because the tile LEADS
+    // to /calendar and a tile borrows the grant of its destination — offering a count under
+    // a link to a screen this family has switched off would be a dead affordance. The figure
+    // is narrowed a second time by the read below, which gates itself on `gatherings:view`.
+    isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])
+      ? can(user.id, TILE_RESOURCE.gatherings[0], 'view')
+      : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
@@ -176,6 +209,7 @@ export default async function DashboardPage() {
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
+    premierGathering, upcomingGatheringCount,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -253,6 +287,31 @@ export default async function DashboardPage() {
     // this line is what keeps the whole list out of the payload for somebody the family
     // has withheld Donations from.
     canViewDonations ? getDonationProgress() : Promise.resolve([]),
+    // The premier gathering, for the band under the greeting. NOT FETCHED without the grant
+    // rather than fetched and hidden (§5): the row carries a title, a location, dates and how
+    // far the family has got with preparing it, and props reach the browser in the RSC
+    // payload whether a component renders them or not.
+    //
+    // `null` is the ordinary answer and means "nothing to announce" as well as "not
+    // entitled" — which is the one place on this page those two collapse, and they may,
+    // because the band renders nothing either way. No placeholder, no badge.
+    canViewGatherings ? getPremierGathering() : Promise.resolve(null),
+    // The count behind the "Upcoming Gatherings" tile, gated on the CALENDAR grant because
+    // that is where the tile leads. `canViewCalendar` here and `requireRead('calendar')`
+    // inside the action must stay the SAME key: gate the count on `gatherings` instead and
+    // the guard refuses for a caller this line was willing to ask, answering 0 — which is
+    // the value at which the tile is omitted, so "I could not count" would be rendered as
+    // "there is nothing to show".
+    //
+    // THIS WAS A LIST READ FOR A COUNT until 2026-08-19 — `getGatherings()` filtered here by
+    // `gatheringTiming` — which fetched every gathering's title, summary, location and task
+    // statuses, and marshalled the lot, to render one integer. The action now counts in SQL
+    // with `head: true`, and it reads the clock itself for the reason the old comment gave:
+    // `gatheringTiming` takes `today` as a parameter (AGENTS.md §7b), so somebody has to say
+    // when now is, and `todayLocal()` there is the same answer this page computed. The span
+    // test is `getPremierGathering`'s verbatim and provably equals
+    // `gatheringTiming(...) !== 'past'`, so the number did not change when it moved.
+    canViewCalendar ? getUpcomingGatheringCount() : Promise.resolve(null),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -264,6 +323,13 @@ export default async function DashboardPage() {
   const myChapterId = myPersonData?.chapter_id ?? null
   const myChapterName = (myPersonData?.chapters as { name: string } | null)?.name ?? null
   const needsChapter = !myChapterId && chapters.length > 0
+
+  // ── This page no longer reads the clock ─────────────────────────────────────────────
+  // It did, for exactly this count, and both the clock read and the span test moved into
+  // `getUpcomingGatheringCount` with the arithmetic: "upcoming" is `!== 'past'`, so a
+  // gathering happening TODAY counts, and a multi-day reunion counts on every day it covers.
+  // `null` is still "not entitled" and is the one thing the action never returns.
+  const upcomingGatherings = upcomingGatheringCount ?? 0
 
   // ── Compose the tiles from what actually resolved ───────────────────────────────────
   // A tile appears only if its value was fetched. `duesCollectedCents === null` and
@@ -277,6 +343,12 @@ export default async function DashboardPage() {
     // Only when somebody is actually waiting. A standing "0 pending" tile is a control
     // that never changes and a row of the grid spent on nothing.
     ...(pendingApprovals > 0 ? [{ id: 'approvals' as const, value: String(pendingApprovals) }] : []),
+    // Same precedent, for the same reason: a permanent "0 upcoming" is a row of the grid
+    // spent on nothing, and a family with no gathering on the books is the common case.
+    // `upcomingGatheringCount === null` is "not entitled"; a real 0 is a family with nothing
+    // on the books. Both omit the tile, which is why the action never returns null — the
+    // distinction is kept by this page not calling it, not by the value it answers.
+    ...(upcomingGatherings > 0 ? [{ id: 'gatherings' as const, value: String(upcomingGatherings) }] : []),
   ]
 
   const quickActions: QuickActionId[] = [
@@ -294,6 +366,22 @@ export default async function DashboardPage() {
         roles={myRoles.map(formatRoleTitle)}
         chapterName={myChapterName}
       />
+
+      {/* THE BAND THE KIT RESERVED UNDER THE GREETING. A second Heritage band rather than
+          a card in the grid, and outside the 2:1 split on purpose: the whole point of
+          `is_premier` is that the family has said this one thing matters more than the rest
+          of the screen, and a column of the grid would put it beside the metrics instead of
+          above them.
+
+          ABOVE the banner slot, deliberately. The banners below are each a thing this
+          member has to DO about their own account, and they must not be pushed under an
+          announcement about the family — a linked-person prompt buried below a reunion is
+          how it gets missed, which is the same argument the banners' own comment makes
+          about burying them under the metric tiles.
+
+          Renders for nobody most of the time: `premierGathering` is null both when the
+          caller may not view gatherings and when no upcoming one is flagged. */}
+      {premierGathering && <PremierGatheringHero gathering={premierGathering} />}
 
       {/* Banners sit between the hero and the grid: each one is a thing this member has
           to do, and burying an action item under four metric tiles is how it gets

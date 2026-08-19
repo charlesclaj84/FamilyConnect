@@ -83,7 +83,19 @@ export async function getCollectionDetail(id: string): Promise<{
       .maybeSingle(),
     supabase
       .from('photos')
-      .select('*, people(first_name, last_name), photo_tags(person_id, people(first_name, last_name))')
+      // people!photo_tags_person_id_fkey, not people: `photo_tags` has TWO foreign keys to
+      // `people` — `person_id` (who is IN the photo) and `tagged_by` (who said so) — and has
+      // had both since 20260610000001 created the table. A bare nested embed is therefore
+      // PGRST201, which PostgREST answers by refusing the WHOLE query — and `photosRes.error`
+      // is never read, so this select has been returning `[]` and the page has been
+      // rendering an empty collection over photographs that exist. Measured against the
+      // live stack on 2026-08-19. The OUTER `people(...)` is correct as it stands — `photos`
+      // has exactly one foreign key to `people` (`uploader_id`) — and `photo_tags`' pair is
+      // enforced by `UNIQUE (photo_id, person_id)` beside a surrogate `id` primary key rather
+      // than by a composite PK, so it is not read as a many-to-many between `photos` and
+      // `people` either (AGENTS.md §8, and `announcement_unpins` is the incident that
+      // distinction comes from).
+      .select('*, people(first_name, last_name), photo_tags(person_id, people!photo_tags_person_id_fkey(first_name, last_name))')
       .eq('collection_id', id)
       .order('created_at', { ascending: false }),
   ])

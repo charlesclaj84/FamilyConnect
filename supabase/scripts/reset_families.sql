@@ -127,6 +127,42 @@ BEGIN
   DELETE FROM event_blueprint_items;
   DELETE FROM event_types;
 
+  -- ── 3b. Gatherings ────────────────────────────────────────────────────────
+  -- A SECOND PRODUCT BESIDE EVENTS RATHER THAN A PART OF ONE (20260819000000),
+  -- which is why it gets its own section next to §3 and not lines inside it: a
+  -- family authors a `gathering_templates` row and its steps, schedules a
+  -- `gatherings` row from one or more of them, every step becomes a
+  -- `gathering_tasks` row handed to a named relative, and each answer is a
+  -- `gathering_task_submissions` row. All six are family data and all six go.
+  -- Nothing here is seeded by a `families` trigger, so none of them belongs in the
+  -- inventory at the top or in §11's keep-list.
+  --
+  -- THIS BLOCK MUST STAY ABOVE §4, AND THAT IS MEASURED RATHER THAN TIDY.
+  -- `gatherings.fund_id` is ON DELETE SET NULL, and `gatherings_budget_needs_fund`
+  -- (a CHECK: a budget may not exist without a fund behind it) is enforced on the
+  -- ordinary UPDATE the internal RI trigger performs — so for any family that has
+  -- a budget set on a gathering drawing on a non-system fund, §4's
+  -- `DELETE FROM funds WHERE system_key IS NULL` is REFUSED with a 23514 naming a
+  -- constraint on a table §4 does not mention. Reproduced on this Postgres before
+  -- this block was written. Move these six lines below §4 and the script aborts on
+  -- exactly the families that have used the feature, with an error nothing in §4
+  -- explains.
+  --
+  -- CHILDREN BEFORE PARENTS, and `gathering_template_uses` before
+  -- `gathering_templates` specifically: that foreign key is NO ACTION, which is the
+  -- whole reason a template a gathering was built from cannot be deleted at all
+  -- (the product offers archiving instead of a bare 23503). Every other reference
+  -- among the six is CASCADE or SET NULL, so the three parent deletes would clear
+  -- most of this on their own — naming all six is what makes an omission visible
+  -- when a seventh table arrives, which is the same reason §5 names
+  -- donation_beneficiaries.
+  DELETE FROM gathering_task_submissions;
+  DELETE FROM gathering_tasks;
+  DELETE FROM gathering_template_uses;
+  DELETE FROM gatherings;
+  DELETE FROM gathering_template_steps;
+  DELETE FROM gathering_templates;
+
   -- ── 4. Fund ledgers, then the non-system funds ────────────────────────────
   -- Contributions first: fund_contributions.dues_payment_id is ON DELETE
   -- CASCADE, so a dues payment deleted in §5 would take a contribution with it

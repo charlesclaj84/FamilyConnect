@@ -77,6 +77,37 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('members',             'Directory',              'community',  70),
   ('events',              'Events',                 'events',     80),
   ('event-planning',      'Event Planning',         'events',     90),
+  -- Added by 20260819000000 — GATHERINGS, a second product under the Events heading and
+  -- not a rename of anything above: a family authors a step-by-step TEMPLATE, schedules a
+  -- gathering from it, hands each step out as a task and rules on the answers. Listed
+  -- here for the reason admin/family, admin/family/remove and admin/approvals are: the
+  -- visibility loop at the FOOT of this file, and every materializing loop between here
+  -- and 20260819000000, reads permission_resources rather than a literal list — so
+  -- registering the keys early is what carries them through the chain instead of leaving
+  -- them to be retro-fitted at the end.
+  --
+  -- Deliberately WITHOUT `actions` and `subsection`: neither column exists this early
+  -- (20260806000000 and 20260806000010 add them), so naming either here would abort the
+  -- chain on an empty database — the same trap the two admin/family rows below record.
+  -- These four are therefore created with the default four actions, and 20260819000000 §5
+  -- narrows every one of them: `gatherings/my-tasks`, `gatherings/budget` and `calendar` to
+  -- ARRAY['view'], and `gatherings` itself to ARRAY['view','create'] — nothing reads
+  -- `gatherings:edit` or `:delete`, because every mutation of a gathering gates on
+  -- `admin/gatherings`. §5b then deletes the grants that narrowing orphans, which the
+  -- intervening materialization loops handed out for all four actions.
+  --
+  -- `gatherings/budget` IS NOT A ROUTE, which makes it the one row here with no href in
+  -- lib/features.ts. It gates the money band on /gatherings/[id] and
+  -- /admin/gatherings/[id] — a sub-key of a screen, like account-summary/funds — and it is
+  -- the one non-admin key in this seed that must start RESTRICTED. Nothing in this file can
+  -- make it so: an admin key gets its 'restricted' row from the loop at the foot, and a
+  -- non-admin key does not, which is why 20260819000000 §6 backfills it off the three-table
+  -- union and §7 widens seed_family_permission_templates()'s v_restricted for the family
+  -- created tomorrow.
+  ('gatherings',          'Gatherings',             'events',     91),
+  ('gatherings/my-tasks', 'My Gathering Tasks',     'events',     92),
+  ('gatherings/budget',   'Gathering Budget',       'events',     93),
+  ('calendar',            'Calendar',               'events',     94),
   -- Labelled 'Summary' since 20260812000001, with its three panes' sub-heading moved
   -- to match. Restated here because this insert is ON CONFLICT DO UPDATE on label.
   ('account-summary',     'Summary',                'accounting', 100),
@@ -158,6 +189,22 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('admin/reports',       'Reports',                'admin',      210),
   ('admin/events',        'Event Management',       'admin',      220),
   ('admin/event-types',   'Event Templates',        'admin',      230),
+  -- Added by 20260819000000 — the organizer half of Gatherings. 231/232 rather than a slot
+  -- among the numbers above because the rail lists them straight after Event Templates, and
+  -- two lists of the same items in two different orders is a thing an administrator has to
+  -- reconcile by hand. Both are top-level rail items, so neither takes a `subsection` (which
+  -- does not exist this early anyway — see the note on the events block above).
+  --
+  -- THESE TWO ARE THE HALF THAT FAILS CLOSED. Since 20260817000004 an `admin/…` key with no
+  -- resource_visibility row DENIES rather than being world-readable, and create/edit/delete
+  -- fall to 'none' for everybody regardless — so leaving them unregistered would not be a
+  -- leak, it would be a feature nobody in any family could reach, on screens that 404 with
+  -- no switch on Members & Access to turn them on. The registration here plus the loop at
+  -- the foot of this file is what gives a fresh database the 'restricted' row and the
+  -- Administrators grant; 20260819000000 §6 does the same for a database that meets these
+  -- keys for the first time in that file.
+  ('admin/gatherings',           'Gathering Management', 'admin', 231),
+  ('admin/gathering-templates',  'Gathering Templates',  'admin', 232),
   ('admin/account',       'Accounting',             'admin',      240)
   -- NO 'admin/announcements' ROW. Retired by 20260813000000, which folded posting,
   -- pinning and deleting back onto the member-facing `announcements` key — one screen,

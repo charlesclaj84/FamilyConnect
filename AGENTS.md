@@ -192,6 +192,46 @@ outside the migration chain:
   have checked what runs after the migration. That assertion passed for ten seconds and
   was false thereafter.
 
+## 2c. A new TABLE is born readable and writable by the browser. RLS is the whole gate
+
+The counterpart to §2b, and the opposite answer. For a FUNCTION the grant is the primary control.
+For a TABLE in `public` there is effectively no grant to control, because Supabase ships a default
+ACL that hands both browser roles everything before your migration runs. Measured 2026-08-19:
+
+```
+SELECT defaclobjtype, defaclacl FROM pg_default_acl
+ WHERE defaclnamespace = 'public'::regnamespace AND defaclobjtype = 'r';
+
+ r | {postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,
+    authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+```
+
+`arwdDxtm` includes SELECT, INSERT, UPDATE and DELETE, for **`anon` as well as `authenticated`**.
+So a table created by a migration in this repo already holds them, and three things follow that are
+easy to get backwards:
+
+* **A `GRANT SELECT … TO authenticated` in a migration is a no-op.** It records nothing — `relacl`
+  does not even change, because the privilege was already held. Writing it is still worth doing as a
+  STATEMENT of what the table is for, and `20260811000000` and `20260819000000` both do; just do not
+  believe it is what makes the table safe.
+* **A column-level grant cannot narrow anything.** `GRANT SELECT (a, b)` is additive; it cannot take
+  away a table-level SELECT already granted. A migration that issues column lists to hide a money
+  column and then asserts `NOT has_column_privilege(...)` **aborts on its own first `db reset`** —
+  §2b's warning about `NOT has_function_privilege` in a second costume. And a `REVOKE` is worse than
+  useless: `supabase/seed.sql` re-grants everything within seconds of a local reset, so the revoke
+  holds on hosted and not locally, and the divergence is invisible until production.
+* **Therefore RLS is the entire boundary, and a table with NO policy for a command denies it.** That
+  is why a table can carry a SELECT policy and no INSERT/UPDATE/DELETE policy at all and still be
+  safe from the browser (`fund_disbursements`, `fund_transfers`, and all six Gatherings tables).
+  Verified by doing it: as `authenticated`, against a real row, SELECT returns 0 rows, UPDATE and
+  DELETE affect 0 rows, and INSERT is refused 42501.
+
+**The consequence for a permission key that gates a screen and not a table:** it cannot hide a
+column. If a key is meant to withhold FIGURES rather than a screen, the figures have to live on a
+table the key actually maps to — otherwise say plainly in the migration that it withholds a screen
+band, because an administrator moving that switch will believe otherwise. `gatherings/budget` is the
+worked example and says so at length.
+
 ## 3. The service-role client bypasses RLS — so redo its work
 
 `createAdminClient()` is the service role. No RLS, no family isolation, nothing.
@@ -657,8 +697,10 @@ of tables, `people(first_name)` is refused with **PGRST201** and the whole query
 ```
 
 `fund_disbursements`, `fund_contributions`, `dues_payments`, `election_votes`,
-`election_nominations`, `photo_tags`, `event_rsvp_attendees`, `person_relationships` and
-— since `20260813000001` — `announcements` all have two paths to `people`;
+`election_nominations`, `photo_tags`, `event_rsvp_attendees`, `person_relationships`,
+— since `20260813000001` — `announcements`, and — since `20260819000000` —
+`gathering_tasks` (`assignee_id`, `decided_by`) and `gathering_task_submissions`
+(`submitted_by`, `reviewed_by`) all have two paths to `people`;
 `photo_collections` has two to `photos` (its rows, and its cover); `fund_transfers` has
 two to `funds` — where the money left and where it landed, which is the whole content of
 the row. Name the constraint. And check the relationship
@@ -678,6 +720,27 @@ error names both constraints. Nothing in the tree embeds it today, so nothing br
 that nothing had to, and next time it might. That is the `announcements` lesson in a second
 costume, and it is why the sweep below is worth running after ANY migration that adds a foreign
 key, not only after one that adds a junction table.
+
+**AND A NESTED EMBED IS THE ONE THIS LIST DOES NOT SAVE YOU FROM.** `photo_tags` has been on the
+list above since it was written, and `getPhotoCollection` was still broken by it, because the
+ambiguous pair was one level down:
+
+```ts
+.select('*, people(first_name, last_name), photo_tags(person_id, people(first_name, last_name))')
+```
+
+The OUTER `people(...)` is fine — `photos` has one path to `people`. The INNER one is
+`photo_tags → people`, which has had two (`person_id`, `tagged_by`) since
+`20260610000001_photo_collections.sql`, so PostgREST refused the WHOLE query with PGRST201 and
+`/photos` rendered an empty collection over photographs that existed. Found on 2026-08-19 while
+proving `20260819000000` broke no embeds, measured against the live stack, and proved unrelated to
+that migration by dropping its six tables, reloading the schema cache and re-asking. Fixed by
+naming the constraint on the inner embed.
+
+Two things follow. **Read a `.select()` right to the leaves** — a table named inside another
+table's parentheses is a join in its own right and owes the same check. And **an embed refused
+anywhere in the tree takes the whole query with it**, so one unqualified nested join empties a page
+whose top-level embeds are all correct.
 
 **A JUNCTION TABLE BREAKS EMBEDS ON TABLES YOU DID NOT TOUCH,** and `announcements` is
 how that was learned. It has exactly ONE foreign key to `people` (`author_id`) and its
@@ -1103,6 +1166,143 @@ email, whereas verifying is a five-branch read-modify-write that races itself fr
 `consume_family_removal_challenge` does it in one statement under `FOR UPDATE`. The challenge is
 resolved from `(family_code, requested_by)` and the hash is only ever COMPARED, never used to find
 the row.
+
+# Gatherings is a SECOND product beside Events, and Events is not going anywhere
+
+Added 2026-08-19, `20260819000000`. Events answers *when is it and who is coming* — dates, RSVPs,
+hotel blocks, day-of check-in. **Gatherings answers *who is doing what, and has it been done and
+accepted*.** An administrator authors a TEMPLATE (a named, ordered list of steps of mixed kinds), a
+GATHERING is scheduled from one or more templates, every step becomes a TASK held by a named
+relative, and each answer an organizer approves or sends back with notes. A gathering carries a
+budget drawn on a fund, each task carries a line against it, and one gathering may be **premier**,
+which puts it across the top of the Dashboard.
+
+**`/events`, `/event-planning`, `/admin/events` and `/admin/event-types` are untouched and stay
+live.** Do not retire, absorb, rename or re-policy any `event*` table on the way past. The events
+tables are the oldest in the schema, were created with bare `CREATE POLICY` reading
+`user_metadata`, and have been rewritten three times since — what protects them today is a string
+that exists in no file anyone reviewed, which is the exact shape of the second production incident
+"How migrations reach the hosted project" records. The rail lists both sets under one Events
+heading; that is a heading, not a merge.
+
+Six tables — `gathering_templates`, `gathering_template_steps`, `gatherings`,
+`gathering_template_uses`, `gathering_tasks`, `gathering_task_submissions` — and six resource keys:
+`gatherings`, `gatherings/my-tasks`, `gatherings/budget`, `calendar`, `admin/gatherings`,
+`admin/gathering-templates`. Everything is `tier: 'free'`, and that is forced rather than generous:
+a gathering can only be created FROM a template, so putting the authoring screen behind Plus would
+make `/pricing`'s existing Free bullet ("The reunion on the calendar") false.
+
+## A TASK IS A COPY OF ITS STEP, NOT A REFERENCE
+
+The single most important decision in the schema. `gathering_tasks` carries its own `label`,
+`help_text`, `kind` and `required`, copied from `gathering_template_steps` at instantiation;
+`step_id` and `template_id` are kept for PROVENANCE only and go NULL if their parent is deleted.
+
+A task is a thing a named relative was asked to do. Editing the template afterwards must not rewrite
+what they were asked, or what their approved answer was an answer *to* — and `answer` is JSONB whose
+shape is decided by `kind`, so reading `kind` through `step_id` at render time would let a template
+edit make every stored answer unreadable. **Do not "normalise" these four columns away.**
+
+## THE WRITE BOUNDARY IS THE ACTIONS AND FIVE TRIGGERS. THERE IS NO WRITE POLICY
+
+Each of the six tables has exactly ONE policy — `perm:<table>:select` — and no INSERT, UPDATE or
+DELETE policy at all, which per §2c denies those to the browser outright. Every write goes through
+`createAdminClient()` in a server action that re-applies family scoping by hand (§3), and five
+`BEFORE INSERT OR UPDATE` guard triggers refuse a cross-family id underneath it, because the service
+role ignores RLS and does not ignore triggers (§4). `gathering_template_steps` needed the fifth and
+was missing it for a day: it is the one child table whose parent FK can point into another family.
+
+Two things about the SELECT policies:
+
+* **`gathering_tasks` and `gathering_task_submissions` carry a real `self_expr`** so an assignee can
+  always reach their own task and their own denial notes, whatever the family has done to
+  `gatherings:view`. `gatherings` deliberately does NOT: a gathering is family-wide configuration,
+  like a dues schedule, and the member's own thing is the TASK. The consequence is that
+  `getMyGatheringTasks` reads the gathering TITLE on the admin client, the same way it already reads
+  template names and assignee names. A `SECURITY DEFINER` helper granted to `authenticated` was
+  written for this and backed out: it is a new publicly-reachable function (§2b) bought to save one
+  admin-client read the module was already making.
+* **Both template tables key on `admin/gathering-templates`**, so an ordinary member cannot read the
+  template library at all. `getSchedulableTemplates` and the detail screen's template names
+  therefore go through the admin client — and must. Loosening that policy to `gatherings:view` would
+  publish every archived draft and suggested budget to every member, and could not express the
+  `who_may_schedule = 'family'` subset that action exists to return.
+
+## `gatherings/budget` WITHHOLDS A SCREEN BAND, NOT THE FIGURES
+
+Read §2c. The money lives in columns on `gatherings` and `gathering_tasks`, whose SELECT policy is
+keyed on `gatherings:view`, and no grant can narrow a column — so a member holding the default view
+grant can read `budget_cents` and `fund_id` through PostgREST whatever this key says. The key gates
+whether the app FETCHES them (§5), which is real and is what the screens honour; it is not
+confidentiality. The migration says so at length and so does the grid's own entry. **If that ever
+needs to become confidentiality, the money has to move to its own table with its own map row** —
+that is the only mechanism that works, and it is a migration, not a comment.
+
+## THE RED LINE IS THE FEATURE, SO NOTHING REFUSES AN OVER-FUND BUDGET
+
+A family plans a $12,000 reunion in January and raises the money by June, and the months in between
+are exactly when the screen has to say so. There is no over-fund trigger and no CHECK on size — only
+`budget_cents >= 0` and `budget_cents IS NULL OR fund_id IS NOT NULL`. `lib/gathering-budget.ts`
+computes it, and three rules there are load-bearing: an over-FUND figure is `--destructive` (an error
+the family must act on) while an over-ALLOCATED one — task lines claiming more than the gathering
+budgeted — is the quieter `--brand-withheld`; a `null` fund balance draws NO marker at all, because
+"you may not see it" is not "overspent"; and a failed money READ is distinguishable from a withheld
+one, or one transient PostgREST error silently erases every figure on the screen.
+
+Two figures that are NOT the same and both render: this gathering's budget against the fund, and
+that budget plus what other live gatherings already claim on the same fund. There is no encumbrance
+concept in the schema — a fund balance counts money that has MOVED — so "already committed" is
+arithmetic this feature invented, and it is computed on the ADMIN client through
+`fund_balance_cents()`, for the same reason `getActiveFundsForRouting` is: a balance read on the
+user client silently omits the transfer term for anyone without `transactions/fund-transfers:view`,
+and two members must not disagree about whether a gathering is over its fund.
+
+## `is_premier` HAS NO UNIQUENESS, AND THE SOONEST UPCOMING ONE WINS
+
+Several gatherings may be flagged. The Dashboard renders the soonest whose span has not finished,
+and the admin screen and `/help` both say so. A partial unique index was the obvious alternative and
+is wrong: it would make last year's premier reunion block this year's, and toggling it would depend
+on the order two administrators happened to click in.
+
+## A TASK IS KEYED ON `people.id`, NEVER `auth.users.id`
+
+`event_assignments` keys its assignee on an auth id and has no `family_code`, and
+`app/actions/event-planning.ts` documents what that costs: one auth id is identical across every
+family the user belongs to, so every query needs an `!inner` join, and an account-less relative — a
+recorded grandmother, §4b — can never hold a task. A `people.id` key makes family scoping structural
+and is what `own_expr`/`self_expr` are written in terms of.
+
+## APPROVED IS FINAL FROM THE MEMBER'S SIDE, AND AN ORGANIZER CAN STILL CORRECT THEMSELVES
+
+`submitGatheringTask` refuses an approved task; `reopenGatheringTask` (gated `admin/gatherings:edit`,
+so `canAny` — the task an organizer would "own" is the abuse case) sets it back to `'open'`, clears
+`decided_at`/`decided_by`, and **leaves the answer and every submission row standing**. A denial is
+never an edit of the refused submission: resubmitting writes a NEW row, so the notes and the answer
+they were about both survive. That is what makes the loop auditable.
+
+A reopen and a send-back are DIFFERENT bell entries (`task_reopened`, `task_denied`) and the reason
+is what the member last heard: a send-back follows a submission they are waiting on, a reopen follows
+an approval, and "was sent back with notes" would send them looking for a submission they never made.
+So "show me what came back to me" has to name both types — which is the correct direction, because no
+surface can un-conflate two events stored as one.
+
+## `who_may_schedule` DECIDES WHO MAY SCHEDULE, AND NEVER WHO MAY EDIT
+
+`'admin'` or `'family'`, on the template. It says nothing about authoring — that is always
+`admin/gathering-templates`. `scheduleGathering` resolves BOTH grants before reading a template: a
+member with `gatherings:create` may schedule from a `'family'` template, and only somebody who also
+holds `admin/gatherings:create` may schedule from an `'admin'` one.
+
+## DATES ARE `DATE`. THERE IS NO TIME OF DAY AND NO TIMEZONE
+
+`starts_on`, `ends_on`, `due_on`. `events.event_date` is a bare DATE, nothing in this schema records
+a family timezone, and a `TIME` here would be a time in no particular zone — the same two-facts-that-
+disagree trap as `is_minor` (§4b). `lib/calendar.ts` therefore does its arithmetic on `YYYY-MM-DD`
+strings with `Date.UTC` and reads back through `getUTC*`, and its `Intl` formatter pins
+`timeZone: 'UTC'`: `new Date('2026-08-01')` is UTC midnight and renders as 31 July in any negative
+offset, which is how a calendar comes to put a reunion on the wrong day for half the country.
+`shiftMonth` works on (year, month) integers and never carries a day-of-month, because `setUTCMonth`
+overflows 31 January into 3 March.
 
 # The signed-in app signs itself out when left idle
 

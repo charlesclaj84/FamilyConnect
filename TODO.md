@@ -615,6 +615,75 @@ family has renamed a role. Fixed 2026-08-18 by testing that each name is *accoun
 
 Recorded 2026-08-18.
 
+## `getMyGatheringTaskCount` is a live endpoint with no product caller
+
+**Action:** either build the thing it was written for — a count beside **My Gathering Tasks** in
+the Events nav group, which is the only surface that would want it — or delete the export and the
+two `tests/rls` cases and the `seed.mjs` note that go with it. Do not leave it as it is
+indefinitely; an export nobody calls is an endpoint nobody re-reads.
+
+`GATHERINGS_SPEC.md` §4.1 names the signature, so it was written to contract rather than
+speculatively, and that is why it was not simply removed on 2026-08-19: the spec is binding.
+Nothing in `app/` or `components/` imports it. `Sidebar.tsx` renders no count beside any nav item,
+and `MyTasksClient` counts the two statuses itself from rows it already holds, which is right.
+
+**It is safe as it stands, and that is the reason this is an entry rather than a finding.**
+`requireMember()` plus `.eq('assignee_id', personId)` means the most it can tell an attacker is how
+many of their OWN tasks are waiting. But a `'use server'` export is a public HTTP endpoint whether
+or not a screen calls it (AGENTS.md §2), so it is reviewed and re-reviewed forever for a feature
+that does not exist.
+
+Its two `tests/rls` cases are what stop a silent deletion: `loadAction` THROWS `has no exported
+function` rather than skipping, so removing the export turns the suite red at load — on two cases,
+for a reason with nothing to do with isolation. That is the whole of what has to move with it.
+
+Recorded 2026-08-19.
+
+## `tests/rls` has no actor holding scope `'own'`, so no `own_expr` in the schema is tested
+
+**Action:** add a fifth ALPHA actor on a THIRD permission template — one whose grid holds `view` at
+scope `'own'` on a resource with a real `own_expr` — and give the existing cases a variant that
+uses it. `gatherings` (`own_expr = created_by`), `gathering_tasks` and
+`gathering_task_submissions` (`assignee_id` / `submitted_by`, which are also their `self_expr`),
+`announcements`, `photos` and `chat_messages` are all waiting for it.
+
+Found on 2026-08-19 while writing the Gatherings cases, and measured rather than assumed. The
+fixture gives each family exactly two grids — Administrators, and General with
+`gatherings:view = 'any'` — so **every read in the whole suite is satisfied by the `= 'any'`
+disjunct** and the `'own'` and `self` branches of every composed policy decide nothing. The proof is
+a mutation: neutering three membership gates at once leaked through `auth_permission()` resolving
+`'any'` from the applicant's own template, never through `self_expr`.
+
+This is not specific to Gatherings, and it is worth stating plainly what the green suite does and
+does not mean: 520 assertions are evidence about CROSS-FAMILY ISOLATION, which is what the suite was
+built for and what `20260618000001`'s composed policies most needed checking. They are no evidence
+at all about SCOPE RESOLUTION. Those are different questions and the second one currently has no
+runner — `lib/auth/permissions.ts`'s `resolveScope` is pure enough to test under vitest, which may
+be the cheaper half of this.
+
+Recorded 2026-08-19.
+
+## The Dashboard now draws TWO swoops, and the kit's acceptance criteria ask for one
+
+**Action:** decide between them, with the kit's `08_QA/VISUAL_ACCEPTANCE.md` in front of you, and
+either drop `PremierGatheringHero`'s curve or record the departure in that file's terms so the next
+kit review does not reopen it.
+
+`public/dashboard/00_START_HERE/CLAUDE_START_HERE.md` forbids a second swoop and
+`VISUAL_ACCEPTANCE.md` requires "ONE visual swoop". `WelcomeHero` has carried the kit's `eventHero`
+curve at its foot since it shipped, and `PremierGatheringHero` (2026-08-19) carries the same curve at
+its own foot — so a member with a premier gathering sees two.
+
+**Neither half is obviously the one to remove**, which is why this is an entry and not a fix. The
+kit's own composition is ONE 790×515 box holding the greeting on cream ABOVE the featured event on
+burgundy with a single swoop between them; this repo diverged from that before Gatherings existed, by
+making the whole greeting band burgundy and reusing the kit's top curve at its foot as the page
+ground cutting upward. Given that divergence, the premier band is a second burgundy band rather than
+the lower half of one composition — and the gold hairline, which is the one unbuilt kit element that
+could finally be honoured, only registers against that curve in that viewBox.
+
+Recorded 2026-08-19.
+
 ## `permission_table_map` names a table that does not exist
 
 **Action:** drop the `adults` row in a migration, or say in the sweep's header that the skip

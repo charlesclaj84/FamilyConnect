@@ -327,6 +327,78 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Your assigned planning tasks, with deadlines and completion tracking.',
   },
 
+  // ── Gatherings: LIVE, and NOT a replacement for Events ─────────────────────
+  // A gathering is something the family has to ORGANISE, not merely a date to turn up on.
+  // An administrator authors a TEMPLATE — a named, ordered list of steps of mixed kinds (a
+  // line of text, a paragraph, a date, a list, a yes/no, a count, an amount of money) — and
+  // a gathering is scheduled FROM one or more of those templates. Every step becomes a TASK
+  // handed to a named relative, who submits an answer an organizer then approves or denies
+  // with notes. A gathering carries a budget drawn on a fund and each task carries its own
+  // line against it; a gathering can be flagged premier, which puts it across the top of the
+  // Dashboard. `/calendar` shows gatherings and events together, a month at a time.
+  //
+  // EVENTS IS NOT BEING RETIRED, ABSORBED OR RENAMED. `/events`, `/event-planning`,
+  // `/admin/events` and `/admin/event-types` stay exactly where they are, on their own
+  // tables, their own resource keys and their own policies, and the four entries in this
+  // file are untouched. The two products answer different questions — Events answers "when
+  // is it and who is coming", Gatherings answers "who is doing what, and has it been done
+  // and accepted" — and unifying them would mean re-policying every `event_*` table, which
+  // is the class of change "How migrations reach the hosted project" is a whole section of
+  // AGENTS.md about. The rail lists both sets under one Events heading; that is a heading,
+  // not a merge.
+  //
+  // ALL FIVE ARE FREE, AND THE TEMPLATE LIBRARY IS THE ONE SOMEBODY WILL WANT TO SELL. It
+  // cannot be sold, and the reason is structural rather than generous: a gathering can only
+  // be created FROM a template, so a family with no template library has no way to schedule
+  // a gathering at all. `/pricing`'s Free plan already promises "The reunion on the
+  // calendar" (`lib/plans.ts`), so putting the authoring screen behind Plus would make an
+  // existing Free bullet false — which is the same reading `/admin/events` and
+  // `/admin/event-types` were made Free under, recorded in the tier notes at the top of this
+  // file. `/calendar` is that bullet said out loud: it IS the calendar it names.
+  //
+  // The RSVP caveat on `tier` above applies here too, with the same answer. If a capability
+  // INSIDE a gathering is ever sold separately it gets its own sub-key with its own entry,
+  // the way `transactions/dues-payments` does — and the way `gatherings/budget` already
+  // gates the money band without being a route. Until then the page's tier governs the page.
+  //
+  // NOTHING FROM THIS FEATURE BELONGS IN `TAB_RESOURCES`, and that is a conclusion rather
+  // than an omission. All five keys below are routes with entries here, so
+  // `viewableResources()` finds every one of them by walking FEATURES. The one Gatherings
+  // key with no route of its own is `gatherings/budget`, the money band on
+  // `/gatherings/[id]` and `/admin/gatherings/[id]` — and it must NOT be added, because it
+  // can never be a caller's ONLY reason to reach a page: both pages that draw that band are
+  // already gated on `gatherings:view` and `admin/gatherings:view` respectively, so a member
+  // holding the budget key and neither of those has no page to be linked to. That is exactly
+  // the case the note on `TAB_RESOURCES` says to leave out, and `admin/users/templates`
+  // remains the only key that earns a place there.
+  {
+    href: '/gatherings',
+    label: 'Gatherings',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Family gatherings built from a template, with every task assigned and tracked.',
+  },
+  // MORE SPECIFIC THAN `/gatherings`, WHICH IS WHY IT NEEDS ITS OWN ENTRY. `getFeature()`
+  // prefers the longest match, so this row is what answers for `/gatherings/my-tasks` while
+  // `/gatherings/[id]` still inherits the row above. Both carry the same status and tier, so
+  // nothing here turns on which one wins — what does turn on it is `viewableResources()`,
+  // which needs the KEY `gatherings/my-tasks` in its answer or the rail item disappears for
+  // everybody.
+  {
+    href: '/gatherings/my-tasks',
+    label: 'My Gathering Tasks',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Every gathering task assigned to you, what to send back, and by when.',
+  },
+  {
+    href: '/calendar',
+    label: 'Calendar',
+    status: 'live',
+    tier: 'free',
+    blurb: 'A real month grid with every gathering and event on the days it falls.',
+  },
+
   // ── On the roadmap: accounting ──────────────────────────────────────────────
   // WHAT THE OLD `dues` RESOURCE GOVERNED, AND WHERE IT WENT — worth keeping now that
   // the key is back above under a different meaning. 20260808000001 retired "Dues
@@ -552,6 +624,28 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     tier: 'free',
     blurb: 'Reusable event blueprints that auto-assign the planning checklist.',
+  },
+  // The organizer half of Gatherings — see the long note beside `/gatherings` above for what
+  // a gathering is, why Events keeps every one of its four routes, and why none of the five
+  // new keys is a `TAB_RESOURCES` case. Both of these sit here rather than up there for the
+  // same reason `/admin/events` and `/admin/event-types` do: this file groups by AUDIENCE,
+  // and the member-facing rows are in the events block while the two admin rows are in the
+  // admin block. They ship together and they have to — `/admin/gatherings` cannot schedule a
+  // gathering that `/admin/gathering-templates` was not there to author, and `/gatherings`
+  // cannot show one that nothing scheduled.
+  {
+    href: '/admin/gatherings',
+    label: 'Gathering Management',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Schedule a gathering, set its budget, hand out the tasks, and rule on the answers.',
+  },
+  {
+    href: '/admin/gathering-templates',
+    label: 'Gathering Templates',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Reusable step-by-step lists that every gathering is built from.',
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded
   // payments, and the funds those payments route into. The route stays

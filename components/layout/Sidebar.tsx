@@ -10,7 +10,12 @@ import {
   Wallet,
   MessageCircle,
   Calendar,
+  CalendarDays,
+  CalendarCog,
   ClipboardList,
+  ClipboardCheck,
+  LayoutList,
+  PartyPopper,
   ShieldCheck,
   UsersRound,
   ListChecks,
@@ -98,6 +103,18 @@ const adminItems: NavItem[] = [
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
   { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
+  // GATHERINGS' TWO ADMIN ROWS. An admin route missing from this list is permissioned and
+  // linked from NOWHERE — lib/features.ts's header warns about that for a route whose
+  // status is flipped, and it arrives the same way for a route that is new. It is not a
+  // 404 and not a gate; it is a working, protected page nobody can find. `/admin/gatherings`
+  // schedules a gathering, hands out its tasks and rules on the answers;
+  // `/admin/gathering-templates` authors the step lists a gathering can be built FROM, and
+  // it is listed second for the same reason Event Templates trails Event Management: the
+  // screen an administrator opens most often reads first, and the library is the thing you
+  // set up once. Both are filtered by the same two independent gates as everything else in
+  // this list (roadmap status, then `viewable`), so neither needs a condition of its own.
+  { href: '/admin/gatherings',          label: 'Gathering Management', icon: CalendarCog },
+  { href: '/admin/gathering-templates', label: 'Gathering Templates',  icon: LayoutList },
   // NO Announcement Management ROW. The route is deleted (20260813000000) — posting,
   // pinning and deleting all live on Community > Announcements now, each control gated by
   // the `announcements` grant that governs it. An admin duplicate of a member page is a
@@ -118,9 +135,32 @@ const adminItems: NavItem[] = [
 // and then filtered by what the member may actually view — the permission model is
 // the single authority, so there is no separate isAdmin branch here any more.
 function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGroup[] {
+  // GATHERINGS SHARES THIS HEADING WITH EVENTS, AND SHARES NOTHING ELSE WITH IT. The two
+  // are separate products on separate tables answering separate questions — Events is when
+  // it is and who is coming, Gatherings is who is doing what and has it been accepted (see
+  // the long note beside `/gatherings` in lib/features.ts). A member does not think in
+  // those terms, though: both are "the family is getting together", so both live under the
+  // one heading rather than growing a second section that would read as a competing
+  // product. Nothing here merges them, and nothing here may start to.
+  //
+  // ORDER IS MEMBER-FACING FIRST, THEN THE CALENDAR THAT SPANS BOTH, THEN THE ADMIN PAIR —
+  // which is why Calendar sits between the two halves rather than at the top. It is the one
+  // item in this group that shows gatherings and events TOGETHER, so it belongs after the
+  // things it aggregates and before the screens that create them.
+  //
+  // MY GATHERING TASKS IS UNCONDITIONAL, unlike Event Planning directly above it, and the
+  // difference is deliberate. `hasAssignments` exists because /event-planning is a page that
+  // reads as broken when a member has nothing assigned; /gatherings/my-tasks has a real
+  // empty state ("nothing is assigned to you"), and hiding it would mean a member who has
+  // just been handed a task cannot find it until the shell happens to rebuild — and the
+  // shell is built once per tab (see ShellWatcher). A row that is sometimes there is worse
+  // than a row that is sometimes empty.
   const eventItems: NavItem[] = [
     { href: '/events', label: 'Upcoming Events', icon: Calendar },
     ...(hasAssignments ? [{ href: '/event-planning', label: 'Event Planning', icon: ClipboardList }] : []),
+    { href: '/gatherings',          label: 'Gatherings',         icon: PartyPopper },
+    { href: '/gatherings/my-tasks', label: 'My Gathering Tasks', icon: ClipboardCheck },
+    { href: '/calendar',            label: 'Calendar',           icon: CalendarDays },
     { href: '/admin/events',      label: 'Event Management', icon: CalendarClock },
     { href: '/admin/event-types', label: 'Event Templates',  icon: ListChecks },
   ]
@@ -371,8 +411,34 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
 }) {
   const { section, items } = group
 
+  // WHICH ROW IS SELECTED IS THE LONGEST MATCH, NOT EVERY MATCH.
+  //
+  // `isActive` is `pathname === href || pathname.startsWith(href + '/')`, which is correct
+  // and stays as it is: /gatherings/<id> genuinely IS Gatherings and must light that row.
+  // What it cannot do on its own is decide between two items when one is nested inside the
+  // other, and this group now holds such a pair — /gatherings and /gatherings/my-tasks. On
+  // the second of those both rows satisfied `isActive`, and two gold pills in one section
+  // is not a selection, it is two.
+  //
+  // The tie-break is the longest match, which is the same longest-prefix rule
+  // `getFeature()` in lib/features.ts already applies to these very hrefs — so the rail and
+  // the registry agree about which feature a path belongs to, rather than each having its
+  // own answer. It changes nothing for any pair already in this file: no other two nav
+  // hrefs are nested (/dues and /dues-projections only look it — `startsWith` needs a
+  // literal '/dues/'), so every existing group resolves to exactly the row it did before.
+  //
+  // Scoped to the GROUP on purpose. Nothing stops two sections listing hrefs that nest —
+  // Events already carries /admin/events, which the Admin section deliberately does not
+  // repeat, and the next such pair may be less tidy — and a rail that resolved the winner
+  // across the whole tree would let one section's row suppress another section's. Each
+  // section decides its own selection. NavTree's `activeSection` keeps the plain `isActive`
+  // for the mirror-image reason: it asks "does anything in here match", not "which one".
+  const activeHref = items
+    .filter(item => isActive(pathname, item.href))
+    .reduce<string | null>((best, item) => (!best || item.href.length > best.length ? item.href : best), null)
+
   const links = items.map(item => (
-    <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} onClick={onNavClick} />
+    <NavLink key={item.href} {...item} active={item.href === activeHref} onClick={onNavClick} />
   ))
 
   // No section header (e.g. Dashboard) — render the items plainly.

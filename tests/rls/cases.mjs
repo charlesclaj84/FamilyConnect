@@ -106,6 +106,52 @@ export function alphaMarkers(fx) {
     'ALPHATEST dues',
     'ALPHATESTChild',
     'ALPHATESTFather',
+    // ── GATHERINGS (20260819000000) ───────────────────────────────────────────
+    //
+    // EVERY STRING HERE SAYS "ASSEMBLY" AND NONE SAYS "GATHERING", and that is the one thing
+    // about this list a future addition must not get wrong. `seed.mjs` seeds an `event_types`
+    // row named `${code} gathering`, this scan matches on SUBSTRINGS, and a marker of
+    // 'ALPHATEST gathering' would therefore be found in that pre-existing row — reporting a
+    // leak against every read in the suite, in a response that never touched this feature.
+    //
+    // The ids first. Every one is ALPHA's by construction, so a BRAVO response carrying one
+    // is a leak like any other and every default-checked read gains the assertion for free.
+    a.template.id, a.deletableTemplate.id,
+    a.templateStep1.id, a.templateStep2.id, a.deletableStep.id, a.deletableTemplateStep.id,
+    a.gathering.id, a.deletableGathering.id, a.templateUse.id,
+    a.assignedTask.id, a.unassignedTask.id, a.submittableTask.id, a.submittedTask.id,
+    a.queuedTask.id, a.pendingTask.id, a.submission.id, a.queuedSubmission.id,
+    a.approvedTask.id, a.approvedSubmission.id,
+    // And the prose. A template's name and a step's label are what a leaked template library
+    // would actually show; a submission's note is a relative's own words about the family's
+    // money and is the sharpest single string in this block.
+    //
+    // `location` IS DELIBERATELY ABSENT ('ALPHATEST assembly hall'). `updateGathering`'s
+    // control rewrites a column on that row, and a marker a case overwrites is a marker that
+    // silently stops being found for every case ordered after it — which would weaken the
+    // CONTROL side of those cases, where the assertion is "at least one marker came back".
+    'ALPHATEST assembly plan', 'ALPHATEST assembly plan notes',
+    'ALPHATEST spare assembly plan',
+    'ALPHATEST spring assembly', 'ALPHATEST assembly summary',
+    'ALPHATEST spare assembly',
+    'ALPHATEST bring the assembly banner', 'ALPHATEST assembly banner note',
+    'ALPHATEST assembly catering line',
+    'ALPHATEST spare assembly step', 'ALPHATEST spare plan assembly step',
+    'ALPHATEST assembly seating plan', 'ALPHATEST assembly photograph list',
+    'ALPHATEST assembly photograph', 'ALPHATEST assembly submission note',
+    'ALPHATEST assembly transport list', 'ALPHATEST assembly transport note',
+    'ALPHATEST assembly minibus',
+    // The approved task, its answer and the note that came with it. Safe to mark even though a
+    // case moves that row: `reopenGatheringTask` writes `status`, `decided_at` and `decided_by`
+    // and deliberately touches neither the label nor the answer, which is the whole of what
+    // "nothing is erased" means — so these three survive the control and go on being findable
+    // for every case ordered after it, which is the property the `location` note above is about.
+    'ALPHATEST assembly hall booking', 'ALPHATEST assembly parish hall',
+    'ALPHATEST assembly hall booking note',
+    // The task ALPHA's APPLICANT holds. Marked deliberately, and the note beside it in
+    // seed.mjs says why the usual "never mark an attacking actor's own row" rule does not
+    // reach it: a task is the family's work, not the applicant's own people row.
+    'ALPHATEST assembly welcome table',
   ]
 }
 
@@ -3773,6 +3819,1170 @@ export const MONEY_CASES = [
   },
 ]
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * GATHERINGS (20260819000000) — 32 actions across four modules.
+ *
+ * ── WHAT IS ACTUALLY BEING TESTED HERE, PER TABLE ──────────────────────────────────────
+ * The six tables have ONE SELECT policy each and NO INSERT, UPDATE or DELETE policy at all
+ * — the same shape `fund_transfers` and `fund_disbursements` keep. So the two halves of this
+ * feature are protected by two completely different mechanisms, and the cases split the same
+ * way:
+ *
+ *   READS   go through the user client, so the composed SELECT policy is what isolates
+ *           them — except for five that deliberately do not, and those five are the sharpest
+ *           cases in the block because NO POLICY IS UNDERNEATH THEM AT ALL:
+ *           `getSchedulableTemplates`, `getAdminGatherings`, `getAdminGatheringDetail`,
+ *           `getGatheringReviewQueue`, `getGatheringFundOptions`,
+ *           `getGatheringAssignableMembers`, and the events half of `getCalendarMonth`.
+ *           A hand-written `.eq('family_code', ...)` is their whole defence.
+ *
+ *   WRITES  have no policy underneath them by design. Every one runs on
+ *           `createAdminClient()`, so the action's own `family_code` conjuncts and its
+ *           `belongsToFamily` calls ARE the boundary, with the five `*_same_family` guard
+ *           triggers behind them. Two cases (`setGatheringBudget (a fund from another
+ *           family)` and `assignGatheringTask (a person from another family)`) are the §4
+ *           shape at its sharpest: the row being written is genuinely the caller's own and
+ *           every policy is satisfied, while an id it carries points into another family.
+ *
+ * ── WHY MOST CONTROLS ARE `alphaAdmin`, AND WHICH THREE ARE NOT ────────────────────────
+ * AGENTS.md asks for the LEAST-entitled actor that can legitimately succeed, and for this
+ * feature that answer is measured rather than assumed. The General template a plain member
+ * is born on (seeded by the families trigger, per `seed_family_permission_templates()`)
+ * holds exactly this, verified against the fixture database:
+ *
+ *     gatherings:view          any      <- so the member-facing READS run as alphaMember
+ *     gatherings/my-tasks:view any
+ *     calendar:view            any
+ *     gatherings:create        none     <- so scheduleGathering CANNOT be a plain member
+ *     gatherings/budget:view   none     <- 20260819000000 §6a restricts this key
+ *     admin/gatherings:*       none
+ *     admin/gathering-templates:* none
+ *
+ * The three that are NOT pinned to the administrator are the ones that matter most, for the
+ * reason the dues comment above states: an admin-only control passes whether or not members
+ * can do their own job.
+ *
+ *   getGatherings, getGatheringDetail, getPremierGathering, getMyGatheringTasks,
+ *   getMyGatheringTaskCount, getCalendarMonth   run as `alphaMember`
+ *   submitGatheringTask                          runs as `alphaMember`, and MUST — it is
+ *                                                self-service, gated on `requireMember()`
+ *                                                plus `assignee_id === personId`, so
+ *                                                alphaAdmin is refused by the ownership test
+ *                                                and could never be the control here.
+ *
+ * `scheduleGathering` is pinned to `alphaAdmin` and that pin is NOT a bug's shadow: the
+ * shipped default really is that an ordinary member may not schedule, and an administrator
+ * grants `gatherings:create` on Members & Access to change it. If that default ever moves,
+ * this pin is the line to reconsider — not the fixture.
+ *
+ * ── THE PENDING HALF IS DERIVED, NOT TYPED TWICE ───────────────────────────────────────
+ * `GATHERING_PENDING_CASES` below is `GATHERING_CASES.map(...)` with the attacker swapped to
+ * `alphaPending`, and that is deliberate. Every one of these 32 actions reads or writes
+ * family data, so every one owes a pending case; writing them out by hand would be ~20
+ * write cases restated with one field different, and the failure mode of a restatement is
+ * that the two copies drift — a `setup` fixed in one and not the other turns the pending
+ * half into a vacuous pass, silently. Deriving them makes that impossible.
+ *
+ * WHICH OF THEM ARE EVIDENCE, labelled here rather than left to look uniform:
+ *
+ *   [crux] the member-facing reads and `submitGatheringTask`. An applicant is INSIDE
+ *          ALPHA's boundary by every test the cross-family cases apply — `auth_family_code()`
+ *          resolves ALPHATEST for them deliberately — so these are where the membership gate
+ *          is actually asserted. `requireMember()` refuses them by name; `requireRead` and
+ *          `requireScope` refuse them because `resolveScope()` denies a non-approved caller
+ *          outright, mirroring `auth_person_id()`'s own conjunct.
+ *
+ *   [not evidence for the family conjunct] every case whose main half is already refused by
+ *          a GRANT. A pending caller holds no template grant at all, so the two admin keys
+ *          and `gatherings/budget` refuse them before any query runs — the same labelling
+ *          `dues.getFamilyDuesCollected (pending member)` carries above. They are kept
+ *          because they are the regression guard on the pair holding together: a later
+ *          migration that loosens one has the other still standing, and the case that
+ *          notices is the one that runs the whole path.
+ *
+ * `noPending: true` on a case opts it out, and exactly three use it — the two §4 cases whose
+ * attacker is already `alphaAdmin` (swapping THAT attacker for an applicant would test the
+ * membership gate a third time and say nothing about the reference check the case exists for),
+ * and `submitGatheringTask (an applicant holding the task)`, which IS the pending case.
+ *
+ * ── CHECKED BY MUTATION, 2026-08-19. OBSERVED, NOT EXPECTED ────────────────────────────
+ * A green suite is not evidence until it has been seen to fail (AGENTS.md §7). Every result
+ * below was run against the local stack; the commands are given so the next person can repeat
+ * them, and three of them are recorded BECAUSE THEY DID NOT TRIP — a mutation that passes says
+ * something about the case, and hiding it would leave the rest looking stronger than it is.
+ *
+ * The database mutations were made with `docker exec -i supabase_db_GENORRA psql -U postgres
+ * -d postgres`; the file mutations by hand, restored from a copy, and the whole set finished
+ * with `npx supabase db reset`. `npm run test:rls "<substring>"` runs one case at a time.
+ *
+ *   g1  ALTER POLICY "perm:gatherings:select" ON public.gatherings USING (...) with
+ *       `family_code = public.auth_family_code() AND` deleted
+ *         FAIL  gatherings.getGatherings          LEAKED 5
+ *         FAIL  gatherings.getGatheringDetail     LEAKED 3
+ *         FAIL  gatherings.getPremierGathering    LEAKED 3
+ *         FAIL  calendar.getCalendarMonth         LEAKED 4
+ *         pass  gatherings.getMyGatheringTasks    — and this is the one to read. That action
+ *               filters `.eq('assignee_id', g.personId)` on a person id resolved from the
+ *               CALLER's active family, so a BRAVO caller can never match an ALPHA row
+ *               whatever the policy says. Its cross-family half is structurally vacuous and
+ *               is labelled so on the case; `submitGatheringTask (an applicant holding the
+ *               task)` is where that action's gate is actually observed.
+ *
+ *   g2  app/actions/gatherings.ts, `getSchedulableTemplates`: drop
+ *       `.eq('family_code', g.familyCode)` from the admin-client read
+ *         FAIL  gatherings.getSchedulableTemplates   LEAKED 6 (both template ids, both names)
+ *       There is no policy under this read — `gathering_templates` keys on
+ *       `admin/gathering-templates:view`, which the member this action exists for does not
+ *       hold, which is why it is on the service role at all. One line is the whole defence.
+ *
+ *   g3  app/actions/admin/gatherings.ts, `updateGathering`: drop BOTH
+ *       `.eq('family_code', g.familyCode)` conjuncts (the existence read and the UPDATE)
+ *         FAIL  admin/gatherings.updateGathering (cross-family)   ROW MUTATED,
+ *               `"status":"planning"` -> `"status":"scheduled"` on ALPHA's gathering
+ *   g3b drop ONLY the one on the existence read      pass
+ *   g3c drop ONLY the one on the UPDATE              pass
+ *       Either conjunct alone is sufficient, so this case is evidence for the PAIR and not
+ *       for either line. Exactly the result `admin/chapters.deleteChapter` records above, and
+ *       the reason to record it is that a reviewer deleting one of the two would see green.
+ *
+ *   g4a app/actions/admin/gatherings.ts, `setGatheringBudget`: delete the
+ *       `belongsToFamily('funds', ...)` call
+ *         pass  setGatheringBudget (a fund from another family)
+ *               — `tg_gathering_same_family()` refuses the row: the trigger exists precisely
+ *                 because every write in this feature runs on the service role.
+ *   g4b g4a AND `CREATE OR REPLACE FUNCTION public.tg_gathering_same_family()` with the
+ *       `NEW.fund_id` branch deleted
+ *         FAIL  ROW MUTATED — ALPHA's gathering repointed at BRAVO's fund,
+ *               `fund_id` de4eaee7... -> 209a8b7d..., `budget_cents` 50000 -> 1234
+ *   g4c the trigger neutered, `belongsToFamily` left in place
+ *         pass  — the action refuses it.
+ *       So §4 here is a PAIR and either half is sufficient. That is the intended design, and
+ *       it means g4a on its own proves nothing: anyone re-running this needs g4b to see red.
+ *
+ *   g7  app/actions/admin/gatherings.ts, `assignGatheringTask`: delete the
+ *       `belongsToFamily('people', ...)` call AND the family conjunct on the membership read
+ *         pass  assignGatheringTask (a person from another family)
+ *   g7b g7 AND `tg_gathering_task_same_family()` with the `NEW.assignee_id` branch deleted
+ *         FAIL  ROW MUTATED — ALPHA's task assigned to BRAVO's member
+ *       The same pair, on the other §4 id.
+ *
+ *   g5a lib/auth/permissions.ts: `const approved = true` in `getMyPermissionSet`
+ *         pass  every `(pending member)` read — `auth_membership_approved()` in the policy
+ *               refuses them, and `auth_permission()` resolves 'none' through
+ *               `auth_person_id()`, so the applicant is refused twice more in SQL.
+ *   g5c g5a AND `auth_person_id()` with `AND p.membership_status = 'approved'` deleted
+ *         FAIL  gatherings.getGatherings (pending member)        LEAKED 5
+ *         FAIL  gatherings.getGatheringDetail (pending member)   LEAKED 20
+ *         FAIL  gatherings.getPremierGathering (pending member)  LEAKED 3
+ *       Twenty markers on the detail: the gathering, its summary, its template, every task
+ *       label and the submission note. That is what an unadmitted applicant would read.
+ *
+ *   g5d lib/auth/family.ts: `isApprovedMember()` returns true
+ *         FAIL  submitGatheringTask (an applicant holding the task)   ROW MUTATED,
+ *               `"status":"open"` -> `"submitted"` with the applicant's answer on the row
+ *         pass  getMyGatheringTasks / getMyGatheringTaskCount (pending member) — those read
+ *               on the USER client, so the policy is still underneath them.
+ *   g5b g5d AND `auth_membership_approved()` returns true AND g5c
+ *         FAIL  getMyGatheringTasks (pending member)       LEAKED 5
+ *         FAIL  getMyGatheringTaskCount (pending member)   unexpected: 1
+ *       THREE GATES DEEP, which is worth knowing before anyone "simplifies" one of them:
+ *       `requireMember()` in TypeScript, `auth_membership_approved()` in the policy, and
+ *       `auth_person_id()`'s own conjunct inside `self_expr`. All three have to go before an
+ *       applicant reads the task they are holding.
+ *
+ *   g8  app/actions/admin/gatherings.ts, `reopenGatheringTask`: delete the
+ *       `.eq('family_code', g.familyCode)` conjunct from BOTH the read and the UPDATE
+ *         FAIL  reopenGatheringTask (another family's approved task)   ROW MUTATED
+ *               `"status":"approved"` -> `"open"`, `decided_at` and `decided_by` nulled, and
+ *               ALPHA's assignee told about it in ALPHA's notifications with BRAVO's reason in
+ *               the body. `.eq('id', ...)` alone is the whole predicate then, on the admin
+ *               client, so nothing else is underneath it at all.
+ *   g8b `reopenGatheringTask` with the `task.status !== 'approved'` refusal deleted
+ *         pass  BOTH halves — and that is the point of it being recorded here rather than
+ *               omitted. This case cannot see that refusal, because `resetApprovedTasks` puts
+ *               the row back to 'approved' before each half, so both halves address a row the
+ *               guard would admit either way. The refusal is a product rule, not an isolation
+ *               boundary, and nothing in this suite asserts it. Stated so a green run is not
+ *               read as evidence for it.
+ *
+ *   g9  the DATABASE, not a file: drop the `family_code = public.auth_family_code()` conjunct
+ *       from `perm:gatherings:select` (DROP + CREATE with `(false)` in the self branch and the
+ *       rest verbatim)
+ *         FAIL  getUpcomingGatheringCount                  unexpected: 4
+ *         FAIL  getUpcomingGatheringCount (control)         2 expected, 4 seen
+ *         pass  getUpcomingGatheringCount (pending member)
+ *       Measured with `npm run test:rls "getUpcomingGatheringCount"`, which reseeds and runs only
+ *       these two — so `bravoAdmin` is in BRAVOTEST alone there and counts their own 2 before the
+ *       mutation. In the FULL suite they are in three families and count 0 unmutated; 4 is over
+ *       the ceiling either way, which is why the attack half asserts one.
+ *       A DOUBLING, exactly as `FAMILY_UPCOMING_GATHERINGS` predicts, because both families hold
+ *       the same two rows. This is the mutation that makes the count case evidence, and it has to
+ *       be run against the database because that policy is what does the scoping — the action has
+ *       no `.eq('family_code', ...)` of its own, deliberately, so there is nothing in a file to
+ *       delete. `npx supabase db reset` afterwards.
+ *   g9b g9 AND `auth_membership_approved()` returning true AND `isApprovedMember()` returning
+ *       true (g5d)
+ *         pass  getUpcomingGatheringCount (pending member)  — STILL. Recorded because it is the
+ *               honest reading of what that half proves on its own, which is less than it looks:
+ *               three gates deep and an applicant still counts 0.
+ *   g9c g9b AND `getMyPermissionSet`'s `const approved = true` (g5a) AND `auth_person_id()`
+ *       without its `membership_status = 'approved'` conjunct (g5c)
+ *         FAIL  getUpcomingGatheringCount (pending member)  unexpected: 4
+ *       FOUR GATES, and this is where the pending half finally bites: `requireRead('calendar')`
+ *       resolving through `getMyPermissionSet`, `auth_membership_approved()` in the policy, and
+ *       `auth_permission()` collapsing to 'none' because `auth_person_id()` is NULL for an
+ *       applicant. Any one of them left standing answers 0.
+ *
+ *   g6  tests/rls/seed.mjs: move the six gathering tables in `scoped` from before `funds` to
+ *       after it
+ *         DIED IN TEARDOWN, before a single case executed:
+ *           Error: teardown funds: new row for relation "gatherings" violates check
+ *           constraint "gatherings_budget_needs_fund"
+ *       The ordering note in seed.mjs is measured, not reasoned: `gatherings.fund_id` is ON
+ *       DELETE SET NULL, Postgres carries that out as an UPDATE on the referencing row, and
+ *       every CHECK on that row is enforced against it.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/** A gathering created by a case, so a probe can find it without knowing whose family it landed in. */
+const SCHEDULE_CASE_TITLE = 'scope-case scheduled assembly'
+const CREATE_CASE_TITLE = 'scope-case organized assembly'
+const TEMPLATE_CASE_NAME = 'scope-case assembly plan'
+const STEP_CASE_LABEL = 'scope-case assembly step'
+/** Far enough out that it cannot fall inside the month `getCalendarMonth`'s case asks for. */
+const CREATE_CASE_DATE = '2027-06-01'
+
+/**
+ * How many upcoming, uncancelled gatherings ONE family has at seed: `f.gathering` (+30 days) and
+ * `f.deletableGathering` (+45 days), both 'planning'. The fixture loop seeds both families
+ * identically, so this is ALPHA's figure and BRAVO's alike — MEASURED, not counted from the
+ * source: `SELECT family_code, count(*) ... FROM gatherings GROUP BY 1` answers 2 for each.
+ *
+ * It is the CEILING `getUpcomingGatheringCount`'s attack half asserts and the EXACT figure its
+ * control asserts, and the asymmetry is measured rather than cautious — see that case.
+ *
+ * The leak signature of a family conjunct going missing is a DOUBLING: 4, not 3, because the two
+ * families hold the same rows. So `<=` on the attack side still catches it, and the control's
+ * exact `=== 2` is what catches a query that answers 0 for everybody. A future fixture change
+ * that adds an upcoming gathering fails the control loudly with the number printed, which is the
+ * right way for a stale figure to break.
+ */
+const FAMILY_UPCOMING_GATHERINGS = 2
+
+/**
+ * ALPHA's and BRAVO's main gathering back to what the fixture seeded.
+ *
+ * FIVE COLUMNS, because three cases share this and each moves a different one:
+ * `updateGathering` moves `status`, `setGatheringBudget` moves `fund_id` and `budget_cents`,
+ * and `is_premier` is restored so `getPremierGathering` cannot be made to depend on the
+ * order the write cases ran in. `location` is restored too even though no case moves it —
+ * it is the one column on this row a future case is most likely to reach for.
+ */
+const resetGatherings = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gatherings').update({
+      status: 'planning', is_premier: true,
+      fund_id: f.fund.id, budget_cents: 50000,
+      location: `${f.familyCode} assembly hall`,
+    }).eq('id', f.gathering.id))
+  }
+}
+
+/**
+ * Both families' SPARE gatherings back: existing, unflagged, and with no money on them.
+ *
+ * RE-INSERTS BY ID rather than assuming the row is there, because `deleteGathering`'s control
+ * removes it — and without this the cases after it would probe a row that is gone and read
+ * "unchanged" for both halves, which is a green tick over an assertion about nothing.
+ * `resetSpareChapters` above exists for exactly this reason and this is the same shape.
+ */
+const resetSpareGatherings = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gatherings').upsert({
+      id: f.deletableGathering.id, family_code: f.familyCode,
+      title: `${f.familyCode} spare assembly`,
+      starts_on: f.deletableGathering.starts_on,
+      status: 'planning', is_premier: false,
+      // NULL on both, so `lib/money-attached.ts` counts nothing against a fund on account of
+      // this row — `funds.deleteFund`'s control would otherwise start failing with a message
+      // about a gathering, which reads as a bug in the money guard rather than a collision.
+      fund_id: null, budget_cents: null,
+      created_by: f.ownerPersonId,
+    }))
+  }
+}
+
+/** Both families' spare TEMPLATES back, with their one step, since a control deletes one. */
+const resetSpareTemplates = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_templates').upsert({
+      id: f.deletableTemplate.id, family_code: f.familyCode,
+      name: `${f.familyCode} spare assembly plan`,
+      created_by: f.ownerPersonId, who_may_schedule: 'admin', is_archived: false,
+    }))
+    must(await db.from('gathering_template_steps').upsert({
+      id: f.deletableTemplateStep.id, family_code: f.familyCode,
+      template_id: f.deletableTemplate.id, position: 0,
+      label: `${f.familyCode} spare plan assembly step`, kind: 'text',
+    }))
+  }
+}
+
+/** Both families' main template back — `updateGatheringTemplate` rewrites its description. */
+const resetTemplates = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_templates').update({
+      name: `${f.familyCode} assembly plan`,
+      description: `${f.familyCode} assembly plan notes`,
+      who_may_schedule: 'family', is_archived: false,
+    }).eq('id', f.template.id))
+  }
+}
+
+/**
+ * The three steps of both families' main template, in the order and shape the fixture seeded.
+ *
+ * Shared by `updateTemplateStep` (which rewrites step 1's help text), `deleteTemplateStep`
+ * (which removes the third) and `moveTemplateStep` (which swaps the first two). The positions
+ * are restated rather than assumed because the swap is persistent: without this the move
+ * case's second half would start from the order its first half left behind, and a swap back
+ * is indistinguishable from a swap that did nothing.
+ */
+const resetTemplateSteps = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_template_steps').update({
+      position: 0, help_text: `${f.familyCode} assembly banner note`,
+    }).eq('id', f.templateStep1.id))
+    must(await db.from('gathering_template_steps').update({ position: 1 })
+      .eq('id', f.templateStep2.id))
+    must(await db.from('gathering_template_steps').upsert({
+      id: f.deletableStep.id, family_code: f.familyCode, template_id: f.template.id,
+      position: 2, label: `${f.familyCode} spare assembly step`, kind: 'long_text',
+    }))
+  }
+}
+
+/** The unassigned task back to nobody's, undated, with the template's suggested line on it. */
+const resetUnassignedTasks = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    must(await db.from('gathering_tasks')
+      .update({ assignee_id: null, due_on: null, budget_cents: 5000 })
+      .eq('id', fx[side].unassignedTask.id))
+  }
+}
+
+/**
+ * The submittable task back to 'open' with no answer and no submissions behind it.
+ *
+ * THE SUBMISSIONS ARE DELETED, not merely ignored, because `submitGatheringTask` INSERTS one
+ * every time it succeeds: left in place, the probe's submission list would grow on every half
+ * of every run and the case would report a change for the attack half of the run after it.
+ */
+const resetSubmittableTasks = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_task_submissions').delete().eq('task_id', f.submittableTask.id))
+    must(await db.from('gathering_tasks')
+      .update({ status: 'open', answer: null, decided_at: null, decided_by: null })
+      .eq('id', f.submittableTask.id))
+  }
+}
+
+/** The applicant-held task back to 'open' with no answer, and no submissions behind it. */
+const resetPendingTasks = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_task_submissions').delete().eq('task_id', f.pendingTask.id))
+    must(await db.from('gathering_tasks')
+      .update({ status: 'open', answer: null, assignee_id: f.pendingPersonId })
+      .eq('id', f.pendingTask.id))
+  }
+}
+
+/** The submitted task and its pending submission back to undecided, for `reviewGatheringTask`. */
+const resetSubmittedTasks = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_tasks')
+      .update({ status: 'submitted', decided_at: null, decided_by: null })
+      .eq('id', f.submittedTask.id))
+    must(await db.from('gathering_task_submissions')
+      .update({ decision: 'pending', review_notes: null, reviewed_by: null, reviewed_at: null })
+      .eq('id', f.submission.id))
+  }
+}
+
+/**
+ * The approved task and its approved submission back to ruled-on, for `reopenGatheringTask`.
+ *
+ * `status = 'approved'` is the ONLY state that action accepts, so without this the control's
+ * second run would be refused with "this task has not been approved" — a green attack half and a
+ * red control half, for a reason with nothing to do with family isolation. `setup` runs once per
+ * half, so it has to be idempotent, and an UPDATE to fixed values is.
+ *
+ * `decided_at` and `decided_by` are written back as well as the status, because they are what a
+ * reopen CLEARS: restore only the status and the second run's probe would compare two rows that
+ * were already null there, so a reopen that stopped clearing them would pass.
+ *
+ * The values come off the FIXTURE ROW rather than from a literal here or a clock read. `seed.mjs`
+ * inserts these rows with `.select().single()`, so `f.approvedTask` already carries the exact
+ * `decided_at` and `decided_by` the fixture chose — restoring from a second copy of them would be
+ * two places to keep in step, and restoring from `new Date()` would make the probe's
+ * before-and-after differ by the run's own duration on a column nothing under test wrote.
+ *
+ * The SUBMISSION is restored too although nothing under test writes it — that is the point. A
+ * reopen must leave the audit trail exactly as it is, so the probe projects it, and a probe that
+ * projects a column no setup pins would report the fixture's own drift as a mutation.
+ */
+const resetApprovedTasks = async (db, fx) => {
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_tasks')
+      .update({
+        status: 'approved',
+        decided_at: f.approvedTask.decided_at,
+        decided_by: f.approvedTask.decided_by,
+      })
+      .eq('id', f.approvedTask.id))
+    must(await db.from('gathering_task_submissions')
+      .update({
+        decision: 'approved',
+        reviewed_by: f.approvedSubmission.reviewed_by,
+        reviewed_at: f.approvedSubmission.reviewed_at,
+        review_notes: null,
+      })
+      .eq('id', f.approvedSubmission.id))
+  }
+}
+
+/**
+ * ALPHA's approved task and the approved submission behind it.
+ *
+ * FIVE COLUMNS ACROSS TWO TABLES, and each is there for a different reason:
+ *
+ *  * `status`, `decided_at`, `decided_by` — the three a reopen writes. A probe naming only
+ *    `status` would read a reopen that left an organizer named as having decided something they
+ *    had taken back as a clean success.
+ *  * `answer` on the task — the one a reopen must NOT write. Clearing it would hand the member a
+ *    blank box and ask them to retype an answer they had already got right, and on a probe
+ *    watching only the status columns that regression is invisible.
+ *  * `decision` and `review_notes` on the submission — the audit trail, which a reopen must also
+ *    leave alone. This is the half that cannot be seen from the task at all.
+ */
+const reopenedTaskProbe = async (db, fx) => {
+  const [task, sub] = await Promise.all([
+    db.from('gathering_tasks').select('status, answer, decided_at, decided_by')
+      .eq('id', fx.alpha.approvedTask.id),
+    db.from('gathering_task_submissions').select('decision, review_notes, reviewed_by')
+      .eq('id', fx.alpha.approvedSubmission.id),
+  ])
+  if (task.error || sub.error) {
+    throw new Error(`probe: ${task.error?.message ?? sub.error?.message}`)
+  }
+  return JSON.stringify([task.data, sub.data])
+}
+
+/** No link at all between a family's spare gathering and its spare template. */
+const clearSpareLink = async (db, fx) => {
+  await resetSpareGatherings(db, fx)
+  await resetSpareTemplates(db, fx)
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_tasks').delete()
+      .eq('gathering_id', f.deletableGathering.id).eq('template_id', f.deletableTemplate.id))
+    must(await db.from('gathering_template_uses').delete()
+      .eq('gathering_id', f.deletableGathering.id).eq('template_id', f.deletableTemplate.id))
+  }
+}
+
+/**
+ * A family's spare gathering linked to its MAIN template, with one task from it that is still
+ * 'open' and unassigned — the only state `removeGatheringTemplate` will unlink.
+ *
+ * Delete-then-insert rather than an upsert, so no fixed uuid has to be threaded between this
+ * and the probe: the pair (gathering_id, template_id) is the identity that matters and it is
+ * what both statements filter on.
+ */
+const linkSpareGathering = async (db, fx) => {
+  await resetSpareGatherings(db, fx)
+  for (const side of ['alpha', 'bravo']) {
+    const f = fx[side]
+    must(await db.from('gathering_tasks').delete().eq('gathering_id', f.deletableGathering.id))
+    must(await db.from('gathering_template_uses').delete()
+      .eq('gathering_id', f.deletableGathering.id))
+    must(await db.from('gathering_template_uses').insert({
+      family_code: f.familyCode, gathering_id: f.deletableGathering.id,
+      template_id: f.template.id, position: 0,
+    }))
+    must(await db.from('gathering_tasks').insert({
+      family_code: f.familyCode, gathering_id: f.deletableGathering.id,
+      template_id: f.template.id, label: `${f.familyCode} spare link assembly task`,
+      kind: 'text', required: false, position: 0, status: 'open', assignee_id: null,
+    }))
+  }
+}
+
+/**
+ * Everything hanging off ALPHA's spare gathering: which templates it is built from, and every
+ * task those templates put there.
+ *
+ * BOTH HALVES IN ONE STRING, because `addGatheringTemplate` and `removeGatheringTemplate`
+ * each move both — a probe watching only the junction table would report a template unlinked
+ * while ten tasks it created stayed behind, which is the exact bug
+ * `removeGatheringTemplate`'s refusal exists to prevent.
+ */
+const spareGatheringLinks = async (db, fx) => {
+  const [uses, tasks] = await Promise.all([
+    db.from('gathering_template_uses').select('template_id, position')
+      .eq('gathering_id', fx.alpha.deletableGathering.id).order('template_id'),
+    db.from('gathering_tasks').select('label, template_id, status, assignee_id')
+      .eq('gathering_id', fx.alpha.deletableGathering.id).order('label'),
+  ])
+  if (uses.error || tasks.error) {
+    throw new Error(`probe: ${uses.error?.message ?? tasks.error?.message}`)
+  }
+  return JSON.stringify([uses.data, tasks.data])
+}
+
+/**
+ * ALPHA's submittable task and every submission behind it.
+ *
+ * `status` AND `answer` are both projected, and the submissions beside them, because
+ * `submitGatheringTask` writes all three: the audit row first, then the status and the
+ * normalised answer on the task. A probe that watched only `status` would read a successful
+ * write as a no-op the moment somebody re-ordered those two statements.
+ */
+const submittableTaskProbe = async (db, fx) => {
+  const [task, subs] = await Promise.all([
+    db.from('gathering_tasks').select('status, answer, decided_at')
+      .eq('id', fx.alpha.submittableTask.id),
+    db.from('gathering_task_submissions').select('decision, note, answer, submitted_by')
+      .eq('task_id', fx.alpha.submittableTask.id).order('created_at'),
+  ])
+  if (task.error || subs.error) {
+    throw new Error(`probe: ${task.error?.message ?? subs.error?.message}`)
+  }
+  return JSON.stringify([task.data, subs.data])
+}
+
+/**
+ * ALPHA's submitted task and the submission `reviewGatheringTask` rules on.
+ *
+ * The decision lands in TWO places — `status`/`decided_by` on the task and
+ * `decision`/`review_notes`/`reviewed_by` on the submission — and the submission half is the
+ * only one that carries the notes a denial exists to deliver. Watching the task alone would
+ * make a review that recorded no notes indistinguishable from one that did.
+ */
+const reviewedTaskProbe = async (db, fx) => {
+  const [task, sub] = await Promise.all([
+    db.from('gathering_tasks').select('status, decided_by')
+      .eq('id', fx.alpha.submittedTask.id),
+    db.from('gathering_task_submissions').select('decision, review_notes, reviewed_by')
+      .eq('id', fx.alpha.submission.id),
+  ])
+  if (task.error || sub.error) {
+    throw new Error(`probe: ${task.error?.message ?? sub.error?.message}`)
+  }
+  return JSON.stringify([task.data, sub.data])
+}
+
+/** Anything a create case left behind, in EITHER family — see each case on why both. */
+const clearCaseGatherings = (title) => async (db) => {
+  const { error } = await db.from('gatherings').delete().eq('title', title)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+const clearCaseTemplates = async (db) => {
+  const { error } = await db.from('gathering_templates').delete().eq('name', TEMPLATE_CASE_NAME)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+const clearCaseSteps = async (db, fx) => {
+  await resetSpareTemplates(db, fx)
+  const { error } = await db.from('gathering_template_steps').delete().eq('label', STEP_CASE_LABEL)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+export const GATHERING_CASES = [
+  // ── member facing: app/actions/gatherings.ts ──────────────────────────────
+  // The list and the detail read on the USER client, so the composed
+  // `perm:gatherings:select` policy is what refuses BRAVO — `family_code =
+  // auth_family_code() AND auth_membership_approved() AND gatherings:view`. No conjunct in
+  // the action does it, which is the point: the code cannot come to disagree with the
+  // database about who may see what.
+  read('gatherings.getGatherings', 'app/actions/gatherings.ts', 'getGatherings'),
+  read('gatherings.getGatheringDetail', 'app/actions/gatherings.ts', 'getGatheringDetail', {
+    args: fx => [fx.alpha.gathering.id],
+  }),
+  // THE MOST IMPORTANT CONTROL IN THE BLOCK, and it is a plain member's. `gathering_tasks`
+  // carries `self_expr = assignee_id = auth_person_id()` specifically so an assignee reads
+  // their own task in a family that has restricted `gatherings:view` — this is the case that
+  // fails if that expression is ever dropped.
+  //
+  // The cross-family half is honest rather than sharp, and is labelled so: the query is
+  // `.eq('assignee_id', g.personId)` where `personId` is resolved from the CALLER's active
+  // family, so bravoAdmin can never match an ALPHA row whatever the policy says. The pending
+  // half is where this action's gate is actually asserted.
+  read('gatherings.getMyGatheringTasks', 'app/actions/gatherings.ts', 'getMyGatheringTasks'),
+  // A number, which the marker scan cannot judge, so both sides are asserted directly.
+  // bravoAdmin holds no task in either family (the fixture assigns to `owner`, and on the
+  // BRAVO side that is bravoMember), so 0 is their honest answer and anything above it means
+  // the count reached across the boundary.
+  read('gatherings.getMyGatheringTaskCount', 'app/actions/gatherings.ts', 'getMyGatheringTaskCount', {
+    expectAttack: (r) => r === 0,
+    // NOT PINNED TO AN EXACT FIGURE, and that is a decision rather than laziness. The badge
+    // counts 'open' and 'denied' only, so the number depends on which write controls have
+    // already run: this case appears twice (here and in the pending block) and between the two
+    // `submitGatheringTask`'s control moves one task to 'submitted' while
+    // `reviewGatheringTask`'s moves another to 'denied'. Both happen to leave the figure at 2,
+    // which is exactly the kind of coincidence a later reordering would break — and it would
+    // break it in a case that has nothing to say about arithmetic. What this case is for is
+    // isolation: the attacker counts none of ALPHA's, the owner counts their own.
+    // `lib/gatherings.test.ts` is where the status rule is asserted.
+    expectPositive: (r) => r >= 1,
+  }),
+  read('gatherings.getPremierGathering', 'app/actions/gatherings.ts', 'getPremierGathering', {
+    expectPositive: (r, fx) => r?.id === fx.alpha.gathering.id,
+  }),
+  // ── THE DASHBOARD TILE'S COUNT ────────────────────────────────────────────
+  // A number, which the marker scan cannot judge, so both halves are asserted directly — the
+  // same treatment as `getMyGatheringTaskCount` above and for the same reason.
+  //
+  // IT IS PLACED HERE, AMONG THE READS, DELIBERATELY. `deleteGathering`'s control removes
+  // ALPHA's spare gathering and the two create cases add one to whichever family the actor is
+  // in, so the control's exact figure is only stable before the write cases run. Moving this
+  // below them would make the assertion depend on which of them had executed, in a case that has
+  // nothing to say about any of it.
+  //
+  // THE ATTACK HALF IS A CEILING AND NOT AN EXACT FIGURE, and the reason is worth reading before
+  // anybody tightens it back. It was `=== FAMILY_UPCOMING_GATHERINGS`, it passed on its own, and
+  // it FAILED in the full suite with `unexpected: 0` — because by the time this runs `bravoAdmin`
+  // is a member of THREE families, not one. Earlier blocks have them create and join families
+  // (`createFamily`, `joinFamilyByCode`), `auth_family_code()` is an `ORDER BY … LIMIT 1` over
+  // the caller's memberships with no `active_family_code` set for a seeded user, and one of those
+  // new families is what it resolves — a family with no gatherings at all. Measured, not
+  // reasoned: `SELECT p.family_code FROM people p JOIN auth.users u … WHERE u.email =
+  // 'bravo.admin@rls.test'` answers BRAVOTEST and two generated codes after a full run.
+  //
+  // So the attacker's honest answer is anything from 0 to 2 depending on which family they land
+  // in, and only their own family's rows can ever be in it. `<=` is what that fact permits, and
+  // it is still the whole leak signature: with the policy's family conjunct dropped the number is
+  // 4, which is over the ceiling however the ambiguity resolves. The other reads in this block
+  // are blind to this and pass trivially for the same reason — a response from a family with no
+  // gatherings carries no ALPHA markers either.
+  //
+  // GATED ON `calendar`, NOT ON `gatherings`, and that is the thing most likely to be "fixed"
+  // back: the tile leads to /calendar and a tile borrows the grant of its destination. Both
+  // halves here hold both keys, so this case does not assert that choice — `tiles.ts` and the
+  // action's own header carry the argument, and the Dashboard resolves the same key it gates on.
+  //
+  // The CROSS-FAMILY half is honest rather than sharp, and is labelled so for the reason
+  // `getMyGatheringTasks`'s is: the action takes no id at all, so bravoAdmin has nothing of
+  // ALPHA's to pass and the only cross-family question a count can pose is whether the rows it
+  // counted were scoped. `perm:gatherings:select`'s `family_code = auth_family_code()` conjunct
+  // is what answers that, and dropping it doubles this figure rather than changing it by one.
+  // The `(pending member)` case below is where the membership gate is actually asserted.
+  read('gatherings.getUpcomingGatheringCount', 'app/actions/gatherings.ts', 'getUpcomingGatheringCount', {
+    noPending: true,
+    expectAttack: (r) => typeof r === 'number' && r <= FAMILY_UPCOMING_GATHERINGS,
+    expectPositive: (r) => r === FAMILY_UPCOMING_GATHERINGS,
+  }),
+  // Hand-written rather than derived, because the derived pending case carries the parent's
+  // `expectAttack` across and this half needs the opposite number: an applicant is refused by
+  // `requireRead('calendar')` and the action answers 0, while bravoAdmin legitimately counts
+  // their own family's two. One assertion cannot be both, so the parent sets `noPending` and
+  // this states its own.
+  //
+  // 0 IS ALSO WHAT A REFUSED QUERY ANSWERS, which is why this case is not evidence on its own —
+  // it cannot tell "the guard refused them" from "the query failed". The parent's control is the
+  // other half of that: it proves the same call answers 2 for somebody entitled, so a 0 here is
+  // the gate rather than a broken read.
+  //
+  // AND IT IS FOUR GATES DEEP — measured, not reasoned, as g9b/g9c in the block header. This half
+  // survives the policy losing its family conjunct, `auth_membership_approved()` returning true
+  // and `isApprovedMember()` returning true, all three at once, and only fails when
+  // `getMyPermissionSet`'s own approved check and `auth_person_id()`'s conjunct go too. Worth
+  // knowing before anybody "simplifies" one of the four on the grounds that the others cover it.
+  read('gatherings.getUpcomingGatheringCount (pending member)',
+    'app/actions/gatherings.ts', 'getUpcomingGatheringCount', {
+    noPending: true,
+    attacker: 'alphaPending',
+    expectAttack: (r) => r === 0,
+    expectPositive: (r) => r === FAMILY_UPCOMING_GATHERINGS,
+    }),
+  // ADMIN CLIENT, so there is no policy underneath this at all: `gathering_templates` keys on
+  // `admin/gathering-templates:view`, which the member holding `gatherings:create` this exists
+  // for does not have, and the action reads past that on the service role. The hand-written
+  // `.eq('family_code', ...)` is the whole of the isolation — drop it and every family's
+  // template library is offered in every family's Schedule dialog.
+  read('gatherings.getSchedulableTemplates', 'app/actions/gatherings.ts', 'getSchedulableTemplates', {
+    // `gatherings:create`, which the General template holds at 'none'. See the block header:
+    // this is the shipped default, not a bug's shadow.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(t => t.id === fx.alpha.template.id),
+  }),
+  {
+    kind: 'write',
+    id: 'gatherings.submitGatheringTask (cross-family)',
+    mod: 'app/actions/gatherings.ts', fn: 'submitGatheringTask',
+    args: fx => [{
+      taskId: fx.alpha.submittableTask.id,
+      answer: 'scope-case assembly seating answer',
+      note: 'scope-case assembly submission note',
+    }],
+    setup: resetSubmittableTasks,
+    probe: submittableTaskProbe,
+    // ALPHA'S PLAIN MEMBER, AND NO MORE-ENTITLED ACTOR WOULD DO. This action is self-service:
+    // `requireMember()` and then `assignee_id === personId`. alphaAdmin holds every grant
+    // ALPHA can confer and is still refused, because they do not hold the task — so pinning
+    // this to the administrator would report a failure that is the design working.
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'gatherings.submitGatheringTask (an applicant holding the task)',
+    mod: 'app/actions/gatherings.ts', fn: 'submitGatheringTask',
+    // [crux] THE ONE CASE THAT OBSERVES `requireMember()` IN THIS FEATURE, and it exists
+    // because the derived `(pending member)` variant of the case above does not. That one
+    // hands the applicant a task held by `alphaMember`, so the action's ownership test
+    // (`assignee_id !== g.personId`) refuses them whatever the membership gate says —
+    // MEASURED, by neutering `isApprovedMember()` and watching it stay green. Here the
+    // applicant genuinely holds the task, so the only thing left in the way is the gate.
+    //
+    // No policy is underneath this at all: the write runs on the service role, and the guard
+    // is the whole of it.
+    attacker: 'alphaPending',
+    noPending: true,
+    args: fx => [{
+      taskId: fx.alpha.pendingTask.id,
+      answer: 'scope-case applicant assembly answer',
+    }],
+    setup: resetPendingTasks,
+    probe: (db, fx) => snapshot('gathering_tasks', 'id, status, answer, assignee_id',
+      { id: fx.alpha.pendingTask.id })(db),
+    positive: 'not-applicable',
+    why: 'the argument names a task held by somebody the family has not admitted, by construction — there is no caller for whom this call is legitimate, and `submitGatheringTask (cross-family)` above carries the control that proves the action still records an answer',
+  },
+  {
+    kind: 'write',
+    id: 'gatherings.scheduleGathering (a template from another family)',
+    mod: 'app/actions/gatherings.ts', fn: 'scheduleGathering',
+    // THE §4 SHAPE ON A SET OF IDS. The row this would write is stamped with the ATTACKER's
+    // family and satisfies every policy; what must refuse it is the `.eq('family_code', ...)`
+    // on the template read, and `instantiateTemplateTasks` re-checking each id on its own.
+    args: fx => [{
+      title: SCHEDULE_CASE_TITLE,
+      startsOn: CREATE_CASE_DATE,
+      templateIds: [fx.alpha.template.id],
+    }],
+    setup: clearCaseGatherings(SCHEDULE_CASE_TITLE),
+    // BOTH FAMILIES, deliberately, and this is the trap `funds.transferBetweenFunds (one fund
+    // from each family)` names: the damage here is a gathering in BRAVO built out of ALPHA's
+    // steps — ALPHA's labels, help text and suggested budgets copied into BRAVO's task rows.
+    // A probe scoped to ALPHA would watch the wrong side of the theft and report "no-op".
+    probe: (db) => snapshot('gatherings', 'id, family_code, title', { title: SCHEDULE_CASE_TITLE })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── the organizer console: app/actions/admin/gatherings.ts ────────────────
+  // All six reads below are ADMIN CLIENT with a hand-written family conjunct. There is no
+  // policy under any of them, so each attack half is the only thing standing between BRAVO's
+  // administrator and ALPHA's records — the same class as `family-tree.getFamilyTree`.
+  read('admin/gatherings.getAdminGatherings', 'app/actions/admin/gatherings.ts', 'getAdminGatherings', {
+    positiveActor: 'alphaAdmin',
+  }),
+  read('admin/gatherings.getAdminGatheringDetail', 'app/actions/admin/gatherings.ts', 'getAdminGatheringDetail', {
+    args: fx => [fx.alpha.gathering.id],
+    positiveActor: 'alphaAdmin',
+  }),
+  read('admin/gatherings.getGatheringReviewQueue', 'app/actions/admin/gatherings.ts', 'getGatheringReviewQueue', {
+    positiveActor: 'alphaAdmin',
+    // `f.queuedTask`, NOT `f.submittedTask` — see the note beside it in seed.mjs. This
+    // assertion pointed at the row `reviewGatheringTask`'s control rules on, and so failed in
+    // the pending block once that control had ruled: a case reading a row a later case mutates
+    // is the first of the two fixture failure modes AGENTS.md §7 names, and the runner caught
+    // it on the first green-but-for-one run.
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(q => q.taskId === fx.alpha.queuedTask.id),
+  }),
+  // GATED TWICE — `admin/gatherings:view` and `gatherings/budget:view` — because a fund
+  // balance IS the money the second key withholds. The control needs both, which only the
+  // administrator holds: 20260819000000 §6a restricts `gatherings/budget` in every family.
+  read('admin/gatherings.getGatheringFundOptions', 'app/actions/admin/gatherings.ts', 'getGatheringFundOptions', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(f => f.id === fx.alpha.fund.id),
+  }),
+  // The roster, to an organizer in another family. Accounts AND account-less people, which is
+  // the whole point of keying on `people.id` — so a leak here is the Member Directory's PII
+  // reached through a screen that has nothing to do with the directory's grant.
+  read('admin/gatherings.getGatheringAssignableMembers', 'app/actions/admin/gatherings.ts', 'getGatheringAssignableMembers', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) => Array.isArray(r) && r.some(p => p.id === fx.alpha.ownerPersonId),
+  }),
+  {
+    kind: 'write',
+    id: 'admin/gatherings.createGathering (a template and a fund from another family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'createGathering',
+    // TWO caller-supplied ids in one call, both ALPHA's. The template read is scoped and
+    // refuses first, so this case does not distinguish the two checks — the fund half is
+    // asserted on its own by `setGatheringBudget (a fund from another family)` below.
+    args: fx => [{
+      title: CREATE_CASE_TITLE,
+      startsOn: CREATE_CASE_DATE,
+      templateIds: [fx.alpha.template.id],
+      fundId: fx.alpha.fund.id,
+      budgetCents: 1000,
+    }],
+    setup: clearCaseGatherings(CREATE_CASE_TITLE),
+    probe: (db) => snapshot('gatherings', 'id, family_code, title, fund_id, budget_cents',
+      { title: CREATE_CASE_TITLE })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.updateGathering (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'updateGathering',
+    // `status`, not the title: the title is an `alphaMarkers()` entry and a control that
+    // rewrote it would quietly weaken the CONTROL side of every read case ordered after this.
+    args: fx => [{ gatheringId: fx.alpha.gathering.id, status: 'scheduled' }],
+    setup: resetGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, status, title',
+      { id: fx.alpha.gathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gatherings.deleteGathering (another family's gathering)",
+    mod: 'app/actions/admin/gatherings.ts', fn: 'deleteGathering',
+    args: fx => [fx.alpha.deletableGathering.id],
+    // ITS OWN ROW, which AGENTS.md §7 asks for by name. `f.gathering` cannot be the subject:
+    // it carries a submitted task, so `deleteGathering` refuses it by design — the control
+    // would fail for a reason that is not a bug — and deleting it would take the fixture's
+    // whole task list, every read control above with it.
+    setup: resetSpareGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, title',
+      { id: fx.alpha.deletableGathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.setGatheringPremier (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'setGatheringPremier',
+    // THE SPARE, not `f.gathering`, and the reason is `getPremierGathering`'s control. That
+    // read asserts the premier gathering is `f.gathering`; a control that unflagged it would
+    // leave the fixture with no premier gathering at all and turn that case red on a fixture
+    // nobody had edited. Flagging the spare cannot: `getPremierGathering` returns the
+    // SOONEST, and the spare is fifteen days later.
+    args: fx => [{ gatheringId: fx.alpha.deletableGathering.id, isPremier: true }],
+    setup: resetSpareGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, is_premier',
+      { id: fx.alpha.deletableGathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.setGatheringBudget (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'setGatheringBudget',
+    args: fx => [{
+      gatheringId: fx.alpha.gathering.id, fundId: fx.alpha.fund.id, budgetCents: 77000,
+    }],
+    setup: resetGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, fund_id, budget_cents',
+      { id: fx.alpha.gathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gatherings.setGatheringBudget (a fund from another family)",
+    mod: 'app/actions/admin/gatherings.ts', fn: 'setGatheringBudget',
+    // §4 AT ITS SHARPEST IN THIS FEATURE, and the attacker is ALPHA'S OWN ADMINISTRATOR.
+    // The gathering being written is genuinely theirs, its family_code is ALPHATEST, and
+    // there is no SELECT policy in the way because the write runs on the service role — while
+    // `fund_id` points at BRAVO's fund. Nothing in the database was asked; what has to refuse
+    // it is `belongsToFamily('funds', ...)`, with `tg_gathering_same_family` behind it.
+    attacker: 'alphaAdmin',
+    noPending: true,
+    args: fx => [{
+      gatheringId: fx.alpha.gathering.id, fundId: fx.bravo.fund.id, budgetCents: 1234,
+    }],
+    setup: resetGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, fund_id, budget_cents',
+      { id: fx.alpha.gathering.id })(db),
+    // THE SAME CALL WITH ALPHA'S OTHER FUND, which is what makes this case evidence rather
+    // than decoration: if `belongsToFamily` were rewritten to refuse every fund, the attack
+    // half would still pass and this control is what would notice.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      gatheringId: fx.alpha.gathering.id, fundId: fx.alpha.secondFund.id, budgetCents: 1234,
+    }],
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.addGatheringTemplate (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'addGatheringTemplate',
+    args: fx => [{
+      gatheringId: fx.alpha.deletableGathering.id, templateId: fx.alpha.deletableTemplate.id,
+    }],
+    setup: clearSpareLink,
+    probe: spareGatheringLinks,
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.removeGatheringTemplate (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'removeGatheringTemplate',
+    // The MAIN template, linked to the SPARE gathering by the setup: unlinking is refused
+    // once any task from that template has been assigned or answered, and every task from
+    // `f.template` on `f.gathering` is one or the other. So the subject has to be a pairing
+    // the setup arranges, with one task that is still 'open' and held by nobody.
+    args: fx => [{
+      gatheringId: fx.alpha.deletableGathering.id, templateId: fx.alpha.template.id,
+    }],
+    setup: linkSpareGathering,
+    probe: spareGatheringLinks,
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.assignGatheringTask (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'assignGatheringTask',
+    args: fx => [{ taskId: fx.alpha.unassignedTask.id, assigneeId: fx.alpha.ownerPersonId }],
+    setup: resetUnassignedTasks,
+    probe: (db, fx) => snapshot('gathering_tasks', 'id, assignee_id, due_on',
+      { id: fx.alpha.unassignedTask.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.assignGatheringTask (a person from another family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'assignGatheringTask',
+    // The other §4 case, and the same shape as the fund one above: ALPHA's administrator
+    // handing ALPHA's task to a BRAVO relative. The task row is theirs, the write runs on the
+    // service role, and only `belongsToFamily('people', ...)` and
+    // `tg_gathering_task_same_family` stand between the two families' rosters.
+    attacker: 'alphaAdmin',
+    noPending: true,
+    args: fx => [{ taskId: fx.alpha.unassignedTask.id, assigneeId: fx.bravo.ownerPersonId }],
+    setup: resetUnassignedTasks,
+    probe: (db, fx) => snapshot('gathering_tasks', 'id, assignee_id',
+      { id: fx.alpha.unassignedTask.id })(db),
+    positiveActor: 'alphaAdmin',
+    // ALPHA's OTHER member, so the control is a real assignment rather than the same id the
+    // attack was refused. `alphaOther` is approved for the whole run, which the action also
+    // requires.
+    positiveArgs: fx => [{ taskId: fx.alpha.unassignedTask.id, assigneeId: fx.alpha.otherPersonId }],
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.setGatheringTaskBudget (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'setGatheringTaskBudget',
+    args: fx => [{ taskId: fx.alpha.unassignedTask.id, budgetCents: 12345 }],
+    setup: resetUnassignedTasks,
+    probe: (db, fx) => snapshot('gathering_tasks', 'id, budget_cents',
+      { id: fx.alpha.unassignedTask.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.reviewGatheringTask (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'reviewGatheringTask',
+    // 'denied' WITH NOTES, because a denial is the half that carries something back to the
+    // member and the action refuses one without notes. It is also the decision that leaves
+    // the task answerable again, so a control that runs twice does not paint itself into
+    // 'approved' — which is terminal and would make the second half refuse.
+    args: fx => [{
+      taskId: fx.alpha.submittedTask.id, decision: 'denied',
+      reviewNotes: 'scope-case assembly review note',
+    }],
+    setup: resetSubmittedTasks,
+    probe: reviewedTaskProbe,
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gatherings.reopenGatheringTask (another family's approved task)",
+    mod: 'app/actions/admin/gatherings.ts', fn: 'reopenGatheringTask',
+    // ITS OWN ROW, `f.approvedTask`, and not `f.submittedTask`. This action accepts only
+    // `status = 'approved'` and `reviewGatheringTask`'s control leaves that row 'denied', so
+    // sharing one would make each control depend on whether the other had run — the ordering
+    // dependency `f.queuedTask` and `deletableChild` exist to avoid, arriving through a status
+    // column instead of through a delete.
+    //
+    // A REASON IS PASSED even though the action makes it optional. It is what reaches the member
+    // in the bell entry, so it is the string worth carrying across the boundary: if this ever
+    // succeeded for BRAVO's administrator, an ALPHA relative would be told about it in ALPHA's
+    // notifications with BRAVO's words in the body.
+    args: fx => [{
+      taskId: fx.alpha.approvedTask.id,
+      reason: 'scope-case assembly reopen reason',
+    }],
+    setup: resetApprovedTasks,
+    probe: reopenedTaskProbe,
+    // `admin/gatherings:edit`, i.e. `canAny` — the least-entitled actor that can legitimately
+    // succeed, and it has to be an administrator: `admin/gatherings` is a restricted admin key
+    // and the General template holds nothing on it, so `alphaMember` would be refused by the
+    // GRANT rather than by the boundary. Same substitution and same reason as
+    // `reviewGatheringTask` immediately above; `canAny` rather than `can` because the task an
+    // organizer would "own" is one assigned to themselves, and approving your own answer and
+    // then quietly reopening it is this module's standing abuse case.
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── templates: app/actions/admin/gathering-templates.ts ───────────────────
+  read('admin/gathering-templates.getGatheringTemplates',
+    'app/actions/admin/gathering-templates.ts', 'getGatheringTemplates', {
+      // `admin/gathering-templates:view`, which is a restricted admin key: a plain member
+      // reads no templates at all and `[]` is their correct answer, so the default actor
+      // would fail this control for a reason that is not a bug. Same substitution, and the
+      // same reason, as `announcements.getChapters` above.
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => Array.isArray(r) && r.some(t => t.id === fx.alpha.template.id),
+    }),
+  {
+    kind: 'write',
+    id: 'admin/gathering-templates.createGatheringTemplate (cross-family)',
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'createGatheringTemplate',
+    // THE ONE CASE IN THIS BLOCK WHOSE PROBE IS SCOPED TO ALPHA, and it has to be. This
+    // action takes NO id from its caller — a name, a description and a scheduler setting —
+    // so the row it writes lands in the caller's OWN family by construction and nothing
+    // refuses BRAVO's administrator creating one in BRAVO. That is the class the "NOT
+    // COVERED" note at the foot of this file describes (`createFund`, `createElection`), and
+    // a both-families probe would report the attacker's legitimate BRAVO row as a mutation.
+    //
+    // What IS asserted is narrower and still worth having: nothing a BRAVO caller does lands
+    // in ALPHA. That is the guard's `familyCode` being right, and it is the only cross-family
+    // question this signature can pose.
+    args: () => [{ name: TEMPLATE_CASE_NAME, whoMaySchedule: 'family' }],
+    setup: clearCaseTemplates,
+    probe: (db) => snapshot('gathering_templates', 'id, family_code, name, who_may_schedule',
+      { family_code: ALPHA, name: TEMPLATE_CASE_NAME })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.updateGatheringTemplate (another family's template)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'updateGatheringTemplate',
+    // `description`, not `isArchived`: archiving `f.template` would take it out of
+    // `getSchedulableTemplates`, whose control asserts it is offered — one case quietly
+    // breaking another is the ordering dependency the spare rows exist to avoid.
+    args: fx => [{
+      templateId: fx.alpha.template.id, description: 'scope-case assembly description',
+    }],
+    setup: resetTemplates,
+    probe: (db, fx) => snapshot('gathering_templates', 'id, name, description, is_archived',
+      { id: fx.alpha.template.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.deleteGatheringTemplate (another family's template)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'deleteGatheringTemplate',
+    args: fx => [fx.alpha.deletableTemplate.id],
+    // THE SPARE TEMPLATE, AND NO USE ROWS. This action counts `gathering_template_uses`
+    // first and refuses with a sentence naming the count — so a subject any gathering is
+    // built from would fail the control by design. `clearSpareLink` also unlinks whatever
+    // `addGatheringTemplate`'s control left behind, which is what makes this case
+    // independent of the order the two ran in.
+    setup: clearSpareLink,
+    probe: (db, fx) => snapshot('gathering_templates', 'id, name',
+      { id: fx.alpha.deletableTemplate.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.addTemplateStep (another family's template)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'addTemplateStep',
+    // THE SPARE TEMPLATE, so `f.template` keeps exactly the three steps `resetTemplateSteps`
+    // and `moveTemplateStep`'s probe are written against. A fourth step arriving on the main
+    // template would not break the move case today, and that is precisely the kind of
+    // coupling that breaks it next year.
+    args: fx => [{
+      templateId: fx.alpha.deletableTemplate.id, label: STEP_CASE_LABEL, kind: 'yes_no',
+    }],
+    setup: clearCaseSteps,
+    probe: (db) => snapshot('gathering_template_steps', 'id, family_code, label, kind',
+      { label: STEP_CASE_LABEL })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.updateTemplateStep (another family's step)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'updateTemplateStep',
+    args: fx => [{ stepId: fx.alpha.templateStep1.id, helpText: 'scope-case assembly help' }],
+    setup: resetTemplateSteps,
+    probe: (db, fx) => snapshot('gathering_template_steps', 'id, label, help_text, kind',
+      { id: fx.alpha.templateStep1.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.deleteTemplateStep (another family's step)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'deleteTemplateStep',
+    args: fx => [fx.alpha.deletableStep.id],
+    // Re-created on every half, so the attack and the control each start from a step that
+    // exists — otherwise the control would have nothing to delete and would report a failure
+    // that is really just ordering. Same shape as `family-tree.removeRelationship` above.
+    setup: resetTemplateSteps,
+    probe: (db, fx) => snapshot('gathering_template_steps', 'id, label',
+      { id: fx.alpha.deletableStep.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: "admin/gathering-templates.moveTemplateStep (another family's step)",
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'moveTemplateStep',
+    args: fx => [{ stepId: fx.alpha.templateStep2.id, direction: 'up' }],
+    setup: resetTemplateSteps,
+    // ALL THREE STEPS, not the one named in the argument: a move rewrites `position` on the
+    // step AND on its neighbour, and a probe watching one of them cannot tell a swap from a
+    // single-row write that left the template with two steps sharing a position.
+    probe: async (db, fx) => {
+      const { data, error } = await db.from('gathering_template_steps')
+        .select('id, position')
+        .in('id', [fx.alpha.templateStep1.id, fx.alpha.templateStep2.id, fx.alpha.deletableStep.id])
+        .order('id')
+      if (error) throw new Error(`probe: ${error.message}`)
+      return JSON.stringify(data)
+    },
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── the calendar: app/actions/calendar.ts ─────────────────────────────────
+  // TWO SOURCES, TWO MECHANISMS, ONE CASE. The gatherings half reads on the user client and
+  // is isolated by `perm:gatherings:select`; the events half reads on the ADMIN client and is
+  // isolated by a hand-written `.eq('family_code', ...)` and nothing else. ALPHA's seeded
+  // event and ALPHA's gathering are both `alphaMarkers()` entries, so one scan asserts both.
+  //
+  // The month is derived from the fixture rather than written down, for the reason `seed.mjs`
+  // computes those dates from the clock: a hard-coded '2026-09' would stop containing the
+  // gathering the moment the fixture rolled forward, and the control would fail on a file
+  // nobody had touched.
+  read('calendar.getCalendarMonth', 'app/actions/calendar.ts', 'getCalendarMonth', {
+    args: fx => [fx.alpha.gathering.starts_on.slice(0, 7)],
+    expectPositive: (r, fx) =>
+      r?.sources?.gatherings === true && r.entries.some(e => e.id === fx.alpha.gathering.id),
+  }),
+]
+
+/**
+ * The pending half of every case above — see the block header for why it is derived.
+ *
+ * The id keeps the action name and swaps the parenthetical, so `npm run test:rls
+ * "pending member"` selects these along with the older ones and the mutation notes stay
+ * usable. `positiveActor`, `setup` and `probe` are carried across untouched: the control is
+ * the same call by the same entitled caller, and only the attacker changes.
+ */
+export const GATHERING_PENDING_CASES = GATHERING_CASES
+  .filter(c => !c.noPending)
+  .map(c => ({
+    ...c,
+    id: `${c.id.replace(/\s*\([^()]*\)$/, '')} (pending member)`,
+    attacker: 'alphaPending',
+  }))
+
 // Order is load-bearing, and only here: APPROVAL_CASES decides two memberships and
 // leaves a third behind, so it runs after everything that reads the fixture.
 // SWEEP_CASES before APPROVAL_CASES for the same reason APPROVAL_CASES is last: those
@@ -3787,8 +4997,16 @@ export const MONEY_CASES = [
 // MUTATION of the money guard makes one of its attack halves delete `f.fund` or `f.event` and
 // take a large part of the fixture with it. Last means a deliberate mutation reports one
 // finding instead of a cascade.
+// GATHERING_CASES IS LAST, and for MONEY_CASES' reason rather than a new one. Nothing in it
+// is read by an earlier block, while its own controls delete ALPHA's spare gathering, repoint
+// the main gathering's fund, move a task off 'submitted' and move another off 'approved' — so
+// running it at the end means a deliberate mutation of this feature reports one finding instead
+// of a cascade. It is also
+// after APPROVAL_CASES, which disables `alphaSpare`: `getGatheringAssignableMembers` lists
+// only approved people, and its control asserts on `ownerPersonId` rather than on a count for
+// exactly that reason.
 CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ...APPROVAL_CASES,
-  ...MONEY_CASES)
+  ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.
@@ -3804,6 +5022,15 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ..
  *     auth_family_code(). There is no other family's id to supply, so there is no
  *     cross-family case to construct. Their risk is the permission layer, not
  *     family isolation.
+ *
+ *     `createGatheringTemplate` IS THE SAME SHAPE AND IS NOT ON THIS LIST, deliberately.
+ *     It takes a name, a description and a scheduler setting and no id at all, so the
+ *     paragraph above applies to it word for word — but it has a case anyway, with its probe
+ *     scoped to ALPHA and a comment saying which half of the question that answers. The
+ *     exemption is cheaper to write and the case is cheaper to keep honest: the entry above
+ *     expired silently for `createDuesSchedule` when a migration gave it two foreign ids,
+ *     and a case that already exists cannot expire that way. Read the two together before
+ *     adding a fifth name to this paragraph.
  *
  *     `createDuesSchedule` WAS ON THIS LIST AND CAME OFF IT, 2026-08-18, and the reason is
  *     the lesson rather than the entry: 20260817000008 gave a dues schedule a `region_id`
@@ -3826,6 +5053,66 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ..
  *     `user_group_members` and `group_permissions`, and `20260807000000` renamed the first
  *     two and dropped the other two. So it is correct on a full replay and cannot be
  *     re-run against today's schema at all. Do not reach for it as a substitute again.
+ *
+ *   GATHERINGS: what is covered, and what is not
+ *     (no count is written down here on purpose — this list has already grown once)
+ *     All 32 exported functions across the four modules have a case, and every one of them
+ *     has a pending case too (`GATHERING_PENDING_CASES`). What this suite still does not
+ *     reach, stated so each gap is a decision:
+ *
+ *     * `lib/gathering-instantiate.ts` IS NOT AN ACTION and has no case of its own. It is a
+ *       plain module (deliberately not `'use server'`, so it gets no URL) and it re-verifies
+ *       the gathering and the template on every call, because three call sites import it and
+ *       it must not trust any of them. That third check is exercised transitively by
+ *       `scheduleGathering`, `createGathering` and `addGatheringTemplate` — but a mutation
+ *       that dropped it would leave all three still passing, because each of them checks the
+ *       same ids first. The honest statement is that the redundancy is untested BY DESIGN of
+ *       this suite: it is a second line of defence and nothing here can see past the first.
+ *
+ *     * THE FIVE `*_same_family` GUARD TRIGGERS are only reachable through an action here,
+ *       and every action checks the same thing first — so the two §4 cases above
+ *       (`setGatheringBudget (a fund from another family)`, `assignGatheringTask (a person
+ *       from another family)`) are evidence for a PAIR and either half alone is sufficient.
+ *       That is the intended design, exactly as `funds.transferBetweenFunds`'s §4 case
+ *       records for 20260812000002's trigger. The triggers themselves are asserted by
+ *       20260819000000's own verify block, which probes them with real rows.
+ *
+ *     * `gatherings/my-tasks` AND `gatherings/budget` HAVE NO ACTION OF THEIR OWN. They are
+ *       keys, not modules: `my-tasks` gates a screen whose data comes from
+ *       `getMyGatheringTasks`, and `budget` is resolved with `canAny` INSIDE
+ *       `getGatheringDetail`, `getAdminGatherings`, `getAdminGatheringDetail` and
+ *       `getGatheringFundOptions`. Only the last of those returns `[]` outright when the key
+ *       is withheld, which is why it is the one with a control pinned to the administrator;
+ *       the other three withhold a FIELD, and a field's absence is not something a
+ *       cross-family assertion can see. `lib/gathering-budget.test.ts` covers the figures.
+ *
+ *     * THE `self_expr` ON THE TWO TASK TABLES IS NOT EXERCISED BY ANY CASE, and this is the
+ *       largest of the four gaps. `perm:gathering_tasks:select` carries
+ *       `assignee_id = auth_person_id()` as its `self_expr` specifically so an assignee reads
+ *       their own task in a family that has narrowed `gatherings:view` to 'own' or 'none' —
+ *       the claim being that /gatherings/my-tasks survives that narrowing. Nothing here can
+ *       see it: this fixture has exactly two grids per family, Administrators (everything
+ *       'any') and General (`gatherings:view = 'any'`), so every read in this block is
+ *       satisfied by the `= 'any'` disjunct and the `self_expr` beside it never decides
+ *       anything. MEASURED: mutation g5b above leaks the task through `auth_permission()`
+ *       resolving 'any' from the applicant's own General template, not through `self_expr`.
+ *
+ *       That is not specific to Gatherings — NO case in this file tests an 'own' scope, on
+ *       any resource, because the fixture has no actor holding one. Closing it means a fifth
+ *       ALPHA actor on a third template whose `gatherings:view` is 'own', holding a task of
+ *       their own, with `getMyGatheringTasks` pinned to them as the positive control. It is a
+ *       real addition rather than a tweak, and it would widen this suite's remit from
+ *       cross-family isolation to scope resolution, so it is recorded here rather than done
+ *       quietly. `lib/auth/permissions.ts`'s own resolver is the other half that would need
+ *       to move with it.
+ *
+ *     * THE NOTIFICATION WRITERS run inside four of these actions and are not asserted here.
+ *       `notifyGatheringTaskSubmitted/Assigned/Reviewed` resolve their recipients from
+ *       `admin/gatherings:edit` through `notifyGrantHolders`, which is family-scoped by the
+ *       same resolver `notifyApprovers` has always used — and every one of them is wrapped in
+ *       a try/catch that must never undo the decision it announces, so a refused insert
+ *       cannot fail a case. `notifications.getNotifications` above is what would notice a
+ *       bell entry crossing a family boundary.
  *
  *   The two `people` guards, through the ACTION rather than raw
  *     `people_guard_membership_status` and `people_guard_permission_template` are exercised

@@ -17,6 +17,10 @@ import { isUuid, moneyAttachedMessage } from '@/lib/money-attached'
  *   * `moneyAttachedMessage`'s plural branch fixed to the singular    2 failed
  *   * the `parts.length > 1` join collapsed to `join(', ')`           1 failed
  *
+ * AND ONE MORE WITH THE FIFTH COUNT (2026-08-19), which is the count a fund deletion
+ * needs and the four above did not have:
+ *   * the `attached.gatherings` branch deleted from the message       1 failed
+ *
  * AND ONE SURVIVED, which is worth stating rather than quietly omitting: deleting the
  * `isUuid(id)` call from `moneyAttachedTo` itself changes nothing here, because that
  * function needs a database and this file has none. Nothing under vitest can prove the
@@ -63,8 +67,13 @@ describe('isUuid', () => {
 })
 
 describe('moneyAttachedMessage', () => {
+  // Every count stated, `any: true` — the shape `moneyAttachedTo` returns on an early exit.
+  // It is not annotated `MoneyAttached` on purpose: passing it to the function is what
+  // type-checks it, so a field added to the interface and not added here is a compile error
+  // in this file rather than a silently under-tested message.
   const none = {
     any: true, payments: 0, contributions: 0, disbursements: 0, transfers: 0, expenses: 0,
+    gatherings: 0,
   }
 
   it('names one kind of money, singular', () => {
@@ -92,6 +101,20 @@ describe('moneyAttachedMessage', () => {
   it('joins exactly two kinds without a comma', () => {
     expect(moneyAttachedMessage('A fund', { ...none, contributions: 1, expenses: 1 }))
       .toContain('1 contribution and 1 expense')
+  })
+
+  it('names a gathering drawing on the fund, which is a commitment rather than a ledger row', () => {
+    // The fifth count, and the only one that is not money already spent or received: a
+    // gathering's budget is drawn on the fund, `gatherings.fund_id` is ON DELETE SET NULL,
+    // and `gatherings_budget_needs_fund` forbids a budget with no fund. Measured: the
+    // constraint is enforced on the RI SET NULL update, so with a budget set the fund
+    // DELETE is REFUSED with a bare 23514 — this sentence is what stands in front of it —
+    // and with no budget set the link is severed silently, which is the other reason the
+    // count exists. Either way the refusal reads as a bug unless the message names it.
+    expect(moneyAttachedMessage('Reunion Fund', { ...none, gatherings: 1 }))
+      .toContain('Reunion Fund has 1 gathering recorded against it')
+    expect(moneyAttachedMessage('Reunion Fund', { ...none, contributions: 2, gatherings: 3 }))
+      .toContain('2 contributions and 3 gatherings')
   })
 
   it('falls back to the word "money" when the counts say nothing', () => {

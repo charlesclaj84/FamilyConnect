@@ -1,5 +1,5 @@
 import {
-  UsersRound, HandCoins, UserPlus, MessageCircle, ClipboardCheck,
+  UsersRound, HandCoins, UserPlus, MessageCircle, ClipboardCheck, CalendarDays,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -48,8 +48,14 @@ import {
  * `isOutstanding`, and keeps optional dues on a separate quieter line. A single number
  * cannot say that, and a member reading "$250" here and "$50 required" on My Summary
  * would be right to trust neither.
+ *
+ * `gatherings` IS THE KIT'S SECOND TILE, ADDED 2026-08-19. `AtAGlance.svg` draws four inset
+ * cards and the second is an olive calendar chip over `3` / "Upcoming Events" / "View
+ * calendar" — so this was never a fourth tile somebody invented, it was a specified one the
+ * repo had not built. It counts UPCOMING, non-cancelled gatherings and it leads to
+ * `/calendar`, which is the caption the kit itself writes under the figure.
  */
-export type TileId = 'members' | 'dues' | 'approvals'
+export type TileId = 'members' | 'dues' | 'approvals' | 'gatherings'
 
 /** Resource keys, ANY of which grants the tile. */
 export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
@@ -59,6 +65,17 @@ export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
   // member's OWN history behind My Summary must never depend on a ledger grant.
   dues: ['transactions/dues-payments', 'transactions/donation-payments'],
   approvals: ['admin/approvals'],
+  // `calendar`, NOT `gatherings`, and the difference is the whole rule this file states: a
+  // tile borrows the grant of ITS DESTINATION, and this one's destination is the month
+  // calendar. Gating it on `gatherings:view` would offer a member a way through to a screen
+  // their family has switched off for them, which is the dead affordance the sidebar already
+  // refuses to render.
+  //
+  // The FIGURE is gathering data, so the page's fetch is narrowed a second time by the read
+  // it uses — `getGatherings()` gates itself on `gatherings:view` and answers `[]` without
+  // it. That is the right way round: a caller holding the calendar and not gatherings counts
+  // zero and the tile is omitted, which is "nothing to show" rather than a leak.
+  gatherings: ['calendar'],
 }
 
 export interface TileMeta {
@@ -80,9 +97,13 @@ export interface TileMeta {
  * Directory; "Dues Collected" leads to the Transactions dues ledger.
  */
 export const TILE_META: Record<TileId, TileMeta> = {
-  members:   { label: 'Family Members',   href: '/members',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
-  dues:      { label: 'Dues Collected',   href: '/transactions?ledger=dues-payments', linkLabel: 'View payments',  accent: 'legacy',  icon: HandCoins },
-  approvals: { label: 'Pending Approval', href: '/admin/users?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
+  members:    { label: 'Family Members',       href: '/members',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
+  dues:       { label: 'Dues Collected',       href: '/transactions?ledger=dues-payments', linkLabel: 'View payments',  accent: 'legacy',  icon: HandCoins },
+  approvals:  { label: 'Pending Approval',     href: '/admin/users?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
+  // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
+  // captions are the kit's too — "View calendar" under the count, because the figure is a
+  // count of gatherings and the way through is the calendar that shows them beside events.
+  gatherings: { label: 'Upcoming Gatherings',  href: '/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
 }
 
 /** A tile with its value resolved, which is all the component ever sees. */
@@ -156,6 +177,11 @@ export const ROUTE_FOR_GRANT: Record<string, string> = {
   'admin/approvals': '/admin/approvals',
   'admin/users': '/admin/users',
   'chat': '/chat',
+  // The key and the route happen to coincide here, as they do for `members` and `chat`
+  // above. Listed anyway, because the page looks every tile's route up THROUGH this table —
+  // `isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])` — and an absent entry is
+  // `isFeatureLive(undefined)`, which is a silently unresolved feature rather than an error.
+  'calendar': '/calendar',
 }
 
 /**

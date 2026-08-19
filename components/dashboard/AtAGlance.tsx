@@ -33,8 +33,9 @@ export function AtAGlance({ tiles }: { tiles: ResolvedTile[] }) {
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
       <h2 className="mb-4 text-lg">At a Glance</h2>
       {/* `auto-fit` rather than a fixed column count, because the number of tiles is not
-          known until the caller's grants are resolved — it is anywhere from one to three
-          today, and grows as Events and Photos ship. A fixed `sm:grid-cols-2` left a
+          known until the caller's grants are resolved — it is anywhere from one to four
+          today (the fourth is the kit's own calendar tile, added with Gatherings on
+          2026-08-19) and grows as Photos ship. A fixed `sm:grid-cols-2` left a
           single-tile family with one half-width tile beside a hole; auto-fit lets one
           tile fill the row and three sit across it, with no breakpoint per case.
           `11rem` is the floor at which a figure and its two captions still read. */}

@@ -76,10 +76,43 @@ export interface MoneyAttached {
   transfers: number
   /** Event expenses charged to it. */
   expenses: number
+  /**
+   * Gatherings drawing on it — a budget the family has committed against this fund.
+   *
+   * The only entry here that is not a LEDGER row, and the one whose absence would have
+   * been silent. It is also the only one where the schema refuses the delete on its own,
+   * and the two cases are opposite — MEASURED on Postgres 15 rather than reasoned about,
+   * because the mechanism is not the obvious one:
+   *
+   *   budget set     `DELETE FROM funds` is REFUSED, 23514, naming
+   *                  `gatherings_budget_needs_fund`. `ON DELETE SET NULL` is carried out
+   *                  by an internal RI trigger as an ordinary UPDATE, and every constraint
+   *                  on the referencing table is enforced on that UPDATE — the same reason
+   *                  a NOT NULL column with SET NULL raises at PARENT-delete time. So the
+   *                  row is never left in the forbidden state, and what the treasurer sees
+   *                  is a bare constraint name. That is what this count is for: to get
+   *                  there first and say it in a sentence.
+   *   no budget set  the delete SUCCEEDS and severs the link SILENTLY. Nothing objects,
+   *                  because nothing is wrong: a gathering with no amount typed in and no
+   *                  fund is a legal row.
+   *
+   * COUNTED IN BOTH CASES, deliberately, and the second is why it has to be. A gathering
+   * pointing at a fund has already answered "which pot is this coming out of", and losing
+   * that answer with no error anywhere is the harm; the amount arriving later is ordinary.
+   * Same asymmetry the header states — a false "nothing attached" is irreversible and a
+   * false "money attached" is a retry.
+   *
+   * `20260819000000`'s verify block probes both directions against real rows, so the two
+   * paragraphs above are asserted rather than described. An earlier version of this comment
+   * said the row was left FROZEN, raising on its next unrelated update; that is not what
+   * happens in either branch.
+   */
+  gatherings: number
 }
 
 const NONE: MoneyAttached = {
   any: false, payments: 0, contributions: 0, disbursements: 0, transfers: 0, expenses: 0,
+  gatherings: 0,
 }
 
 /**
@@ -152,20 +185,31 @@ export async function moneyAttachedTo(
       return { ...NONE, payments, any: payments > 0 }
     }
     case 'fund': {
-      // FOUR referencing tables, and every one of them matters. Contributions and
+      // FIVE referencing tables, and every one of them matters. Contributions and
       // disbursements CASCADE, so deleting the fund destroys them; transfers CASCADE and
       // would rewrite the OTHER fund's balance; expenses SET NULL and would leave an
       // event's spend charged to nothing. `deleteFund` refused on transfers alone.
-      const [contributions, disbursements, transfers, expenses] = await Promise.all([
+      //
+      // `gatherings` IS THE FIFTH and it is not a ledger — it is a COMMITMENT, which is
+      // why it took a schema to find it. 20260819000000 gives a gathering a budget drawn
+      // on a fund, `fund_id` SET NULL, and a CHECK (`gatherings_budget_needs_fund`) that
+      // a budget names a fund. So it does something none of the four above do, and in two
+      // opposite ways depending on whether an amount has been typed in: with a budget set,
+      // the fund DELETE is REFUSED outright with a bare 23514 (the RI SET NULL is an
+      // ordinary UPDATE and the CHECK is enforced on it); with no budget set, the link is
+      // severed with no error at all. This count is what turns the first into a sentence
+      // and what notices the second. Both measured; see the field's comment.
+      const [contributions, disbursements, transfers, expenses, gatherings] = await Promise.all([
         count('fund_contributions', `fund_id.eq.${id}`),
         count('fund_disbursements', `fund_id.eq.${id}`),
         count('fund_transfers', `from_fund_id.eq.${id},to_fund_id.eq.${id}`),
         count('event_expenses', `fund_id.eq.${id}`),
+        count('gatherings', `fund_id.eq.${id}`),
       ])
       return {
         ...NONE,
-        contributions, disbursements, transfers, expenses,
-        any: contributions + disbursements + transfers + expenses > 0,
+        contributions, disbursements, transfers, expenses, gatherings,
+        any: contributions + disbursements + transfers + expenses + gatherings > 0,
       }
     }
     case 'fund_milestone': {
@@ -216,6 +260,11 @@ export function moneyAttachedMessage(noun: string, attached: MoneyAttached): str
   if (attached.disbursements) parts.push(plural(attached.disbursements, 'disbursement', 'disbursements'))
   if (attached.transfers) parts.push(plural(attached.transfers, 'transfer', 'transfers'))
   if (attached.expenses) parts.push(plural(attached.expenses, 'expense', 'expenses'))
+  // "1 gathering" rather than "1 gathering budget": the count includes a gathering that
+  // names this fund and has not had an amount typed into it yet (see the field comment),
+  // and naming a budget that does not exist yet would be the one part of this sentence a
+  // treasurer could go and check and find wrong. The gathering is the thing they can find.
+  if (attached.gatherings) parts.push(plural(attached.gatherings, 'gathering', 'gatherings'))
 
   const what = parts.length > 1
     ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`

@@ -334,14 +334,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'premier-gathering',
+            heading: 'The premier gathering',
+            blocks: [
+              p('Directly under the greeting, a band for the gathering the family has said matters most — its title, its dates, where it is, how much of its work has been approved, and **View details** straight through to it. It is there for nobody most of the time: it appears only while a gathering is flagged and still ahead. See [Gatherings](/help/gatherings#browsing).'),
+            ],
+          },
+          {
             id: 'at-a-glance',
             heading: 'At a Glance',
             blocks: [
-              p('Up to three figures, and each appears only if it is genuinely yours to see:'),
+              p('Up to four figures, and each appears only if it is genuinely yours to see:'),
               defs(
                 { term: 'Family Members', text: 'How many approved people are in the family. People recorded on the tree without an account are counted — they are family. People still waiting to be approved are not.' },
                 { term: 'Dues Collected', text: 'What the family has taken in this year. Shown only to somebody who may see the ledgers.' },
                 { term: 'Pending Approval', text: 'How many people are waiting. It appears only when somebody actually is, and only for whoever can act on it.' },
+                { term: 'Upcoming Gatherings', text: 'How many gatherings have not finished yet. It appears only while at least one has not, and **View calendar** under it leads to [Calendar](/calendar).' },
               ),
             ],
           },
@@ -746,6 +754,367 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Reading the responses',
             blocks: [
               p('The event page carries the RSVP summary — who has answered, who is coming, and the t-shirt counts drawn from each attendee\'s profile. Somebody with no size on file shows as missing rather than as a guess.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'gatherings',
+        title: 'Gatherings',
+        summary: 'What a gathering is, how one is scheduled from a template, and how to read its tasks and its budget.',
+        route: '/gatherings',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'A gathering, and how it differs from an event',
+            blocks: [
+              p('[Gatherings](/gatherings) is the family organising the work of getting together. A gathering is a named occasion — a reunion, a memorial, a banquet — broken into the jobs it takes, with a relative\'s name against each one and an answer somebody accepts. Its question is who is doing what, and whether it has been done and accepted.'),
+              p('[Upcoming Events](/events) is the other half of the same weekend and is not the same screen. An event answers when it is, where it is and who is coming: dates, RSVPs, hotel blocks, a list at the door. Both are in the product, both keep their own screens, and neither reads the other — see [Events and RSVPs](/help/events#browsing). Use an event when you need a head count; use a gathering when you need the preparation handed out.'),
+              p('A gathering is always built from at least one template — a named, ordered list of steps somebody authored once. Every step of every template it is built from becomes a task on the gathering, so nothing is forgotten between one year and the next. The library is [Gathering Templates](/admin/gathering-templates).'),
+            ],
+          },
+          {
+            id: 'browsing',
+            heading: 'Coming up, and already held',
+            blocks: [
+              p('The page is two lists. **Coming up** holds everything that has not finished, soonest first; **Already held** holds the rest, most recent first. A gathering running over several days stays under Coming up on every one of them and is marked **Happening now** while it does.'),
+              p('Each card carries the dates, the place, how far the work has got — "4 of 9 tasks approved", or **No tasks yet** for a gathering nothing has been added to — and a status. The status is set by whoever is organising rather than worked out from the calendar, because a gathering can be called off without its dates moving:'),
+              defs(
+                { term: 'Planning', text: 'Being put together. Dates may still move.' },
+                { term: 'Scheduled', text: 'Settled, and going ahead.' },
+                { term: 'Complete', text: 'Finished, and said to be finished by whoever ran it.' },
+                { term: 'Cancelled', text: 'Called off. Nothing is deleted and it can be set back.' },
+              ),
+              p('**Premier** marks a gathering the family should see first: it gets a band across the top of [the dashboard](/dashboard). Several may carry the marker at once, and the dashboard shows the soonest one still ahead — so last year\'s reunion never blocks this year\'s.'),
+            ],
+          },
+          {
+            id: 'scheduling',
+            heading: 'Scheduling one',
+            blocks: [
+              p('**Schedule a gathering** appears when you may start one and there is at least one template you may start it from. The form asks for the templates before the title, because a gathering cannot exist without them:'),
+              steps(
+                'Press **Schedule a gathering**.',
+                'Tick one or more templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out.',
+                'Fill in **Title** and **First day**, and **Last day** only if it runs more than one day.',
+                '**Where** and **What it is** are optional.',
+                'Press **Schedule gathering**. You land on the gathering itself, where the tasks it just made are waiting.',
+              ),
+              p('Each template decides for itself who may schedule from it, so the list offered here is not the whole library — one set to Administrators only is not on it unless you can manage gatherings, and an archived template cannot start anything new. Where nothing is offered at all the page says so in a sentence rather than greying the button out: nothing is wrong with your access, and what is missing is a template somebody has to author.'),
+            ],
+          },
+          {
+            id: 'the-page',
+            heading: 'A gathering\'s own page',
+            blocks: [
+              p('The title, the dates, the place, and then **Tasks** — every job on the gathering, grouped under the template it came from, in the order they will be handed out. A task whose template has since been unlinked is grouped under **Not from a template** rather than dropped, because it is still something a relative was asked to do.'),
+              p('Each row gives the task its person, its status, its due date, its budget line and the accepted answer. Once there are more than a handful, **Find a task** narrows by job or by name and **Showing** narrows to one status.'),
+              defs(
+                { term: 'Not started', text: 'Nobody has sent anything in yet.' },
+                { term: 'Waiting for review', text: 'An answer is in and nobody has ruled on it.' },
+                { term: 'Approved', text: 'Accepted. That answer is the family\'s record of it and the person who sent it cannot change it.' },
+                { term: 'Needs another look', text: 'Handed back with notes. The notes are on the row, and whoever holds the task reads them on [My Gathering Tasks](/gatherings/my-tasks).' },
+              ),
+              p('**Organize this gathering** appears for somebody who can run it and leads to the same gathering on [Gathering Management](/admin/gatherings), where the work is handed out and ruled on.'),
+            ],
+          },
+          {
+            id: 'budget',
+            heading: 'The Budget band',
+            blocks: [
+              p('A gathering may carry a budget drawn on one of the family\'s funds. Where it does, the **Budget** band sits above the tasks with four figures:'),
+              defs(
+                { term: 'Budgeted', text: 'What this gathering plans to spend altogether.' },
+                { term: 'Claimed by tasks', text: 'The individual task budget lines added up — what has been earmarked for a particular job.' },
+                { term: 'Unallocated', text: 'Budgeted less claimed: what is still to be handed out. It reads Over the budget once the lines have outrun it.' },
+                { term: 'In the fund', text: 'What the fund actually holds, and how much of that other gatherings are already claiming.' },
+              ),
+              p('A budget is allowed to be larger than the fund it draws on, because a family plans a reunion before it has raised the money for one. When it is, a red line says by how much — and a second red line appears where this gathering fits inside the fund on its own but not once the other gatherings drawing on the same fund are counted. Neither is a refusal. They are the figures saying what the plan costs.'),
+              p('The quieter line underneath is a different thing and deliberately not red: it says the task lines together claim more than the gathering budgeted. Nothing has been spent, and it is settled by raising the budget or trimming a line.'),
+              note('The band is absent on some gatherings, and absent is not empty. Where the money on a gathering has not been shared with you there is no band at all rather than a band saying it is hidden — which is a different thing from a gathering nobody has budgeted, and that one shows the band with nothing in it. See [Who can do what](/help/who-can-do-what#one-template).'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'gathering-tasks',
+        title: 'My Gathering Tasks',
+        summary: 'The gathering tasks handed to you, the kind of answer each one asks for, and what to do when one comes back with notes.',
+        route: '/gatherings/my-tasks',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Your share of a gathering',
+            blocks: [
+              p('[My Gathering Tasks](/gatherings/my-tasks) is everything anybody has asked you to do for a gathering, across every gathering, soonest deadline first — a task with no deadline sits at the bottom. The line at the top counts what is waiting on you and says separately how many have come back for another look.'),
+              p('Each card names the gathering, the template the task came from, when it is due and what it may spend. A task past its deadline is marked rather than quietly forgotten. Whatever help text the step carried is printed under the title: that is the person who wrote it telling you what counts as done.'),
+              p('This is the Gatherings counterpart of [Event Planning](/help/event-planning#assignments), and the difference is what happens after you answer. An event assignment records your answer against the event and that is the end of it. A gathering task goes to whoever is organising, who accepts it or hands it back with notes — so a task is finished when somebody has said so, not when you have typed something in.'),
+              note('The rail item is always there, unlike Event Planning above it, and an empty page says nothing is assigned to you. That is the intended state for most members most of the time rather than a fault — and it is always there so that a task handed to you this morning can be found this morning.'),
+            ],
+          },
+          {
+            id: 'answering',
+            heading: 'What a task asks for',
+            blocks: [
+              p('A step says what kind of answer it wants and you get the field that matches. There is no free-for-all: an answer that does not fit the kind is refused, with the reason and a line saying what the field expects.'),
+              defs(
+                { term: 'Short answer', text: 'One line — a name, a phone number, a venue.' },
+                { term: 'Long answer', text: 'A paragraph — notes, a description, an explanation.' },
+                { term: 'A date', text: 'One calendar date, from a date field.' },
+                { term: 'A list', text: 'Any number of lines. The box says **One item per line**, and an empty line is dropped rather than recorded as a blank item.' },
+                { term: 'Yes or no', text: 'A decision, as a pair of choices. You have to pick one — leaving it alone is not an answer, and nothing is read as No on your behalf.' },
+                { term: 'A number', text: 'A count or a quantity. A fraction is allowed, because "how many pounds of brisket" is a real question.' },
+                { term: 'An amount of money', text: 'An amount in dollars with the cents after the point: type 450.00 for four hundred and fifty dollars. The box is prefixed with a dollar sign, and an empty one is unanswered rather than nothing spent.' },
+              ),
+              p('An empty field is never sent. Pressing the button with nothing in the answer says there is nothing to send yet, which is what stops an untouched money box being filed as zero and reading as answered on every screen afterwards.'),
+            ],
+          },
+          {
+            id: 'sending',
+            heading: 'Sending an answer in',
+            blocks: [
+              steps(
+                'Fill in **Your answer**.',
+                'Add anything worth saying under **Anything to tell the organizer?**. It is optional, and it travels with the answer rather than replacing it.',
+                'Press **Send for review**.',
+              ),
+              p('What you sent is then shown back to you above the form, headed **Sent for review** with the date. Until somebody rules on it you can send something different — the button reads **Replace my answer** — and every version is kept, so the exchange can be read back rather than only its last line.'),
+              p('Whoever can rule on it is told in their notifications the moment it goes in, so you do not have to tell anybody separately.'),
+            ],
+          },
+          {
+            id: 'sent-back',
+            heading: 'When it comes back',
+            blocks: [
+              p('A task can be handed back, and its status then reads **Needs another look**. That wording is deliberate: it is not a rejection and not a mark against you, it is the task returned with instructions, and the instructions are the whole point of returning it.'),
+              p('They appear at the top of the card under **What the organizer asked for**, above the form, so you read them before you type. Fix what they asked for and press **Send it again**.'),
+              p('There is no limit on how many times a task can go back and forth, and a task that took two goes is the same finished task as one that took one. Resubmitting is the ordinary way this works rather than a failure to be avoided.'),
+              note('Nobody can hand a task back without saying what needs to change — the screen they use will not send it otherwise. If one ever arrives with no notes on it, the card says so, and the thing to do is ask them: there is genuinely nothing there to act on.'),
+            ],
+          },
+          {
+            id: 'approved',
+            heading: 'Once it is approved',
+            blocks: [
+              p('An approved answer is final on both sides. The card goes read-only and shows what was accepted; there is no way to send a different one, and trying is refused with that sentence rather than appearing to save. It also stops being overdue, because the deadline no longer applies to anything.'),
+              p('If an approved answer genuinely has to change, ask whoever is organising the gathering. They have a **Reopen…** button on their side of it, and using it puts the task back in your hands: it returns to the ordinary form with your last answer already in it, so a one-word correction is a one-word correction. You cannot do it yourself, which is the whole of what "final on both sides" means.'),
+              p('A reopened task arrives the same way one that was handed back does — in your notifications, and at the top of [My Gathering Tasks](/gatherings/my-tasks) — with whatever reason they gave, if they gave one. Nothing you sent is deleted by it, and every version stays readable.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'calendar',
+        title: 'Calendar',
+        summary: 'The month grid that puts gatherings and events on the same days, how to move between months, and what it does on a phone.',
+        route: '/calendar',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'One month, both kinds',
+            blocks: [
+              p('[Calendar](/calendar) is a real month grid — weeks down, weekdays across, Sunday first — with the family\'s gatherings and its events on the days they fall. It is the one screen that shows both together, and it creates neither: everything on it is a link into [Gatherings](/gatherings) or [Upcoming Events](/events), where the thing itself lives and is edited.'),
+              p('The legend under the grid names the three treatments — **Premier gathering**, **Gathering** and **Event** — and every entry says which it is in words as well as in colour, so the distinction survives both a screen reader and a reader who cannot separate the two hues.'),
+            ],
+          },
+          {
+            id: 'reading',
+            heading: 'Reading a day',
+            blocks: [
+              p('Today is marked. Something running over several days appears on every day it covers, which is the whole reason a closing date exists — a three-day reunion is on the grid three times, and each one is the same link.'),
+              p('The grid always shows whole weeks, so the first and last rows carry a few days from the months either side. Those days keep their entries: a reunion starting on the 1st is visible in the last row of the month before, which is where you would be looking for it a week earlier.'),
+            ],
+          },
+          {
+            id: 'moving',
+            heading: 'Moving between months',
+            blocks: [
+              p('The links either side of the heading are the month before and the month after, each one named, with **This month** between them. All three are real links, so cmd-click, middle-click and copy-link-address work on them.'),
+              p('The month is in the address, which means a link to a month is a link to that month — [June 2027](/calendar?month=2027-06) opens June 2027 for anybody you send it to, and it can be bookmarked. An address the page cannot read falls back to the current month rather than drawing a month that does not exist.'),
+            ],
+          },
+          {
+            id: 'phone',
+            heading: 'On a phone',
+            blocks: [
+              p('Below the width a seven-column grid needs, the calendar becomes a list of the days that have something on them, in order, with the weekday and the date beside each. A day borrowed from a neighbouring month is labelled **Previous month** or **Next month**, since it no longer has a column to say so.'),
+              p('That is a second view of the same month rather than a second calendar — the same entries, the same links. It is a deliberate choice over squeezing the grid: at phone width a day is too narrow to hold a date and a title, and a month of mostly empty cells is a screen of nothing when the question is what is coming up.'),
+            ],
+          },
+          {
+            id: 'missing',
+            heading: 'When something is not on it',
+            blocks: [
+              p('A line above the grid appears when a whole kind of entry is missing — gatherings, events, or both. It means one of two things and cannot tell which: that screen has not been shared with you, or it could not be read just now.'),
+              p('Either way the month you are looking at is not the whole month, which is why the line is there at all — an empty August with nothing said about it reads as a fact about the family. A month that genuinely has nothing on it says that instead.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'gathering-management',
+        title: 'Gathering Management',
+        summary: 'Scheduling a gathering, setting its fund and budget, handing out the tasks, and ruling on the answers that come back — including taking an approval back.',
+        route: '/admin/gatherings',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Two panes, and what they are for',
+            blocks: [
+              p('[Gathering Management](/admin/gatherings) is the organising side of [Gatherings](/gatherings), on one rail with two panes:'),
+              bullets(
+                '**Gatherings** — every gathering the family has, with its dates, its status, its budget against the fund it draws on, and how much of its work has been approved.',
+                '**Review queue** — every answer waiting on a decision, across every gathering at once. The pane carries the count while anything is waiting.',
+              ),
+              p('[Event Management](/help/running-events#creating) is the equivalent screen for Events and stays exactly where it is. The two divide the same occasion between them: an event is drafted, approved, RSVP\'d and checked in at the door, while a gathering is built from templates, handed out person by person, and accepted a piece at a time. Nothing here touches an event, and nothing there touches a gathering.'),
+            ],
+          },
+          {
+            id: 'creating',
+            heading: 'Scheduling a gathering',
+            blocks: [
+              steps(
+                'Press **New gathering**.',
+                'Tick the templates under **Built from**. Their steps become its tasks, in the order the templates are named.',
+                'Fill in **Title** and **Starts**, and **Ends** only if it runs more than a day.',
+                '**Location** and **Summary** are optional — the summary is what the people being asked to help will read.',
+                'Choose a **Fund** and a **Budget ($)** if it is spending money, and tick **Show this across the top of the Dashboard** if it is the one the family should see first.',
+                'Press **Create gathering**, then **Open the gathering** to start handing out its tasks.',
+              ),
+              p('There is no blank gathering: it is built from at least one template or it is not built at all. Later, from the gathering\'s own **Built from** panel, **Add another template** appends that template\'s steps as new tasks and changes nothing about the tasks already there.'),
+            ],
+          },
+          {
+            id: 'premier',
+            heading: 'The Dashboard band',
+            blocks: [
+              p('**Show this across the top of the Dashboard** is on the **Dashboard band** panel of a gathering\'s own page. A flagged gathering gets the band under the greeting on [the dashboard](/dashboard) — its title, its dates, where it is, how many of its tasks are approved, and a way straight in.'),
+              p('Several gatherings may be flagged at once, deliberately. The dashboard shows the soonest one that has not finished, so last year\'s reunion never blocks this year\'s, and nothing appears there at all when no flagged gathering is still ahead.'),
+            ],
+          },
+          {
+            id: 'money',
+            heading: 'The fund, the budget, and the red line',
+            blocks: [
+              p('A budget is always drawn on a fund, and the two are saved together — clearing the fund clears the budget with it, and the amount box will not take a figure until a fund is chosen. Funds are set up under [Accounting](/admin/account?section=funds); see [Accounting](/help/accounting#funds).'),
+              p('Several gatherings may draw on one fund, so a balance is not one gathering\'s to spend. The band on each gathering says what else is claiming it.'),
+              p('A budget larger than the fund is allowed and is not an error. The figures say so with a red line instead of refusing the number, because a family plans a reunion before it has raised the money for one — refusing it would mean the plan could not be written down at all.'),
+              p('Each task can carry its own **Budget line ($)**, set in that task\'s dialog: what the one job is expected to cost, with empty meaning it costs the family nothing. The lines together are what the band compares to the budget, and a template step\'s suggested budget is only the figure a line starts at. When the lines outrun the budget the band says so in a quieter, deliberately different treatment — nothing has been spent, and it is settled by raising the budget or trimming a line.'),
+            ],
+          },
+          {
+            id: 'assigning',
+            heading: 'Handing out the work',
+            blocks: [
+              p('Press **Manage** on a task — **Review** when something is waiting on it — and one dialog holds everything about that task.'),
+              steps(
+                'Pick somebody under **Assigned to**. The picker searches any part of any name, which is what makes it usable in a family of a hundred and forty.',
+                'Set **Due** if it has a deadline.',
+                'Press **Save who and when**.',
+              ),
+              p('Anybody the family has approved can hold a task whether or not they have an account of their own, so a relative recorded on the tree with no login can still be asked to bring the photographs. Somebody whose membership is still waiting cannot, and the screen says so rather than failing quietly. **Leave it unassigned** takes a task back off somebody.'),
+              p('The person you assign is told in their notifications, and the task appears on their [My Gathering Tasks](/gatherings/my-tasks) with your due date on it.'),
+            ],
+          },
+          {
+            id: 'reviewing',
+            heading: 'Ruling on an answer',
+            blocks: [
+              p('An answer arrives in the **Review queue** with what was sent, any note the sender added, who sent it and when. There are two rulings:'),
+              bullets(
+                '**Approve** — accepted, and final. The answer becomes the family\'s record of it and the person who sent it cannot change it afterwards, which is why it is confirmed first.',
+                '**Send back…** — returned with instructions. It opens **What needs to change**, and that box is required: a task handed back with nothing in it tells a relative their answer was not accepted while no screen anywhere says what to do about it. Whatever you write is sent with the task and is the first thing they see.',
+              ),
+              p('A task sent back reads **Needs another look** on every screen and can be answered again as many times as it takes. Every submission is kept, so the whole exchange is readable from the task rather than only its last line.'),
+              p('An approved answer can be taken back, and only from here. Open the task and press **Reopen…**, add a line under **Why, if you want to say (optional)** if there is anything to explain, then press **Reopen** to confirm. The task returns to the person holding it with their answer still on it, they are told in their notifications, and the reason travels with it. Nothing is erased: the answer stays as their starting point and every submission stays in the record, including the approval you just took back.'),
+              p('The reason is optional here and required on **Send back…**, which looks inconsistent and is not. Handing work back with no instructions leaves a relative nothing to act on; taking back your own approval is usually a correction to your own reading of it, and there is often nothing to say beyond that it has to change.'),
+              note('Reopening is the only way back from an approval, so approve deliberately even though it can be undone. The person who sent the answer cannot reopen it and cannot replace it while it stands — from their side approved really is final, and every screen tells them to come to you.'),
+            ],
+          },
+          {
+            id: 'changing',
+            heading: 'Changing or ending one',
+            blocks: [
+              p('**Status** is set by hand — **Planning**, **Scheduled**, **Complete** or **Cancelled** — because none of the four is something the calendar knows: a gathering can be called off without its dates moving, and finished is somebody\'s statement rather than a date passing. **Save changes** commits it along with the title, the dates and the place.'),
+              p('**Delete gathering** is refused once any of its answers has been approved. The refusal names how many and offers Cancelled instead, which deletes nothing and can be set back.'),
+              p('Removing a template from a gathering is refused the same way once any task from it has been assigned or answered. The tasks that came from a template are what relatives were actually asked to do and they outlive the link, so unlinking a template only ever clears the tasks nobody has touched.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'gathering-templates',
+        title: 'Gathering Templates',
+        summary: 'Authoring the step-by-step lists a gathering is built from, deciding who may schedule from one, and archiving one that has been used.',
+        route: '/admin/gathering-templates',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What a template is',
+            blocks: [
+              p('[Gathering Templates](/admin/gathering-templates) is the library a gathering is built from. A template is a name and an ordered list of steps — one per thing somebody has to do or decide — and scheduling a gathering from it under [Gathering Management](/admin/gatherings) turns every step into a task waiting to be handed to a relative.'),
+              p('Editing a template never changes a gathering already built from it. Every task keeps its own copy of what it asked, so a step renamed here reaches next year\'s reunion and not the one currently running, and nobody\'s answer is ever rewritten out from under them. That is what makes the library safe to keep tidying, and the card says so.'),
+              p('It is the Gatherings counterpart of [Event Templates](/help/running-events#templates), which does the same job on the Events side: a template there hands a planning checklist out against an event, and one here hands out tasks that come back to be accepted. The two libraries are separate and neither reads the other.'),
+            ],
+          },
+          {
+            id: 'adding',
+            heading: 'Adding a template',
+            blocks: [
+              steps(
+                'Type a name under **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
+                'Choose **Who can schedule from this**.',
+                'Press **Add template**.',
+                'On the card that appears, add a **Description** and press **Save changes**, then give it a step for each thing somebody has to do.',
+              ),
+              p('A name has to be unique within the family, so a second "Family Reunion" is refused rather than added quietly beside the first. The description is what an organiser reads before scheduling from it, and it is shown beside the template when they pick one.'),
+            ],
+          },
+          {
+            id: 'steps',
+            heading: 'The steps',
+            blocks: [
+              steps(
+                'Type the label under **Add a step** — "Book the hall", "Head count", "Catering".',
+                'Choose **What it asks for**. The line under the picker says what the person holding the task will be given to fill in.',
+                'Put anything they need to know in **Help text** — who to call, what counts as done. They read it under the task itself.',
+                'Tick **Required** if the gathering is not finished until this one is answered and approved.',
+                'Set a **Suggested budget ($)** if the job costs money.',
+                'Press **Add step**.',
+              ),
+              p('There are seven kinds of step, and the choice decides what the person answering is given:'),
+              defs(
+                { term: 'Short answer', text: 'One line — a name, a phone number, a venue.' },
+                { term: 'Long answer', text: 'A paragraph — notes, a description, an explanation.' },
+                { term: 'A date', text: 'A single calendar date, picked from a date field.' },
+                { term: 'A list', text: 'Any number of lines, one item each, added and removed as they go.' },
+                { term: 'Yes or no', text: 'A decision. They must choose; leaving it blank is not an answer.' },
+                { term: 'A number', text: 'A count or a quantity. Money has its own kind — use that one for money.' },
+                { term: 'An amount of money', text: 'An amount in dollars, recorded to the cent.' },
+              ),
+              p('The arrows on a row move a step earlier or later, and that order is the order the tasks are handed out in. **Save** appears on a row once something on it has changed, so nothing is written per keystroke. Deleting a step leaves every task already made from it exactly where it is.'),
+              p('A suggested budget is only a starting figure copied onto the task. It can be changed on the gathering, and what counts against the fund is the gathering\'s own budget — see [Gathering Management](/help/gathering-management#money).'),
+            ],
+          },
+          {
+            id: 'who-may-schedule',
+            heading: 'Who can schedule from this',
+            blocks: [
+              p('**Who can schedule from this** is set per template, and it is the one thing on this screen that a member outside the admin pages ever feels:'),
+              defs(
+                { term: 'Administrators only', text: 'Only somebody who can manage gatherings may start one from this template.' },
+                { term: 'Any member', text: 'Any member who may schedule a gathering can start one from this template. They still cannot edit the template itself.' },
+              ),
+              p('Changing a template is an admin job whichever of the two is set. So a family can hand out "anybody may run a birthday" without also handing out "anybody may change what a birthday involves", which is the reason the setting sits on the template rather than on the person.'),
+            ],
+          },
+          {
+            id: 'archiving',
+            heading: 'Archiving, and deleting',
+            blocks: [
+              p('**Archive** takes a template out of the schedule-from list and leaves every gathering built from it exactly as it is. Nothing running changes and nothing is deleted; the card says it is archived and that nothing new can be started from it, and **Restore** puts it back.'),
+              p('A template a gathering was built from cannot be deleted. The refusal names how many gatherings used it and offers archiving instead, with an **Archive it instead** button beside the message. The reason is the record: the tasks on those gatherings say which template they came from, and deleting it would take that away. A template nothing has used yet deletes cleanly, along with its steps.'),
+              p('The use count is printed on the card beside the delete control, so the refusal is rarely a surprise. It arrived with the page, though, and a gathering scheduled since will not be in it — the refusal itself is what decides.'),
             ],
           },
         ],

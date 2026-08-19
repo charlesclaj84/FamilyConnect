@@ -129,6 +129,44 @@ const PASSWORD = 'rls-harness-pw-2026!'
  */
 const DECLINED_AT = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
+/**
+ * A date `n` days from now, as `YYYY-MM-DD`.
+ *
+ * THE GATHERINGS DATES ARE RELATIVE AND HAVE TO BE. `getPremierGathering` filters on the
+ * server's own `todayLocal()` — "the span has not finished" — so a hard-coded 2026-09-05
+ * would give that case a positive control until that morning and a silent, permanent
+ * failure afterwards, on a fixture nobody had touched. Every other date in this file is
+ * hard-coded because nothing reads it against the clock; these are read against it.
+ *
+ * UTC, via the ISO slice, and deliberately not `todayLocal()`: these are +20 to +45 days
+ * out, so a one-day disagreement with the local zone changes no assertion, and importing a
+ * lib module here would be the fixture depending on the code under test.
+ */
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
+
+/**
+ * The gathering's span, its task deadline, and the spare gathering's day.
+ *
+ * Module-level rather than computed inside the loop so ALPHA's and BRAVO's gatherings share
+ * a month: `calendar.getCalendarMonth`'s case asks for the month ALPHA's gathering is in,
+ * and a BRAVO gathering in a different month would make the attack half pass because the
+ * month happened to be empty rather than because the query was scoped.
+ */
+const GATHERING_STARTS_ON = inDays(30)
+const GATHERING_ENDS_ON = inDays(32)
+const GATHERING_DUE_ON = inDays(20)
+const SPARE_GATHERING_STARTS_ON = inDays(45)
+
+/**
+ * When the approved task was ruled on. A TIMESTAMPTZ, not a DATE — `gathering_tasks.decided_at`
+ * and `gathering_task_submissions.reviewed_at` both are — and in the PAST, because a decision
+ * that has been taken is in the past by definition and `reopenGatheringTask`'s setup writes this
+ * value back on every run. A fixed literal rather than `new Date()`: the setup has to restore the
+ * row to a state a probe can compare against, and a clock read there would make the probe's
+ * before-and-after differ by the run's own duration on a column nothing under test wrote.
+ */
+const APPROVED_DECIDED_AT = '2026-08-01T12:00:00.000Z'
+
 export const USERS = {
   alphaMember: { email: 'alpha.member@rls.test', family: ALPHA, admin: false },
   alphaOther: { email: 'alpha.other@rls.test', family: ALPHA, admin: false },
@@ -256,6 +294,25 @@ async function teardown(db) {
     // removing it up front costs nothing and is what lets `funds` go below.
     'families',
     'chat_rooms', 'elections', 'photos', 'photo_collections', 'event_photos',
+    // ── GATHERINGS (20260819000000), AND THEY HAVE TO BE BEFORE `funds` ─────────────
+    // Not "children before parents" as a habit — `funds` genuinely cannot be deleted while
+    // a gathering carries a budget drawn on it, and the mechanism is not the obvious one.
+    // `gatherings.fund_id` is ON DELETE SET NULL, and Postgres carries a SET NULL out as an
+    // ordinary UPDATE on the referencing row, so every constraint on that row is enforced
+    // against it — including `gatherings_budget_needs_fund` (a budget must name a fund).
+    // The fixture seeds exactly that state, so with these six listed after `funds` the
+    // sweep dies on 23514 naming a constraint nobody touched. `lib/money-attached.ts`
+    // counts this as the fifth thing attached to a fund for the same reason.
+    //
+    // Among themselves: submissions cascade from tasks, tasks and uses cascade from
+    // `gatherings`, steps cascade from `gathering_templates` — and
+    // `gathering_template_uses.template_id` is NO ACTION, which is what forces `uses`
+    // ahead of `gathering_templates` rather than merely making it tidy.
+    //
+    // None of the six is append-only: no trigger refuses a DELETE, so each of these sweeps
+    // does real work rather than documenting a cascade.
+    'gathering_task_submissions', 'gathering_tasks', 'gathering_template_uses',
+    'gatherings', 'gathering_template_steps', 'gathering_templates',
     'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
     // AFTER `funds`. Second table in this list to go append-only (20260807000002, after
     // dues_payments below), and the rule is the same: a direct DELETE is refused, and the
@@ -1151,6 +1208,245 @@ export async function seed() {
         created_at: new Date(Date.parse(DECLINED_AT) - 60 * 60 * 1000).toISOString(),
       }).select().single())
     }
+
+    // -- GATHERINGS (20260819000000) --------------------------------------------
+    //
+    // "ASSEMBLY", NEVER "GATHERING", in every string here - and it is not a style choice.
+    // `f.eventType` above is named `${code} gathering`, and `alphaMarkers()` matches on
+    // SUBSTRINGS, so a marker of 'ALPHATEST gathering' would be found in that pre-existing
+    // event-type row and report a leak in a response that never touched this feature. Every
+    // free-text value below therefore says "assembly", and the marker list says the same.
+    //
+    // WHAT EACH ROW IS FOR, because five of the fourteen exist only so a destructive control
+    // has its own subject (AGENTS.md 7's first fixture failure mode):
+    //
+    //   f.template            the family's one template. Two steps of DIFFERENT kinds, which
+    //                         is what makes `submitGatheringTask`'s `parseAnswer` branch and
+    //                         the budget default both reachable. `who_may_schedule: 'family'`,
+    //                         so `getSchedulableTemplates` has something to offer a member.
+    //   f.templateStep1/2     'text' (required) and 'money' (with a suggested line).
+    //   f.deletableStep       a third step, on `f.template`, for `deleteTemplateStep`. On the
+    //                         MAIN template deliberately: `f.deletableTemplate` is deleted by
+    //                         its own control, and a step living there would vanish with it.
+    //   f.deletableTemplate   a template with NO `gathering_template_uses` row, which is the
+    //                         only kind `deleteGatheringTemplate` will remove. `'admin'`, so
+    //                         both `who_may_schedule` branches are represented.
+    //   f.deletableTemplateStep  one step on it, so `addGatheringTemplate` instantiates real
+    //                         work rather than linking an empty template.
+    //   f.gathering           the family's gathering. PREMIER and FUTURE, because
+    //                         `getPremierGathering` filters on both; a fund and a budget,
+    //                         because `gatherings/budget` and `setGatheringBudget` need them.
+    //   f.deletableGathering  no fund, no budget, no tasks - `deleteGathering`'s subject, and
+    //                         the one the add/remove-template cases link and unlink.
+    //   f.templateUse         the junction row `getGatheringDetail` groups the task list by.
+    //   f.assignedTask        assigned to `owner` and left 'open' for the whole run: it is
+    //                         the subject of every READ control, so no write case may touch
+    //                         it. `submitGatheringTask` gets `f.submittableTask` instead.
+    //   f.unassignedTask      the one nobody holds - `assignGatheringTask`'s subject, and the
+    //                         one `setGatheringTaskBudget` moves.
+    //   f.submittableTask     assigned to `owner`, 'open', and nothing reads its status.
+    //   f.submittedTask       'submitted' with a pending submission behind it, which is what
+    //                         `getGatheringReviewQueue` lists and `reviewGatheringTask` rules
+    //                         on. Its own row because that control moves it off 'submitted'.
+    //   f.submission          that pending submission. Its `answer` is `{ items: [...] }`,
+    //                         the shape `parseAnswer('list', ...)` produces, so the row is one
+    //                         the product could actually have written.
+    //   f.approvedTask        'approved', with `decided_at`/`decided_by` set - the ONLY state
+    //                         `reopenGatheringTask` accepts, and its own row for exactly the
+    //                         reason `f.queuedTask` is: that control moves it OFF 'approved',
+    //                         so sharing `f.submittedTask` would make the two decisions race
+    //                         (a reopen would leave nothing for a review to rule on, and a
+    //                         review would leave nothing for a reopen to take back).
+    //   f.approvedSubmission  the approved submission behind it. Kept untouched by a reopen -
+    //                         which is the fact its probe is there to assert, because a reopen
+    //                         that quietly rewrote the audit trail would look identical on the
+    //                         task alone.
+    //
+    // THE FUND IS `f.fund` AND NEVER `f.deletableFund`. `moneyAttachedTo('fund', ...)` counts
+    // gatherings since this migration, so pointing a gathering at the spare fund would make
+    // `funds.deleteFund`'s positive control fail - and fail with a message about a gathering,
+    // which reads as a bug in the money guard rather than as a fixture collision. `f.fund`
+    // already has a transfer against it and is undeletable for good.
+    f.template = must('gathering template', await db.from('gathering_templates').insert({
+      family_code: code, name: `${code} assembly plan`,
+      description: `${code} assembly plan notes`,
+      // A people id, not an auth id, and it is this table's whole `own_expr`.
+      created_by: owner.personId,
+      who_may_schedule: 'family',
+    }).select().single())
+
+    f.templateStep1 = must('template step (text)', await db.from('gathering_template_steps').insert({
+      family_code: code, template_id: f.template.id, position: 0,
+      label: `${code} bring the assembly banner`, kind: 'text', required: true,
+      help_text: `${code} assembly banner note`,
+    }).select().single())
+
+    f.templateStep2 = must('template step (money)', await db.from('gathering_template_steps').insert({
+      family_code: code, template_id: f.template.id, position: 1,
+      label: `${code} assembly catering line`, kind: 'money', required: false,
+      budget_default_cents: 5000,
+    }).select().single())
+
+    f.deletableStep = must('deletable template step', await db.from('gathering_template_steps').insert({
+      family_code: code, template_id: f.template.id, position: 2,
+      label: `${code} spare assembly step`, kind: 'long_text',
+    }).select().single())
+
+    f.deletableTemplate = must('deletable gathering template', await db.from('gathering_templates').insert({
+      family_code: code, name: `${code} spare assembly plan`,
+      created_by: owner.personId, who_may_schedule: 'admin',
+    }).select().single())
+
+    f.deletableTemplateStep = must('deletable template step (spare plan)',
+      await db.from('gathering_template_steps').insert({
+        family_code: code, template_id: f.deletableTemplate.id, position: 0,
+        label: `${code} spare plan assembly step`, kind: 'text',
+      }).select().single())
+
+    f.gathering = must('gathering', await db.from('gatherings').insert({
+      family_code: code, title: `${code} spring assembly`,
+      summary: `${code} assembly summary`,
+      // `location` is deliberately NOT in `alphaMarkers()`: `updateGathering`'s control
+      // rewrites a field on this row, and a marker a case overwrites is a marker that stops
+      // being found for every case ordered after it.
+      location: `${code} assembly hall`,
+      starts_on: GATHERING_STARTS_ON, ends_on: GATHERING_ENDS_ON,
+      status: 'planning', is_premier: true,
+      fund_id: f.fund.id, budget_cents: 50000,
+      created_by: owner.personId,
+    }).select().single())
+
+    f.deletableGathering = must('deletable gathering', await db.from('gatherings').insert({
+      family_code: code, title: `${code} spare assembly`,
+      starts_on: SPARE_GATHERING_STARTS_ON,
+      // NO fund and NO budget, so nothing in `lib/money-attached.ts` counts it and
+      // `deleteGathering` has a subject it is allowed to remove.
+      status: 'planning', created_by: owner.personId,
+    }).select().single())
+
+    f.templateUse = must('gathering template use', await db.from('gathering_template_uses').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id, position: 0,
+    }).select().single())
+
+    f.assignedTask = must('assigned gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id,
+      template_id: f.template.id, step_id: f.templateStep1.id,
+      label: `${code} bring the assembly banner`, help_text: `${code} assembly banner note`,
+      kind: 'text', required: true, position: 0,
+      assignee_id: owner.personId, due_on: GATHERING_DUE_ON, status: 'open',
+    }).select().single())
+
+    f.unassignedTask = must('unassigned gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id,
+      template_id: f.template.id, step_id: f.templateStep2.id,
+      label: `${code} assembly catering line`, kind: 'money', required: false, position: 1,
+      budget_cents: 5000, status: 'open',
+    }).select().single())
+
+    // `step_id` IS NULL ON THESE TWO, deliberately. `deleteTemplateStep`'s control removes
+    // `f.deletableStep`, and a task pointing at it would have its `step_id` nulled by the
+    // SET NULL underneath - harmless in itself, but it would make two unrelated cases depend
+    // on each other's order for no gain. The column is nullable and nothing these cases
+    // exercise reads it.
+    f.submittableTask = must('submittable gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id,
+      label: `${code} assembly seating plan`, kind: 'long_text', required: false, position: 2,
+      assignee_id: owner.personId, status: 'open',
+    }).select().single())
+
+    f.submittedTask = must('submitted gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id,
+      label: `${code} assembly photograph list`, kind: 'list', required: true, position: 3,
+      assignee_id: owner.personId, due_on: GATHERING_DUE_ON, status: 'submitted',
+    }).select().single())
+
+    f.submission = must('gathering task submission', await db.from('gathering_task_submissions').insert({
+      family_code: code, task_id: f.submittedTask.id,
+      answer: { items: [`${code} assembly photograph`] },
+      note: `${code} assembly submission note`,
+      submitted_by: owner.personId, decision: 'pending',
+    }).select().single())
+
+    // A SECOND SUBMITTED TASK, AND NOTHING WRITES TO IT — `deletableChild`'s rule applied to a
+    // READ rather than to a write, which is the reason `f.invitedRecord` exists a hundred lines
+    // above. `getGatheringReviewQueue`'s control has to find something waiting for review, and
+    // pointing it at `f.submittedTask` made that assertion depend on whether
+    // `reviewGatheringTask`'s control had already run: it had, in the pending block, so the
+    // queue was correctly empty of that task and the control reported "owner saw none of their
+    // own data". OBSERVED, not predicted — it is the failure the runner is built to report, and
+    // the fix is a row of its own rather than a laxer assertion.
+    f.queuedTask = must('queued gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id,
+      label: `${code} assembly transport list`, kind: 'list', required: false, position: 4,
+      assignee_id: owner.personId, status: 'submitted',
+    }).select().single())
+
+    f.queuedSubmission = must('queued task submission', await db.from('gathering_task_submissions').insert({
+      family_code: code, task_id: f.queuedTask.id,
+      answer: { items: [`${code} assembly minibus`] },
+      note: `${code} assembly transport note`,
+      submitted_by: owner.personId, decision: 'pending',
+    }).select().single())
+
+    // ── AN APPROVED TASK, WHICH NOTHING ELSE IN THE FIXTURE HAD ────────────────────────
+    // `reopenGatheringTask` accepts only `status = 'approved'` and refuses every other value
+    // with a sentence, so without this row its positive control would be refused by the
+    // FIXTURE rather than by the boundary — a control that fails for a reason with nothing to
+    // do with isolation, which is the failure mode AGENTS.md 7 says a control exists to catch
+    // in the other direction. Its own row for `f.queuedTask`'s reason: it is the one row a
+    // control moves off 'approved', and reusing `f.submittedTask` would put a reopen and a
+    // review in a race over one status column.
+    //
+    // NOT ON `f.deletableGathering`. `deleteGathering` refuses a gathering once any of its
+    // answers is approved, and that refusal is a case's positive control — an approved task
+    // there would make it fail with a message about answers, which reads as a bug in the
+    // delete guard rather than as a fixture collision. Same trap, one table across, as the
+    // note above about `f.fund` and `f.deletableFund`.
+    //
+    // `decided_at`/`decided_by` are set because they are what a reopen CLEARS, and a probe
+    // cannot see a field being cleared that was never filled. Two columns, two directions.
+    f.approvedTask = must('approved gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id,
+      label: `${code} assembly hall booking`, kind: 'text', required: false, position: 6,
+      assignee_id: owner.personId, status: 'approved',
+      answer: { text: `${code} assembly parish hall` },
+      decided_at: APPROVED_DECIDED_AT, decided_by: owner.personId,
+    }).select().single())
+
+    f.approvedSubmission = must('approved task submission', await db.from('gathering_task_submissions').insert({
+      family_code: code, task_id: f.approvedTask.id,
+      answer: { text: `${code} assembly parish hall` },
+      note: `${code} assembly hall booking note`,
+      submitted_by: owner.personId, decision: 'approved',
+      reviewed_by: owner.personId, reviewed_at: APPROVED_DECIDED_AT,
+    }).select().single())
+
+    // ── A TASK HELD BY THE FAMILY'S APPLICANT, and it is what makes two pending cases
+    // MEAN something. This row was added after measuring, not before: with `requireMember()`
+    // neutered, `gatherings.getMyGatheringTasks (pending member)` and
+    // `submitGatheringTask (pending member)` both still passed, because every task in the
+    // fixture was held by `owner` and both actions key on the CALLER's own person id. Their
+    // attack halves were refused by the fixture rather than by the gate — the vacuous pass
+    // AGENTS.md 7 exists to name, arriving through the shape of the data instead of through
+    // an empty table.
+    //
+    // An applicant CAN be handed one in the product: `assignGatheringTask` refuses a
+    // non-approved assignee, but nothing takes a task back when an administrator later
+    // switches a member off, and `membership_status` has four values. So this is a real state
+    // and the question it poses is a real one — may somebody the family has not admitted do
+    // the family's work? The answer has to be no, and now something asks.
+    //
+    // ITS LABEL IS IN `alphaMarkers()` even though its holder is an ATTACKING ACTOR. The rule
+    // that keeps `fx.users.alphaPending`'s own PERSON id off that list does not reach this: a
+    // people row is theirs and RLS rightly lets them read it, whereas a task is the FAMILY's
+    // work — `perm:gathering_tasks:select`'s `self_expr` is `assignee_id = auth_person_id()`
+    // and `auth_person_id()` is NULL for an applicant, so the database refuses them this row
+    // deliberately. Finding it in their response is a finding.
+    f.pendingTask = must('applicant-held gathering task', await db.from('gathering_tasks').insert({
+      family_code: code, gathering_id: f.gathering.id, template_id: f.template.id,
+      label: `${code} assembly welcome table`, kind: 'text', required: false, position: 5,
+      assignee_id: f.pendingPersonId, status: 'open',
+    }).select().single())
 
     // `childRelId` and `deletableChildRelId` were here and went with the children cases
     // on 2026-08-13: updateChild and deleteChild addressed a relationship row by id, and
