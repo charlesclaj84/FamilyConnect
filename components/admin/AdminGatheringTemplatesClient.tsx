@@ -27,6 +27,23 @@ import {
 /**
  * THE TEMPLATE LIBRARY — a card per template, a table of steps inside each.
  *
+ * ── **USUAL LOCATION** IS A DEFAULT THAT GETS COPIED, NOT A PLACE READ THROUGH ──────
+ * `gathering_templates.default_location` (20260819000001) is where a segment built from this
+ * template is USUALLY held. When somebody links the template to a gathering,
+ * `attachTemplatesToGathering` writes this value onto `gathering_template_uses.location` and the
+ * segment owns it from that moment on — nothing on a gathering ever reads back through to this
+ * column.
+ *
+ * That is why editing it here is safe, and it is the same copy-not-reference rule
+ * `gathering_tasks.label` follows. It matters MORE here rather than less: a segment is a thing
+ * PEOPLE HAVE BEEN TOLD ABOUT, so changing "Family Picnic" next month to say it is usually at
+ * Zilker must not silently move a picnic forty relatives already have directions to. Moving one
+ * that exists is `setGatheringSegment` on `/admin/gatherings/[id]`, deliberately a different
+ * control on a different screen, and the copy is written by the ACTION rather than by a database
+ * DEFAULT or a trigger — 20260819000001 asserts a freshly linked segment comes out NULL if the
+ * action does not do it. Both fields say so on screen, because "usual" is the word doing all the
+ * work in the caption and a reader is entitled to know what it costs to change.
+ *
  * ── WHY A CARD PER TEMPLATE AND A TABLE PER CARD ────────────────────────────────────
  * A template is a small form (name, description, who may schedule from it) sitting over an
  * ORDERED LIST of steps, and those two things want different treatments. The steps are rows
@@ -110,6 +127,7 @@ export function AdminGatheringTemplatesClient({
   // makes a freshly added row appear only after navigating away and back.
   const [templates, setTemplates] = useServerState(initialTemplates)
   const [newName, setNewName] = useState('')
+  const [newLocation, setNewLocation] = useState('')
   const [newScheduler, setNewScheduler] = useState<GatheringTemplateScheduler>('admin')
   const [createError, setCreateError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -122,16 +140,29 @@ export function AdminGatheringTemplatesClient({
     const name = newName.trim()
     if (!name) return
     setCreateError('')
+    // `.trim() || null` HERE AS WELL AS IN THE ACTION, and the same expression, because this
+    // value is used twice: once as the argument and once on the optimistic row below. An empty
+    // box is "not stated" — never the empty string, which would be a stated place of no
+    // characters and would then be COPIED onto every segment as one.
+    const defaultLocation = newLocation.trim() || null
     startTransition(async () => {
-      const result = await createGatheringTemplate({ name, whoMaySchedule: newScheduler })
+      const result = await createGatheringTemplate({
+        name, whoMaySchedule: newScheduler, defaultLocation,
+      })
       if (!result.success || !result.templateId) {
         setCreateError(result.message ?? 'Could not add that template')
         return
       }
       const templateId = result.templateId
       setNewName('')
+      setNewLocation('')
+      // THE OPTIMISTIC ROW CARRIES EVERY FIELD THE INTERFACE DECLARES, including the ones this
+      // form does not offer. `GatheringTemplate` gained `defaultLocation` with 20260819000001 and
+      // this constructor is the reason a widened interface is not a free change: a row built here
+      // that is missing a field is not a stale render, it is a type error — which is the right
+      // failure, and is how this one was found.
       setTemplates(prev => sortTemplates([...prev, {
-        id: templateId, name, description: null,
+        id: templateId, name, description: null, defaultLocation,
         whoMaySchedule: newScheduler, isArchived: false, steps: [], usedByCount: 0,
       }]))
     })
@@ -156,6 +187,19 @@ export function AdminGatheringTemplatesClient({
                 placeholder="e.g. Family Reunion"
                 value={newName}
                 onChange={e => { setNewName(e.target.value); setCreateError('') }}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
+              />
+            </div>
+            {/* Optional, and third rather than second: the name is what a reader types first and
+                who may schedule from it is the decision that changes who can act. A place is a
+                convenience that saves retyping it on every segment. */}
+            <div className="min-w-0 space-y-1.5 sm:w-56">
+              <Label htmlFor="new-template-location">Usual location</Label>
+              <Input
+                id="new-template-location"
+                placeholder="e.g. Zilker Park, Austin"
+                value={newLocation}
+                onChange={e => { setNewLocation(e.target.value); setCreateError('') }}
                 onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
               />
             </div>
@@ -231,6 +275,7 @@ function TemplateCard({
   const confirm = useConfirm()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description ?? '')
+  const [usualLocation, setUsualLocation] = useState(template.defaultLocation ?? '')
   const [scheduler, setScheduler] = useState<GatheringTemplateScheduler>(template.whoMaySchedule)
   const [error, setError] = useState('')
   // Set when `deleteGatheringTemplate` refuses because a gathering was built from this
@@ -242,6 +287,7 @@ function TemplateCard({
 
   const dirty = name.trim() !== template.name
     || description.trim() !== (template.description ?? '')
+    || usualLocation.trim() !== (template.defaultLocation ?? '')
     || scheduler !== template.whoMaySchedule
 
   function handleSaveDetails() {
@@ -249,16 +295,23 @@ function TemplateCard({
     if (!nextName) { setError('A template needs a name'); return }
     setError('')
     setOfferArchive(false)
+    // Computed once and used for the argument AND the patch, so the row cannot end up showing a
+    // place the write did not send. `.trim() || null` is the same expression the action applies:
+    // an emptied box is an explicit `null`, which that function reads as "clear it" — absent
+    // would have meant "leave it alone", and a caller cannot express clearing by omission.
+    const defaultLocation = usualLocation.trim() || null
     startTransition(async () => {
       const result = await updateGatheringTemplate({
         templateId:     template.id,
         name:           nextName,
         description:    description.trim() || null,
+        defaultLocation,
         whoMaySchedule: scheduler,
       })
       if (!result.success) { setError(result.message ?? 'Could not save that template'); return }
       onPatch({
-        name: nextName, description: description.trim() || null, whoMaySchedule: scheduler,
+        name: nextName, description: description.trim() || null, defaultLocation,
+        whoMaySchedule: scheduler,
       })
     })
   }
@@ -414,6 +467,25 @@ function TemplateCard({
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor={`location-${template.id}`}>Usual location</Label>
+              <Input
+                id={`location-${template.id}`}
+                placeholder="Where a segment built from this template is usually held"
+                value={usualLocation}
+                disabled={isPending}
+                onChange={e => { setUsualLocation(e.target.value); setError('') }}
+              />
+              {/* THE SENTENCE THAT MAKES THE WORD "usual" HONEST. It is copied onto a segment
+                  when the template is linked and never read back through, so changing it here
+                  moves nothing that exists — and somebody who came here meaning to move the
+                  picnic is told, on the control, where that is actually done. */}
+              <p className="text-xs text-muted-foreground">
+                Filled in for you when this template is added to a gathering, and the gathering
+                keeps its own copy from then on — changing it here never moves a gathering that
+                already exists. Move one on its own page under Gathering Management.
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor={`description-${template.id}`}>Description</Label>
               <Textarea
                 id={`description-${template.id}`}
@@ -439,6 +511,14 @@ function TemplateCard({
         ) : (
           <div className="space-y-2">
             {template.description && <p className="text-sm">{template.description}</p>}
+            {/* Read-only, and only when there is one — an "Usual location: —" line on a template
+                that has never had a place is a field this reader cannot fill in and does not need
+                to know exists. */}
+            {template.defaultLocation && (
+              <p className="text-sm text-muted-foreground">
+                Usually held at {template.defaultLocation}
+              </p>
+            )}
             <p className="text-sm text-muted-foreground">
               Who can schedule from this: {SCHEDULER_LABEL[template.whoMaySchedule]}
             </p>

@@ -202,7 +202,26 @@ export type GatheringBudgetState = 'shown' | 'withheld' | 'unavailable'
 
 export interface GatheringDetail extends GatheringSummary {
   tasks: GatheringTaskRow[]
-  templates: { id: string; name: string }[]
+  /**
+   * The gathering's SEGMENTS, in `position` order — the Welcome, the Picnic and the Send Off
+   * inside one reunion (20260819000001).
+   *
+   * The task list on this screen is already grouped by template; `occursOn` and `location` are
+   * what let each group heading say WHEN and WHERE that part happens. Both are nullable and mean
+   * "not stated", so a group with neither reads exactly as it does today — which is most
+   * gatherings, and is why these were added ADDITIVELY rather than as a new shape.
+   *
+   * `occursOn` IS NOT CONSTRAINED TO `startsOn..endsOn` and this screen does not police it. A
+   * family member reading their own reunion is not the person who reconciles a date; the organizer
+   * is, so the out-of-span marking lives on `/admin/gatherings/[id]`. Printing a warning here
+   * would tell forty relatives that something is wrong with a gathering they cannot edit.
+   */
+  templates: {
+    id: string
+    name: string
+    occursOn: string | null
+    location: string | null
+  }[]
   /**
    * null unless the caller holds `gatherings/budget:view` — NOT FETCHED otherwise (§5) — and
    * ALSO null when the figures could not be read, which `readBudget` chooses deliberately over
@@ -697,7 +716,9 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     // conjuncts, which is the same bargain `templateNames` already makes for the NAMES.
     createAdminClient()
       .from('gathering_template_uses')
-      .select('template_id, position')
+      // `occurs_on` and `location` — the segment's day and place, for the task group's heading.
+      // They ride along on a read this screen was already making, so the two columns cost nothing.
+      .select('template_id, position, occurs_on, location')
       .eq('gathering_id', gatheringId)
       .eq('family_code', g.familyCode)
       .order('position', { ascending: true }),
@@ -710,7 +731,9 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     console.error(`[gatherings] template-use read failed for ${gatheringId} in ${g.familyCode}: ${usesRes.error.message}`)
   }
   const taskRows = (tasksRes.data ?? []) as unknown as TaskRow[]
-  const useRows = (usesRes.data ?? []) as { template_id: string; position: number }[]
+  const useRows = (usesRes.data ?? []) as {
+    template_id: string; position: number; occurs_on: string | null; location: string | null
+  }[]
 
   const [names, templates, latest, budget, budgetLines] = await Promise.all([
     personNames(taskRows.map(t => t.assignee_id ?? ''), g.familyCode),
@@ -745,7 +768,12 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     isPremier:  gathering.is_premier,
     taskCounts: taskProgress(asTaskStatuses(taskRows)),
     tasks:      taskRows.map(t => toTaskRow(t, names, templates, latest, budgetLines)),
-    templates:  useRows.map(u => ({ id: u.template_id, name: templates.get(u.template_id) ?? '' })),
+    templates:  useRows.map(u => ({
+      id:       u.template_id,
+      name:     templates.get(u.template_id) ?? '',
+      occursOn: u.occurs_on ?? null,
+      location: u.location ?? null,
+    })),
     budget,
     budgetState,
     canManage,
@@ -1435,7 +1463,12 @@ export async function scheduleGathering(input: {
   const admin = createAdminClient()
   const { data: templates, error: templateError } = await admin
     .from('gathering_templates')
-    .select('id, name, who_may_schedule, is_archived')
+    // `default_location` rides along because `attachTemplatesToGathering` copies it onto each
+    // segment's `location` — see that function for why the copy happens once, at link time, and
+    // never as a read-through. A member scheduling the reunion from the family's three templates
+    // gets their usual places, exactly as an organizer does; `resolveTemplates` in the organizer
+    // module projects the same column for the same reason.
+    .select('id, name, default_location, who_may_schedule, is_archived')
     .in('id', templateIds)
     .eq('family_code', g.familyCode)
 
@@ -1444,7 +1477,10 @@ export async function scheduleGathering(input: {
     return { success: false, message: 'Could not read the templates' }
   }
 
-  const rows = (templates ?? []) as { id: string; name: string; who_may_schedule: string; is_archived: boolean }[]
+  const rows = (templates ?? []) as {
+    id: string; name: string; default_location: string | null
+    who_may_schedule: string; is_archived: boolean
+  }[]
   // Every id asked for came back inside the family. One missing means it is another family's
   // or does not exist, and both answer the same sentence — telling a caller which is an
   // enumeration signal about another family's data.
@@ -1468,7 +1504,10 @@ export async function scheduleGathering(input: {
   // happened to answer in — permanently, on the screen a family reads down, with the three
   // templates' steps interleaved because `instantiateTemplateTasks` offsets each one past the
   // last. `resolveTemplates` in the organizer module re-orders for the same reason.
-  const byId = new Map(rows.map(row => [row.id, { id: row.id, name: row.name }]))
+  const byId = new Map(rows.map(row => [
+    row.id,
+    { id: row.id, name: row.name, defaultLocation: row.default_location ?? null },
+  ]))
   const ordered = templateIds.flatMap(id => {
     const template = byId.get(id)
     return template ? [template] : []

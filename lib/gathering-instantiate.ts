@@ -218,12 +218,70 @@ export async function instantiateTemplateTasks(
  * Returns the NAMES of the templates that could not be attached. It never throws and never
  * touches the gathering itself: the honest answer to a half-failure is a gathering that exists
  * with the templates that worked and a sentence naming the ones that did not.
+ *
+ * ── THE SEGMENT'S DAY AND PLACE ARE WRITTEN HERE, AND THE COPY IS THE POINT ─────
+ * A use row is a SEGMENT since 20260819000001: the Welcome, the Picnic and the Send Off inside
+ * one reunion, each with its own `occurs_on` and its own `location`. Both are nullable and mean
+ * "not stated", so a one-day gathering in one place needs neither and reads exactly as it did
+ * before the columns existed.
+ *
+ * `location` FALLS BACK TO THE TEMPLATE'S `default_location`, AND THE DATABASE DELIBERATELY DOES
+ * NOT. That migration's header argues it out and asserts the absence: there is no DEFAULT
+ * expression and no trigger, so a freshly linked segment comes out NULL unless something in the
+ * application puts a value there. This is that something, and it is here rather than in
+ * `addGatheringTemplate` so that all THREE create paths get it — `createGathering`,
+ * `scheduleGathering` and `addGatheringTemplate` — which is the same argument that moved this
+ * whole loop into this module: written per call site it was written twice and the two copies
+ * disagreed.
+ *
+ * A TRIGGER WOULD BE WRONG TWICE OVER and the reason belongs beside the code that replaces it.
+ * It would fire on UPDATE as well as INSERT, so it would re-copy the template's place over an
+ * organizer's per-segment edit every time anything else on the row changed; and a DEFAULT
+ * expression cannot see the row it is defaulting for, so it could not reach `template_id` at all.
+ * The copy has to happen ONCE, at the moment of linking, which is exactly here.
+ *
+ * PER-TEMPLATE RATHER THAN PER-CALL, which is why these three live on the element and not in a
+ * fifth parameter. `addGatheringTemplate` links one template and states both fields; the two
+ * create paths link several and state neither. A `{ occursOn, location }` argument applied to
+ * the whole call would silently give three segments of a three-day reunion the same day.
+ *
+ * ── MEASURED, 2026-08-19, AND CHECKED BY MUTATION ─────────────────────────
+ * Against the real local Postgres, three templates linked in one call — Welcome with a default
+ * and no stated place, Picnic with a default AND a stated place, Send Off with neither — and a
+ * Send Off dated 2026-10-14, outside a 1–3 September span:
+ *
+ *     position 0  occurs_on 2026-09-01  location 'The lodge'    (default copied)
+ *     position 1  occurs_on 2026-09-02  location 'Zilker'       (stated place wins)
+ *     position 2  occurs_on 2026-10-14  location NULL           (neither, and out of span: stored)
+ *
+ * Then the fall-back order was REVERSED — `defaultLocation ?? location` — and the Picnic came
+ * back as **'The pavilion'**: the organizer's per-segment place silently overwritten by the
+ * template's usual one, which is the whole failure the copy-not-reference rule exists to
+ * prevent, arriving through the one line that implements it. A green run is not evidence until
+ * it has been seen to fail (AGENTS.md §7).
+ *
+ * THAT MEASUREMENT HAS NO PERMANENT HOME YET, and it is worth saying so rather than leaving the
+ * paragraph looking like a test. It was a throwaway probe, not a committed one: `lib/**` under
+ * `npm test` is deliberately a boundary with no Supabase in it (§7b), and the runner that calls
+ * an action for real against real policies is `tests/rls`. A case there for
+ * `admin/gatherings.setGatheringSegment` and the widened `addGatheringTemplate` is owed — attack,
+ * positive control and an `alphaPending` — and until it exists this comment is the only record
+ * that the copy was ever run.
  */
 export async function attachTemplatesToGathering(
   admin: AdminClient,
   gatheringId: string,
   familyCode: string,
-  templates: readonly { id: string; name: string }[],
+  templates: readonly {
+    id: string
+    name: string
+    /** `gathering_templates.default_location`, used only when the element states no `location`. */
+    defaultLocation?: string | null
+    /** This segment's day, `YYYY-MM-DD`. Already validated by the caller; null is "not stated". */
+    occursOn?: string | null
+    /** This segment's place. Overrides `defaultLocation` when stated. */
+    location?: string | null
+  }[],
   positionFrom: number,
 ): Promise<string[]> {
   const failures: string[] = []
@@ -234,6 +292,16 @@ export async function attachTemplatesToGathering(
       gathering_id: gatheringId,
       template_id:  template.id,
       position:     positionFrom + index,
+      // `?? null` on both, so an element that states nothing writes NULL rather than
+      // `undefined` — which PostgREST omits from the payload, leaving the column to a default
+      // this table deliberately does not have. Same answer either way today; stated so it stays
+      // the same answer if one is ever added.
+      occurs_on:    template.occursOn ?? null,
+      // THE FALL-BACK, and the order is load-bearing: an explicitly stated place wins over the
+      // template's usual one, and `null` from the caller means "not stated" rather than "use the
+      // default". `?? ` and not `||`, so a caller clearing a location to '' is not silently
+      // handed the template's — the actions trim to null before they get here.
+      location:     template.location ?? template.defaultLocation ?? null,
     })
     if (useRes.error) {
       console.error(`[gatherings] template use insert failed for ${gatheringId}/${template.id} in ${familyCode}: ${useRes.error.message}`)

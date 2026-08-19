@@ -30,7 +30,7 @@ import {
 } from '@/lib/gatherings'
 import {
   updateGathering, deleteGathering, setGatheringPremier, setGatheringBudget,
-  addGatheringTemplate, removeGatheringTemplate,
+  addGatheringTemplate, removeGatheringTemplate, setGatheringSegment,
   assignGatheringTask, setGatheringTaskBudget, reviewGatheringTask, reopenGatheringTask,
   type AdminGatheringDetail, type AdminGatheringTaskRow, type GatheringBudgetView,
 } from '@/app/actions/admin/gatherings'
@@ -39,7 +39,7 @@ import {
  * ONE GATHERING, from the organizer's side.
  *
  * Five panels and a task table, in the order the work happens: what it is, whether it goes on
- * the Dashboard, what it may spend, which templates built it, and who is doing each thing.
+ * the Dashboard, what it may spend, which segments it is made of, and who is doing each thing.
  *
  * ── THE BUDGET BAND IS READ-ONLY AND THE FORM SITS BESIDE IT ────────────────────────
  * `components/gatherings/BudgetBand.tsx` is shared with the member-facing gathering page and
@@ -57,6 +57,39 @@ import {
  * exceeds its fund is a state the product must be able to hold and SHOW. Nothing in the
  * database or the action refuses it; the band says so in red. (`--brand-withheld` is for a
  * capability being withheld, which this is not.)
+ *
+ * ── A LINKED TEMPLATE IS A SEGMENT, WITH ITS OWN DAY AND ITS OWN PLACE ──────────────
+ * A Family Reunion is a three-day event made of the Welcome, the Picnic and the Send Off, and
+ * each of those is an event of its own. A gathering could already hold three templates before
+ * 20260819000001; what the three had nowhere to say was that they happen on different days in
+ * different places. `gathering_template_uses.occurs_on` and `.location` are that, so the pill
+ * list here became a TABLE — a template linked to a gathering is not a tag on it, it is a part
+ * of it with facts of its own, and a pill cannot hold a date, a place and a count.
+ *
+ * Both columns are NULLABLE and mean "not stated": a one-day gathering in one place states
+ * neither and reads as it always did. The day and the place are edited in the row through
+ * `setGatheringSegment` rather than in a dialog, because two fields are not a form — and each
+ * row owns its own `useTransition`, so saving the Picnic does not grey out the Send Off.
+ *
+ * ── AN OUT-OF-SPAN DAY IS ACCEPTED AND SAID OUT LOUD, NEVER REFUSED ─────────────────
+ * 20260819000001 deliberately has no CHECK and no trigger tying a segment inside
+ * `starts_on..ends_on`, and its header argues why at length: a gathering's dates MOVE. An
+ * organizer shifts the weekend, which is an ordinary edit to the form above — and a constraint
+ * would refuse it with a 23514 naming a table they were not looking at, about a row they did not
+ * touch. Their own sequence, "shift the weekend and then fix the three segments", would be
+ * unreachable, because each half refuses while the other is still wrong.
+ *
+ * So `addGatheringTemplate` and `setGatheringSegment` both answer `{ success: true, warning }`
+ * for a day outside the span, and THE SENTENCE IS THEIRS. This screen renders `result.warning`
+ * verbatim and composes nothing of its own: the comparison lives once, in the action, beside the
+ * write it is about — a copy here would be a second answer to drift from the first, and the
+ * migration's whole argument is that there is one right place to say this.
+ *
+ * It is `--brand-withheld` and never `--destructive` (AGENTS.md, "Colours live in one place"):
+ * nothing failed, the write landed, and the organizer has a date to reconcile. Reporting a
+ * FAILURE is `form-message.tsx`'s job, which is why this one line is not a `FormError` — the two
+ * appear in the same place and say different kinds of thing, and the colour is how a reader
+ * tells them apart at a glance.
  *
  * ── ASSIGNING GOES THROUGH A DIALOG BECAUSE `PersonPicker` IS THE CONTROL ───────────
  * Choosing one relative out of a hundred and forty is a search box over a bounded scrolling
@@ -83,6 +116,22 @@ interface TemplateOption {
   id: string
   name: string
   description: string | null
+  /**
+   * The template's **Usual location**, used to PRE-FILL the place when it is linked — optional
+   * on this prop, and the optionality is the interesting part.
+   *
+   * The copy itself is the ACTION's: `addGatheringTemplate` writes the template's
+   * `default_location` onto the segment whenever no place is stated, so an organizer who leaves
+   * the box empty gets the usual place whether or not this screen ever knew it. What the value
+   * buys here is only that the box is not empty — somebody can see the place before committing
+   * to it, and edit it for the one year the picnic is somewhere else.
+   *
+   * `?` because the page composes this list from the UNION of two self-gating reads and one of
+   * them — `getSchedulableTemplates`, the member-facing one — does not project the column. Typed
+   * required, this screen would not compile against its own page. Absent, the pre-fill is simply
+   * skipped and the placeholder says what will happen instead, which is the honest degradation.
+   */
+  defaultLocation?: string | null
 }
 
 interface FundOption {
@@ -145,6 +194,12 @@ export function AdminGatheringDetailClient({
   const [templateError, setTemplateError] = useState('')
   const [taskError, setTaskError] = useState('')
   const [addingTemplateId, setAddingTemplateId] = useState('')
+  const [addingDay, setAddingDay] = useState('')
+  const [addingPlace, setAddingPlace] = useState('')
+  // The action's own sentence about a day outside the gathering's span, kept apart from
+  // `templateError` because it arrives WITH `success: true` and the two must never be rendered
+  // in the same treatment. See the header.
+  const [templateWarning, setTemplateWarning] = useState('')
   const [managingTaskId, setManagingTaskId] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -214,16 +269,39 @@ export function AdminGatheringDetailClient({
   function handleAddTemplate() {
     if (!addingTemplateId) return
     setTemplateError('')
+    setTemplateWarning('')
     const chosen = templates.find(t => t.id === addingTemplateId)
+    // Read out of state BEFORE the transition and used for both the argument and the optimistic
+    // row, so the row cannot end up describing a day or a place the write did not carry.
+    const occursOn = addingDay || null
+    const stated = addingPlace.trim() || null
     startTransition(async () => {
       const result = await addGatheringTemplate({
         gatheringId: gathering.id, templateId: addingTemplateId,
+        occursOn, location: stated,
       })
       if (!result.success) { setTemplateError(result.message ?? 'Could not add that template'); return }
       setAddingTemplateId('')
+      setAddingDay('')
+      setAddingPlace('')
+      // VERBATIM, and only when the action said something. A day outside the gathering's span is
+      // saved and remarked on, never refused — the header has the argument, and the sentence is
+      // the action's because the comparison is.
+      if (result.warning) setTemplateWarning(result.warning)
       // The new tasks come with the refresh — they are instantiated server-side from the
       // template's steps, and inventing them here would be a second copy of that logic.
-      if (chosen) setUsedTemplates(prev => [...prev, { id: chosen.id, name: chosen.name }])
+      //
+      // The PLACE, though, mirrors one line of the action deliberately: with no place stated,
+      // `addGatheringTemplate` copies the template's `default_location` onto the segment, so
+      // showing an empty cell here would contradict the row that lands a moment later. `??`
+      // rather than `||` on the fallback, because `stated` is already `.trim() || null` and an
+      // empty box has therefore already become "not stated".
+      if (chosen) {
+        setUsedTemplates(prev => [...prev, {
+          id: chosen.id, name: chosen.name, occursOn,
+          location: stated ?? chosen.defaultLocation ?? null,
+        }])
+      }
       router.refresh()
     })
   }
@@ -282,6 +360,26 @@ export function AdminGatheringDetailClient({
 
   const managing = tasks.find(t => t.id === managingTaskId) ?? null
   const addable = templates.filter(t => !usedTemplates.some(u => u.id === t.id))
+
+  /**
+   * How many tasks each segment put on this gathering.
+   *
+   * Counted off `tasks` rather than asked of the server, because the two must agree and the task
+   * table below is rendered from this same list — a figure fetched separately would disagree with
+   * it the moment `removeGatheringTemplate` filtered a row out optimistically.
+   *
+   * A task whose `template_id` has gone NULL (the column is `ON DELETE SET NULL`, because a task
+   * must outlive the template it was copied from) is in no segment's count and that is right: it
+   * is still on the gathering, and the task table is where it shows.
+   */
+  const taskCountBySegment = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const task of tasks) {
+      if (!task.templateId) continue
+      counts.set(task.templateId, (counts.get(task.templateId) ?? 0) + 1)
+    }
+    return counts
+  }, [tasks])
 
   return (
     <div className="space-y-8">
@@ -498,61 +596,130 @@ export function AdminGatheringDetailClient({
         </section>
       )}
 
-      {/* ── Templates ────────────────────────────────────────────────────────────── */}
+      {/* ── Segments ─────────────────────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
         <div>
-          <h2 className="text-lg">Built from</h2>
+          <h2 className="text-lg">Segments</h2>
           <p className="text-sm text-muted-foreground">
-            Adding a template appends its steps as new tasks. Nothing about the template reaches
-            the tasks already here — each one keeps its own copy of what it asked.
+            A gathering is made of parts, and each is an occasion of its own: a reunion is the
+            Welcome, the Picnic and the Send Off, on their own days in their own places. Every
+            template you add is one of those, and its steps become tasks here. Nothing about the
+            template reaches the tasks already on this gathering — each one keeps its own copy of
+            what it asked.
           </p>
         </div>
         {usedTemplates.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No templates are linked to this gathering.
+            No templates are linked to this gathering, so it has no segments yet.
           </p>
         ) : (
-          <ul className="flex flex-wrap gap-2">
-            {usedTemplates.map(template => (
-              <li
-                key={template.id}
-                className="flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-sm text-brand-on-soft"
-              >
-                <span>{template.name || 'Template'}</span>
-                {mayEdit && (
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    className="rounded-full p-0.5 text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                    title={`Remove ${template.name} from this gathering`}
-                    aria-label={`Remove ${template.name} from this gathering`}
-                    onClick={() => handleRemoveTemplate(template)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+          /* `overflow-visible` and NO `min-w-*` floor: the table folds on a phone rather than
+             scrolling sideways (AGENTS.md, "On a phone a table narrows"), and there is no
+             absolutely positioned menu in a row here to be clipped. */
+          <div className="overflow-visible rounded-xl border">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 font-semibold">Segment</th>
+                  {/* Day, Place and Tasks fold, and each `<th>` folds WITH its cells — hide the
+                      cells and leave the headings and every remaining cell is announced under the
+                      wrong column. Both halves of the day and the place are the same control
+                      rendered twice; see `SegmentRow`. */}
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Day</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Place</th>
+                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Tasks</th>
+                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {usedTemplates.map(segment => (
+                  <SegmentRow
+                    // Keyed by the template id, which is per-family — so switching family
+                    // replaces the ids and React remounts every row, and a half-typed place
+                    // cannot go on describing the family the organizer just left.
+                    key={segment.id}
+                    gatheringId={gathering.id}
+                    segment={segment}
+                    taskCount={taskCountBySegment.get(segment.id) ?? 0}
+                    mayEdit={mayEdit}
+                    onSaved={next => setUsedTemplates(prev =>
+                      prev.map(u => (u.id === segment.id ? { ...u, ...next } : u)))}
+                    onRemove={() => handleRemoveTemplate(segment)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         {mayEdit && addable.length > 0 && (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="add-template">Add another template</Label>
-              <Select
-                id="add-template"
-                value={addingTemplateId}
-                disabled={isPending}
-                onChange={e => { setAddingTemplateId(e.target.value); setTemplateError('') }}
-              >
-                <option value="">— Choose a template —</option>
-                {addable.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </Select>
+          <div className="space-y-2 border-t pt-4">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
+                <Label htmlFor="add-template">Add another segment</Label>
+                <Select
+                  id="add-template"
+                  value={addingTemplateId}
+                  disabled={isPending}
+                  onChange={e => {
+                    const chosenId = e.target.value
+                    setAddingTemplateId(chosenId)
+                    setTemplateError('')
+                    setTemplateWarning('')
+                    // PRE-FILLED FROM THE TEMPLATE'S USUAL PLACE, in the event handler and never
+                    // in an effect: an effect runs after paint, and re-seeding a field from a
+                    // prop there is what `react-hooks/set-state-in-effect` is about. Choosing a
+                    // template is a keystroke, so this is the same pattern `TransactionsClient`
+                    // uses for a dialog's dates — seed it where the decision happens.
+                    //
+                    // `?? ''` covers two different absences with one answer, and both are right:
+                    // a template with no usual place, and a template whose `defaultLocation` this
+                    // page never projected (see `TemplateOption`). Either way the box is empty,
+                    // and an empty box means "not stated" — which `addGatheringTemplate` then
+                    // answers by copying the template's usual place anyway. So the pre-fill is a
+                    // courtesy; it is never what makes the place correct.
+                    setAddingPlace(templates.find(t => t.id === chosenId)?.defaultLocation ?? '')
+                  }}
+                >
+                  <option value="">— Choose a template —</option>
+                  {addable.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Select>
+              </div>
+              <div className="min-w-0 space-y-1.5 sm:w-44">
+                <Label htmlFor="add-template-day">Day</Label>
+                {/* `type="date"` over a bare `YYYY-MM-DD` string, which is what the column holds
+                    and what the action validates — no `Date` is constructed on either side of
+                    the wire. */}
+                <Input
+                  id="add-template-day" type="date"
+                  value={addingDay}
+                  disabled={isPending || !addingTemplateId}
+                  onChange={e => { setAddingDay(e.target.value); setTemplateError('') }}
+                />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
+                <Label htmlFor="add-template-place">Place</Label>
+                <Input
+                  id="add-template-place"
+                  placeholder="The template’s usual place"
+                  value={addingPlace}
+                  disabled={isPending || !addingTemplateId}
+                  onChange={e => { setAddingPlace(e.target.value); setTemplateError('') }}
+                />
+              </div>
+              <Button variant="affirm" disabled={!addingTemplateId || isPending} onClick={handleAddTemplate}>
+                <Plus className="h-4 w-4" /> {isPending ? 'Adding…' : 'Add its steps'}
+              </Button>
             </div>
-            <Button variant="affirm" disabled={!addingTemplateId || isPending} onClick={handleAddTemplate}>
-              <Plus className="h-4 w-4" /> {isPending ? 'Adding…' : 'Add its steps'}
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Both are optional. Leave the day empty for a gathering that happens all at once, and
+              the place empty to use whatever the template usually uses.
+            </p>
           </div>
+        )}
+        {/* WITHHELD, NOT DESTRUCTIVE, and not a `FormError`: this arrives beside `success: true`
+            and the write has landed. See the header. */}
+        {templateWarning && (
+          <p className="text-sm text-brand-withheld">{templateWarning}</p>
         )}
         <FormError message={templateError} />
       </section>
@@ -675,6 +842,179 @@ export function AdminGatheringDetailClient({
         />
       )}
     </div>
+  )
+}
+
+// ── One segment ──────────────────────────────────────────────────────────────────────
+
+/**
+ * ONE PART OF THE GATHERING: the template it came from, the day it happens on, the place it is
+ * held, and how many tasks it put on the board.
+ *
+ * ── IT IS ITS OWN COMPONENT FOR ITS OWN `useTransition` ─────────────────────────────
+ * The parent holds one `isPending` covering the details form, the premier flag and the template
+ * list, which is right for controls that are alternatives to each other. Segments are not: an
+ * organizer fixing three days in a row would watch each save grey out the other two rows,
+ * including the boxes they had already typed into. One transition per row is one save per row.
+ *
+ * ── THE DAY AND THE PLACE ARE ONE CONTROL EACH, RENDERED TWICE ──────────────────────
+ * Both columns fold below `sm`, and AGENTS.md is exact about what that costs: "a column holding
+ * a CONTROL folds by moving the control, not by describing it", or the field goes read-only on a
+ * phone. So each input is assigned to a variable and rendered in two places — once in the first
+ * cell's `<RowMeta>` and once in its own `COLLAPSING_CELL` `<td>`. Both copies are in the DOM,
+ * only one is ever visible or focusable, and both are bound to the same state, so they cannot
+ * disagree. Neither carries an `id` (two elements cannot share one) and both carry an
+ * `aria-label` naming the segment, since the heading that named the column has folded away.
+ *
+ * ── `useServerState`, AND ON THE PRIMITIVES ─────────────────────────────────────────
+ * `setGatheringSegment` ends in a `revalidateGathering`, and `router.refresh()` merges the new
+ * payload WITHOUT discarding client state — so a plain `useState` seed would be read once and
+ * every later server value ignored, which is the row still showing yesterday's date after
+ * somebody else moved the picnic. It adopts by identity, which is why these hold the two STRINGS
+ * rather than the segment object: an object prop is a fresh reference on every server render and
+ * would discard a half-typed place on any unrelated refresh.
+ *
+ * ── SAVE SENDS BOTH FIELDS, ALWAYS ─────────────────────────────────────────────────
+ * `setGatheringSegment` reads an absent key as "leave it alone" and an explicit `null` as "clear
+ * it", which is what lets a future screen offer one field without wiping the other. This one
+ * offers both in one row under one button, so both are sent every time — an emptied box has to
+ * reach the action as `null` or clearing a day would be impossible, and "nothing to change" is
+ * unreachable because the button only appears once something differs.
+ */
+function SegmentRow({
+  gatheringId, segment, taskCount, mayEdit, onSaved, onRemove,
+}: {
+  gatheringId: string
+  segment: { id: string; name: string; occursOn: string | null; location: string | null }
+  taskCount: number
+  mayEdit: boolean
+  onSaved: (next: { occursOn: string | null; location: string | null }) => void
+  onRemove: () => void
+}) {
+  const [day, setDay] = useServerState(segment.occursOn ?? '')
+  const [place, setPlace] = useServerState(segment.location ?? '')
+  const [error, setError] = useState('')
+  // The action's sentence about a day outside the gathering's span. Held apart from `error`
+  // because it arrives with `success: true`: the save landed, and there is a date to reconcile.
+  const [warning, setWarning] = useState('')
+  const [isPending, startTransition] = useTransition()
+
+  const dirty = day !== (segment.occursOn ?? '') || place.trim() !== (segment.location ?? '')
+
+  function handleSave() {
+    const nextOccursOn = day || null
+    const nextLocation = place.trim() || null
+    setError('')
+    setWarning('')
+    startTransition(async () => {
+      const result = await setGatheringSegment({
+        gatheringId, templateId: segment.id,
+        occursOn: nextOccursOn, location: nextLocation,
+      })
+      if (!result.success) {
+        setError(result.message ?? 'Could not save that segment')
+        return
+      }
+      // VERBATIM AND UNCONDITIONALLY WHEN PRESENT. The comparison against the gathering's span
+      // lives in the action beside the write; a copy of it here would be a second answer, and
+      // the one that drifts is always the copy.
+      if (result.warning) setWarning(result.warning)
+      onSaved({ occursOn: nextOccursOn, location: nextLocation })
+    })
+  }
+
+  // ── The two controls, each rendered in the meta line AND in its own folding cell ──
+  // Only these two. The name and the count are rendered once, in the cell that never folds, so
+  // neither is hoisted into a variable — a variable in this file now MEANS "used in both places".
+  const dayControl = mayEdit ? (
+    <Input
+      type="date"
+      className="h-7 w-full sm:w-40"
+      value={day}
+      disabled={isPending}
+      aria-label={`The day “${segment.name}” happens on`}
+      onChange={e => { setDay(e.target.value); setError(''); setWarning('') }}
+    />
+  ) : (
+    // An em-dash holds the grid open in a COLUMN; the meta line below simply omits what is not
+    // there, which is why the read-only branch is the one place the two copies differ.
+    <span className="text-muted-foreground">{formatDate(segment.occursOn) ?? '—'}</span>
+  )
+
+  const placeControl = mayEdit ? (
+    <Input
+      className="h-7 w-full"
+      value={place}
+      disabled={isPending}
+      placeholder="Not stated"
+      aria-label={`Where “${segment.name}” is held`}
+      onChange={e => { setPlace(e.target.value); setError('') }}
+    />
+  ) : (
+    <span className="text-muted-foreground">{segment.location || '—'}</span>
+  )
+
+  return (
+    <tr className="border-b align-top last:border-0 sm:align-middle">
+      <td className="px-3 py-2.5">
+        <span className="font-medium">{segment.name || 'Template'}</span>
+        {/* THE COUNT, which is the segment's own share of the task table below. It is here as
+            well as in its folding column because it is the one figure that says whether adding
+            this template actually put any work on the board. */}
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {taskCount === 0
+            ? 'No tasks from this one'
+            : `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
+        </p>
+        {/* THE CONTROLS THEMSELVES, not a description of them — the folded `<td>` is
+            `display: none` and takes its input out of the accessibility tree with it, so a meta
+            line that merely named the day would leave the field unreachable on a phone.
+            LABELLED, for the same reason the step table's meta line labels its three: the
+            heading that told a date box from a place box is not in the document at all down
+            here. STACKED rather than in a row, and with no `MetaDot` — two full-width boxes side
+            by side at 390px are two boxes nobody can type in, and an interpunct between two
+            stacked lines reads as a bullet rather than as a separator. */}
+        <RowMeta className="flex-col items-stretch gap-2">
+          <span className="flex items-center gap-1.5">
+            <span className="w-10 shrink-0">Day</span>{dayControl}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-10 shrink-0">Place</span>{placeControl}
+          </span>
+        </RowMeta>
+        {warning && <p className="mt-1 text-xs text-brand-withheld">{warning}</p>}
+        <FormError message={error} className="mt-1" />
+      </td>
+      <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{dayControl}</td>
+      <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{placeControl}</td>
+      <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>{taskCount}</td>
+      <td className="w-px px-3 py-2.5">
+        <div className="flex items-center justify-end gap-1">
+          {mayEdit && dirty && (
+            <Button size="sm" disabled={isPending} onClick={handleSave}>
+              {isPending ? 'Saving…' : 'Save'}
+            </Button>
+          )}
+          {/* REMOVAL RUNS IN THE PARENT'S TRANSITION, not this row's: unlinking a template also
+              prunes the tasks it put on the gathering, and that list lives up there. So this
+              button's `disabled` is about this row's own save being in flight — pressing Remove
+              while a day is being written would leave the confirmation dialog asking about a
+              segment whose write has not landed. */}
+          {mayEdit && (
+            <button
+              type="button"
+              disabled={isPending}
+              className="rounded-full p-1 text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              title={`Remove ${segment.name} from this gathering`}
+              aria-label={`Remove ${segment.name} from this gathering`}
+              onClick={onRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
   )
 }
 

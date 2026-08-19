@@ -99,7 +99,27 @@ export interface AdminGatheringRow {
   isPremier: boolean
   createdBy: { id: string; name: string } | null
   taskCounts: TaskProgress
-  templates: { id: string; name: string }[]
+  /**
+   * The gathering's SEGMENTS, in `position` order — the Welcome, the Picnic and the Send Off
+   * inside one reunion (20260819000001).
+   *
+   * `occursOn` and `location` are both nullable and both mean "not stated": a one-day gathering
+   * in one place has neither, and the screen renders exactly what it did before these existed.
+   * They were added ADDITIVELY on purpose — four clients compile against this interface — so a
+   * component that ignores them behaves as it always did.
+   *
+   * NOTHING CONSTRAINS `occursOn` TO THE GATHERING'S SPAN, and the screen is what says so. The
+   * migration argues it at length: a gathering's dates move, and a constraint would then refuse
+   * an ordinary edit to `starts_on` with a 23514 naming a table the organizer was not looking at.
+   * `/admin/gatherings/[id]` MARKS a segment outside `startsOn..endsOn` in `--brand-withheld`,
+   * never `--destructive` — nothing failed and nothing is an error; there is a date to reconcile.
+   */
+  templates: {
+    id: string
+    name: string
+    occursOn: string | null
+    location: string | null
+  }[]
   /**
    * null unless the caller holds `gatherings/budget:view` — NOT FETCHED otherwise (§5) — and
    * ALSO null when the figures could not be read, which `budgetsFor` chooses deliberately over
@@ -537,7 +557,10 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
       .select('gathering_id, status')
       .eq('family_code', g.familyCode),
     admin.from('gathering_template_uses')
-      .select('gathering_id, template_id, position')
+      // `occurs_on` and `location` — the segment's day and place. Selected for the LIST as well
+      // as the detail because the list is where an organizer notices a three-day reunion whose
+      // middle segment is dated in the wrong month.
+      .select('gathering_id, template_id, position, occurs_on, location')
       .eq('family_code', g.familyCode)
       .order('position', { ascending: true }),
     admin.from('gathering_templates')
@@ -563,7 +586,10 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
 
   const rows = (gatheringsRes.data ?? []) as unknown as GatheringDbRow[]
   const taskRows = (tasksRes.data ?? []) as { gathering_id: string; status: string }[]
-  const useRows = (usesRes.data ?? []) as { gathering_id: string; template_id: string; position: number }[]
+  const useRows = (usesRes.data ?? []) as {
+    gathering_id: string; template_id: string; position: number
+    occurs_on: string | null; location: string | null
+  }[]
   const templateNames = new Map<string, string>(
     ((templatesRes.data ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name]),
   )
@@ -590,7 +616,12 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
     taskCounts: taskProgress(asTaskStatuses(taskRows.filter(t => t.gathering_id === row.id))),
     templates:  useRows
       .filter(u => u.gathering_id === row.id)
-      .map(u => ({ id: u.template_id, name: templateNames.get(u.template_id) ?? '' })),
+      .map(u => ({
+        id:       u.template_id,
+        name:     templateNames.get(u.template_id) ?? '',
+        occursOn: u.occurs_on ?? null,
+        location: u.location ?? null,
+      })),
     budget:      budgets.get(row.id) ?? null,
     budgetState: stateFor(row.id),
   }))
@@ -634,7 +665,8 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
       .order('position', { ascending: true })
       .order('created_at', { ascending: true }),
     admin.from('gathering_template_uses')
-      .select('template_id, position')
+      // The segment's day and place, for the row that is now editable inline.
+      .select('template_id, position, occurs_on, location')
       .eq('gathering_id', gatheringId)
       .eq('family_code', g.familyCode)
       .order('position', { ascending: true }),
@@ -658,7 +690,9 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     console.error(`[admin/gatherings] template-name read failed for ${gatheringId} in ${g.familyCode}: ${templatesRes.error.message}`)
   }
   const taskRows = (tasksRes.data ?? []) as unknown as TaskDbRow[]
-  const useRows = (usesRes.data ?? []) as { template_id: string; position: number }[]
+  const useRows = (usesRes.data ?? []) as {
+    template_id: string; position: number; occurs_on: string | null; location: string | null
+  }[]
   const templateNames = new Map<string, string>(
     ((templatesRes.data ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name]),
   )
@@ -681,7 +715,12 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     isPremier:  row.is_premier,
     createdBy:  personRef(row.created_by, row.creator),
     taskCounts: taskProgress(asTaskStatuses(taskRows)),
-    templates:  useRows.map(u => ({ id: u.template_id, name: templateNames.get(u.template_id) ?? '' })),
+    templates:  useRows.map(u => ({
+      id:       u.template_id,
+      name:     templateNames.get(u.template_id) ?? '',
+      occursOn: u.occurs_on ?? null,
+      location: u.location ?? null,
+    })),
     budget:     budgets.get(row.id) ?? null,
     // See `stateFor` in `getAdminGatherings` — same rule, one row. A missing view for a caller
     // who holds the grant is a refused read, not an absence of money.
@@ -1114,15 +1153,23 @@ function normalizeBudget(
  * so the check and the decision cannot disagree about which row they were talking about.
  * `instantiateTemplateTasks` re-verifies each one again on its own, because it is imported by
  * three call sites and must not trust any of them.
+ *
+ * `default_location` COMES BACK WITH THE NAME, so every caller that links a template hands
+ * `attachTemplatesToGathering` the value it copies onto the segment. It is projected here rather
+ * than read separately for the reason the archive flag is: this is already the one family-scoped
+ * read of these rows, and a second one is a second chance for the two to disagree about which
+ * row they were talking about.
  */
 async function resolveTemplates(
   admin: AdminClient,
   familyCode: string,
   templateIds: readonly string[],
-): Promise<{ rows: { id: string; name: string }[] } | { message: string }> {
+): Promise<
+  { rows: { id: string; name: string; defaultLocation: string | null }[] } | { message: string }
+> {
   const { data, error } = await admin
     .from('gathering_templates')
-    .select('id, name, is_archived')
+    .select('id, name, default_location, is_archived')
     .in('id', templateIds)
     .eq('family_code', familyCode)
 
@@ -1131,7 +1178,9 @@ async function resolveTemplates(
     return { message: 'Could not read the templates' }
   }
 
-  const rows = (data ?? []) as { id: string; name: string; is_archived: boolean }[]
+  const rows = (data ?? []) as {
+    id: string; name: string; default_location: string | null; is_archived: boolean
+  }[]
   // Every id asked for came back inside the family. One missing means it is another family's or
   // does not exist, and both answer the same sentence — telling a caller which is an
   // enumeration signal about another family's data.
@@ -1143,7 +1192,10 @@ async function resolveTemplates(
   }
 
   // Back into the order the caller named them, so the tasks come out in that order.
-  const byId = new Map(rows.map(r => [r.id, { id: r.id, name: r.name }]))
+  const byId = new Map(rows.map(r => [
+    r.id,
+    { id: r.id, name: r.name, defaultLocation: r.default_location ?? null },
+  ]))
   return {
     rows: templateIds.flatMap(id => {
       const row = byId.get(id)
@@ -1422,24 +1474,137 @@ export async function setGatheringBudget(input: {
   return { success: true }
 }
 
-// ── Writes: templates on a gathering ─────────────────────────────────────────────────
+// ── Writes: segments on a gathering ──────────────────────────────────────────────────
+//
+// A `gathering_template_uses` row is a SEGMENT since 20260819000001: one template's steps, on
+// one day, in one place. The Welcome, the Picnic and the Send Off inside a three-day reunion.
+// `occurs_on` and `location` are both nullable and mean "not stated", so a one-day gathering in
+// one place has neither and the two screens read exactly as they always did.
 
 /**
- * Add another template's steps to a gathering that already exists.
+ * A segment's day against its gathering's span — a SENTENCE, or null when there is nothing to say.
+ *
+ * ── IT WARNS. IT NEVER REFUSES, AND THAT IS THE DECISION 20260819000001 IS ABOUT ────
+ * That migration's header argues it at length and its probe asserts the acceptance in BOTH
+ * directions. The short version: a gathering's dates MOVE. An organizer shifts the weekend, which
+ * is an ordinary edit to `gatherings.starts_on` on the gathering's own form — and a trigger tying
+ * segments inside the span would refuse it with a 23514 naming a table they were not looking at,
+ * about a row they did not touch. Their own sequence, "shift the weekend and then fix the three
+ * segments", becomes unreachable, because each half refuses while the other is still wrong.
+ *
+ * So: CORRECT OR SURFACE, NEVER REFUSE — the choice
+ * `person_relationships_marriage_is_not_blood` makes in its own way (AGENTS.md §4c). Here there is
+ * nothing to correct, because only a person knows which of the two dates is the wrong one, so it
+ * surfaces instead.
+ *
+ * ── STRING COMPARISON, DELIBERATELY, WITH NO `Date` ANYWHERE IN IT ────────────
+ * All three values are `YYYY-MM-DD`, which is lexicographically ordered by construction, so `<`
+ * and `>` on the strings ARE the calendar comparison — exact, zoneless, and the same thing
+ * `updateGathering` already does for `ends_on < starts_on` a few functions up. Parsing them into
+ * `Date`s to compare would be three more chances to read UTC midnight in the local zone, for
+ * nothing. Every value reaching here has been through `normalizeDate` or came out of the column.
+ *
+ * `endsOn` NULL IS A ONE-DAY GATHERING, so the span is `startsOn` alone and a segment on any other
+ * day is outside it. That is the right answer rather than a lenient one: an organizer who has
+ * given no end date has said the gathering is one day long.
+ *
+ * IT OPENS WITH "Saved." because it is returned BESIDE `success: true`. A sentence that reads like
+ * a refusal on an operation that succeeded is worse than no sentence — which is also why the
+ * screen renders it in `--brand-withheld` and never `--destructive` (AGENTS.md: reporting a
+ * failure is `form-message.tsx`'s job, and this is not one).
+ */
+function segmentSpanWarning(
+  occursOn: string | null | undefined,
+  startsOn: string,
+  endsOn: string | null,
+): string | null {
+  if (!occursOn) return null
+  const last = endsOn ?? startsOn
+  if (occursOn >= startsOn && occursOn <= last) return null
+  return startsOn === last
+    ? `Saved. That day is outside the gathering, which is on ${startsOn}.`
+    : `Saved. That day is outside the gathering, which runs ${startsOn} to ${last}.`
+}
+
+/**
+ * A gathering's span, family-scoped, or null when it could not be read.
+ *
+ * ONLY CALLED WHEN A DAY WAS ACTUALLY STATED, so the ordinary path — add a template, say nothing
+ * about when — costs no extra round trip. `.eq('family_code', …)` beside `.eq('id', …)` because
+ * this is the service-role client and §3's obligation does not lapse for a read whose only purpose
+ * is to compose a warning: a span borrowed from another family's gathering would produce a
+ * sentence about dates this family has never seen.
+ *
+ * A NULL RETURN SKIPS THE WARNING AND NEVER REFUSES THE WRITE. The write's own predicate is what
+ * decides whether it lands; this read only decides whether there is something to say about it,
+ * and a failed read has nothing to say.
+ */
+async function gatheringSpan(
+  admin: AdminClient,
+  gatheringId: string,
+  familyCode: string,
+): Promise<{ startsOn: string; endsOn: string | null } | null> {
+  const { data, error } = await admin
+    .from('gatherings')
+    .select('starts_on, ends_on')
+    .eq('id', gatheringId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+
+  if (error) {
+    console.error(`[admin/gatherings] span read failed for ${gatheringId} in ${familyCode}: ${error.message}`)
+    return null
+  }
+  if (!data) return null
+  const row = data as { starts_on: string; ends_on: string | null }
+  return { startsOn: row.starts_on, endsOn: row.ends_on }
+}
+
+/**
+ * Add another SEGMENT to a gathering that already exists — another template's steps, on its own
+ * day, in its own place.
  *
  * The tasks are appended past whatever is already on the gathering — see
  * `instantiateTemplateTasks` on why `position` is offset rather than restarted. Any
  * non-archived template of the family's, for the reason `createGathering` accepts any:
  * `who_may_schedule` constrains an ordinary member, not the authority it defers to.
+ *
+ * ── THE DAY AND THE PLACE ARE OPTIONAL, AND THE PLACE HAS A DEFAULT ───────────
+ * Both absent is the ordinary case and leaves the segment reading exactly as one linked before
+ * 20260819000001 did. When `location` is absent, `attachTemplatesToGathering` copies the
+ * template's `default_location` — the copy happens there, once, at the moment of linking, so that
+ * all three create paths get it and so that a later edit to the template cannot move an event
+ * people have been told about. The full argument is on that function and in the migration.
+ *
+ * `occursOn` IS VALIDATED AND NOT MERELY TYPED. `normalizeDate` is the same validator the
+ * gathering's own dates go through, which round-trips the value through `Date.UTC` so
+ * `2026-02-30` is refused as the impossible day it is — never `new Date(string)`, which reads
+ * UTC midnight in the local zone and is a day out west of Greenwich. The annotation is erased at
+ * runtime and this is a public HTTP endpoint, so the check is the only thing there is.
+ *
+ * AND AN OUT-OF-SPAN DAY IS ACCEPTED, WITH A WARNING. Not refused: a gathering's dates move, and
+ * the organizer's own sequence — shift the weekend, then fix the three segments — has to be
+ * reachable. `segmentSpanWarning` is the sentence, and `/admin/gatherings/[id]` marks the row
+ * persistently in `--brand-withheld` from the data, so the warning is a courtesy at the point of
+ * entry rather than the only place it is ever said.
  */
 export async function addGatheringTemplate(input: {
   gatheringId: string
   templateId: string
-}): Promise<ActionResult> {
+  /** This segment's day, `YYYY-MM-DD`. Absent or null is "not stated". */
+  occursOn?: string | null
+  /** This segment's place. Absent or null falls back to the template's `default_location`. */
+  location?: string | null
+}): Promise<ActionResult & { warning?: string }> {
   const g = await requireEdit('admin/gatherings')
   if (!g.ok) return { success: false, message: g.message }
   if (!input?.gatheringId || !input?.templateId) {
     return { success: false, message: 'Gathering or template not found' }
+  }
+
+  const occursOn = normalizeDate(input.occursOn)
+  if (occursOn === undefined) {
+    return { success: false, message: 'That is not a date this segment can happen on' }
   }
 
   const admin = createAdminClient()
@@ -1481,8 +1646,15 @@ export async function addGatheringTemplate(input: {
     return { success: false, message: 'Could not read this gathering’s templates' }
   }
 
+  // The place the caller stated wins; absent, `attachTemplatesToGathering` copies the template's
+  // `default_location`, which `resolveTemplates` has already brought back on the row. `.trim() ||
+  // null` so an empty box means "not stated" and therefore FALLS BACK, rather than writing '' and
+  // suppressing the default — which is the one thing the `??` in that function cannot decide for
+  // itself, because '' is a value.
+  const stated = (input.location ?? '').trim() || null
   const failures = await attachTemplatesToGathering(
-    admin, input.gatheringId, g.familyCode, templates.rows,
+    admin, input.gatheringId, g.familyCode,
+    templates.rows.map(t => ({ ...t, occursOn, location: stated })),
     ((last as { position: number } | null)?.position ?? -1) + 1,
   )
   revalidateGathering(input.gatheringId)
@@ -1496,6 +1668,135 @@ export async function addGatheringTemplate(input: {
       success: false,
       message: `Could not add the steps from ${failures.join(', ')}. Nothing was changed — try again.`,
     }
+  }
+
+  // The out-of-span courtesy, and only when a day was actually stated — see `segmentSpanWarning`.
+  // AFTER the write, deliberately: this is something to say about a segment that now exists, not a
+  // condition on creating it, and computing it first would invite somebody to turn it into one.
+  if (occursOn) {
+    const span = await gatheringSpan(admin, input.gatheringId, g.familyCode)
+    const warning = span ? segmentSpanWarning(occursOn, span.startsOn, span.endsOn) : null
+    if (warning) return { success: true, warning }
+  }
+  return { success: true }
+}
+
+/**
+ * Move a segment: set the day it happens on, and the place it is held.
+ *
+ * ── WHY THIS IS ITS OWN ACTION AND NOT PART OF `updateGathering` ──────────────
+ * A gathering has one row and its segments have several, so a single "save the gathering" call
+ * would have to take an array and decide what a MISSING element means — delete that segment, or
+ * leave it alone? Both answers are wrong for one of the two screens that would send it. One
+ * segment per call, addressed by its (gathering, template) pair, which is exactly the identity
+ * `UNIQUE (gathering_id, template_id)` already gives the row.
+ *
+ * ── ABSENT IS "LEAVE IT ALONE"; EXPLICIT NULL IS "CLEAR IT" ──────────────────
+ * The convention `updateGatheringTemplate` and `updateGathering` already use, and the reason both
+ * fields are typed `string | null` rather than `string | undefined`. A "set both, always" version
+ * would mean a screen offering only the location silently clears the day, and this feature has
+ * three screens that could grow such a control. An empty patch is REFUSED rather than answered
+ * "saved", for `updateGatheringTemplate`'s reason: every control on the screen sends at least one
+ * field, so nothing to change is a caller that has misunderstood.
+ *
+ * ── §3 AND §4, AND THERE IS NO POLICY UNDERNEATH THIS AT ALL ─────────────────
+ * `gathering_template_uses` has exactly one policy, `perm:gathering_template_uses:select`, and no
+ * INSERT, UPDATE or DELETE policy — 20260819000000 chose that boundary deliberately and
+ * 20260819000001 asserts it is still true, with a note that anybody adding an UPDATE policy to
+ * make inline editing "work" from the browser is about to open the table to every approved member.
+ * So this UPDATE runs on the service role with nothing beneath it, and both obligations are
+ * discharged by hand:
+ *
+ *   * BOTH ids are verified against the family BEFORE anything is written — the gathering
+ *     (§4: the row would be legitimately ours while the id it names is somebody else's) and the
+ *     template. `resolveTemplates` is reused for the second so that "not yours", "does not exist"
+ *     and "archived" answer with the same sentences they do everywhere else in this file.
+ *   * The write carries `.eq('family_code', …)` beside the two ids anyway. Both, not either: the
+ *     verification is what produces a sentence, and the conjunct is what keeps the statement
+ *     itself safe if a check is ever moved or removed above it.
+ *
+ * ── IT DOES NOT CREATE A SEGMENT ────────────────────────────────────
+ * A (gathering, template) pair with no row is reported as not found, never upserted into
+ * existence. Linking a template instantiates its whole step list — `addGatheringTemplate`'s job,
+ * several writes and a compensation — so an upsert here would create a segment with a day, a place
+ * and NONE OF ITS TASKS, which is a gathering the organizer cannot tell from a failed
+ * instantiation.
+ */
+export async function setGatheringSegment(input: {
+  gatheringId: string
+  templateId: string
+  /** `YYYY-MM-DD`, or null to clear the day. Absent leaves it as it is. */
+  occursOn?: string | null
+  /** The place, or null to clear it. Absent leaves it as it is. */
+  location?: string | null
+}): Promise<ActionResult & { warning?: string }> {
+  const g = await requireEdit('admin/gatherings')
+  if (!g.ok) return { success: false, message: g.message }
+  if (!input?.gatheringId || !input?.templateId) {
+    return { success: false, message: 'Segment not found' }
+  }
+
+  const patch: Record<string, unknown> = {}
+  // Kept beside the patch rather than read back out of it, so the warning below cannot be composed
+  // from a value that was never sent.
+  let nextOccursOn: string | null = null
+
+  if (input.occursOn !== undefined) {
+    const parsed = normalizeDate(input.occursOn)
+    // `undefined` from `normalizeDate` means "that is not a date" and `null` means "there is no
+    // date". A STRING sentinel would be indistinguishable from a real date at the type level,
+    // which is how the check for it comes to be dropped in a later edit. That validator
+    // round-trips through `Date.UTC`, so 2026-02-30 is refused as the impossible day it is and no
+    // local clock is ever asked what the string means.
+    if (parsed === undefined) {
+      return { success: false, message: 'That is not a date this segment can happen on' }
+    }
+    patch.occurs_on = parsed
+    nextOccursOn = parsed
+  }
+  if (input.location !== undefined) {
+    patch.location = input.location?.trim() || null
+  }
+
+  if (Object.keys(patch).length === 0) return { success: false, message: 'Nothing to change' }
+
+  const admin = createAdminClient()
+  // §4 on the gathering, before the template: the cheaper check first, and the one whose failure
+  // means the caller is looking at another family's screen entirely.
+  if (!(await belongsToFamily('gatherings', input.gatheringId, g.familyCode))) {
+    return { success: false, message: 'Gathering not found' }
+  }
+  const templates = await resolveTemplates(admin, g.familyCode, [input.templateId])
+  if ('message' in templates) return { success: false, message: templates.message }
+
+  const { data, error } = await admin
+    .from('gathering_template_uses')
+    .update(patch)
+    .eq('gathering_id', input.gatheringId)
+    .eq('template_id', input.templateId)
+    .eq('family_code', g.familyCode)
+    // WHICH ROWS MOVED, because an `.update()` matching nothing is not an error. Without this the
+    // action would report "saved" for a template that is not part of this gathering — a stale tab,
+    // or a segment another organizer removed a moment ago — and the screen would then show a day
+    // nothing stored.
+    .select('template_id')
+
+  if (error) {
+    console.error(`[admin/gatherings] segment update failed for ${input.gatheringId}/${input.templateId} in ${g.familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not save that segment just now. Try again.' }
+  }
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { success: false, message: `“${templates.rows[0].name}” is not part of this gathering` }
+  }
+
+  revalidateGathering(input.gatheringId)
+
+  // Only when a day was actually SENT — clearing a location must not warn about a date the caller
+  // did not touch. See `segmentSpanWarning` for why this warns rather than refuses.
+  if (nextOccursOn) {
+    const span = await gatheringSpan(admin, input.gatheringId, g.familyCode)
+    const warning = span ? segmentSpanWarning(nextOccursOn, span.startsOn, span.endsOn) : null
+    if (warning) return { success: true, warning }
   }
   return { success: true }
 }

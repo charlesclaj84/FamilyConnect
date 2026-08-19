@@ -126,10 +126,58 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     so an Own VIEW grant genuinely narrows a user-client read there. That is the same mixed
  *     shape `admin/events` already has — real for view, `canAny` for the writes — and this list
  *     is per-KEY rather than per-action, so the pair is not an oversight in either direction.
+ *
+ *     `announcements/birthdays` is the eighth, and it is the ONE entry on this list where an
+ *     Own grant is indistinguishable from All rather than from a denial — the `dues-projections`
+ *     direction, taken all the way. The key gates ONE THING: whether `getUpcomingBirthdays()`
+ *     reads the roster at all (AGENTS.md §5 — the names reach the browser in the RSC payload
+ *     whether the pane renders them or not). That gate is `requireRead`, which is `can()`, and
+ *     `can()` passes for `'own'` — so Own and All both open the pane and nothing anywhere reads
+ *     the scope of this key to tell them apart.
+ *
+ *     Which rows come back is a DIFFERENT key's answer: the roster is read on the user client,
+ *     so the composed SELECT policy on `people` decides it, and that policy is keyed on
+ *     `members`. 20260819000002 §B writes no `permission_table_map` row for this key and asserts
+ *     the absence, so there is no `own_expr` for it anywhere and no policy in the database
+ *     evaluates it. In a family whose `members` grant is itself Own, the pane an administrator
+ *     lit up with Own is the reader's own birthday and nothing else — and they would read that
+ *     as the pane being empty rather than as the switch they moved. Own is dropped so the grid
+ *     offers the one distinction that exists here, which is on or off.
+ *
+ *     `admin/boardpositions` is the ninth, added when that screen went live (2026-08-19), and
+ *     it is the entry where dropping Own gives something up on purpose. Two of the three
+ *     tables this key governs have `own_expr = 'false'` in `permission_table_map`, so Own on
+ *     create/edit/delete is a switch the composed policies read as a denial — and every action
+ *     behind the screen is `requireScope`, which is `canAny` and refuses 'own' outright,
+ *     because a board position is family-wide configuration and nobody owns one.
+ *
+ *     The third table is `user_roles`, whose `own_expr` IS real (`user_id = auth.uid()`), so an
+ *     Own VIEW grant here would genuinely narrow a raw read of the assignment rows to the
+ *     caller's own — the `admin/gatherings` shape. It is dropped anyway, and the reason is that
+ *     nothing in the product asks that question any more: the screen is administrator-facing
+ *     and reads on the service role, `getMyRoles` is self-scoped and needs no grant, and since
+ *     2026-08-19 the Directory's board-title column reads on the service role too, so a member
+ *     seeing who holds what no longer depends on this key at all. An Own view grant would
+ *     therefore open the same screen All does while narrowing one PostgREST read nothing in the
+ *     app makes. This list is per-KEY rather than per-action, so the choice was between three
+ *     meaningless write switches and one meaningful read distinction with no consumer.
+ *
+ *     `updates` is the tenth, and it is the `announcements/birthdays` case again: an Own grant
+ *     is indistinguishable from All rather than from a denial. The key gates ONE thing —
+ *     whether `/updates` opens — and 20260819000005 writes it no `permission_table_map` row
+ *     and asserts the absence, so no policy in the database evaluates it and there is no
+ *     `own_expr` for it anywhere.
+ *
+ *     Which ROWS the archive shows is two other answers, and neither is this key's: the
+ *     announcement half is read on the user client under the `announcements` policy, and the
+ *     notification half is the caller's own mail under a base policy that has no permission
+ *     factor at all (20260805000007 deleted that resource because a factor over a
+ *     per-recipient table was a tautology). So Own here would open the same screen All does.
  */
 const NO_OWNER_KEYS: readonly string[] = [
   'admin/family', 'admin/family/remove', 'dues-projections', 'admin/chapters',
-  'gatherings/budget', 'admin/gatherings',
+  'gatherings/budget', 'admin/gatherings', 'announcements/birthdays',
+  'admin/boardpositions', 'updates',
 ]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {

@@ -57,13 +57,29 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * The vocabulary `genorra_staff.role` is checked against, mirroring the CHECK constraint
  * in `20260817000005`.
  *
- * NOTHING READS IT YET, and that is deliberate on both sides of the wire: the console's
- * first pass is read-only over families and accounts plus one restore, so every staff
- * member needs the same access, and a check on this column would be a control nothing
- * consults — exactly what `20260808000000` spent a section removing from
- * `permission_resources.actions`. It is surfaced here so the screen can PRINT it (a list
- * of who has access is worth reading beside what kind of access they have), and so that
- * whatever starts enforcing it later finds the vocabulary already agreed in one place.
+ * `owner` IS NOW ENFORCED, AND EXACTLY ONE SCREEN ENFORCES IT (2026-08-19). This comment used
+ * to say nothing read the column, which was true while the console was read-only over families
+ * and accounts plus one restore: every staff member needed the same access, so a check here
+ * would have been a control nothing consults — what `20260808000000` spent a section removing
+ * from `permission_resources.actions`.
+ *
+ * `/staff/access` is what changed it. Granting cross-family access is the one capability that
+ * is not "look at a customer's data" but "decide who may", so it is `requireStaffOwner()` below
+ * on all four of its operations INCLUDING the read — a `support` staffer must not learn who else
+ * has access, because that list is the next thing an attacker wants.
+ *
+ * `support` AND `engineer` ARE STILL THE SAME THING AND MUST NOT BE SPLIT ON A GUESS. Nothing
+ * distinguishes them anywhere, and inventing a distinction here would be a control nothing
+ * consults all over again — in the direction that matters, since both are below the only line
+ * this file draws. The vocabulary stays three-valued because the DATABASE's CHECK is
+ * (`20260817000005`) and because `owner` needs something to be an escalation FROM; when a second
+ * boundary is genuinely wanted, it belongs beside `requireStaffOwner` as a third guard with its
+ * own argument, not as a comparison smuggled into an existing one.
+ *
+ * `20260819000002` §C is the reconciliation that made the switch survivable: every row that
+ * existed when the column became authoritative was promoted to `owner`, because every one of
+ * those people already had every capability the console offered. New grants still default to
+ * `support`.
  */
 export type StaffRole = 'support' | 'engineer' | 'owner'
 
@@ -197,4 +213,45 @@ export async function requireStaff(): Promise<StaffCaller> {
   if (!role) notFound()
 
   return { userId: user.id, email: user.email ?? '', role }
+}
+
+/**
+ * The guard for the one staff surface that decides who ELSE may open the console.
+ *
+ * ── WHY THERE ARE TWO GUARDS AND NOT ONE WITH A PARAMETER ───────────────────
+ * `requireStaff()` above is unchanged, and changing it was the tempting mistake: a `role`
+ * argument on it, defaulted to "any", would put the decision at every one of its ~nine call
+ * sites and make the safe answer the one you get by NOT thinking. The three existing staff
+ * surfaces — `/staff`, `/staff/families`, `/staff/accounts` — are correctly gated on STAFFNESS
+ * rather than on role, because reading a customer's family is what the console is for and every
+ * staff member has always been able to do it. Narrowing them here would be a silent demotion
+ * shipped as a refactor.
+ *
+ * So this is a second, named guard whose whole content is one comparison, and the name is what
+ * a reviewer sees at the call site. Same shape as `requireEdit` sitting beside `requireView` in
+ * `lib/auth/guard.ts`: the strength of the check is in the FUNCTION NAME, not in an argument.
+ *
+ * ── IT 404s, EXACTLY AS `requireStaff` DOES, AND FOR ONE MORE REASON ────────────
+ * A staff console should not advertise that it exists, and the OWNER-ONLY SCREEN INSIDE IT
+ * should not advertise itself either. A `support` staffer who is told "you are not an owner"
+ * has learned three things they did not have: that the screen exists, that access is granted
+ * from inside the product rather than from SQL, and that there is a role above theirs to be
+ * social-engineered into. `notFound()` tells them the URL is not a page, which is what every
+ * other unrouted path in the app says.
+ *
+ * That is also why this must not be reported as a permission error by the ACTIONS. See
+ * `app/actions/staff/access.ts`: its reads answer `[]` and its writes answer a flat
+ * "Not authorized", never "owners only".
+ *
+ * ── THE ROLE IS RESOLVED SERVER-SIDE, FROM THE TABLE, EVERY REQUEST ───────────
+ * Through `staffGrant`, which is the service role against a table with RLS enabled and ZERO
+ * policies — so there is no client-side flag to spoof, nothing in user metadata, and nothing
+ * cached across requests. Revoking somebody's ownership takes effect on their next request with
+ * nothing to invalidate. `cache()` is React's per-request memo, so the page's call and the
+ * action's call in the same request cost one query between them.
+ */
+export async function requireStaffOwner(): Promise<StaffCaller> {
+  const staff = await requireStaff()
+  if (staff.role !== 'owner') notFound()
+  return staff
 }

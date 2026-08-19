@@ -98,12 +98,26 @@ export default async function StaffOverviewPage() {
 
       <section className="rounded-xl border bg-card p-5 text-sm text-card-foreground">
         <h2 className="mb-2 text-base font-semibold">Access to this console</h2>
+        {/* THIS PARAGRAPH WAS FALSE FOR MOST OF 2026-08-19 and is worth a note, because the
+            way it went wrong is the way this kind of copy always goes wrong. It read "there is
+            no screen that grants it, deliberately" — an accurate statement of the old design,
+            left standing on the landing page after /staff/access shipped, one click from a nav
+            item that contradicted it. Prose describing an absence has no test: nothing fails
+            when the absence ends. If the grant flow moves again, this is the sentence to
+            change, and AGENTS.md's staff-console section is the other one. */}
         <p className="text-muted-foreground">
-          Staff access is a row in <code className="rounded bg-muted px-1 py-0.5 text-xs">genorra_staff</code>,
-          inserted by hand with SQL. There is no screen that grants it, deliberately —
-          nothing yet can say what would stop such a screen being used to grant access to a
-          stranger. Anybody without a row gets a 404 on every page here, which is why the
-          console never says &ldquo;not authorized&rdquo;.
+          Staff access is a row in <code className="rounded bg-muted px-1 py-0.5 text-xs">genorra_staff</code>.
+          An <strong className="font-medium text-foreground">owner</strong> grants and revokes it
+          from <strong className="font-medium text-foreground">Access</strong>, by email address, with
+          a note saying why — support and engineer roles cannot open that screen or read the team.
+          The very first owner is still seeded by hand with SQL, because a console that could
+          bootstrap its own first account would need no account to do it.
+        </p>
+        <p className="mt-2 text-muted-foreground">
+          Anybody without a row gets a 404 on every page here, which is why the console never
+          says &ldquo;not authorized&rdquo;. There is no family-facing permission for any of
+          this: staffness is orthogonal to the family permission model, so no family
+          administrator can see that these screens exist.
         </p>
       </section>
     </PageShell>

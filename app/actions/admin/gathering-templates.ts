@@ -76,6 +76,21 @@ export interface GatheringTemplate {
   description: string | null
   whoMaySchedule: GatheringTemplateScheduler
   isArchived: boolean
+  /**
+   * Where a segment built from this template is USUALLY held — `gathering_templates.default_location`
+   * (20260819000001), null for "not stated".
+   *
+   * IT IS A DEFAULT THAT IS COPIED, NEVER A PLACE THAT IS READ THROUGH. When a template is
+   * linked to a gathering, `attachTemplatesToGathering` writes this value onto
+   * `gathering_template_uses.location` and the segment owns it from then on. That is the same
+   * copy-not-reference rule `gathering_tasks.label` follows and it matters more here, not less:
+   * a segment is a thing PEOPLE HAVE BEEN TOLD ABOUT, so editing "Family Picnic" next month to
+   * say it is usually at Zilker must not silently move a picnic forty relatives already have
+   * directions to. There is deliberately no trigger and no DEFAULT expression in the database
+   * doing the copy — the migration asserts a freshly linked segment comes out NULL if the
+   * action does not do it.
+   */
+  defaultLocation: string | null
   steps: TemplateStep[]
   /**
    * Gatherings built from this template — the count of `gathering_template_uses` rows.
@@ -127,6 +142,7 @@ interface TemplateRow {
   id: string
   name: string
   description: string | null
+  default_location: string | null
   who_may_schedule: string
   is_archived: boolean
   created_by: string | null
@@ -184,7 +200,7 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
   const admin = createAdminClient()
   const base = admin
     .from('gathering_templates')
-    .select('id, name, description, who_may_schedule, is_archived, created_by')
+    .select('id, name, description, default_location, who_may_schedule, is_archived, created_by')
     .eq('family_code', g.familyCode)
   // The narrowing goes on BEFORE the ordering, because `.order()` returns a transform
   // builder that has no `.eq()` left on it — a filter chained after a sort does not compile.
@@ -261,13 +277,14 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
   }
 
   return templates.map(t => ({
-    id:             t.id,
-    name:           t.name,
-    description:    t.description ?? null,
-    whoMaySchedule: isScheduler(t.who_may_schedule) ? t.who_may_schedule : 'admin',
-    isArchived:     t.is_archived,
-    steps:          stepsByTemplate.get(t.id) ?? [],
-    usedByCount:    uses.get(t.id) ?? 0,
+    id:              t.id,
+    name:            t.name,
+    description:     t.description ?? null,
+    defaultLocation: t.default_location ?? null,
+    whoMaySchedule:  isScheduler(t.who_may_schedule) ? t.who_may_schedule : 'admin',
+    isArchived:      t.is_archived,
+    steps:           stepsByTemplate.get(t.id) ?? [],
+    usedByCount:     uses.get(t.id) ?? 0,
   }))
 }
 
@@ -276,6 +293,13 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
 export async function createGatheringTemplate(input: {
   name: string
   description?: string
+  /**
+   * The **Usual location** field — optional, and `.trim() || null` below so an empty box is
+   * "not stated" rather than an empty string. A segment's place is "the pavilion by the lake" as
+   * often as it is a street address, which is why it is one line of free text like
+   * `gatherings.location` and not an `addresses` reference.
+   */
+  defaultLocation?: string | null
   whoMaySchedule: GatheringTemplateScheduler
 }): Promise<ActionResult & { templateId?: string }> {
   const g = await requireScope(RESOURCE, 'create')
@@ -302,6 +326,7 @@ export async function createGatheringTemplate(input: {
       family_code:      g.familyCode,
       name,
       description:      input.description?.trim() || null,
+      default_location: input.defaultLocation?.trim() || null,
       who_may_schedule: input.whoMaySchedule,
       created_by:       g.personId,
     })
@@ -336,6 +361,17 @@ export async function updateGatheringTemplate(input: {
   templateId: string
   name?: string
   description?: string | null
+  /**
+   * Absent is "leave it alone", explicit `null` is "clear it" — the same convention
+   * `description` beside it uses, and typed `string | null` for the same reason.
+   *
+   * CHANGING THIS MOVES NOTHING THAT ALREADY EXISTS, which is the whole point of the copy: every
+   * gathering already built from this template keeps the place it was given. That is stated here
+   * as well as on the interface because this is the function somebody will reach for when they
+   * mean "move the picnic", and it is not the one — `setGatheringSegment` in
+   * app/actions/admin/gatherings.ts is.
+   */
+  defaultLocation?: string | null
   whoMaySchedule?: GatheringTemplateScheduler
   isArchived?: boolean
 }): Promise<ActionResult> {
@@ -362,6 +398,9 @@ export async function updateGatheringTemplate(input: {
   }
   if (input.description !== undefined) {
     patch.description = input.description?.trim() || null
+  }
+  if (input.defaultLocation !== undefined) {
+    patch.default_location = input.defaultLocation?.trim() || null
   }
   if (input.whoMaySchedule !== undefined) {
     if (!isScheduler(input.whoMaySchedule)) {

@@ -147,6 +147,18 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
            as "nothing is budgeted" instead of "you are not being shown this". `budget !== null`
            is exactly the answer that key gave. */
         showTaskBudgets={gathering.budgetState === 'shown'}
+        /* THE SEGMENTS, so each task group's heading can carry the day and the place that
+           group actually happens on. `GatheringDetail.templates` is already in `position`
+           order and already carries `occursOn`/`location` (20260819000001), so this is a
+           pass-through and not a second read.
+
+           The prop is optional on the component and renders nothing when absent, which is the
+           right default for the reason stated there — but it made this page SILENTLY wrong
+           rather than merely plain: the manual's `gatherings#the-page` says each group is
+           headed by its segment's own day and place, and without this line the screen showed
+           neither while every other half of the feature worked. A prop that degrades to
+           nothing is a good design and a bad thing to forget. */
+        segments={gathering.templates}
       />
     </PageShell>
   )

@@ -89,8 +89,25 @@ export interface MemberSummary {
    * "City, State" — pre-joined here rather than as two fields, because the Members
    * table renders it as one cell and every caller would otherwise repeat the same
    * comma-and-fallback logic. Null when the member has recorded neither.
+   *
+   * SINCE 2026-08-19 THIS IS A DIALOG FIELD RATHER THAN A COLUMN, along with `phone` and
+   * `email` — see components/members/MemberDetailsDialog.tsx. It is still fetched, still
+   * under the same grant, and still returned: the values moved on the SCREEN and nothing
+   * about who may read them moved with them.
    */
   location: string | null
+  /**
+   * `chapters.name`, or null for a member in no chapter — a Members table column since
+   * 2026-08-19, matching `MemberRecord.chapter_name` on the Directory.
+   */
+  chapterName: string | null
+  /**
+   * The region the member's chapter belongs to — DERIVED, never stored, and null means
+   * **National**. See `chapterPlaces` below for the whole argument, and
+   * `MemberRecord.region_name` in app/actions/members.ts, which this deliberately mirrors
+   * field for field so the two member tables cannot spell one family's geography two ways.
+   */
+  regionName: string | null
   templateId: string | null
   templateName: string | null
   status: MembershipStatus
@@ -271,6 +288,7 @@ interface PersonRow {
   primary_phone: string | null
   city: string | null
   state: string | null
+  chapter_id: string | null
   membership_status: MembershipStatus | null
   permission_template_id: string | null
 }
@@ -281,6 +299,106 @@ const location = (p: PersonRow) =>
 
 const displayName = (p: PersonRow) =>
   [p.first_name, p.last_name].filter(Boolean).join(' ') || '(no name)'
+
+/** One chapter, as the two member tables name it. `regionName` null = National. */
+interface ChapterPlace {
+  chapterName: string
+  regionName: string | null
+}
+
+interface ChapterRow {
+  id: string
+  name: string
+  regions: { name: string } | null
+}
+
+/**
+ * What each of these chapters is called, and which region it sits in — id -> both names.
+ *
+ * ── IT IS A DELIBERATE SECOND COPY OF `chapterPlaces` IN app/actions/members.ts ─────
+ * Not an accident, and not a helper somebody forgot to share. That one is a private
+ * function in a `'use server'` module: everything EXPORTED from such a file gets a public
+ * URL, so promoting it to an export would publish a chapter-and-region lookup as an HTTP
+ * endpoint for the sake of saving twenty lines — the same argument AGENTS.md makes about
+ * never exporting a sender from a `'use server'` file. The right shared home is a plain
+ * module under `lib/`, and that is a refactor across a file this change does not own.
+ * Until then the two are kept IDENTICAL in behaviour on purpose: the batch's own contract
+ * is that the two member tables cannot spell one family's geography two ways, so if you
+ * change one of these, change the other in the same commit.
+ *
+ * ── REGION IS WALKED, NEVER STORED, AND THERE IS NO `people.region_id` ──────────────
+ * `people.chapter_id -> chapters.region_id -> regions.name`, resolved at read time, every
+ * time. 20260817000008's header states the rule and the reason a stored copy is worse than
+ * an extra query: a chapter moving between regions is an ordinary thing for a family with
+ * regions to do — `setChapterRegion` exists precisely for it — and a denormalized
+ * `people.region_id` would then be wrong for every member of that chapter, silently, until
+ * somebody noticed a regional due billing the wrong half of the family. Do not add the
+ * column.
+ *
+ * ── THE ADMIN CLIENT, WHICH THIS FUNCTION IS ALREADY ON ─────────────────────────────
+ * The composed SELECT policies on `chapters` and `regions` both demand
+ * `admin/chapters:view = 'any'` — `permission_table_map` gives each of them
+ * `own_expr = 'false'` and 20260618000001 composed the rest — so through the user client an
+ * `admin/users` administrator with no chapters grant reads NO chapter and NO region, and
+ * the two new columns would be blank for exactly the people most likely to be looking at
+ * them. `familyChapterRegions` and `getDuesScopeOptions` in app/actions/dues.ts both
+ * answer this same question on these same two tables the same way, and both argue it out
+ * loud: names of regions and chapters are family STRUCTURE rather than PII, and what
+ * `admin/chapters` protects is editing that structure — every write in
+ * app/actions/admin/chapters.ts still demands it.
+ *
+ * ── AND IT PUBLISHES NOTHING THE CALLER DID NOT ALREADY HAVE (AGENTS.md §5) ─────────
+ * The test to apply before widening any projection, and here it is answered by
+ * construction rather than by judgement. `searchMembers` is gated on `admin/users:view`,
+ * which is strictly more privileged than the `members:view` under which the Directory
+ * already prints both of these names for every person in the family — so a caller who
+ * reaches this function could already read the whole family's chapters and regions from
+ * one screen over. There is also no id arriving from a client: the chapter ids come from
+ * rows this action itself just read out of the caller's own family.
+ *
+ * ── §3 ─────────────────────────────────────────────────────────────────────────────
+ * The service role applies no RLS, so `.eq('family_code', …)` is here by hand — and it is
+ * not only the rule, it is what makes a `chapter_id` pointing outside this family resolve
+ * to NOTHING rather than naming another family's chapter on this family's screen.
+ * `.in('id', …)` narrows to the page being rendered; the family conjunct is what makes
+ * that safe. Same shape the permission-template lookup below uses.
+ *
+ * Skipped entirely for a family with no chapters — which is most of them, `/admin/chapters`
+ * being `tier: 'plus'` — so a page of members costs no extra round trip to gain two columns
+ * it will render as "—" and "National".
+ */
+async function chapterPlaces(
+  familyCode: string,
+  chapterIds: readonly string[],
+): Promise<ReadonlyMap<string, ChapterPlace>> {
+  const places = new Map<string, ChapterPlace>()
+  if (!familyCode || chapterIds.length === 0) return places
+
+  const { data, error } = await createAdminClient()
+    .from('chapters')
+    // THE CONSTRAINT IS NAMED, matching `getChapters()` in app/actions/admin/chapters.ts
+    // and `chapterPlaces` in app/actions/members.ts. The bare embed still resolves today —
+    // PostgREST infers a many-to-many path only where the junction's two foreign-key
+    // columns ARE its primary key, and both tables pointing at `chapters` and `regions`
+    // together (`dues_schedules`, `user_roles`) carry a surrogate `id` — and naming it
+    // costs nothing while what it forecloses is PGRST201: AGENTS.md §8's failure, where
+    // the whole query dies and the screen renders "no region" over a family with four.
+    .select('id, name, regions!chapters_region_id_fkey(name)')
+    .eq('family_code', familyCode)
+    .in('id', chapterIds)
+
+  // §8. `data` alone cannot tell a refused query from a family with no chapters, and those
+  // are very different facts to be printing in a Region column.
+  if (error) {
+    console.error(`[access] could not resolve chapter regions for ${familyCode}: ${error.message}`)
+    return places
+  }
+
+  for (const c of (data ?? []) as unknown as ChapterRow[]) {
+    places.set(c.id, { chapterName: c.name, regionName: c.regions?.name ?? null })
+  }
+  return places
+}
 
 /**
  * PostgREST's `or` filter is a comma/parenthesis-delimited mini-language, so a
@@ -320,14 +438,23 @@ export async function searchMembers(opts: {
   let builder = admin
     .from('people')
     .select(
-      // phone, city and state are for the Members table's columns. They are roster PII
-      // and this action is gated on 'admin/users' rather than 'members' — see the doc
-      // comment — so widening the projection does not widen who can read it.
+      // phone, city and state used to be three of the Members table's columns and are now
+      // three of its detail dialog's fields (2026-08-19). They are roster PII either way,
+      // this action is gated on 'admin/users' rather than 'members' — see the doc comment —
+      // and NEITHER the projection nor the grant moved when the values did: the same key
+      // that showed a phone number in a cell shows it in the dialog.
+      //
+      // `chapter_id` is the new one, and it is an ID rather than a name because the two
+      // names are walked through `chapterPlaces` below rather than embedded here. A bare
+      // `chapters(name)` embed would be evaluated under the RLS of `chapters`, whose policy
+      // is administrator-only, so it would arrive null for an `admin/users` administrator
+      // who has no chapters grant — which is the failure app/actions/members.ts spent a
+      // year shipping and its header now records.
       //
       // Kept as ONE literal rather than split across lines: supabase-js parses the select
       // at the type level, and a concatenated string is just `string` to it, which
       // collapses the result to GenericStringError and takes the PersonRow cast with it.
-      'id, first_name, last_name, primary_email, primary_phone, city, state, membership_status, permission_template_id',
+      'id, first_name, last_name, primary_email, primary_phone, city, state, chapter_id, membership_status, permission_template_id',
       { count: 'exact' },
     )
     .eq('family_code', auth.familyCode)
@@ -346,10 +473,24 @@ export async function searchMembers(opts: {
     )
   }
 
-  const { data, count } = await builder
+  // §8, AND THIS IS THE READ THE WHOLE SCREEN IS. The error used to be discarded here,
+  // which made a refused query and a family with nobody in it the same thing on screen:
+  // "No members with accounts in this family yet." over a hundred and forty people, with
+  // nothing anywhere saying so. That is not hypothetical for this query in particular —
+  // it carries the `.or()` filter built from a user-typed string, and it gained a column
+  // (`chapter_id`) today, which is exactly the shape that answers 42703 against a database
+  // behind supabase/migrations and kills the WHOLE select rather than the one column. The
+  // RETURN is unchanged, because an empty page is still the only honest thing to draw when
+  // the roster could not be read; what changes is that it is reported rather than inferred.
+  const { data, count, error } = await builder
     .order('last_name')
     .order('first_name')
     .range(offset, offset + limit - 1)
+
+  if (error) {
+    console.error(`[access] member search failed for ${auth.familyCode}: ${error.message}`)
+    return { rows: [], total: 0 }
+  }
 
   const rows = (data ?? []) as PersonRow[]
 
@@ -359,27 +500,54 @@ export async function searchMembers(opts: {
   const templateIds = [...new Set(rows.map(r => r.permission_template_id).filter(Boolean))] as string[]
   const names = new Map<string, string>()
   if (templateIds.length) {
-    const { data: templates } = await admin
+    const { data: templates, error: templatesError } = await admin
       .from('permission_templates')
       .select('id, name')
       .eq('family_code', auth.familyCode)
       .in('id', templateIds)
+    // §8 again, and the consequence is quieter than the one above and worse to debug: a
+    // refused lookup leaves every name unresolved, so `templateId` falls to null for
+    // everybody and the table reads "No template" down the whole Group column — which is a
+    // real state a family can be in, so nothing about the screen says a query failed. It is
+    // NOT fatal, because losing the Group column is a smaller loss than losing the roster.
+    if (templatesError) {
+      console.error(
+        `[access] template names unresolved for ${auth.familyCode}: ${templatesError.message}. ` +
+        'Every row will read "No template" until this is fixed.',
+      )
+    }
     for (const t of (templates ?? []) as { id: string; name: string }[]) {
       names.set(t.id, t.name)
     }
   }
+
+  // Chapter and Region, for the two columns that replaced Phone/Email/City on 2026-08-19 —
+  // this page only, from ids this action just read out of the caller's own family (§3/§4).
+  const places = await chapterPlaces(
+    auth.familyCode,
+    [...new Set(rows.map(r => r.chapter_id).filter(Boolean))] as string[],
+  )
 
   return {
     rows: rows.map(p => {
       const templateId = p.permission_template_id && names.has(p.permission_template_id)
         ? p.permission_template_id
         : null
+      // AN UNRESOLVED CHAPTER ID READS AS "NO CHAPTER" — em-dash for Chapter, National for
+      // Region — chosen rather than fallen into, and identically to app/actions/members.ts.
+      // It is reachable two ways and both are accounted for: a refused lookup, which
+      // `chapterPlaces` logs, and a chapter_id belonging to another family, which the family
+      // conjunct is there to strand. The alternative is a third state ("there is a chapter
+      // and you may not know which") and neither column has anywhere to put it.
+      const place = p.chapter_id ? places.get(p.chapter_id) : undefined
       return {
         personId: p.id,
         name: displayName(p),
         email: p.primary_email,
         phone: p.primary_phone,
         location: location(p),
+        chapterName: place?.chapterName ?? null,
+        regionName: place?.regionName ?? null,
         templateId,
         templateName: templateId ? names.get(templateId)! : null,
         status: (p.membership_status ?? 'approved') as MembershipStatus,

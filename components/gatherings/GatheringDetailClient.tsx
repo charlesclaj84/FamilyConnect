@@ -50,6 +50,37 @@ import type { GatheringTaskRow } from '@/app/actions/gatherings'
  * and it must outlive the template it was copied from. Those tasks get their own group at the
  * end rather than vanishing.
  *
+ * ── A GROUP IS A SEGMENT, SO ITS HEADING CARRIES THE DAY AND THE PLACE ──────────────
+ * A Family Reunion is a three-day event made of the Welcome, the Picnic and the Send Off, and
+ * since 20260819000001 each linked template records the day it happens on and the place it is
+ * held (`gathering_template_uses.occurs_on` / `.location`). The task list was already grouped by
+ * template, so the heading is exactly where those two facts belong: a member reading "Picnic"
+ * over eleven jobs has no way to know it is the Saturday, at Zilker, and the page header above
+ * can only state the whole span and the gathering's own location.
+ *
+ * BOTH ARE NULLABLE AND MEAN "NOT STATED", and a group with neither renders precisely as it did
+ * before this existed — one `<h3>` and the table. That is not a coincidence to be maintained by
+ * care: the subline is inside a wrapper that holds only the heading when there is nothing to add,
+ * so the absent case has no branch of its own to get wrong. Most gatherings are one day in one
+ * place and must not grow furniture for a distinction they do not make.
+ *
+ * ── MATCHED BY NAME, WHICH IS A KEY HERE AND NOT A GUESS ────────────────────────────
+ * The groups are keyed by `templateName` (see `groupByTemplate`), and `GatheringTaskRow` carries
+ * no template id at all — so the segment is looked up by name. That is sound rather than lucky:
+ * `gathering_templates` is `UNIQUE (family_code, name)`, so within one family a name identifies
+ * one template. A group with no matching segment simply has nothing to add, which is what the
+ * orphan group ("Not from a template") always is, and also what a segment unlinked since the page
+ * was rendered becomes — the right answer in both cases, and neither is an error.
+ *
+ * ── NOTHING HERE POLICES THE DATE, DELIBERATELY ─────────────────────────────────────
+ * A segment's day is NOT constrained to the gathering's span — the migration argues why at length
+ * (a gathering's dates move, and a constraint would refuse an ordinary edit to `starts_on`) — and
+ * this screen does not mark one that falls outside it. A relative reading their own reunion is
+ * not the person who reconciles a date; the organizer is, so the marking lives on
+ * `/admin/gatherings/[id]`. Printing a warning here would tell forty people something is wrong
+ * with a gathering they cannot edit. `getGatheringDetail`'s own comment on `templates` says the
+ * same thing from the other side.
+ *
  * ── THE TABLE FOLDS, IT DOES NOT SCROLL ─────────────────────────────────────────────
  * Task and Status stay at every width; Assigned to, Due, Budget and Answer fold with
  * `COLLAPSING_CELL` on the `<th>` AND every `<td>` — both, or every remaining cell is announced
@@ -97,9 +128,25 @@ interface Props {
    * redundant; it is the gate.
    */
   showTaskBudgets: boolean
+  /**
+   * The gathering's SEGMENTS — `GatheringDetail.templates`, in `position` order.
+   *
+   * Optional, and it renders nothing at all when it is absent: a group with no segment behind it
+   * reads exactly as every group did before 20260819000001, which is the same answer this
+   * component already gives for the orphan group. So a caller that has not been updated to pass
+   * it loses the day and the place and nothing else — no empty heading, no dash, no error.
+   *
+   * `readonly` because this component only ever looks names up in it.
+   */
+  segments?: readonly {
+    id: string
+    name: string
+    occursOn: string | null
+    location: string | null
+  }[]
 }
 
-export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets }: Props) {
+export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segments }: Props) {
   const [status, setStatus] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
 
@@ -116,6 +163,17 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets }: Pr
   }, [tasks, status, query])
 
   const groups = useMemo(() => groupByTemplate(filtered), [filtered])
+
+  /**
+   * Segment by template NAME, because that is what a group is keyed by — see the header.
+   *
+   * Built even when `segments` is absent (an empty map answers every lookup with `undefined`),
+   * so there is one code path through the heading rather than two.
+   */
+  const segmentByName = useMemo(
+    () => new Map((segments ?? []).map(seg => [seg.name, seg])),
+    [segments],
+  )
 
   // The counts come from the SERVER's `taskProgress` over every task, never from the filtered
   // list: a summary that moved as somebody typed would be a different figure from the one the
@@ -183,31 +241,59 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets }: Pr
         </p>
       ) : (
         <div className="space-y-6">
-          {groups.map(group => (
-            <TaskGroup
-              key={group.key}
-              heading={group.name}
-              tasks={group.tasks}
-              showTaskBudgets={showTaskBudgets}
-            />
-          ))}
+          {groups.map(group => {
+            const segment = segmentByName.get(group.name)
+            return (
+              <TaskGroup
+                key={group.key}
+                heading={group.name}
+                occursOn={segment?.occursOn ?? null}
+                location={segment?.location ?? null}
+                tasks={group.tasks}
+                showTaskBudgets={showTaskBudgets}
+              />
+            )
+          })}
         </div>
       )}
     </section>
   )
 }
 
-/** One template's block of work. */
-function TaskGroup({ heading, tasks, showTaskBudgets }: {
+/** One SEGMENT's block of work — its name, when and where it happens, and its tasks. */
+function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
   heading: string
+  /** The segment's day, `YYYY-MM-DD`, or null for "not stated". */
+  occursOn: string | null
+  /** The segment's place, or null for "not stated". */
+  location: string | null
   tasks: GatheringTaskRow[]
   showTaskBudgets: boolean
 }) {
+  /*
+   * WHEN AND WHERE, as one line, assembled as a list so the interpunct lands between whatever is
+   * actually there rather than around a value that turned out to be absent — the same shape
+   * `RowMeta` is built from below.
+   *
+   * `formatDate` answers null for a null or unparseable date, so there is nothing to guard: an
+   * absent day and a garbled one both drop out of the line. No icons, unlike the page header
+   * above: at `text-xs` a pair of 14px glyphs is noise, and this line sits directly under the
+   * name it belongs to rather than in a row of unrelated facts.
+   */
+  const when = formatDate(occursOn)
+  const meta = [when, location].filter(Boolean).join(' · ')
+
   return (
     <div className="space-y-2">
-      {/* `h3` is painted `--brand-accent` and stays in Inter by the base layer, deliberately —
-          Cormorant goes thin and hard to read at the size a functional subhead runs at. */}
-      <h3 className="text-sm font-semibold">{heading}</h3>
+      {/* The wrapper holds only the `<h3>` when there is nothing to add, so a segment that states
+          neither a day nor a place renders exactly as every group did before segments existed —
+          `space-y-2` puts the same gap above the table either way. */}
+      <div>
+        {/* `h3` is painted `--brand-accent` and stays in Inter by the base layer, deliberately —
+            Cormorant goes thin and hard to read at the size a functional subhead runs at. */}
+        <h3 className="text-sm font-semibold">{heading}</h3>
+        {meta && <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>}
+      </div>
       <div className="overflow-visible rounded-xl border">
         <table className="w-full border-collapse text-sm">
           <thead>

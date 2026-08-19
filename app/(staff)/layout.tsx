@@ -76,7 +76,27 @@ export const metadata: Metadata = {
 }
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
-  const staff = { email: 'MUTATED', role: 'support' } as Awaited<ReturnType<typeof requireStaff>>
+  // RESTORED 2026-08-19. This line read
+  //
+  //     const staff = { email: 'MUTATED', role: 'support' } as Awaited<ReturnType<typeof requireStaff>>
+  //
+  // from 3e653b7 until now: a mutation-testing artifact that was committed and never put
+  // back. It was NOT an authentication hole — every page under this group and every action
+  // in `app/actions/staff/*` calls `requireStaff()` itself, which is the design the section
+  // above describes, and that is what kept the console shut. Three real things were wrong,
+  // and the third is the one that would eventually have cost something:
+  //
+  //   * the header printed `MUTATED` as the acting account, to every staff member
+  //   * `role` was pinned to `'support'`, and this layout is the ONLY place the console
+  //     prints it — so after 20260819000002 promoted the existing rows to `owner`, every
+  //     owner would have been shown as support
+  //   * the paragraph above claimed a call that was not happening, which is exactly how
+  //     somebody later deletes a page's guard as redundant — and THAT would be the hole
+  //
+  // The literal survived review because `requireStaff` stayed referenced in the type
+  // position, so no unused-import lint fired on it. A mutation left in place looks like
+  // ordinary code; the only defence is putting it back in the same session it was made.
+  const staff = await requireStaff()
 
   return (
     // `ConfirmProvider` is mounted HERE because this group inherits none of the member
@@ -126,7 +146,20 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:ml-auto">
-              <StaffNav />
+              {/* THE ROLE IS PASSED, and it is the whole reason the Access item is reachable
+                  from the nav rather than only by typing the URL. `StaffNav` must stay a
+                  client component — it reads `usePathname()` for `aria-current`, and a
+                  server-resolved active state would freeze on whichever page loaded first,
+                  because App Router does not re-render a shared layout on a client-side
+                  navigation (the `ContextHelpLink` argument in AGENTS.md). So the role has to
+                  arrive as a prop from here, where the service role has already resolved it.
+
+                  IT IS NOT A GATE. The prop only decides whether a LINK is drawn; the page
+                  and all four actions behind it call `requireStaffOwner()` themselves, and
+                  the prop fails closed (absent, or anything but 'owner', hides the item) so a
+                  mount point that does not know the role cannot advertise the screen that
+                  hands out cross-family access. */}
+              <StaffNav role={staff.role} />
               <span className="hidden h-5 w-px bg-brand-on-hero/25 sm:block" aria-hidden="true" />
               {/* WHOSE SESSION THIS IS. On a console that can see every customer, the
                   account acting is a fact worth carrying on the screen rather than one

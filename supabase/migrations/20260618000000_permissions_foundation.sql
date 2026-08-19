@@ -69,6 +69,39 @@ CREATE TABLE IF NOT EXISTS public.permission_resources (
 INSERT INTO public.permission_resources (key, label, category, sort_order) VALUES
   ('chat',                'Chat',                   'community',  50),
   ('announcements',       'Announcements',          'community',  60),
+  -- Added by 20260819000002 — the second pane of /announcements, which lists every
+  -- approved relative whose birthday falls inside `BIRTHDAY_HORIZON_DAYS`. Listed here as
+  -- well as there for the reason every other retro-fitted row is: this insert is
+  -- ON CONFLICT DO UPDATE, and every materializing loop between here and that file reads
+  -- `permission_resources` rather than a literal list — so registering the key early is
+  -- what carries it through the chain instead of leaving it to be retro-fitted at the end.
+  --
+  -- Deliberately WITHOUT `actions` and `subsection`: neither column exists this early
+  -- (20260806000000 and 20260806000010 add them), so naming either here aborts a fresh
+  -- `db reset` with 42703 — the same trap the two admin/family rows below record. The row
+  -- is therefore created with the DEFAULT four actions and narrowed to ARRAY['view'] by
+  -- 20260819000002 §B1, which also deletes the create/edit/delete grants the intervening
+  -- materialization loops handed out (§B2). Nothing writes a birthday: the pane is derived
+  -- from `people.date_of_birth` and the date itself is edited on a member's own profile.
+  --
+  -- ITS VISIBILITY DEFAULT IS 'everyone' AND THAT IS DELIBERATE, which makes it the
+  -- opposite of `gatherings/budget` above. A family knowing its own birthdays is the point,
+  -- so nothing here or in 20260819000002 writes it a `resource_visibility` row and
+  -- `seed_family_permission_templates()`'s `v_restricted` array is left alone.
+  ('announcements/birthdays', 'Birthdays',           'community',  61),
+  -- `/updates` — the archive of the dashboard's Recent Updates feed, added by
+  -- 20260819000005, which is the half that reaches hosted. Four columns only, for the
+  -- reason the birthdays note above gives: `actions` and `subsection` do not exist this
+  -- early in the chain (20260806000000 and 20260806000010 add them), so naming either here
+  -- aborts a fresh `db reset` with 42703. The narrowing to `{view}` arrives in that
+  -- migration.
+  --
+  -- IT IS A KEY OVER A SCREEN AND NOT OVER ROWS, and the sort_order is contiguous with the
+  -- Announcements block above on purpose — `groupResources` emits a sub-section heading the
+  -- moment `subsection` changes as it walks `sort_order`, so a gap here would print one
+  -- twice. 20260819000005's header carries the whole argument, including why it writes no
+  -- `resource_visibility` row and no `permission_table_map` row.
+  ('updates',             'Updates',                'community',  62),
   -- Labelled 'Directory' since 20260812000001 — the caption the page and the rail item
   -- both carry now. Updated here as well as there because this insert is ON CONFLICT
   -- DO UPDATE on label and would otherwise revert it on replay. The KEY is unchanged
@@ -180,7 +213,27 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- which would lock every permission table in the app for the length of the chain.
   -- The chain inserts it, uses it, and then deletes it; a replay does the same.
   ('admin/groups',        'Groups & Permissions',   'admin',      170),
-  ('admin/chapters',      'Regions & Chapters',     'admin',      180),
+  -- Captioned 'Organization' and sorted to 167 since 20260819000002, which turned
+  -- /admin/chapters from a rail item of its own into the ORGANIZATION pane of Members &
+  -- Access: 167 is one past `admin/users/templates` (166), inside the Members block that
+  -- opens at `admin/users` (160). Restated here for the usual reason — this insert is
+  -- ON CONFLICT DO UPDATE on label and sort_order, so leaving 'Regions & Chapters'/180 in
+  -- place would have a `db reset` land on the old caption at this point in the chain and
+  -- only reach the new one when that file runs.
+  --
+  -- The `subsection` ('Members') cannot be set here: the column does not exist until
+  -- 20260806000010, so naming it aborts a fresh reset with 42703. 20260819000002 §A is
+  -- what writes it, which is also why that file uses a plain UPDATE rather than an upsert.
+  --
+  -- THE KEY IS UNCHANGED AND MUST STAY SO, and this is the strongest instance of that rule
+  -- in this seed. `permission_table_map` maps BOTH `regions` and `chapters` onto it, and
+  -- 20260618000001 COMPOSED the live policies on those two tables out of those rows — so
+  -- what protects them is a string that exists in no file. Re-keying it to match the pane
+  -- (`admin/users/organization`, say) means the pg_policies text surgery of
+  -- 20260807000000:328-383 first, and getting it wrong is silent in both directions:
+  -- 20260819000002's §A header has the whole argument and its §D holds the decision in
+  -- place with assertions.
+  ('admin/chapters',      'Organization',           'admin',      167),
   -- Key renamed from 'admin/user-roles' by 20260805000006, together with the route.
   -- The literal is updated here too because this insert is ON CONFLICT DO UPDATE and
   -- would otherwise re-add the old key on replay.

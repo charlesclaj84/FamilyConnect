@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   MoreVertical, Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
-  Users, KeyRound, Clock,
+  Users, KeyRound, Clock, Network,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,12 +28,17 @@ import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
+import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
+import {
+  MemberDetailsDialog, MemberDetailsTrigger, regionLabel,
+  type MemberDetails,
+} from '@/components/members/MemberDetailsDialog'
 import { HelpLink } from '@/components/help/HelpLink'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import type { Applicant } from '@/app/actions/admin/approvals'
+import type { Region, Chapter, ScopeUsage } from '@/app/actions/admin/chapters'
 import type { FamilyInvitation } from '@/app/actions/invitations'
-import { formatPhone } from '@/lib/phone-format'
 
 /**
  * Members & Access — one screen for what used to be three.
@@ -43,24 +48,31 @@ import { formatPhone } from '@/lib/phone-format'
  * state the answer. One template per member makes the answer a single word on the
  * member's row, and the template's grid the only place it is decided.
  *
- * So: MEMBERS is a filterable list with a row menu, TEMPLATES is the grid, and
- * PENDING APPROVAL is the join queue that used to live at /admin/approvals — the
- * three questions you can ask about who is in this family and what they may do.
+ * So: MEMBERS is a filterable list with a row menu, TEMPLATES is the grid,
+ * PENDING APPROVAL is the join queue that used to live at /admin/approvals, and
+ * ORGANIZATION is the regions and chapters that used to live at /admin/chapters — the
+ * four questions you can ask about who is in this family, how it is divided up and what
+ * each of them may do.
  *
- * EACH TAB IS GATED SEPARATELY, and that is load-bearing rather than tidy. Three
- * resource keys, one per tab — `admin/users`, `admin/approvals`,
- * `admin/users/templates` — and a tab is absent, with its data unfetched, for a caller
- * who does not hold its key. See the page, which decides all three.
+ * EACH TAB IS GATED SEPARATELY, and that is load-bearing rather than tidy. Four resource
+ * keys, one per tab — `admin/users`, `admin/approvals`, `admin/users/templates`,
+ * `admin/chapters` — and a tab is absent, with its data unfetched, for a caller who does
+ * not hold its key. See the page, which decides all four, and which carries the tier
+ * argument for the fourth: `admin/chapters` is `tier: 'plus'` on a page that is Free, so
+ * that pane is the one whose grant is not the whole of its gate.
  *
- * The two splits have different reasons and both are worth keeping straight:
+ * The three splits have different reasons and all are worth keeping straight:
  *   * Pending Approval, because the rows behind it are the only place an applicant's
  *     name, email, phone and date of birth are visible to anyone but themselves.
  *   * Permission Templates, because editing a grid can invent authority while
  *     re-templating a member can only hand out authority that already exists — so a
  *     roster administrator need not be someone who can promote themselves.
+ *   * Organization, because dividing the family up is what decides who owes a regional or
+ *     chapter due (20260817000008) — a treasury decision wearing a geography costume, and
+ *     not something every roster administrator should be able to redraw.
  */
 
-export type AccessTab = 'members' | 'templates' | 'approvals'
+export type AccessTab = 'members' | 'templates' | 'approvals' | 'organization'
 
 interface Rights { view: boolean; create: boolean; edit: boolean; remove: boolean }
 
@@ -70,6 +82,26 @@ export interface ApprovalsData {
   decided: Applicant[]
   canDecide: boolean
   invitations: FamilyInvitation[]
+}
+
+/**
+ * The family's regions and chapters, and what the caller may do to them. Supplied only
+ * for the tab that shows it — null otherwise, on the same terms as `ApprovalsData`.
+ *
+ * The three write flags travel WITH the data rather than being resolved here, because
+ * they are three separate grants on `admin/chapters` and only the server can resolve
+ * them (§5: the page decides, the UI follows). They are `canAny` on the page for the
+ * reason `/admin/chapters` gave: a region is family-wide configuration with nobody to
+ * own it, so scope 'own' means nothing and `can()` would offer a button every action
+ * then refuses.
+ */
+export interface OrganizationData {
+  regions: Region[]
+  chapters: Chapter[]
+  usage: ScopeUsage
+  mayCreate: boolean
+  mayEdit: boolean
+  mayDelete: boolean
 }
 
 interface Props {
@@ -91,6 +123,13 @@ interface Props {
    * it (AGENTS.md §5).
    */
   approvals: ApprovalsData | null
+  /**
+   * The family's regions and chapters, and ONLY when `tab` is 'organization'. Same
+   * split as `approvals` and for the same two reasons: whether the tab exists is
+   * `canViewOrganization`, and sending the data on every tab would publish the
+   * family's whole geography to the browser for somebody who never opened it (§5).
+   */
+  organization: OrganizationData | null
   /** Whether the caller may view `admin/approvals` — drives the tab. */
   canViewApprovals: boolean
   /**
@@ -101,6 +140,14 @@ interface Props {
   canViewAccess: boolean
   /** Whether the caller may view `admin/users/templates` — drives the templates tab. */
   canViewTemplates: boolean
+  /**
+   * Whether the caller may view `admin/chapters` AND the family's plan includes it —
+   * drives the Organization tab. It is BOTH, resolved on the page, and it must stay
+   * both: `/admin/chapters` is `tier: 'plus'` while this page is Free, so a grant check
+   * alone would light this pane up for a Free family. Nothing here can check a tier, and
+   * nothing here should try to.
+   */
+  canViewOrganization: boolean
   /**
    * Whether to offer Invite Member at all — resolved by the page as
    * `admin/users:create` OR `admin/approvals:edit` at scope 'any'.
@@ -117,7 +164,8 @@ interface Props {
 
 export function AdminAccessClient({
   templates, resources, tab, selectedTemplateId, policy, memberRights, templateRights,
-  legacy, approvals, canViewApprovals, canViewAccess, canViewTemplates, canInvite,
+  legacy, approvals, organization, canViewApprovals, canViewAccess, canViewTemplates,
+  canViewOrganization, canInvite,
 }: Props) {
   const router = useRouter()
   const [error, setError] = useState('')
@@ -134,9 +182,18 @@ export function AdminAccessClient({
 
   // Built from what the caller may actually see, so a visible tab always leads
   // somewhere they can go. Every entry is conditional and each reads its OWN key —
-  // three grants, three tabs, any combination of which is a legitimate caller. Order is
-  // Members → Pending Approval → Permission Templates regardless of which of them
-  // survive, so the two people-shaped tabs stay adjacent.
+  // four grants, four tabs, any combination of which is a legitimate caller. Order is
+  // Members → Pending Approval → Permission Templates → Organization regardless of which
+  // of them survive, so the two people-shaped tabs stay adjacent.
+  //
+  // ORGANIZATION IS LAST, and that is a decision rather than the end of a list. The first
+  // three are all about PEOPLE — who is here, who wants in, what each may do — and the
+  // fourth is about the family's SHAPE. Putting it between Members and Pending Approval
+  // would split the pair that reads as one sequence.
+  //
+  // `Network` and not the `ShieldCheck` the old rail item carried: that icon is the
+  // "this template can administer" marker three times over on the Permission Templates
+  // pane, and the same glyph meaning two things on one screen is worse than a new one.
   const tabs: MainRailItem<AccessTab>[] = [
     ...(canViewAccess ? [
       { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
@@ -152,6 +209,16 @@ export function AdminAccessClient({
       label: 'Permission Templates',
       icon: KeyRound,
       href: '/admin/users?tab=templates',
+    }] : []),
+    ...(canViewOrganization ? [{
+      id: 'organization' as const,
+      label: 'Organization',
+      icon: Network,
+      // THE SAME URL `/admin/chapters` REDIRECTS TO, and the caption is the same word the
+      // permission grid prints for `admin/chapters` — AGENTS.md: the grid caption is the
+      // rail caption, which is the whole point of "one rail item, one permission
+      // resource". The KEY did not move with the label; see the redirect page.
+      href: '/admin/users?tab=organization',
     }] : []),
   ]
 
@@ -177,6 +244,17 @@ export function AdminAccessClient({
       {tab === 'templates' && canViewTemplates && !templateRights.edit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           You can view what each template grants but not change it.
+        </div>
+      )}
+      {/* Organization's own version, and it is NOT a fourth copy of the sentence above —
+          `admin/chapters` has three separate write grants and a caller can hold any subset,
+          so "read-only" here means holding none of the three. Saying it once at the top is
+          the alternative to a disabled control on every row with no explanation beside it,
+          which is what the pane would otherwise be. */}
+      {tab === 'organization' && organization
+        && !organization.mayCreate && !organization.mayEdit && !organization.mayDelete && (
+        <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          You can see how the family is organized but not change it.
         </div>
       )}
 
@@ -224,6 +302,67 @@ export function AdminAccessClient({
         <MembersTab templates={templates} rights={memberRights} onError={setError} />
       )}
 
+      {/* ── Organization ──
+          `AdminRegionsChaptersClient` is rendered UNCHANGED, exactly as /admin/chapters
+          rendered it. That is deliberate and it is what makes this a move rather than a
+          rewrite: the component already owes nothing to its route — it takes its data and
+          its three write grants as props, keeps its own `useServerState` so a freshly added
+          region survives the refresh, and its actions still `requireScope` on the same key
+          they always did. Nothing about it knows or cares that it is a pane now.
+
+          The explanatory paragraph that used to sit above it on its own page went with the
+          page and is restated here, because without it the two tables arrive with no
+          statement of what National is — the one thing about this screen nobody guesses
+          correctly.
+
+          AND THERE IS NO HEADING ABOVE IT, deliberately. `AdminRegionsChaptersClient`
+          already renders its own two `<h2>`s ("Regions", "Chapters"), and this file cannot
+          demote them — so a third `<h2>` here would sit BESIDE the two it means to contain
+          and the document outline would read as three peers rather than a section with two
+          parts. The rail item is the pane's name, which is the convention the other three
+          panes already follow: AdminApprovalsClient has no pane-level heading either, only
+          `<h2>`s for its sections. */}
+      {tab === 'organization' && organization && (
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              How the family divides itself up geographically. A chapter belongs to one
+              region, or it sits under National — which is where everything starts and
+              where a member with no chapter stays. Dues can be scoped to a region or a
+              chapter under <Link href="/admin/account?section=dues">Accounting</Link>.
+            </p>
+            {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same as
+                the Permission Templates icon's: a control where a reader can be confidently
+                wrong. National is that control — the absence of a region rather than a row,
+                what a member with no chapter is under, and since 20260817000008 what a
+                nationally scoped due bills.
+
+                It also patches a real gap the move opened. The top bar's question mark
+                resolves `usePathname()` against the chapter routes, so on `/admin/users` it
+                lands on the Members chapter whichever pane is open — and the chapter that
+                documents THIS pane still carries `route: '/admin/chapters'`, a route that is
+                now a redirect nobody navigates to. This link is the only thing on the screen
+                pointing at the chapter that describes it, which is why it is the `inline`
+                variant: there is no heading for an icon to sit beside, and a bare question
+                mark under a paragraph names nothing. */}
+            <HelpLink
+              slug="regions-and-chapters"
+              section="what-it-is"
+              label="Regions, chapters and National"
+              variant="inline"
+            />
+          </div>
+          <AdminRegionsChaptersClient
+            initialRegions={organization.regions}
+            initialChapters={organization.chapters}
+            usage={organization.usage}
+            mayCreate={organization.mayCreate}
+            mayEdit={organization.mayEdit}
+            mayDelete={organization.mayDelete}
+          />
+        </div>
+      )}
+
       {tab === 'templates' && (
         <TemplatesTab
           templates={templates}
@@ -248,6 +387,25 @@ const STATUS_BADGE: Record<string, { label: string; className: string } | null> 
   rejected: { label: 'Declined',          className: 'bg-muted text-muted-foreground' },
 }
 
+/**
+ * The same four statuses in words, for the detail dialog's `<dl>`.
+ *
+ * Beside `STATUS_BADGE` deliberately, because a fifth `membership_status` has to be added
+ * to BOTH or the dialog prints a raw enum on the one screen whose job is access —
+ * `'disabled'` arrived in 20260807000000 and this is the shape that makes the next one
+ * visible rather than silent.
+ *
+ * `approved` has a word here where the badge is deliberately null: a pill saying "Approved"
+ * on almost every row of a table is noise, while a blank line in a panel of labelled facts
+ * reads as something the product failed to look up. Different jobs, different answers.
+ */
+const STATUS_WORDS: Record<string, string> = {
+  approved: 'Approved',
+  pending:  'Awaiting approval',
+  disabled: 'Disabled — no access to this family',
+  rejected: 'Declined',
+}
+
 function MembersTab({ templates, rights, onError }: {
   templates: TemplateSummary[]
   rights: Rights
@@ -258,6 +416,20 @@ function MembersTab({ templates, rights, onError }: {
   const [isPending, startTransition] = useTransition()
   const { query, setQuery, page, setPage, data, isPending: loading, reload } =
     usePagedMembers(({ query, offset }) => searchMembers({ query, offset }))
+  /**
+   * Which member's detail dialog is open, held as a person id rather than as the row.
+   *
+   * The row is looked up out of `data.rows` on every render, so a reload — which every
+   * mutation on this tab triggers — is what the open dialog shows rather than a frozen
+   * copy of the row as it was when the dialog opened. It also self-closes: re-templating
+   * somebody and then paging away leaves no row to find, and the dialog goes with it
+   * instead of describing a member who is no longer on screen.
+   *
+   * It lives HERE rather than on the row, because one dialog per table is one dialog; one
+   * per row is fifty modals in the DOM waiting their turn.
+   */
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const viewed = data.rows.find(r => r.personId === viewingId) ?? null
 
   async function run(
     options: ConfirmOptions,
@@ -283,39 +455,96 @@ function MembersTab({ templates, rights, onError }: {
         </p>
       ) : (
         <MemberTable rows={data.rows} templates={templates} rights={rights}
-          busy={isPending} run={run} />
+          busy={isPending} run={run} onView={setViewingId} />
       )}
 
       <Pager page={page} total={data.total} onPage={setPage} />
+
+      {/* ── One member, in full ──
+          The SAME component the Member Directory opens, so one person's record reads
+          identically on the two screens that list them — which is the rule "A table is a
+          table" states about the columns and applies just as much to what left them.
+
+          `extra` is what only this screen knows: the permission template, and whether
+          their access is switched off. The searched-by fields — name, email — are in
+          there already, and the filter box above still matches on email even though it
+          is no longer a column, which is why nothing about the search changed. */}
+      <MemberDetailsDialog
+        member={viewed ? accessDetails(viewed) : null}
+        onClose={() => setViewingId(null)}
+      />
     </div>
   )
 }
 
 /**
+ * One `MemberSummary`, as the shared dialog wants it.
+ *
+ * The status is spelled out in words rather than passed as the raw enum: `STATUS_BADGE`
+ * colours a pill on the row, and a `<dd>` reading "disabled" in body text would be the
+ * same fact stripped of the one thing that made it legible. "Approved" is stated too
+ * rather than left blank — a member whose access is fine is a fact worth confirming on
+ * the screen whose whole job is access.
+ */
+function accessDetails(member: MemberSummary): MemberDetails {
+  return {
+    name: member.name,
+    phone: member.phone,
+    email: member.email,
+    location: member.location,
+    chapterName: member.chapterName,
+    regionName: member.regionName,
+    extra: [
+      // "Group" and not "Permission template": it is the caption this table's own column
+      // prints and the word the Member Directory prints, and an administrator should not
+      // have to translate between a column and the dialog behind it.
+      { label: 'Group', value: member.templateName ?? 'No template' },
+      { label: 'Status', value: STATUS_WORDS[member.status] ?? member.status },
+    ],
+  }
+}
+
+/**
  * The members table.
  *
- * A real <table>, not a flex list dressed as one: these are six parallel facts about
- * each member, and a table is the element that says so — a screen reader announces the
- * column when it reads the cell, which is the whole difference between "512 555 0134"
- * and "Phone: 512 555 0134".
+ * A real <table>, not a flex list dressed as one: these are parallel facts about each
+ * member, and a table is the element that says so — a screen reader announces the column
+ * when it reads the cell, which is the whole difference between "Eastern" and "Region:
+ * Eastern".
  *
- * BELOW `sm` THE MIDDLE FOUR COLUMNS FOLD AWAY and are restated under the name, leaving
- * Name and the row menu. This used to be a `min-w-[52rem]` table scrolling inside its own
- * container — the note here said the alternative was maintaining two renderings of the
- * row, and it is not: the cells are the same cells, hidden by a media query, with a small
- * block beside them that only renders where they do not. Sideways scrolling cost more
- * than the duplication would have. It hid the row menu, which is the entire point of this
- * table, behind a drag; and the header row scrolled away with the columns it named.
+ * ── FOUR COLUMNS SINCE 2026-08-19, AND THREE OF THE OLD SIX ARE A DIALOG ────────────
+ * Name · Region · Chapter · Group · (row menu). Phone, Email and City/State left the
+ * table and moved into `MemberDetailsDialog`, which the name cell opens.
  *
- * Member Directory folds the same four, so the two lists still match column for column at
- * every width.
+ * The reason is what a COLUMN is for: comparing one fact down a list of a hundred and
+ * forty people. Nobody has ever compared phone numbers down this list — they find one
+ * person and then want that person's number, which is a dialog — whereas *which region
+ * and chapter is this member in* is exactly a down-the-column question, and since
+ * 20260817000008 it is the question that decides who owes a regional or chapter due.
+ *
+ * NOTHING WAS RE-GATED. `searchMembers` fetches exactly what it fetched before, under the
+ * same `admin/users:view`; the same grant that showed a phone number in a cell shows it
+ * in the dialog. A dialog is not a privacy boundary — see the dialog's own header.
+ *
+ * ── BELOW `sm` THE MIDDLE THREE FOLD AWAY ──────────────────────────────────────────
+ * Restated under the name, leaving Name and the row menu. This used to be a
+ * `min-w-[52rem]` table scrolling inside its own container — the note here said the
+ * alternative was maintaining two renderings of the row, and it is not: the cells are the
+ * same cells, hidden by a media query, with a small block beside them that only renders
+ * where they do not. Sideways scrolling cost more than the duplication would have. It hid
+ * the row menu, which is the entire point of this table, behind a drag; and the header row
+ * scrolled away with the columns it named.
+ *
+ * Member Directory renders the same four and folds the same three, so the two lists still
+ * match column for column at every width.
  */
-function MemberTable({ rows, templates, rights, busy, run }: {
+function MemberTable({ rows, templates, rights, busy, run, onView }: {
   rows: MemberSummary[]
   templates: TemplateSummary[]
   rights: Rights
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
+  onView: (personId: string) => void
 }) {
   // `overflow-visible`, not the `overflow-x-auto` that was here: an ancestor with
   // `overflow-x: auto` computes its `overflow-y` to `auto` as well, which is what forced
@@ -328,9 +557,8 @@ function MemberTable({ rows, templates, rights, busy, run }: {
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Phone</th>
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Email</th>
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>City, State</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Region</th>
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Chapter</th>
             <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
             {/* The menu column has no heading to give. An empty <th> would be announced
                 as a blank column header, so the label is present and hidden. */}
@@ -340,7 +568,7 @@ function MemberTable({ rows, templates, rights, busy, run }: {
         <tbody>
           {rows.map(member => (
             <MemberRow key={member.personId} member={member} templates={templates}
-              rights={rights} busy={busy} run={run} />
+              rights={rights} busy={busy} run={run} onView={onView} />
           ))}
         </tbody>
       </table>
@@ -348,12 +576,13 @@ function MemberTable({ rows, templates, rights, busy, run }: {
   )
 }
 
-function MemberRow({ member, templates, rights, busy, run }: {
+function MemberRow({ member, templates, rights, busy, run, onView }: {
   member: MemberSummary
   templates: TemplateSummary[]
   rights: Rights
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
+  onView: (personId: string) => void
 }) {
   const badge = STATUS_BADGE[member.status]
   const disabled = member.status === 'disabled'
@@ -364,31 +593,47 @@ function MemberRow({ member, templates, rights, busy, run }: {
           struck-through name with the badge in another column reads as two facts. */}
       <td className="px-3 py-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn('font-medium', disabled && 'text-muted-foreground line-through')}>
-            {member.name}
-          </span>
+          {/* THE NAME IS THE BUTTON, and it is the only way into the detail dialog. No
+              click handler on the `<tr>`, which would be unreachable by keyboard — and on
+              THIS table a row-level handler would additionally fire underneath every item
+              of the row menu on its way up, opening a dialog behind a confirmation prompt
+              unless every one of them remembered to stopPropagation. One target. */}
+          <MemberDetailsTrigger
+            name={member.name}
+            onOpen={() => onView(member.personId)}
+            className={cn(disabled && 'text-muted-foreground line-through')}
+          />
           {badge && (
             <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium', badge.className)}>
               {badge.label}
             </span>
           )}
         </div>
-        {/* The folded columns, below sm only — stacked rather than run inline, because
-            this is a contact block and Member Directory renders the identical one. The
-            template is always shown: it is what this page is FOR, so unlike a missing
-            phone number it is never omitted, and "No template" is a real answer. */}
+        {/* The folded columns, below sm only — stacked and LABELLED, because Region and
+            Chapter are two proper nouns in a row and "Eastern · Austin" could be read
+            either way round once the headings that told them apart have gone. Member
+            Directory folds the identical block. Region is never omitted, because every
+            member is under one; Chapter is, because plenty of members are in none.
+
+            The template is always shown too: it is what this page is FOR, so unlike a
+            missing chapter it is never dropped, and "No template" is a real answer. */}
         <RowMeta className="flex-col items-start gap-y-0.5">
-          <MetaIf value={formatPhone(member.phone) || null} />
-          {member.email && <span className="break-all">{member.email}</span>}
-          <MetaIf value={member.location} />
+          <MetaIf value={regionLabel(member.regionName)} prefix="Region" />
+          <MetaIf value={member.chapterName} prefix="Chapter" />
           <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
             {member.templateName ?? 'No template'}
           </span>
         </RowMeta>
       </td>
-      <td className={cn('px-3 py-2.5 text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>{formatPhone(member.phone) || '—'}</td>
-      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.email ?? '—'}</td>
-      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{member.location ?? '—'}</td>
+      {/* NEVER AN EM-DASH FOR REGION: National is the absence of a region rather than a
+          missing value (20260817000008), so there is nothing here we do not know. Chapter
+          genuinely can be absent and takes the em-dash. */}
+      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
+        {regionLabel(member.regionName)}
+      </td>
+      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
+        {member.chapterName ?? '—'}
+      </td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
         <span className="inline-block whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-on-soft">
           {member.templateName ?? 'No template'}
