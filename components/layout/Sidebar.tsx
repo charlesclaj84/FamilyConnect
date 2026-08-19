@@ -22,6 +22,7 @@ import {
   CalendarClock,
   HeartHandshake,
   History,
+  Inbox,
   Menu,
   X,
   BookOpen,
@@ -56,10 +57,11 @@ interface NavItem {
    * Resource keys, ANY of which makes this item visible. Defaults to the one derived
    * from `href`, which is right for every page whose route and permission key match.
    *
-   * Members & Access is the exception: it hosts three independently granted tabs —
-   * Members under `admin/users`, Pending Approval under `admin/approvals`, and
-   * Permission Templates under `admin/users/templates` — and the page opens for any
-   * one of them, so someone holding only one still needs the link.
+   * Members & Access is the exception: it hosts four independently granted tabs —
+   * Members under `admin/users`, Pending Approval under `admin/approvals`, Permission
+   * Templates under `admin/users/templates`, and Organization under `admin/chapters` —
+   * and the page opens for any one of them, so someone holding only one still needs the
+   * link.
    */
   viewKeys?: string[]
   /**
@@ -77,9 +79,9 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// Hand-ordered, not alphabetical: structure first (who the family's officers are,
-// then where its chapters are), then Accounting, then the people and their access.
-// Elections and Reports are periodic tasks rather than setup, so they trail.
+// Hand-ordered, not alphabetical: structure first (who the family's officers are),
+// then Accounting, then the people and their access. Elections and Reports are
+// periodic tasks rather than setup, so they trail.
 // This order is independent of the permission grid on Members & Access, which sorts
 // by permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
@@ -94,14 +96,36 @@ const adminItems: NavItem[] = [
   // family and what each of them may do. They sit under different section headings,
   // which is what tells them apart — the same rule that lets "Dues" appear under both
   // Accounting and Transactions in the permission grid.
+  //
+  // A FOURTH KEY SINCE 2026-08-19: `admin/chapters`, the Organization pane that used to be
+  // the `/admin/chapters` rail item directly below. It has to be listed here or the move
+  // TAKES A GRANT AWAY in effect if not on paper — a member holding Organization and none of
+  // the other three would have a working page and no link to it, which is the failure the
+  // `admin/users/templates` entry in `TAB_RESOURCES` already exists to prevent.
+  //
+  // Note the key is NOT `admin/users/organization`: a pane takes a sub-key by convention,
+  // and this one is a key that RLS policies already name (see the redirect page for the
+  // whole argument). The tier gate travels with it — `/admin/chapters` is `tier: 'plus'`, so
+  // `viewableResources()` drops the key for a Free family and the pane simply is not there,
+  // while the other three keys keep this row visible.
   {
     href: '/admin/users',
     label: 'Members',
     icon: UsersRound,
-    viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates'],
+    viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates', 'admin/chapters'],
   },
   { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
-  { href: '/admin/chapters',       label: 'Regions & Chapters',   icon: ShieldCheck },
+  // NO Regions & Chapters ROW, since 2026-08-19, and its absence is the move rather than a
+  // deletion. That screen is now the Organization pane of Members & Access above — one rail
+  // item, four panes, and the row you want is the one captioned Members.
+  //
+  // `/admin/chapters` still EXISTS: it is a redirect to `/admin/users?tab=organization` and
+  // it is still a `FEATURES` entry, because `viewableResources()` walks that registry and the
+  // key `admin/chapters` has to stay in its answer — the Members row above lists it in
+  // `viewKeys`, so a member whose only admin grant is Organization still gets a link. Adding
+  // a second row here that pointed at the redirect would be two rail items for one pane, and
+  // the pane's caption is the grid's caption, which is what "one rail item, one permission
+  // resource" is actually about.
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
   // GATHERINGS' TWO ADMIN ROWS. An admin route missing from this list is permissioned and
   // linked from NOWHERE — lib/features.ts's header warns about that for a route whose
@@ -200,6 +224,10 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       items: [
         { href: '/chat',          label: 'Chat',             icon: MessageCircle },
         { href: '/announcements', label: 'Announcements',    icon: Megaphone },
+        // The archive of the dashboard's Recent Updates card — announcements and the
+        // member's own notifications together, searchable. Directly under Announcements
+        // because that is what most of it is.
+        { href: '/updates',       label: 'Updates',          icon: Inbox },
         { href: '/members',       label: 'Directory',        icon: UsersRound },
         { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
       ],
@@ -208,34 +236,73 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
 
   groups.push({ section: { label: 'Events', icon: CalendarClock }, items: eventItems })
 
-  // SUMMARY FIRST, THEN THE THREE SCREENS IT SUMMARISES, then the family's ledgers.
-  // Dues, Donations and Payment History were panes on a rail INSIDE Summary until
-  // 20260815000000; each is a destination now, with its own route, its own
-  // permission_resources row and — the part that makes them appear here at all — its own
-  // entry in lib/features.ts, since viewableResources() builds its answer by walking
-  // that registry and a key with no entry there can never be in `viewable`.
+  // SUMMARY FIRST, THEN TWO OF THE THREE SCREENS IT SUMMARISES — the third, Payment History,
+  // is in Reporting below — and then the forward reading of the same money. Dues, Donations
+  // and Payment History were panes on a rail
+  // INSIDE Summary until 20260815000000; each is a destination now, with its own route, its
+  // own permission_resources row and — the part that makes them appear here at all — its own
+  // entry in lib/features.ts, since viewableResources() builds its answer by walking that
+  // registry and a key with no entry there can never be in `viewable`.
   //
-  // The order is the permission grid's too: sort_order 100, 105, 106, 107, 115 in the
-  // accounting category. Two lists of the same items in two different orders is a thing
-  // an administrator has to reconcile by hand, and Settings' position is the precedent
-  // for keeping them in step rather than arguing each one separately.
+  // The order is still the permission grid's WITHIN this group: sort_order 100, 105, 106,
+  // then 125 and 130 in the accounting category (the note that used to sit here said 116 for
+  // Dues Projections, which 20260817000000 never wrote — it is 125, and Family Finances went
+  // to 130 in 20260806000005). Two lists of the same items in two different
+  // orders is a thing an administrator has to reconcile by hand, and Settings' position is
+  // the precedent for keeping them in step rather than arguing each one separately.
   //
-  // The icons are the three the rail items carried when they were panes — CalendarClock
-  // for schedules, HeartHandshake for giving, History for the record — which is what
-  // keeps these recognisable as the screens that replaced them.
+  // The icons are the ones the rail items carried when they were panes — CalendarClock for
+  // schedules, HeartHandshake for giving — which is what keeps these recognisable as the
+  // screens that replaced them. History went with Payment History into Reporting below.
   groups.push({
     section: { label: 'Accounting', icon: Wallet },
     items: [
       { href: '/account-summary',  label: 'Summary',         icon: Wallet },
       { href: '/dues',             label: 'Dues',            icon: CalendarClock },
       { href: '/donations',        label: 'Donations',       icon: HeartHandshake },
-      { href: '/payment-history',  label: 'Payment History', icon: History },
-      { href: '/transactions',     label: 'Transactions',    icon: ArrowRightLeft },
-      // Between the ledger and the P&L, which is where it sits in the permission grid
-      // too (sort_order 116, straight after Transactions at 115). It is the forward
-      // reading of the same money: Transactions is what came in, this is what should.
+      // It is the forward reading of the money the two Reporting screens read backwards:
+      // Payment History and Transactions are what came in, this is what should. It stayed
+      // here rather than moving with them for the reason stated on Reporting below — the
+      // request named two screens — and because it is the one of the three a MEMBER'S own
+      // dues page is the counterpart to, which is what this group is otherwise made of.
       { href: '/dues-projections', label: 'Dues Projections', icon: TrendingUp },
       { href: '/family-finances',  label: 'Family Finances', icon: BarChart3 },
+    ],
+  })
+
+  // ── REPORTING: THE TWO SCREENS THAT READ THE MONEY BACK ────────────────────────────
+  // Payment History (what one member has paid) and Transactions (the family's four
+  // ledgers). Both were items in the Accounting group directly above until 2026-08-19,
+  // where they sat between the things you SET UP and the things you PROJECT — and the
+  // Accounting group had grown to seven rows, which is the point at which a collapsible
+  // section stops being a list and becomes a page of its own.
+  //
+  // NOTHING ELSE CHANGED. No route moved, no permission key moved, no migration: these are
+  // the same two hrefs under the same two keys, `payment-history` and `transactions`
+  // (sort_order 107 and 115, unmoved), still in the `accounting` CATEGORY and so still
+  // printed under Accounting on the grid, between Donations and Dues Projections. That is a
+  // deliberate divergence from the "keep the two lists in
+  // step" note above, and it is narrow: the grid groups by the category a resource belongs
+  // to — which is accounting, because that is the money these screens read — while the rail
+  // groups by what a member came to DO. Regrouping the grid would mean a migration moving
+  // two rows out of a category that describes them correctly.
+  //
+  // `/admin/reports` and `/dues-projections` are the obvious next candidates and are
+  // DELIBERATELY NOT MOVED. The request named two screens, and moving a third on our own
+  // initiative would be the kind of quiet scope creep that leaves nobody able to say what
+  // was asked for. This group is finished as it stands, not half-finished: if Reports ever
+  // ships (it is `status: 'future'`) somebody may well move it here, and that is a decision
+  // for the day it ships rather than a gap left open now.
+  //
+  // BarChart3 as the section icon, already imported for Family Finances and Reports. Both
+  // of those are readings of the family's money too, so the glyph is doing the same job in
+  // all three places rather than being borrowed — and section icons are reused as item icons
+  // elsewhere in this file already (BookOpen heads Resources and labels the manual).
+  groups.push({
+    section: { label: 'Reporting', icon: BarChart3 },
+    items: [
+      { href: '/payment-history',  label: 'Payment History', icon: History },
+      { href: '/transactions',     label: 'Transactions',    icon: ArrowRightLeft },
     ],
   })
 

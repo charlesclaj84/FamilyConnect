@@ -1,8 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireMember, requireRead, requireScope } from '@/lib/auth/guard'
+import { requireMember, requireScope } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
+import {
+  POSITION_CATEGORIES, POSITION_SCOPES, POSITION_NAME_MAX,
+  type PositionCategory, type PositionScope,
+} from '@/lib/board-positions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   scopeAttachedTo, scopeAttachmentsFor, scopeAttachedMessage, type ScopeAttached,
@@ -28,7 +32,9 @@ import {
  *     family's structure through the admin client, which applies no RLS.
  *   * **`deleteCustomRole` had no `family_code` conjunct either**, and the board-position
  *     actions at the foot of this file were all gated on `admin/chapters` — the wrong key
- *     for a screen that is `/admin/boardpositions`.
+ *     for a screen that is `/admin/boardpositions`. Both are fixed, and that whole section
+ *     was rewritten again on 2026-08-19 when board positions became per-family and the page
+ *     went live; its own header records what changed and why.
  *   * **Deleting a chapter somebody was in raised a raw 23503 at the user**, and deleting a
  *     region silently blanked every regional officer's region. See `lib/scope-attached.ts`,
  *     which is now consulted before either delete.
@@ -64,21 +70,82 @@ export interface Chapter {
   created_at: string
 }
 
-export interface CustomRole {
+// THE VOCABULARY LIVES IN lib/board-positions.ts, and it has to. Those two arrays were here
+// for an afternoon and `next build` refused the file: a `'use server'` module may export only
+// async functions, and an exported `const` array is "found object". Types are fine — they do
+// not exist at runtime — which is why `BoardPosition` and its siblings below stay.
+
+/**
+ * One board position, belonging to ONE family.
+ *
+ * `family_code` is NOT NULL and there is no `is_global`: 20260819000004 retired the 25
+ * built-in positions and made this table per-family. `enabled` went with them — it meant
+ * "this family uses that built-in", which is what `family_role_exclusions` recorded, and a
+ * family now expresses the same thing by having the row or not having it.
+ */
+export interface BoardPosition {
   id: string
   name: string
-  category: 'executive_officer' | 'appointed_position'
-  scope: 'national' | 'regional' | 'chapter'
-  is_global: boolean
+  category: PositionCategory
+  scope: PositionScope
   sort_order: number
-  family_code: string | null
-  enabled: boolean   // is this position used by the family? (custom roles always true)
+  family_code: string
+  /** How many people hold it. The delete refusal is built on this — see `deleteBoardPosition`. */
+  holders: number
+}
+
+/** Who holds what, one row per assignment. */
+export interface BoardPositionHolder {
+  assignment_id: string
+  position_id: string
+  position_name: string
+  person_name: string
+  /**
+   * NO `user_id` AND NO `person_id`, and their absence is §5 rather than an oversight.
+   *
+   * `user_roles` keys its holder on an `auth.users.id` (see the section header), which is the
+   * one identifier in this schema that is IDENTICAL across every family the account belongs
+   * to — the whole reason `assignBoardPosition` takes a `people.id` instead. The screen needs
+   * a name to print and an `assignment_id` to revoke, so shipping either id would put a set
+   * of cross-family auth uuids into the RSC payload of a page that never renders them. Add
+   * one back only with a caller that needs it.
+   */
+  scope: PositionScope
+  chapter_name: string | null
+  region_name: string | null
 }
 
 /** What each region and chapter has attached, keyed by id — see `getScopeUsage`. */
 export interface ScopeUsage {
   regions: Record<string, ScopeAttached>
   chapters: Record<string, ScopeAttached>
+}
+
+// ── Where the regions and chapters screen actually LIVES ───────────────────────
+
+/**
+ * Revalidate the screen that draws regions and chapters.
+ *
+ * THERE ARE TWO PATHS AND ONLY ONE OF THEM RENDERS ANYTHING. On 2026-08-19 the screen
+ * became the **Organization** pane of Members & Access, and `/admin/chapters` became a bare
+ * `redirect('/admin/users?tab=organization')` — kept as a route (and as a FEATURES entry)
+ * so old links, bookmarks and `viewableResources()` all keep working, which the note on that
+ * entry explains at length.
+ *
+ * So `revalidatePath('/admin/chapters')` alone, which is what all five writes below did
+ * until this function existed, invalidates the cache of a page that renders nothing and
+ * leaves the cache of the page that renders everything untouched. It is not user-visible
+ * TODAY — `AdminRegionsChaptersClient` updates optimistically and never calls
+ * `router.refresh()` — which is precisely what makes it worth a named function rather than a
+ * second line copied five times: the day somebody adds a refresh, the bug appears in a file
+ * nobody edited, and the fix has to be found five times.
+ *
+ * Both are revalidated rather than just the new one. A redirect is still a cached route
+ * segment, and the cost of the extra call is nil.
+ */
+function revalidateOrganization() {
+  revalidatePath('/admin/users')
+  revalidatePath('/admin/chapters')
 }
 
 // ── Regions ────────────────────────────────────────────────────────────────────
@@ -131,7 +198,7 @@ export async function createRegion(
     .single()
 
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/chapters')
+  revalidateOrganization()
   return { success: true, id: data.id }
 }
 
@@ -167,7 +234,7 @@ export async function deleteRegion(id: string): Promise<{ success: boolean; erro
   const { error } = await admin.from('regions').delete()
     .eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/chapters')
+  revalidateOrganization()
   return { success: true }
 }
 
@@ -254,7 +321,7 @@ export async function createChapter(
     .single()
 
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/chapters')
+  revalidateOrganization()
   return { success: true, id: data.id }
 }
 
@@ -297,7 +364,7 @@ export async function setChapterRegion(
     .eq('id', chapterId)
     .eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/chapters')
+  revalidateOrganization()
   // Who owes a regional due has just changed, so every screen that prices one is stale.
   revalidatePath('/dues')
   revalidatePath('/account-summary')
@@ -333,7 +400,7 @@ export async function deleteChapter(id: string): Promise<{ success: boolean; err
   const { error } = await admin.from('chapters').delete()
     .eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/chapters')
+  revalidateOrganization()
   return { success: true }
 }
 
@@ -361,7 +428,7 @@ export async function getScopeUsage(): Promise<ScopeUsage> {
 
 // ── Board positions ────────────────────────────────────────────────────────────
 //
-// THESE FOUR SERVE `/admin/boardpositions`, AND THEY ARE KEYED ON IT SINCE 2026-08-18.
+// THESE SERVE `/admin/boardpositions`, AND THEY ARE KEYED ON IT SINCE 2026-08-18.
 // They were gated on `admin/chapters` — the key of the screen they happen to share a file
 // with — which was harmless only while both routes served Coming Soon. Bringing Regions &
 // Chapters back would have handed the family's board-position catalogue to anybody granted
@@ -372,122 +439,540 @@ export async function getScopeUsage(): Promise<ScopeUsage> {
 // They stay in this file because `family_roles.scope` is the same three words a chapter is
 // scoped by and the two screens were built as one feature; moving them is a rename with no
 // reader, and TODO would carry it if it mattered.
+//
+// ── WHAT CHANGED WHEN THE PAGE WENT LIVE (2026-08-19) ───────────────────────────────
+// `20260819000004` made board positions per-family, and this section was rewritten around
+// it rather than adjusted. Four things went away and are not coming back:
+//
+//   * **The 25 built-in positions.** A family configures its own list, starting empty. So
+//     there is no `.or('family_code.is.null,family_code.eq.…')` anywhere below — every read
+//     is a plain `.eq('family_code', …)`, which is also the end of a real hazard: that
+//     `.or()` interpolated a family code into PostgREST's comma-and-parenthesis filter
+//     language, one careless character away from the shape `lib/money-attached.ts` guards.
+//   * **`family_role_exclusions` and `setRoleEnabled`.** The table existed only to opt a
+//     family OUT of a built-in. With no built-ins there is nothing to opt out of; a family
+//     deletes a position it does not use. The migration drops the table.
+//   * **`is_global`, and `deleteCustomRole`'s "Global roles cannot be deleted".** The column
+//     could only ever be false once the built-ins were gone.
+//   * **`getAllRolesWithGlobal`'s `requireRead`.** That helper is `can()`, which is
+//     satisfied by scope 'own' — and then read the whole catalogue off the admin client,
+//     past a composed policy whose `own_expr` for this table is the literal 'false'. Every
+//     read and write below uses `requireScope`, which is `canAny`. A board position is
+//     family-wide configuration and nobody owns one; that is the same argument
+//     `admin/chapters` makes at the top of this file, and it is why `admin/boardpositions`
+//     is on `NO_OWNER_KEYS`.
+//
+// ── ASSIGNING IS HERE TOO NOW, AND THE OLD ENDPOINTS ARE GONE ───────────────────────
+// `assignRole`, `revokeRole` and `revokeRoleByAssignmentId` lived in
+// app/actions/admin/users.ts with no call site anywhere in the product — and with holes:
+// `revokeRoleByAssignmentId` was `.delete().eq('id', assignmentId)` on the service role
+// with no family conjunct, byte-for-byte the `deleteRegion` hole this file's header
+// records, and `assignRole` wrote four client-supplied ids (`targetUserId`, `roleId`,
+// `chapterId`, `regionId`) onto a row carrying the caller's own family_code, which is §4
+// exactly. They are replaced by `assignBoardPosition` and `revokeBoardPosition` below,
+// beside the catalogue they operate on, and the three old exports are deleted rather than
+// patched: an endpoint nobody calls is an endpoint nobody re-reads.
+//
+// ── `user_roles` KEYS ITS HOLDER ON `auth.users.id` ─────────────────────────────────
+// Not `people.id`. That is the `event_assignments` mistake AGENTS.md names, and it is a
+// schema fact rather than a decision made here: an account-less relative — a recorded
+// grandmother — cannot hold a board position, and every query needs the `user_id`
+// indirection. What saves it is that the table has always carried a `family_code`, so the
+// family boundary is expressible; it is the actions that failed to express it.
+//
+// The consequence for the API below is deliberate and worth stating: `assignBoardPosition`
+// takes a **people.id**, never a user id. The action resolves the account itself, which is
+// both what the picker can supply and what makes the §4 check unavoidable — "is this row in
+// my family, and does it have an account" is the same question in one read.
+//
+// ── EVERY JOIN IS DONE IN TYPESCRIPT, ON PURPOSE ────────────────────────────────────
+// `getBoardPositionHolders` reads five tables and stitches them, rather than embedding.
+// `user_roles` has no foreign key to `people` at all (it points at `auth.users`), so a
+// `people(...)` embed under it is PGRST200 — silent, and answers `[]`. Keeping the joins in
+// TypeScript also means every read states its own `.eq('family_code', …)`, so §3 is
+// discharged where a reviewer can see it. AGENTS.md §8 is the long version.
 
-export async function getAllRolesWithGlobal(): Promise<CustomRole[]> {
-  const g = await requireRead('admin/boardpositions')
+/**
+ * A member who could be given a position. `SelectablePerson`-shaped, so `PersonPicker` can
+ * tell two Martha Allens apart.
+ */
+export interface AssignableMember {
+  id: string
+  first_name: string
+  last_name: string
+  nick_name: string | null
+  date_of_birth: string | null
+}
+
+/**
+ * Every board position this family has, with a live count of who holds each.
+ *
+ * THE ADMIN CLIENT, so §3 is discharged by hand. The user client would work for a caller
+ * holding `admin/boardpositions:view` at 'any' — that is exactly what the SELECT policy
+ * admits since 20260819000004 — and the admin client is used anyway so this behaves
+ * identically to `getBoardPositionHolders`, which reads tables the caller may be restricted
+ * from.
+ */
+export async function getBoardPositions(): Promise<BoardPosition[]> {
+  const g = await requireScope('admin/boardpositions', 'view')
   if (!g.ok) return []
 
   const admin = createAdminClient()
-  const [rolesRes, exclusionsRes] = await Promise.all([
-    // The GLOBAL rows (family_code IS NULL) are product data seeded by migrations — the 25
-    // built-in board positions — and are the same for every family (AGENTS.md, "Four tables
-    // in `public` are product data"). The family's own custom roles are the other half, and
-    // the `.or()` is scoped to the caller's own family code rather than to an argument.
-    admin.from('family_roles').select('*')
-      .or(`family_code.is.null,family_code.eq.${g.familyCode}`).order('sort_order'),
-    admin.from('family_role_exclusions').select('role_id').eq('family_code', g.familyCode),
+  const [positionsRes, assignmentsRes] = await Promise.all([
+    admin.from('family_roles')
+      .select('id, name, category, scope, sort_order, family_code')
+      .eq('family_code', g.familyCode)
+      .order('sort_order'),
+    admin.from('user_roles')
+      .select('role_id')
+      .eq('family_code', g.familyCode),
   ])
 
-  if (rolesRes.error || exclusionsRes.error) {
+  // §8 on both halves. A refused read renders "no positions yet" over a family that has
+  // twelve, and a refused count renders every position as deletable when none is.
+  if (positionsRes.error || assignmentsRes.error) {
     console.error('[chapters] board positions read failed for ' + g.familyCode + ': '
-      + (rolesRes.error?.message ?? exclusionsRes.error?.message))
+      + (positionsRes.error?.message ?? assignmentsRes.error?.message))
     return []
   }
 
-  const excluded = new Set((exclusionsRes.data ?? []).map(e => e.role_id))
-  return (rolesRes.data ?? []).map(r => ({
-    ...r,
-    enabled: r.is_global ? !excluded.has(r.id) : true,   // custom roles are always used
-  })) as CustomRole[]
-}
-
-/** Enable/disable a GLOBAL board position for the current family. */
-export async function setRoleEnabled(
-  roleId: string,
-  enabled: boolean,
-): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'edit')
-  if (!g.ok) return { success: false, error: g.message }
-  const admin = createAdminClient()
-
-  if (enabled) {
-    const { error } = await admin.from('family_role_exclusions').delete()
-      .eq('family_code', g.familyCode).eq('role_id', roleId)
-    if (error) return { success: false, error: error.message }
-  } else {
-    // NOT §4-checked, and it is the one id here that does not need it: a global role has no
-    // family, and a CUSTOM role belonging to another family would be excluded for THIS
-    // family only — a row saying "we do not use a position we could never see", which
-    // changes nothing anybody can observe. The exclusion carries the caller's own
-    // family_code, which is what keeps it inert.
-    const { error } = await admin.from('family_role_exclusions').upsert(
-      { family_code: g.familyCode, role_id: roleId },
-      { onConflict: 'family_code,role_id' },
-    )
-    if (error) return { success: false, error: error.message }
+  const holders = new Map<string, number>()
+  for (const a of assignmentsRes.data ?? []) {
+    holders.set(a.role_id, (holders.get(a.role_id) ?? 0) + 1)
   }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/admin/elections')
-  revalidatePath('/admin/users')
-  return { success: true }
+
+  return (positionsRes.data ?? []).map(r => ({
+    ...r,
+    holders: holders.get(r.id) ?? 0,
+  })) as BoardPosition[]
 }
 
-export async function createCustomRole(input: {
+/**
+ * Add a position to the family's list.
+ *
+ * VALIDATION IS SERVER-SIDE BECAUSE THE CLIENT IS NOT IN THE REQUEST PATH. The old version
+ * checked the name in the component only, so `createCustomRole({ name: '' })` created an
+ * unreachable row: nothing on the screen could name it and deleting it needed its id.
+ * `family_roles_name_not_blank` now refuses it in the database too — belt and braces, and
+ * the CHECK is what makes the guarantee independent of this function.
+ *
+ * The `category` and `scope` unions are TypeScript, which is erased at runtime, so both are
+ * checked against the literal sets the CHECK constraints hold.
+ */
+export async function createBoardPosition(input: {
   name: string
-  category: 'executive_officer' | 'appointed_position'
-  scope: 'national' | 'regional' | 'chapter'
+  category: PositionCategory
+  scope: PositionScope
 }): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/boardpositions', 'create')
   if (!g.ok) return { success: false, error: g.message }
 
+  const name = input.name.trim()
+  if (!name) return { success: false, error: 'A position needs a name' }
+  if (name.length > POSITION_NAME_MAX) {
+    return { success: false, error: `A position name is at most ${POSITION_NAME_MAX} characters` }
+  }
+  if (!POSITION_CATEGORIES.includes(input.category)) {
+    return { success: false, error: 'Choose a category' }
+  }
+  if (!POSITION_SCOPES.includes(input.scope)) {
+    return { success: false, error: 'Choose a scope' }
+  }
+
   const admin = createAdminClient()
-  // THE FAMILY'S OWN ROWS AND THE GLOBAL ONES, and no other family's. The unscoped version
-  // of this read took the highest sort_order in the TABLE, which is every family's — so one
-  // family's custom position decided where another family's next one sorted.
+
+  // THE FAMILY'S OWN ROWS, and no other family's. The unscoped version of this read took the
+  // highest sort_order in the TABLE, which is every family's — so one family's position
+  // decided where another family's next one sorted.
   const { data: maxRow } = await admin
     .from('family_roles')
     .select('sort_order')
-    .or(`family_code.is.null,family_code.eq.${g.familyCode}`)
+    .eq('family_code', g.familyCode)
     .order('sort_order', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  const nextOrder = (maxRow?.sort_order ?? 0) + 1
-
   const { error } = await admin
     .from('family_roles')
     .insert({
-      name:        input.name.trim(),
+      name,
       category:    input.category,
       scope:       input.scope,
-      is_global:   false,
       family_code: g.familyCode,
-      sort_order:  nextOrder,
+      sort_order:  (maxRow?.sort_order ?? 0) + 1,
     })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    // 23505 is now a per-family collision and nothing else, since
+    // `family_roles_family_code_name_key` replaced the global `UNIQUE (name)`. Before that
+    // migration this message would have been a lie: the row it collided with could have
+    // belonged to another family, or been one of the built-ins.
+    if (error.code === '23505') {
+      return { success: false, error: `Your family already has a position called "${name}"` }
+    }
+    return { success: false, error: error.message }
+  }
   revalidatePath('/admin/boardpositions')
+  revalidatePath('/admin/elections')
   return { success: true }
 }
 
-export async function deleteCustomRole(id: string): Promise<{ success: boolean; error?: string }> {
+/**
+ * Rename a position.
+ *
+ * ── WHY THIS EXISTS, GIVEN CREATE AND DELETE ────────────────────────────────────────
+ * Because the delete REFUSES while anybody holds the position, so a typo noticed after the
+ * officers are recorded could otherwise only be fixed by un-assigning everybody, deleting,
+ * re-adding and re-assigning. That is a bad five minutes for a corrected spelling, and the
+ * built-ins this list replaced could not be renamed at all — so shipping without it was not a
+ * regression, and adding it is the whole of what TODO.md carried.
+ *
+ * ── IT RENAMES AND NOTHING ELSE, WHICH IS A DECISION ────────────────────────────────
+ * Not the category, and above all NOT THE SCOPE. `user_roles` copies the position's scope onto
+ * each assignment at the moment it is made, along with the `chapter_id` or `region_id` that
+ * scope requires — `assignBoardPosition` derives all three from the position rather than from
+ * the caller, which is what stopped a national office being assigned "for a chapter". So
+ * changing a position's scope afterwards would leave every existing assignment describing a
+ * scope the position no longer has, with a chapter attached to an office that is now national
+ * or none attached to one that is now chapter-scoped. That is two facts disagreeing, which
+ * AGENTS.md §4b forbids for exactly this reason.
+ *
+ * A family that has the scope wrong therefore deletes the position and adds it again, which is
+ * right rather than merely simpler: the assignments genuinely are wrong and re-making them is
+ * the act of correcting them. The screen offers rename on the NAME only, so the choice is not
+ * one a caller can stumble into.
+ *
+ * §3, and the read-back is not decoration: the service-role client applies no RLS, so without
+ * the family conjunct on BOTH statements this is `deleteRegion`'s hole with an UPDATE in it —
+ * BRAVO's administrator renaming ALPHA's offices by id. `tests/rls/cases.mjs` carries the case.
+ */
+export async function renameBoardPosition(
+  id: string,
+  name: string,
+): Promise<{ success: boolean; error?: string }> {
+  const g = await requireScope('admin/boardpositions', 'edit')
+  if (!g.ok) return { success: false, error: g.message }
+
+  const next = name.trim()
+  if (!next) return { success: false, error: 'A position needs a name' }
+  if (next.length > POSITION_NAME_MAX) {
+    return { success: false, error: `A position name is at most ${POSITION_NAME_MAX} characters` }
+  }
+
+  const admin = createAdminClient()
+  const { data: existing } = await admin.from('family_roles')
+    .select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
+  if (!existing) return { success: false, error: 'Position not found' }
+  // Nothing to do rather than a no-op UPDATE. Worth its own branch because the screen leaves
+  // the field editable and Save is the obvious thing to press after changing one's mind.
+  if (existing.name === next) return { success: true }
+
+  const { error } = await admin.from('family_roles')
+    .update({ name: next })
+    .eq('id', id)
+    .eq('family_code', g.familyCode)
+
+  if (error) {
+    // The same per-family collision `createBoardPosition` reports, and the same reason the
+    // message can be honest about it: `family_roles_family_code_name_key` is scoped to one
+    // family, so the row it collided with is one the caller can see.
+    if (error.code === '23505') {
+      return { success: false, error: `Your family already has a position called "${next}"` }
+    }
+    return { success: false, error: error.message }
+  }
+  revalidatePath('/admin/boardpositions')
+  revalidatePath('/admin/elections')
+  // The name is printed under members' names in the Directory, on the dashboard and on My
+  // Profile — through `formatRoleTitle`, which reads it live rather than storing a copy — so
+  // those screens are stale until their next render.
+  revalidatePath('/members')
+  return { success: true }
+}
+
+/**
+ * Remove a position from the family's list.
+ *
+ * IT REFUSES WHILE ANYBODY HOLDS IT, and that is the point rather than caution.
+ * `user_roles.role_id` is ON DELETE CASCADE, so the old version deleted the position AND
+ * every assignment of it, silently — the confirmation dialog said so in words and the
+ * action counted nothing. `deleteRegion` and `deleteChapter` above consult
+ * `lib/scope-attached.ts` before deciding for the same reason; this is the same shape with
+ * one reference instead of five, so the count is inline rather than through that module.
+ */
+export async function deleteBoardPosition(id: string): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/boardpositions', 'delete')
   if (!g.ok) return { success: false, error: g.message }
 
   const admin = createAdminClient()
-  // §3. `family_roles` is the hybrid table AGENTS.md warns about — global rows carry a NULL
-  // family_code and family rows carry one — so BOTH conjuncts matter here: the family scope
-  // is what stops one family deleting another's custom position (the `is_global` test alone
-  // let it through), and `is_global = false` is what stops anybody deleting the product's
-  // own 25 seeded positions, which no migration would ever put back.
-  const { data } = await admin.from('family_roles')
-    .select('is_global').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!data) return { success: false, error: 'Position not found' }
-  if (data.is_global) return { success: false, error: 'Global roles cannot be deleted' }
+
+  // §3. Read the row inside the family before deciding anything about it: the service-role
+  // client applies no RLS, so `.eq('id', id)` alone let one family delete another's
+  // positions — `tests/rls/cases.mjs` carries that case.
+  const { data: existing } = await admin.from('family_roles')
+    .select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
+  if (!existing) return { success: false, error: 'Position not found' }
+
+  const { count, error: countError } = await admin.from('user_roles')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_code', g.familyCode)
+    .eq('role_id', id)
+  if (countError) return { success: false, error: countError.message }
+  if ((count ?? 0) > 0) {
+    return {
+      success: false,
+      error: `${count} ${count === 1 ? 'person holds' : 'people hold'} "${existing.name}". `
+        + 'Take it away from them first.',
+    }
+  }
 
   const { error } = await admin.from('family_roles').delete()
-    .eq('id', id).eq('family_code', g.familyCode).eq('is_global', false)
+    .eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/boardpositions')
+  revalidatePath('/admin/elections')
   return { success: true }
+}
+
+/**
+ * Who holds which position, for the family. One row per assignment.
+ *
+ * Five reads and a TypeScript join, for the reason in the section header.
+ */
+export async function getBoardPositionHolders(): Promise<BoardPositionHolder[]> {
+  const g = await requireScope('admin/boardpositions', 'view')
+  if (!g.ok) return []
+
+  const admin = createAdminClient()
+  const [assignments, positions, people, chapters, regions] = await Promise.all([
+    admin.from('user_roles')
+      .select('id, user_id, role_id, scope, chapter_id, region_id')
+      .eq('family_code', g.familyCode),
+    admin.from('family_roles').select('id, name').eq('family_code', g.familyCode),
+    admin.from('people').select('id, user_id, first_name, last_name')
+      .eq('family_code', g.familyCode).not('user_id', 'is', null),
+    admin.from('chapters').select('id, name').eq('family_code', g.familyCode),
+    admin.from('regions').select('id, name').eq('family_code', g.familyCode),
+  ])
+
+  const failed = assignments.error ?? positions.error ?? people.error
+    ?? chapters.error ?? regions.error
+  if (failed) {
+    console.error(`[chapters] board position holders read failed for ${g.familyCode}: ${failed.message}`)
+    return []
+  }
+
+  const positionName = new Map((positions.data ?? []).map(p => [p.id, p.name]))
+  const chapterName  = new Map((chapters.data ?? []).map(c => [c.id, c.name]))
+  const regionName   = new Map((regions.data ?? []).map(r => [r.id, r.name]))
+  const person       = new Map((people.data ?? []).map(p => [p.user_id as string, p]))
+
+  return (assignments.data ?? [])
+    // A position from another family cannot appear — every read above is family-scoped, so
+    // an assignment whose position is not in the map is a row 20260819000004 should have
+    // repointed. Dropping it is the safe direction: the alternative is a blank line on the
+    // screen that nothing can revoke.
+    .filter(a => positionName.has(a.role_id))
+    .map(a => {
+      const p = person.get(a.user_id)
+      return {
+        assignment_id: a.id,
+        position_id:   a.role_id,
+        position_name: positionName.get(a.role_id) as string,
+        person_name:   p
+          ? (`${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Unnamed member')
+          : 'Somebody no longer in this family',
+        scope:         a.scope as PositionScope,
+        chapter_name:  a.chapter_id ? (chapterName.get(a.chapter_id) ?? null) : null,
+        region_name:   a.region_id ? (regionName.get(a.region_id) ?? null) : null,
+      }
+    })
+    .sort((x, y) => x.position_name.localeCompare(y.position_name)
+      || x.person_name.localeCompare(y.person_name))
+}
+
+/**
+ * The people who could be given a position: approved members of this family WITH an account.
+ *
+ * ACCOUNTS ONLY, and that is the schema rather than a policy — `user_roles.user_id`
+ * references `auth.users`, so a recorded relative with no account has nothing to key an
+ * assignment on. AGENTS.md §4b draws the line between a PICKER and a PROJECTION; this is a
+ * picker, and "a record cannot pay or be paid" is the same argument as "a record cannot hold
+ * an office".
+ */
+export async function getAssignableMembers(): Promise<AssignableMember[]> {
+  const g = await requireScope('admin/boardpositions', 'view')
+  if (!g.ok) return []
+
+  const { data, error } = await createAdminClient()
+    .from('people')
+    .select('id, first_name, last_name, nick_name, date_of_birth')
+    .eq('family_code', g.familyCode)
+    .eq('membership_status', 'approved')
+    .not('user_id', 'is', null)
+    .order('last_name')
+    .order('first_name')
+
+  if (error) {
+    console.error(`[chapters] assignable members read failed for ${g.familyCode}: ${error.message}`)
+    return []
+  }
+  return (data ?? []) as AssignableMember[]
+}
+
+/**
+ * Give somebody a board position.
+ *
+ * §4 IS THE WHOLE OF THIS FUNCTION. It runs on the service-role client, `user_roles` has no
+ * INSERT policy at all, and the row it writes carries the caller's own family_code — so
+ * every id on it satisfies every policy while pointing wherever the client said. Its
+ * predecessor checked none of them. Four checks, in the order they can refuse cheapest:
+ *
+ *   1. `personId` is a row in THIS family, approved, with an account. That one read answers
+ *      §4's question and supplies the `user_id` the table actually stores, which is why this
+ *      takes a people.id and never an identity.
+ *   2. `positionId` is a position in THIS family. `belongsToFamily` is the right helper now
+ *      that `family_roles.family_code` is NOT NULL — before 20260819000004 it answered
+ *      false for all 25 built-ins, so a naive call would have refused every real assignment.
+ *   3. The SCOPE IS THE POSITION'S, never the caller's claim. A national position could be
+ *      assigned `scope: 'chapter'` before this, because nothing compared the two.
+ *   4. A chapter or region, where the position's scope needs one, and it belongs to this
+ *      family. Both are `belongsToFamily`, the same check `createChapter` makes on
+ *      `region_id` above.
+ */
+export async function assignBoardPosition(input: {
+  positionId: string
+  personId: string
+  chapterId?: string | null
+  regionId?: string | null
+}): Promise<{ success: boolean; error?: string }> {
+  const g = await requireScope('admin/boardpositions', 'edit')
+  if (!g.ok) return { success: false, error: g.message }
+
+  const admin = createAdminClient()
+
+  const { data: person } = await admin.from('people')
+    .select('user_id, membership_status')
+    .eq('id', input.personId)
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (!person) return { success: false, error: 'Member not found' }
+  if (person.membership_status !== 'approved') {
+    return { success: false, error: 'That member has not been approved yet' }
+  }
+  if (!person.user_id) {
+    return {
+      success: false,
+      error: 'That relative has no account yet, so there is nothing to attach a position to. '
+        + 'Invite them from the family tree first.',
+    }
+  }
+
+  const { data: position } = await admin.from('family_roles')
+    .select('scope')
+    .eq('id', input.positionId)
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (!position) return { success: false, error: 'Position not found' }
+
+  const scope = position.scope as PositionScope
+  let chapterId: string | null = null
+  let regionId:  string | null = null
+
+  if (scope === 'chapter') {
+    if (!input.chapterId) return { success: false, error: 'Choose the chapter this position is for' }
+    if (!(await belongsToFamily('chapters', input.chapterId, g.familyCode))) {
+      return { success: false, error: 'Chapter not found' }
+    }
+    chapterId = input.chapterId
+  }
+  if (scope === 'regional') {
+    if (!input.regionId) return { success: false, error: 'Choose the region this position is for' }
+    if (!(await belongsToFamily('regions', input.regionId, g.familyCode))) {
+      return { success: false, error: 'Region not found' }
+    }
+    regionId = input.regionId
+  }
+
+  const { error } = await admin.from('user_roles').insert({
+    user_id:     person.user_id,
+    family_code: g.familyCode,
+    role_id:     input.positionId,
+    assigned_by: g.userId,
+    scope,
+    chapter_id:  chapterId,
+    region_id:   regionId,
+  })
+
+  if (error) {
+    // `user_roles_user_id_family_code_role_id_key` — one person, one family, one position.
+    if (error.code === '23505') {
+      return { success: false, error: 'They already hold that position' }
+    }
+    return { success: false, error: error.message }
+  }
+  revalidatePath('/admin/boardpositions')
+  revalidatePath('/members')
+  return { success: true }
+}
+
+/**
+ * Take a board position away from somebody.
+ *
+ * §3. The predecessor was `.delete().eq('id', assignmentId)` on the service-role client with
+ * no family conjunct, so BRAVO's administrator could revoke ALPHA's officers by id. The
+ * `.eq('family_code', …)` below is the fix and `tests/rls/cases.mjs` is what keeps it.
+ */
+export async function revokeBoardPosition(
+  assignmentId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const g = await requireScope('admin/boardpositions', 'edit')
+  if (!g.ok) return { success: false, error: g.message }
+
+  const admin = createAdminClient()
+  const { data: existing } = await admin.from('user_roles')
+    .select('id').eq('id', assignmentId).eq('family_code', g.familyCode).maybeSingle()
+  if (!existing) return { success: false, error: 'That assignment no longer exists' }
+
+  const { error } = await admin.from('user_roles').delete()
+    .eq('id', assignmentId).eq('family_code', g.familyCode)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/admin/boardpositions')
+  revalidatePath('/members')
+  return { success: true }
+}
+
+/**
+ * The regions and chapters a scoped position can be assigned to.
+ *
+ * THE ADMIN CLIENT, gated on `admin/boardpositions` rather than `admin/chapters`, and
+ * `getDuesScopeOptions` in app/actions/dues.ts is the precedent word for word: the composed
+ * policies on `regions` and `chapters` both demand `admin/chapters:view = 'any'`, so somebody
+ * who curates board positions without that key would see an empty picker and no explanation.
+ * Names of regions and chapters are family STRUCTURE rather than PII, and every approved
+ * member can already read the chapter list through `getChapters()`. Family-scoped by hand (§3).
+ */
+export async function getBoardPositionScopeOptions(): Promise<{
+  regions: { id: string; name: string }[]
+  chapters: { id: string; name: string }[]
+}> {
+  const g = await requireScope('admin/boardpositions', 'view')
+  if (!g.ok) return { regions: [], chapters: [] }
+
+  const admin = createAdminClient()
+  const [regionsRes, chaptersRes] = await Promise.all([
+    admin.from('regions').select('id, name').eq('family_code', g.familyCode).order('name'),
+    admin.from('chapters').select('id, name').eq('family_code', g.familyCode).order('name'),
+  ])
+
+  // §8: an empty picker and a refused query are the same shape and very different facts.
+  if (regionsRes.error || chaptersRes.error) {
+    console.error('[chapters] board position scope options failed for ' + g.familyCode + ': '
+      + (regionsRes.error?.message ?? chaptersRes.error?.message))
+    return { regions: [], chapters: [] }
+  }
+  return {
+    regions:  (regionsRes.data ?? []) as { id: string; name: string }[],
+    chapters: (chaptersRes.data ?? []) as { id: string; name: string }[],
+  }
 }

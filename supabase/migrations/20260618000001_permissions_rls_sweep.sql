@@ -78,7 +78,15 @@ SELECT t.table_name, t.resource_key, t.own_expr, t.self_expr
   FROM (VALUES
   -- identity / directory
   ('people'::text,                'members'::text,      'user_id = (SELECT auth.uid())'::text,  'user_id = (SELECT auth.uid())'::text),
-  ('adults',                      'members',            'user_id = (SELECT auth.uid())',        'user_id = (SELECT auth.uid())'),
+  -- `adults` WAS HERE and is deliberately gone, removed 2026-08-19 by 20260819000003.
+  -- 20260602000003 dropped that table two weeks before this file was written, so the row
+  -- described a table no database has ever had: every migration that computes a sweep list
+  -- from this catalogue named it and skipped it with a NOTICE that reads like a finding
+  -- (20260806000011 §6), and a raw probe written against the computed list failed 42P01.
+  -- Removing it here is the half that makes a fresh `db reset` match hosted — this insert
+  -- is ON CONFLICT DO UPDATE, so leaving the row would re-add it on every reset. The DELETE
+  -- in 20260819000003 is the half that reaches hosted. `people` above carries the `members`
+  -- mapping and is untouched.
   ('kids',                        'direct-lineage',     'parent_user_id = (SELECT auth.uid())', 'parent_user_id = (SELECT auth.uid())'),
   ('families',                    'dashboard',          'false',                                 'false'),
   ('person_relationships',        'family-tree',        'person_id = public.auth_person_id()',   'false'),

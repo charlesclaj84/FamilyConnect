@@ -389,6 +389,40 @@ async function main() {
     return 0
   }
 
+  // ── NOTHING IMPLAUSIBLE GOES OUT, and this is a guard rather than a nicety now that
+  // the push runs unattended from CI. `readTemplateMap` throws for a `content_path` that
+  // does not EXIST; a file that exists and is empty or truncated passed straight through,
+  // and `contentDiffers` is true for it — so a bad merge resolution committing
+  // `recovery.html` as 0 bytes would PATCH `mailer_templates_recovery_content: ""`, GoTrue
+  // would fall back to its stock `{{ .ConfirmationURL }}` body, and every password reset
+  // from then on would land the user on `site_url` with the session in a URL fragment: the
+  // exact bug this directory exists to prevent, shipped by a green step.
+  //
+  // Two tests, both cheap and both properties of every one of the five templates:
+  //   * a plausible length. The smallest of them is several kilobytes of table markup;
+  //     anything under 500 bytes is not one of these files.
+  //   * at least one GoTrue variable. Each template interpolates something — a
+  //     `{{ .ConfirmationURL }}` or a `{{ .Token }}` — and a body that interpolates
+  //     nothing cannot do its job whatever else is in it.
+  //
+  // The symmetric guard already exists in the other direction: `pull` refuses to overwrite
+  // a repo file when hosted has no override.
+  const MIN_TEMPLATE_BYTES = 500
+  const implausible = rows.filter(
+    (row) => row.local.length < MIN_TEMPLATE_BYTES || !/\{\{\s*\./.test(row.local),
+  )
+  if (implausible.length) {
+    throw new Error(
+      'Refusing to push: ' +
+        implausible
+          .map((row) => `${row.key} (${relative(REPO, row.path)}, ${row.local.length} bytes` +
+            `${/\{\{\s*\./.test(row.local) ? '' : ', no {{ . }} variable'})`)
+          .join(', ') +
+        `.\n  A template under ${MIN_TEMPLATE_BYTES} bytes or with no GoTrue variable in it is` +
+        ' a truncated or empty file, not a copy edit. Fix the file, do not force this.',
+    )
+  }
+
   const body = assertOnlyMailerFields(
     Object.fromEntries(
       rows.flatMap((row) => [
@@ -410,10 +444,15 @@ async function main() {
   }
 
   const after = await call('PATCH', ref, token, body)
-  const stillOff = report(compare(templates, after), { showDiff: false })
+  // `showDiff` ON, and it was off — which left the one failure mode with no diagnostic at
+  // all: the message said "read the diff above" and `push` never printed one. If the
+  // round-trip is ever not byte-identical this step fails on every merge until somebody
+  // changes the repo, so the diff is the difference between a five-minute fix and a wedged
+  // release.
+  const stillOff = report(compare(templates, after), { showDiff: true })
   console.log(
     stillOff
-      ? `\n  PATCH accepted but ${stillOff} template(s) still differ — read the diff above.\n`
+      ? `\n  PATCH accepted but ${stillOff} template(s) still differ — see the diff above.\n`
       : '\n  Pushed. Hosted now matches the repo.\n' +
           '  Send yourself a real signup before calling it done: this proves the bytes\n' +
           '  arrived, not that the mail renders.\n',

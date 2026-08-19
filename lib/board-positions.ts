@@ -1,0 +1,51 @@
+/**
+ * The vocabulary a board position is described in.
+ *
+ * ── WHY THIS IS A MODULE OF ITS OWN ─────────────────────────────────────────────────
+ * The two arrays below started life in `app/actions/admin/chapters.ts`, beside the actions
+ * that validate against them, and **that does not build**: a `'use server'` file may export
+ * only async functions, and `next build` refuses it with "A 'use server' file can only export
+ * async functions, found object." Types are fine there — they do not exist at runtime — so the
+ * failure is specifically about the two `const` arrays and about nothing else.
+ *
+ * It is a better home anyway, for the reason the file it left already has three of: the
+ * category and the scope are a VOCABULARY, read by the action that validates a create, by the
+ * screen that offers the options, and by the labels that print them. One definition, imported
+ * by all three, is what stops the third from drifting — which is the same argument
+ * `lib/role-utils.ts` makes about formatting a title.
+ *
+ * ── THE LISTS ARE THE DATABASE'S ────────────────────────────────────────────────────
+ * `family_roles_category_check` and `family_roles_scope_check` (20260604000000 and
+ * 20260604000002) hold exactly these values. Adding one here without a migration produces a
+ * screen that offers an option every insert then refuses with a raw 23514, so the two move
+ * together or not at all.
+ */
+
+/** `family_roles.category` — the CHECK constraint's values, in the order the form offers them. */
+export const POSITION_CATEGORIES = ['executive_officer', 'appointed_position'] as const
+
+/** `family_roles.scope` — likewise. `national` is the default and the commonest by far. */
+export const POSITION_SCOPES = ['national', 'regional', 'chapter'] as const
+
+export type PositionCategory = (typeof POSITION_CATEGORIES)[number]
+export type PositionScope = (typeof POSITION_SCOPES)[number]
+
+/**
+ * The longest a position name may be.
+ *
+ * The database has no opinion — `family_roles.name` is `TEXT` and only refuses a blank
+ * (`family_roles_name_not_blank`, 20260819000004). This is the screen's, and it is enforced
+ * server-side as well as on the input, because the client is not in the request path.
+ */
+export const POSITION_NAME_MAX = 80
+
+export const POSITION_CATEGORY_LABELS: Record<PositionCategory, string> = {
+  executive_officer:  'Executive Officer',
+  appointed_position: 'Appointed Position',
+}
+
+export const POSITION_SCOPE_LABELS: Record<PositionScope, string> = {
+  national: 'National',
+  regional: 'Regional',
+  chapter:  'Chapter',
+}

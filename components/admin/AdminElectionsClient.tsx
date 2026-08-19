@@ -207,7 +207,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
               </div>
             ))}
             {roles.length === 0 && (
-              <p className="text-xs text-muted-foreground">No positions defined yet. Add roles under User Roles first.</p>
+              <p className="text-xs text-muted-foreground">No positions defined yet. Add them under Board Positions first.</p>
             )}
             <Button size="sm" variant="outline" onClick={addPosition}>+ Add Position</Button>
           </div>

@@ -48,10 +48,23 @@ just not something the product needs while the family flow does the job better.
 
 ## Keeping the two copies in step
 
-`config.toml` points at these files for **local** development only. Hosted keeps its own
-copy of every template body, so an edit here does nothing to production on its own. That
-is the one genuine drift risk in this directory, and it is now mechanical rather than
-remembered:
+`config.toml` points at these files for **local** development only, and hosted keeps its own
+copy of every template body — which it holds until CI replaces it.
+
+**SINCE 2026-08-19 AN EDIT HERE REACHES PRODUCTION ON THE NEXT MERGE TO `master`, with nobody
+running anything.** `.github/workflows/migrate.yml`'s one job ends with a step that runs
+`npm run email:push -- --yes --project-ref=…` using the Management API token that job already
+holds. Three consequences, and the second is the one that surprises people:
+
+* This directory is now **unconditionally authoritative**. A template edited in the Supabase
+  dashboard is reverted on the next merge that finds drift.
+* One drifted template rewrites **all ten fields** — five bodies and five subjects — not only
+  itself, because the PATCH is built from every row.
+* `npm run email:pull` is the only route back, and it is a laptop command.
+
+So treat a change to any file in this directory as a change to production mail. The commands
+below are what a laptop still uses — asking rather than writing — and the drift risk that used
+to be the point of this section is now mechanical rather than remembered:
 
 ```bash
 export SUPABASE_ACCESS_TOKEN=sbp_…      # a Management API token, see below

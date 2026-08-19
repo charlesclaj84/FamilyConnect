@@ -150,7 +150,7 @@ export default async function DashboardPage() {
   const announcementsLive = isFeatureLive('/announcements')
   const [
     canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
-    canViewDonations, canViewGatherings, canViewCalendar,
+    canViewDonations, canViewGatherings, canViewCalendar, mayViewUpdates,
   ] = await Promise.all([
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
@@ -202,6 +202,14 @@ export default async function DashboardPage() {
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])
       ? can(user.id, TILE_RESOURCE.gatherings[0], 'view')
       : false,
+    // The "View all updates" link at the foot of the Recent Updates card. `/updates` is a
+    // permissioned screen of its own (20260819000005), so the link is resolved rather than
+    // rendered unconditionally — a link to a page that 404s is worse than no link, which is
+    // exactly why the card carried a comment where the link is until that page existed.
+    //
+    // A GRANT AND NOT A FETCH, which is why it sits here and adds nothing below: the card
+    // already has its rows. This decides whether it offers the archive.
+    isFeatureLive('/updates') ? can(user.id, 'updates', 'view') : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
@@ -438,7 +446,10 @@ export default async function DashboardPage() {
               in `mergeUpdates` rather than in the component, because the ordering IS the
               feature — "pinned stays at the top, unpinned falls into natural order" —
               and it should be readable without a browser. */}
-          <RecentUpdates items={mergeUpdates(notifications, announcements)} />
+          <RecentUpdates
+            items={mergeUpdates(notifications, announcements)}
+            mayViewArchive={mayViewUpdates}
+          />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
           <QuickActions actions={quickActions} />

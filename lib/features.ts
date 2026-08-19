@@ -261,6 +261,24 @@ export const FEATURES: readonly Feature[] = [
     tier: 'free',
     blurb: 'Family-wide news, with the important updates pinned to the top.',
   },
+  // `/updates` — the archive behind the dashboard's Recent Updates card, added 2026-08-19.
+  //
+  // `tier: 'free'` is the only defensible value and is not a default: the two things it
+  // archives are `announcements` (free) and `notifications` (which has no tier because it has
+  // no resource at all), and `lib/plans.ts` sells nothing about an archive. Putting a member's
+  // own mail behind Plus would also make the dashboard card's "View all" link a sales screen.
+  //
+  // THE ENTRY IS WHAT PUTS THE KEY IN A CALLER'S VIEWABLE SET. `viewableResources()` walks
+  // FEATURES, so without this line the `updates` grid switch would exist, resolve correctly,
+  // and never produce a rail item for anybody — silently. It is also what `getFeature()`
+  // resolves for the route, and `/updates` has no parent to inherit from.
+  {
+    href: '/updates',
+    label: 'Updates',
+    status: 'live',
+    tier: 'free',
+    blurb: 'Every announcement and everything sent to you, searchable, newest first.',
+  },
   // The family-wide tree, and since 2026-08-13 the ONLY tree: `/members/family-tree` —
   // the per-member lineage view — has been deleted along with `FamilyTreeClient`,
   // `app/actions/ancestors.ts` and `app/actions/spouse.ts`. Both surfaces were always two
@@ -369,8 +387,10 @@ export const FEATURES: readonly Feature[] = [
   // can never be a caller's ONLY reason to reach a page: both pages that draw that band are
   // already gated on `gatherings:view` and `admin/gatherings:view` respectively, so a member
   // holding the budget key and neither of those has no page to be linked to. That is exactly
-  // the case the note on `TAB_RESOURCES` says to leave out, and `admin/users/templates`
-  // remains the only key that earns a place there.
+  // the case the note on `TAB_RESOURCES` says to leave out. (That list gained a second
+  // entry on 2026-08-19 — `admin/chapters`, the Organization pane — which does not change
+  // this reasoning: read the note on it, because the ground it earns its place on is not the
+  // one `admin/users/templates` earns its place on.)
   {
     href: '/gatherings',
     label: 'Gatherings',
@@ -549,9 +569,37 @@ export const FEATURES: readonly Feature[] = [
   // to be: it is the ABSENCE of a region rather than a row, so every family on every plan
   // has it, and a Free family's schedules are all National by construction — see
   // 20260817000008, which states the whole argument.
+  //
+  // THE ROUTE IS NOW A REDIRECT, AND THE ENTRY STAYS (2026-08-19). Regions & Chapters is a
+  // PANE of Members & Access, captioned "Organization"; `/admin/chapters` forwards to
+  // `/admin/users?tab=organization` and renders nothing of its own. Three things depend on
+  // this row surviving that, and it is the `/admin/approvals` argument in every particular:
+  //
+  //   * `viewableResources()` walks FEATURES, so this is what keeps the key
+  //     `admin/chapters` in a caller's viewable set — and the Members row in `Sidebar.tsx`
+  //     lists it in `viewKeys`, so a member holding Organization and nothing else still has
+  //     a link to the page that opens for them.
+  //   * `npm run help:check` asserts every manual chapter's `route` is an exact href in this
+  //     list. The Regions & Chapters chapter carries `route: '/admin/chapters'`.
+  //   * `tier` and `status` are read by ROUTE, and deleting this row does not make them
+  //     unknown — `getFeature()` longest-prefix-matches, so `/admin/chapters` would fall
+  //     through to the `/admin` catch-all above, which is `tier: 'free'` and
+  //     `status: 'future'`. Both halves of that are wrong: the pane would be handed to every
+  //     plan (making the Plus bullet on /pricing false), and `proxy.ts` would intercept the
+  //     redirect itself into Coming Soon — a live pane advertised as not yet built.
+  //
+  // THE LABEL IS THE GRID'S CAPTION, WHICH IS THE RAIL'S CAPTION. 20260819000002 sets
+  // `permission_resources.label` to 'Organization' and moves the row under the Members
+  // sub-heading, so this string moves with it — an administrator matching a switch to the
+  // thing it switches off should not have to translate ("Captions come from the screen",
+  // AGENTS.md). The cost is real and worth stating: three surfaces print this label without
+  // the pane around it — `/upgrade`, `/coming-soon`'s live-feature list, and
+  // `describeFeature()` generally — and "Organization" is thinner there than "Regions &
+  // Chapters" was. The `blurb` below is what carries the specifics on all three, and it is
+  // deliberately unchanged.
   {
     href: '/admin/chapters',
-    label: 'Regions & Chapters',
+    label: 'Organization',
     status: 'live',
     tier: 'plus',
     blurb: 'Organize a large family into regional chapters with scoped leadership.',
@@ -561,28 +609,41 @@ export const FEATURES: readonly Feature[] = [
   // looks the page up by that key, so the path and the key have to stay in step. The
   // `user_roles` TABLE keeps its name; only the route and the resource key moved.
   //
-  // Back on the roadmap. The page and its permission resource both still exist and are
-  // wired correctly — only the status moved — so shipping it again is this one word.
+  // LIVE SINCE 2026-08-19, and the flip cost far more than the one word this comment used
+  // to promise. What it took is worth recording, because the next roadmap route will read
+  // this entry looking for the price:
   //
-  // AND THAT SENTENCE IS NOW KNOWN TO BE OPTIMISTIC, which is the useful thing to record
-  // here. Regions & Chapters was described the same way and it was not: its actions were
-  // written before §3 and §4 and carried two cross-family deletes. The four board-position
-  // actions live in `app/actions/admin/chapters.ts`, were gated on `admin/chapters` until
-  // 2026-08-18 (the wrong key — `permission_table_map` points `family_roles` at
-  // `admin/boardpositions`), and `deleteCustomRole` had no `family_code` conjunct at all.
-  // Those are fixed and covered by tests/rls; what has NOT been done is reading this page
-  // and its client with the same care. Do that before flipping the word.
+  //   * **`family_roles` was a hybrid table with a global `UNIQUE (name)`.** Two families
+  //     could not both call a position "Reunion Treasurer", and one family creating
+  //     'President' took that name off the built-in list for everybody else. 20260819000004
+  //     made the table per-family — `family_code` NOT NULL, `(family_code, name)` unique,
+  //     `is_global` dropped, the 25 built-ins retired, `family_role_exclusions` dropped —
+  //     and a family now starts with no positions and configures its own.
+  //   * **Its SELECT policy had no family conjunct.** `20260604000000` wrote `USING (true)`,
+  //     nothing revisited it, and `20260618000001`'s sweep faithfully preserved the `true` —
+  //     so anybody holding this key in their own family read every family's positions off
+  //     PostgREST. That is the cross-pollination, and it was the base policy rather than the
+  //     sweep that was wrong.
+  //   * **Four exports in `app/actions/admin/users.ts` were unswept and unreviewed.**
+  //     `assignRole` wrote four client-supplied ids onto a row carrying the caller's own
+  //     family_code (§4), `revokeRoleByAssignmentId` deleted by id with no family conjunct at
+  //     all (§3), two reads demanded nothing but a session — and `updateUserProfile` shared
+  //     their helper, so "may curate board positions" meant "may rewrite any member's
+  //     profile". None of the four had a caller.
+  //   * **There was no UI that gave anybody a position**, so the screen curated a catalogue
+  //     nothing consumed. `assignBoardPosition` / `revokeBoardPosition` and the assignment
+  //     dialog are what make the blurb below true.
   //
-  // ITS DATA WAS EMPTY UNTIL 20260817000003. `family_roles`'s global rows — the 25 built-in
-  // board positions — are seeded only by migrations, and `truncate_entire_database.sql` had
-  // emptied them; the page rendered nothing, with no error anywhere. That reseed is what
-  // makes shipping this possible at all.
+  // The lesson is the one AGENTS.md already states and this is the second file to prove it:
+  // COMING SOON WITHHELD THE PAGE AND NEVER THE ACTIONS. Every hole above was reachable for
+  // as long as the word said `'future'`. Reviewing a roadmap feature's actions is owed when
+  // the code is written, not when the flag flips.
   {
     href: '/admin/boardpositions',
     label: 'Board Positions',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
-    blurb: 'Assign officer roles and track who holds each seat.',
+    blurb: 'Keep the offices your family holds, and record who holds each one.',
   },
   {
     href: '/admin/elections',
@@ -734,15 +795,42 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  * `viewableResources()` builds the sidebar's answer by walking FEATURES, so a key with
  * no entry there resolves to nothing and any nav item depending on it disappears. That
  * is fine for a key nobody navigates by — the four `transactions/*` ledgers and the
- * six `admin/account/*` sections are all reached through a page that has its own
+ * seven `admin/account/*` sections are all reached through a page that has its own
  * entry — but not for one that can be a caller's ONLY reason to reach a page.
  *
- * `admin/users/templates` is that case. Members & Access opens for any of its three
- * tab grants (see the page), so someone holding Permission Templates and neither of
- * the other two has a working page and, without this, no link to it.
+ * `admin/users/templates` is that case. Members & Access opens for any of its four
+ * tab grants (see the page), so someone holding Permission Templates and none of the
+ * other three has a working page and, without this, no link to it.
  *
- * `admin/approvals` is NOT here: it has a real FEATURES entry, because its path is a
- * redirect into the same page and the entry is what keeps that link working. Read the
- * note on it above before adding anything to either list.
+ * `admin/chapters` is the same case since 2026-08-19 — Organization is the fourth of
+ * those tabs — AND IT IS REDUNDANT TODAY, which is the honest way to record it rather
+ * than leaving a future reader to discover it. `/admin/chapters` is still a FEATURES
+ * entry (a redirect into the same page, and the note on that entry says why the entry
+ * has to stay), so `viewableResources()` already finds the key by walking FEATURES and
+ * this listing adds nothing but a second insert into a Set. That is exactly the ground
+ * on which `admin/approvals` — also a redirect into this same page — is deliberately
+ * NOT here.
+ *
+ * It is listed anyway, and the reason is what the two entries do NOT share. The
+ * `/admin/approvals` path is quoted in notification links and invitation emails outside
+ * this codebase's control, so nobody will ever be tempted to delete that entry.
+ * `/admin/chapters` renders nothing at all now, which makes deleting it look like
+ * tidying up — and the day somebody does, this line is what stops the Organization pane
+ * from silently disappearing from the rail for the one caller whose only grant it is.
+ * A key that gates a tab belongs in the list of keys that gate tabs.
+ *
+ * `announcements/birthdays` is the THIRD, added 2026-08-19, and it is the pure form of the
+ * case — the one entry here whose key has no route of any kind, so nothing else could ever
+ * find it. `/announcements` opens for EITHER `announcements` or `announcements/birthdays`
+ * (the page decomposes `requireView` and says why), and `viewableResources()` resolves the
+ * nav item for that href against the `announcements` key alone. So a family that grants the
+ * Birthdays pane while restricting the board leaves that member a page that works and no
+ * link to it — reachable by typing the URL, which is not a product. Unlike `admin/chapters`
+ * above, this line is not redundant: delete it and the sidebar item disappears for that
+ * caller today, not on some future tidy-up.
+ *
+ * Read all three notes before adding anything to either list.
  */
-export const TAB_RESOURCES: readonly string[] = ['admin/users/templates']
+export const TAB_RESOURCES: readonly string[] = [
+  'admin/users/templates', 'admin/chapters', 'announcements/birthdays',
+]

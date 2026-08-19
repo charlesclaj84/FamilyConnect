@@ -82,19 +82,38 @@ reads and writes nothing but the ten mailer fields; the moment it can write `sit
 inherits every hazard `config push` has. A separate read-only auditor over the whole
 `[auth]` block is the right shape and is not built.
 
-### [ ] Push the two changed auth email templates to hosted
+### [ ] Look at the reauthentication and email-change mails on a phone
 
-**Action:** `SUPABASE_ACCESS_TOKEN=sbp_… npm run email:push`. Same blocker as above — no
-token in this checkout.
+**Action:** trigger one of each and read it. There is nothing to run and nothing to push.
 
-`reauthentication.html` and `email-change.html` both carried a stale `DORMANT` comment
-claiming nothing called them. Comments in a template are part of the shipped payload, so
-`npm run email:check` reports drift against hosted until somebody pushes. The substance
-moved to [supabase/templates/README.md](supabase/templates/README.md), where that
-directory's own rule says it belongs.
+**The push itself is done and is now a mechanism rather than an errand.** `migrate.yml`'s one
+job ends with a step named "Auth email templates match the repo", which runs
+`npm run email:push -- --yes --project-ref="$PROJECT_REF"` with the `SUPABASE_ACCESS_TOKEN`
+that job already holds, so the five templates reach hosted on every merge to `master` and
+drift cannot accumulate again. **Both halves after the `--` are load-bearing** — npm eats a
+bare `--yes` as its own flag, and without the script's copy of it the push refuses a
+non-interactive shell and exits 2; `--project-ref` is what keeps the step independent of
+`supabase link` having run first. It is a
+no-op when nothing has changed: the script GETs the hosted config first and PATCHes only on
+drift. See AGENTS.md, "Sending email is a plain module".
 
-Pushing proves the bytes arrived, not that the mail renders — send yourself a real signup
-before calling it done.
+**What that leaves is the half a push cannot prove.** `reauthentication.html` and
+`email-change.html` were the two carrying real drift, and it was not the stale `DORMANT`
+comment TODO used to describe:
+
+| | repo | hosted, until the first merge after 2026-08-19 |
+|---|---|---|
+| `.gn-otp` size | 28px / 0.14em, sized for the 8-character code | **38px / 0.26em, sized for six** |
+| `@media` override | removed | a second, disagreeing number |
+
+`auth.email.otp_length` is 8, and supabase/templates/README.md measures the old block at 271px
+into a 182px budget — it overflows a 320px phone once Gmail strips the `<style>` block, which is
+what Gmail does for a non-Gmail account. So the thing to check is a real reauthentication mail on
+a narrow screen, not the bytes.
+
+Reauthentication is the awkward one to trigger deliberately: it needs a session older than
+GoTrue's 24-hour window, or `secure_password_change` on hosted (the item above). Email change is
+a Sign-in & Security away.
 
 ### [ ] Confirm `rate_limit_email_sent` on hosted
 
@@ -298,51 +317,6 @@ birthday answers "how old are they" on the day it is asked — which a stored bo
 could. `/direct-lineage`, `app/actions/children.ts` and `lib/family-constants.ts` were
 deleted with it; `editPersonRecord` and `invitePersonRecord` on the tree replaced the
 parent-edits-child and convert-to-adult halves.
-
-## Recent Updates has no archive — there is nowhere to see or search past updates
-
-**Action:** decide whether Recent Updates earns a page of its own, and if so what it
-holds. This is a product call first; the query behind it is easy.
-
-2026-08-13 folded announcements into the dashboard's Recent Updates card
-([components/dashboard/updates.ts](components/dashboard/updates.ts)) and removed the
-pinned-announcements banner above it. That is better in every way it was meant to be —
-one feed instead of two surfaces, and a dismissal that is per PERSON rather than per
-browser — but it has left the card holding two kinds of thing and showing only the
-newest handful of each. What a member cannot do today:
-
-* **Scroll back.** The card shows every pin plus `RECENT_UPDATES_LIMIT` (6) other rows,
-  and nothing renders row seven. `getNotifications()` caps at 30 and the bell shows the
-  same rows; `getAnnouncementFeed()` caps at 20. Older than that is not merely unseen,
-  it is unfetched.
-* **Search.** No surface searches either table. "What did they say about the hotel
-  block?" has no answer but scrolling `/announcements`, which itself stops at 50.
-* **See the two together anywhere but the dashboard.** `/announcements` is the board and
-  the bell is the inbox; the merged view exists only in a card five rows tall.
-
-The card deliberately carries **no "View all updates" link** for exactly this reason —
-there is nothing at the other end of one, and the comment in
-[RecentUpdates.tsx](components/dashboard/RecentUpdates.tsx) says so. When this ships,
-that link is the first thing to add.
-
-Three things to settle before building it:
-
-1. **Is it a route or a bigger card?** A route (`/updates`) needs a `permission_resources`
-   row, a `resource_visibility` backfill and a rail item under Community — AGENTS.md §6
-   and the "one rail item, one permission resource" rule. Note the awkwardness it would
-   inherit: the feed mixes rows governed by `announcements` with rows governed by
-   nothing at all (notifications lost their resource in `20260805000007`), so a single
-   view grant over the page would not describe what is in it.
-2. **Whose notifications, and does read-state move?** The card deliberately does not mark
-   anything read — the bell owns `read_at`, and two surfaces competing over it would make
-   the badge disagree with itself. An archive that opens rows has to answer the same
-   question, and probably the same way.
-3. **What does search actually search?** Title and body across both tables is the obvious
-   answer and needs an index on neither today. Doing it in Postgres rather than in the
-   browser is what makes it work for a family with three years of news, which is the case
-   this is for.
-
-Recorded 2026-08-13, while moving announcements into the card.
 
 ## The Dashboard design kit is world-readable, and seven of its images have no provenance
 
@@ -568,52 +542,56 @@ that make this safe and are worth knowing before doing it:
 Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
 narrowed from three to two the same day, when the cross-tab sign-out was validated.
 
-## `/admin/boardpositions` is the last route still on the roadmap, and it is now unblocked
+## `setTemplatePermission` takes a scope from the client and validates it against nothing
 
-**Action:** decide whether to flip `status: 'future'` → `'live'` in `lib/features.ts`. The page,
-the actions and the permission resource all exist. **Read the whole of this entry first** — the
-flip is one word and the review it owes is not.
+**Action:** validate the `(resourceKey, action, scope)` triple against
+`permission_resources.actions` and the no-owner rule, server-side. It is every key's problem,
+which is why it is here rather than in the commit that found it.
 
-Two things that were in the way are now gone. `family_roles` was EMPTY on hosted, which is what
-that page reads, and `20260817000003` restored its 25 global rows. And regions and chapters — the
-scoped-leadership half the board positions hang off — went live on 2026-08-18.
+`setTemplatePermission` (`app/actions/admin/permissions.ts`) upserts whatever `scope` the client
+sent. Members & Access decides which switches to DRAW through `scopesFor()` in
+`components/admin/resource-groups.ts` — that is where `NO_OWNER_KEYS` lives, and where
+`transactions/*` has its `'own'` dropped — but nothing on the server reads either. So a caller
+holding `admin/users/templates:edit` can POST a scope the grid refuses to offer, on any key.
 
-**What it owes before the flip, and this is the whole point of the entry.** Relighting
-`/admin/chapters` on 2026-08-18 turned up eight live security holes in
-`app/actions/admin/chapters.ts`: service-role deletes with no `family_code` conjunct, reads with
-no permission check, an unchecked client-supplied `region_id`, a cross-family `MAX(sort_order)`.
-Every one had been reachable the whole time the route said Coming Soon, because **Coming Soon
-withholds a page and never an action** — now a section of AGENTS.md.
+**What it costs is a screen nobody can diagnose**, and `/admin/boardpositions` is the worked
+example. Store `view = 'own'` for that key and every member on the template passes
+`requireView` (which is `can()`), while every read behind the page is `requireScope`
+(`canAny`) and answers `[]` — a permanently empty screen whose switch the grid no longer
+renders. That page now guards itself with an extra `canAny` line for exactly this reason;
+seven other keys on `NO_OWNER_KEYS` do not, and neither does the `transactions/*` prefix.
 
-`app/actions/admin/chapters.ts` is the same module the four board-position actions live in, so
-those four were swept in that pass and are already scoped and re-keyed. What has *not* been
-reviewed is the page and its client component — `AdminUserRolesClient` — against §1, §5 and the
-table rules. Do that, then flip.
+**The fix is a small refactor rather than a line**, which is the other reason it is here:
+`scopesFor` and `NO_OWNER_KEYS` live in a `components/` module that imports a TYPE from the
+action that would have to import them back, so the rule wants moving into `lib/` first — the
+shape `lib/board-positions.ts` took on 2026-08-19 for the same reason. Then one check in the
+action, and one `tests/rls` case per refused scope.
 
-## `family_roles.name` is UNIQUE globally, so one family can take a name from everybody
+Found 2026-08-19 by review, while flipping `/admin/boardpositions` live.
 
-**Action:** replace `family_roles_name_key` with `UNIQUE (name, family_code)` plus a partial
-unique index for the global rows (`UNIQUE (name) WHERE family_code IS NULL`), in a migration.
-Do it before `/admin/boardpositions` goes live, because that page is what lets a family create
-the colliding row in the first place.
+## `updateUserProfile` is an endpoint with no caller
 
-`family_roles` is a hybrid table: 25 global board positions with `family_code IS NULL,
-is_global = true`, and per-family custom roles alongside them. The constraint is `UNIQUE (name)`
-**alone**, which is wrong for that shape in two directions at once. Two families cannot both
-call a role "Reunion Treasurer", and — the sharper one — a single family creating a role named
-`'President'` takes that name from the global list, so no OTHER family is ever offered it.
+**Action:** decide whether Members & Access is ever going to edit a member's profile from the
+grid. If not, delete the export and sweep the four comments that cite it.
 
-Nothing is broken today: hosted's `family_roles` was empty until `20260817000003` seeded it, and
-`/admin/boardpositions` is still `'future'`, so there is no UI that can create a family-scoped
-row. That is why this is an entry and not an incident.
+It is a `'use server'` export in `app/actions/admin/users.ts` that writes any `people` row in
+the family through the service role, and nothing in `app/` or `components/` imports it — the
+`getMyGatheringTaskCount` shape below, with a `people` write on it. Two things about it were
+fixed on 2026-08-19 rather than left:
 
-**It has already cost one thing**, which is how it was found. `20260817000003`'s seeder tolerates
-the collision (`ON CONFLICT (name) DO NOTHING`, deliberately) while its own §4a assertion demanded
-all 25 rows be global — a self-contradiction that aborts the migration on any database where a
-family has renamed a role. Fixed 2026-08-18 by testing that each name is *accounted for* and
-`RAISE WARNING`-ing the collisions; the warning names this entry as the real repair.
+* its gate was `admin/boardpositions:edit`, through a helper shared with the role actions, so
+  "may curate board positions" meant "may rewrite any member's profile". It is
+  `admin/users:edit` at `canAny` now.
+* it could write `primary_email`, which `pickProfileColumns` allows. On a relative with no
+  account that leaves `email_is_placeholder` and `no_email_reason` describing an address that
+  is no longer generated — so anything checking before mailing refuses a working mailbox
+  (AGENTS.md §4b). It now drops that column, as `editPersonRecord` already did.
 
-Recorded 2026-08-18.
+Deleting it was the other option and was not taken, because three files' comments cite it as
+one of the three writers `lib/profile-columns.ts` exists for, `npm run audit:people` carries
+its verdict, and `tests/rls` has a case for it. All four would move with it.
+
+Recorded 2026-08-19.
 
 ## `getMyGatheringTaskCount` is a live endpoint with no product caller
 
@@ -683,21 +661,6 @@ the lower half of one composition — and the gold hairline, which is the one un
 could finally be honoured, only registers against that curve in that viewBox.
 
 Recorded 2026-08-19.
-
-## `permission_table_map` names a table that does not exist
-
-**Action:** drop the `adults` row in a migration, or say in the sweep's header that the skip
-is expected. One line either way; it is here because it is easy to mistake for a bug.
-
-`permission_table_map` carries a row for `adults`, with an `auth.uid()`-based `self_expr` —
-so every migration that computes a sweep list from that table names it, and
-`to_regclass('public.adults')` is NULL because `20260602000003` dropped the table.
-`20260806000011` §6 handles it correctly, skipping with a `RAISE NOTICE`. Nothing is broken.
-
-What it costs is a reader's time, twice over: a `NOTICE` in a migration log that looks like a
-finding, and a raw probe written against the computed list that fails with 42P01 rather than
-telling you anything. Found 2026-08-17 while writing `SWEEP_CASES`, which deliberately omits
-it and says so.
 
 ## 30 eslint warnings, and whether the gate should fail on them
 

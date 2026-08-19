@@ -42,7 +42,13 @@ import type { UpdateItem } from '@/components/dashboard/updates'
  * NOT A `<table>`, on purpose. AGENTS.md's table rules apply to tabular data with
  * columns worth naming; these rows are one thing each.
  */
-export function RecentUpdates({ items }: { items: UpdateItem[] }) {
+export function RecentUpdates({
+  items, mayViewArchive = false,
+}: {
+  items: UpdateItem[]
+  /** Whether to offer the archive. Resolved on the dashboard; see the link below. */
+  mayViewArchive?: boolean
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -104,12 +110,26 @@ export function RecentUpdates({ items }: { items: UpdateItem[] }) {
         </ul>
       )}
 
-      {/* NO "View all updates" LINK, and its absence is still a decision rather than an
-          omission — there is no page at the other end of one. The bell holds the full
-          notification list and `/announcements` holds the full board, but nothing renders
-          the two together, which is what this card now is. Building that archive is a
-          TODO item rather than a link pointing at something that does not do what its
-          caption says. */}
+      {/* THE "View all updates" LINK, and it took a page to earn. This card carried a
+          comment where the link is for six days, saying there was nothing at the other end
+          of one: the bell held the full notification list and `/announcements` held the full
+          board, and nothing rendered the two together, which is what this card is.
+          `/updates` (20260819000005) is that archive — the same merged feed, paged and
+          searchable — so the caption now describes something that does what it says.
+
+          IT IS GATED, because the archive is a permissioned screen and a link to a page
+          that 404s is worse than no link. `mayViewArchive` is resolved on the dashboard
+          beside every other grant it resolves; absent, the card renders exactly as before.
+          The row LINKS are untouched: an announcement still goes to the board, which is
+          where its full text and its controls are. */}
+      {/* NOT GATED ON `items.length`, and it was for an afternoon. An empty card is exactly
+          when somebody wants to look back at what was said about the hotel block, so hiding
+          the archive there hid it in the one state it is most useful in. */}
+      {mayViewArchive && (
+        <p className="mt-4 text-sm">
+          <Link href="/updates" className="hover:underline">View all updates</Link>
+        </p>
+      )}
     </section>
   )
 }

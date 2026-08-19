@@ -33,6 +33,14 @@
  * Two things are deliberately NOT restated here, because they are derived and would drift:
  * which plan a feature belongs to (`lib/features.ts`) and what each plan includes
  * (`lib/plans.ts`). The chapter on plans links to the panel that reads them.
+ *
+ * ── THE ONE NUMBER THIS FILE HAS TO COPY ────────────────────────────────────────────
+ * The birthday horizon. `BIRTHDAY_HORIZON_DAYS` in `lib/birthdays.ts` is the single
+ * definition and the pane interpolates it, but this module has NO IMPORTS by design — that
+ * is what lets `help-check.mjs` and three surfaces load it without a build step — so
+ * `announcements#birthdays` says "60 days" as a literal. It is the only figure in the manual
+ * that could silently disagree with the product. If that constant moves, grep this file for
+ * it; nothing mechanical will catch it.
  */
 
 // ── The shape of a chapter ────────────────────────────────────────────────────────────
@@ -109,7 +117,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-rail',
             heading: 'The rail down the left',
             blocks: [
-              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Events**, **Accounting**, **Resources**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
+              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Events**, **Accounting**, **Reporting**, **Resources**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
               p('The rail only lists screens you can actually open. If a heading you expected is missing, it is because every screen under it is either not part of your family plan or not something your family has given you. That is not a fault — see [Who can do what](/help/who-can-do-what).'),
               p('On a phone the rail is behind the **Menu** button at the top left. It closes itself as soon as you pick something.'),
             ],
@@ -254,7 +262,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Your chapter',
             blocks: [
               p('The block headed with your family\'s name holds one field that belongs to that family alone: which **Chapter** you are in. It appears only once the family has created some; if it has not, the block says so.'),
-              p('It decides two things. Your household moves with you — anybody recorded under you with no account of their own follows — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
+              p('It decides two things. Your household moves with you — anybody recorded under you with no account of their own follows — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [regions and chapters](/help/regions-and-chapters#dues).'),
             ],
           },
           {
@@ -366,6 +374,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Your notifications and the family\'s announcements in one list. Pinned announcements ride at the top until you dismiss them; a dismissed one falls back into the list in date order rather than disappearing, so you can always find it again.'),
               p('Dismissing is per person, not per browser — do it on your laptop and your phone agrees.'),
+              p('**View all updates** at the foot of the card opens [Updates](/updates): the same feed without the five-row limit, and with a search box. The card is the reminder; that page is the record.'),
             ],
           },
           {
@@ -461,14 +470,16 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'announcements',
         title: 'Announcements',
-        summary: 'Family news, who sees it, and what pinning actually does.',
+        summary: 'Family news, who sees it, what pinning actually does, and whose birthday is coming up.',
         route: '/announcements',
         sections: [
           {
             id: 'reading',
             heading: 'The board',
             blocks: [
-              p('A stack of posts, newest first, each showing who wrote it and when. Pinned posts are marked and also ride at the top of everybody\'s Recent Updates on the dashboard.'),
+              p('[Announcements](/announcements) is two panes. **General** is the board and is what the screen opens on; **Birthdays** is who to write to next, and it is the last section of this chapter.'),
+              p('The board is a stack of posts, newest first, each showing who wrote it and when. Pinned posts are marked and also ride at the top of everybody\'s Recent Updates on the dashboard.'),
+              p('The two panes are granted separately, so a family can hand out the birthday list without handing out the board, or the other way round. A pane that is not there is one you have not been given — see [Who can do what](/help/who-can-do-what#missing).'),
             ],
           },
           {
@@ -506,6 +517,78 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('Deleting removes the post for everybody. Depending on what your family has granted, you may be able to delete only your own posts, anybody\'s, or none.'),
             ],
           },
+          {
+            id: 'birthdays',
+            heading: 'Birthdays',
+            blocks: [
+              p('The **Birthdays** pane is every relative with a birthday in the next 60 days, soonest first. It is a list to act on rather than a record: **nothing is sent automatically**, and writing the greeting is still somebody\'s job — which is why it sits one click from the composer.'),
+              defs(
+                { term: 'Name', text: 'Who it is. **Search by name** narrows the list, ignoring accents and punctuation the way the Directory does — typing "jose" finds José.' },
+                { term: 'Date', text: 'The day it falls on this time round.' },
+                { term: 'Day', text: 'The day of the week. It is there because a card gets posted and a call gets made against a weekend rather than against the 14th.' },
+                { term: 'Countdown', text: '**Today**, **Tomorrow**, or how many days away. Today is marked, because it is the one row the list exists to catch and as plain text it reads like any other.' },
+                { term: 'Turning', text: 'The age they reach on it.' },
+              ),
+              p('Everybody the family has approved is on it whether or not they have an account, so a great-uncle recorded on the [family tree](/family-tree) has a birthday like anybody else. Somebody recorded as having died is not on it, and neither is anybody whose profile has no date of birth — a birthday nobody has told the product about is not one it will guess at. The line under the table says how many rows there are, and how many of them a search is hiding.'),
+              note('An age is left out — an em-dash, and a line under the table saying so — where the year on file is one the product will not trust, which today means a year that has not happened yet: 1962 typed as 2062. The day and the month still show, because a four-digit slip is a slip in the year. Correct **Date of Birth** on that person\'s [profile](/personal-info) and the age appears.'),
+              p('Somebody born on 29 February is listed on 28 February in a year with no leap day, so they never drop off the list for three years at a stretch. The age still counts in whole years, so it does not skip one.'),
+              p('Nothing on this pane can be edited and nothing about it is stored. Every date is read from **Date of Birth** on the person\'s own profile each time the pane is opened, so that is the one place to correct one.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'updates',
+        title: 'Updates',
+        summary: 'The archive of everything the family has announced and everything sent to you, and how the search works.',
+        route: '/updates',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'One list, two kinds of thing',
+            blocks: [
+              p('[Updates](/updates) is the long version of the **Recent Updates** card on your [Dashboard](/dashboard). That card shows the newest few; this shows all of them, newest first, and lets you search.'),
+              p('Two kinds of row appear:'),
+              defs(
+                { term: 'Announcement', text: 'Family news somebody posted on the board. Opening it goes to [Announcements](/announcements), which carries the full text.' },
+                { term: 'Sent to you', text: 'Something addressed to you personally — a task, an approval, a message waiting. These are the same rows as the bell in the top bar.' },
+              ),
+              p('Nothing here is anybody else\'s mail. The "sent to you" rows are yours alone, and they are the same list the bell shows.'),
+              note('Opening a row does not mark it read. The bell owns that, so the number on it and this page can never disagree.'),
+            ],
+          },
+          {
+            id: 'searching',
+            heading: 'Searching',
+            blocks: [
+              p('The one box searches the title and the body of both kinds of row, and it searches in the database rather than on the page — so it reaches everything, however far back.'),
+              bullets(
+                'Words can be in any order. Searching **hotel block** finds "the block at the hotel".',
+                'Endings are handled: **rooms** finds "room", **booking** finds "booked", and **payment** finds "payments".',
+                'Irregular words are not — **paying** does not find "paid". Search for the word as it would have been written.',
+                'Put a **-** in front of a word to leave rows containing it out — **reunion -cancelled**.',
+                'Part of a word does not match: **reunio** finds nothing. Type the whole word.',
+              ),
+              p('Accents are matched exactly here, unlike the name searches elsewhere in the product — searching "jose" will not find "José" on this page.'),
+              note('A search is a link. The address bar carries what you searched for, so you can send it to somebody or use the back button to step through several.'),
+            ],
+          },
+          {
+            id: 'older',
+            heading: 'Going further back',
+            blocks: [
+              p('**Show 25 older** adds another page to the bottom of the list, and keeps going until there is nothing older. Scrolling back does eventually stop, and the page says so when it does — at that point the search is what reaches the rest, because it looks at every row rather than only the ones on screen.'),
+              p('The count under the list always says how many rows you are looking at, so a short list is never a list that quietly stopped.'),
+            ],
+          },
+          {
+            id: 'missing',
+            heading: 'If announcements are not in your list',
+            blocks: [
+              p('The page will say so, above the list. Announcements are the family\'s board and are granted separately from your own messages, so a member who has not been given the board sees only what has been sent to them — see [Who can do what](/help/who-can-do-what#missing).'),
+              p('This page can be switched off entirely too, in which case it is not in your menu at all. Your own messages are still in the bell, and the board is still at [Announcements](/announcements); this page is the two together.'),
+            ],
+          },
         ],
       },
       {
@@ -525,8 +608,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'columns',
             heading: 'What the list shows',
             blocks: [
-              p('Name, phone, email, city and state, and the **Group** the person is on — which is the permission template deciding what they can do. On a narrow screen the extra columns fold underneath the name rather than sliding off the side, so nothing is ever parked out of view.'),
-              p('People recorded on the family tree without an email address appear here too. A recorded great-uncle is a member of the family; he simply has no account.'),
+              p('Four columns: **Name**, **Region**, **Chapter**, and the **Group** the person is on — which is the permission template deciding what they can do. A member in no chapter reads **National**, which is not a region anybody created but what everyone is under until they pick one; see [regions and chapters](/help/regions-and-chapters#what-it-is).'),
+              p('Everything else about a person is behind their name. **Pressing a name opens their record** — phone, email, city and state, their chapter and region, their preferred name, their group, and whether they have an account yet. The name is a real button, so tabbing to it and pressing Enter opens the same panel a click does.'),
+              p('Phone, email and city each had a column of their own until 2026-08-19 and are in that panel now. Nothing was dropped and nothing new is shown: the same facts, one press away instead of five columns wide, which is what makes the list readable on a phone.'),
+              p('On a narrow screen Region, Chapter and Group fold underneath the name rather than sliding off the side, so nothing is ever parked out of view.'),
+              p('People recorded on the family tree without an email address appear here too. A recorded great-uncle is a member of the family; he simply has no account, and his record says so.'),
             ],
           },
           {
@@ -771,6 +857,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('[Gatherings](/gatherings) is the family organising the work of getting together. A gathering is a named occasion — a reunion, a memorial, a banquet — broken into the jobs it takes, with a relative\'s name against each one and an answer somebody accepts. Its question is who is doing what, and whether it has been done and accepted.'),
               p('[Upcoming Events](/events) is the other half of the same weekend and is not the same screen. An event answers when it is, where it is and who is coming: dates, RSVPs, hotel blocks, a list at the door. Both are in the product, both keep their own screens, and neither reads the other — see [Events and RSVPs](/help/events#browsing). Use an event when you need a head count; use a gathering when you need the preparation handed out.'),
               p('A gathering is always built from at least one template — a named, ordered list of steps somebody authored once. Every step of every template it is built from becomes a task on the gathering, so nothing is forgotten between one year and the next. The library is [Gathering Templates](/admin/gathering-templates).'),
+              p('Each of those templates is a **segment**: a part of the occasion with its own day and its own place. That is what lets one gathering be a three-day reunion — the Welcome on Friday evening at one address, the Picnic on Saturday at another, the Send Off on Sunday morning — rather than one block of dates with everything filed under it. A gathering that happens all at once in one place simply states neither, and reads as it always has.'),
             ],
           },
           {
@@ -795,7 +882,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Schedule a gathering** appears when you may start one and there is at least one template you may start it from. The form asks for the templates before the title, because a gathering cannot exist without them:'),
               steps(
                 'Press **Schedule a gathering**.',
-                'Tick one or more templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out.',
+                'Tick one or more templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out, and each template you tick becomes a segment of the gathering.',
                 'Fill in **Title** and **First day**, and **Last day** only if it runs more than one day.',
                 '**Where** and **What it is** are optional.',
                 'Press **Schedule gathering**. You land on the gathering itself, where the tasks it just made are waiting.',
@@ -807,7 +894,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-page',
             heading: 'A gathering\'s own page',
             blocks: [
-              p('The title, the dates, the place, and then **Tasks** — every job on the gathering, grouped under the template it came from, in the order they will be handed out. A task whose template has since been unlinked is grouped under **Not from a template** rather than dropped, because it is still something a relative was asked to do.'),
+              p('The title, the dates, the place, and then **Tasks** — every job on the gathering, grouped by the segment it belongs to, in the order they will be handed out. Each group is headed by that segment\'s name, and under it the segment\'s own day and place where the organiser has stated them; a segment that states neither is headed by its name alone. A task whose template has since been unlinked is grouped under **Not from a template** rather than dropped, because it is still something a relative was asked to do.'),
               p('Each row gives the task its person, its status, its due date, its budget line and the accepted answer. Once there are more than a handful, **Find a task** narrows by job or by name and **Showing** narrows to one status.'),
               defs(
                 { term: 'Not started', text: 'Nobody has sent anything in yet.' },
@@ -981,7 +1068,28 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Choose a **Fund** and a **Budget ($)** if it is spending money, and tick **Show this across the top of the Dashboard** if it is the one the family should see first.',
                 'Press **Create gathering**, then **Open the gathering** to start handing out its tasks.',
               ),
-              p('There is no blank gathering: it is built from at least one template or it is not built at all. Later, from the gathering\'s own **Built from** panel, **Add another template** appends that template\'s steps as new tasks and changes nothing about the tasks already there.'),
+              p('There is no blank gathering: it is built from at least one template or it is not built at all. Each template you tick becomes a segment of it, which is the next section.'),
+            ],
+          },
+          {
+            id: 'segments',
+            heading: 'Segments, and their days and places',
+            blocks: [
+              p('A gathering is rarely one occasion. A reunion is the Welcome, the Picnic and the Send Off, on their own days in their own places, and each template the gathering was built from is one of those parts. The **Segments** panel on a gathering\'s own page is where they are listed, and where each one\'s day and place are set.'),
+              defs(
+                { term: 'Segment', text: 'The template this part came from, with how many tasks came with it.' },
+                { term: 'Day', text: 'The date this part happens on. Optional — leave it empty for a gathering that happens all at once.' },
+                { term: 'Place', text: 'Where this part is held. Optional, and it starts at whatever the template usually uses.' },
+                { term: 'Tasks', text: 'How many of the gathering\'s tasks came from that template.' },
+              ),
+              p('Type into either box and a **Save** button appears on that row, so nothing is written per keystroke and one row saving does not lock the others. Both are what the relatives being asked to help actually read: a segment\'s day and place are printed under its heading on the gathering\'s own page.'),
+              steps(
+                'Choose a template under **Add another segment**.',
+                'Set **Day** and **Place**, or leave either empty. The place fills itself in from that template\'s usual location the moment you pick it.',
+                'Press **Add its steps**. Every step of that template becomes a task on this gathering, and nothing about the tasks already there changes.',
+              ),
+              p('A day outside the gathering\'s own dates is **saved and remarked on rather than refused**, and the remark is a quiet line on the row rather than a red one: nothing failed, there is simply a date to reconcile. That is deliberate — dates move, and an organiser shifting the weekend should not be stopped by a segment they were not looking at. The line appears when the segment is saved, so a gathering whose dates moved afterwards is worth a look down this panel.'),
+              note('A segment\'s place is a COPY, taken when the template was linked, and never a reference back to it. Changing a template\'s **Usual location** afterwards moves nothing that already exists — the same rule the tasks follow, and for the same reason: nobody should find that an occasion they had already been told about has quietly moved.'),
             ],
           },
           {
@@ -1037,7 +1145,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('**Status** is set by hand — **Planning**, **Scheduled**, **Complete** or **Cancelled** — because none of the four is something the calendar knows: a gathering can be called off without its dates moving, and finished is somebody\'s statement rather than a date passing. **Save changes** commits it along with the title, the dates and the place.'),
               p('**Delete gathering** is refused once any of its answers has been approved. The refusal names how many and offers Cancelled instead, which deletes nothing and can be set back.'),
-              p('Removing a template from a gathering is refused the same way once any task from it has been assigned or answered. The tasks that came from a template are what relatives were actually asked to do and they outlive the link, so unlinking a template only ever clears the tasks nobody has touched.'),
+              p('Removing a segment — the bin on its row, confirmed as **Remove template** — is refused the same way once any task from it has been assigned or answered. The tasks that came from a template are what relatives were actually asked to do and they outlive the link, so unlinking one only ever clears the tasks nobody has touched.'),
             ],
           },
         ],
@@ -1053,7 +1161,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'What a template is',
             blocks: [
               p('[Gathering Templates](/admin/gathering-templates) is the library a gathering is built from. A template is a name and an ordered list of steps — one per thing somebody has to do or decide — and scheduling a gathering from it under [Gathering Management](/admin/gatherings) turns every step into a task waiting to be handed to a relative.'),
-              p('Editing a template never changes a gathering already built from it. Every task keeps its own copy of what it asked, so a step renamed here reaches next year\'s reunion and not the one currently running, and nobody\'s answer is ever rewritten out from under them. That is what makes the library safe to keep tidying, and the card says so.'),
+              p('Editing a template never changes a gathering already built from it. Every task keeps its own copy of what it asked and every segment keeps its own copy of where it is held, so a step renamed here — or a location corrected — reaches next year\'s reunion and not the one currently running, and nobody\'s answer is ever rewritten out from under them. That is what makes the library safe to keep tidying, and the card says so.'),
               p('It is the Gatherings counterpart of [Event Templates](/help/running-events#templates), which does the same job on the Events side: a template there hands a planning checklist out against an event, and one here hands out tasks that come back to be accepted. The two libraries are separate and neither reads the other.'),
             ],
           },
@@ -1063,11 +1171,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               steps(
                 'Type a name under **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
+                'Put the usual place under **Usual location** if there is one — "Zilker Park, Austin". It is optional, and it can be filled in or changed on the card afterwards.',
                 'Choose **Who can schedule from this**.',
                 'Press **Add template**.',
                 'On the card that appears, add a **Description** and press **Save changes**, then give it a step for each thing somebody has to do.',
               ),
               p('A name has to be unique within the family, so a second "Family Reunion" is refused rather than added quietly beside the first. The description is what an organiser reads before scheduling from it, and it is shown beside the template when they pick one.'),
+              p('**Usual location** is a default and nothing more. It is copied onto a segment when this template is added to a gathering, and never read back through afterwards — so changing it here moves no gathering that already exists, and a year the picnic is held somewhere else is recorded on that segment rather than by editing the library. See [Gathering Management](/help/gathering-management#segments).'),
             ],
           },
           {
@@ -1268,6 +1378,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'The list',
             blocks: [
               p('[Payment History](/payment-history) is every payment the family has recorded against you — dues and donations in one list, each row tagged with which it was. Any column heading sorts, and the **Filter** box narrows by schedule, method or status.'),
+              p('It is under **Reporting** in the rail, beside [Transactions](/transactions). The two are the money read back — this one is yours, that one is the family\'s — while [Accounting](/admin/account) is where it is set up in the first place.'),
               p('Clicking a row opens the full entry: the cheque number or reference, any notes, and the date it was keyed in — which is not the same as the date it was paid, and is usually what explains why something only just appeared.'),
             ],
           },
@@ -1291,6 +1402,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'ledgers',
             heading: 'The five ledgers',
             blocks: [
+              p('[Transactions](/transactions) is under **Reporting** in the rail, beside [Payment History](/payment-history) — the family\'s whole record rather than your own. It is one rail of five tabs, one per kind of entry.'),
               defs(
                 { term: 'Dues', text: 'Dues paid by members.' },
                 { term: 'Donations', text: 'Gifts to a drive.' },
@@ -1403,7 +1515,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Setup, not the day\'s work',
             blocks: [
-              p('[Accounting](/admin/account) is where the money is *configured*. Recording an actual payment happens on [Transactions](/transactions). Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
+              p('[Accounting](/admin/account) is where the money is *configured*. Recording an actual payment happens on [Transactions](/transactions), under **Reporting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
+              p('The rail across the top of the page holds **Dues & Donations**, **Funds**, **Routing**, **Milestones**, **Processing** and **Bank Information**. Dues and donations share one pane: where you can see both, the two lists sit one under the other, headed **Dues** and **Donations**, with a **New Dues** and a **New Donation** button beside the rail.'),
+              p('**They are still two separate permissions, and sharing a pane changed nothing about that.** A family that lets somebody keep the dues schedule but not run the donation drives grants one and not the other, and that person sees one list, one button, and a rail item named for the half they hold. It is one screen because the two are read together, not because they are one job — see [Who can do what](/help/who-can-do-what#one-template).'),
             ],
           },
           {
@@ -1416,7 +1530,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('A member with no date of birth recorded owes the due in full, because the product will not guess at an age. Adding a child to the [family tree](/family-tree) without an email address asks for a birthday for exactly this reason.'),
               p('**Bloodline only** restricts a due to the members descended from the family\'s line. Anybody who married in, and any step, adopted or foster relative, owes nothing and does not see it on their own Dues screen at all — a due that is never theirs is not listed as something they are not paying.'),
               note('The control is unavailable until your family has said which ancestor its line descends from, because without that there is no bloodline and the due would be owed by nobody. Set **Bloodline descends from** on the [family tree](/family-tree) first. Who is in the bloodline is worked out from the tree every time, so correcting a relationship — or moving that setting — changes who owes the due.'),
-              p('**Owed by** says which part of the family owes it: National — the whole family — or one region, or one chapter. It only appears once your family has a region or a chapter to choose; until then every due is National, which is what National means. A member with no chapter is under National and owes nothing scoped, so a chapter due bills only the people who have said they are in that chapter. See [Regions & Chapters](/help/regions-and-chapters#dues).'),
+              p('**Owed by** says which part of the family owes it: National — the whole family — or one region, or one chapter. It only appears once your family has a region or a chapter to choose; until then every due is National, which is what National means. A member with no chapter is under National and owes nothing scoped, so a chapter due bills only the people who have said they are in that chapter. See [regions and chapters](/help/regions-and-chapters#dues).'),
               note('A schedule that has been paid against cannot simply be deleted, and its amount, frequency, start date, starting age, bloodline setting and **Owed by** are then fixed — every payment already recorded was made against those terms. Changing who owes a due would restate whether people owed it for periods already billed, which is why it is on that list. The page tells you when one is in use. The end date can still change.'),
             ],
           },
@@ -1474,14 +1588,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'tabs',
-            heading: 'Three tabs, three jobs',
+            heading: 'Four tabs, four jobs',
             blocks: [
               defs(
-                { term: 'Members', text: 'Everybody in the family, and which permission template each is on.' },
+                { term: 'Members', text: 'Everybody in the family, and which permission template each is on. Four columns — Name, Region, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
                 { term: 'Pending Approval', text: 'The people asking to join, and the invitations you have sent.' },
                 { term: 'Permission Templates', text: 'The templates themselves, and what each one grants.' },
+                { term: 'Organization', text: 'The family\'s regions and chapters — how a spread-out family divides itself up. It has a chapter of its own: [Organization](/help/regions-and-chapters).' },
               ),
-              p('The three are granted separately and the page opens for any of them — somebody can work the approvals queue without being able to edit templates.'),
+              p('The four are granted separately and the page opens for any of them — somebody can work the approvals queue without being able to edit templates, and somebody can keep the family\'s chapters in order without being able to see the roster at all.'),
             ],
           },
           {
@@ -1528,17 +1643,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
       },
       {
         slug: 'regions-and-chapters',
-        title: 'Regions & Chapters',
-        summary: 'Dividing a large family into regions and chapters, and what a member\'s chapter decides.',
+        title: 'Organization',
+        summary: 'Dividing a large family into regions and chapters, on the Organization tab of Members, and what a member\'s chapter decides.',
         route: '/admin/chapters',
         sections: [
           {
             id: 'what-it-is',
             heading: 'Two levels, and National',
             blocks: [
-              p('[Regions & Chapters](/admin/chapters) is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('**Organization** is the fourth tab of [Members](/admin/users?tab=organization), and it is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('It used to be a screen of its own on the rail and is a tab now, because who is in the family and how the family is divided up are one job. A link or a bookmark pointing at the old address still lands here.'),
               p('**National** is the third thing on the screen and it is not a region you create. It is what everything belongs to until you file it somewhere else: a chapter with no region is under National, and so is any member who has not picked a chapter. It cannot be renamed, deleted or turned off, and every family has it.'),
-              note('Members choose their own chapter, on [My Profile](/personal-info). Nobody is assigned one from here — this screen decides which chapters EXIST.'),
+              note('Members choose their own chapter, on [My Profile](/personal-info). Nobody is assigned one from here — this tab decides which chapters EXIST.'),
             ],
           },
           {
@@ -1575,6 +1691,88 @@ export const HELP_PARTS: readonly HelpPart[] = [
               ),
               p('**A member with no chapter is under National**, so a regional or chapter due does not apply to them at all — it does not appear on their [Dues](/dues) screen and they are never billed for it. That is the state every family starts in, and it is the commonest reason a new chapter due collects nothing: [Dues Projections](/dues-projections) says so on the schedule\'s row when nobody in the family is in the part it is for.'),
               note('A member\'s region is worked out through their chapter every time it is asked. There is no separate region to set on a person, and moving a chapter into another region moves everybody in it with no further step.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'board-positions',
+        title: 'Board Positions',
+        summary: 'The offices your family keeps, who holds each one, and why the list starts empty.',
+        route: '/admin/boardpositions',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Your family\'s offices',
+            blocks: [
+              p('[Board Positions](/admin/boardpositions) is the list of offices your family actually keeps — President, Treasurer, a Reunion Chair — and a record of who holds each one.'),
+              p('**The list starts empty, and that is deliberate.** No two families run the same way: one has five officers and a chair for the reunion, another has twenty committees. So nothing is set up for you and nothing is suggested — you add the offices you have, and the ones you do not have simply are not there.'),
+              p('Every position belongs to your family alone. Another family naming its treasurer the same thing has no effect on yours, and neither family can see the other\'s list.'),
+            ],
+          },
+          {
+            id: 'adding',
+            heading: 'Adding a position',
+            blocks: [
+              steps(
+                'Press **Add Position**.',
+                'Type the name as you say it out loud — that is what appears beside somebody\'s name everywhere else.',
+                'Choose a **Category**: **Executive Officer** for an elected office, **Appointed Position** for one somebody is given.',
+                'Choose a **Scope** — see below — and press **Add Position**.',
+              ),
+              defs(
+                { term: 'National', text: 'One holder for the whole family. Almost everything is this.' },
+                { term: 'Regional', text: 'One holder per region. You choose which region when you give it to somebody.' },
+                { term: 'Chapter', text: 'One holder per chapter, chosen the same way.' },
+              ),
+              p('Regional and Chapter only mean something once your family has set up regions or chapters, under the **Organization** tab of [Members](/admin/users?tab=organization). Until then, use National.'),
+              note('A name can be used once in your family. If you try to add a second position with a name you already have, the screen says so rather than quietly making a duplicate.'),
+            ],
+          },
+          {
+            id: 'renaming',
+            heading: 'Fixing a name',
+            blocks: [
+              p('The pencil on a position\'s row turns its name into a box. **Enter** saves, **Escape** cancels, and the name changes everywhere it is printed — under people\'s names in the [Directory](/members), on their [Dashboard](/dashboard) and on their [My Profile](/personal-info).'),
+              p('Only the name can be changed. **Category** and **Scope** cannot, because a position\'s scope is copied onto each holder\'s record when they are given it, along with the region or chapter it was for — so changing the scope afterwards would leave those records describing something the position no longer is. A family that has the scope wrong removes the position and adds it again, which also re-makes the assignments that were wrong.'),
+              note('Two positions in your family cannot share a name. If you rename one to a name you already use, the screen says so and nothing is saved.'),
+            ],
+          },
+          {
+            id: 'assigning',
+            heading: 'Giving somebody a position',
+            blocks: [
+              steps(
+                'Press **Assign** on the position\'s row.',
+                'Find the person — the search box matches any part of any name, ignoring accents and punctuation.',
+                'For a regional or chapter position, choose which region or chapter it is for.',
+                'Press **Assign**.',
+              ),
+              p('More than one person can hold the same position, which is what a regional or chapter office needs. The **Held by** column lists everybody, with the region or chapter beside each name.'),
+              note('Only relatives who have finished registering can hold a position. Somebody recorded on the family tree without an account cannot, because the record of who holds an office is attached to their account — invite them first, from [Family Tree](/family-tree).'),
+            ],
+          },
+          {
+            id: 'removing',
+            heading: 'Taking one away, and removing a position',
+            blocks: [
+              p('The **×** beside a name takes that position away from that person. They stay a member of the family and nothing else about them changes.'),
+              p('**A position that somebody holds cannot be removed.** Its remove button is unavailable and says how many people hold it; take it away from each of them and it becomes available.'),
+              p('That is a refusal rather than a tidy-up on your behalf, and for the same reason deleting a chapter is: somebody\'s office is on their profile and in the Directory, and removing four officers as a side effect of deleting one row is not a decision to make by accident.'),
+            ],
+          },
+          {
+            id: 'where-it-shows',
+            heading: 'Where a position shows up',
+            blocks: [
+              p('A position is public within the family. Once somebody holds one it appears:'),
+              bullets(
+                'under their name in the [Directory](/members),',
+                'on their own [My Profile](/personal-info),',
+                'and on their [Dashboard](/dashboard) when they sign in.',
+              ),
+              p('A regional or chapter position is written out in full — "Houston Chapter President", "Texas Regional Secretary" — so two people holding the same office in different places read as two different titles.'),
+              p('The positions on this list are also what an election can be held for, once Elections ships.'),
             ],
           },
         ],
@@ -1672,6 +1870,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'It is not part of your family\'s plan — opening it directly shows the upgrade screen rather than hiding it. See [Plans](/help/plans).',
                 'It has not shipped yet. Opening it directly says Coming Soon.',
               ),
+              p('The same three reasons decide a TAB. Several screens are a rail of panes — Members, Accounting, Announcements, Transactions — and each pane is granted in its own right, so a tab that is not on the rail is one you have not been given rather than one that has gone. A screen where you hold none of its panes is not in the rail at all.'),
               p('Typing the address of a page you have not been granted gives you a plain "not found". That is deliberate: a restricted page should not confirm that it exists.'),
             ],
           },

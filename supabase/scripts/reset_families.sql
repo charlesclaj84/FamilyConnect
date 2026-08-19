@@ -193,24 +193,34 @@ BEGIN
   DELETE FROM notifications;
   DELETE FROM family_invitations;
   DELETE FROM person_relationships;
-  DELETE FROM family_role_exclusions;
-  -- THE CUSTOM HALF ONLY, since 2026-08-17. `family_roles` is a hybrid: the 25
-  -- built-in board positions are GLOBAL (`family_code IS NULL`, `is_global`), and
-  -- `createCustomRole` writes per-family rows beside them. This used to delete the
-  -- lot, which emptied a global lookup that only a migration can restore — the
-  -- same one-way door truncate_entire_database.sql went through on hosted, and the
-  -- reason 20260817000003 exists. §11's keep-list names the table for this reason.
+  -- `family_role_exclusions` WAS DELETED HERE and the table is gone: it recorded
+  -- which of the 25 built-in board positions a family did not use, and
+  -- 20260819000004 retired the built-ins along with the table.
+  -- THE WHOLE TABLE, since 20260819000004.
   --
-  -- The visible consequence, and it is a deliberate yes: a reset family now
-  -- arrives with its board positions already listed rather than blank. That is
-  -- what "just created" means for a real family — the two `families` triggers in
-  -- the inventory above do not create them because they are not per-family.
-  DELETE FROM family_roles WHERE family_code IS NOT NULL;
+  -- `family_code` is NOT NULL now and every row belongs to one family, so the product
+  -- decision inverts with the schema: A RESET FAMILY ARRIVES WITH NO BOARD POSITIONS AT
+  -- ALL, which is what "just created" means for a real family now. It configures the
+  -- offices it actually keeps under /admin/boardpositions.
+  --
+  -- IT WAS `WHERE family_code IS NOT NULL` FOR TWO DAYS, and the paragraph that stood here
+  -- explained why: `family_roles` was a hybrid, its 25 built-in board positions were GLOBAL
+  -- (`family_code IS NULL`, `is_global`), deleting the lot emptied a global lookup only a
+  -- migration could restore, and §11's keep-list named the table for that reason. Every
+  -- clause of that is now false — the built-ins are retired, `is_global` is dropped, and
+  -- this same commit removed the keep-list entry — so it is replaced rather than left
+  -- standing above a statement that says the opposite.
+  DELETE FROM family_roles;
   DELETE FROM user_roles;
   DELETE FROM chapters;
   DELETE FROM regions;
-  DELETE FROM adults;   -- pre-redesign legacy tables
-  DELETE FROM kids;
+  -- `adults` AND `kids` WERE DELETED HERE AND COULD NOT BE, which is why this whole script
+  -- has been unrunnable rather than merely stale. 20260602000003 dropped both tables;
+  -- plpgsql resolves a name when the statement RUNS, so the DO block reached this line and
+  -- raised 42P01, rolling back every DELETE above it. Nothing reported it because nothing
+  -- runs this script on a schedule — and 20260819000003, which deletes the `adults` row
+  -- from `permission_table_map`, asserts the table's absence as its own premise. Found
+  -- 2026-08-19 by review.
 
   -- ── 8. Members: keep only the surviving account's rows ────────────────────
   -- IS DISTINCT FROM so a NULL user_id (an orphan member row) is caught too.
@@ -311,15 +321,18 @@ BEGIN
            -- surviving account's own rows.
            'families', 'people', 'funds',
            'permission_templates', 'template_permissions', 'resource_visibility',
-           -- Global configuration, not family data. `family_roles` joined this
-           -- list on 2026-08-17 and is the one that needs explaining: it is a
-           -- HYBRID, so it is on the keep-list for its 25 global board positions
-           -- (`family_code IS NULL`) while §7 still deletes its per-family custom
-           -- rows. That is why it was missed for so long — every "is this a global
-           -- lookup?" test asks whether the table has a `family_code` column, and
-           -- this one does.
+           -- Global configuration, not family data.
+           --
+           -- `family_roles` WAS ON THIS LIST between 2026-08-17 and 2026-08-19 and
+           -- is not any more, and the reason it needed explaining is the reason to
+           -- keep the paragraph: it was a HYBRID, kept for its 25 global board
+           -- positions (`family_code IS NULL`) while §7 deleted its per-family
+           -- rows. That is why it went unnoticed for so long — every "is this a
+           -- global lookup?" test asks whether the table has a `family_code`
+           -- column, and that one did. 20260819000004 retired the built-ins, so it
+           -- is ordinary family data that §7 now deletes outright, and a leftover
+           -- row in it is something this section SHOULD report.
            'permission_resources', 'permission_table_map', 'relationship_types',
-           'family_roles',
            -- The kept account's active-family pointer.
            'user_family_settings')
      AND (xpath('/row/c/text()', query_to_xml(

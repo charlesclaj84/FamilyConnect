@@ -27,8 +27,32 @@ What holds it shut instead is narrower and has to stay that way:
 * **`genorra_staff` has RLS enabled and ZERO policies**, so `anon` and `authenticated` can read no
   row of it at all. Staffness is resolved on the SERVER through the service role and passed down
   as a prop; there is no client-side check to spoof and no flag in user metadata.
-* **Access is granted BY HAND, with SQL.** There is no UI for it and there must not be one until
-  there is a reason — a screen that grants cross-family access is a screen worth attacking.
+* **Access is granted from `/staff/access`, and ONLY by an `owner`.** This said "by hand, with
+  SQL. There is no UI for it and there must not be one until there is a reason" until
+  2026-08-19; the reason arrived, and the screen exists. What made it admissible is that the
+  screen is narrower than the console around it: `requireStaffOwner()` in `lib/auth/staff.ts`
+  gates the page and **all four** actions in `app/actions/staff/access.ts` — including the READ,
+  because a `support` staffer must not learn who else has access, that being the next thing an
+  attacker wants. It 404s like everything else here (see below), so the owner-only screen inside
+  the console does not advertise itself either. A grant takes an **email**, resolved to an
+  account through the admin auth API, never a `user_id` from the client (§2b's rule about taking
+  an identity as a parameter); `note` is required, because the column is an audit record and a
+  bare uuid is not one; nobody may change or revoke their own row; and the last `owner` cannot be
+  demoted or revoked. SQL is still the bootstrap — `supabase/scripts/grant_staff.sql` is how the
+  FIRST owner exists on a database with no console access at all — and it is no longer the
+  routine path.
+* **`genorra_staff.role` is now LOAD-BEARING, and `owner` is the one line it draws.**
+  `20260817000005` shipped `support | engineer | owner` as a column "carried now, consumed by
+  nothing yet", and `/staff/access` is what changed that: `owner` means "plus deciding who else
+  may open the console". **`support` and `engineer` are still the same thing** and must not be
+  split on a guess — nothing anywhere distinguishes them, and inventing a distinction would be
+  a control nothing consults. The vocabulary stays three-valued because the database's CHECK is,
+  and because `owner` needs something to be an escalation from. `20260819000002` §C **promoted
+  every existing row to `owner`**, which preserves the status quo exactly rather than being
+  generous: while the column governed nothing, every staff member could already do everything
+  the console offers, so promoting changes nothing about what any of them can do — whereas
+  leaving them `support` would have silently demoted them AND left a granting screen with nobody
+  able to grant. New grants still default to `support`, which is where the caution belongs.
 * **Every page under `app/(staff)` guards itself and 404s**, never a "denied" screen: a staff
   console should not advertise that it exists. The layout guard is a convenience, not the gate —
   §2's argument about pages and actions, one level up.
@@ -892,21 +916,31 @@ migration that sorts before an applied one, an unversioned `.sql` sitting in
 cannot see: a bare `psql -f` changes no version, so only the policies themselves show it.
 Run it against hosted after **any** hand intervention.
 
-## Four tables in `public` are product data, and emptying one is a one-way door
+## Three tables in `public` are product data, and emptying one is a one-way door
 
-`relationship_types`, `permission_resources`, `permission_table_map`, and the
-`family_code IS NULL` rows of `family_roles`. They are seeded **only** by migrations — and a
-migration a database has already recorded as applied never runs again — so if one is emptied
-on hosted, nothing in the app, the chain or a `db reset` will ever put it back.
+`relationship_types`, `permission_resources` and `permission_table_map`. They are seeded
+**only** by migrations — and a migration a database has already recorded as applied never runs
+again — so if one is emptied on hosted, nothing in the app, the chain or a `db reset` will ever
+put it back.
 
-That is not hypothetical; `truncate_entire_database.sql` emptied all four.
-`relationship_types` stayed empty for weeks, during which `/family-tree` answered "That
-relationship type is not set up" on every addition and drew a canvas of people with no edges
-at all. `family_roles` stayed empty longer and nobody noticed: `/admin/boardpositions`
-renders nothing, the board-position picker on Members & Access has nothing to offer, and the
-Directory's title column is blank — none of it an error. `permission_resources` and
-`permission_table_map` survived on luck, their seeding migrations happening to still be
-pending when the purge ran.
+That is not hypothetical; `truncate_entire_database.sql` emptied all of them, and a fourth
+table besides. `relationship_types` stayed empty for weeks, during which `/family-tree`
+answered "That relationship type is not set up" on every addition and drew a canvas of people
+with no edges at all. `permission_resources` and `permission_table_map` survived on luck, their
+seeding migrations happening to still be pending when the purge ran.
+
+**THIS SAID "FOUR" UNTIL 2026-08-19, and the fourth was the `family_code IS NULL` rows of
+`family_roles` — the 25 built-in board positions.** They stayed empty longest and nobody
+noticed, because an empty `/admin/boardpositions` is not an error. `20260817000003` restored
+them; `20260819000004` retired them. Board positions are per-family now — `family_code` NOT
+NULL, `(family_code, name)` unique, `is_global` dropped, `family_role_exclusions` dropped — so
+a family configures the offices it actually keeps, starting from none, and there is nothing
+global left in that table for a purge to destroy.
+
+**Its departure is kept in this section rather than deleted from it**, because that table is
+the reason every paragraph below is worded the way it is: a hybrid — one table holding both
+product rows and family rows — defeats every structural test for the difference, and the next
+one will too.
 
 Four things follow, and the third is the one that made this invisible for so long.
 
@@ -920,17 +954,28 @@ Four things follow, and the third is the one that made this invisible for so lon
   catches a hand-written delete list going stale as the schema grows. *Nothing* checked that
   a table which should be full is not empty, which is the direction that catches this. A
   one-way assertion cannot see this class of damage at all.
-* **No structural test finds this set, because `family_roles` is a hybrid.**
-  `20260604000002` gave it a `family_code` so a family could define custom roles beside the 25
-  built-in board positions, so it has the very column every "is this family data?" test looks
-  for. Its global rows are the ones where that column is NULL. A new lookup therefore has to
-  be *named*, in three places in the same commit: the keep-list in
-  `truncate_entire_database.sql` §1, the keep-list in `reset_families.sql` §11, and
-  `audit_global_lookups.sql`. What catches a miss is that audit's second check, which derives
-  its candidates instead — any `public` table that is empty and has no transitive foreign-key
-  path to a `family_code`.
-* **`seed_global_lookups()` (`20260817000003`) is the ONE reseeder, and it covers two of the
-  four.** The migration calls it, which is how the repair reaches hosted, and the purge script
+* **No structural test finds this set, and `family_roles` is why.** `20260604000002` gave it a
+  `family_code` so a family could define custom roles beside the 25 built-in board positions,
+  so it had the very column every "is this family data?" test looks for, and its product rows
+  were the ones where that column was NULL. A new lookup therefore has to be *named*, in three
+  places in the same commit: the keep-list in `truncate_entire_database.sql` §1, the keep-list
+  in `reset_families.sql` §11, and `audit_global_lookups.sql`. What catches a miss is that
+  audit's second check, which derives its candidates instead — any `public` table that is empty
+  and has no transitive foreign-key path to a `family_code`.
+
+  **And a hybrid has to leave all three in the same commit too**, which is the half nobody had
+  had to do until `20260819000004`: `audit_global_lookups.sql` RAISEs on an empty lookup and is
+  a step in `migrate.yml`, so a table retired from that list in the migration and not in the
+  script holds the Vercel alias on the next merge with the schema already applied.
+  `truncate_entire_database.sql` was worse — its §6b hard-coded `WHERE family_code IS NULL` for
+  that one table, so the whole purge, which is a single atomic `DO` block, would have rolled
+  itself back forever.
+* **`seed_global_lookups()` (`20260817000003`, redefined by `20260819000004`) is the ONE
+  reseeder, and it covers one of the three.** It seeded `family_roles` too until board
+  positions became per-family, and it must not seed that table again — the `family_code` is NOT
+  NULL, so a reseeder could only put rows back by inventing a family, which is the one thing a
+  restorer of product reference data may never do. The migration calls it, which is how the
+  repair reaches hosted, and the purge script
   calls it, which is what makes a purge survivable — so a vocabulary change edits one function
   and both callers are correct with no further edit. It deliberately does **not** cover
   `permission_resources` or `permission_table_map`: their rows are assembled by about twenty
@@ -1544,8 +1589,58 @@ a family delegates. One grant over a whole rail cannot express "record dues but 
 money out", which is the division basic accounting exists to make. Every rail is bound to
 its keys through one table, next to the labels, so the tab and the server action cannot
 disagree: `LEDGER_RESOURCE` (Transactions), `SECTION_RESOURCE` (Accounting). Members &
-Access is the exception that proves it — its three tabs have three keys and no table,
+Access is the exception that proves it — its four tabs have four keys and no table,
 because its page resolves them one by one.
+
+### One PANE may span two keys. The test is whether they are two jobs
+
+The heading is the default, not an absolute, and the tree has two counter-examples on purpose.
+**A pane may render more than one resource when they are two jobs a family delegates
+separately** — and then, without exception, **the pane renders only what the caller holds and
+fetches only that** (§5). The keys stay separate in `permission_resources` with their own
+labels, because those labels are what the GRID prints and an administrator still moves two
+switches.
+
+* **Members & Access** opens on ANY of `admin/users`, `admin/approvals`,
+  `admin/users/templates` and `admin/chapters`, each tab resolved one at a time. A caller
+  holding only Organization gets that one tab; a caller holding none gets `notFound()`.
+* **Accounting's Dues & Donations** is one rail item over `admin/account/dues` and
+  `admin/account/donations` (2026-08-19). Merging them into one key was the obvious
+  simplification and is forbidden: *"Separation of duties — per-feature permissions, so
+  recording dues is not the same as paying money out"* is a **Free plan bullet in
+  `lib/plans.ts`**, i.e. a separation the product SELLS. `AdminAccountShell` narrows the item's
+  `sections` by `rights[s].view`, so the surviving list is both what makes the tab appear and
+  what the pane draws — one filter, and §5 falls out of it rather than being remembered.
+
+Two consequences worth knowing before doing this to a third rail. **The caption is hand-set on
+the ITEM and must not be expressed in a migration** — no `permission_resources` row says "Dues
+& Donations", because no row is about both; `captionOf()` degrades back to the single section's
+own label when a caller's grants leave the item spanning one, so a donations-only treasurer is
+not shown a tab named for a list they cannot see. And **one create trigger per key**, never one
+that guesses: "New Dues" and "New Donation" are two grants, so the rail's action slot holds
+zero, one or two buttons.
+
+**A PAGE THAT RESOLVES PANES BY HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND TOO**, and
+this is the trap the third rail will hit. §1's preamble is one call because `requireView` folds
+`requireFamilyActive` and `requireTier` in — exactly so that no page has to remember them — so a
+page that swaps it for a union of `can()` calls has dropped both, silently and with nothing
+reporting it.
+
+`/announcements` is the worked example done right: `requireFamilyActive`, then `requireTier`,
+then the union of the two pane grants, in that order and argued in the file. `/admin/users`
+carries only half. `canViewOrganization` is `can(…) AND tierAllows(…)`, because Organization is
+a Plus feature while its other three tabs are not, and a chapters-only caller on a Free family
+gets `redirect('/upgrade…')` rather than a 404 — which is what `requireView('admin/chapters')`
+used to answer for them; everyone else gets pane-absence rather than a redirect, because an
+administrator who opened the Members tab must not be thrown onto a sales screen over a pane they
+were not looking at. But **it has never called `requireFamilyActive`**: that predates the
+removal feature rather than being a decision this arrangement made, and it is a real gap — an
+administrator of a REMOVED family can still open Members & Access. Whoever next touches that
+page owes it the line.
+
+What this is NOT licence for: folding two keys together because one screen happens to show
+both. If a family could never sensibly hold one and not the other, they were one job and should
+have been one key.
 
 **A rail item that grows a ROUTE stops needing the table, and its key must move with
 it.** `PANE_RESOURCE` was the third of those tables until `20260815000000`, and its
@@ -1643,12 +1738,38 @@ every one of these had been a live endpoint the whole time:
 * `deleteCustomRole` had no family conjunct either, and four board-position actions were keyed
   on the wrong resource.
 
+**AND IT HAPPENED AGAIN THE NEXT DAY, on `/admin/boardpositions`,** which is the reason this
+section is not written as one bad afternoon. That route was relit on 2026-08-19 and its
+endpoints were worse than the chapters ones, in a different file — `app/actions/admin/users.ts`,
+which nobody had thought of as part of that feature:
+
+* `assignRole` wrote **four** client-supplied ids (`targetUserId`, `roleId`, `chapterId`,
+  `regionId`) onto a `user_roles` row carrying the caller's own `family_code`. Every policy was
+  satisfied; the row pointed wherever the caller said. §4 exactly — and the `roleId` half is how
+  one family assigned another family's board position.
+* `revokeRoleByAssignmentId` was `.delete().eq('id', assignmentId)` on the service-role client
+  with **no family conjunct at all** — `deleteRegion`'s hole in a second costume, one day later.
+* `getFamilyMembersWithRoles`, `getAllRoles` and `getFamilyMemberRoles` demanded a session and
+  nothing else. The first publishes the whole roster including `primary_email`.
+* All four shared a helper testing `can(…, 'admin/boardpositions', 'edit')`, which scope `'own'`
+  satisfies — and `updateUserProfile` used the same helper, so a family that let somebody curate
+  its board positions thereby let them rewrite any member's profile.
+* `family_roles`' SELECT policy was `USING (true)` — no family conjunct — so anybody holding
+  that key in their own family read **every** family's board positions off PostgREST. The sweep
+  did not do that; `20260604000000` wrote it and nothing revisited it.
+* **None of the four write endpoints had a caller.** There was no UI in the product that gave
+  anybody a board position. So they were live HTTP endpoints with holes in them, kept warm for a
+  screen that did not exist.
+
 **So a roadmap feature's actions owe the same §1–§5 review as a shipped one**, and the review has
 to happen when the code is WRITTEN rather than when the flag flips. Gating the route is a product
 decision; it is not a security boundary, and it buys nothing at all for the endpoints underneath.
 
-The corollary for reviewing: `grep "status: 'future'"` in `lib/features.ts` is a list of action
-modules nobody has exercised recently. `/admin/boardpositions` is the one still on it.
+Two corollaries for reviewing, and the second is the one both of these afternoons cost.
+`grep "status: 'future'"` in `lib/features.ts` is a list of action modules nobody has exercised
+recently — `/admin/elections`, `/admin/reports` and the rest. And **the module list is not the
+feature list**: `grep` for the resource KEY as well, because half of Board Positions' surface
+lived in a file named after a different screen.
 
 **Every `FEATURES` entry states a `tier`, and the field has no default.** A new feature
 has to decide, because the failure mode of forgetting is invisible and expensive: it
@@ -1969,14 +2090,33 @@ let me" do not — the second is a token that needs adding to `globals.css` firs
 Two things follow for the email templates specifically, because they are unlike every
 other file here. **The template is the payload:** every byte ships to every recipient and
 is one "view source" away, which is why the rationale lives in the README and the files
-keep a short pointer comment. And **editing a template does nothing to production until
-it is pushed** — `config.toml` wires up the local stack, while hosted keeps its own copy
-of every body. Since 2026-08-12 that push is `npm run email:push`
+keep a short pointer comment. And **editing a template reaches production on the next
+merge to `master`, and by no other route** — `config.toml` wires up the local stack, while
+hosted keeps its own copy of every body until CI replaces it. This said "does nothing to
+production until it is pushed" until 2026-08-19, when the push became a step in `migrate.yml`;
+the paragraph below carries what that changes. Since 2026-08-12 that push is `npm run email:push`
 ([scripts/auth-templates.mjs](scripts/auth-templates.mjs)), which reads the same
 `[auth.email.template.*]` table and sends only the ten mailer fields; `npm run
 email:check` reports drift and exits non-zero. It is deliberately **not** `supabase
 config push`, which would send `site_url` along with the copy edit. Pushing still proves
 only that the bytes arrived — send yourself a real signup before calling it done.
+
+**And since 2026-08-19 the push happens from CI on merge to `master`, not from a laptop** —
+a step named "Auth email templates match the repo" at the end of `migrate.yml`'s one job,
+using the `SUPABASE_ACCESS_TOKEN` that job already holds. Three consequences worth knowing
+before touching a template:
+
+* **The repo is now unconditionally authoritative.** A template edited in the Supabase
+  dashboard is reverted on the next merge that finds drift, and one drifted template rewrites
+  all ten fields rather than only itself. `npm run email:pull` is the only route back.
+* **The laptop commands keep their jobs**, which are asking rather than writing:
+  `email:check` for drift and `email:pull` to recover a dashboard edit. Neither is in
+  `verify.yml` and neither may be — that workflow holds no secret at all, and this token is
+  account-wide, broader than the database password the argument beside `environment:
+  production` is written about.
+* **A green step is still not a rendered email.** It reports that the bytes arrived. The GO
+  LIVE item that survives in TODO.md is the human half: trigger a real signup and a real
+  reauthentication and look at them on a phone.
 
 ## Dark mode is real, and the brand has a dark treatment
 
@@ -2264,8 +2404,39 @@ while Members next door did not.
 # A table is a table
 
 Members & Access and Member Directory list the same people and answer the same question,
-so they render the same six columns in the same order — Name, Phone, Email, City/State,
-Group, and (where it applies) a row menu.
+so they render the same columns in the same order. Since 2026-08-19 that is four —
+**Name · Region · Chapter · Group**, and (where it applies) a row menu. The rule is the
+agreement, not the number: a column added to one of those two screens is a column owed to the
+other, or an administrator and a member end up comparing two different answers to one
+question.
+
+**Phone, Email and City/State moved into a dialog**, `components/members/MemberDetailsDialog.tsx`,
+which both tables import so one panel states one person's record whichever screen it was opened
+from. Three things about that are load-bearing:
+
+* **It buys the two columns the tables had no room for.** Region and Chapter were on neither
+  screen before, and adding them beside Phone, Email and City/State would have meant two more
+  columns on a table already carrying five — back to the `min-w-*` floor and the sideways
+  scroll the next section exists to forbid. So this is not a trim for its own sake: the width
+  goes to the two facts a reader compares ACROSS rows, and the three that are read one person
+  at a time go to where one person is read.
+
+  It reads better narrow, too, by more than it looks. Four folded columns became a stacked
+  `RowMeta` four lines deep under every name; three of those lines are behind one press now,
+  and the two that remain are labelled.
+* **THE TRIGGER IS A REAL `<button>` ON THE NAME CELL, NEVER A HANDLER ON THE `<tr>`.** A row
+  that is only clickable is unreachable by keyboard and invisible to a screen reader, and the
+  name is the right element because the button's text then IS its accessible name. `aria-haspopup="dialog"`
+  is honest about what it opens. This is a deliberate departure from `PaymentHistorySection` and
+  `TransactionsClient`, which do carry row handlers; on Members & Access a row handler would also
+  fire underneath every row-menu item unless each one remembered `stopPropagation`.
+* **Nothing new is fetched and nothing is newly published.** Moving a value into a dialog is not
+  a reason to start sending it to somebody who could not see it before (§5) — each page's
+  projection is unchanged, and the dialog renders what the row already carried.
+
+Region is DERIVED (`people.chapter_id → chapters.region_id → regions.name`) and there is no
+`people.region_id` to add; a member in no chapter reads **National**, which is the absence of a
+region rather than a row, and is the same word the dues scope prints.
 
 **Use a real `<table>` with `<th scope="col">`,** not a flex row dressed as one. A
 screen reader announces the column when it reads the cell, which is the whole difference

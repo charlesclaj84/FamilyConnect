@@ -11,23 +11,38 @@
 -- bug report about the family tree.
 --
 -- ── WHAT IT IS LOOKING FOR, AND WHY NOTHING ELSE WAS ────────────────────────
--- Four tables in `public` are product reference data rather than family data.
+-- THREE tables in `public` are product reference data rather than family data.
 -- They are seeded ONLY by migrations, and a migration a database has already
 -- recorded as applied never runs again — so if one is ever emptied, there is no
--- route back but a new migration. `truncate_entire_database.sql` emptied all four
--- on hosted, and the consequences were staggered:
+-- route back but a new migration. `truncate_entire_database.sql` emptied FOUR of
+-- them on hosted, and the consequences were staggered:
 --
 --   relationship_types    empty for weeks. /family-tree answered "That
 --                         relationship type is not set up" on every addition and
 --                         drew a canvas of people with no edges. Repaired by
 --                         20260813000005.
 --   family_roles          emptied by the same purge, and nothing put it back until
---                         20260817000003. /admin/boardpositions renders nothing,
---                         the board-position picker on Members & Access has nothing
---                         to offer, and the Directory's title column is blank.
+--                         20260817000003 — during which /admin/boardpositions
+--                         rendered nothing, with no error anywhere.
 --   permission_resources  survived by LUCK — its seeding migration happened to
 --                         still be pending and applied afterwards.
 --   permission_table_map  same luck, same migration.
+--
+-- `family_roles` IS NO LONGER ONE OF THEM, and it is the reason this file exists at
+-- all, so its departure needs stating rather than a quiet edit to an array.
+-- 20260819000004 made board positions PER-FAMILY: the 25 built-ins are retired,
+-- `family_code` is NOT NULL, and there is nothing global left in the table for a
+-- purge to destroy or for a migration to restore. A family that has set up no
+-- positions has none, which is correct rather than damaged — exactly the state this
+-- check would have RAISEd on, and it is a step in migrate.yml, so leaving the name
+-- in §1 would have held the Vercel alias on the next merge with the schema already
+-- applied.
+--
+-- §2 does not pick it up either, and that is not luck: `family_roles` has a
+-- `family_code` column, so §2's recursive base classifies it as family data and
+-- excludes it from the unclassified-and-empty report. Checked, on the reasoning that
+-- an edit to §1 which silently moved a table into §2's blast radius would trade one
+-- deploy-blocking assertion for another.
 --
 -- LOCAL NEVER SHOWED ANY OF IT. `db reset` re-seeds from the original migrations,
 -- so local was always right and only production was ever wrong. That asymmetry is
@@ -42,7 +57,7 @@
 -- the standing version that runs whether or not anybody purges anything.
 --
 -- ── §2 IS THE PART THAT KEEPS §1 HONEST ─────────────────────────────────────
--- §1 is a hand-written list of four names, and a hand-written list of tables goes
+-- §1 is a hand-written list of three names, and a hand-written list of tables goes
 -- stale the moment a migration adds one — reset_families.sql carries a comment
 -- saying exactly that, about exactly this class of list, because it already
 -- happened once. So §2 derives the candidates instead: any base table in `public`
@@ -65,11 +80,13 @@
 DO $$
 DECLARE
   -- ── 1. The lookups, and the predicate that identifies the global rows ─────
-  -- `family_roles` needs one, and it is the whole reason no structural test finds
-  -- this set: 20260604000002 gave it a `family_code` so a family could define
-  -- custom roles beside the 25 built-in board positions, so the table HAS the
-  -- column that every "is this family data?" test looks for. The global rows are
-  -- the ones where it is NULL.
+  -- All three are `true` today, which is what "no family data in here at all" looks
+  -- like. The column exists for a HYBRID — a table holding both product rows and
+  -- family rows — and `family_roles` was one until 20260819000004: it carried a
+  -- `family_code` so a family could define custom roles beside 25 built-in board
+  -- positions, so it HAD the column every "is this family data?" test looks for, and
+  -- its product rows were the ones where the column was NULL. That is why this
+  -- second array is here and why it should stay even while nothing needs it.
   --
   -- ADD A NEW LOOKUP HERE, in the same commit that adds it, and to the two
   -- keep-lists — truncate_entire_database.sql §1 and reset_families.sql §11.
@@ -80,14 +97,12 @@ DECLARE
   lookup_names CONSTANT text[] := ARRAY[
     'relationship_types',
     'permission_resources',
-    'permission_table_map',
-    'family_roles'
+    'permission_table_map'
   ];
   lookup_where CONSTANT text[] := ARRAY[
     'true',
     'true',
-    'true',
-    'family_code IS NULL'
+    'true'
   ];
   -- ── Tables §2 must not report, and the reason for each ────────────────────
   -- §2 asks "is this table unreachable from a family_code AND empty?", which is
@@ -198,8 +213,8 @@ BEGIN
     RAISE EXCEPTION E'GLOBAL LOOKUP(S) ARE EMPTY:\n  %\n\n'
       'These are product reference data, seeded only by migrations — and a migration this '
       'database has already recorded as applied never runs again, so this does not heal itself '
-      'and no `db reset` on a laptop will show it. relationship_types and family_roles are '
-      'restored by SELECT public.seed_global_lookups() (20260817000003). '
+      'and no `db reset` on a laptop will show it. relationship_types is restored by '
+      'SELECT public.seed_global_lookups() (20260817000003, redefined by 20260819000004). '
       'permission_resources and permission_table_map cannot be restored from a script: their '
       'rows are assembled by ~20 migrations, and permission_table_map carries the SQL '
       'expressions the composed policies were built from. Those two need a migration that '

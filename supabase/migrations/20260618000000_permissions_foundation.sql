@@ -96,11 +96,10 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- aborts a fresh `db reset` with 42703. The narrowing to `{view}` arrives in that
   -- migration.
   --
-  -- IT IS A KEY OVER A SCREEN AND NOT OVER ROWS, and the sort_order is contiguous with the
-  -- Announcements block above on purpose — `groupResources` emits a sub-section heading the
-  -- moment `subsection` changes as it walks `sort_order`, so a gap here would print one
-  -- twice. 20260819000005's header carries the whole argument, including why it writes no
-  -- `resource_visibility` row and no `permission_table_map` row.
+  -- IT IS A KEY OVER A SCREEN AND NOT OVER ROWS, and the sort_order puts it where the RAIL
+  -- puts it — Chat, Announcements, Updates, Directory. 20260819000005's header carries the
+  -- whole argument, including why it writes no `resource_visibility` row and no
+  -- `permission_table_map` row.
   ('updates',             'Updates',                'community',  62),
   -- Labelled 'Directory' since 20260812000001 — the caption the page and the rail item
   -- both carry now. Updated here as well as there because this insert is ON CONFLICT

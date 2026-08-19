@@ -4,7 +4,7 @@
 -- Deletes all `people` rows and all `auth.users` rows. With no users left,
 -- user-owned personal data is removed by cascade; shared resources that had a
 -- creator are anonymized (creator set to NULL). This does NOT drop schema-only
--- config rows that carry no user reference (e.g. family_roles, dues_schedules).
+-- config rows that carry no user reference (e.g. dues_schedules).
 -- For a complete wipe of every table, use truncate_entire_database.sql instead.
 --
 -- THIS AFFECTS ALL ACCOUNTS. It is wrapped in a transaction — review, then

@@ -158,6 +158,52 @@ const GATHERING_DUE_ON = inDays(20)
 const SPARE_GATHERING_STARTS_ON = inDays(45)
 
 /**
+ * A DATE OF BIRTH WHOSE NEXT ANNIVERSARY IS INSIDE THE BIRTHDAYS PANE'S 60-DAY HORIZON.
+ *
+ * `announcements.getUpcomingBirthdays` (20260819000002) reads the roster and hands it to
+ * `upcomingBirthdays(roster, todayLocal())`, which keeps only the people whose next birthday
+ * falls in the next `BIRTHDAY_HORIZON_DAYS`. EVERY OTHER `date_of_birth` IN THIS FIXTURE IS A
+ * HARD-CODED LITERAL — 2015-04-04, 1950-02-02, 1971-04-04 and the rest — and not one of them
+ * is inside that window today, which means the case's positive control would answer `[]` and
+ * pass the isolation assertion by returning nothing at all. That is AGENTS.md §7's decoration
+ * failure exactly: an action that answers empty for everybody satisfies "BRAVO saw none of
+ * ALPHA's data" trivially.
+ *
+ * SO IT IS RELATIVE, FOR `inDays`' OWN REASON ONE STEP FURTHER ON. A literal inside the window
+ * would work this month and rot silently the moment the calendar moved past it — a fixture
+ * nobody had touched, a control that had quietly stopped controlling anything, and a green run.
+ * The MONTH AND DAY come from the clock and only the YEAR is fixed.
+ *
+ * 1980 IS THE YEAR AND IT IS A LEAP YEAR ON PURPOSE. `inDays(10)` can land on 29 February —
+ * only ever in a year that has one, so `1980-02-29` is a date `date_of_birth` accepts, whereas
+ * a common birth year would make the fixture refuse its own insert one February in four.
+ * `lib/birthdays.ts` then clamps that anniversary to 28 February in a common year, which moves
+ * `onDate` and never removes the person, so the assertions below (which are about WHO is
+ * listed) hold either way.
+ *
+ * The UTC-versus-local slop `inDays` describes is harmless here for the same reason it is
+ * there: +10 and +12 days are nowhere near either end of a 60-day window, so a one-day
+ * disagreement with the server's `todayLocal()` changes no assertion.
+ */
+const BIRTHDAY_SOON = `1980${inDays(10).slice(4)}`
+
+/**
+ * The same, two days later, for the relative who is DEAD.
+ *
+ * A different day from `BIRTHDAY_SOON` so a probe reading a list of dates can tell the two
+ * rows apart, and inside the horizon for the assertion to mean anything: the point of this row
+ * is that `getUpcomingBirthdays` withholds it because of `sunset_date`, and a birthday outside
+ * the window would be withheld by the arithmetic instead and prove nothing.
+ */
+const SUNSET_BIRTHDAY_SOON = `1935${inDays(12).slice(4)}`
+
+/**
+ * When that relative died. A fixed literal, because nothing reads it against the clock — only
+ * `IS NULL` is ever asked of it.
+ */
+const SUNSET_DATE = '1998-11-04'
+
+/**
  * When the approved task was ruled on. A TIMESTAMPTZ, not a DATE — `gathering_tasks.decided_at`
  * and `gathering_task_submissions.reviewed_at` both are — and in the PAST, because a decision
  * that has been taken is in the past by definition and `reopenGatheringTask`'s setup writes this
@@ -238,6 +284,48 @@ export const USERS = {
   // family can confer, exactly like the other two administrators: a positive control that
   // failed for want of a grant would prove nothing about removal.
   charlieAdmin: { email: 'charlie.admin@rls.test', family: CHARLIE, admin: true },
+  // ── FOUR GENORRA STAFF ACCOUNTS, AND THEY BELONG TO NO FAMILY AT ALL ───────────────────
+  //
+  // `noPerson: true` is the only flag in this map that changes the LOOP rather than a column:
+  // these four get an `auth.users` row and NO `people` row anywhere. Three reasons, and the
+  // third is the one that makes them worth the four extra sign-ins.
+  //
+  //   1. IT IS WHAT A STAFF MEMBER IS. `app/actions/staff/access.ts` says so in its own words
+  //      — "a staff member need not be a member of any family at all", which is why nothing in
+  //      that module writes a `notifications` row. A fixture that made them customers would be
+  //      fixturing something the product does not claim.
+  //   2. IT KEEPS THEM OUT OF EVERY OTHER ASSERTION IN THIS SUITE. `people` rows are counted
+  //      exactly in several places — `getPendingApprovalCount` asserts 3 in ALPHA and 1 in
+  //      BRAVO, `getScopeUsage` asserts one member in the occupied chapter — and a roster row
+  //      added to ALPHA or BRAVO for a reason that has nothing to do with families is how one
+  //      of those numbers comes to be wrong for a reason nobody can find.
+  //   3. IT IS A REGRESSION GUARD ON THE MODULE UNDER TEST. All four staff actions run on the
+  //      service role against a table with no `family_code` column, and their positive control
+  //      is a caller with no family — so if a future edit ever adds `requireMember()`, an
+  //      `auth_family_code()` lookup or a family conjunct to `app/actions/staff/access.ts`,
+  //      every control in STAFF_CASES fails loudly instead of the console quietly refusing
+  //      GENORRA's own employees.
+  //
+  // WHAT SEEDING A `genorra_staff` ROW MEANS FOR THE REST OF THIS FILE: nothing, and that is
+  // checked rather than assumed. `is_genorra_staff()` is named by NO RLS policy in the schema
+  // (20260817000005 says so and `grep is_genorra_staff supabase/migrations` confirms it), the
+  // table has no `family_code`, and nothing else in cases.mjs reads it — so a staff grant
+  // widens no read, and these four accounts are invisible to every family-scoped query in the
+  // suite because they have no row in `people` to be found by one.
+  //
+  //   staffOwner    role 'owner'. The POSITIVE CONTROL for all four actions, and the only
+  //                 actor that can legitimately succeed at any of them.
+  //   staffSupport  role 'support'. THE CRUX ATTACKER: genuinely staff, and so past
+  //                 `requireStaff()`, refused only by `requireStaffOwner()`'s one comparison.
+  //                 No other attacker in this suite can reach that line.
+  //   staffSpare    role 'engineer'. The TARGET of `setStaffRole` and `revokeStaffAccess`, so
+  //                 neither control consumes an actor. `deletableChild`'s rule.
+  //   staffGrantee  no staff row. The account `grantStaffAccess`'s control grants to, so that
+  //                 control creates a row rather than colliding with one.
+  staffOwner: { email: 'staff.owner@rls.test', noPerson: true, staffRole: 'owner' },
+  staffSupport: { email: 'staff.support@rls.test', noPerson: true, staffRole: 'support' },
+  staffSpare: { email: 'staff.spare@rls.test', noPerson: true, staffRole: 'engineer' },
+  staffGrantee: { email: 'staff.grantee@rls.test', noPerson: true },
 }
 
 const admin = () => createClient(API_URL, SERVICE_ROLE_KEY, {
@@ -411,6 +499,21 @@ async function teardown(db) {
     const hit = (list?.users ?? []).find(u => u.email === email)
     if (hit) {
       await db.from('user_family_settings').delete().eq('user_id', hit.id)
+      // `genorra_staff` CANNOT GO IN THE `scoped` SWEEP ABOVE: it has no `family_code` column,
+      // so `.in('family_code', codes)` errors with "column does not exist" — which that loop
+      // deliberately tolerates, meaning the line would look present and delete nothing.
+      //
+      // `user_id` is ON DELETE CASCADE from `auth.users` (20260817000005: "a staff grant
+      // belonging to no account is not a record worth keeping"), so `deleteUser` below would
+      // take the row anyway. This is here regardless, and not as belt-and-braces: it is the one
+      // statement standing between this suite and being SINGLE-USE if that cascade is ever
+      // changed to RESTRICT. `user_id` is the PRIMARY KEY, so a row left behind fails the next
+      // run's INSERT on a duplicate key — in teardown, before a single case executes, which is
+      // the failure this file's `scoped` comments describe three separate times.
+      //
+      // It also sweeps what a CASE created: `grantStaffAccess`'s positive control writes a row
+      // for `staffGrantee`, which no seed statement would replace.
+      await db.from('genorra_staff').delete().eq('user_id', hit.id)
       await db.auth.admin.deleteUser(hit.id)
     }
   }
@@ -446,6 +549,14 @@ export async function seed() {
     if (error) throw new Error(`seed user ${spec.email}: ${error.message}`)
     const userId = created.user.id
 
+    // `noPerson` — the four GENORRA staff accounts. An `auth.users` row and nothing else, for
+    // the reasons stated on them in USERS. `personId` is null rather than absent, so every
+    // filter below can test for it rather than discovering `undefined` in a `.in()` list.
+    if (spec.noPerson) {
+      fx.users[key] = { ...spec, userId, personId: null, password: PASSWORD }
+      continue
+    }
+
     const person = must(`person ${spec.email}`, await db.from('people').insert({
       user_id: userId,
       family_code: spec.family,
@@ -463,7 +574,12 @@ export async function seed() {
   // See the header for why this cannot be an insert value. Two statements, in this
   // order, so the result does not depend on the iteration order of USERS: everyone is
   // approved, then the applicants are pended back.
-  const everyone = Object.values(fx.users).map(u => u.personId)
+  // `.filter(Boolean)` for the `noPerson` staff accounts, which have no `people` row to have a
+  // membership status. Without it this is `.in('id', [ … , null, null, null, null])`, which
+  // PostgREST turns into `id=in.(…,null)` — a request for a row whose id IS the string "null",
+  // matching nothing and erroring on nothing. The whole UPDATE would still land for everybody
+  // else, so the damage would be invisible here and would surface only in the assertion below.
+  const everyone = Object.values(fx.users).map(u => u.personId).filter(Boolean)
   must('approve seeded members', await db.from('people')
     .update({ membership_status: 'approved', membership_decided_at: new Date().toISOString() })
     .in('id', everyone))
@@ -504,11 +620,54 @@ export async function seed() {
   const statuses = must('verify statuses', await db.from('people')
     .select('id, membership_status').in('id', everyone))
   for (const [key, u] of Object.entries(fx.users)) {
+    // The staff accounts have no `people` row, so there is no status to state and none to
+    // check. Skipped explicitly rather than by `u.personId &&`, so a person row that failed to
+    // seed still trips the assertion below instead of being read as a deliberate omission.
+    if (u.noPerson) continue
     const want = u.pending ? 'pending' : u.declined ? 'rejected' : 'approved'
     const got = statuses.find(s => s.id === u.personId)?.membership_status
     if (got !== want) {
       throw new Error(`seed membership_status: ${key} is '${got}', expected '${want}'`)
     }
+  }
+
+  // ── GENORRA staff, which is not a family fact and so sits outside the loops ──────────────
+  //
+  // Three rows, from the `staffRole` on each spec in USERS. `granted_by` is stated per row
+  // rather than left null everywhere, because `StaffTeamRow.grantedByEmail` has three different
+  // meanings for null and the fixture should exercise both branches:
+  //
+  //   * the OWNER's own row carries null — the bootstrap shape, a row
+  //     `supabase/scripts/grant_staff.sql` wrote before this screen existed;
+  //   * the other two carry the owner's `auth.users` id, so `listStaffTeam` has a real address
+  //     to resolve through the admin API and its `emailsFor` lookup is actually exercised.
+  //
+  // `genorra_staff` is service-role-only by construction — RLS is ENABLED with ZERO policies —
+  // so this insert works for the reason every other write in this file does, and no user client
+  // could perform it at all. That is the property STAFF_CASES is about.
+  const staffRows = Object.values(fx.users).filter(u => u.staffRole)
+  must('genorra staff', await db.from('genorra_staff').insert(staffRows.map(u => ({
+    user_id: u.userId,
+    role: u.staffRole,
+    note: `seeded by the RLS harness as ${u.staffRole}`,
+    granted_by: u.staffRole === 'owner' ? null : fx.users.staffOwner.userId,
+  }))))
+
+  // Asserted, for the reason the membership-status block above is asserted: every STAFF_CASES
+  // control runs as `staffOwner` and every attack half rests on `staffSupport` being staff but
+  // NOT an owner. A fixture that silently seeded the wrong roles would make both halves pass
+  // for the wrong reason — the controls because nobody could act, the attacks because the
+  // attacker was never staff at all.
+  const staffCheck = must('verify staff roles', await db.from('genorra_staff')
+    .select('user_id, role').in('user_id', staffRows.map(u => u.userId)))
+  for (const u of staffRows) {
+    const got = staffCheck.find(s => s.user_id === u.userId)?.role
+    if (got !== u.staffRole) {
+      throw new Error(`seed genorra_staff: ${u.email} is '${got}', expected '${u.staffRole}'`)
+    }
+  }
+  if (staffCheck.filter(s => s.role === 'owner').length !== 1) {
+    throw new Error('seed genorra_staff: expected exactly one owner')
   }
 
   // ── an administrator in each family: scope 'any' on everything ────────────
@@ -676,14 +835,28 @@ export async function seed() {
       scope: 'regional', region_id: f.region.id,
     }).select().single())
 
-    // A CUSTOM BOARD POSITION. `family_roles` is the hybrid table AGENTS.md warns about:
-    // its NULL-family_code rows are product data seeded by migrations, and a family's own
-    // custom positions carry their code. `deleteCustomRole` had no family conjunct at all,
-    // so this is the row that proves one family cannot delete another's — and it is seeded
-    // per family so the attack and the control each have their own.
+    // A BOARD POSITION, AND SINCE 20260819000004 THAT IS THE ONLY KIND THERE IS.
+    //
+    // `family_roles` was the hybrid table AGENTS.md warns about — NULL-`family_code` rows
+    // seeded by migrations as product data, beside each family's own — and that migration
+    // retired the hybrid: the 25 built-ins are gone, `is_global` is DROPPED, and a family
+    // starts with no positions and configures its own. So this row is no longer "a CUSTOM
+    // position beside the globals", it is simply the family's position.
+    //
+    // `is_global: false` WAS HERE AND HAD TO GO IN THE SAME COMMIT AS THE DROP. supabase-js
+    // sends the key to PostgREST, which answers "Could not find the 'is_global' column of
+    // 'family_roles' in the schema cache" — the seed dies before a single case runs, which is
+    // what happened the moment that migration was applied locally. A fixture naming a column
+    // is a fixture that has to move when the column does.
+    //
+    // The name stays `${code} Historian` although the reason it needed a prefix has gone:
+    // `family_roles_name_key` was `UNIQUE (name)` ACROSS EVERY FAMILY, so two families could
+    // not both seed "Historian", and 20260819000004's own header cites this fixture as the
+    // standing evidence of it. It is per-family now and a bare 'Historian' would work — kept
+    // because the prefix is also what makes the row identifiable as ALPHA's in a probe.
     f.customRole = must('custom role', await db.from('family_roles').insert({
       family_code: code, name: `${code} Historian`, category: 'appointed_position',
-      scope: 'national', is_global: false, sort_order: 900,
+      scope: 'national', sort_order: 900,
     }).select().single())
 
     f.announcement = must('announcement', await db.from('announcements').insert({
@@ -792,13 +965,29 @@ export async function seed() {
       assigned_to: owner.userId, assigned_by: owner.userId,
     }).select().single())
 
-    // A board position, given to the ADMINISTRATOR — which is why that sweep case's
-    // control is `alphaAdmin` rather than `alphaMember`. `role_id` comes from the global
-    // `family_roles` lookup (the 25 built-in positions), so this depends on
-    // `seed_global_lookups()` having run: if it is empty the insert fails loudly here
-    // rather than the case going green over a missing row.
-    const presidentRole = must('president role', await db.from('family_roles')
-      .select('id').eq('name', 'President').is('family_code', null).single())
+    // A board position HELD BY THE ADMINISTRATOR — which is why the `raw:user_roles SELECT`
+    // sweep case's control is `alphaAdmin` rather than `alphaMember`.
+    //
+    // IT SEEDS ITS OWN POSITION SINCE 20260819000004, and the change is not cosmetic. This
+    // used to read the GLOBAL 'President' row —
+    // `.eq('name', 'President').is('family_code', null).single()` — with a comment saying the
+    // insert would "fail loudly here rather than the case going green over a missing row" if
+    // `seed_global_lookups()` had not run. That was the right design for a hybrid table and it
+    // did exactly what it promised: the moment 20260819000004 deleted the 25 built-ins, this
+    // line failed with "JSON object requested, multiple (or no) rows returned" and the whole
+    // suite stopped at the seed.
+    //
+    // A family now starts with NO positions and configures its own, so the fixture configures
+    // one. The name is prefixed like every other row here, so `user_roles`' subject is
+    // identifiably ALPHA's — and it is a SECOND position rather than reusing `f.customRole`
+    // for `deletableChild`'s reason: the board-position delete case removes that row, and a
+    // `user_roles` row hanging off it would be swept away with it by
+    // `user_roles_role_id_fkey`'s ON DELETE CASCADE, silently emptying the table the sweep
+    // case asserts about.
+    const presidentRole = must('president role', await db.from('family_roles').insert({
+      family_code: code, name: `${code} President`, category: 'executive_officer',
+      scope: 'national', sort_order: 100,
+    }).select().single())
     f.userRole = must('user role', await db.from('user_roles').insert({
       family_code: code, user_id: familyAdmin.userId, role_id: presidentRole.id,
     }).select().single())
@@ -1071,6 +1260,67 @@ export async function seed() {
       primary_email: `uninvited.record.${side}@rls.test`,
     }).select().single())
 
+    // ── THREE BIRTHDAYS INSIDE THE 60-DAY HORIZON, one per thing that decides the pane ─────
+    //
+    // `announcements.getUpcomingBirthdays` (20260819000002) applies three conjuncts and then
+    // hands what survives to `lib/birthdays.ts`. Two of them can only be tested by a row that
+    // WOULD be listed but for that conjunct, which is why these exist rather than the case
+    // borrowing `f.child` or `f.ancestor`: every hard-coded birthday in this fixture is months
+    // away, so a case built on one would assert about an empty list (AGENTS.md §7).
+    //
+    //   f.birthdayPerson        the row that MUST be listed. Living, approved, +10 days.
+    //   f.sunsetBirthdayPerson  the row that must NOT be, and the conjunct the action's own
+    //                           header calls "the single most important line in this function":
+    //                           `sunset_date IS NULL`. A great-uncle who died in 1998 is an
+    //                           ordinary `people` row with an ordinary birthday (AGENTS.md
+    //                           §4b), and `lib/birthdays.ts` deliberately does not know about
+    //                           the column — so if the FETCH stops withholding him, the pane
+    //                           says "12 days away, turning 91" about a dead man and nothing
+    //                           else in the stack objects.
+    //   the family's APPLICANT  the third conjunct, `membership_status = 'approved'`, given a
+    //                           birthday below rather than a row of its own — see there.
+    //
+    // BOTH ARE ACCOUNT-LESS RECORDS, which is also the §4b decision being asserted: the pane
+    // counts every approved PERSON and not only every ACCOUNT, because a grandmother who never
+    // registered has a birthday exactly as much as her son who signed in this morning. A
+    // fixture that gave these rows accounts would let an accounts-only filter creep back in
+    // with every case still green.
+    //
+    // The stamp trigger returns early for `user_id IS NULL`, so both keep the column default
+    // 'approved' and neither needs the explicit UPDATE the members above do.
+    f.birthdayPerson = must('birthday person', await db.from('people').insert({
+      family_code: code, first_name: `${code}Birthday`, last_name: code,
+      date_of_birth: BIRTHDAY_SOON, created_by: familyAdmin.userId,
+    }).select().single())
+
+    f.sunsetBirthdayPerson = must('sunset birthday person', await db.from('people').insert({
+      family_code: code, first_name: `${code}Departed`, last_name: code,
+      date_of_birth: SUNSET_BIRTHDAY_SOON, sunset_date: SUNSET_DATE,
+      created_by: familyAdmin.userId,
+    }).select().single())
+
+    // AND A BIRTHDAY ON THE FAMILY'S UNADMITTED APPLICANT, which is an UPDATE to an existing
+    // actor rather than a new row, deliberately, and the reason is a count:
+    // `getPendingApprovalCount` asserts EXACTLY 3 pending in ALPHA and 1 in BRAVO, so a fourth
+    // pending row would break two cases that have nothing to do with birthdays. Adding a date
+    // to a row that is already counted changes no count at all.
+    //
+    // `pendingPersonId` and not `applicantPersonId`/`rejectablePersonId`: those two are
+    // CONSUMED by `approveApplicant`'s and `rejectApplicant`'s controls, and an approved one
+    // would then legitimately appear on the pane — making the assertion depend on which cases
+    // had already run. The header promises `alphaPending` stays pending for the life of the run,
+    // which is the only guarantee that makes this stable.
+    //
+    // The cost is stated where it lands: that person's id is deliberately NOT in
+    // `alphaMarkers()` (they are an attacking actor and RLS correctly lets them read their own
+    // row), so the exclusion is asserted BY ID in the case's `expectPositive` rather than by the
+    // marker scan.
+    {
+      const { error } = await db.from('people')
+        .update({ date_of_birth: BIRTHDAY_SOON }).eq('id', f.pendingPersonId)
+      if (error) throw new Error(`seed ${code}: applicant birthday: ${error.message}`)
+    }
+
     const rels = must('relationships', await db.from('person_relationships').insert([
       { person_id: owner.personId, related_person_id: other.personId,
         relationship_type_id: types.Wife, family_code: code, is_step: false,
@@ -1270,6 +1520,16 @@ export async function seed() {
     f.template = must('gathering template', await db.from('gathering_templates').insert({
       family_code: code, name: `${code} assembly plan`,
       description: `${code} assembly plan notes`,
+      // The template's USUAL place (20260819000001, §8), which `addGatheringTemplate` COPIES
+      // onto a segment that states none. Seeded rather than left null so the column is a real
+      // value in every read that publishes it and so `updateGatheringTemplate`'s probe has a
+      // stable before-state to compare against — a probe whose baseline is null cannot tell a
+      // successful write from a column the projection forgot.
+      //
+      // NOT IN `alphaMarkers()`, and for the reason `gatherings.location` is not: a case's
+      // control rewrites it. The row is marked anyway by its name and its id, which are both on
+      // the list and neither of which any case touches.
+      default_location: `${code} assembly green`,
       // A people id, not an auth id, and it is this table's whole `own_expr`.
       created_by: owner.personId,
       who_may_schedule: 'family',
@@ -1294,6 +1554,11 @@ export async function seed() {
 
     f.deletableTemplate = must('deletable gathering template', await db.from('gathering_templates').insert({
       family_code: code, name: `${code} spare assembly plan`,
+      // THE DEFAULT `addGatheringTemplate`'S CASE OBSERVES BEING COPIED. That case links this
+      // template to the spare gathering while stating a DAY and no PLACE, so the segment's
+      // `location` can only arrive from here — which is the copy-not-reference rule the tasks
+      // already follow, and the half of 20260819000001 §8 that a stated location would hide.
+      default_location: `${code} spare assembly lodge`,
       created_by: owner.personId, who_may_schedule: 'admin',
     }).select().single())
 
@@ -1324,8 +1589,23 @@ export async function seed() {
       status: 'planning', created_by: owner.personId,
     }).select().single())
 
+    // A SEGMENT WITH A DAY AND A PLACE (20260819000001), not a bare junction row.
+    //
+    // `occurs_on` is the gathering's own first day, so the segment is INSIDE the span and
+    // `segmentSpanWarning` has nothing to say about it — a fixture that seeded an out-of-span
+    // segment would make every read of this gathering carry a warning nobody asked for, and
+    // `setGatheringSegment`'s probe would then be comparing two states that both need
+    // explaining.
+    //
+    // `location` IS DELIBERATELY NOT IN `alphaMarkers()`, exactly as `gatherings.location` is
+    // not: `setGatheringSegment`'s positive control rewrites this column, and a marker a case
+    // overwrites is a marker that silently stops being found for every case ordered after it.
+    // The row's id (`f.templateUse.id`) is not published by any read either — the detail screens
+    // group by `template_id` — so what marks this segment in a leak is the TEMPLATE's name,
+    // which is already on the list.
     f.templateUse = must('gathering template use', await db.from('gathering_template_uses').insert({
       family_code: code, gathering_id: f.gathering.id, template_id: f.template.id, position: 0,
+      occurs_on: GATHERING_STARTS_ON, location: `${code} assembly pavilion`,
     }).select().single())
 
     f.assignedTask = must('assigned gathering task', await db.from('gathering_tasks').insert({

@@ -42,12 +42,18 @@
  * probe returns the error CODE so its case can assert on the refusal rather than on
  * emptiness.
  *
- * ── ONE TABLE IS DELIBERATELY ABSENT ────────────────────────────────────────────────
- * `adults`. `permission_table_map` still carries a row for it with an `auth.uid()`-based
- * self expression, so the migration's computed sweep list names it — and
- * `to_regclass('public.adults')` is NULL, because `20260602000003` dropped the table. The
- * migration skips it with a NOTICE; a probe would fail with 42P01. TODO.md carries dropping
- * the stale map row.
+ * ── ONE TABLE USED TO BE DELIBERATELY ABSENT, AND NOW IS NOT ────────────────────────
+ * `adults`. `permission_table_map` carried a row for it with an `auth.uid()`-based self
+ * expression, so the migration's computed sweep list named it — and
+ * `to_regclass('public.adults')` is NULL, because `20260602000003` dropped the table two
+ * weeks before that catalogue was seeded. The migration skipped it with a NOTICE that reads
+ * like a finding, and a probe here would have failed 42P01 rather than telling anybody
+ * anything, which is why there has never been one.
+ *
+ * `20260819000003` DELETED the map row and took it out of `20260618000001`'s seed, so the
+ * computed list no longer names it and there is nothing left to skip. The paragraph stays
+ * because the shape recurs: a catalogue row for a table that does not exist is invisible to
+ * every test except the one somebody writes against the computed list.
  */
 import { rawSelect, rawInsert, rawUpdate, rawRpc } from '../raw.mjs'
 

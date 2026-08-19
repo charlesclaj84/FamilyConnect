@@ -5,8 +5,8 @@
 -- *** DESTRUCTIVE — NO RECOVERY. Take a dump first if the data matters. ***
 --
 -- Dynamically TRUNCATEs every base table in `public` (CASCADE, identity reset)
--- EXCEPT the four global lookups named in §1, deletes the per-family half of
--- `family_roles`, then empties auth.users — which cascades to the app tables
+-- EXCEPT the three global lookups named in §1, then empties auth.users — which
+-- cascades to the app tables
 -- referencing it and to GoTrue's own auth.* children (identities, sessions,
 -- refresh_tokens, mfa factors...). Finally it re-seeds what can be re-seeded and
 -- asserts the end state BOTH ways.
@@ -55,7 +55,7 @@
 -- ── IT NO LONGER CLAIMS TO EMPTY EVERY TABLE, AND NEVER DID ─────────────────
 -- Two things survive, one deliberately and one because it always did:
 --
---   * The four global lookups. See §1.
+--   * The three global lookups. See §1.
 --   * `storage.*`. The filter is `schemaname = 'public'`, so `storage.objects`
 --     and `storage.buckets` are untouched — every avatar, document and event
 --     photo outlives the row that referenced it. Orphaned blobs are out of scope
@@ -88,30 +88,44 @@
 --      RESTRICT. A reinsert regenerates uuids, and `TRUNCATE … CASCADE` ignores
 --      the RESTRICT and takes every relationship edge with it. Keeping the rows
 --      sidesteps both.
---   3. TWO OF THE FOUR CANNOT BE HONESTLY RESEEDED AT ALL. See §5.
+--   3. TWO OF THE THREE CANNOT BE HONESTLY RESEEDED AT ALL. See §5.
 --
--- Verified safe: none of the four has an outgoing FK into anything being
+-- Verified safe: none of the three has an outgoing FK into anything being
 -- truncated (the only one among them is permission_table_map → permission_
 -- resources, and both are excluded), so nothing CASCADEs them back in; their
 -- children — person_relationships, resource_visibility, template_permissions,
--- user_roles, family_role_exclusions — are all still truncated; none of the four
--- has a trigger; and `public` has no identity or serial column anywhere, so
--- dropping four names from the `RESTART IDENTITY` list changes nothing.
+-- user_roles — are all still truncated; none of the three has a trigger; and
+-- `public` has no identity or serial column anywhere, so dropping three names
+-- from the `RESTART IDENTITY` list changes nothing.
+--
+-- IT SAID FOUR UNTIL 2026-08-19, and the fourth was `family_roles` — a hybrid, kept
+-- for its 25 built-in board positions while §3 deleted its per-family rows.
+-- 20260819000004 retired the built-ins, so the table is ordinary family data that §2
+-- truncates with everything else, and `family_role_exclusions` (a child of it) no
+-- longer exists at all.
 -- ============================================================================
 
 DO $purge$
 DECLARE
   -- ── 1. The global lookups, and what makes each one global ─────────────────
-  -- Named here rather than derived, because no structural test finds this set.
-  -- "Has no family_code column" gets three of the four and misses `family_roles`,
-  -- which HAS one: 20260604000002 added it so a family could define custom roles
-  -- beside the 25 built-in board positions. The global rows are the ones where it
-  -- is NULL. A hybrid table passes every test for family data and is mostly not.
+  -- Named here rather than derived, because no structural test finds this set:
+  -- "has no family_code column" is what identifies them, and it is a property of
+  -- the schema rather than of anything that can be asserted about the data.
   --
   --   relationship_types    the relationship vocabulary the family tree writes
   --   permission_resources  the set of pages the product has — the same everywhere
   --   permission_table_map  which resource key governs which table
-  --   family_roles          the 25 board positions, WHERE family_code IS NULL
+  --
+  -- `family_roles` WAS THE FOURTH AND IS NOT ANY MORE, and the reason it was here
+  -- is worth keeping because it is the reason this list cannot be derived. That
+  -- table was a HYBRID: 20260604000002 gave it a `family_code` so a family could
+  -- define custom roles beside 25 built-in board positions, and the built-ins were
+  -- the rows where the column was NULL — so it passed every "is this family data?"
+  -- test while being mostly not, and a purge emptied its global half on hosted with
+  -- nothing able to put it back. 20260819000004 retired the built-ins: board
+  -- positions are per-family now, `family_code` is NOT NULL, and the table is
+  -- ordinary family data that §2 below truncates with everything else. A future
+  -- hybrid would need the same care, which is why the paragraph stays.
   --
   -- A NEW LOOKUP TABLE BELONGS IN THIS LIST, in the same commit that adds it, and
   -- in the keep-list in reset_families.sql §11.
@@ -121,8 +135,7 @@ DECLARE
   keep CONSTANT text[] := ARRAY[
     'relationship_types',
     'permission_resources',
-    'permission_table_map',
-    'family_roles'
+    'permission_table_map'
   ];
   v_tables   text;
   v_leftover text;
@@ -144,12 +157,14 @@ BEGIN
   EXECUTE format('TRUNCATE TABLE %s RESTART IDENTITY CASCADE', v_tables);
   RAISE NOTICE 'Truncated: %', v_tables;
 
-  -- ── 3. The custom half of family_roles is family data and still goes ────────
-  -- `createCustomRole` writes these with `family_code` set, and they belong to a
-  -- family that no longer exists after §2. `family_code IS NOT NULL` is the
-  -- predicate the app itself filters on; `is_global = false` selects the same rows
-  -- today only because nothing writes the two apart, so it is not used here.
-  DELETE FROM public.family_roles WHERE family_code IS NOT NULL;
+  -- ── 3. `family_roles` NEEDS NOTHING HERE ANY MORE ───────────────────────────
+  -- This used to be `DELETE FROM public.family_roles WHERE family_code IS NOT NULL`
+  -- — the custom half of a hybrid table whose global half §2 had to skip. Since
+  -- 20260819000004 the table is per-family throughout, so it is off the keep-list
+  -- above and §2's dynamic TRUNCATE takes it like any other family table. Stated
+  -- rather than silently removed, because the obvious reading of §2 is that it
+  -- covers everything and the obvious reading of a partial DELETE is that it does
+  -- not.
 
   -- ── 4. Empty all auth accounts ──────────────────────────────────────────────
   -- Cascades to any public table FK still referencing auth.users, plus GoTrue's
@@ -162,9 +177,11 @@ BEGIN
   -- older version of this script.
   --
   -- ONE AUTHORITY, NOT A COPY. `seed_global_lookups()` is created by
-  -- 20260817000003 and holds the vocabulary for `relationship_types` and for
-  -- `family_roles`' 25 global rows. Restating either list here would make this
-  -- script a second authority, stale from the next migration that touches them —
+  -- 20260817000003, redefined by 20260819000004, and holds the vocabulary for
+  -- `relationship_types` — and for nothing else. It seeded `family_roles`' 25 global
+  -- board positions until board positions became per-family; do not go looking for
+  -- them here or there. Restating the list here would make this script a second
+  -- authority, stale from the next migration that touches it —
   -- the trap AGENTS.md §6 records about the resource catalogue living in two
   -- places. Calling the function means a future vocabulary change edits one file
   -- and this script stays correct with no edit at all.
@@ -213,15 +230,15 @@ BEGIN
   END IF;
 
   -- 6b. Everything that should be FULL is full. The missing half.
+  --
+  -- A plain count per table since 20260819000004. It used to carry a CASE for
+  -- `family_roles`, counting only `family_code IS NULL` because §3 had just deleted
+  -- the other half — a special case that existed solely because that table was a
+  -- hybrid, and the exact line that would have made this script roll itself back
+  -- forever once the built-ins were retired. If a hybrid lookup ever returns, this
+  -- is where its predicate goes.
   FOREACH v_name IN ARRAY keep LOOP
-    EXECUTE format(
-      -- The global half of family_roles only. §3 has just deleted the custom
-      -- rows, so counting the whole table would report success for a table
-      -- holding nothing but rows that should not be there.
-      CASE WHEN v_name = 'family_roles'
-        THEN 'SELECT count(*) FROM public.family_roles WHERE family_code IS NULL'
-        ELSE format('SELECT count(*) FROM public.%I', v_name)
-      END) INTO v_count;
+    EXECUTE format('SELECT count(*) FROM public.%I', v_name) INTO v_count;
     IF v_count = 0 THEN v_empty := v_empty || v_name; END IF;
   END LOOP;
 
@@ -229,9 +246,9 @@ BEGIN
     RAISE EXCEPTION
       'ROLLBACK: global lookup(s) are EMPTY after the purge: %. These are product reference '
       'data, seeded only by migrations, and a migration the database has already recorded as '
-      'applied never runs again — so this is not self-healing. relationship_types and '
-      'family_roles are restored by seed_global_lookups() in §5; if either is still empty that '
-      'function is broken. permission_resources and permission_table_map need a migration '
+      'applied never runs again — so this is not self-healing. relationship_types is restored '
+      'by seed_global_lookups() in §5; if it is still empty that function is broken. '
+      'permission_resources and permission_table_map need a migration '
       'replaying their seeds — see supabase/migrations/20260817000003_global_lookup_reseed.sql, '
       'which explains why they are not reseedable from here.',
       array_to_string(v_empty, ', ');
