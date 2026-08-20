@@ -14,10 +14,24 @@ import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboar
  * (AGENTS.md §5). If you are tempted to add a `canSee` prop here, the check belongs in
  * the page, above its `Promise.all`.
  *
- * THE WHOLE PANEL DISAPPEARS WHEN NOTHING SURVIVES, rather than rendering an empty
- * bordered box. A member of a family that restricts its directory and its ledgers still
- * has My Balance, so in practice this is never empty today — but "in practice" is not a
- * guarantee, and an empty card is a worse answer than no card.
+ * THE WHOLE PANEL DISAPPEARS WHEN NOTHING SURVIVES — no tiles AND no `children` — rather
+ * than rendering an empty bordered box. An empty card is a worse answer than no card.
+ *
+ * ── `children`, AND WHY THE BALANCE AND THE DRIVES ARE INSIDE THIS CARD ────────────
+ * Since 2026-08-19 the dues balance and the open donation drives render HERE, under the tile
+ * grid, rather than in the narrow column beside it. They are the two things on this screen
+ * that are about the reader's own standing with the family — what they owe, and what the
+ * family is currently asking them to give to — which is precisely what "at a glance" is
+ * asking. In the narrow column they sat under Quick Actions, competing with a strip of
+ * buttons for the same attention.
+ *
+ * They arrive as `children` rather than as props, because this component's whole contract is
+ * that it renders what it is given and decides nothing: typing them as `summary` and
+ * `donations` would put two more shapes in here and two more chances to filter something the
+ * page already decided. The page composes; this draws.
+ *
+ * THE TILE GRID IS STILL FIRST. A figure is scanned and a card is read, and a member looking
+ * for "how big is my family" should not have to pass their own balance to get to it.
  *
  * EVERY TILE IS A LINK AND EVERY LINK SETS ITS OWN TEXT COLOUR. `globals.css` carries an
  * unscoped `a { color: var(--brand-accent) }`, so an anchor that says nothing comes out
@@ -26,8 +40,24 @@ import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboar
  * gets its own `text-brand-ink` from `buttonVariants`, which is the same trap answered
  * the same way.
  */
-export function AtAGlance({ tiles }: { tiles: ResolvedTile[] }) {
-  if (tiles.length === 0) return null
+export function AtAGlance({
+  tiles, children,
+}: {
+  tiles: ResolvedTile[]
+  /**
+   * Rendered under the tile grid, inside the same card — the dues balance and the open
+   * donation drives. Both are already gated and already fetched (or not) by the page.
+   *
+   * IT IS TESTED FOR PRESENCE, NOT FOR CONTENT, and the difference is worth knowing. Passing
+   * JSX makes `children` truthy whether or not what is inside it renders anything, so a caller
+   * that hands this the balance always gets the card. That is the right outcome rather than a
+   * loophole — `DuesBalanceKpi` renders for every member, so the panel genuinely is never
+   * empty on the Dashboard — and the `tiles.length === 0 && !children` guard is what still
+   * answers a caller who passes neither.
+   */
+  children?: React.ReactNode
+}) {
+  if (tiles.length === 0 && !children) return null
 
   return (
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
@@ -87,6 +117,13 @@ export function AtAGlance({ tiles }: { tiles: ResolvedTile[] }) {
           )
         })}
       </div>
+
+      {/* `mt-4` only when there is a grid above to be separated from — a caller with no tiles
+          at all gets the balance flush under the heading rather than with a gap where a row of
+          tiles is not. */}
+      {children && (
+        <div className={tiles.length > 0 ? 'mt-4 space-y-4' : 'space-y-4'}>{children}</div>
+      )}
     </section>
   )
 }

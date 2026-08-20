@@ -4,48 +4,43 @@ import { requireRead } from '@/lib/auth/guard'
 import { can } from '@/lib/auth/permissions'
 import { isFeatureLive } from '@/lib/features'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
 
 /**
  * One month of the family calendar — `/calendar`.
  *
  * The page draws the grid with `buildCalendarMonth` from `lib/calendar.ts`; this is the read
- * that fills it, and the only thing it does is turn two DIFFERENT products into one list of
- * `CalendarEntry`. Gatherings and Events are deliberately parallel features (see the spec and
- * `lib/gatherings.ts`), and this is the one place in the app that shows them together.
+ * that fills it, and all it does is turn the family's gatherings into a list of
+ * `CalendarEntry`.
  *
- * ── THREE GRANTS, RESOLVED SEPARATELY, AND WHY `sources` IS IN THE RETURN ──────────
+ * ── IT READ TWO PRODUCTS UNTIL 2026-08-19 ──────────────────────────────────────────
+ * Events was the other, and it is retired — routes, actions, components and permission rows
+ * all deleted. What survives from that arrangement is the SHAPE, and it survives on purpose:
+ * `sources` is still a record rather than a boolean, the grant is still resolved per source,
+ * and the query is still skipped rather than filtered. A second source — a birthday, a dues
+ * date — plugs into that with no re-plumbing, whereas dissolving it into `if (!can) return []`
+ * would have to be undone the first time one arrives.
+ *
+ * ── TWO GRANTS, RESOLVED SEPARATELY, AND WHY `sources` IS IN THE RETURN ────────────
  * `calendar:view` is the page's own key: without it there is no calendar. What goes ON it is
- * governed by the two keys that own the underlying screens — `gatherings:view` and
- * `events:view` — and a family can restrict either. Folding those into one answer would mean
- * a member who may see gatherings but not events reads an August with three entries as the
- * whole of August. So each source is resolved independently, only the sources the caller
- * holds are QUERIED (§5 — gate the fetch, not the band), and `sources` reports which halves
- * are actually on the grid so the page can say one line about the one that is not.
+ * governed by the key that owns the underlying screen — `gatherings:view` — and a family can
+ * restrict that independently. Folding the two into one answer would mean a member who holds
+ * the calendar and not gatherings reads an empty August as the whole of August. So the source
+ * is resolved on its own, only QUERIED when held (§5 — gate the fetch, not the band), and
+ * `sources` reports whether it is actually on the grid so the page can say one line when it
+ * is not.
  *
  * `sources` answers "is this source on the grid", NOT "why not". A source is false when the
  * caller lacks the grant, when the feature is not live, and — importantly — when the query
  * failed: a source that produced nothing because PostgREST refused it must never report
  * itself as shown, or the page renders an empty month as a fact about the family (§8).
  *
- * ── THE ONE ASYMMETRY A READER WILL THINK IS A MISTAKE ─────────────────────────────
- * Gatherings are read on the USER client and events on the ADMIN client, and both are
- * deliberate:
- *
- *   * `gatherings` has a composed SELECT policy whose `own_expr` is
- *     `created_by = auth_person_id()`, so RLS narrows a caller holding `gatherings:view` at
- *     scope 'own' to their own gatherings — exactly, and with no hand-written scoping to get
- *     wrong. That also means this can never put an entry on the calendar whose detail page
- *     would then answer 404, which is the worst thing a calendar can do.
- *   * `events` is read the way `/events` itself reads it: `getUpcomingEvents` and
- *     `getEventDetail` both use the admin client with a `family_code` conjunct, so a
- *     user-client read here would show an 'own'-scope caller FEWER events on the calendar
- *     than the Events screen shows them the same minute. Two screens disagreeing about which
- *     events exist is worse than matching the shipped behaviour, and widening or narrowing
- *     what `/events` shows is a decision for Events, not for its calendar view. Nothing under
- *     `events*` is touched by this feature. §3's obligation is discharged by hand on that
- *     query, and the grant was resolved above.
+ * ── THE USER CLIENT, NOT THE ADMIN ONE ─────────────────────────────────────────────
+ * `gatherings` has a composed SELECT policy whose `own_expr` is `created_by =
+ * auth_person_id()`, so RLS narrows a caller holding `gatherings:view` at scope 'own' to
+ * their own gatherings — exactly, and with no hand-written scoping to get wrong. That also
+ * means this can never put an entry on the calendar whose detail page would then answer 404,
+ * which is the worst thing a calendar can do.
  *
  * ── QUERY BY OVERLAP, NOT BY EQUALITY, AND OVER THE GRID RATHER THAN THE MONTH ─────
  * A reunion that starts on 28 July and ends on 2 August belongs in both months, so the test
@@ -67,7 +62,6 @@ import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
 /** Which halves of the calendar are actually on the grid — see the header. */
 export interface CalendarSources {
   gatherings: boolean
-  events: boolean
 }
 
 export interface CalendarMonthData {
@@ -76,14 +70,14 @@ export interface CalendarMonthData {
 }
 
 /**
- * Nothing on the grid, and BOTH SOURCES REPORTED AS NOT SHOWN.
+ * Nothing on the grid, and THE SOURCE REPORTED AS NOT SHOWN.
  *
- * This is returned for three different reasons — a caller who holds `calendar:view` and neither
- * source, a caller who holds nothing at all, and a `month` that is not `YYYY-MM` — and the
- * return type deliberately does not distinguish them. `sources` answers "is this source on the
- * grid", never "why not", so the page must not grow a sentence that claims a reason: for the
- * withheld-source case it is honest ("gatherings are not shown"), and for a malformed month it
- * would be a lie about the caller's permissions.
+ * This is returned for three different reasons — a caller who holds `calendar:view` and not
+ * `gatherings:view`, a caller who holds nothing at all, and a `month` that is not `YYYY-MM` —
+ * and the return type deliberately does not distinguish them. `sources` answers "is this
+ * source on the grid", never "why not", so the page must not grow a sentence that claims a
+ * reason: for the withheld-source case it is honest ("gatherings are not shown"), and for a
+ * malformed month it would be a lie about the caller's permissions.
  *
  * That last case is not reachable from the page. `/calendar` normalises the query string before
  * it calls — `isValidMonth(raw) ? raw : today.slice(0, 7)` — because `buildCalendarMonth`
@@ -93,7 +87,7 @@ export interface CalendarMonthData {
  * dropped, this needs a third state before the page can say anything about a source being
  * missing.**
  */
-const NOTHING: CalendarMonthData = { entries: [], sources: { gatherings: false, events: false } }
+const NOTHING: CalendarMonthData = { entries: [], sources: { gatherings: false } }
 
 /** `YYYY-MM-DD` from a UTC instant, read through `getUTC*` for the reason in the header. */
 function isoOf(date: Date): string {
@@ -126,32 +120,25 @@ function gridWindow(month: string): { from: string; to: string } {
 /**
  * Does this span touch the window at all? Inclusive at both ends.
  *
- * ONE SPAN RULE FOR BOTH SOURCES, which is why it is a function rather than two filters. The
- * last day of a span is `endsOn` when there is one and it is genuinely later, and the start
- * day otherwise — the same reading `spanEnd` in `lib/calendar.ts` and `gatheringTiming` in
- * `lib/gatherings.ts` both take, so a one-day entry is never dropped and a row whose end
- * somehow precedes its start still appears on the day it starts.
+ * ONE SPAN RULE, kept as a function rather than inlined for the reason `sources` is kept as a
+ * record: a second source gets the same reading of a span for free. The last day of a span is
+ * `endsOn` when there is one and it is genuinely later, and the start day otherwise — the same
+ * reading `spanEnd` in `lib/calendar.ts` and `gatheringTiming` in `lib/gatherings.ts` both
+ * take, so a one-day entry is never dropped and a row whose end somehow precedes its start
+ * still appears on the day it starts.
  */
 function overlaps(startsOn: string, endsOn: string | null, from: string, to: string): boolean {
   const last = endsOn && endsOn > startsOn ? endsOn : startsOn
   return startsOn <= to && last >= from
 }
 
-/** The two row shapes below, declared rather than inferred — the client is untyped. */
+/** The row shape below, declared rather than inferred — the client is untyped. */
 interface GatheringRow {
   id: string
   title: string
   starts_on: string
   ends_on: string | null
   is_premier: boolean
-}
-
-interface EventRow {
-  id: string
-  name: string
-  event_date: string | null
-  start_date: string | null
-  end_date: string | null
 }
 
 export async function getCalendarMonth(month: string): Promise<CalendarMonthData> {
@@ -164,67 +151,49 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
   const g = await requireRead('calendar')
   if (!g.ok) return NOTHING
 
-  // INDEPENDENTLY, per the header. `can()` rather than `canAny()`: scope 'own' is a
-  // legitimate way to hold view on both of these — both tables have an owner — and the
-  // gathering query below honours it through RLS.
+  // `can()` rather than `canAny()`: scope 'own' is a legitimate way to hold view here — the
+  // table has a real owner — and the query below honours it through RLS.
   //
-  // `isFeatureLive` is asked as well as the grant, because a source whose route serves
-  // Coming Soon must not be linked from here: a cell linking to `/events/<id>` when `/events`
-  // is gated at the edge is a link to a screen the member cannot open. Both are live today,
-  // so this costs nothing and is what keeps the calendar honest if one ever goes back.
-  const [mayGatherings, mayEvents] = await Promise.all([
-    isFeatureLive('/gatherings') ? can(g.userId, 'gatherings', 'view') : Promise.resolve(false),
-    isFeatureLive('/events') ? can(g.userId, 'events', 'view') : Promise.resolve(false),
-  ])
+  // `isFeatureLive` is asked as well as the grant, because a source whose route serves Coming
+  // Soon must not be linked from here: a cell linking to `/gatherings/<id>` when `/gatherings`
+  // is gated at the edge is a link to a screen the member cannot open. It is live today, so
+  // this costs nothing and is what keeps the calendar honest if it ever goes back.
+  const mayGatherings = isFeatureLive('/gatherings')
+    ? await can(g.userId, 'gatherings', 'view')
+    : false
 
   const { from, to } = gridWindow(month)
   const entries: CalendarEntry[] = []
-  const sources: CalendarSources = { gatherings: mayGatherings, events: mayEvents }
+  const sources: CalendarSources = { gatherings: mayGatherings }
 
   const supabase = await createClient()
 
-  const [gatheringRes, eventRes] = await Promise.all([
-    // NOT FETCHED rather than fetched-and-filtered: props are serialized into the RSC
-    // payload whether the grid renders them or not (§5).
-    mayGatherings
-      ? supabase
-        .from('gatherings')
-        .select('id, title, starts_on, ends_on, is_premier')
-        // The far side of the overlap, in SQL, because it is a pure narrowing: a gathering
-        // starting after the window ends cannot touch it. The near side needs the
-        // `ends_on`-or-`starts_on` coalesce and is applied in TypeScript below, once, by the
-        // same helper the events half uses — one span rule, not two.
-        .lte('starts_on', to)
-        // A CANCELLED gathering is not happening, and this grid answers "what is on". It is
-        // not hidden from the family: `/gatherings` lists it with its status pill, which is
-        // the screen that owns that question. Same call `/events` makes by publishing only
-        // 'published' and 'approved'. 'planning' DOES appear — a reunion being planned has
-        // real dates and the family needs to see them.
-        .neq('status', 'cancelled')
-      : Promise.resolve({ data: null, error: null }),
-
-    mayEvents
-      // §3: the admin client applies no RLS, so the family conjunct below is the whole of
-      // the isolation on this query.
-      ? createAdminClient()
-        .from('events')
-        .select('id, name, event_date, start_date, end_date')
-        .eq('family_code', g.familyCode)
-        // The same three filters `getUpcomingEvents` uses, so the calendar and `/events`
-        // cannot disagree about which events a family has. Sub-events are excluded with it:
-        // they hang off a parent that is already on the grid, and drawing both would put two
-        // entries on one day for one thing.
-        .in('status', ['published', 'approved'])
-        .is('parent_event_id', null)
-      : Promise.resolve({ data: null, error: null }),
-  ])
+  // NOT FETCHED rather than fetched-and-filtered: props are serialized into the RSC payload
+  // whether the grid renders them or not (§5).
+  const gatheringRes = mayGatherings
+    ? await supabase
+      .from('gatherings')
+      .select('id, title, starts_on, ends_on, is_premier')
+      // The far side of the overlap, in SQL, because it is a pure narrowing: a gathering
+      // starting after the window ends cannot touch it. The near side needs the
+      // `ends_on`-or-`starts_on` coalesce and is applied in TypeScript below by `overlaps` —
+      // one span rule, not two.
+      .lte('starts_on', to)
+      // A CANCELLED gathering is not happening, and this grid answers "what is on". It is not
+      // hidden from the family: `/gatherings` lists it with its status pill, which is the
+      // screen that owns that question. 'planning' DOES appear — a reunion being planned has
+      // real dates and the family needs to see them.
+      .neq('status', 'cancelled')
+    : { data: null, error: null }
 
   if (mayGatherings) {
     if (gatheringRes.error) {
       // §8: a refused query returns no rows, and reporting the source as shown would render
       // an empty month as a fact. Logged, and the source is marked withheld so the page says
       // something is missing.
-      console.error(`[calendar] gatherings read failed for ${g.familyCode} ${month}: ${gatheringRes.error.message}`)
+      console.error(
+        `[calendar] gatherings read failed for ${g.familyCode} ${month}: ${gatheringRes.error.message}`,
+      )
       sources.gatherings = false
     } else {
       for (const row of (gatheringRes.data ?? []) as unknown as GatheringRow[]) {
@@ -237,40 +206,6 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
           kind:      'gathering',
           href:      `/gatherings/${row.id}`,
           isPremier: row.is_premier,
-        })
-      }
-    }
-  }
-
-  if (mayEvents) {
-    if (eventRes.error) {
-      console.error(`[calendar] events read failed for ${g.familyCode} ${month}: ${eventRes.error.message}`)
-      sources.events = false
-    } else {
-      for (const row of (eventRes.data ?? []) as unknown as EventRow[]) {
-        // `start_date`/`end_date` SUPERSEDE the legacy `event_date`, which is why the
-        // fallback runs in that order — `getUpcomingEvents` decides an event's end the same
-        // way, and the two must not disagree about which day an event is on.
-        //
-        // An event with NO date at all is a real row ("Date TBD") and is SKIPPED here rather
-        // than placed: a list can print "Date TBD", a grid has no cell for it. It stays on
-        // `/events`, which is where a member finds it.
-        const startsOn = row.start_date ?? row.event_date
-        if (!startsOn) continue
-        const endsOn = row.end_date ?? null
-        // No SQL date bound on the events query, deliberately: the span is coalesced across
-        // three nullable columns, which no PostgREST filter expresses without an `.or()` that
-        // has to be right about NULLs in every branch — and a subtly wrong one silently drops
-        // rows. One family's events, projected to five columns, is a small read, and this is
-        // the same place `getUpcomingEvents` makes the same decision.
-        if (!overlaps(startsOn, endsOn, from, to)) continue
-        entries.push({
-          id:       row.id,
-          title:    row.name,
-          startsOn,
-          endsOn,
-          kind:     'event',
-          href:     `/events/${row.id}`,
         })
       }
     }

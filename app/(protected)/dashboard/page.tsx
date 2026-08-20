@@ -12,7 +12,6 @@ import { getMyDuesSummary, getFamilyDuesCollected, getDonationProgress } from '@
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalCount } from '@/app/actions/admin/approvals'
 import { formatRoleTitle } from '@/lib/role-utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
@@ -23,13 +22,16 @@ import { AtAGlance } from '@/components/dashboard/AtAGlance'
 import { QuickActions } from '@/components/dashboard/QuickActions'
 import { FamilyTreeCard } from '@/components/dashboard/FamilyTreeCard'
 import { DonationDrivesCard } from '@/components/dashboard/DonationDrivesCard'
+import { FamilyDuesCollectedCard } from '@/components/dashboard/FamilyDuesCollectedCard'
 import { getFamilyTreeSummary } from '@/app/actions/family-tree'
-import { getPremierGathering, getUpcomingGatheringCount } from '@/app/actions/gatherings'
+import {
+  getPremierGathering, getUpcomingGatheringCount, getMyGatheringTaskCount,
+} from '@/app/actions/gatherings'
 import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
-  TILE_RESOURCE, QUICK_ACTION_GRANT, ROUTE_FOR_GRANT,
+  TILE_RESOURCE, QUICK_ACTION_GRANT, ROUTE_FOR_GRANT, DUES_COLLECTED_RESOURCE,
   type ResolvedTile, type QuickActionId,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
@@ -43,12 +45,12 @@ export const metadata = { title: 'Dashboard' }
  * The kit (`public/dashboard/`) composes nine panels. Three of them are omitted here and
  * every omission is a fact about the product rather than a shortcut:
  *
- *   Upcoming Events (a row card)   `/events` is live and its data and actions exist, so
- *                                  this is not blocked on a flag — it is a panel nobody
- *                                  has written. The kit's own row card leans on a
- *                                  thumbnail per event, and `events` has no image column,
- *                                  so honouring it is a schema decision and not a layout
- *                                  one. See the note on the family photograph below.
+ *   Upcoming Events (a row card)   There is no Events product any more (2026-08-19), so this
+ *                                  one is not a panel nobody has written — it is a panel with
+ *                                  nothing to draw. The nearest thing the data supports is a
+ *                                  list of upcoming GATHERINGS, and the two surfaces that
+ *                                  already answer it are the Upcoming Gatherings tile and the
+ *                                  premier band below the greeting.
  *   Family hero photograph         No column, no bucket, no schema. The kit's own image
  *                                  is stock photography with the design burnt into it.
  *   Recent Activity (a feed)       No table records who did what. See RecentUpdates,
@@ -151,6 +153,7 @@ export default async function DashboardPage() {
   const [
     canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
     canViewDonations, canViewGatherings, canViewCalendar, mayViewUpdates,
+    canViewMyTasks, canViewDuesCollected,
   ] = await Promise.all([
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
@@ -210,6 +213,22 @@ export default async function DashboardPage() {
     // A GRANT AND NOT A FETCH, which is why it sits here and adds nothing below: the card
     // already has its rows. This decides whether it offers the archive.
     isFeatureLive('/updates') ? can(user.id, 'updates', 'view') : false,
+    // THE "My Tasks" QUICK ACTION, which is the one entry on that row conditional on the
+    // caller's own workload rather than only on a grant. Both halves are needed and this is
+    // the cheap one: without the grant there is no button, and the COUNT below decides whether
+    // there is anything to press it for. `can`, not `canAny` — scope 'own' is exactly what
+    // that pane shows, so it is a complete reason to be offered the way in.
+    isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['my-gathering-tasks'].resource])
+      ? can(user.id, QUICK_ACTION_GRANT['my-gathering-tasks'].resource, QUICK_ACTION_GRANT['my-gathering-tasks'].action)
+      : false,
+    // THE FAMILY'S COLLECTED-DUES WIDGET, which was the `dues` TILE until 2026-08-19. The keys
+    // are unchanged — either ledger will do, mirroring the SELECT policy on `dues_payments` —
+    // so nothing about who sees the figure moved with it. Resolved HERE rather than left to
+    // the action's own gate for §5's reason: the point is not to run the query at all.
+    Promise.all(
+      DUES_COLLECTED_RESOURCE.map(key =>
+        isFeatureLive(ROUTE_FOR_GRANT[key]) ? can(user.id, key, 'view') : false),
+    ).then(answers => answers.some(Boolean)),
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
@@ -217,7 +236,7 @@ export default async function DashboardPage() {
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
-    premierGathering, upcomingGatheringCount,
+    premierGathering, upcomingGatheringCount, myTaskCount,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -275,9 +294,12 @@ export default async function DashboardPage() {
     // admin/approvals:view, so a member who cannot work the queue gets 0 and the tile
     // never renders — the number is not fetched for them, not merely hidden.
     getPendingApprovalCount(),
-    // Gated inside the action too, and it returns null rather than 0 for anyone without
-    // a ledger grant — see getFamilyDuesCollected on why 0 would have been a lie.
-    getFamilyDuesCollected(),
+    // Gated HERE as well as inside the action, since 2026-08-19 — §5's "not fetched rather
+    // than fetched and hidden", applied to the one figure on this page that is the family's
+    // income. The action returns null rather than 0 for anyone without a ledger grant (see
+    // `getFamilyDuesCollected` on why 0 would have been a lie), so this line changes no
+    // answer; what it changes is whether the query runs at all.
+    canViewDuesCollected ? getFamilyDuesCollected() : Promise.resolve(null),
     // The tree's three figures. `null` for a caller who may not see it, so the card is
     // never rendered over numbers that were fetched anyway (§5) — the action refuses
     // independently, but "not fetched" and "fetched then hidden" are the distinction this
@@ -320,6 +342,12 @@ export default async function DashboardPage() {
     // test is `getPremierGathering`'s verbatim and provably equals
     // `gatheringTiming(...) !== 'past'`, so the number did not change when it moved.
     canViewCalendar ? getUpcomingGatheringCount() : Promise.resolve(null),
+    // How many gathering tasks are actually waiting on this member — `open` and `denied`
+    // only, because an approved one is finished and a Quick Action that never goes away is
+    // not a prompt. `getMyGatheringTaskCount` gates itself on `requireMember()` rather than
+    // on a view grant (answering a task you were handed is self-service), so the grant above
+    // is what decides whether the button may exist and this decides whether it should.
+    canViewMyTasks ? getMyGatheringTaskCount() : Promise.resolve(0),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -347,7 +375,10 @@ export default async function DashboardPage() {
   // ask, and the tile must not say "$0.00" for the second one.
   const tiles: ResolvedTile[] = [
     ...(memberCountResult ? [{ id: 'members' as const, value: String(memberCount) }] : []),
-    ...(duesCollectedCents !== null ? [{ id: 'dues' as const, value: formatCurrency(duesCollectedCents) }] : []),
+    // NO `dues` TILE since 2026-08-19 — the family's collected total is `FamilyDuesCollectedCard`
+    // in the narrow column now. `duesCollectedCents` is still `null` for "not entitled" and a
+    // real number for zero, and that card makes the same distinction.
+
     // Only when somebody is actually waiting. A standing "0 pending" tile is a control
     // that never changes and a row of the grid spent on nothing.
     ...(pendingApprovals > 0 ? [{ id: 'approvals' as const, value: String(pendingApprovals) }] : []),
@@ -360,6 +391,12 @@ export default async function DashboardPage() {
   ]
 
   const quickActions: QuickActionId[] = [
+    // FIRST, and only when something is waiting. It leads the row because it is the one entry
+    // here that exists BECAUSE somebody is owed something by this member — every other button
+    // is a job they may do, and this is one they have been asked to. See the note on
+    // `QuickActionId`: it is deliberately conditional on the workload, unlike the rail item,
+    // which is unconditional so a task handed out this morning can be found this morning.
+    ...(canViewMyTasks && myTaskCount > 0 ? ['my-gathering-tasks' as const] : []),
     ...(canAddMember ? ['add-member' as const] : []),
     ...(canRecordPayment ? ['record-payment' as const] : []),
     ...(canSendMessage ? ['send-message' as const] : []),
@@ -440,7 +477,19 @@ export default async function DashboardPage() {
           same reason. Any new column added here owes it too. */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-          <AtAGlance tiles={tiles} />
+          {/* THE BALANCE AND THE DRIVES ARE INSIDE At a Glance since 2026-08-19, and both were
+              in the narrow column beside it before. They are the two things on this screen
+              about the reader's own standing with the family — what they owe, and what the
+              family is asking them to give to — which is what "at a glance" is asking; under
+              Quick Actions they competed with a strip of buttons for the same attention.
+
+              `showViewLink` stays on, and it is still the ONE prop that may differ between
+              this rendering and Summary's. The drives card renders nothing when none is open,
+              so for most families most of the time this panel is the tiles and the balance. */}
+          <AtAGlance tiles={tiles}>
+            <DuesBalanceKpi summary={duesSummary} showViewLink />
+            <DonationDrivesCard donations={donations} />
+          </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then
               notifications and dismissed announcements interleaved by date. The rule is
               in `mergeUpdates` rather than in the component, because the ordering IS the
@@ -453,21 +502,13 @@ export default async function DashboardPage() {
         </div>
         <div className="flex min-w-0 flex-col gap-6">
           <QuickActions actions={quickActions} />
-          {/* THE dues balance KPI — the same component My Summary renders, unchanged.
-              It anchors the narrow column and always renders, which is what stops that
-              column being empty for a member with no quick actions at all.
-              `showViewLink` is the one prop that may differ between the two pages. */}
-          <DuesBalanceKpi summary={duesSummary} showViewLink />
-          {/* THE OPEN DONATION DRIVES, directly under what the member owes, because the
-              two are the same subject read the other way round: one is money the family
-              expects, the other money it is asking for. A drive closes on a date and gets
-              no second reminder, which is why it belongs on the screen every member lands
-              on rather than only on Donations.
-
-              The card renders nothing when no drive is open, so for most families most of
-              the time this column is Quick Actions, the balance and the tree — exactly as
-              before. */}
-          <DonationDrivesCard donations={donations} />
+          {/* WHAT THE FAMILY HAS COLLECTED — the `dues` tile until 2026-08-19, and a widget of
+              its own since. At a Glance is about the reader; this is the organisation's income
+              to date, which is a treasurer's figure read deliberately rather than glanced at,
+              and it was the one tile whose figure grew without bound and set the width of
+              every tile beside it. It renders nothing at all when the caller holds neither
+              ledger grant — `null` is "not entitled" and `0` is a real zero. */}
+          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.

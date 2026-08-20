@@ -27,22 +27,32 @@ import {
 /**
  * THE TEMPLATE LIBRARY — a card per template, a table of steps inside each.
  *
- * ── **USUAL LOCATION** IS A DEFAULT THAT GETS COPIED, NOT A PLACE READ THROUGH ──────
- * `gathering_templates.default_location` (20260819000001) is where a segment built from this
- * template is USUALLY held. When somebody links the template to a gathering,
- * `attachTemplatesToGathering` writes this value onto `gathering_template_uses.location` and the
- * segment owns it from that moment on — nothing on a gathering ever reads back through to this
- * column.
+ * ── THERE IS NO **USUAL LOCATION**, AND A STEP IS WHY ──────────────────────────────
+ * `gathering_templates.default_location` was a field on this screen until 2026-08-19: where a
+ * segment built from this template is USUALLY held, copied onto `gathering_template_uses.location`
+ * at the moment of linking. `20260819000007` drops it, and the replacement is a step of kind
+ * **A place**.
  *
- * That is why editing it here is safe, and it is the same copy-not-reference rule
- * `gathering_tasks.label` follows. It matters MORE here rather than less: a segment is a thing
- * PEOPLE HAVE BEEN TOLD ABOUT, so changing "Family Picnic" next month to say it is usually at
- * Zilker must not silently move a picnic forty relatives already have directions to. Moving one
- * that exists is `setGatheringSegment` on `/admin/gatherings/[id]`, deliberately a different
- * control on a different screen, and the copy is written by the ACTION rather than by a database
- * DEFAULT or a trigger — 20260819000001 asserts a freshly linked segment comes out NULL if the
- * action does not do it. Both fields say so on screen, because "usual" is the word doing all the
- * work in the caption and a reader is entitled to know what it costs to change.
+ * The old field was a template AUTHOR guessing at a fact that belongs to one occasion — this
+ * year's reunion is at the lodge, last year's was at Zilker — and the guess then had to be
+ * corrected on every segment it had been copied onto. A step inverts it: the template says
+ * somebody has to settle the venue, a gathering hands that job to a named relative with a due
+ * date, and the answer is reviewed like every other answer on the screen. Moving a segment that
+ * already exists is still `setGatheringSegment` on `/admin/gatherings/[id]`, which is where a
+ * place people have been told about is changed.
+ *
+ * ── A STEP MAY BE ANOTHER TEMPLATE ─────────────────────────────────────────────────
+ * Kind **Another template** with a `childTemplateId`: the step is not handed to anybody, it
+ * EXPANDS into that template's own steps when a gathering is built. A family that runs the same
+ * five-step catering checklist inside three different occasions writes it once.
+ *
+ * Three things about it show up in this file. The picker offers only the OTHER templates, so a
+ * one-hop loop cannot be chosen (it is refused by a CHECK constraint underneath as well); a
+ * template step's Required and Suggested-budget controls are not merely hidden but FORCED off,
+ * because a step nobody answers cannot be required and has no line to budget; and a longer loop —
+ * A includes B includes A — is refused in SQL by a recursive walk in
+ * `tg_gathering_template_step_same_family()`, whose sentence the action surfaces verbatim,
+ * because this screen cannot see the whole graph and must not pretend it can.
  *
  * ── WHY A CARD PER TEMPLATE AND A TABLE PER CARD ────────────────────────────────────
  * A template is a small form (name, description, who may schedule from it) sitting over an
@@ -127,7 +137,6 @@ export function AdminGatheringTemplatesClient({
   // makes a freshly added row appear only after navigating away and back.
   const [templates, setTemplates] = useServerState(initialTemplates)
   const [newName, setNewName] = useState('')
-  const [newLocation, setNewLocation] = useState('')
   const [newScheduler, setNewScheduler] = useState<GatheringTemplateScheduler>('admin')
   const [createError, setCreateError] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -140,29 +149,21 @@ export function AdminGatheringTemplatesClient({
     const name = newName.trim()
     if (!name) return
     setCreateError('')
-    // `.trim() || null` HERE AS WELL AS IN THE ACTION, and the same expression, because this
-    // value is used twice: once as the argument and once on the optimistic row below. An empty
-    // box is "not stated" — never the empty string, which would be a stated place of no
-    // characters and would then be COPIED onto every segment as one.
-    const defaultLocation = newLocation.trim() || null
     startTransition(async () => {
-      const result = await createGatheringTemplate({
-        name, whoMaySchedule: newScheduler, defaultLocation,
-      })
+      const result = await createGatheringTemplate({ name, whoMaySchedule: newScheduler })
       if (!result.success || !result.templateId) {
         setCreateError(result.message ?? 'Could not add that template')
         return
       }
       const templateId = result.templateId
       setNewName('')
-      setNewLocation('')
       // THE OPTIMISTIC ROW CARRIES EVERY FIELD THE INTERFACE DECLARES, including the ones this
-      // form does not offer. `GatheringTemplate` gained `defaultLocation` with 20260819000001 and
-      // this constructor is the reason a widened interface is not a free change: a row built here
-      // that is missing a field is not a stale render, it is a type error — which is the right
-      // failure, and is how this one was found.
+      // form does not offer. That is the reason a widened interface is not a free change: a row
+      // built here that is missing a field is not a stale render, it is a type error — which is
+      // the right failure, and is how the `defaultLocation` one was found before that column was
+      // dropped again.
       setTemplates(prev => sortTemplates([...prev, {
-        id: templateId, name, description: null, defaultLocation,
+        id: templateId, name, description: null,
         whoMaySchedule: newScheduler, isArchived: false, steps: [], usedByCount: 0,
       }]))
     })
@@ -190,19 +191,13 @@ export function AdminGatheringTemplatesClient({
                 onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
               />
             </div>
-            {/* Optional, and third rather than second: the name is what a reader types first and
-                who may schedule from it is the decision that changes who can act. A place is a
-                convenience that saves retyping it on every segment. */}
-            <div className="min-w-0 space-y-1.5 sm:w-56">
-              <Label htmlFor="new-template-location">Usual location</Label>
-              <Input
-                id="new-template-location"
-                placeholder="e.g. Zilker Park, Austin"
-                value={newLocation}
-                onChange={e => { setNewLocation(e.target.value); setCreateError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
-              />
-            </div>
+            {/* NO "Usual location" FIELD, since 2026-08-19, and its absence is a decision. The
+                template used to state where this kind of gathering is usually held and that value
+                was copied onto every segment built from it — a template AUTHOR guessing at a fact
+                that belongs to one occasion, which then had to be corrected on each segment it
+                landed on. A step of kind **A place** does the job properly: the template says
+                somebody has to settle the venue, and a named relative settles it with a due date
+                and a review. `20260819000007` dropped the column. */}
             <div className="min-w-0 space-y-1.5 sm:w-56">
               <Label htmlFor="new-template-scheduler">Who can schedule from this</Label>
               <Select
@@ -247,6 +242,12 @@ export function AdminGatheringTemplatesClient({
             <TemplateCard
               key={template.id}
               template={template}
+              // Every OTHER template, live or archived, so a "Another template" step can name
+              // one. Archived is deliberately IN: archiving means "do not start anything NEW
+              // from this", which is about scheduling a gathering, not about whether an
+              // existing template may still compose it. Excluding this one is what makes the
+              // one-hop loop unofferable rather than merely refused.
+              siblings={templates.filter(t => t.id !== template.id).map(t => ({ id: t.id, name: t.name }))}
               mayCreate={mayCreate}
               mayEdit={mayEdit}
               mayDelete={mayDelete}
@@ -263,9 +264,20 @@ export function AdminGatheringTemplatesClient({
 // ── One template ──────────────────────────────────────────────────────────────────────
 
 function TemplateCard({
-  template, mayCreate, mayEdit, mayDelete, onPatch, onRemove,
+  template, siblings, mayCreate, mayEdit, mayDelete, onPatch, onRemove,
 }: {
   template: GatheringTemplate
+  /**
+   * Every OTHER template in the library, for the "Another template" step kind.
+   *
+   * It is the caller's own list rather than a fetch of its own, so a template the reader was
+   * not shown (an 'own'-scope grant) is not offered here either — and it excludes THIS one,
+   * because a template including itself is refused by a CHECK constraint and there is no
+   * reason to offer a choice that always fails. Loops through several templates are refused
+   * by the trigger, whose sentence the action surfaces verbatim; this list cannot prevent them
+   * and does not pretend to.
+   */
+  siblings: { id: string; name: string }[]
   mayCreate: boolean
   mayEdit: boolean
   mayDelete: boolean
@@ -275,7 +287,6 @@ function TemplateCard({
   const confirm = useConfirm()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description ?? '')
-  const [usualLocation, setUsualLocation] = useState(template.defaultLocation ?? '')
   const [scheduler, setScheduler] = useState<GatheringTemplateScheduler>(template.whoMaySchedule)
   const [error, setError] = useState('')
   // Set when `deleteGatheringTemplate` refuses because a gathering was built from this
@@ -287,7 +298,6 @@ function TemplateCard({
 
   const dirty = name.trim() !== template.name
     || description.trim() !== (template.description ?? '')
-    || usualLocation.trim() !== (template.defaultLocation ?? '')
     || scheduler !== template.whoMaySchedule
 
   function handleSaveDetails() {
@@ -295,22 +305,16 @@ function TemplateCard({
     if (!nextName) { setError('A template needs a name'); return }
     setError('')
     setOfferArchive(false)
-    // Computed once and used for the argument AND the patch, so the row cannot end up showing a
-    // place the write did not send. `.trim() || null` is the same expression the action applies:
-    // an emptied box is an explicit `null`, which that function reads as "clear it" — absent
-    // would have meant "leave it alone", and a caller cannot express clearing by omission.
-    const defaultLocation = usualLocation.trim() || null
     startTransition(async () => {
       const result = await updateGatheringTemplate({
         templateId:     template.id,
         name:           nextName,
         description:    description.trim() || null,
-        defaultLocation,
         whoMaySchedule: scheduler,
       })
       if (!result.success) { setError(result.message ?? 'Could not save that template'); return }
       onPatch({
-        name: nextName, description: description.trim() || null, defaultLocation,
+        name: nextName, description: description.trim() || null,
         whoMaySchedule: scheduler,
       })
     })
@@ -467,25 +471,6 @@ function TemplateCard({
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`location-${template.id}`}>Usual location</Label>
-              <Input
-                id={`location-${template.id}`}
-                placeholder="Where a segment built from this template is usually held"
-                value={usualLocation}
-                disabled={isPending}
-                onChange={e => { setUsualLocation(e.target.value); setError('') }}
-              />
-              {/* THE SENTENCE THAT MAKES THE WORD "usual" HONEST. It is copied onto a segment
-                  when the template is linked and never read back through, so changing it here
-                  moves nothing that exists — and somebody who came here meaning to move the
-                  picnic is told, on the control, where that is actually done. */}
-              <p className="text-xs text-muted-foreground">
-                Filled in for you when this template is added to a gathering, and the gathering
-                keeps its own copy from then on — changing it here never moves a gathering that
-                already exists. Move one on its own page under Gathering Management.
-              </p>
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor={`description-${template.id}`}>Description</Label>
               <Textarea
                 id={`description-${template.id}`}
@@ -511,14 +496,6 @@ function TemplateCard({
         ) : (
           <div className="space-y-2">
             {template.description && <p className="text-sm">{template.description}</p>}
-            {/* Read-only, and only when there is one — an "Usual location: —" line on a template
-                that has never had a place is a field this reader cannot fill in and does not need
-                to know exists. */}
-            {template.defaultLocation && (
-              <p className="text-sm text-muted-foreground">
-                Usually held at {template.defaultLocation}
-              </p>
-            )}
             <p className="text-sm text-muted-foreground">
               Who can schedule from this: {SCHEDULER_LABEL[template.whoMaySchedule]}
             </p>
@@ -564,6 +541,7 @@ function TemplateCard({
                     <StepRow
                       key={step.id}
                       step={step}
+                      siblings={siblings}
                       templateName={template.name}
                       mayEdit={mayEdit}
                       mayDelete={mayDelete}
@@ -587,6 +565,7 @@ function TemplateCard({
           {mayCreate && (
             <AddStepForm
               templateId={template.id}
+              siblings={siblings}
               nextPosition={template.steps.length}
               onAdded={step => onPatch({ steps: [...template.steps, step] })}
             />
@@ -600,10 +579,11 @@ function TemplateCard({
 // ── One step ──────────────────────────────────────────────────────────────────────────
 
 function StepRow({
-  step, templateName, mayEdit, mayDelete, isFirst, isLast, parentPending,
+  step, siblings, templateName, mayEdit, mayDelete, isFirst, isLast, parentPending,
   onError, onPatch, onMove, onDelete,
 }: {
   step: TemplateStep
+  siblings: { id: string; name: string }[]
   templateName: string
   mayEdit: boolean
   mayDelete: boolean
@@ -618,6 +598,7 @@ function StepRow({
   const [label, setLabel] = useState(step.label)
   const [helpText, setHelpText] = useState(step.helpText ?? '')
   const [kind, setKind] = useState<GatheringStepKind>(step.kind)
+  const [childId, setChildId] = useState(step.childTemplateId ?? '')
   const [required, setRequired] = useState(step.required)
   // A DOLLAR string in the box, integer cents on the wire — `dollarsToCents` converts once at
   // submit. Nothing in this feature ever stores or posts dollars.
@@ -627,33 +608,73 @@ function StepRow({
   const [isPending, startTransition] = useTransition()
   const busy = isPending || parentPending
 
-  const nextBudgetCents = budget.trim() === '' ? null : dollarsToCents(budget)
+  // A TEMPLATE STEP IS ANSWERED BY NOBODY, so neither of these applies to it: there is no
+  // task to be required, and no line to budget. Both are FORCED here rather than merely
+  // hidden — a step retyped from `money` to `template` would otherwise keep a suggested
+  // budget nothing will ever read, and the row would look priced.
+  const isChild = kind === 'template'
+  const nextRequired = isChild ? false : required
+  const nextBudgetCents = isChild || budget.trim() === '' ? null : dollarsToCents(budget)
+  const nextChildId = isChild ? childId : null
+
   const dirty = label.trim() !== step.label
     || helpText.trim() !== (step.helpText ?? '')
     || kind !== step.kind
-    || required !== step.required
+    || nextChildId !== (step.childTemplateId ?? null)
+    || nextRequired !== step.required
     || nextBudgetCents !== step.budgetDefaultCents
 
   function handleSave() {
     const nextLabel = label.trim()
     if (!nextLabel) { onError('A step needs a label'); return }
+    if (isChild && !nextChildId) { onError('Pick the template this step includes'); return }
     onError('')
     startTransition(async () => {
       const result = await updateTemplateStep({
         stepId:             step.id,
         label:              nextLabel,
         kind,
+        // Sent WITH the kind, always, because the two are locked to each other in the
+        // database and the action reads a kind with no child as "and clear the child".
+        childTemplateId:    nextChildId,
         helpText:           helpText.trim() || null,
-        required,
+        required:           nextRequired,
         budgetDefaultCents: nextBudgetCents,
       })
       if (!result.success) { onError(result.message ?? 'Could not save that step'); return }
       onPatch({
         label: nextLabel, kind, helpText: helpText.trim() || null,
-        required, budgetDefaultCents: nextBudgetCents,
+        childTemplateId: nextChildId,
+        childTemplateName: nextChildId
+          ? siblings.find(t => t.id === nextChildId)?.name ?? null
+          : null,
+        required: nextRequired, budgetDefaultCents: nextBudgetCents,
       })
     })
   }
+
+  /**
+   * The child picker, which replaces Required and Suggested budget for a `template` step.
+   *
+   * Rendered as one element and used twice, exactly like the three below it — see the module
+   * header on why a folded copy is the SAME element rather than a second implementation.
+   */
+  const childSelect = mayEdit ? (
+    <Select
+      className="h-7 w-full sm:w-44"
+      value={childId}
+      disabled={busy}
+      aria-label={`The template the “${step.label}” step includes`}
+      onChange={e => { setChildId(e.target.value); onError('') }}
+    >
+      <option value="">Pick a template…</option>
+      {siblings.map(t => (
+        <option key={t.id} value={t.id}>{t.name}</option>
+      ))}
+    </Select>
+  ) : (
+    <span className="text-muted-foreground">{step.childTemplateName ?? 'A template'}</span>
+  )
 
   // ── THE THREE CONTROLS THAT FOLD, EACH ONE ELEMENT USED TWICE ─────────────────────
   // See the module header. No `id` on any of them, so each names its row through
@@ -739,9 +760,15 @@ function StepRow({
         <RowMeta className="gap-x-2">
           <span className="flex items-center gap-1.5"><span>Asks for</span>{kindSelect}</span>
           <MetaDot />
-          <span className="flex items-center gap-1.5"><span>Required</span>{requiredBox}</span>
-          <MetaDot />
-          <span className="flex items-center gap-1.5"><span>Budget $</span>{budgetInput}</span>
+          {isChild ? (
+            <span className="flex items-center gap-1.5"><span>Includes</span>{childSelect}</span>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5"><span>Required</span>{requiredBox}</span>
+              <MetaDot />
+              <span className="flex items-center gap-1.5"><span>Budget $</span>{budgetInput}</span>
+            </>
+          )}
         </RowMeta>
       </td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
@@ -753,8 +780,17 @@ function StepRow({
           {GATHERING_STEP_KIND_HINT[mayEdit ? kind : step.kind]}
         </p>
       </td>
-      <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{requiredBox}</td>
-      <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>{budgetInput}</td>
+      {/* ONE CELL SPANNING TWO FOR A TEMPLATE STEP, rather than a picker in one column and an
+          em dash in the other. Neither Required nor a budget means anything for a step nobody
+          answers, and a blank cell under a heading reads as a value somebody forgot. */}
+      {isChild ? (
+        <td className={cn('px-3 py-2.5', COLLAPSING_CELL)} colSpan={2}>{childSelect}</td>
+      ) : (
+        <>
+          <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{requiredBox}</td>
+          <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>{budgetInput}</td>
+        </>
+      )}
       <td className="w-px px-3 py-2.5">
         <div className="flex items-center justify-end gap-1">
           {mayEdit && dirty && (
@@ -813,32 +849,43 @@ function StepRow({
  * same line in its own cell, and carries it as the select's `title` where that cell folds.
  */
 function AddStepForm({
-  templateId, nextPosition, onAdded,
+  templateId, siblings, nextPosition, onAdded,
 }: {
   templateId: string
+  siblings: { id: string; name: string }[]
   nextPosition: number
   onAdded: (step: TemplateStep) => void
 }) {
   const [label, setLabel] = useState('')
   const [kind, setKind] = useState<GatheringStepKind>('text')
+  const [childId, setChildId] = useState('')
   const [helpText, setHelpText] = useState('')
   const [required, setRequired] = useState(false)
   const [budget, setBudget] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  // See `StepRow`: a template step is answered by nobody, so it carries no help text for an
+  // assignee, cannot be required and cannot be budgeted. Forced rather than hidden, so a form
+  // half-filled under one kind cannot post values under another.
+  const isChild = kind === 'template'
+
   function handleAdd() {
     const nextLabel = label.trim()
     if (!nextLabel) return
+    if (isChild && !childId) { setError('Pick the template this step includes'); return }
     setError('')
-    const budgetDefaultCents = budget.trim() === '' ? null : dollarsToCents(budget)
+    const budgetDefaultCents = isChild || budget.trim() === '' ? null : dollarsToCents(budget)
+    const nextRequired = isChild ? false : required
+    const childTemplateId = isChild ? childId : null
     startTransition(async () => {
       const result = await addTemplateStep({
         templateId,
         label:    nextLabel,
         kind,
-        helpText: helpText.trim() || undefined,
-        required,
+        childTemplateId,
+        helpText: isChild ? undefined : helpText.trim() || undefined,
+        required: nextRequired,
         budgetDefaultCents,
       })
       if (!result.success || !result.stepId) {
@@ -846,11 +893,15 @@ function AddStepForm({
         return
       }
       const stepId = result.stepId
-      const addedHelpText = helpText.trim() || null
-      setLabel(''); setHelpText(''); setBudget(''); setRequired(false)
+      const addedHelpText = isChild ? null : helpText.trim() || null
+      const childName = childTemplateId
+        ? siblings.find(t => t.id === childTemplateId)?.name ?? null
+        : null
+      setLabel(''); setHelpText(''); setBudget(''); setRequired(false); setChildId('')
       onAdded({
         id: stepId, position: nextPosition, label: nextLabel,
-        helpText: addedHelpText, kind, required, budgetDefaultCents,
+        helpText: addedHelpText, kind, required: nextRequired, budgetDefaultCents,
+        childTemplateId, childTemplateName: childName,
       })
     })
   }
@@ -873,15 +924,47 @@ function AddStepForm({
           <Select
             id={`step-kind-${templateId}`}
             value={kind}
-            onChange={e => setKind(e.target.value as GatheringStepKind)}
+            onChange={e => { setKind(e.target.value as GatheringStepKind); setError('') }}
           >
             {GATHERING_STEP_KINDS.map(k => (
-              <option key={k} value={k}>{GATHERING_STEP_KIND_LABEL[k]}</option>
+              // "Another template" is offered only where there IS another template. A picker
+              // whose one interesting option leads to an empty second picker is worse than not
+              // offering it — and a family with a single template genuinely has nothing to
+              // include.
+              (k !== 'template' || siblings.length > 0) && (
+                <option key={k} value={k}>{GATHERING_STEP_KIND_LABEL[k]}</option>
+              )
             ))}
           </Select>
           <p className="text-xs text-muted-foreground">{GATHERING_STEP_KIND_HINT[kind]}</p>
         </div>
       </div>
+
+      {/* ── The template this step includes ────────────────────────────────────────
+          Only for the one kind it belongs to. It sits on its own row rather than beside the
+          kind picker because picking a kind is what makes it appear, and a control that
+          materialises next to the one you just used is easier to miss than one below it. */}
+      {isChild && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`step-child-${templateId}`} required>Template to include</Label>
+          <Select
+            id={`step-child-${templateId}`}
+            value={childId}
+            onChange={e => { setChildId(e.target.value); setError('') }}
+          >
+            <option value="">Pick a template…</option>
+            {siblings.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Every step of that template becomes a task of its own here, in its own order, at
+            this point in the list. Nobody answers this step — it is the checklist, not a
+            question. A template cannot include itself, or anything that leads back to it.
+          </p>
+        </div>
+      )}
+      {!isChild && (
       <div className="space-y-1.5">
         <Label htmlFor={`step-help-${templateId}`}>Help text</Label>
         <Textarea
@@ -892,6 +975,8 @@ function AddStepForm({
           onChange={e => setHelpText(e.target.value)}
         />
       </div>
+      )}
+      {!isChild && (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <label className="flex cursor-pointer items-center gap-2 select-none">
@@ -924,6 +1009,7 @@ function AddStepForm({
           </p>
         </div>
       </div>
+      )}
       <FormError message={error} />
       <Button variant="affirm" disabled={!label.trim() || isPending} onClick={handleAdd}>
         <Plus className="h-4 w-4" /> {isPending ? 'Adding…' : 'Add step'}

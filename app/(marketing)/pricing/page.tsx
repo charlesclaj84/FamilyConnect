@@ -188,8 +188,8 @@ function plusPremiumPriceAnswer(): string {
 /**
  * ── HOW THIS COPY IS WRITTEN, so the next edit keeps doing it ────────────────
  * Every `label` names the OUTCOME and every `detail` names the mechanism. "Stop guessing
- * the head count" then "RSVPs, t-shirt sizes and meal counts totalled for you" — not
- * "RSVP module". A feature list that reads like a changelog makes the buyer do the
+ * what is still owed" then "every relative who owes this year, and who has still to pay" —
+ * not "dues projections module". A feature list that reads like a changelog makes the buyer do the
  * translation into their own problem, and most of them will not bother.
  *
  * The order inside each tier is a RANKING, not a grouping: the thing that hurts most goes
@@ -204,7 +204,8 @@ function plusPremiumPriceAnswer(): string {
  *    that keeps half a family out, and closes on chat — the one thing here a family already
  *    has, in the group text they are probably reading this on. Heavily used, least gained.
  *  * PLUS opens on taking a payment that is not cash, which is the limit Free names out
- *    loud, then the head count. It ends on the photographs and the profile pictures: loved,
+ *    loud, then knowing what is still owed. It ends on the photographs and the profile
+ *    pictures: loved,
  *    opened daily, and not the machinery this tier is sold as.
  *  * PREMIUM opens on chasing relatives for money they already agreed to pay. Notifications
  *    outrank the apps deliberately — nobody has ever complained about the absence of an app,
@@ -229,8 +230,14 @@ const PLANS: readonly Plan[] = [
         detail: 'Unlimited members. No per-person fee, so nobody gets left out to keep a bill down.',
       },
       {
+        // "DIRECT LINEAGE" WAS HERE UNTIL 2026-08-19 and named `/direct-lineage`, a route
+        // deleted on 2026-08-13. The Family Tree is what replaced it, and it traces a line
+        // back through the generations by re-centring on whoever you click — so the benefit
+        // survives and only the product's name for it changed. Nothing derived caught this
+        // for six days, because a DELETED route has no `lib/features.ts` entry to badge
+        // Coming Soon from; see the note in `components/marketing/pillars.ts`.
         label: 'Never lose track of who is who again',
-        detail: 'The family tree, direct lineage back through the generations, and a directory you can search.',
+        detail: 'The Family Tree, traced back through the generations, and a directory you can search.',
       },
       {
         label: 'Put the reunion on the calendar',
@@ -272,9 +279,16 @@ const PLANS: readonly Plan[] = [
         label: 'Get paid the way your family actually pays',
         detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds and a full ledger behind them.',
       },
+      // THIS BULLET SOLD RSVPs, MEAL TOTALS AND DAY-OF CHECK-IN until 2026-08-19, and all
+      // three went with the Events product. It is replaced by Dues Projections, which is a
+      // real Plus route (`lib/features.ts`) rather than a promise waiting on a build.
+      //
+      // `lib/plans.ts` carries the SAME change and is a separate copy on purpose — see the
+      // note above `PLANS[]`: one bullet spans several routes and several routes are sold in
+      // no bullet at all, so the two lists are kept in step by hand and neither is derived.
       {
-        label: 'Stop guessing the head count',
-        detail: 'RSVPs, t-shirt and meal totals, and check-in on the day.',
+        label: 'Know what is still owed, before you have to ask',
+        detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
       },
       {
         label: 'A profit and loss for your treasurer',
@@ -282,7 +296,7 @@ const PLANS: readonly Plan[] = [
       },
       {
         label: 'The numbers leadership keeps asking for',
-        detail: 'Dues collected against outstanding, turnout, and t-shirt counts.',
+        detail: 'Dues collected against outstanding, and the family’s size over time.',
       },
       {
         label: 'Elect your officers properly',
@@ -345,7 +359,7 @@ const FAQ = [
   {
     question: `Is ${APP_NAME} really free?`,
     answer:
-      'Yes, and not as a trial. Unlimited family members, the family tree and lineage, the member directory, family chat, announcements, event planning and a dues ledger for cash contributions cost nothing, with no card required and no expiry date.',
+      'Yes, and not as a trial. Unlimited family members, the Family Tree, the member directory, family chat, announcements, gatherings with the family calendar, and a dues ledger for cash contributions cost nothing, with no card required and no expiry date.',
   },
   {
     question: 'Is there a limit on how many family members we can add?',
@@ -355,7 +369,7 @@ const FAQ = [
   {
     question: 'What is the difference between Free and Plus?',
     answer:
-      'Free gets your whole family in one place, with per-feature permissions so nobody has more authority than their job needs. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, collecting RSVPs and head counts with t-shirt and meal totals, day-of check-in, officer elections, photo collections with tagging, profile pictures, documents, regions and chapters, a profit and loss statement and leadership reports.',
+      'Free gets your whole family in one place, with per-feature permissions so nobody has more authority than their job needs. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, seeing what every relative still owes for the year, officer elections, photo collections with tagging, profile pictures, documents, regions and chapters, a profit and loss statement and leadership reports.',
   },
   {
     question: 'Can we only take cash payments on the free plan?',
@@ -595,8 +609,8 @@ export default function PricingPage() {
                 per-member price guarantees half the family stays out. So getting everyone
                 in is free and always will be — the tree, the directory, the chat, the
                 announcements and your first reunion. We charge when a family starts
-                needing the machinery of an organization: taking card payments, tallying a
-                head count, electing officers, answering to a board.
+                needing the machinery of an organization: taking card payments, knowing
+                who still owes, electing officers, answering to a board.
               </p>
               <MoreLink href="/why-us">See how that compares to the alternatives</MoreLink>
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { DollarSign, Users, Calendar, TrendingUp, ShirtIcon, Receipt } from 'lucide-react'
+import { DollarSign, Users, Calendar, ShirtIcon, Receipt } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,7 @@ export function AdminReportsClient({ stats }: Props) {
   return (
     <div className="space-y-8">
       {/* KPI row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="text-xs text-muted-foreground font-normal flex items-center gap-1">
@@ -33,28 +33,19 @@ export function AdminReportsClient({ stats }: Props) {
             <p className="text-xs text-muted-foreground">+ {stats.totalRecords} records</p>
           </CardContent>
         </Card>
+        {/* GATHERINGS, and the RSVP Rate card that used to sit beside it is GONE rather than
+            showing a dash: nothing in this product records who is coming to anything now that
+            Events is retired, and a permanently empty KPI is a control that never changes.
+            Three cards across four columns at `sm` is deliberate — see the grid above. */}
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="text-xs text-muted-foreground font-normal flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5" /> Events
+              <Calendar className="h-3.5 w-3.5" /> Gatherings
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{stats.totalEvents}</p>
-            <p className="text-xs text-muted-foreground">{stats.upcomingEvents} upcoming</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle className="text-xs text-muted-foreground font-normal flex items-center gap-1">
-              <TrendingUp className="h-3.5 w-3.5" /> RSVP Rate
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {stats.avgRsvpRate !== null ? `${stats.avgRsvpRate}%` : '—'}
-            </p>
-            <p className="text-xs text-muted-foreground">events with responses</p>
+            <p className="text-2xl font-bold">{stats.totalGatherings}</p>
+            <p className="text-xs text-muted-foreground">{stats.upcomingGatherings} upcoming</p>
           </CardContent>
         </Card>
         <Card>
@@ -104,12 +95,12 @@ export function AdminReportsClient({ stats }: Props) {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-1.5">
-              <ShirtIcon className="h-4 w-4" /> T-Shirt Summary
+              <ShirtIcon className="h-4 w-4" /> T-Shirt Sizes
             </CardTitle>
           </CardHeader>
           <CardContent>
             {stats.tshirtBreakdown.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No RSVP data yet.</p>
+              <p className="text-sm text-muted-foreground">Nobody has recorded a t-shirt size on their profile yet.</p>
             ) : (
               <ul className="divide-y">
                 {stats.tshirtBreakdown.map((row, i) => (

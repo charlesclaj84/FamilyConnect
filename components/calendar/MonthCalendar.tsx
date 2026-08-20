@@ -43,13 +43,20 @@ import { monthLabel, type CalendarDay, type CalendarEntry, type CalendarMonth } 
  * Every chip and every navigation link below states its foreground explicitly, and each pair
  * is a measured pair from that file. Removing one of them recolours the calendar.
  *
- * ── THE THREE TREATMENTS, AND WHY GOLD IS THE PREMIER ONE ───────────────────────────
+ * ── TWO TREATMENTS, AND WHY GOLD IS THE PREMIER ONE ─────────────────────────────────
  * A premier gathering is the one the family is being told to look at, so it takes the gold
  * SURFACE with its measured dark partner (`bg-brand-legacy text-brand-on-legacy`, 6.14) — the
  * same pairing `GATHERING_STATUS_PILL` uses for a state that is waiting on somebody. Gold can
  * never be a foreground on a pale ground (2.30 on white, 1.65 on sand), which is why it is a
- * fill here and never text. An ordinary gathering is Heritage soft, and an event is the
- * neutral surface: gatherings are this feature's own, events are the neighbouring product.
+ * fill here and never text. An ordinary gathering is Heritage soft.
+ *
+ * THERE WERE THREE UNTIL 2026-08-19, the third being a neutral `--muted` surface for an EVENT.
+ * Events is retired, `CalendarEntry.kind` has one member, and the tone went with it — along
+ * with the paragraph that used to sit here explaining why that surface needed a border to be
+ * perceptible at all (`--muted` is 1.13:1 against the page ground, so a bare legend swatch
+ * taught the reader nothing). The border is kept on both surviving tones, transparent on
+ * neither being needed now, purely so a future third tone cannot make one chip 2px taller than
+ * the one above it — the rule `table-collapse.tsx` and `MainRail` both keep.
  *
  * Colour is never the only signal. Each chip carries an `sr-only` word naming what it is, and
  * the premier one carries a star as well, so the distinction survives both a screen reader and
@@ -84,37 +91,25 @@ const WEEKDAYS = [
 const ENTRY_KIND_WORD = {
   premier:   'Premier gathering',
   gathering: 'Gathering',
-  event:     'Event',
 } as const
 
 /**
  * The measured surface pairs. Never crossed — a foreground from one pair on another's fill is
  * an unchecked combination in both themes.
  *
- * ── THE EVENT TONE CARRIES A BORDER, AND THAT IS NOT DECORATION ──────────────────────
- * `--muted` is `#f2ece3` and the page ground is `#faf7f2`: **1.13:1**. Its `text-foreground` is
- * perfectly readable, so an event chip in the grid was legible — but it had no perceptible
- * SURFACE, which turned the three-treatment system below into two treatments and an absence.
- * The legend was the worse half: that swatch is a bare 12×24 block with no text of its own, so
- * at 1.13 it taught the reader nothing at all about which chips are events.
- *
- * `border-border` rather than a new hue, because being the QUIETEST of the three is the intent
- * (gatherings are this feature's own, events are the neighbouring product) and it is the same
- * token every card edge in the app already draws with. All three tones carry the same border
- * WIDTH, transparent on two, so an event chip is not 2px taller than the gathering above it —
- * the rule `table-collapse.tsx` and `MainRail` both keep for the same reason.
+ * Both carry the same border WIDTH, transparent, so adding a third tone with a visible edge
+ * cannot make one chip 2px taller than the one above it — the rule `table-collapse.tsx` and
+ * `MainRail` both keep for the same reason.
  */
 const ENTRY_TONE = {
   premier:   'border border-transparent bg-brand-legacy text-brand-on-legacy font-medium',
   gathering: 'border border-transparent bg-brand-soft text-brand-on-soft',
-  event:     'border border-border bg-muted text-foreground',
 } as const
 
 type EntryTone = keyof typeof ENTRY_TONE
 
 function toneOf(entry: CalendarEntry): EntryTone {
-  if (entry.kind === 'gathering') return entry.isPremier ? 'premier' : 'gathering'
-  return 'event'
+  return entry.isPremier ? 'premier' : 'gathering'
 }
 
 /**
@@ -202,7 +197,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
       <div className="hidden overflow-hidden rounded-xl border sm:block">
         <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">
-            {`Gatherings and events in ${month.label}, one column per weekday.`}
+            {`Gatherings in ${month.label}, one column per weekday.`}
           </caption>
           <thead>
             <tr className="border-b bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -315,7 +310,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
       </div>
 
       <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-        {(['premier', 'gathering', 'event'] as const).map(tone => (
+        {(['premier', 'gathering'] as const).map(tone => (
           <li key={tone} className="flex items-center gap-1.5">
             <span aria-hidden="true" className={cn('h-3 w-6 rounded', ENTRY_TONE[tone])} />
             {ENTRY_KIND_WORD[tone]}

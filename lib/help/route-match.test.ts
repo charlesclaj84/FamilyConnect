@@ -33,17 +33,23 @@ import { matchHelpRoute, type HelpRouteEntry } from './route-match'
  *             listed in'
  *
  * Worth noting from run 4: 'prefers the longest matching route' stayed GREEN, because
- * `/admin/events` is an exact match on the entry it should resolve to. The tie-break and the
+ * `/admin/gatherings` is an exact match on the entry it should resolve to. The tie-break and the
  * prefix rule are separate faults and neither case covers both — which is why there are
  * cases for each rather than one that looks like it covers the pair.
+ *
+ * ── THE FIXTURE NAMES REAL ROUTES, AND THAT IS DELIBERATE ──────────────────────────
+ * `matchHelpRoute` is pure and would work as well over invented paths, but a reader checking a
+ * fixture checks it against the product — so a fixture naming `/events`, a route that no longer
+ * exists, costs a reader the time it takes to discover it is fiction. Every route below is one
+ * `lib/features.ts` actually has. Keep it that way when a route is retired.
  */
 
 const ENTRIES: readonly HelpRouteEntry[] = [
   { route: '/dues', slug: 'my-dues', title: 'Your dues' },
   { route: '/dues-projections', slug: 'dues-projections', title: 'Dues Projections' },
-  { route: '/events', slug: 'events', title: 'Events' },
+  { route: '/gatherings', slug: 'gatherings', title: 'Gatherings' },
   { route: '/admin', slug: 'admin-overview', title: 'Admin' },
-  { route: '/admin/events', slug: 'running-events', title: 'Running events' },
+  { route: '/admin/gatherings', slug: 'gathering-management', title: 'Gathering Management' },
 ]
 
 describe('matchHelpRoute', () => {
@@ -52,27 +58,27 @@ describe('matchHelpRoute', () => {
   })
 
   it('matches a child path against its parent entry', () => {
-    // `/events/<id>` is the case this exists for: a detail page has no chapter of its own
+    // `/gatherings/<id>` is the case this exists for: a detail page has no chapter of its own
     // and wants the one about the list it came from.
-    expect(matchHelpRoute('/events/8f2c-1234', ENTRIES)?.slug).toBe('events')
+    expect(matchHelpRoute('/gatherings/8f2c-1234', ENTRIES)?.slug).toBe('gatherings')
   })
 
   it('matches a nested admin path', () => {
-    expect(matchHelpRoute('/admin/events/abc/check-in', ENTRIES)?.slug).toBe('running-events')
+    expect(matchHelpRoute('/admin/gatherings/abc/tasks', ENTRIES)?.slug).toBe('gathering-management')
   })
 
   it('prefers the longest matching route', () => {
-    // Both `/admin` and `/admin/events` cover this. The chapter about the SCREEN wins over
+    // Both `/admin` and `/admin/gatherings` cover this. The chapter about the SCREEN wins over
     // the chapter about the section it sits in.
-    expect(matchHelpRoute('/admin/events', ENTRIES)?.slug).toBe('running-events')
+    expect(matchHelpRoute('/admin/gatherings', ENTRIES)?.slug).toBe('gathering-management')
   })
 
   it('prefers the longest match regardless of the order entries are listed in', () => {
     // The same assertion with the two candidates reversed, and it is not redundant: with
-    // `/admin/events` listed first, a first-match-wins implementation passes the case
+    // `/admin/gatherings` listed first, a first-match-wins implementation passes the case
     // above by accident. One ordering tests the tie-break; two test it in both directions.
     const reversed = [...ENTRIES].reverse()
-    expect(matchHelpRoute('/admin/events', reversed)?.slug).toBe('running-events')
+    expect(matchHelpRoute('/admin/gatherings', reversed)?.slug).toBe('gathering-management')
     expect(matchHelpRoute('/admin/anything-else', reversed)?.slug).toBe('admin-overview')
   })
 

@@ -57,7 +57,7 @@
 --
 --   * The three global lookups. See §1.
 --   * `storage.*`. The filter is `schemaname = 'public'`, so `storage.objects`
---     and `storage.buckets` are untouched — every avatar, document and event
+--     and `storage.buckets` are untouched — every avatar, document and
 --     photo outlives the row that referenced it. Orphaned blobs are out of scope
 --     here; the header used to claim a full purge and the claim was false.
 --

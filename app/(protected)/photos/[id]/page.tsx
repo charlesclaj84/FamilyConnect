@@ -46,9 +46,6 @@ export default async function PhotoCollectionPage({ params }: { params: Promise<
           <Camera className="h-6 w-6 text-primary shrink-0" />
           <div>
             <h1 className="text-2xl font-bold">{collection.name}</h1>
-            {collection.event_name && (
-              <p className="text-sm text-muted-foreground">{collection.event_name}</p>
-            )}
           </div>
           <span className="ml-auto text-sm text-muted-foreground">{collection.photo_count} photo{collection.photo_count !== 1 ? 's' : ''}</span>
         </div>

@@ -54,8 +54,19 @@ export const SCOPE_STYLE: Record<PermissionScope, string> = {
 // appears; they are not a gap to fill with those five.
 export const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'accounting', 'resources', 'admin']
 
+// `events` PRINTS "Gatherings", since 2026-08-19, and the KEY is deliberately left alone.
+//
+// AGENTS.md: captions come from the screen, not from the database's label for the resource —
+// "an administrator matching a switch to the thing it switches off should not have to
+// translate". The rail heading is Gatherings, so this one is too. The Events product that gave
+// the category its name is retired and every key still filed under it is a Gatherings one.
+//
+// Renaming the category VALUE would be a migration over `permission_resources.category` — and
+// worse, `auth_permission()` reads that column to decide whether an unregistered-visibility key
+// fails closed (`category = 'admin'`), so it is load-bearing in SQL and not merely a grouping.
+// A caption is one line here; a category is a column three resolvers agree about.
 export const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', events: 'Events',
+  general: 'General', personal: 'Personal', community: 'Community', events: 'Gatherings',
   accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
 }
 
@@ -173,11 +184,34 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *     notification half is the caller's own mail under a base policy that has no permission
  *     factor at all (20260805000007 deleted that resource because a factor over a
  *     per-recipient table was a tautology). So Own here would open the same screen All does.
+ *
+ *     `family-tree` is the eleventh, registered by 20260819000008 after nine days as a
+ *     family-wide canvas on an unregistered key. Both of its actions refuse Own, for two
+ *     different reasons that happen to agree:
+ *
+ *       view    `requireView` and `requireRead` are `can()`-based, and `can()` passes for
+ *               'own' — so Own and All both open the canvas. Which PEOPLE it draws is not
+ *               this key's answer either: `getFamilyTree` reads on the service role (a
+ *               half-visible tree draws edges pointing at nothing), so nothing anywhere
+ *               narrows the canvas by scope. Own would be indistinguishable from All — the
+ *               `announcements/birthdays` case.
+ *       edit    `requireTreeEditor()` in app/actions/family-tree.ts is `canAny`, and so is
+ *               the page's `canEdit`, deliberately and identically. There is no own version
+ *               of a tree edit: `editPersonRecord` refuses any row that HAS a `user_id`, so
+ *               the rows this grant governs are exactly the ones nobody owns, and an edge is
+ *               a fact about two people. Own would read as a denial at the server while
+ *               lighting the cell up as a grant — the `admin/gatherings` case.
+ *
+ *     And no policy in the database evaluates this key at all: 20260819000008 writes no
+ *     `permission_table_map` row and asserts the absence in both directions, because a row
+ *     there would compose an `auth_permission('family-tree', …)` factor onto
+ *     `relationship_types` — whose `own_expr` is 'false' — and a fresh database would then
+ *     carry policies hosted has not got. That migration's header has the whole argument.
  */
 const NO_OWNER_KEYS: readonly string[] = [
   'admin/family', 'admin/family/remove', 'dues-projections', 'admin/chapters',
   'gatherings/budget', 'admin/gatherings', 'announcements/birthdays',
-  'admin/boardpositions', 'updates',
+  'admin/boardpositions', 'updates', 'family-tree',
 ]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {

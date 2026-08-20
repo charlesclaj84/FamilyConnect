@@ -39,6 +39,22 @@ import { CalendarCheck, Wallet, Network } from 'lucide-react'
  * AGENTS.md reserves `public/` for the three identity folders, and a static import
  * does not need to be there.
  */
+// ⚠ THE PIXELS IN THIS FILE ARE OF A SCREEN THAT NO LONGER EXISTS.
+//
+// `events.png` was captured from `/events`, which is deleted (2026-08-19) — it shows a
+// multi-day itinerary with RSVP counts, none of which is in the product. It is still here
+// because a `Pillar` must have an `image` (`next/image` reads the intrinsic size and the blur
+// placeholder from the file, and a missing path fails `next build` rather than rendering an
+// empty box), and because a screenshot cannot be re-captured from a script — it needs a
+// browser, and Playwright is not a dependency of this repo.
+//
+// SO THE `imageAlt` BELOW IS DELIBERATELY GENERIC. An alt that named RSVPs would describe the
+// image and advertise a feature we do not have; one that named tasks and assignees would
+// advertise the right feature and describe the wrong image. Neither is acceptable, so it says
+// only what is true of both.
+//
+// TO FIX IT: open `/gatherings/<id>` on a seeded family, capture at the same width as the
+// other two shots, and replace this file. TODO.md carries the item.
 import eventsShot from './screenshots/events.png'
 import financesShot from './screenshots/finances.png'
 import familyTreeShot from './screenshots/family-tree.png'
@@ -65,28 +81,41 @@ export interface Pillar {
 }
 
 export const PILLARS: readonly Pillar[] = [
+  // THIS PILLAR SOLD THE EVENTS PRODUCT UNTIL 2026-08-19 — save-the-dates, hotel room blocks,
+  // RSVPs by household, day-of check-in — and every one of those screens is now deleted. A
+  // marketing page selling a feature by name that the product does not have is the failure
+  // FutureFeature.md is largely a record of, so the copy is what Gatherings actually does:
+  // a template, a gathering scheduled from it, a named relative holding each step, and an
+  // organizer accepting the answer or handing it back.
+  //
+  // `route` IS LOAD-BEARING AND IS NOT DECORATION: `FeatureShowcase` and `/features` both
+  // call `isFeatureFuture(pillar.route)` on it to decide whether to draw a Coming Soon badge,
+  // and it is the React key. Left as `/events` it would resolve against a registry entry that
+  // no longer exists.
   {
-    route: '/events',
+    route: '/gatherings',
     eyebrow: 'Plan it all',
     title: 'Reunions that run themselves',
     short:
-      'Save-the-dates, RSVPs by household and day-of check-in — the whole gathering in one place, with nobody chasing a spreadsheet the week before.',
+      'Build the reunion from a checklist, hand every step to the relative who owns it, and see at a glance what has come back — with nobody chasing a spreadsheet the week before.',
     blurb:
-      'From the first save-the-date to day-of check-in, the whole gathering lives in one place — and nobody is chasing a spreadsheet the week before.',
+      'A gathering is more than a date. Author the checklist once, schedule the reunion from it, and every step becomes somebody’s job with a due date against it.',
     bullets: [
-      'Multi-day itineraries with nested sub-events',
-      'Hotel room blocks with price estimates and booking deadlines',
-      'RSVP for a whole household in one tap, not one email thread per family',
-      'T-shirt sizes and meal counts totalled for you',
-      'Day-of check-in, so you know who actually walked in',
-      'Per-event budgets: line items against what was really spent',
+      'Reusable templates: the checklist your family runs every year, written once',
+      'Every step assigned to a named relative, with a due date',
+      'Answers come back to an organizer, who accepts them or sends them back with notes',
+      'A budget drawn on a real fund, with each task claiming its own line',
+      'One gathering flagged premier, across the top of everyone’s dashboard',
+      'The month calendar, with every gathering on the days it actually runs',
     ],
     icon: CalendarCheck,
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
     image: eventsShot,
+    // Generic on purpose — see the warning above the import. Do not make this specific until
+    // the screenshot itself has been re-captured.
     imageAlt:
-      'The events screen: a multi-day reunion itinerary with its sub-events, RSVP counts and day-of check-in.',
+      'A planning screen in the product, showing one gathering laid out with its details.',
   },
   {
     route: '/family-finances',
@@ -116,14 +145,28 @@ export const PILLARS: readonly Pillar[] = [
     eyebrow: 'Know your family',
     title: 'The family record, kept properly',
     short:
-      'The tree, the lineage and the directory — one living record the whole family maintains, rather than one exhausted historian.',
+      'The Family Tree and the directory — one living record the whole family maintains, rather than one exhausted historian.',
     blurb:
-      'Who is related to whom, how to reach them, and the lineage that ties every branch together — maintained by the family rather than by one exhausted historian.',
+      'Who is related to whom, how to reach them, and every branch traced back through the generations — maintained by the family rather than by one exhausted historian.',
+    // ── "LINEAGE" AND "DIRECT LINEAGE" ARE NOT PRODUCT WORDS, AND MUST NOT COME BACK ──
+    // This pillar sold a "Direct lineage view" and "convert them to members" until
+    // 2026-08-19, and both named `/direct-lineage`, which was DELETED on 2026-08-13 (a
+    // child is a person — AGENTS.md §4b). Nothing caught it for six days and nothing
+    // could: the Coming Soon pill is derived per ROUTE from `isFeatureFuture()`, and a
+    // route that has been deleted is not 'future', it is absent — so `getFeature()` finds
+    // nothing, there is nothing to badge, and the bullet read as shipped.
+    //
+    // The screen that replaced both is `/family-tree`, and the words below are ITS words.
+    // Tracing one line back is the tree's focus canvas plus its Bloodline toggle — but
+    // "Bloodline" is an in-canvas control, not a thing to sell a family, so the bullet
+    // names the outcome and leaves the control unnamed. Recording a relative with no
+    // address and inviting them later are two ordinary things the tree does, not a
+    // separate kind of person with a conversion step.
     bullets: [
       'A multi-generation tree: parents, grandparents, children and spouses',
       'Step-relationships and ex-partners handled gracefully',
-      'Direct lineage view, for tracing one line all the way back',
-      'Add your children, and convert them to members when they grow up',
+      'Trace any branch back through the generations, one click at a time',
+      'Record a relative who has no email yet, and invite them when they do',
       'Profiles the family maintains: contact details, birthdays, t-shirt sizes',
       'A directory with search that handles real names — accents and all',
     ],

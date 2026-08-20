@@ -20,7 +20,7 @@ export default async function AdminReportsPage() {
     <PageShell>
       <div className="mb-8">
         <h1 className="mb-1 text-3xl font-bold">Reports</h1>
-        <p className="text-muted-foreground">Membership, event, dues, and attendance overview.</p>
+        <p className="text-muted-foreground">Membership, gatherings, and where the money went.</p>
       </div>
       <AdminReportsClient stats={stats} />
     </PageShell>

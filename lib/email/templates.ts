@@ -45,7 +45,7 @@ export function membershipApprovedEmail(o: {
       heading: name ? `Welcome, ${name}` : 'Welcome',
       paragraphs: [
         `Your request to join <strong style="font-weight:600;">${esc(o.familyName)}</strong> on ${esc(APP_NAME)} has been approved.`,
-        'Everything is open to you now — the family tree, photographs, events, announcements and the rest. A good first step is filling in your own details, so the people who know you can find you.',
+        'Everything is open to you now — the family tree, photographs, gatherings, announcements and the rest. A good first step is filling in your own details, so the people who know you can find you.',
       ],
       button: {
         href: `${o.origin}/dashboard`,

@@ -73,16 +73,17 @@ export function alphaMarkers(fx) {
     // every case ordered after it. The President is held by a `user_roles` row and nothing
     // touches it.
     'ALPHATEST President',
-    a.announcement.id, a.document.id, a.event.id, a.eventPhoto.id,
+    a.announcement.id, a.document.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
-    // The money-free spares MONEY_CASES delete, and the two event-money rows. Ids only:
-    // each is ALPHA's by construction, so a BRAVO response carrying one is a leak like any
-    // other, and every default-checked read gains the assertion for nothing. Their NAMES are
-    // deliberately not listed — `f.deletableFund` is "ALPHATEST spare fund", which no
-    // substring test would distinguish from a marker that is already here.
+    // The money-free spares MONEY_CASES delete. Ids only: each is ALPHA's by construction, so
+    // a BRAVO response carrying one is a leak like any other, and every default-checked read
+    // gains the assertion for nothing. Their NAMES are deliberately not listed —
+    // `f.deletableFund` is "ALPHATEST spare fund", which no substring test would distinguish
+    // from a marker that is already here.
+    //
+    // FOUR EVENT IDS WERE ON THIS LIST and their tables are dropped (20260819000006).
     a.deletableSchedule.id, a.deletableFund.id, a.deletableMilestone.id,
-    a.deletableEvent.id, a.budgetItem.id, a.deletableBudgetItem.id, a.expense.id,
     // The transfer, and the fund it exists to move money into. `reason` is the one
     // free-text field on a transfer row, so it is the string that would show up in a
     // leaked ledger — marked like every other piece of ALPHA prose below.
@@ -460,9 +461,6 @@ export const CASES = [
   // ── actions taking an id: the attacker supplies ALPHA's ───────────────────
   read('chat.getMessages', 'app/actions/chat.ts', 'getMessages', {
     args: fx => [fx.alpha.room.id],
-  }),
-  read('event-photos.getEventPhotos', 'app/actions/event-photos.ts', 'getEventPhotos', {
-    args: fx => [fx.alpha.event.id],
   }),
   read('funds.getDisbursementsForFund', 'app/actions/funds.ts', 'getDisbursementsForFund', {
     args: fx => [fx.alpha.fund.id],
@@ -3072,28 +3070,17 @@ export const SWEEP_CASES = [
     expectAttack: (r) => r.count === 0,
     expectPositive: (r) => r.count > 0,
   }),
-  // [evidence for auth_person_id(), not for §6] Green under M1 and red under M2, and the
-  // reason is worth knowing: `events` is not an admin key, so General grants view 'any' on
-  // it — the permission disjunct WOULD admit the applicant. What stops it is that
-  // `auth_person_id()` is NULL for them, which makes `auth_permission()` return 'none'
-  // before the grant is ever consulted. Two gates, and this table is held by the other one.
-  read('raw:event_rsvp SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectEventRsvp', {
-    attacker: 'alphaPending',
-    expectAttack: (r) => r.count === 0,
-    expectPositive: (r) => r.count > 0,
-  }),
-  // [evidence for auth_person_id(), not for §6] Same shape as event_rsvp above.
-  read('raw:event_assignments SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectEventAssignments', {
-    attacker: 'alphaPending',
-    expectAttack: (r) => r.count === 0,
-    expectPositive: (r) => r.count > 0,
-  }),
-  // [not evidence for §6, nor for auth_person_id] Green under both, and this one is the
-  // PERMISSION layer doing the work: the disjunct needs
-  // `auth_permission('admin/boardpositions', 'view') = 'any'`, the applicant holds General,
-  // and General's grid says 'none' for every admin key. So the case is evidence that a
-  // plain template cannot read the board roster — which is worth asserting and is a
-  // different claim from the one this block is named for.
+  // TWO RAW READS WERE DELETED HERE ON 2026-08-19 — `event_rsvp` and `event_assignments` as
+  // an applicant. They were evidence for `auth_person_id()` gating on membership rather than
+  // for §6, and both tables lost every policy with the Events product (20260819000006), so
+  // what they would test now is a table with RLS on and nothing to match: refused for
+  // everybody, which proves nothing about who the caller is.
+  //
+  // WHAT THEY WERE EVIDENCE FOR, kept because the property is still true of every other table
+  // here: `events` was not an admin key, so General granted view 'any' on it and the
+  // permission disjunct WOULD have admitted a pending applicant. What stopped it is that
+  // `auth_person_id()` is NULL for them, which makes `auth_permission()` return 'none' before
+  // the grant is ever consulted. Two gates, and those tables were held by the other one.
   read('raw:user_roles SELECT (applicant)', 'tests/rls/raw/sweep.mjs', 'selectUserRoles', {
     attacker: 'alphaPending',
     expectAttack: (r) => r.count === 0,
@@ -4055,11 +4042,12 @@ export const REMOVAL_CASES = [
 //
 // ── CHECKED BY MUTATION, 2026-08-18 ─────────────────────────────────────────────────
 // Commands and observed results are recorded per case. The one general note: mutating the
-// guard makes an ATTACK half delete a fixture row that the rest of the fixture hangs off
-// (`f.fund` cascades its contribution, disbursement, transfer and milestones; `f.event`
-// cascades its photo, RSVP, assignment, budget lines and expense), which is why this block
-// is pushed LAST. Restore the guard and re-run the whole suite before trusting anything else
-// in the file.
+// guard makes an ATTACK half delete a fixture row that the rest of the fixture hangs off —
+// `f.fund` cascades its contribution, disbursement, transfer and milestones — which is why
+// this block is pushed LAST. Restore the guard and re-run the whole suite before trusting
+// anything else in the file. (`f.event` used to be the worse of the two, cascading a photo,
+// an RSVP, an assignment, two budget lines and an expense; that whole fixture is gone with
+// the tables.)
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
 
 /**
@@ -4097,20 +4085,11 @@ const resetMoneyFreeRecords = async (db, fx) => {
         name: f.deletableMilestone.name, amount_cents: f.deletableMilestone.amount_cents,
         sort_order: f.deletableMilestone.sort_order,
       }],
-      ['events', {
-        id: f.deletableEvent.id, family_code: f.familyCode, name: f.deletableEvent.name,
-        status: 'approved', created_by: f.deletableEvent.created_by,
-        event_date: f.deletableEvent.event_date,
-      }],
-      // AFTER `events`, same reason: event_budget_items.event_id REFERENCES events(id). This
-      // line sits on `f.event`, which no case deletes, so the ordering is documentation
-      // rather than a live dependency — keep it anyway.
-      ['event_budget_items', {
-        id: f.deletableBudgetItem.id, event_id: f.event.id, family_code: f.familyCode,
-        title: f.deletableBudgetItem.title, budget_cents: f.deletableBudgetItem.budget_cents,
-        sort_order: f.deletableBudgetItem.sort_order,
-        created_by: f.deletableBudgetItem.created_by,
-      }],
+      // TWO MORE ROWS WERE HERE — `events` and `event_budget_items`, both dropped
+      // (20260819000006). What they demonstrated is the reason this list is ORDERED at all
+      // and applies to whatever is added next: a restore that ran before its own parent
+      // existed would fail on a foreign key, for a case that had deleted that parent. It is
+      // cheaper to order the list than to reason about which case ran last.
     ]
     for (const [table, row] of rows) {
       const { error } = await db.from(table).upsert(row)
@@ -4162,11 +4141,12 @@ export const MONEY_CASES = [
     kind: 'write',
     id: 'funds.deleteFund (a fund with money in it)',
     mod: 'app/actions/funds.ts', fn: 'deleteFund',
-    // FOUR KINDS OF MONEY point at `f.fund` — a contribution, a disbursement, a transfer and
-    // (deliberately) no event expense — and three of the four CASCADE, so a successful delete
-    // does not orphan the ledger, it erases it and the family's collected total drops. The
-    // old check looked at transfers alone, which is why the probe is worth reading as a pair
-    // with the spare: a guard narrowed back to transfers passes nothing here.
+    // THREE KINDS OF MONEY point at `f.fund` — a contribution, a disbursement and a transfer
+    // — and all three CASCADE, so a successful delete does not orphan the ledger, it erases it
+    // and the family's collected total drops. The old check looked at transfers alone, which is
+    // why the probe is worth reading as a pair with the spare: a guard narrowed back to
+    // transfers passes nothing here. (There was a fourth, `event_expenses`, deliberately NOT
+    // pointed at this fund; that table is dropped.)
     attacker: 'alphaAdmin',
     args: fx => [fx.alpha.fund.id],
     setup: resetMoneyFreeRecords,
@@ -4191,36 +4171,13 @@ export const MONEY_CASES = [
     positiveActor: 'alphaAdmin',
     positiveArgs: fx => [fx.alpha.deletableMilestone.id],
   },
-  {
-    kind: 'write',
-    id: 'admin/events.deleteEvent (an event with recorded spend)',
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
-    // `event_expenses.event_id` is ON DELETE CASCADE, so this is the erasing kind: the
-    // family's outgoings drop by the amount of the expense and nothing says they ever
-    // included it.
-    attacker: 'alphaAdmin',
-    args: fx => [fx.alpha.event.id],
-    setup: resetMoneyFreeRecords,
-    probe: moneyPairProbe('events', 'id, name',
-      fx => [fx.alpha.event.id, fx.alpha.deletableEvent.id]),
-    positiveActor: 'alphaAdmin',
-    positiveArgs: fx => [fx.alpha.deletableEvent.id],
-  },
-  {
-    kind: 'write',
-    id: 'admin/events.deleteEventBudgetItem (a budget line with an expense against it)',
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
-    // `event_expenses.budget_item_id` is ON DELETE SET NULL — the orphaning kind. Both budget
-    // lines sit on the same event, so the pair differs in one fact only: whether the expense
-    // names it.
-    attacker: 'alphaAdmin',
-    args: fx => [fx.alpha.budgetItem.id],
-    setup: resetMoneyFreeRecords,
-    probe: moneyPairProbe('event_budget_items', 'id, title',
-      fx => [fx.alpha.budgetItem.id, fx.alpha.deletableBudgetItem.id]),
-    positiveActor: 'alphaAdmin',
-    positiveArgs: fx => [fx.alpha.deletableBudgetItem.id],
-  },
+
+  // TWO CASES WERE DELETED FROM HERE ON 2026-08-19, with the Events product:
+  // `admin/events.deleteEvent (an event with recorded spend)` and
+  // `admin/events.deleteEventBudgetItem (a budget line with an expense against it)`. Both
+  // actions are gone, and a case naming a module that does not exist fails to import rather
+  // than reporting a gap. `event_expenses` is dropped too (20260819000006) along with its
+  // term in `fund_balance_cents()`, so there is no such money and no action to aim at.
 
   // ── 2. THE GUARD DID NOT REPLACE THE PERMISSION MODEL ─────────────────────────────
   //
@@ -4279,54 +4236,27 @@ export const MONEY_CASES = [
     positiveActor: 'alphaAdmin',
   },
 
-  // ── 3. THE TWO EVENT DELETES HAD NO FAMILY CONJUNCT AT ALL ────────────────────────
-  //
-  // Until 2026-08-17 both of these took a bare id from the client and ran it through the
-  // SERVICE-ROLE client, so an events administrator in one family deleted another family's
-  // reunion — and its budget, its RSVPs and its photographs with it — by id. AGENTS.md §3.
-  // `getAuthenticatedAdmin()` had always returned the family code; the actions simply did not
-  // use it.
-  //
-  // TO SEE THESE FAIL: drop `.eq('family_code', familyCode)` from the DELETE in the action
-  // named. There is no second conjunct on either of these to stand in for it — no existence
-  // read, no policy — so unlike the `deleteChapter` pair, one mutation is the whole test.
-  {
-    kind: 'write',
-    id: "admin/events.deleteEvent (another family's event)",
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
-    args: fx => [fx.alpha.deletableEvent.id],
-    setup: resetMoneyFreeRecords,
-    probe: (db, fx) => snapshot('events', 'id, name, family_code',
-      { id: fx.alpha.deletableEvent.id })(db),
-    positiveActor: 'alphaAdmin',
-  },
-  {
-    kind: 'write',
-    id: "admin/events.deleteEventBudgetItem (another family's budget line)",
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
-    args: fx => [fx.alpha.deletableBudgetItem.id],
-    setup: resetMoneyFreeRecords,
-    probe: (db, fx) => snapshot('event_budget_items', 'id, title, family_code',
-      { id: fx.alpha.deletableBudgetItem.id })(db),
-    positiveActor: 'alphaAdmin',
-  },
+  // SECTION 3 WAS THE TWO EVENT DELETES AND IS GONE, 2026-08-19. It proved that
+  // `deleteEvent` and `deleteEventBudgetItem` had gained the `family_code` conjunct they ran
+  // without until 2026-08-17 — a real finding, and one whose subject no longer exists. The
+  // SHAPE it established is the thing worth keeping and it is used by a dozen cases above:
+  // aim BRAVO's administrator at ALPHA's id, make the subject a row with no money on it so the
+  // money guard cannot refuse first and take the credit, and keep the control on ALPHA's own
+  // administrator rather than on BRAVO's own row (see the note in section 4 below about
+  // `my-families.createFamily` moving bravoAdmin's active family out from under a symmetric
+  // control).
 
-  // ── 4. THE CRAFTED ID, and read what it does and does not prove ───────────────────
+  // ── 4. THE CRAFTED ID: THE CASE IS GONE AND THE FINDING IS NOT ───────────────────
   //
-  // `moneyAttachedTo` builds a PostgREST `or` expression by INTERPOLATING the id it was
-  // handed, which is a value that arrived in an HTTP request, and `isUuid(id)` is what makes
-  // that safe. Nothing under vitest can prove the check is CALLED — the surviving mutation
-  // recorded at the head of lib/money-attached.test.ts is exactly that — so it is asserted
-  // here, and this is the only case in this block that is read-shaped.
+  // `moneyAttachedTo` builds a PostgREST `or` expression by INTERPOLATING the id it was handed,
+  // which is a value that arrived in an HTTP request, and `isUuid(id)` is what makes that safe.
+  // The case that asserted it aimed `admin/events.deleteEvent`, chosen because it was the one
+  // action that reached the guard BEFORE reading the row by id — the other four answer "not
+  // found" on a 22P02 first, so a crafted id never gets that far in them. That action is
+  // deleted with the Events product, and the case went with it.
   //
-  // WHY THIS ACTION. Three of the five read the row by `.eq('id', id)` before consulting the
-  // guard, and a non-uuid makes THAT query fail (22P02) so the action answers "not found"
-  // without the guard being reached at all. `deleteEvent` and `deleteEventBudgetItem` have no
-  // such read: `moneyAttachedTo` is the first thing they do with the id.
-  //
-  // WHY IT ASSERTS THE MESSAGE AND NOT A ROW, which is the finding rather than a preference,
-  // and it is the opposite of what the shape suggests. MEASURED against the local stack,
-  // 2026-08-18:
+  // WHAT THE MEASUREMENT ESTABLISHED, kept because it is what makes the guard's absence
+  // noticeable if somebody removes it. Measured against the local stack, 2026-08-18:
   //
   //   .eq('id', '<uuid>,fund_id.eq.<uuid>')   → 22P02, data null. postgrest-js encodes an
   //                                             `eq` value and PostgREST reads the remainder
@@ -4335,124 +4265,33 @@ export const MONEY_CASES = [
   //                                             decoded value is parsed as an expression, is.
   //   the DELETE with that same id            → 22P02, nothing deleted.
   //
-  // So the row was never in danger: every one of the five actions ends in `.eq('id', id)` on
-  // a uuid column, which refuses a crafted id independently of this guard. A probe therefore
-  // cannot tell a wired `isUuid` from an unwired one — both leave the record standing — and a
-  // write-shaped case here would be a green tick over nothing. What DOES differ is the
-  // sentence the administrator gets, and that is what this asserts.
+  // So the row was never in danger and a probe could not tell a wired `isUuid` from an unwired
+  // one; what differed was the SENTENCE the administrator got. `lib/money-attached.test.ts`
+  // still covers the pure half, and its own header records the mutation that survives it.
   //
-  // AND WHY THE ID IS TWO ZERO UUIDS rather than the real event id plus an injected disjunct.
-  // `.or()` takes a comma-separated list of DISJUNCTS, so injecting one can only ever WIDEN
-  // the match — which is the safe direction, `any: true`, refuse. Handing it the real id would
-  // make the unguarded path count the real expense and produce the SAME refusal, so the case
-  // would pass under the mutation. Two ids that match nothing are what make the unguarded
-  // path fall through to the delete.
-  //
-  // CHECKED BY MUTATION, 2026-08-18. Delete the `if (!familyCode || !isUuid(id))` line from
-  // `moneyAttachedTo` and re-run:
-  //
-  //   node --import ./tests/rls/register.mjs ./tests/rls/run.mjs "crafted PostgREST"
-  //
-  // OBSERVED: the case goes red. `error` becomes
-  // `invalid input syntax for type uuid: "00000000-…-000000000000,fund_id.eq.00000000-…"`
-  // — the counts came back 0, `attached.any` was false, and the DELETE itself was what
-  // refused. Restore the line and it is the money sentence again.
-  read('admin/events.deleteEvent (a crafted PostgREST filter fragment for an id)',
-    'app/actions/admin/events.ts', 'deleteEvent', {
-      // ALPHA'S OWN ADMINISTRATOR, so the permission layer is out of the result and the only
-      // thing that can shape the answer is what the action does with the id.
-      attacker: 'alphaAdmin',
-      // `fund_id` is a real column on `event_expenses`, which is the table this kind counts,
-      // so this is the fragment an attacker would actually send rather than a nonsense string.
-      args: () => [`${ZERO_UUID},fund_id.eq.${ZERO_UUID}`],
-      // `moneyAttachedMessage` over an all-zero count says "money" rather than naming a
-      // payment, which is the fail-toward-refusing branch working as documented. Matching the
-      // clause rather than the whole sentence keeps this from breaking on a copy edit.
-      expectAttack: (r) => r?.success === false
-        && /has money recorded against it, so it cannot be deleted/.test(r.error ?? ''),
-      positive: 'not-applicable',
-      why: 'no caller has a legitimate crafted id to pass — there is no more-entitled actor to run this as, and the deleteEvent case in section 1 above proves the action still deletes an event nobody has spent against',
-    }),
+  // A REPLACEMENT IS OWED THE DAY ANOTHER ACTION CONSULTS THE GUARD BEFORE READING ITS ROW.
+  // None does today — that is the property that made `deleteEvent` the only candidate — so
+  // this is a gap that is stated rather than one that is hidden.
 
-  // ── 3. THE FAMILY SCOPING THESE TWO ACTIONS DID NOT HAVE ──────────────────────────
+  // ── 5. THE FAMILY SCOPING THOSE TWO ACTIONS DID NOT HAVE ──────────────────────────
   //
-  // Separate from everything above, and not about money at all. `deleteEvent` and
-  // `deleteEventBudgetItem` ran on the SERVICE-ROLE client with no `family_code` conjunct —
-  // `.eq('id', id)` was the whole predicate — so an events administrator in one family could
-  // delete another family's reunion, and every RSVP, assignment, photo, budget line and
-  // expense that cascades from it, by passing its id. `getAuthenticatedAdmin` has always
-  // returned the family code; these two simply never used it (AGENTS.md §3). Both gained the
-  // conjunct on this branch, and these are the cases that make that a claim with evidence.
+  // The last two event cases stood here — `deleteEvent` and `deleteEventBudgetItem`, run as
+  // BRAVO's administrator against ALPHA's money-free spares — and they are gone with the
+  // actions. One thing they discovered is not about events at all and applies to any case
+  // added at the END of this file, so it is kept:
   //
-  // WHY THEY ARE NEEDED WHEN SECTION 1 ALREADY DELETES EVENTS. Section 1's actors are all
-  // `alphaAdmin` acting on ALPHA, which is the money question and says nothing about
-  // isolation. These aim BRAVO's administrator — scope 'any' on every resource in their own
-  // family — at ALPHA's ids, so whatever they still reach, they reach because family scoping
-  // failed rather than because nobody checked a grant.
+  // A CROSS-FAMILY CASE MUST NOT MAKE ITS CONTROL SYMMETRIC. The first version had BRAVO's
+  // administrator deleting BRAVO's own spare as the control. It passed when the two cases were
+  // run alone and FAILED in the full suite with "owner's own write did nothing" — because
+  // `my-families.createFamily` runs bravoAdmin as its attacker, twice, and creating a family
+  // MAKES IT THE CREATOR'S ACTIVE ONE. By the time these ran, bravoAdmin held three
+  // memberships and `user_family_settings.active_family_code` pointed at one of the families
+  // those cases had minted, so `getMyFamilyCode(bravoAdmin)` no longer answered BRAVOTEST.
+  // Nothing was wrong with the action.
   //
-  // THE SUBJECT IS THE SPARE, NOT THE FUNDED ROW, and that is the whole design of these two.
-  // Aimed at `f.event` the money guard would refuse the attacker first and the case would go
-  // green with the `.eq` deleted — evidence for the wrong layer. `f.deletableEvent` has no
-  // spend, so the ONLY thing standing between BRAVO's administrator and it is the family
-  // conjunct.
-  //
-  // ── THE CONTROL IS `alphaAdmin`, AND `bravoAdmin` CANNOT BE IT. FOUND BY RUNNING. ──
-  // The first version had both halves symmetric — BRAVO's administrator deleting BRAVO's own
-  // spare as the control — which passed when the two cases were run alone and FAILED in the
-  // full suite with "owner's own write did nothing".
-  //
-  // The cause is an ordering hazard worth knowing about for any case added at the end of this
-  // file. `my-families.createFamily` runs bravoAdmin as its attacker, twice, and creating a
-  // family MAKES IT THE CREATOR'S ACTIVE ONE. By the time MONEY_CASES runs, bravoAdmin holds
-  // three memberships and `user_family_settings.active_family_code` points at one of the
-  // families those cases minted — measured: `VAJ2Y2, WZW4H2, BRAVOTEST`, active `VAJ2Y2`. So
-  // `getMyFamilyCode(bravoAdmin)` no longer answers BRAVOTEST, and a write scoped to their
-  // active family cannot touch BRAVO's spare. Nothing was wrong with the action.
-  //
-  // So these use the canonical cross-family shape every other case in this file uses: BOTH
-  // halves pass ALPHA's id, and only the caller changes. It is order-independent, because it
-  // asks nothing about which family the ATTACKER is currently in — which is the right
-  // question anyway. `alphaAdmin` is safe as the control: measured, they end the run with
-  // exactly one membership, ALPHATEST, and no active-family override.
-  //
-  // CHECKED BY MUTATION, 2026-08-18. Both conjuncts removed at once — `.eq('family_code',
-  // familyCode)` from `deleteEvent`'s DELETE and from `deleteEventBudgetItem`'s — then
-  //
-  //   node --import ./tests/rls/register.mjs ./tests/rls/run.mjs "cross-family,"
-  //
-  // OBSERVED: `2 actions · 4 assertions · 2 passed · 2 failed`, both ATTACK halves red with
-  // ROW MUTATED and the runner reporting `2 ISOLATION FAILURE(S) — another family's data was
-  // reachable`. Both CONTROL halves stayed green, so exactly one assertion per case moves.
-  // Restored, and green again at 4/4 alone and 378/378 in the full suite.
-  //
-  // Re-run after the control actor changed from `bravoAdmin` to `alphaAdmin` (see below) —
-  // the earlier result was evidence for a case shape that no longer exists, and a mutation
-  // log describing a version of the case that is not in the file is worse than none.
-  //
-  // `resetMoneyFreeRecords` upserts BOTH families' spares, so a mutation run does not leave
-  // the fixture short for the run after it.
-  {
-    kind: 'write',
-    id: 'admin/events.deleteEvent (cross-family, an event with no money against it)',
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEvent',
-    args: fx => [fx.alpha.deletableEvent.id],
-    setup: resetMoneyFreeRecords,
-    // ALPHA's spare alone. A pair probe would add nothing here — both halves aim at the SAME
-    // row and what distinguishes them is who is calling.
-    probe: (db, fx) => snapshot('events', 'id, name',
-      { id: fx.alpha.deletableEvent.id })(db),
-    positiveActor: 'alphaAdmin',
-  },
-  {
-    kind: 'write',
-    id: 'admin/events.deleteEventBudgetItem (cross-family, a line with no expense against it)',
-    mod: 'app/actions/admin/events.ts', fn: 'deleteEventBudgetItem',
-    args: fx => [fx.alpha.deletableBudgetItem.id],
-    setup: resetMoneyFreeRecords,
-    probe: (db, fx) => snapshot('event_budget_items', 'id, title',
-      { id: fx.alpha.deletableBudgetItem.id })(db),
-    positiveActor: 'alphaAdmin',
-  },
+  // The canonical shape every other case here uses is order-independent: BOTH halves pass
+  // ALPHA's id and only the CALLER changes, so it asks nothing about which family the attacker
+  // happens to be in — which is the right question anyway.
 ]
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════
@@ -4731,7 +4570,6 @@ const TEMPLATE_CASE_NAME = 'scope-case assembly plan'
  * suite's litter, and — like all of them — deliberately NOT on the marker list: a string a case
  * writes is not a fact about ALPHA that a leak could expose.
  */
-const TEMPLATE_CASE_LOCATION = 'scope-case assembly lawn'
 const STEP_CASE_LABEL = 'scope-case assembly step'
 /** Far enough out that it cannot fall inside the month `getCalendarMonth`'s case asks for. */
 const CREATE_CASE_DATE = '2027-06-01'
@@ -4805,11 +4643,6 @@ const resetSpareTemplates = async (db, fx) => {
     must(await db.from('gathering_templates').upsert({
       id: f.deletableTemplate.id, family_code: f.familyCode,
       name: `${f.familyCode} spare assembly plan`,
-      // RESTATED, because an upsert writes the whole row: without this line the spare template
-      // comes back from `deleteGatheringTemplate`'s control with a NULL `default_location`, and
-      // `addGatheringTemplate`'s case — which exists to watch that default being COPIED onto a
-      // segment — would then be asserting that null equals null.
-      default_location: `${f.familyCode} spare assembly lodge`,
       created_by: f.ownerPersonId, who_may_schedule: 'admin', is_archived: false,
     }))
     must(await db.from('gathering_template_steps').upsert({
@@ -4821,14 +4654,15 @@ const resetSpareTemplates = async (db, fx) => {
 }
 
 /**
- * Both families' main template back — `updateGatheringTemplate` rewrites its description and,
- * since 20260819000001, its `default_location`.
+ * Both families' main template back — `updateGatheringTemplate` rewrites its description.
  *
- * `default_location` IS RESTORED FOR THE REASON THE OTHER FOUR COLUMNS ARE, and it is the one
- * this file's own §7 note is about: each half of a write case re-runs `setup` and then probes, so
- * a column the control changes has to start each half from a KNOWN value. Left out, the second
- * half would start from whatever the first half wrote, and a write of the same value twice is
- * indistinguishable from a write that did nothing.
+ * EVERY COLUMN THE CONTROL CHANGES IS RESTORED, which is what this file's own §7 note is about:
+ * each half of a write case re-runs `setup` and then probes, so a column the control changes has
+ * to start each half from a KNOWN value. Left out, the second half would start from whatever the
+ * first half wrote, and a write of the same value twice is indistinguishable from a write that
+ * did nothing.
+ *
+ * `default_location` was on this list until 20260819000007 dropped the column.
  */
 const resetTemplates = async (db, fx) => {
   for (const side of ['alpha', 'bravo']) {
@@ -4836,14 +4670,13 @@ const resetTemplates = async (db, fx) => {
     must(await db.from('gathering_templates').update({
       name: `${f.familyCode} assembly plan`,
       description: `${f.familyCode} assembly plan notes`,
-      default_location: `${f.familyCode} assembly green`,
       who_may_schedule: 'family', is_archived: false,
     }).eq('id', f.template.id))
   }
 }
 
 /**
- * The three steps of both families' main template, in the order and shape the fixture seeded.
+ * The four steps of both families' main template, in the order and shape the fixture seeded.
  *
  * Shared by `updateTemplateStep` (which rewrites step 1's help text), `deleteTemplateStep`
  * (which removes the third) and `moveTemplateStep` (which swaps the first two). The positions
@@ -4859,9 +4692,13 @@ const resetTemplateSteps = async (db, fx) => {
     }).eq('id', f.templateStep1.id))
     must(await db.from('gathering_template_steps').update({ position: 1 })
       .eq('id', f.templateStep2.id))
+    // Position 2 is the `location` step (20260819000007), which no case moves or deletes and
+    // which therefore needs no restoring. The spare sits after it.
+    must(await db.from('gathering_template_steps').update({ position: 2 })
+      .eq('id', f.templateStep3.id))
     must(await db.from('gathering_template_steps').upsert({
       id: f.deletableStep.id, family_code: f.familyCode, template_id: f.template.id,
-      position: 2, label: `${f.familyCode} spare assembly step`, kind: 'long_text',
+      position: 3, label: `${f.familyCode} spare assembly step`, kind: 'long_text',
     }))
   }
 }
@@ -5487,11 +5324,11 @@ export const GATHERING_CASES = [
     //     `segmentSpanWarning` has nothing to say — an out-of-span day would still succeed (that
     //     is the deliberate correct-or-surface choice) but would make the case's outcome depend
     //     on a `warning` field a write probe cannot see.
-    //   * `location` is ABSENT, so the only way the segment can acquire one is
-    //     `attachTemplatesToGathering` copying `default_location` off the template — the
-    //     copy-not-reference rule the tasks already follow, and the half that a stated location
-    //     would have hidden. `f.deletableTemplate` carries 'ALPHATEST spare assembly lodge' for
-    //     exactly this, and `resetSpareTemplates` restores it.
+    //   * `location` is ABSENT, and since 20260819000007 that means the segment comes out with
+    //     NULL. It used to be copied from the template's `default_location`, which is the column
+    //     that migration dropped; a place is a STEP now, answered by a named relative. The probe
+    //     asserting NULL is still worth having — it is what would catch a fall-back reappearing
+    //     from somewhere and quietly stating a place nobody chose.
     //
     // The probe (`spareGatheringLinks`) projects both columns; without that this call would read
     // as an ordinary link and a regression that dropped both would pass.
@@ -5700,19 +5537,17 @@ export const GATHERING_CASES = [
     // in ALPHA. That is the guard's `familyCode` being right, and it is the only cross-family
     // question this signature can pose.
     //
-    // `defaultLocation` SINCE 20260819000001, and the probe projects it. That pairing is the
-    // point rather than either half: a column the control writes and the probe does not read is
-    // a successful write that looks like a no-op, so adding the argument without widening the
-    // projection would have LOOKED like coverage and been the opposite — the exact failure mode
-    // AGENTS.md §7 lists second.
+    // `defaultLocation` WAS AN ARGUMENT HERE AND IS GONE (20260819000007). The pairing it
+    // illustrated is still the rule this probe follows: a column the control writes and the
+    // probe does not read is a successful write that looks like a no-op, so every column the
+    // args touch is in the projection below.
     args: () => [{
       name: TEMPLATE_CASE_NAME,
-      defaultLocation: TEMPLATE_CASE_LOCATION,
       whoMaySchedule: 'family',
     }],
     setup: clearCaseTemplates,
     probe: (db) => snapshot('gathering_templates',
-      'id, family_code, name, default_location, who_may_schedule',
+      'id, family_code, name, who_may_schedule',
       { family_code: ALPHA, name: TEMPLATE_CASE_NAME })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5724,21 +5559,17 @@ export const GATHERING_CASES = [
     // `getSchedulableTemplates`, whose control asserts it is offered — one case quietly
     // breaking another is the ordering dependency the spare rows exist to avoid.
     //
-    // `defaultLocation` JOINED IT ON 2026-08-19, with `default_location` added to the probe in
-    // the same edit and `resetTemplates` restoring it. It is safe to move on `f.template`
-    // for the reason `description` is: nothing else in this suite reads the column, and the
-    // COPY onto a segment happens at the moment a template is LINKED — so rewriting the default
-    // here cannot reach a gathering that already exists, which is the whole point of the copy
-    // and is stated on the action itself ("this is the function somebody will reach for when
-    // they mean 'move the picnic', and it is not the one").
+    // `defaultLocation` was a second field here for one day and went with the column
+    // (20260819000007). `description` alone is enough for the shape this case tests — a write
+    // the attacker must not land and the owner must — and the probe reads exactly the columns
+    // the args touch, which is the pairing AGENTS.md §7 lists second.
     args: fx => [{
       templateId: fx.alpha.template.id,
       description: 'scope-case assembly description',
-      defaultLocation: 'scope-case assembly courtyard',
     }],
     setup: resetTemplates,
     probe: (db, fx) => snapshot('gathering_templates',
-      'id, name, description, default_location, is_archived',
+      'id, name, description, is_archived',
       { id: fx.alpha.template.id })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5772,6 +5603,76 @@ export const GATHERING_CASES = [
     probe: (db) => snapshot('gathering_template_steps', 'id, family_code, label, kind',
       { label: STEP_CASE_LABEL })(db),
     positiveActor: 'alphaAdmin',
+  },
+  // ── THE SECOND ID ON A STEP, AND IT IS §4 ─────────────────────────────────────────
+  // `addTemplateStep` took ONE id from the client until 2026-08-19 — the template the step
+  // goes on — and the case above is about that one. A step of kind `'template'` carries a
+  // SECOND: `childTemplateId`, the template it includes. That is exactly the shape AGENTS.md
+  // §4 is about, and the sharper half of it: the row being written is the ATTACKER'S OWN, in
+  // their own family, so its `family_code` satisfies every policy while the id it carries
+  // points into somebody else's family. Nothing in the database objects, because nothing in
+  // the database was asked — unless something asks.
+  //
+  // THREE LAYERS ARE UNDERNEATH THIS, AND THIS CASE IS EVIDENCE FOR THE SET RATHER THAN FOR
+  // ANY ONE OF THEM. The action calls `belongsToFamily` on the child;
+  // `tg_gathering_template_step_same_family()` refuses a cross-family child in SQL, which is
+  // what covers the SERVICE ROLE this action writes through; and a CHECK refuses a
+  // `'template'` step whose child is its own parent.
+  //
+  // CHECKED BY MUTATION, 2026-08-19, and the first attempt is worth recording because it is
+  // the shape AGENTS.md §7 warns about:
+  //
+  //   Delete the `belongsToFamily(... child.templateId ...)` block from `addTemplateStep`
+  //     → BOTH halves stay GREEN. The trigger refuses instead, so no row moves. What actually
+  //       changes is the SENTENCE: BRAVO's author is told a 23514 naming a table they have
+  //       never heard of rather than "That template was not found". A probe cannot see that,
+  //       so this case is NOT evidence for the application-layer guard on its own.
+  //
+  //   Delete that block AND neuter the trigger to `BEGIN RETURN NEW; END`
+  //     → `1 actions · 2 assertions · 1 passed · 1 failed`, the ATTACK half red, and the
+  //       runner reporting `1 ISOLATION FAILURE(S) — another family's data was reachable`.
+  //       Exactly one assertion moves, which is what a real case looks like.
+  //
+  // So it is a genuine test of cross-family isolation on this id, and it says nothing about
+  // WHICH layer holds it. Both are kept for AGENTS.md §2b's reason — grants are the outer
+  // layer, not the only one — and the application guard earns its place on the message rather
+  // than on the row.
+  //
+  // THE ATTACKER WRITES ON THEIR OWN TEMPLATE, deliberately, and it is the only way to pose
+  // this question. Pointed at ALPHA's template the case above's guard refuses first and this
+  // one would go green under both mutations at once — evidence for the wrong layer entirely.
+  {
+    kind: 'write',
+    id: 'admin/gathering-templates.addTemplateStep (a child template from another family)',
+    mod: 'app/actions/admin/gathering-templates.ts', fn: 'addTemplateStep',
+    // BRAVO's own spare template as the parent, ALPHA's spare as the child. `fx` is keyed by
+    // side, so the attacker's own id has to be reached through `fx.bravo` — the one case in
+    // this block that does.
+    args: fx => [{
+      templateId: fx.bravo.deletableTemplate.id,
+      label: STEP_CASE_LABEL,
+      kind: 'template',
+      childTemplateId: fx.alpha.deletableTemplate.id,
+    }],
+    // The CONTROL is ALPHA's administrator including ALPHA's spare in ALPHA's main template,
+    // which is the same call with nothing cross-family about it. Without it a refusal that
+    // applied to everybody would pass — and this action would refuse everybody the moment
+    // `readChild` were wrong about the pair, which is a live way for it to break.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      templateId: fx.alpha.template.id,
+      label: STEP_CASE_LABEL,
+      kind: 'template',
+      childTemplateId: fx.alpha.deletableTemplate.id,
+    }],
+    setup: clearCaseSteps,
+    // BOTH families' rows, because the two halves write into different templates and a
+    // snapshot of either alone cannot show both moving. `child_template_id` is projected: a
+    // step written with the column NULL would be a successful write that looks like the right
+    // one, which is the vacuous-probe failure AGENTS.md §7 lists second.
+    probe: (db) => snapshot('gathering_template_steps',
+      'id, family_code, template_id, label, kind, child_template_id',
+      { label: STEP_CASE_LABEL })(db),
   },
   {
     kind: 'write',

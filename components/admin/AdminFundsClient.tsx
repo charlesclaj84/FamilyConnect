@@ -201,7 +201,6 @@ export function AdminFundsClient({
         created_at: new Date().toISOString(),
         priority: maxPriority + 1,
         minimum_cents: minimumCents,
-        event_id: null,
         open_contributions: nfOpen,
         // A fund created from this form is never a system fund; only the migration and
         // the families trigger make those.

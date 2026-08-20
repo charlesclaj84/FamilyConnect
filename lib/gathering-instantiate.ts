@@ -54,7 +54,30 @@ interface TemplateStepRow {
   kind: string
   required: boolean
   budget_default_cents: number | null
+  /** Set only on a step of kind `'template'`, which expands rather than becoming a task. */
+  child_template_id: string | null
 }
+
+/** A step, flattened, with the template it actually LIVES on — see `expandSteps`. */
+interface FlatStep {
+  templateId: string
+  step: TemplateStepRow
+}
+
+/**
+ * How deep a template may include another template.
+ *
+ * Cycles are refused by `tg_gathering_template_step_same_family()` in SQL, which walks the
+ * graph on every write, so this is not what stops a loop — `visited` below is not what stops
+ * one either. Both are here because instantiation is the place a loop would COST something
+ * (a request that never returns, on a public endpoint), and a bug that gets past the trigger
+ * should hit a wall rather than a fan.
+ *
+ * Five is a product judgement rather than a technical bound: a reunion whose checklist is six
+ * templates deep is a checklist nobody can read, and refusing it here says so at the moment
+ * somebody tries to build it. Raise it if a family ever has a reason.
+ */
+const MAX_TEMPLATE_DEPTH = 5
 
 export interface InstantiateResult {
   success: boolean
@@ -115,15 +138,7 @@ export async function instantiateTemplateTasks(
   if (!templateRes.data) return { success: false, message: 'Template not found', created: 0 }
 
   const [stepsRes, lastRes] = await Promise.all([
-    admin.from('gathering_template_steps')
-      .select('id, position, label, help_text, kind, required, budget_default_cents')
-      .eq('template_id', templateId)
-      .eq('family_code', familyCode)
-      // The read order the whole table is designed around — see the migration on why there
-      // is no UNIQUE on (template_id, position). `created_at` is the tie-break, so two steps
-      // sharing a position come out in the order they were authored rather than at random.
-      .order('position', { ascending: true })
-      .order('created_at', { ascending: true }),
+    expandSteps(admin, familyCode, templateId),
     admin.from('gathering_tasks')
       .select('position')
       .eq('gathering_id', gatheringId)
@@ -134,7 +149,7 @@ export async function instantiateTemplateTasks(
   ])
 
   if (stepsRes.error) {
-    console.error(`[gatherings] instantiate could not read steps of ${templateId} in ${familyCode}: ${stepsRes.error.message}`)
+    console.error(`[gatherings] instantiate could not read steps of ${templateId} in ${familyCode}: ${stepsRes.error}`)
     return { success: false, message: 'Could not read the template steps', created: 0 }
   }
   // A FAILED OFFSET READ IS FATAL RATHER THAN DEFAULTED TO 0. Falling back would append the
@@ -146,7 +161,7 @@ export async function instantiateTemplateTasks(
     return { success: false, message: 'Could not read the gathering tasks', created: 0 }
   }
 
-  const steps = (stepsRes.data ?? []) as TemplateStepRow[]
+  const steps = stepsRes.steps
   if (steps.length === 0) {
     // NOT a failure. A template with no steps yet is an ordinary state — it is what every
     // template looks like for the minute between being created and having its first step
@@ -158,10 +173,16 @@ export async function instantiateTemplateTasks(
   const offset = ((lastRes.data as { position: number } | null)?.position ?? -1) + 1
 
   const { error } = await admin.from('gathering_tasks').insert(
-    steps.map((step, index) => ({
+    steps.map(({ templateId: stepTemplateId, step }, index) => ({
       family_code:  familyCode,
       gathering_id: gatheringId,
-      template_id:  templateId,
+      // THE TEMPLATE THE STEP LIVES ON, which for a nested one is the CHILD rather than the
+      // root. It has to be: `tg_gathering_task_same_family()` refuses a task whose `step_id`
+      // is not a step of its `template_id`, so writing the root here would fail every nested
+      // task with a 23514. It is also the right answer — `templateName` on the row is what
+      // the detail screen groups by, so a family that includes "Test" inside "Family Reunion"
+      // reads two headed groups rather than one long list, which is what they built.
+      template_id:  stepTemplateId,
       step_id:      step.id,
       label:        step.label,
       help_text:    step.help_text,
@@ -185,6 +206,85 @@ export async function instantiateTemplateTasks(
   }
 
   return { success: true, created: steps.length }
+}
+
+/**
+ * Every step of `templateId`, in order, with the steps of any template it INCLUDES spliced in
+ * where the including step sits.
+ *
+ * ── A `template` STEP IS NOT A TASK ────────────────────────────────────────────────
+ * Kind `'template'` names another template through `child_template_id`, and it expands: the
+ * child's steps take its place, at its position, each carrying the child's own id as the
+ * template it came from. Nobody is ever handed the step itself — there is nothing to answer —
+ * which is why `gathering_tasks.kind` deliberately does NOT allow `'template'`
+ * (`20260819000007` asserts the two CHECKs disagree).
+ *
+ * ── IT RETURNS A REASON RATHER THAN THROWING ───────────────────────────────────────
+ * Every caller is on a public endpoint's path and every one of them already turns a failure
+ * into a sentence naming the template that could not be attached. A throw here would surface
+ * as a 500 on a screen that has a perfectly good way to say what went wrong.
+ *
+ * ── THE THREE THINGS THAT STOP IT RUNNING AWAY ─────────────────────────────────────
+ * `visited` (a template already expanded on this path is not expanded again), `depth`
+ * (`MAX_TEMPLATE_DEPTH`), and — underneath both, and the one that actually holds — the
+ * trigger that refuses to WRITE a cycle in the first place. Two of the three are redundant
+ * today and are kept because the cost of being wrong here is a request that never returns.
+ *
+ * A template included twice on DIFFERENT branches is legitimate and is expanded both times:
+ * `visited` is carried down a path, not across the whole walk. A family whose Welcome and
+ * Send Off both include the same Catering checklist wants both sets of tasks.
+ */
+async function expandSteps(
+  admin: AdminClient,
+  familyCode: string,
+  templateId: string,
+  visited: readonly string[] = [],
+  depth = 0,
+): Promise<{ steps: FlatStep[]; error?: string }> {
+  if (depth > MAX_TEMPLATE_DEPTH) {
+    return { steps: [], error: `template nesting deeper than ${MAX_TEMPLATE_DEPTH} levels at ${templateId}` }
+  }
+  // Not an error, and deliberately so: the database cannot hold a cycle, so reaching here
+  // means one was written by something that bypassed the trigger. Dropping the branch is the
+  // recoverable answer — the gathering still gets every task that is not on the loop.
+  if (visited.includes(templateId)) return { steps: [] }
+
+  const { data, error } = await admin
+    .from('gathering_template_steps')
+    .select('id, position, label, help_text, kind, required, budget_default_cents, child_template_id')
+    .eq('template_id', templateId)
+    .eq('family_code', familyCode)
+    // The read order the whole table is designed around — see the migration on why there
+    // is no UNIQUE on (template_id, position). `created_at` is the tie-break, so two steps
+    // sharing a position come out in the order they were authored rather than at random.
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (error) return { steps: [], error: error.message }
+
+  const rows = (data ?? []) as unknown as TemplateStepRow[]
+  const out: FlatStep[] = []
+  const path = [...visited, templateId]
+
+  for (const step of rows) {
+    if (step.kind !== 'template') {
+      out.push({ templateId, step })
+      continue
+    }
+    // The CHECK constraint makes this unreachable — `kind = 'template'` and a null child
+    // cannot both be true — so a row that gets here is a schema that has drifted, and
+    // skipping is the only honest thing to do with a step that names nothing.
+    if (!step.child_template_id) continue
+
+    const nested = await expandSteps(admin, familyCode, step.child_template_id, path, depth + 1)
+    // FATAL RATHER THAN PARTIAL. A child whose steps could not be read would otherwise land a
+    // gathering with a template attached and half its work missing, which is precisely the
+    // half-failure `attachTemplatesToGathering` compensates for at the other end.
+    if (nested.error) return { steps: [], error: nested.error }
+    out.push(...nested.steps)
+  }
+
+  return { steps: out }
 }
 
 /**
@@ -225,48 +325,28 @@ export async function instantiateTemplateTasks(
  * "not stated", so a one-day gathering in one place needs neither and reads exactly as it did
  * before the columns existed.
  *
- * `location` FALLS BACK TO THE TEMPLATE'S `default_location`, AND THE DATABASE DELIBERATELY DOES
- * NOT. That migration's header argues it out and asserts the absence: there is no DEFAULT
- * expression and no trigger, so a freshly linked segment comes out NULL unless something in the
- * application puts a value there. This is that something, and it is here rather than in
- * `addGatheringTemplate` so that all THREE create paths get it — `createGathering`,
- * `scheduleGathering` and `addGatheringTemplate` — which is the same argument that moved this
- * whole loop into this module: written per call site it was written twice and the two copies
- * disagreed.
+ * `location` NO LONGER FALLS BACK TO ANYTHING, since 2026-08-19. It fell back to the template's
+ * `default_location` — a place the template AUTHOR had stated once, copied onto every segment
+ * built from it — and `20260819000007` dropped that column: a venue belongs to one occasion, and
+ * the answer is a step of kind `'location'` handing the job to a named relative. So a freshly
+ * linked segment is NULL unless the caller states a place, which is what the database already
+ * did on its own (that migration asserts there is no DEFAULT expression and no trigger doing it).
  *
- * A TRIGGER WOULD BE WRONG TWICE OVER and the reason belongs beside the code that replaces it.
- * It would fire on UPDATE as well as INSERT, so it would re-copy the template's place over an
- * organizer's per-segment edit every time anything else on the row changed; and a DEFAULT
- * expression cannot see the row it is defaulting for, so it could not reach `template_id` at all.
- * The copy has to happen ONCE, at the moment of linking, which is exactly here.
+ * The fall-back had a real property worth remembering if one is ever wanted again: a STATED place
+ * won over the default, never the other way round. Reversing the two — measured against the local
+ * database on 2026-08-19 — silently overwrote an organizer's per-segment place with the
+ * template's usual one, which is the whole failure the copy-not-reference rule exists to prevent,
+ * arriving through the one line that implemented it.
  *
- * PER-TEMPLATE RATHER THAN PER-CALL, which is why these three live on the element and not in a
- * fifth parameter. `addGatheringTemplate` links one template and states both fields; the two
- * create paths link several and state neither. A `{ occursOn, location }` argument applied to
+ * PER-TEMPLATE RATHER THAN PER-CALL, which is why `occursOn` and `location` live on the element
+ * and not in a fifth parameter. `addGatheringTemplate` links one template and states both; the
+ * two create paths link several and state neither. A `{ occursOn, location }` argument applied to
  * the whole call would silently give three segments of a three-day reunion the same day.
  *
- * ── MEASURED, 2026-08-19, AND CHECKED BY MUTATION ─────────────────────────
- * Against the real local Postgres, three templates linked in one call — Welcome with a default
- * and no stated place, Picnic with a default AND a stated place, Send Off with neither — and a
- * Send Off dated 2026-10-14, outside a 1–3 September span:
- *
- *     position 0  occurs_on 2026-09-01  location 'The lodge'    (default copied)
- *     position 1  occurs_on 2026-09-02  location 'Zilker'       (stated place wins)
- *     position 2  occurs_on 2026-10-14  location NULL           (neither, and out of span: stored)
- *
- * Then the fall-back order was REVERSED — `defaultLocation ?? location` — and the Picnic came
- * back as **'The pavilion'**: the organizer's per-segment place silently overwritten by the
- * template's usual one, which is the whole failure the copy-not-reference rule exists to
- * prevent, arriving through the one line that implements it. A green run is not evidence until
- * it has been seen to fail (AGENTS.md §7).
- *
- * THAT MEASUREMENT HAS NO PERMANENT HOME YET, and it is worth saying so rather than leaving the
- * paragraph looking like a test. It was a throwaway probe, not a committed one: `lib/**` under
- * `npm test` is deliberately a boundary with no Supabase in it (§7b), and the runner that calls
- * an action for real against real policies is `tests/rls`. A case there for
- * `admin/gatherings.setGatheringSegment` and the widened `addGatheringTemplate` is owed — attack,
- * positive control and an `alphaPending` — and until it exists this comment is the only record
- * that the copy was ever run.
+ * A CASE IN `tests/rls` IS STILL OWED for `admin/gatherings.setGatheringSegment` and the widened
+ * `addGatheringTemplate` — attack, positive control and an `alphaPending`. `lib/**` under
+ * `npm test` is deliberately a boundary with no Supabase in it (§7b), so the runner that can call
+ * these for real against real policies is the other one.
  */
 export async function attachTemplatesToGathering(
   admin: AdminClient,
@@ -275,11 +355,9 @@ export async function attachTemplatesToGathering(
   templates: readonly {
     id: string
     name: string
-    /** `gathering_templates.default_location`, used only when the element states no `location`. */
-    defaultLocation?: string | null
     /** This segment's day, `YYYY-MM-DD`. Already validated by the caller; null is "not stated". */
     occursOn?: string | null
-    /** This segment's place. Overrides `defaultLocation` when stated. */
+    /** This segment's place. Null is "not stated"; there is no default to fall back to. */
     location?: string | null
   }[],
   positionFrom: number,
@@ -297,11 +375,9 @@ export async function attachTemplatesToGathering(
       // this table deliberately does not have. Same answer either way today; stated so it stays
       // the same answer if one is ever added.
       occurs_on:    template.occursOn ?? null,
-      // THE FALL-BACK, and the order is load-bearing: an explicitly stated place wins over the
-      // template's usual one, and `null` from the caller means "not stated" rather than "use the
-      // default". `?? ` and not `||`, so a caller clearing a location to '' is not silently
-      // handed the template's — the actions trim to null before they get here.
-      location:     template.location ?? template.defaultLocation ?? null,
+      // No fall-back — see the header. `?? null` rather than `|| null` so the shape matches
+      // `occurs_on` above; the actions trim an empty box to null before it gets here.
+      location:     template.location ?? null,
     })
     if (useRes.error) {
       console.error(`[gatherings] template use insert failed for ${gatheringId}/${template.id} in ${familyCode}: ${useRes.error.message}`)

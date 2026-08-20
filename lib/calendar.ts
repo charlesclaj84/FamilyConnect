@@ -26,13 +26,22 @@
  *    definition, which is what the grid walk below relies on.
  */
 
-/** One thing on the calendar: a gathering, or an event. */
+/**
+ * One thing on the calendar.
+ *
+ * `kind` HAS ONE MEMBER SINCE 2026-08-19 and is kept rather than deleted. It was
+ * `'gathering' | 'event'` while the Events product existed; retiring that left the union with
+ * one member, and the field is still what `MonthCalendar` switches its chip treatment on. A
+ * second source — a birthday, a dues date, whatever comes next — adds a member here and a tone
+ * there, which is the whole reason the grid was written against a `kind` rather than against
+ * "is this a gathering".
+ */
 export interface CalendarEntry {
   id: string
   title: string
   startsOn: string            // YYYY-MM-DD
   endsOn: string | null
-  kind: 'gathering' | 'event'
+  kind: 'gathering'
   href: string
   isPremier?: boolean
 }

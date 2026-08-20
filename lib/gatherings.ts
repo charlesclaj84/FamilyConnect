@@ -33,19 +33,45 @@ import { formatDate } from '@/lib/date-utils'
 // ── Step kinds ──────────────────────────────────────────────────────────────────────
 
 /**
- * The seven things a template step can ask for, in the order the step editor offers them.
+ * The eight things a template step can ASK somebody for, in the order the step editor offers
+ * them — and `'template'`, which asks nobody anything.
  *
- * THERE IS DELIBERATELY NO `members` KIND. The existing `event_blueprint_items` `members`
- * type stores DISPLAY NAMES into a JSON array, which means a rename orphans the answer and
+ * ── TWO VOCABULARIES, AND THEY ARE DELIBERATELY DIFFERENT ───────────────────────────
+ * `GATHERING_STEP_KINDS` is what a step may be. `GATHERING_TASK_KINDS` is what a TASK may
+ * be, and `'template'` is not on it: a template step expands into the child template's own
+ * steps when a gathering is built, so it never becomes a task and there is no field that
+ * would answer it. The database says the same thing in two CHECK constraints that
+ * deliberately disagree (`20260819000007` asserts the disagreement), and `parseAnswer` below
+ * takes a `GatheringTaskKind` for the same reason — a `'template'` reaching it would be an
+ * expansion bug, and the type is what stops it being written rather than caught.
+ *
+ * `'location'` IS ITS OWN KIND RATHER THAN A `text`. It stores a string and renders one
+ * line, so it buys nothing in the database — which is not what it is for. `kind` is what the
+ * author picks and what the assignee's field is built from, and a screen that knows an answer
+ * is a place can label it, autofill it, and one day map it. It replaced
+ * `gathering_templates.default_location`, which had a template AUTHOR stating a venue that
+ * belongs to one occasion; a step hands that job to a relative instead.
+ *
+ * THERE IS DELIBERATELY NO `members` KIND. The retired `event_blueprint_items` `members`
+ * type stored DISPLAY NAMES into a JSON array, which means a rename orphans the answer and
  * two relatives called Martha Allen are one answer. If a step needs to name people it is a
  * `list` today; a `people` kind holding `people.id`s is a later change and needs a
  * migration, not an improvisation here.
  */
 export const GATHERING_STEP_KINDS = [
-  'text', 'long_text', 'date', 'list', 'yes_no', 'number', 'money',
+  'text', 'long_text', 'date', 'location', 'list', 'yes_no', 'number', 'money', 'template',
 ] as const
 
 export type GatheringStepKind = typeof GATHERING_STEP_KINDS[number]
+
+/**
+ * Every step kind that becomes an ANSWERABLE task. `GATHERING_STEP_KINDS` minus `'template'`
+ * — derived rather than typed out, so adding a kind to one list cannot leave the other behind.
+ */
+export const GATHERING_TASK_KINDS = GATHERING_STEP_KINDS
+  .filter((kind): kind is Exclude<GatheringStepKind, 'template'> => kind !== 'template')
+
+export type GatheringTaskKind = Exclude<GatheringStepKind, 'template'>
 
 /**
  * A `kind` that arrived from a caller, checked.
@@ -54,11 +80,16 @@ export type GatheringStepKind = typeof GATHERING_STEP_KINDS[number]
  * `kind` reaches `addTemplateStep` as an arbitrary string, a `GatheringStepKind` annotation
  * on the parameter is erased at runtime, and the only thing left underneath is the table's
  * own CHECK — which refuses the insert with a bare 23514 that reads as a bug rather than as
- * "that is not one of the seven". Same argument as `pickProfileColumns` being a runtime
+ * "that is not one of the nine". Same argument as `pickProfileColumns` being a runtime
  * allow-list rather than a `Partial<T>`.
  */
 export function isGatheringStepKind(value: unknown): value is GatheringStepKind {
   return typeof value === 'string' && (GATHERING_STEP_KINDS as readonly string[]).includes(value)
+}
+
+/** The same check, narrowed to the kinds a TASK may carry. */
+export function isGatheringTaskKind(value: unknown): value is GatheringTaskKind {
+  return isGatheringStepKind(value) && value !== 'template'
 }
 
 /** What the step editor's kind picker prints. Captions come from the screen, not the column. */
@@ -66,25 +97,33 @@ export const GATHERING_STEP_KIND_LABEL: Record<GatheringStepKind, string> = {
   text:      'Short answer',
   long_text: 'Long answer',
   date:      'A date',
+  location:  'A place',
   list:      'A list',
   yes_no:    'Yes or no',
   number:    'A number',
   money:     'An amount of money',
+  template:  'Another template',
 }
 
 /**
  * One line of help for the person AUTHORING the template — not for the assignee, who reads
  * the step's own `help_text`. These say what the assignee will be given to fill in, because
  * that is the thing an author is choosing between and the labels above cannot say it.
+ *
+ * `template` is the exception and says the opposite, because it is the one kind where nobody
+ * is given anything to fill in.
  */
 export const GATHERING_STEP_KIND_HINT: Record<GatheringStepKind, string> = {
-  text:      'One line — a name, a phone number, a venue.',
+  text:      'One line — a name, a phone number, an answer in a few words.',
   long_text: 'A paragraph — notes, a description, an explanation.',
   date:      'A single calendar date, picked from a date field.',
+  location:  'A place — a venue, an address, a room. One line.',
   list:      'Any number of lines — one item each, added and removed as they go.',
   yes_no:    'A decision. They must choose; leaving it blank is not an answer.',
   number:    'A count or a quantity. Use “An amount of money” for money.',
   money:     'An amount in dollars, recorded to the cent.',
+  template:  'Nobody answers this one. Every step of the template you pick becomes a task of '
+    + 'its own when a gathering is built from this one.',
 }
 
 // ── Statuses ────────────────────────────────────────────────────────────────────────
@@ -198,11 +237,17 @@ function isCalendarDate(value: string): boolean {
  * and is refused rather than rounded, because rounding it would ship the wrong number to
  * the ledger with nobody the wiser.
  */
-export function parseAnswer(kind: GatheringStepKind, raw: unknown): GatheringAnswer | null {
+export function parseAnswer(kind: GatheringTaskKind, raw: unknown): GatheringAnswer | null {
   const obj = asRecord(raw)
 
   switch (kind) {
+    // `location` SHARES THE `text` BRANCH AND THE `{ text }` SHAPE, which is the whole of what
+    // it costs to be its own kind. Storing it as `{ location }` would make every stored answer
+    // unreadable if a step were ever retyped between the two, and would buy nothing: the
+    // difference is what the FIELD looks like and what a screen may do with the value, not what
+    // the value is.
     case 'text':
+    case 'location':
     case 'long_text': {
       const value = typeof raw === 'string' ? raw : obj && typeof obj.text === 'string' ? obj.text : null
       if (value === null) return null
@@ -289,7 +334,7 @@ function numberFromString(raw: string): number | null {
  * Is this a well-formed answer for that kind? Asked by the submit form (to decide whether
  * Submit does anything) and by the action (before it writes). One rule — see `parseAnswer`.
  */
-export function isCompleteAnswer(kind: GatheringStepKind, answer: unknown): boolean {
+export function isCompleteAnswer(kind: GatheringTaskKind, answer: unknown): boolean {
   return parseAnswer(kind, answer) !== null
 }
 
@@ -306,7 +351,7 @@ export function isCompleteAnswer(kind: GatheringStepKind, answer: unknown): bool
  * 2026" here is exactly the drift AGENTS.md keeps one formatter to prevent.
  */
 export function describeAnswer(
-  kind: GatheringStepKind,
+  kind: GatheringTaskKind,
   answer: unknown,
   formatMoney: (cents: number) => string,
 ): string {

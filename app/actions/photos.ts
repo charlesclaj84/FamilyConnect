@@ -10,8 +10,6 @@ import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 export interface PhotoCollection {
   id: string
   family_code: string
-  event_id: string | null
-  event_name: string | null
   name: string
   description: string | null
   cover_photo_url: string | null
@@ -41,11 +39,17 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('photo_collections')
+    // NO `events(name)` EMBED SINCE 2026-08-19. That table is dropped (20260819000006), and
+    // an embed of a relation PostgREST cannot resolve refuses the WHOLE query — which, with
+    // the error discarded here, is an empty gallery over photographs that exist. Caught by
+    // the RLS suite's own positive control ("owner saw none of their own data"), which is
+    // exactly what that control is for.
+    //
     // photos!photos_collection_id_fkey, not photos: there are two relationships
     // between these tables — the collection's photos, and its cover_photo_id
     // pointing back at one. An ambiguous embed fails the query with PGRST201,
     // and since the error is discarded the page just shows no albums at all.
-    .select('*, events(name), photos!photos_collection_id_fkey(id, file_path)')
+    .select('*, photos!photos_collection_id_fkey(id, file_path)')
     .order('created_at', { ascending: false })
 
   return (data ?? []).map(c => {
@@ -58,8 +62,6 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
     return {
       id: c.id,
       family_code: c.family_code,
-      event_id: c.event_id,
-      event_name: embedOne<{ name: string }>(c.events)?.name ?? null,
       name: c.name,
       description: c.description,
       cover_photo_url: coverPath ? publicUrl : null,
@@ -78,7 +80,8 @@ export async function getCollectionDetail(id: string): Promise<{
   const [collectionRes, photosRes] = await Promise.all([
     supabase
       .from('photo_collections')
-      .select('*, events(name)')
+      // No `events(name)` — see the note in `getPhotoCollections`.
+      .select('*')
       .eq('id', id)
       .maybeSingle(),
     supabase
@@ -108,8 +111,6 @@ export async function getCollectionDetail(id: string): Promise<{
   const collection: PhotoCollection = {
     id: c.id,
     family_code: c.family_code,
-    event_id: c.event_id,
-    event_name: embedOne<{ name: string }>(c.events)?.name ?? null,
     name: c.name,
     description: c.description,
     cover_photo_url: null,
@@ -150,38 +151,19 @@ export async function getCollectionDetail(id: string): Promise<{
   return { collection, photos }
 }
 
-export async function getOrCreateEventCollection(eventId: string): Promise<{ id: string } | null> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const familyCode = await getMyFamilyCode(user.id)
-
-  // Check if a collection already exists for this event
-  const { data: existing } = await supabase
-    .from('photo_collections')
-    .select('id')
-    .eq('event_id', eventId)
-    .maybeSingle()
-
-  if (existing) return { id: existing.id }
-
-  // Get event name for the collection title
-  const { data: event } = await admin.from('events').select('name').eq('id', eventId).maybeSingle()
-  const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
-
-  const { data: created, error } = await admin.from('photo_collections').insert({
-    family_code: familyCode,
-    event_id: eventId,
-    name: event?.name ?? 'Event Photos',
-    created_by: myPerson?.id ?? null,
-  }).select('id').single()
-
-  if (error) return null
-  revalidatePath('/photos')
-  return { id: created.id }
-}
+/**
+ * `getOrCreateEventCollection()` WAS DELETED HERE ON 2026-08-19, with the Events product.
+ *
+ * It had no caller — the Event Detail screen was the only one — and it was a `'use server'`
+ * export, so it was a live HTTP endpoint that took an `eventId` from the client, read the
+ * `events` table with the SERVICE ROLE and INSERTED a `photo_collections` row carrying that
+ * id, with no `belongsToFamily` check on it and no permission check of any kind. That is §4
+ * exactly, on a public endpoint, for a screen that no longer exists.
+ *
+ * `photo_collections.event_id` went too (`20260819000006`). A collection is named for what it
+ * holds; if a gallery ever needs to belong to a GATHERING that is a new column with a new
+ * foreign key, not this one repurposed.
+ */
 
 // -------------------------------------------------------
 // Mutations
@@ -190,7 +172,6 @@ export async function getOrCreateEventCollection(eventId: string): Promise<{ id:
 export async function createCollection(input: {
   name: string
   description?: string
-  event_id?: string | null
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -203,7 +184,6 @@ export async function createCollection(input: {
     family_code: familyCode,
     name: input.name.trim(),
     description: input.description?.trim() || null,
-    event_id: input.event_id ?? null,
     created_by: myPerson?.id ?? null,
   }).select('id').single()
 

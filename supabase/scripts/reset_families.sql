@@ -4,7 +4,7 @@
 -- *** DESTRUCTIVE — NO RECOVERY. Take a dump first if the data matters. ***
 --
 -- Keeps the families themselves, ONE account, and only what a family-creation
--- trigger seeds. Empties every ledger, event, election, chat, invitation and
+-- trigger seeds. Empties every ledger, gathering, election, chat, invitation and
 -- document, and deletes every other account along with its member rows.
 --
 -- Between this and its neighbours:
@@ -110,26 +110,19 @@ BEGIN
   DELETE FROM photo_tags;
   DELETE FROM photos;
   DELETE FROM photo_collections;
-  DELETE FROM event_photos;
   DELETE FROM documents;
 
-  -- ── 3. Events, and everything hanging off one ─────────────────────────────
-  DELETE FROM event_rsvp_attendees;
-  DELETE FROM event_rsvp;
-  DELETE FROM event_expenses;
-  DELETE FROM event_budget_items;
-  DELETE FROM event_assignments;
-  DELETE FROM event_hotel_price_estimates;
-  DELETE FROM event_hotel_booking_details;
-  DELETE FROM event_hotel_bookings;
-  DELETE FROM events;
-  DELETE FROM event_type_sub_templates;
-  DELETE FROM event_blueprint_items;
-  DELETE FROM event_types;
+  -- ── 3. Events: THIRTEEN DELETES WERE HERE AND THE TABLES ARE DROPPED ──────
+  -- `20260819000006` dropped the whole Events product. This section listed every
+  -- one of its tables, child before parent; a `DELETE FROM` a table that does not
+  -- exist aborts the script, and this script is one atomic DO block — so leaving
+  -- them would have made the purge roll itself back forever, which is exactly the
+  -- failure AGENTS.md records `truncate_entire_database.sql` §6b having.
+  --
+  -- The Gatherings section below is what replaced it.
 
   -- ── 3b. Gatherings ────────────────────────────────────────────────────────
-  -- A SECOND PRODUCT BESIDE EVENTS RATHER THAN A PART OF ONE (20260819000000),
-  -- which is why it gets its own section next to §3 and not lines inside it: a
+  -- IT REPLACED EVENTS (20260819000006) and it is not a part of it: a
   -- family authors a `gathering_templates` row and its steps, schedules a
   -- `gatherings` row from one or more of them, every step becomes a
   -- `gathering_tasks` row handed to a named relative, and each answer is a
@@ -228,8 +221,9 @@ BEGIN
 
   -- ── 9. The other auth accounts ────────────────────────────────────────────
   -- Every public FK to auth.users that is NO ACTION (chapters, chat_rooms,
-  -- events, event_*, regions, user_roles) was emptied above, so nothing here
-  -- can hit a constraint. GoTrue's own children (identities, sessions,
+  -- regions, user_roles) was emptied above, so nothing here can hit a
+  -- constraint. `events` and `event_*` were on that list until 20260819000006
+  -- dropped them. GoTrue's own children (identities, sessions,
   -- refresh_tokens, mfa factors) cascade.
   DELETE FROM auth.users WHERE id <> v_keep;
 

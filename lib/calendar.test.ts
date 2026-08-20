@@ -341,13 +341,13 @@ describe('entries', () => {
     expect(days(m).every(d => d.entries.length === 0)).toBe(true)
   })
 
-  it('keeps gatherings and events side by side in a total, stable order', () => {
+  it('keeps entries in a total, stable order whatever order they arrive in', () => {
     // Earliest start first, then title, then id — so two renders of the same data cannot
     // disagree, which matters for React keys and for a family comparing two screens.
     // `isPremier` deliberately does not sort: it is a badge, and hoisting it would move the
     // entry up and down the day as others came and went.
     const m = buildCalendarMonth(AUGUST, '2026-08-19', [
-      entry({ id: 'z', startsOn: '2026-08-19', title: 'Zebra picnic', kind: 'event', href: '/events/z' }),
+      entry({ id: 'z', startsOn: '2026-08-19', title: 'Zebra picnic', href: '/gatherings/z' }),
       entry({ id: 'p', startsOn: '2026-08-19', title: 'Anniversary', isPremier: true }),
       entry({ id: 'r', startsOn: '2026-08-15', endsOn: '2026-08-20', title: 'Reunion' }),
     ])
@@ -355,7 +355,7 @@ describe('entries', () => {
     const reversed = buildCalendarMonth(AUGUST, '2026-08-19', [
       entry({ id: 'p', startsOn: '2026-08-19', title: 'Anniversary', isPremier: true }),
       entry({ id: 'r', startsOn: '2026-08-15', endsOn: '2026-08-20', title: 'Reunion' }),
-      entry({ id: 'z', startsOn: '2026-08-19', title: 'Zebra picnic', kind: 'event', href: '/events/z' }),
+      entry({ id: 'z', startsOn: '2026-08-19', title: 'Zebra picnic', href: '/gatherings/z' }),
     ])
     expect(idsOn(reversed, '2026-08-19')).toEqual(['r', 'p', 'z'])
   })
@@ -363,7 +363,7 @@ describe('entries', () => {
   it('hands back the entry it was given, untouched', () => {
     // The grid decides which days an entry appears on and nothing else — `href`, `kind` and
     // `isPremier` are the page's to render.
-    const original = entry({ id: 'a', startsOn: '2026-08-19', kind: 'event', href: '/events/a', isPremier: true })
+    const original = entry({ id: 'a', startsOn: '2026-08-19', href: '/gatherings/a', isPremier: true })
     const m = buildCalendarMonth(AUGUST, '2026-08-19', [original])
     expect(dayOf(m, '2026-08-19')?.entries[0]).toBe(original)
   })

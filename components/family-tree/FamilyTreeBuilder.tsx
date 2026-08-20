@@ -81,11 +81,24 @@ import {
  * card in the new family rather than pointing at a person who is not in it.
  */
 
-export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
+export function FamilyTreeBuilder({
+  tree, canEdit, canSetAnchor = false, canViewDirectory = true,
+}: {
   tree: FamilyTree
   canEdit: boolean
   /** `admin/family:edit` — see the page. Decides whether the anchor picker is offered. */
   canSetAnchor?: boolean
+  /**
+   * `members:view` — the DIRECTORY's grant, not the tree's. Decides whether a card opens
+   * the person panel at all; see the page, which argues why the two keys differ here.
+   *
+   * Defaults TRUE, so the only way to lose the panel is for a caller to be resolved as
+   * not holding the Directory grant. A default of `false` would silently take the panel
+   * away from any call site that forgot the prop, which is the wrong direction to fail in
+   * for a control that withholds no data by itself — the panel renders what the canvas
+   * already fetched.
+   */
+  canViewDirectory?: boolean
 }) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -445,7 +458,18 @@ export function FamilyTreeBuilder({ tree, canEdit, canSetAnchor = false }: {
     // was reached by, so a grandparent — drawn from their child's card, with no edge to
     // the focus person — got no pencil, and there was no way anywhere in the product to
     // say that a grandmother was a step-grandmother.
-    const canManage = !person.hasAccount || (links.get(person.id)?.length ?? 0) > 0
+    //
+    // AND THE DIRECTORY GRANT, since 20260819000008. The panel is where a person's RECORD
+    // is read and corrected — names, nickname, birthday, gender, and the invitation — which
+    // is the Member Directory's question rather than the tree's, so it follows `members`
+    // and not `family-tree`. A family that restricted its roster gets the tree's SHAPE and
+    // not a way to read the roster one card at a time.
+    //
+    // It ANDs with `canAct` below rather than replacing it: losing the Directory grant
+    // closes the panel, and losing the tree's edit grant closes it too. Neither implies
+    // the other.
+    const canManage =
+      canViewDirectory && (!person.hasAccount || (links.get(person.id)?.length ?? 0) > 0)
     return (
       <PersonCard
         key={person.id}

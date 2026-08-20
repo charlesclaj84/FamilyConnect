@@ -310,31 +310,37 @@ export interface PnLFundBalance {
   fundName: string
   contributedCents: number
   disbursedCents: number
-  expensedCents: number
   balanceCents: number
 }
 
-export interface PnLEvent {
-  eventId: string
-  eventName: string
-  backingFundId: string | null
-  backingFundName: string | null
-  lineItems: { id: string; title: string; budgetedCents: number; spentCents: number }[]
-  totalBudgetedCents: number
-  totalSpentCents: number
-  unbudgetedSpentCents: number
-}
-
+/**
+ * ── `PnLEvent` AND `expensedCents` ARE GONE (2026-08-19) ────────────────────────────
+ * The statement had a whole EVENT LEDGER — per-event budget lines against what was really
+ * spent, and a `backingFundName` read off `funds.event_id`. `20260819000006` drops
+ * `event_expenses`, `event_budget_items`, `events` and that column, so there is no such
+ * spend and no such earmark to report.
+ *
+ * `expensedCents` went from `PnLFundBalance` for the same reason and is not replaced by a
+ * zero: a column of `$0.00` on every fund is a figure a treasurer has to ask about, and the
+ * answer would be "that used to mean something".
+ */
 export interface PnLData {
   totalIncomeCents: number        // paid dues + donations (both are dues_payments)
   totalContributionsCents: number // manual + member fund contributions
   totalCollectedCents: number     // dues + contributions
-  totalExpenseCents: number       // actual spend (event_expenses), not budgets
+  /**
+   * MONEY THAT LEFT A FUND — `fund_disbursements`, and nothing else.
+   *
+   * It was event spend (`event_expenses`) and nothing else until 2026-08-19, which meant a
+   * family that had paid a disbursement and never run an event read "Total Expenses $0.00"
+   * over money that had demonstrably gone. Disbursements are the only outgoing this product
+   * records now, so this is both the honest figure and the complete one.
+   */
+  totalExpenseCents: number
   netCents: number
   payments: DuesPayment[]
   routing: PnLRoutingFund[]
   funds: PnLFundBalance[]
-  events: PnLEvent[]
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -624,13 +630,12 @@ async function loadScheduleUsage(
  * in Donations.
  */
 async function getActiveFundsForRouting(admin: AdminClient, familyCode: string): Promise<RoutingFund[]> {
-  const [fundsRes, allocRes, contribRes, disbRes, expRes, xferRes] = await Promise.all([
+  const [fundsRes, allocRes, contribRes, disbRes, xferRes] = await Promise.all([
     admin.from('funds').select('id, priority, minimum_cents, created_at')
       .eq('family_code', familyCode).eq('active', true).is('system_key', null),
     admin.from('fund_allocations').select('fund_id, basis_points').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
-    admin.from('event_expenses').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('fund_transfers').select('from_fund_id, to_fund_id, amount_cents').eq('family_code', familyCode),
   ])
 
@@ -641,16 +646,19 @@ async function getActiveFundsForRouting(admin: AdminClient, familyCode: string):
   // the gap the payout opened is refilled by the NEXT payment, ahead of everything
   // below it. Nothing here re-derives where past money should have gone.
   //
-  // Transfers are the fifth term and the only one that moves money BETWEEN funds after
-  // routing, so leaving them out would make the waterfall refill a fund that has
-  // already been topped up by hand — and drain past a minimum that has already been
-  // emptied by hand.
+  // Transfers are the only term that moves money BETWEEN funds after routing, so leaving
+  // them out would make the waterfall refill a fund that has already been topped up by
+  // hand — and drain past a minimum that has already been emptied by hand.
+  //
+  // THERE WERE FIVE TERMS UNTIL 2026-08-19. The fifth was `event_expenses`, dropped with the
+  // Events product (`20260819000006`) along with its term in `fund_balance_cents()` — so
+  // this sum and the database's own answer still match, which is the property the paragraph
+  // above is really about.
   const bpsByFund = new Map<string, number>((allocRes.data ?? []).map(a => [a.fund_id, a.basis_points]))
   const balByFund = new Map<string, number>()
   const add = (id: string | null, delta: number) => { if (id) balByFund.set(id, (balByFund.get(id) ?? 0) + delta) }
   for (const c of contribRes.data ?? []) add(c.fund_id, c.amount_cents)
   for (const d of disbRes.data ?? []) add(d.fund_id, -d.amount_cents)
-  for (const e of expRes.data ?? []) add(e.fund_id, -e.amount_cents)
   for (const t of xferRes.data ?? []) { add(t.to_fund_id, t.amount_cents); add(t.from_fund_id, -t.amount_cents) }
 
   return (fundsRes.data ?? [])
@@ -2496,7 +2504,7 @@ export async function getFamilyPnL(): Promise<PnLData> {
   const empty: PnLData = {
     totalIncomeCents: 0, totalContributionsCents: 0, totalCollectedCents: 0,
     totalExpenseCents: 0, netCents: 0,
-    payments: [], routing: [], funds: [], events: [],
+    payments: [], routing: [], funds: [],
   }
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -2504,13 +2512,13 @@ export async function getFamilyPnL(): Promise<PnLData> {
   if (!user) return empty
   const familyCode = await getMyFamilyCode(user.id)
 
-  const [fundsRes, contribRes, disbRes, budgetItemsRes, expensesRes, eventsRes] = await Promise.all([
-    admin.from('funds').select('id, name, event_id, priority').eq('family_code', familyCode),
+  // THREE READS, DOWN FROM SIX. `event_budget_items`, `event_expenses` and `events` are
+  // dropped tables (`20260819000006`), so the event ledger this statement carried has no
+  // source — and `funds.event_id`, which named a fund's backing event, went with them.
+  const [fundsRes, contribRes, disbRes] = await Promise.all([
+    admin.from('funds').select('id, name, priority').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents, source, dues_payment_id').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
-    admin.from('event_budget_items').select('id, event_id, title, budget_cents').eq('family_code', familyCode),
-    admin.from('event_expenses').select('event_id, budget_item_id, fund_id, amount_cents').eq('family_code', familyCode),
-    admin.from('events').select('id, name').eq('family_code', familyCode).is('parent_event_id', null),
   ])
 
   // Paid dues AND donations for the family — both are rows in dues_payments, and
@@ -2566,9 +2574,6 @@ export async function getFamilyPnL(): Promise<PnLData> {
 
   const fundNameById = new Map<string, string>((fundsRes.data ?? []).map(f => [f.id, f.name]))
   const fundPriorityById = new Map<string, number>((fundsRes.data ?? []).map(f => [f.id, f.priority ?? 100]))
-  const eventNameById = new Map<string, string>((eventsRes.data ?? []).map(e => [e.id, e.name]))
-  const backingFundByEvent = new Map<string, string>()  // event_id → fund_id
-  for (const f of fundsRes.data ?? []) if (f.event_id) backingFundByEvent.set(f.event_id, f.id)
   const scheduleLabelByPayment = new Map<string, string | null>(payments.map(p => [p.id, p.schedule_label]))
 
   // ── Routing: contributions grouped by fund, with a per-source breakdown ──
@@ -2592,60 +2597,40 @@ export async function getFamilyPnL(): Promise<PnLData> {
   })).sort((a, b) => b.contributedCents - a.contributedCents)
 
   // ── Fund balances ──
+  // THREE TERMS, NOT FOUR. The event-spend term went with `event_expenses`
+  // (`20260819000006`), which also took it out of `fund_balance_cents()` — so this sum and
+  // the database's own answer still agree, which is the only thing that matters about it.
+  //
+  // TRANSFERS ARE STILL NOT A TERM HERE, and that is a pre-existing divergence rather than
+  // something this change introduced: `fund_balance_cents()` and `getFunds()` both count
+  // them and this does not. Worth knowing before trusting the two side by side.
   const disbByFund = new Map<string, number>()
   for (const d of disbRes.data ?? []) disbByFund.set(d.fund_id, (disbByFund.get(d.fund_id) ?? 0) + d.amount_cents)
-  const expByFund = new Map<string, number>()
-  for (const e of expensesRes.data ?? []) if (e.fund_id) expByFund.set(e.fund_id, (expByFund.get(e.fund_id) ?? 0) + e.amount_cents)
 
   const funds: PnLFundBalance[] = (fundsRes.data ?? []).map(f => {
     const contributed = contribByFund.get(f.id)?.total ?? 0
     const disbursed = disbByFund.get(f.id) ?? 0
-    const expensed = expByFund.get(f.id) ?? 0
     return {
       fundId: f.id,
       fundName: f.name,
       contributedCents: contributed,
       disbursedCents: disbursed,
-      expensedCents: expensed,
-      balanceCents: contributed - disbursed - expensed,
+      balanceCents: contributed - disbursed,
     }
   }).sort((a, b) =>
     (fundPriorityById.get(a.fundId) ?? 100) - (fundPriorityById.get(b.fundId) ?? 100) ||
     a.fundName.localeCompare(b.fundName))
 
-  // ── Event ledger ──
-  const spentByItem = new Map<string, number>()
-  const spentByEvent = new Map<string, number>()
-  const unbudgetedByEvent = new Map<string, number>()
-  for (const e of expensesRes.data ?? []) {
-    spentByEvent.set(e.event_id, (spentByEvent.get(e.event_id) ?? 0) + e.amount_cents)
-    if (e.budget_item_id) spentByItem.set(e.budget_item_id, (spentByItem.get(e.budget_item_id) ?? 0) + e.amount_cents)
-    else unbudgetedByEvent.set(e.event_id, (unbudgetedByEvent.get(e.event_id) ?? 0) + e.amount_cents)
-  }
-  const itemsByEvent = new Map<string, { id: string; title: string; budgetedCents: number; spentCents: number }[]>()
-  for (const item of budgetItemsRes.data ?? []) {
-    const list = itemsByEvent.get(item.event_id) ?? []
-    list.push({ id: item.id, title: item.title, budgetedCents: item.budget_cents, spentCents: spentByItem.get(item.id) ?? 0 })
-    itemsByEvent.set(item.event_id, list)
-  }
-
-  const eventIds = new Set<string>([...itemsByEvent.keys(), ...spentByEvent.keys()])
-  const events: PnLEvent[] = [...eventIds].map(eventId => {
-    const lineItems = itemsByEvent.get(eventId) ?? []
-    const backingFundId = backingFundByEvent.get(eventId) ?? null
-    return {
-      eventId,
-      eventName: eventNameById.get(eventId) ?? 'Unknown event',
-      backingFundId,
-      backingFundName: backingFundId ? (fundNameById.get(backingFundId) ?? null) : null,
-      lineItems,
-      totalBudgetedCents: lineItems.reduce((s, i) => s + i.budgetedCents, 0),
-      totalSpentCents: spentByEvent.get(eventId) ?? 0,
-      unbudgetedSpentCents: unbudgetedByEvent.get(eventId) ?? 0,
-    }
-  }).sort((a, b) => a.eventName.localeCompare(b.eventName))
-
-  const totalExpenseCents = (expensesRes.data ?? []).reduce((s, e) => s + e.amount_cents, 0)
+  // ── THE EVENT LEDGER IS GONE, AND `totalExpenseCents` MEANS SOMETHING ELSE ──
+  // It was per-event budget lines against what was really spent, built from
+  // `event_budget_items` and `event_expenses` — both dropped (`20260819000006`).
+  //
+  // `totalExpenseCents` was the sum of `event_expenses` and nothing else, so a family that
+  // had paid a disbursement and never run an event read "Total Expenses $0.00" over money
+  // that had demonstrably left a fund. It is DISBURSEMENTS now: the only outgoing this
+  // product records, which makes `netCents` the first honest bottom line this statement has
+  // had.
+  const totalExpenseCents = (disbRes.data ?? []).reduce((sum, d) => sum + d.amount_cents, 0)
 
   return {
     totalIncomeCents,
@@ -2656,6 +2641,5 @@ export async function getFamilyPnL(): Promise<PnLData> {
     payments,
     routing,
     funds,
-    events,
   }
 }

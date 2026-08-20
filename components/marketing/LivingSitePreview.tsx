@@ -30,7 +30,7 @@ const SOURCES = [
   {
     icon: CalendarCheck,
     label: 'Your next gathering',
-    detail: 'The reunion you are already planning becomes the page everyone lands on — date, place, and the RSVP button.',
+    detail: 'The reunion you are already planning becomes the page everyone lands on — the date, the place, and who is doing what.',
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
   },

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireMember, requireRead } from '@/lib/auth/guard'
+import { canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { inviteMember } from '@/app/actions/invitations'
@@ -50,6 +51,49 @@ import {
  * (AGENTS.md §4). `upsertSpouse`, `upsertAncestor` and `acceptSpouseChild` were each
  * missing exactly that check; every id below goes through `belongsToFamily`.
  */
+
+/**
+ * May this caller CHANGE the tree?
+ *
+ * Approved membership AND the `family-tree` edit grant, which is two checks because they
+ * answer two different questions and fail with two different sentences. Every write below
+ * calls this; nothing calls `requireMember()` directly any more.
+ *
+ * ── WHY IT IS BOTH, AND IN THIS ORDER ───────────────────────────────────────────────
+ * A pending applicant resolves to `'none'` on every resource, so `canAny` alone would
+ * refuse them — with "Not authorized", which is the wrong thing to tell somebody whose
+ * membership is simply still in the queue. `requireMember()` first is what keeps the
+ * honest message, and it is the reason that guard exists at all (see its own comment).
+ *
+ * ── WHY `canAny` AND NOT `can` ──────────────────────────────────────────────────────
+ * There is no coherent "own" version of a tree edit, so an Own grant must not pass.
+ * `editPersonRecord` refuses any row that HAS a `user_id` — a member is the authority on
+ * their own name — so the rows this gate governs are precisely the ones NOBODY owns, and
+ * a relationship edge is a fact about two people rather than about one. `canAny` is
+ * AGENTS.md §2's answer for exactly that shape, and `family-tree` is in `NO_OWNER_KEYS`
+ * so the grid does not offer a switch the server reads as a denial.
+ *
+ * ── WHY THIS EXISTS AT ALL, since 20260819000008 ────────────────────────────────────
+ * `family-tree` was an UNREGISTERED key until then, deliberately (20260806000006: "a
+ * member's own things are not something a family administers"). That was right while the
+ * key meant one member's own line and wrong from the day this canvas became family-wide,
+ * because an unregistered non-admin key resolves to `'any'` for every approved member and
+ * cannot be switched off. The migration registers it, backfills every existing template
+ * with `'any'` so nothing changes about who can do what, and this function is what makes
+ * the switch mean something — a page guard alone would not, because every export of a
+ * `'use server'` file is a public HTTP endpoint.
+ *
+ * NOT EXPORTED, and it cannot be: everything exported from this file gets a URL, and only
+ * async functions may be exported from a `'use server'` module at all.
+ */
+async function requireTreeEditor() {
+  const g = await requireMember()
+  if (!g.ok) return g
+  if (!(await canAny(g.userId, 'family-tree', 'edit'))) {
+    return { ok: false as const, message: 'Not authorized' }
+  }
+  return g
+}
 
 export interface TreePerson {
   id: string
@@ -431,7 +475,7 @@ export type AddRelativeResult =
  * Without that the family gets Ada-on-the-tree and Ada-in-the-directory as two people.
  */
 export async function addRelative(input: AddRelativeInput): Promise<AddRelativeResult> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -793,7 +837,7 @@ export async function editPersonRecord(
   personId: string,
   fields: Record<string, unknown>,
 ): Promise<{ success: boolean; message?: string }> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -864,7 +908,7 @@ export async function invitePersonRecord(
   personId: string,
   email: string,
 ): Promise<{ success: boolean; message?: string; emailed?: boolean }> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -939,7 +983,7 @@ export async function setRelationshipKind(
   relationshipId: string,
   kind: LinkKind,
 ): Promise<{ success: boolean; message?: string }> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -1024,7 +1068,7 @@ export async function setRelationshipType(
    */
   subjectPersonId: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -1200,7 +1244,7 @@ export async function setBloodlineAnchor(
 export async function removeRelationship(
   relationshipId: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const g = await requireMember()
+  const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 

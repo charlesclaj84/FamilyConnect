@@ -46,7 +46,29 @@ import type { UpdatesArchive } from '@/app/actions/updates'
  * And the browsing ceiling is stated when it is reached, never silently: the search is what
  * reaches older rows, because it filters in the database before the limit.
  */
-export function UpdatesArchiveClient({ archive }: { archive: UpdatesArchive }) {
+interface Props {
+  archive: UpdatesArchive
+  /**
+   * Where `?q=` and `?pages=` are pushed to. Defaults to `/updates`, which is what this
+   * component was written against; the Announcements rail passes `/announcements` because
+   * the archive is a PANE there and `/updates` merely redirects to it. Hard-coding the old
+   * route here would have made every search and every "Show older" go through that redirect.
+   */
+  basePath?: string
+  /**
+   * Query params that must survive a search — `{ pane: 'updates' }` on the Announcements
+   * rail, so the navigation lands back on this pane rather than on the board.
+   *
+   * Rebuilt from scratch beside `q` and `pages` rather than merged out of the live URL: this
+   * is a real navigation, and the only params that should survive one are the ones the caller
+   * names. Anything else on the URL belongs to a pane this list is not.
+   */
+  keepParams?: Record<string, string>
+}
+
+export function UpdatesArchiveClient({
+  archive, basePath = '/updates', keepParams,
+}: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   // `useServerState`, not `useState`: the box has to ADOPT the query the server actually ran, or
@@ -60,7 +82,7 @@ export function UpdatesArchiveClient({ archive }: { archive: UpdatesArchive }) {
   } = archive
 
   function go(next: { q?: string; pages?: number }) {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(keepParams)
     const q = next.q ?? query
     if (q) params.set('q', q)
     if (next.pages && next.pages > 1) params.set('pages', String(next.pages))
@@ -68,7 +90,7 @@ export function UpdatesArchiveClient({ archive }: { archive: UpdatesArchive }) {
     startTransition(() => {
       // `scroll: false` — "Show older" appends to the bottom of the list, and jumping to the
       // top of the page is the opposite of what somebody pressing it asked for.
-      router.push(suffix ? `/updates?${suffix}` : '/updates', { scroll: false })
+      router.push(suffix ? `${basePath}?${suffix}` : basePath, { scroll: false })
     })
   }
 

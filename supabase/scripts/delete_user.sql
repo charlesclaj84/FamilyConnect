@@ -2,7 +2,7 @@
 -- delete_user.sql — Purge ALL data for a single user, given their auth user id.
 -- ----------------------------------------------------------------------------
 -- This removes the user's account and every record tied to them. Shared
--- resources the user merely *authored* (announcements, photos, funds, events,
+-- resources the user merely *authored* (announcements, photos, funds, gatherings,
 -- etc.) are NOT deleted — their author/creator column is set to NULL so the
 -- resource survives but is anonymized. The user's own personal records
 -- (profile, relationships, notifications, dues, RSVPs, votes, chat) ARE deleted.
@@ -37,16 +37,8 @@ BEGIN
   -- anonymizes the resource without destroying it.
 
   UPDATE user_roles            SET assigned_by = NULL WHERE assigned_by = p_user_id;
-  UPDATE event_types           SET created_by  = NULL WHERE created_by  = p_user_id;
-  UPDATE event_blueprint_items SET created_by  = NULL WHERE created_by  = p_user_id;
-  UPDATE events                SET created_by  = NULL WHERE created_by  = p_user_id;
-  UPDATE events                SET approved_by = NULL WHERE approved_by = p_user_id;
-  UPDATE event_assignments     SET assigned_to = NULL WHERE assigned_to = p_user_id;
-  UPDATE event_assignments     SET assigned_by = NULL WHERE assigned_by = p_user_id;
-  UPDATE event_assignments     SET approved_by = NULL WHERE approved_by = p_user_id;
   UPDATE chapters              SET created_by  = NULL WHERE created_by  = p_user_id;
   UPDATE regions               SET created_by  = NULL WHERE created_by  = p_user_id;
-  UPDATE event_hotel_bookings  SET created_by  = NULL WHERE created_by  = p_user_id;
   UPDATE chat_rooms            SET created_by  = NULL WHERE created_by  = p_user_id;
   -- `families` may still exist from the pre-redesign schema; ignore if dropped.
   BEGIN
@@ -61,19 +53,19 @@ BEGIN
   -- people.user_id is UNIQUE, so this is normally a single row. Deleting it
   -- CASCADES to everything keyed on people(id) with ON DELETE CASCADE:
   --   person_relationships, notifications, dues_payments, dues_member_plans,
-  --   fund_disbursements (person_id), event_rsvp_attendees, election_nominations
+  --   fund_disbursements (person_id), election_nominations
   --   (nominee_id), election_votes (voter_id/nominee_id), photo_tags (person_id).
   -- And SET-NULLs people(id) creator refs (announcements.author_id,
-  -- documents.uploaded_by, event_photos.uploader_id, photos.uploader_id,
+  -- documents.uploaded_by, photos.uploader_id,
   -- photo_collections.created_by, funds.created_by, fund_*.recorded_by/created_by,
-  -- elections.created_by, event_budget_items/expenses, *.tagged_by, *.recorded_by,
-  -- event_rsvp_attendees.checked_in_by, election_nominations.nominated_by).
+  -- elections.created_by, *.tagged_by, *.recorded_by,
+  -- election_nominations.nominated_by).
   DELETE FROM people WHERE user_id = p_user_id;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   step := 'deleted people rows'; rows_affected := v_count; RETURN NEXT;
 
   -- ── 3. Delete the auth account ─────────────────────────────────────────────
-  -- CASCADES to: chat_participants, chat_messages, user_roles, event_rsvp.
+  -- CASCADES to: chat_participants, chat_messages, user_roles.
   DELETE FROM auth.users WHERE id = p_user_id;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   step := 'deleted auth.users rows'; rows_affected := v_count; RETURN NEXT;

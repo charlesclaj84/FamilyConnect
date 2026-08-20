@@ -10,9 +10,9 @@ import { todayLocal } from '@/lib/date-utils'
 import { attachTemplatesToGathering } from '@/lib/gathering-instantiate'
 import { notifyGatheringTaskSubmitted } from '@/lib/notifications'
 import {
-  parseAnswer, isGatheringStepKind, taskProgress,
+  parseAnswer, isGatheringTaskKind, taskProgress,
   GATHERING_STEP_KIND_HINT,
-  type GatheringStatus, type GatheringStepKind, type GatheringTaskStatus,
+  type GatheringStatus, type GatheringTaskKind, type GatheringTaskStatus,
   type TaskProgress,
 } from '@/lib/gatherings'
 
@@ -138,7 +138,7 @@ export interface GatheringTaskRow {
   id: string
   label: string
   helpText: string | null
-  kind: GatheringStepKind
+  kind: GatheringTaskKind
   required: boolean
   position: number
   status: GatheringTaskStatus
@@ -595,7 +595,7 @@ function toTaskRow(
     id:           row.id,
     label:        row.label,
     helpText:     row.help_text,
-    kind:         row.kind as GatheringStepKind,
+    kind:         row.kind as GatheringTaskKind,
     required:     row.required,
     position:     row.position,
     status:       row.status as GatheringTaskStatus,
@@ -810,8 +810,8 @@ const LIVE_STATUSES = ['planning', 'scheduled'] as const
  * Three more things about it are decisions:
  *
  *  * **The balance comes from `fund_balance_cents(p_fund_id)`, through the service role.**
- *    That function is the database's own five-term definition of a balance (contributions −
- *    disbursements − event_expenses + transfers in − transfers out) and it has NO
+ *    That function is the database's own four-term definition of a balance (contributions −
+ *    disbursements + transfers in − transfers out) and it has NO
  *    `authenticated` EXECUTE grant anywhere in the migration chain, so it can only be called
  *    this way. Recomputing the sum on the user client instead — which `getFunds` does — omits
  *    the transfer term for any caller without `transactions/fund-transfers:view`, and the
@@ -1319,7 +1319,7 @@ export async function submitGatheringTask(input: {
       message: 'This task has already been approved, and an approved answer is final. Ask an organizer to reopen it if it needs to change.',
     }
   }
-  if (!isGatheringStepKind(task.kind)) {
+  if (!isGatheringTaskKind(task.kind)) {
     // The table CHECKs `kind`, so this is a row from a build that knew a kind this one does
     // not. Refusing is the only safe answer: `parseAnswer` cannot normalise it, and writing
     // the raw value would store an answer no screen in this build can render.
@@ -1463,12 +1463,10 @@ export async function scheduleGathering(input: {
   const admin = createAdminClient()
   const { data: templates, error: templateError } = await admin
     .from('gathering_templates')
-    // `default_location` rides along because `attachTemplatesToGathering` copies it onto each
-    // segment's `location` — see that function for why the copy happens once, at link time, and
-    // never as a read-through. A member scheduling the reunion from the family's three templates
-    // gets their usual places, exactly as an organizer does; `resolveTemplates` in the organizer
-    // module projects the same column for the same reason.
-    .select('id, name, default_location, who_may_schedule, is_archived')
+    // NO `default_location` — that column is dropped (`20260819000007`). A segment linked by
+    // this path states no place at all, and a template that wants one carries a step of kind
+    // `'location'` for a relative to answer.
+    .select('id, name, who_may_schedule, is_archived')
     .in('id', templateIds)
     .eq('family_code', g.familyCode)
 
@@ -1478,8 +1476,7 @@ export async function scheduleGathering(input: {
   }
 
   const rows = (templates ?? []) as {
-    id: string; name: string; default_location: string | null
-    who_may_schedule: string; is_archived: boolean
+    id: string; name: string; who_may_schedule: string; is_archived: boolean
   }[]
   // Every id asked for came back inside the family. One missing means it is another family's
   // or does not exist, and both answer the same sentence — telling a caller which is an
@@ -1506,7 +1503,7 @@ export async function scheduleGathering(input: {
   // last. `resolveTemplates` in the organizer module re-orders for the same reason.
   const byId = new Map(rows.map(row => [
     row.id,
-    { id: row.id, name: row.name, defaultLocation: row.default_location ?? null },
+    { id: row.id, name: row.name },
   ]))
   const ordered = templateIds.flatMap(id => {
     const template = byId.get(id)

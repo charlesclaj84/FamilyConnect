@@ -1,5 +1,5 @@
 import { formatCurrency } from '@/lib/currency-utils'
-import { describeAnswer, type GatheringStepKind } from '@/lib/gatherings'
+import { describeAnswer, type GatheringTaskKind } from '@/lib/gatherings'
 
 /**
  * One line of an answer, as the member gave it.
@@ -29,7 +29,7 @@ import { describeAnswer, type GatheringStepKind } from '@/lib/gatherings'
  * wrapping opportunity pushes the whole row wide, which is the thing "On a phone a table
  * narrows" exists to prevent.
  */
-export function AnswerText({ kind, answer }: { kind: GatheringStepKind; answer: unknown }) {
+export function AnswerText({ kind, answer }: { kind: GatheringTaskKind; answer: unknown }) {
   const text = describeAnswer(kind, answer, formatCurrency)
   if (!text) return null
   return <span className="break-words">{text}</span>

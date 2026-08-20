@@ -57,7 +57,7 @@ const STEPS: readonly { icon: LucideIcon; title: string; detail: string; aside?:
     icon: CalendarCheck,
     title: 'Put the reunion up',
     detail:
-      'Create the event, and RSVPs, head counts, t-shirt sizes and meal numbers start collecting themselves. On the day, check people in.',
+      'Write the checklist once, schedule the gathering from it, and every step becomes somebody’s job with a date against it. What comes back is accepted or sent back with notes.',
   },
   {
     icon: Wallet,
@@ -77,7 +77,7 @@ const FAQ = [
   {
     question: 'How long does it take to set up a family portal?',
     answer:
-      'Creating the family takes about a minute. Most families are collecting RSVPs the same evening, because relatives join themselves with a family code instead of being entered by hand.',
+      'Creating the family takes about a minute. Most families have relatives signing themselves up the same evening, because they join with a family code instead of being entered by hand.',
   },
   {
     question: 'Do I have to add every family member myself?',

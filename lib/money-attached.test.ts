@@ -72,7 +72,7 @@ describe('moneyAttachedMessage', () => {
   // type-checks it, so a field added to the interface and not added here is a compile error
   // in this file rather than a silently under-tested message.
   const none = {
-    any: true, payments: 0, contributions: 0, disbursements: 0, transfers: 0, expenses: 0,
+    any: true, payments: 0, contributions: 0, disbursements: 0, transfers: 0,
     gatherings: 0,
   }
 
@@ -99,12 +99,15 @@ describe('moneyAttachedMessage', () => {
   })
 
   it('joins exactly two kinds without a comma', () => {
-    expect(moneyAttachedMessage('A fund', { ...none, contributions: 1, expenses: 1 }))
-      .toContain('1 contribution and 1 expense')
+    // `expenses` was the second kind here until 2026-08-19 — `event_expenses`, dropped with
+    // the Events product. A disbursement is the same shape of fact and keeps the assertion
+    // about the JOINER, which is what this case is for.
+    expect(moneyAttachedMessage('A fund', { ...none, contributions: 1, disbursements: 1 }))
+      .toContain('1 contribution and 1 disbursement')
   })
 
   it('names a gathering drawing on the fund, which is a commitment rather than a ledger row', () => {
-    // The fifth count, and the only one that is not money already spent or received: a
+    // The one count that is not money already spent or received: a
     // gathering's budget is drawn on the fund, `gatherings.fund_id` is ON DELETE SET NULL,
     // and `gatherings_budget_needs_fund` forbids a budget with no fund. Measured: the
     // constraint is enforced on the RI SET NULL update, so with a budget set the fund

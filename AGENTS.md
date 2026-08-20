@@ -145,8 +145,9 @@ so demanding a grant for these would lock the whole family out of chat.
 
 These use `requireMember()` — and they still owe a check, just a different one: that
 the row being touched is genuinely the caller's, and that every id arriving from the
-client belongs to their family. `submitRsvp` is the worked example: any member may
-RSVP, but only to their own family's event, and only for people in it.
+client belongs to their family. `submitGatheringTask` is the worked example: any member may
+answer a task, but only one assigned to them, and only on their own family's gathering.
+`submitRsvp` was the example here until Events was retired; the shape is the point.
 
 "No permission needed" never means "no check needed".
 
@@ -721,15 +722,17 @@ of tables, `people(first_name)` is refused with **PGRST201** and the whole query
 ```
 
 `fund_disbursements`, `fund_contributions`, `dues_payments`, `election_votes`,
-`election_nominations`, `photo_tags`, `event_rsvp_attendees`, `person_relationships`,
+`election_nominations`, `photo_tags`, `person_relationships`,
 — since `20260813000001` — `announcements`, and — since `20260819000000` —
 `gathering_tasks` (`assignee_id`, `decided_by`) and `gathering_task_submissions`
 (`submitted_by`, `reviewed_by`) all have two paths to `people`;
 `photo_collections` has two to `photos` (its rows, and its cover); `fund_transfers` has
 two to `funds` — where the money left and where it landed, which is the whole content of
 the row. Name the constraint. And check the relationship
-exists at all before embedding it — `event_rsvp` has no foreign key to `people`, so
-`event_rsvp(people(...))` is PGRST200, equally silent.
+exists at all before embedding it — `event_rsvp` had no foreign key to `people`, so
+`event_rsvp(people(...))` was PGRST200, equally silent. (That table is dropped now, with every
+other `event_*` one, but the failure mode is not: it is what a missing relationship
+answers, whatever the table.)
 
 **Two more joined the list on 2026-08-18, and one of them is the shape this section warns about
 arriving by accident.** `family_invitations` has **three** paths to `people` — `invited_by`,
@@ -744,6 +747,16 @@ error names both constraints. Nothing in the tree embeds it today, so nothing br
 that nothing had to, and next time it might. That is the `announcements` lesson in a second
 costume, and it is why the sweep below is worth running after ANY migration that adds a foreign
 key, not only after one that adds a junction table.
+
+**A DROPPED TABLE'S EMBED FAILS THE SAME WAY, AND THAT IS HOW `/photos` BROKE.** Retiring
+Events took `events` with it, and `getPhotoCollections` was still asking for
+`.select('*, events(name), photos!…(…)')` — an embed of a relation PostgREST cannot resolve
+refuses the WHOLE query, and this one discards its error, so every family's gallery rendered
+empty over photographs that existed. Caught 2026-08-19 by the RLS suite's own POSITIVE CONTROL
+("owner saw none of their own data"), which is exactly the half AGENTS.md §7 says the suite rots
+without. **When a migration drops a table, grep the tree for `<table>(` as well as for the table
+name** — an embed does not name the table it joins in any way a search for `from('events')`
+would find.
 
 **AND A NESTED EMBED IS THE ONE THIS LIST DOES NOT SAVE YOU FROM.** `photo_tags` has been on the
 list above since it was written, and `getPhotoCollection` was still broken by it, because the
@@ -1045,9 +1058,12 @@ The fix is one key, in one place:
   already per-family and already what its realtime subscription filters on, so the list
   and the channel cannot disagree. Anything new added to the navbar or sidebar that holds
   family data in state owes the same.
-* **A list keyed by row id is already safe.** `AssignmentRow`, `AcceptChildRow`,
-  `BlueprintItemRow` and `EventTypeCard` all seed state from a row prop, and all are
-  keyed by a per-family id, so a switch replaces the ids and React remounts them anyway.
+* **A list keyed by row id is already safe.** `TemplateCard` and `StepRow` in
+  `AdminGatheringTemplatesClient` both seed state from a row prop and are keyed by a
+  per-family id — so a switch replaces the ids and React remounts them anyway. (The four named here
+  until 2026-08-19 — `AssignmentRow`, `AcceptChildRow`, `BlueprintItemRow`, `EventTypeCard` —
+  were all deleted with `/direct-lineage` and with Events; the property is what mattered, not
+  the examples.)
   Pages on `[id]` routes are safe for a different reason: they `notFound()` when the
   entity is not in the caller's family, so the client unmounts.
 
@@ -1212,30 +1228,112 @@ email, whereas verifying is a five-branch read-modify-write that races itself fr
 resolved from `(family_code, requested_by)` and the hash is only ever COMPARED, never used to find
 the row.
 
-# Gatherings is a SECOND product beside Events, and Events is not going anywhere
+# Gatherings replaced Events, and Events is gone entirely
 
-Added 2026-08-19, `20260819000000`. Events answers *when is it and who is coming* — dates, RSVPs,
-hotel blocks, day-of check-in. **Gatherings answers *who is doing what, and has it been done and
-accepted*.** An administrator authors a TEMPLATE (a named, ordered list of steps of mixed kinds), a
-GATHERING is scheduled from one or more templates, every step becomes a TASK held by a named
-relative, and each answer an organizer approves or sends back with notes. A gathering carries a
-budget drawn on a fund, each task carries a line against it, and one gathering may be **premier**,
+Added 2026-08-19, `20260819000000`. **Gatherings answers *who is doing what, and has it been done
+and accepted*.** An administrator authors a TEMPLATE (a named, ordered list of steps of mixed
+kinds), a GATHERING is scheduled from one or more templates, every step becomes a TASK held by a
+named relative, and each answer an organizer approves or sends back with notes. A gathering carries
+a budget drawn on a fund, each task carries a line against it, and one gathering may be **premier**,
 which puts it across the top of the Dashboard.
 
-**`/events`, `/event-planning`, `/admin/events` and `/admin/event-types` are untouched and stay
-live.** Do not retire, absorb, rename or re-policy any `event*` table on the way past. The events
-tables are the oldest in the schema, were created with bare `CREATE POLICY` reading
-`user_metadata`, and have been rewritten three times since — what protects them today is a string
-that exists in no file anyone reviewed, which is the exact shape of the second production incident
-"How migrations reach the hosted project" records. The rail lists both sets under one Events
-heading; that is a heading, not a merge.
+**THIS SECTION SAID "A SECOND PRODUCT BESIDE EVENTS, AND EVENTS IS NOT GOING ANYWHERE" FOR ONE
+DAY.** Events is retired (`20260819000006`): `/events`, `/event-planning`, `/admin/events` and
+`/admin/event-types` are deleted, along with six action modules, every component, the four
+`permission_resources` rows and the twelve `permission_table_map` rows. Do not re-add any of it, and
+in particular do not park it behind `status: 'future'` — that gate withholds a ROUTE and does
+nothing whatever to the server actions underneath (see "COMING SOON WITHHOLDS A PAGE"), so it would
+leave six action modules published as HTTP endpoints with nobody exercising them.
+
+**WHAT IS NOT REPLACED**, and is worth naming so nobody assumes otherwise: RSVPs, hotel room blocks
+and day-of check-in. A step of a gathering template can ASK a relative for any of it, but there is
+no attendee count, no room block and no check-in list in this product - and **the marketing copy
+that sold all three went in the same commit**, on `/pricing`, `/features`, `/how-it-works`,
+`/why-us`, `lib/plans.ts` and `components/marketing/pillars.ts`. A retired feature whose sales copy
+survives is the drift FutureFeature.md is largely a record of.
+
+**ONE ASSET IS KNOWINGLY STALE**: `components/marketing/screenshots/events.png`, shown on Home for
+the Gatherings pillar, is a capture of the deleted `/events`. A `Pillar` must have an `image` and a
+screenshot cannot be re-captured from a script, so its `imageAlt` is deliberately generic - an alt
+naming RSVPs would advertise a feature we do not have, and one naming tasks would describe the
+wrong image. Do not make that alt specific until the PNG is replaced.
+
+**ALL THIRTEEN `event_*` TABLES ARE DROPPED**, along with `funds.event_id`,
+`photo_collections.event_id`, `cancel_overdue_event_assignments()` and the `event_expenses` term
+in `fund_balance_cents()`. `20260819000006` is the migration and it argues the decision at length.
+
+**THE FIRST DRAFT OF THAT MIGRATION FROZE THE TABLES INSTEAD — dropped every policy, kept every
+row — and that was wrong here.** The argument for freezing is that retiring a FEATURE is not
+authority to empty a family's records, and it turns entirely on there being a family whose records
+they are. There is not: **no family is using this product yet.** So the caution protected nothing
+and cost something real: thirteen tables nothing reads, a money term in `fund_balance_cents()`
+that could never change again, and two surviving tables pointing into all of it.
+
+**A HALF-RETIREMENT IS THE EXPENSIVE STATE.** Frozen tables are what "Three tables in `public` are
+product data" is really about: rows no code reads and no test covers, still holding grants, still
+in every `\d` listing, and answering nobody's question. Hence the general rule — **when there is
+nothing to lose, drop it; when there is, say whose records they are and why they survive.** Never
+freeze by default.
+
+**A FUND'S BALANCE IS NOW contributions - disbursements + transfers in - transfers out.** Four
+terms, and three places have to agree about them: `fund_balance_cents()` in SQL, `getFunds` in
+`app/actions/funds.ts`, and `getActiveFundsForRouting` in `app/actions/dues.ts`. The P&L's
+"Total Spent" is DISBURSEMENTS now - it counted event spend and nothing else, so a family that had
+paid a disbursement and never run an event read `$0.00` over money that had demonstrably gone.
+
+**`fund_balance_cents()` STILL HAS NO `authenticated` EXECUTE GRANT AND MUST NOT GAIN ONE.** That
+migration's first draft added one on §2b's "adding a function means adding its grant" reflex, which
+is right for a function the browser calls and wrong for this one. A balance recomputed on the USER
+client silently omits the transfer term for anyone without `transactions/fund-transfers:view`,
+which is why `getGatheringFundOptions` calls it through the admin client - granting it to
+`authenticated` would put the per-viewer version back within reach. The migration asserts the grant
+is ABSENT.
+
+**THE `event-photos` STORAGE BUCKET SURVIVES AND IS NOW ORPHANED.** `20260819000006` drops tables;
+`storage.*` is out of its scope exactly as it is out of `truncate_entire_database.sql`'s. So the
+bucket, its three policies and every object already in it are still there, still `public: true`,
+still with no family predicate - nothing writes to it or reads it, and anything uploaded is still
+world-readable by URL. Dropping it is a storage operation rather than a migration and is owed;
+FutureFeature.md's storage warning carries it.
 
 Six tables — `gathering_templates`, `gathering_template_steps`, `gatherings`,
 `gathering_template_uses`, `gathering_tasks`, `gathering_task_submissions` — and six resource keys:
 `gatherings`, `gatherings/my-tasks`, `gatherings/budget`, `calendar`, `admin/gatherings`,
 `admin/gathering-templates`. Everything is `tier: 'free'`, and that is forced rather than generous:
 a gathering can only be created FROM a template, so putting the authoring screen behind Plus would
-make `/pricing`'s existing Free bullet ("The reunion on the calendar") false.
+make `/pricing`'s existing Free bullet ("The reunion on the calendar") false — and since Events
+went, `/calendar` is the ONLY thing keeping that bullet true.
+
+## FOUR ROUTES ARE REDIRECTS, AND THEIR KEYS ARE WHY THEY EXIST
+
+`/gatherings/my-tasks`, `/admin/gathering-templates`, `/updates` and `/admin/chapters` render
+nothing and `redirect()` to a pane of another screen. Each is a `FEATURES` entry still, and each
+must stay one: `viewableResources()` builds the rail by walking that registry, so a key is only ever
+in a caller's answer because there is an entry for its href — and a resource key IS the route
+without its leading slash (§1), so keeping the route is what keeps the key honest. Renaming one into
+a sub-key is a migration that copies every family's grant across, which is what `20260815000000`
+cost when My Summary's panes became screens.
+
+None of the four carries a guard, deliberately. They read nothing and render nothing; the page they
+land on resolves `requireFamilyActive`, `requireTier` and every pane grant itself. A `requireView`
+on a redirect would be a second, weaker copy of that check whose only effect is to answer 404 where
+the real page answers `/upgrade` or the removed-family notice.
+
+## A PAGE THAT MERGED TWO SCREENS RESOLVES ITS PANES BY HAND, AND OWES THREE CHECKS
+
+`/gatherings` (Gatherings · My Tasks), `/admin/gatherings` (Gatherings · Review queue · Templates)
+and `/announcements` (General · Updates · Birthdays) all decompose `requireView` into a union of
+`can()` calls, because any one of their keys is a sufficient reason to be on the screen. Every one of
+them therefore owes `requireFamilyActive` and `requireTier` BY HAND, above the grants, in that
+order — see "A PAGE THAT RESOLVES PANES BY HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND
+TOO". All three do. `/admin/users` still does not, and that gap is recorded where it is.
+
+The pane ids and their ledes live in PURE modules — `lib/gathering-panes.ts`,
+`lib/announcement-panes.ts`, `components/admin/account-sections.ts` — and never in the `'use
+client'` shell. **A Server Component that imports a runtime VALUE from a client module gets a client
+REFERENCE, not the value.** `/announcements` shipped with `ANNOUNCEMENT_PANES` exported from its
+shell and threw `.includes is not a function` on every load, rendering the error boundary over the
+whole page. Type-only imports across that boundary are erased and are fine; a value never is.
 
 ## A TASK IS A COPY OF ITS STEP, NOT A REFERENCE
 
@@ -1311,8 +1409,9 @@ on the order two administrators happened to click in.
 
 ## A TASK IS KEYED ON `people.id`, NEVER `auth.users.id`
 
-`event_assignments` keys its assignee on an auth id and has no `family_code`, and
-`app/actions/event-planning.ts` documents what that costs: one auth id is identical across every
+`event_assignments` keys its assignee on an auth id and has no `family_code`. The retired
+the deleted `app/actions/event-planning.ts` documented what that costs, and it is the reason this design was
+chosen rather than copied: one auth id is identical across every
 family the user belongs to, so every query needs an `!inner` join, and an account-less relative — a
 recorded grandmother, §4b — can never hold a task. A `people.id` key makes family scoping structural
 and is what `own_expr`/`self_expr` are written in terms of.
@@ -1340,7 +1439,7 @@ holds `admin/gatherings:create` may schedule from an `'admin'` one.
 
 ## DATES ARE `DATE`. THERE IS NO TIME OF DAY AND NO TIMEZONE
 
-`starts_on`, `ends_on`, `due_on`. `events.event_date` is a bare DATE, nothing in this schema records
+`starts_on`, `ends_on`, `due_on`. The retired `events.event_date` was a bare DATE too, nothing in this schema records
 a family timezone, and a `TIME` here would be a time in no particular zone — the same two-facts-that-
 disagree trap as `is_minor` (§4b). `lib/calendar.ts` therefore does its arithmetic on `YYYY-MM-DD`
 strings with `Date.UTC` and reads back through `getUTC*`, and its `Intl` formatter pins
@@ -1816,11 +1915,12 @@ Four things about the mechanism are load-bearing.
   Free Account" button on it. The two lists are kept in step **by hand**, for the same
   reason `PLANS[]` and this registry are (see the note above `PLANS[]`).
 
-**What it cannot express: a tier boundary running THROUGH a page.** `/events` is Free
-("put the reunion on the calendar") and the RSVPs inside it are sold as Plus. The
-mechanism for that already exists and is the one permissions use — give the capability
-its own sub-key with its own registry entry, as `transactions/dues-payments` does. Until
-somebody does, the page's tier governs everything on it.
+**What it cannot express: a tier boundary running THROUGH a page.** The worked example was
+`/events`, which was Free ("put the reunion on the calendar") while the RSVPs inside it were sold
+as Plus — and that route is retired without the problem having been solved. The mechanism already
+exists and is the one permissions use: give the capability its own sub-key with its own registry
+entry, as `transactions/dues-payments` does and as `gatherings/budget` already does for the money
+band on a page whose own tier is Free. Until somebody does, a page's tier governs everything on it.
 
 **`PLANS[]` on `/pricing` is not derived from this and must not be.** One bullet spans
 several routes and several routes are sold in no bullet at all. Moving a bullet between
@@ -1854,7 +1954,7 @@ screen's `route`, which is what the availability labels resolve against and what
 manual searchable by the thing you just changed:
 
 ```bash
-grep "route: '/events'" lib/help/content.ts     # everything the manual claims about Events
+grep "route: '/gatherings'" lib/help/content.ts  # everything the manual claims about Gatherings
 ```
 
 A change with no route to grep — the shell, the idle sign-out, the permission model — is
@@ -2358,8 +2458,9 @@ layout failure rather than as a message — and the three are the whole exceptio
 fourth appears, it belongs here or it belongs in `PageShell`. (Grep for both orderings:
 those two write `max-w-md mx-auto`.)
 
-**Two pages are `reading`; the rest are `wide`.** An event and an election ballot — both
-`[id]` detail pages a member arrives at from a list and reads down.
+**One page is `reading`; the rest are `wide`.** An election ballot — an `[id]` detail page a
+member arrives at from a list and reads down. There were two until Events was retired; the other
+was an event's own page.
 
 **The test is not "does this page contain sentences."** Announcements and Settings were
 `reading` until 2026-08-13 and neither should have been. Announcements is a *board* — a

@@ -10,7 +10,7 @@ import { MonthCalendar } from '@/components/calendar/MonthCalendar'
 export const metadata = { title: 'Calendar' }
 
 /**
- * `/calendar` — one month, with the family's gatherings and its events on the days they fall.
+ * `/calendar` — one month, with the family's gatherings on the days they fall.
  *
  * ── THE MONTH IS NORMALISED BEFORE ANYTHING IN `lib/calendar.ts` IS CALLED ──────────
  * `monthLabel`, `shiftMonth` and `buildCalendarMonth` all THROW a `TypeError` on anything
@@ -39,12 +39,12 @@ export const metadata = { title: 'Calendar' }
  * ── ONE PAGE GRANT, TWO SOURCE GRANTS, AND `sources` IS WHY THE MONTH IS NOT A LIE ──
  * `requireView(user.id, 'calendar')` is §1's preamble for the page itself. What goes ON the
  * calendar is governed by the two keys that own the underlying screens, and
- * `getCalendarMonth` resolves `gatherings:view` and `events:view` independently, queries only
+ * `getCalendarMonth` resolves `gatherings:view` on its own, queries only
  * the sources the caller holds (§5 — not fetched rather than fetched-and-hidden) and reports
  * which halves actually made it onto the grid.
  *
  * A withheld source is stated in one line, because the alternative is the worst outcome
- * available on this screen: a member who cannot view events reads an empty August as a fact
+ * available on this screen: a member who cannot view gatherings reads an empty August as a fact
  * about their family. `sources` also goes false when a query FAILED — an empty result and a
  * refused query are indistinguishable from here (§8) — so the sentence names both
  * possibilities rather than asserting a permission problem it cannot actually see.
@@ -72,9 +72,10 @@ export default async function CalendarPage({
   const { entries, sources } = await getCalendarMonth(month)
   const grid = buildCalendarMonth(month, today, entries)
 
+  // A LIST OF ONE, kept as a list because `sources` is kept as a record — see the action's
+  // header. A second source is a line here and nothing else.
   const withheld = [
     !sources.gatherings && 'gatherings',
-    !sources.events && 'events',
   ].filter((label): label is string => typeof label === 'string')
 
   return (
@@ -82,7 +83,7 @@ export default async function CalendarPage({
       <div>
         <h1 className="mb-1 text-3xl font-bold">Calendar</h1>
         <p className="text-muted-foreground">
-          Every gathering and every event, a month at a time. A reunion that runs over several
+          Every gathering, a month at a time. A reunion that runs over several
           days shows on each of them, and the month is in the address bar — so a link to it is
           a link to that month.
         </p>
@@ -90,9 +91,7 @@ export default async function CalendarPage({
 
       {withheld.length > 0 && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {withheld.length === 2
-            ? 'Neither gatherings nor events are on this calendar, so what you see below is not the whole month: those screens have either not been shared with you, or could not be read just now.'
-            : `This calendar does not include ${withheld[0]}, so what you see below is not the whole month: that screen has either not been shared with you, or could not be read just now.`}
+          {`This calendar does not include ${withheld[0]}, so what you see below is not the whole month: that screen has either not been shared with you, or could not be read just now.`}
         </div>
       )}
 

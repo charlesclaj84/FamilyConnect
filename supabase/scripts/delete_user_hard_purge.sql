@@ -6,12 +6,12 @@
 --
 -- DIFFERENCE FROM purge_user():
 --   purge_user()       → anonymizes shared content the user authored (author
---                        column set to NULL; the announcement/event/fund/photo
+--                        column set to NULL; the announcement/gathering/fund/photo
 --                        survives).
 --   hard_purge_user()  → DESTROYS shared content the user authored. Deleting an
---                        event/fund/election/collection cascades to all of its
+--                        gathering/fund/election/collection cascades to all of its
 --                        children, INCLUDING data belonging to OTHER users
---                        (e.g. other members' RSVPs to an event this user
+--                        (e.g. other members' tasks on a gathering this user
 --                        created). This is intentional and irreversible.
 --
 -- USAGE
@@ -35,10 +35,6 @@ BEGIN
 
   -- ── 1. Destroy resources AUTHORED BY THIS USER (auth.users refs) ───────────
   -- Each delete cascades to its own children.
-  DELETE FROM events                WHERE created_by = p_user_id;   -- → assignments, rsvp, photos, budget...
-  DELETE FROM event_blueprint_items WHERE created_by = p_user_id;
-  DELETE FROM event_types           WHERE created_by = p_user_id;
-  DELETE FROM event_hotel_bookings  WHERE created_by = p_user_id;
   DELETE FROM chat_rooms            WHERE created_by = p_user_id;   -- → participants, messages
   DELETE FROM chapters              WHERE created_by = p_user_id;
   DELETE FROM regions               WHERE created_by = p_user_id;
@@ -46,10 +42,6 @@ BEGIN
   -- Any remaining auth.users audit refs that don't own a deletable row: NULL
   -- them so the final auth.users delete cannot hit a NO ACTION constraint.
   UPDATE user_roles        SET assigned_by = NULL WHERE assigned_by = p_user_id;
-  UPDATE events            SET approved_by = NULL WHERE approved_by = p_user_id;
-  UPDATE event_assignments SET assigned_to = NULL WHERE assigned_to = p_user_id;
-  UPDATE event_assignments SET assigned_by = NULL WHERE assigned_by = p_user_id;
-  UPDATE event_assignments SET approved_by = NULL WHERE approved_by = p_user_id;
   BEGIN
     UPDATE families        SET created_by  = NULL WHERE created_by  = p_user_id;
   EXCEPTION WHEN undefined_table THEN NULL;
@@ -63,11 +55,8 @@ BEGIN
     DELETE FROM elections          WHERE created_by  = ANY(v_person);  -- → positions, nominations, votes
     DELETE FROM photo_collections  WHERE created_by  = ANY(v_person);  -- → photos, tags
     DELETE FROM photos             WHERE uploader_id = ANY(v_person);  -- → tags
-    DELETE FROM event_photos       WHERE uploader_id = ANY(v_person);
     DELETE FROM documents          WHERE uploaded_by = ANY(v_person);
     DELETE FROM announcements      WHERE author_id   = ANY(v_person);
-    DELETE FROM event_budget_items WHERE created_by  = ANY(v_person);
-    DELETE FROM event_expenses     WHERE recorded_by = ANY(v_person);
     DELETE FROM fund_allocations   WHERE created_by  = ANY(v_person);
     DELETE FROM fund_contributions WHERE recorded_by = ANY(v_person);
     DELETE FROM fund_disbursements WHERE recorded_by = ANY(v_person);
@@ -79,14 +68,14 @@ BEGIN
 
   -- ── 3. Delete the user's people record(s) ──────────────────────────────────
   -- Cascades remaining person-scoped data: relationships, notifications,
-  -- dues_payments(person_id), event_rsvp_attendees, election votes/nominations,
+  -- dues_payments(person_id), election votes/nominations,
   -- photo_tags, etc.
   DELETE FROM people WHERE user_id = p_user_id;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   step := 'deleted people rows'; rows_affected := v_count; RETURN NEXT;
 
   -- ── 4. Delete the auth account ─────────────────────────────────────────────
-  -- Cascades: chat_participants, chat_messages, user_roles, event_rsvp.
+  -- Cascades: chat_participants, chat_messages, user_roles.
   DELETE FROM auth.users WHERE id = p_user_id;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   step := 'deleted auth.users rows'; rows_affected := v_count; RETURN NEXT;

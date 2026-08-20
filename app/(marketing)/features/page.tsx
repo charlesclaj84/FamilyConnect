@@ -97,10 +97,10 @@ const ALSO: readonly {
   { icon: MessagesSquare, tier: 'Free', route: '/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
   { icon: Megaphone, tier: 'Free', route: '/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
   { icon: Vote, tier: 'Plus', route: '/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
-  { icon: Images, tier: 'Plus', route: '/photos', title: 'Photo collections', blurb: 'A gallery per event, captions, and tagging that finds the right cousin out of a hundred.' },
+  { icon: Images, tier: 'Plus', route: '/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
   { icon: FileText, tier: 'Plus', route: '/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
   { icon: MapPinned, tier: 'Plus', route: '/admin/chapters', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
-  { icon: BarChart3, tier: 'Plus', route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership, dues collected against outstanding, RSVP turnout and t-shirt counts at a glance.' },
+  { icon: BarChart3, tier: 'Plus', route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership over time, and dues collected against what is still outstanding, at a glance.' },
   { icon: Store, tier: null, soon: true, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
 
@@ -224,8 +224,8 @@ export default function FeaturesPage() {
           <Reveal delay={200}>
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
               Free covers the family tree, the directory, chat, announcements and putting
-              the gathering on the calendar. RSVPs and head counts, card and digital
-              payments, and the treasury reports are Plus.{' '}
+              the gathering on the calendar with its work handed out. Card and digital
+              payments, the dues projections and the treasury reports are Plus.{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
                 See what is in each tier
               </Link>

@@ -381,7 +381,7 @@ async function teardown(db) {
     // to `families` and so nothing cascades it. Nothing depends on `families` by key, so
     // removing it up front costs nothing and is what lets `funds` go below.
     'families',
-    'chat_rooms', 'elections', 'photos', 'photo_collections', 'event_photos',
+    'chat_rooms', 'elections', 'photos', 'photo_collections',
     // ── GATHERINGS (20260819000000), AND THEY HAVE TO BE BEFORE `funds` ─────────────
     // Not "children before parents" as a habit — `funds` genuinely cannot be deleted while
     // a gathering carries a budget drawn on it, and the mechanism is not the obvious one.
@@ -422,21 +422,12 @@ async function teardown(db) {
     'fund_transfers',
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
-    'person_relationships', 'events', 'user_roles', 'family_invitations',
-    // ADDED 2026-08-17 with the three sweep rows. event_rsvp and event_assignments
-    // cascade from `events` above and need no line of their own — and since 2026-08-18
-    // neither do `event_budget_items` or `event_expenses`, both of which are ON DELETE
-    // CASCADE from `events` too. `event_expenses` is worth one sentence because it looks
-    // like it ought to be here: it is a MONEY table but NOT an append-only one
-    // (20260807000002 gave it the recorded_by trigger and nothing else), so a direct
-    // DELETE would work — it simply has nothing left to delete by the time this runs.
-    // Its other two references are both SET NULL, `fund_id` from `funds` above and
-    // `recorded_by` from `people` below, so neither removes the row.
-    // event_types does NOT
-    // (it is family-scoped configuration, not a child of an event) and
-    // event_blueprint_items cascades from it. Listed AFTER `events`, because an
-    // assignment points at a blueprint item and the event is what takes it away.
-    'event_blueprint_items', 'event_types',
+    'person_relationships', 'user_roles', 'family_invitations',
+    // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
+    // they recorded is worth keeping as a rule for anything added below: the ORDER is not
+    // "children first" as a habit, it is that an append-only table belongs after whichever
+    // parent cascades it away, and a table whose only inbound references are SET NULL has to
+    // be listed on its own because nothing removes the row for it.
     // Written by 20260806000008's families trigger, and keyed on family_code with no
     // FK to families — so nothing else here removes it, and a stale 'restricted' row
     // would outlive the family it was created for.
@@ -869,101 +860,19 @@ export async function seed() {
       uploaded_by: owner.personId, category: 'bylaws',
     }).select().single())
 
-    f.event = must('event', await db.from('events').insert({
-      family_code: code, name: `${code} reunion`, status: 'approved',
-      created_by: owner.userId, event_date: '2026-09-01',
-    }).select().single())
-
-    f.eventPhoto = must('event photo', await db.from('event_photos').insert({
-      event_id: f.event.id, family_code: code, uploader_id: owner.personId,
-      file_path: `${code}/event.jpg`, caption: `${code} event photo`,
-    }).select().single())
-
-    // ── FIVE ROWS ADDED 2026-08-18, FOR THE MONEY-DELETION GUARD ──────────────────
+    // ── THE EVENT FIXTURE WAS HERE: ELEVEN ROWS ACROSS SEVEN TABLES ────────────────
+    // `f.event`, `f.deletableEvent`, `f.eventPhoto`, `f.budgetItem`, `f.deletableBudgetItem`,
+    // `f.expense`, `f.rsvp`, `f.eventType`, `f.blueprintItem`, `f.assignment`. Every one of
+    // those tables is dropped (20260819000006), so the rows have nowhere to go and the cases
+    // that used them are deleted with them.
     //
-    // `lib/money-attached.ts` refuses a delete when money points at the record, and until
-    // now the fixture could not reach two of its five kinds at all: nothing here seeded an
-    // `event_budget_items` or an `event_expenses` row, so `deleteEvent` and
-    // `deleteEventBudgetItem` had no funded subject to be refused over and no unfunded one
-    // to prove they can still delete. `MONEY_CASES` in cases.mjs is what reads these.
-    //
-    // A SPARE EVENT WITH NO SPEND. `f.event` gains an expense below and is therefore
-    // permanently undeletable, so a control needs its own row — `deletableChild`'s rule,
-    // and AGENTS.md §7's first fixture failure mode: a control that removes `f.event`
-    // would take the RSVP, the assignment, the photo and both budget lines with it and
-    // every case after it would pass over nothing.
-    f.deletableEvent = must('deletable event', await db.from('events').insert({
-      family_code: code, name: `${code} spare reunion`, status: 'approved',
-      created_by: owner.userId, event_date: '2026-10-01',
-    }).select().single())
-
-    // TWO BUDGET LINES ON `f.event`, and the difference between them is the whole point:
-    // the expense below is charged to the first and to nothing else, so one line is funded
-    // and one is not. Both sit on `f.event` rather than one on each event, so that
-    // `f.deletableEvent` stays genuinely empty — an event with a budget line still deletes
-    // (budget items CASCADE and carry no money), but leaving it bare keeps the reason a
-    // delete succeeds down to one fact.
-    f.budgetItem = must('budget item', await db.from('event_budget_items').insert({
-      event_id: f.event.id, family_code: code, title: `${code} catering`,
-      budget_cents: 40000, sort_order: 1, created_by: owner.personId,
-    }).select().single())
-
-    f.deletableBudgetItem = must('deletable budget item', await db.from('event_budget_items').insert({
-      event_id: f.event.id, family_code: code, title: `${code} spare line`,
-      budget_cents: 1000, sort_order: 2, created_by: owner.personId,
-    }).select().single())
-
-    // THE SPEND ITSELF, and `fund_id` IS DELIBERATELY NULL. `event_expenses.fund_id` is one
-    // of the four references `moneyAttachedTo('fund', …)` counts, so pointing this at
-    // `f.fund` would make the fund case's message name an expense as well and — worse —
-    // give `f.deletableFund` a reason to be undeletable if it were ever pointed there. The
-    // column is nullable and an event's spend does not need a fund to be spend.
-    //
-    // `recorded_by` is REQUIRED on insert (20260807000002's trigger, with an empty source
-    // list, which means every row of this table) and the trigger binds the service role
-    // this fixture writes through. Without it the whole suite dies here.
-    f.expense = must('event expense', await db.from('event_expenses').insert({
-      event_id: f.event.id, budget_item_id: f.budgetItem.id, fund_id: null,
-      family_code: code, amount_cents: 12500, spent_date: '2026-07-06',
-      description: `${code} catering deposit`, recorded_by: owner.personId,
-    }).select().single())
-
-    // ── THREE ROWS ADDED 2026-08-17, FOR THE SWEEP CASES ──────────────────────────
-    // `event_rsvp`, `event_assignments` and `user_roles` are three of the nine tables
-    // `20260806000011` §6 added `auth_membership_approved()` to, and until now the fixture
-    // seeded none of them. That cost nothing while nothing tested them — and the moment
-    // `SWEEP_CASES` did, all three positive controls failed and the runner said so:
-    // "owner saw none of their own data — this case proves nothing".
-    //
-    // That is the failure mode AGENTS.md §7 exists to name, caught by the mechanism built
-    // to catch it. These rows are what turn three vacuous attack assertions into real ones.
-    // They are NOT marked `positive: 'not-applicable'`: a control genuinely applies here —
-    // a member really may read their own family's RSVPs — the fixture simply had no row.
-    // AUTH USER IDS, NOT people ids, on all three of these — checked against
-    // pg_constraint rather than assumed, and the first attempt got it wrong.
-    // `event_rsvp.submitted_by`, `event_assignments.assigned_to/assigned_by` and
-    // `user_roles.user_id` all reference auth.users(id). AGENTS.md §8 notes the same fact
-    // from the other direction: event_rsvp has no foreign key to `people` at all, which is
-    // why `event_rsvp(people(...))` answers PGRST200.
-    f.rsvp = must('event rsvp', await db.from('event_rsvp').insert({
-      event_id: f.event.id, submitted_by: owner.userId, is_attending: true,
-    }).select().single())
-
-    // An assignment needs a blueprint item to point at, and a blueprint item needs an
-    // event type. Both are seeded here rather than reused because nothing else in the
-    // fixture creates either.
-    f.eventType = must('event type', await db.from('event_types').insert({
-      family_code: code, name: `${code} gathering`, created_by: owner.userId,
-    }).select().single())
-
-    f.blueprintItem = must('blueprint item', await db.from('event_blueprint_items').insert({
-      event_type_id: f.eventType.id, title: `${code} bring the cake`, sort_order: 1,
-    }).select().single())
-
-    f.assignment = must('event assignment', await db.from('event_assignments').insert({
-      event_id: f.event.id, blueprint_item_id: f.blueprintItem.id,
-      assigned_to: owner.userId, assigned_by: owner.userId,
-    }).select().single())
+    // TWO THINGS THEY TAUGHT SURVIVE ELSEWHERE AND ARE WORTH NOT RE-LEARNING. A money case
+    // needs a SPARE row with no money on it as well as a funded one, or the guard refuses the
+    // attacker first and the case goes green under the mutation it exists to catch — that is
+    // why `f.deletableFund`, `f.deletableSchedule` and `f.deletableMilestone` are all still
+    // here. And a fixture row whose NAME a marker matches on must not be a substring of an
+    // unrelated row's name: `f.eventType` was called `${code} gathering`, which
+    // `alphaMarkers()` would have matched inside every Gatherings response.
 
     // A board position HELD BY THE ADMINISTRATOR — which is why the `raw:user_roles SELECT`
     // sweep case's control is `alphaAdmin` rather than `alphaMember`.
@@ -1461,11 +1370,16 @@ export async function seed() {
 
     // -- GATHERINGS (20260819000000) --------------------------------------------
     //
-    // "ASSEMBLY", NEVER "GATHERING", in every string here - and it is not a style choice.
-    // `f.eventType` above is named `${code} gathering`, and `alphaMarkers()` matches on
-    // SUBSTRINGS, so a marker of 'ALPHATEST gathering' would be found in that pre-existing
-    // event-type row and report a leak in a response that never touched this feature. Every
-    // free-text value below therefore says "assembly", and the marker list says the same.
+    // "ASSEMBLY", NEVER "GATHERING", in every string here - and it is not a style choice,
+    // though the row it was avoiding is gone.
+    //
+    // `f.eventType` used to be named `${code} gathering`, and `alphaMarkers()` matches on
+    // SUBSTRINGS - so a marker of 'ALPHATEST gathering' would have been found in that
+    // pre-existing event-type row and reported a leak in a response that never touched this
+    // feature. That table is dropped (20260819000006) and the collision cannot happen any
+    // more, so this convention is now a GUARD RATHER THAN A FIX: 'gathering' is the one word
+    // certain to appear in some unrelated row's free text sooner or later, and a marker that
+    // generic is a false positive waiting for a schema. Keep saying "assembly".
     //
     // WHAT EACH ROW IS FOR, because five of the fourteen exist only so a destructive control
     // has its own subject (AGENTS.md 7's first fixture failure mode):
@@ -1520,16 +1434,10 @@ export async function seed() {
     f.template = must('gathering template', await db.from('gathering_templates').insert({
       family_code: code, name: `${code} assembly plan`,
       description: `${code} assembly plan notes`,
-      // The template's USUAL place (20260819000001, §8), which `addGatheringTemplate` COPIES
-      // onto a segment that states none. Seeded rather than left null so the column is a real
-      // value in every read that publishes it and so `updateGatheringTemplate`'s probe has a
-      // stable before-state to compare against — a probe whose baseline is null cannot tell a
-      // successful write from a column the projection forgot.
-      //
-      // NOT IN `alphaMarkers()`, and for the reason `gatherings.location` is not: a case's
-      // control rewrites it. The row is marked anyway by its name and its id, which are both on
-      // the list and neither of which any case touches.
-      default_location: `${code} assembly green`,
+      // NO `default_location`. That column was the template's USUAL place, copied onto a
+      // segment that stated none; `20260819000007` drops it, and a step of kind `'location'`
+      // asks a named relative instead. `f.templateStep3` below is that step, seeded so the new
+      // kind is exercised by every read that publishes a step.
       // A people id, not an auth id, and it is this table's whole `own_expr`.
       created_by: owner.personId,
       who_may_schedule: 'family',
@@ -1547,18 +1455,26 @@ export async function seed() {
       budget_default_cents: 5000,
     }).select().single())
 
-    f.deletableStep = must('deletable template step', await db.from('gathering_template_steps').insert({
+    // A `location` STEP (20260819000007), which is what replaced the template's own
+    // `default_location`. Seeded on the LIVE template rather than the spare so it is in the
+    // projection of every step read a case checks, and `required: false` so it does not change
+    // what `taskProgress` says about the gathering built from this template.
+    f.templateStep3 = must('template step (location)', await db.from('gathering_template_steps').insert({
       family_code: code, template_id: f.template.id, position: 2,
+      label: `${code} assembly venue`, kind: 'location', required: false,
+      help_text: `${code} assembly venue note`,
+    }).select().single())
+
+    f.deletableStep = must('deletable template step', await db.from('gathering_template_steps').insert({
+      family_code: code, template_id: f.template.id, position: 3,
       label: `${code} spare assembly step`, kind: 'long_text',
     }).select().single())
 
     f.deletableTemplate = must('deletable gathering template', await db.from('gathering_templates').insert({
       family_code: code, name: `${code} spare assembly plan`,
-      // THE DEFAULT `addGatheringTemplate`'S CASE OBSERVES BEING COPIED. That case links this
-      // template to the spare gathering while stating a DAY and no PLACE, so the segment's
-      // `location` can only arrive from here — which is the copy-not-reference rule the tasks
-      // already follow, and the half of 20260819000001 §8 that a stated location would hide.
-      default_location: `${code} spare assembly lodge`,
+      // NO `default_location` — the column is dropped (20260819000007). `addGatheringTemplate`
+      // no longer copies anything onto a segment that states no place, so a segment linked
+      // from this template comes out with `location` NULL, which is what "not stated" is.
       created_by: owner.personId, who_may_schedule: 'admin',
     }).select().single())
 

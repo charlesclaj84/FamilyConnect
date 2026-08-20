@@ -3,6 +3,7 @@ import {
   GATHERING_STEP_KINDS,
   GATHERING_STEP_KIND_HINT,
   GATHERING_STEP_KIND_LABEL,
+  GATHERING_TASK_KINDS,
   GATHERING_STATUSES,
   GATHERING_STATUS_LABEL,
   GATHERING_TASK_STATUSES,
@@ -11,9 +12,11 @@ import {
   gatheringTiming,
   isCompleteAnswer,
   isGatheringStepKind,
+  isGatheringTaskKind,
   parseAnswer,
   taskProgress,
   type GatheringStepKind,
+  type GatheringTaskKind,
   type GatheringTaskStatus,
 } from './gatherings'
 
@@ -80,14 +83,44 @@ import {
 
 const ALL_KINDS: readonly GatheringStepKind[] = GATHERING_STEP_KINDS
 
+/**
+ * Every kind a TASK may carry — the step kinds minus `'template'`, which expands into the
+ * child template's steps and never becomes a task at all.
+ *
+ * The two lists are separate here because the module keeps them separate, and the module
+ * keeps them separate because `20260819000007` writes them into two CHECK constraints that
+ * deliberately disagree. Every answer test below walks THIS list; walking `ALL_KINDS` would be
+ * asking `parseAnswer` about a kind it has no branch for, which the compiler now refuses.
+ */
+const ANSWERABLE_KINDS: readonly GatheringTaskKind[] = GATHERING_TASK_KINDS
+
 /** A money formatter that is obviously a stub, so a test cannot pass by coincidence. */
 const money = (cents: number) => `<${cents}c>`
 
 describe('the vocabulary', () => {
-  it('offers exactly the seven step kinds, in the authored order', () => {
+  it('offers exactly the nine step kinds, in the authored order', () => {
     expect(GATHERING_STEP_KINDS).toEqual([
-      'text', 'long_text', 'date', 'list', 'yes_no', 'number', 'money',
+      'text', 'long_text', 'date', 'location', 'list', 'yes_no', 'number', 'money', 'template',
     ])
+  })
+
+  it('keeps `template` out of the TASK kinds, and nothing else', () => {
+    // The one asymmetry in this feature's vocabulary, and it is the whole of what a template
+    // step IS: it expands into the child template's steps when a gathering is built, so a
+    // task carrying that kind would be a row with no answerable field. `20260819000007`
+    // writes the same disagreement into two CHECK constraints and asserts it there too.
+    expect(GATHERING_TASK_KINDS).not.toContain('template')
+    expect([...GATHERING_TASK_KINDS].sort())
+      .toEqual([...GATHERING_STEP_KINDS].filter(k => k !== 'template').sort())
+  })
+
+  it('gives `location` its own kind rather than folding it into text', () => {
+    // It shares `text`'s STORED SHAPE and not its identity: a screen that knows an answer is
+    // a place can label it and one day map it, and the alternative — retyping steps between
+    // the two later — would leave stored answers that no longer parse.
+    expect(GATHERING_STEP_KINDS).toContain('location')
+    expect(parseAnswer('location', ' Zilker Park ')).toEqual({ text: 'Zilker Park' })
+    expect(parseAnswer('location', '   ')).toBeNull()
   })
 
   it('has no members kind — a step naming people is a list today', () => {
@@ -113,6 +146,12 @@ describe('the vocabulary', () => {
     // endpoint, so the only thing under an unchecked `kind` is the table's CHECK — a bare
     // 23514, which reads as a bug rather than as "that is not one of the seven".
     for (const kind of ALL_KINDS) expect(isGatheringStepKind(kind)).toBe(true)
+    for (const kind of ANSWERABLE_KINDS) expect(isGatheringTaskKind(kind)).toBe(true)
+    // The one that separates the two checks. `isGatheringTaskKind` is what the submit
+    // action calls, and a `'template'` arriving there is an expansion bug rather than a
+    // caller's typo — refused all the same, because the action is a public endpoint.
+    expect(isGatheringStepKind('template')).toBe(true)
+    expect(isGatheringTaskKind('template')).toBe(false)
     expect(isGatheringStepKind('members')).toBe(false)
     expect(isGatheringStepKind('TEXT')).toBe(false)
     expect(isGatheringStepKind('')).toBe(false)
@@ -307,7 +346,7 @@ describe('isCompleteAnswer', () => {
     // One rule, two questions. Written as two rules they drift, and the drift shows up as a
     // form that accepts what the server then refuses with nothing to point at.
     const samples: unknown[] = ['x', '', 0, false, null, { text: 'x' }, ['a'], 12.34, '2026-02-30']
-    for (const kind of ALL_KINDS) {
+    for (const kind of ANSWERABLE_KINDS) {
       for (const sample of samples) {
         expect(isCompleteAnswer(kind, sample)).toBe(parseAnswer(kind, sample) !== null)
       }

@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet, CalendarClock } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PnLData } from '@/app/actions/dues'
@@ -38,8 +38,13 @@ export function AccountPnLCard({ data }: Props) {
             <span className="text-sm text-muted-foreground font-medium">Total Spent</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalExpenseCents)}</p>
+          {/* IT COUNTED EVENT SPEND UNTIL 2026-08-19 and counts DISBURSEMENTS now — money
+              that actually left a fund, which is the only outgoing this product records since
+              the Events tables were dropped. The caption says which, because "Total Spent"
+              over a figure whose source has changed is the kind of number a treasurer
+              reconciles against a bank statement. */}
           <p className="text-xs text-muted-foreground">
-            {data.events.length === 0 ? 'No event spending' : `Across ${data.events.length} event${data.events.length !== 1 ? 's' : ''}`}
+            {data.totalExpenseCents === 0 ? 'Nothing paid out yet' : 'Paid out of the family’s funds'}
           </p>
         </div>
 
@@ -105,7 +110,10 @@ export function AccountPnLCard({ data }: Props) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{f.fundName}</p>
                     <p className="text-xs text-muted-foreground">
-                      In {formatCurrency(f.contributedCents)} · Disbursed {formatCurrency(f.disbursedCents)} · Spent {formatCurrency(f.expensedCents)}
+                      {/* TWO TERMS, NOT THREE. `expensedCents` was event spend and went with
+                          the tables; a third figure reading $0.00 on every fund forever is
+                          worse than one fewer figure. */}
+                      In {formatCurrency(f.contributedCents)} · Disbursed {formatCurrency(f.disbursedCents)}
                     </p>
                   </div>
                   <span className={`text-sm font-semibold shrink-0 ${f.balanceCents >= 0 ? 'text-brand-affirm' : 'text-destructive'}`}>
@@ -118,69 +126,15 @@ export function AccountPnLCard({ data }: Props) {
         </Card>
       )}
 
-      {/* ── Event Ledger ── */}
-      {data.events.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-primary" /> Event Budgets
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {data.events.map(ev => {
-              const remaining = ev.totalBudgetedCents - ev.totalSpentCents
-              const pct = ev.totalBudgetedCents > 0 ? Math.min(100, Math.round((ev.totalSpentCents / ev.totalBudgetedCents) * 100)) : 0
-              const over = ev.totalSpentCents > ev.totalBudgetedCents && ev.totalBudgetedCents > 0
-              return (
-                <div key={ev.eventId} className="rounded-xl border p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold">{ev.eventName}</p>
-                      {ev.backingFundName && <p className="text-xs text-muted-foreground">Backed by {ev.backingFundName}</p>}
-                    </div>
-                    <p className="text-xs text-muted-foreground text-right">
-                      Budgeted {formatCurrency(ev.totalBudgetedCents)}<br />
-                      Spent {formatCurrency(ev.totalSpentCents)}
-                    </p>
-                  </div>
+      {/* THE EVENT BUDGETS CARD WAS HERE AND IS GONE (2026-08-19).
+          It drew a bar per event of budgeted-against-spent, with its line items and its
+          backing fund. `20260819000006` dropped `events`, `event_budget_items`,
+          `event_expenses` and `funds.event_id`, so every figure it needed is gone.
 
-                  {ev.totalBudgetedCents > 0 && (
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div className={`h-full ${over ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
-                    </div>
-                  )}
-
-                  {ev.lineItems.length > 0 && (
-                    <div className="divide-y rounded-lg border">
-                      {ev.lineItems.map(li => {
-                        const liRemaining = li.budgetedCents - li.spentCents
-                        return (
-                          <div key={li.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                            <span className="font-medium">{li.title}</span>
-                            <span className="text-muted-foreground">
-                              {formatCurrency(li.spentCents)} / {formatCurrency(li.budgetedCents)} ·{' '}
-                              <span className={liRemaining < 0 ? 'text-destructive' : 'text-brand-affirm'}>
-                                {liRemaining < 0 ? `${formatCurrency(-liRemaining)} over` : `${formatCurrency(liRemaining)} left`}
-                              </span>
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {ev.unbudgetedSpentCents > 0 && (
-                    <p className="text-xs text-muted-foreground">Unbudgeted spend: {formatCurrency(ev.unbudgetedSpentCents)}</p>
-                  )}
-                  <p className={`text-xs font-medium ${remaining < 0 ? 'text-destructive' : 'text-brand-affirm'}`}>
-                    {remaining < 0 ? `${formatCurrency(-remaining)} over budget` : `${formatCurrency(remaining)} remaining`}
-                  </p>
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-      )}
+          THE THING IT DID IS NOT GONE, it moved: a gathering carries `budget_cents` on a
+          `fund_id` and each task carries a line against it, and `lib/gathering-budget.ts`
+          draws exactly this comparison on the gathering's own page. That is a better home
+          for it — a budget belongs to the occasion being planned, not to a statement. */}
     </div>
   )
 }

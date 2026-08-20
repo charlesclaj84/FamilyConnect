@@ -52,11 +52,9 @@ import { cn } from '@/lib/utils'
  * search ships, this is where it goes.
  */
 export default async function TopBar({
-  hasAssignments,
   viewable,
   isStaff = false,
 }: {
-  hasAssignments: boolean
   viewable: string[]
   /**
    * Whether this account may open the GENORRA staff console. Passed straight through to
@@ -162,7 +160,7 @@ export default async function TopBar({
     <header className="sticky top-0 z-30 bg-background">
       <div className={cn(PAGE_MEASURE, 'flex h-16 items-center gap-2')}>
         {/* Left: the drawer trigger, below md only. */}
-        <MobileNav hasAssignments={hasAssignments} viewable={viewable} />
+        <MobileNav viewable={viewable} />
 
         {/* `ml-auto`, NOT `justify-between` on the parent. The trigger beside this is
             `md:hidden`, and a `display: none` flex child is removed from layout entirely —

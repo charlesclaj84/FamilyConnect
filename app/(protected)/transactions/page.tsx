@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundContributions, getFundTransfers } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
@@ -58,8 +59,30 @@ export default async function TransactionsPage({
   // Which ledgers this caller may see at all. `can`, not `canAny`: a view scoped to
   // 'own' is a real grant — on Contributions and Disbursements it is the RLS predicate
   // that narrows the rows — so it opens the tab and lets the policy do the narrowing.
+  //
+  // ── AND `tierAllows`, WHICH IS WHY THIS IS TWO CHECKS AND NOT ONE ──────────────────
+  // Added 2026-08-19, when Fund Transfers became a Plus capability on a Free page. It is
+  // the `canViewOrganization` shape from `/admin/users`: a page whose grants it resolves
+  // by hand owes the tier check by hand, because §1's `requireView` — which folds
+  // `requireTier` and `requireFamilyActive` in so no page has to remember them — answers
+  // for the PAGE key (`transactions`, Free) and knows nothing about the panes.
+  //
+  // It is applied to all five rather than to transfers alone, deliberately. Four of them
+  // resolve Free through `getFeature()`'s longest-prefix match on `/transactions`, so the
+  // extra term decides nothing for them today — and the next capability sold separately
+  // becomes one `tier:` line in `lib/features.ts` rather than an edit here that somebody
+  // has to remember to make. A special case for the one ledger that currently differs is
+  // how the other four come to be missed.
+  //
+  // GATING THE FETCH IS THE POINT, NOT THE TAB (§5). `visibleLedgers` is what decides
+  // both the rail and every `canSee(...)` query below, so a Free family's request never
+  // reads `fund_transfers` at all — a hidden tab over rows already in the RSC payload
+  // would have published them.
   const ledgerViews = await Promise.all(
-    LEDGERS.map(id => can(user.id, LEDGER_RESOURCE[id], 'view')),
+    LEDGERS.map(async id =>
+      (await can(user.id, LEDGER_RESOURCE[id], 'view'))
+      && (await tierAllows(user.id, LEDGER_RESOURCE[id])),
+    ),
   )
   const visibleLedgers = LEDGERS.filter((_, i) => ledgerViews[i])
   const canSee = (id: Ledger) => visibleLedgers.includes(id)

@@ -6,15 +6,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────
  * A dues schedule with $4,000 collected against it could be deleted from the Accounting
  * screen, and the delete SUCCEEDED. Reported 2026-08-17, and it is the shape rather than
- * the one screen: five records in this schema can be deleted while money points at them,
- * and the schema does two DIFFERENT wrong things depending on which:
+ * the one screen: records in this schema can be deleted while money points at them, and the
+ * schema does two DIFFERENT wrong things depending on which:
  *
  *   dues_schedules      dues_payments.schedule_id      ON DELETE SET NULL   ORPHANS it
  *   fund_milestones     fund_disbursements.milestone_id ON DELETE SET NULL  ORPHANS it
- *   event_budget_items  event_expenses.budget_item_id   ON DELETE SET NULL  ORPHANS it
  *   funds               fund_contributions.fund_id      ON DELETE CASCADE   DESTROYS it
  *                       fund_disbursements.fund_id      ON DELETE CASCADE   DESTROYS it
- *   events              event_expenses.event_id         ON DELETE CASCADE   DESTROYS it
  *
  * The SET NULL cases leave the ledger rows intact and unattributable — the money is still
  * counted, and nothing says what it was for. The CASCADE cases are worse: the rows go, so
@@ -23,8 +21,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * `fund_disbursements` permit exactly one delete path — the cascade from a parent that is
  * already gone — which is the path being taken.
  *
+ * TWO OF THE FIVE WERE `events` AND `event_budget_items`, and both are gone with the Events
+ * product (`20260819000006`) along with `event_expenses`, the table that was the money in
+ * both rows. Their entries here are deleted rather than left as documentation, because this
+ * list is what a delete action is checked AGAINST — a row naming a dropped table would make
+ * a query fail rather than a reader wiser.
+ *
  * So: one rule, in one place, consulted by every delete action that can reach money.
- * Five copies of it would be five chances to omit one, which is how there came to be
+ * A copy per action would be a chance per action to omit one, which is how there came to be
  * three.
  *
  * ── WHY THE GUARD IS HERE AND NOT A FOREIGN-KEY CONSTRAINT ─────────────────────────
@@ -74,8 +78,6 @@ export interface MoneyAttached {
   disbursements: number
   /** Transfers it has been either side of. */
   transfers: number
-  /** Event expenses charged to it. */
-  expenses: number
   /**
    * Gatherings drawing on it — a budget the family has committed against this fund.
    *
@@ -111,7 +113,7 @@ export interface MoneyAttached {
 }
 
 const NONE: MoneyAttached = {
-  any: false, payments: 0, contributions: 0, disbursements: 0, transfers: 0, expenses: 0,
+  any: false, payments: 0, contributions: 0, disbursements: 0, transfers: 0,
   gatherings: 0,
 }
 
@@ -124,8 +126,6 @@ export type MoneyBearing =
   | 'dues_schedule'
   | 'fund'
   | 'fund_milestone'
-  | 'event'
-  | 'event_budget_item'
 
 /**
  * COUNT-ONLY QUERIES, one per referencing table, `head: true` so no rows come back.
@@ -185,44 +185,37 @@ export async function moneyAttachedTo(
       return { ...NONE, payments, any: payments > 0 }
     }
     case 'fund': {
-      // FIVE referencing tables, and every one of them matters. Contributions and
+      // FOUR referencing tables, and every one of them matters. Contributions and
       // disbursements CASCADE, so deleting the fund destroys them; transfers CASCADE and
-      // would rewrite the OTHER fund's balance; expenses SET NULL and would leave an
-      // event's spend charged to nothing. `deleteFund` refused on transfers alone.
+      // would rewrite the OTHER fund's balance. `deleteFund` refused on transfers alone.
       //
-      // `gatherings` IS THE FIFTH and it is not a ledger — it is a COMMITMENT, which is
-      // why it took a schema to find it. 20260819000000 gives a gathering a budget drawn
-      // on a fund, `fund_id` SET NULL, and a CHECK (`gatherings_budget_needs_fund`) that
-      // a budget names a fund. So it does something none of the four above do, and in two
-      // opposite ways depending on whether an amount has been typed in: with a budget set,
-      // the fund DELETE is REFUSED outright with a bare 23514 (the RI SET NULL is an
-      // ordinary UPDATE and the CHECK is enforced on it); with no budget set, the link is
-      // severed with no error at all. This count is what turns the first into a sentence
-      // and what notices the second. Both measured; see the field's comment.
-      const [contributions, disbursements, transfers, expenses, gatherings] = await Promise.all([
+      // There was a FIFTH, `event_expenses` (SET NULL, leaving an event's spend charged to
+      // nothing), and that table is dropped — `20260819000006`.
+      //
+      // `gatherings` IS NOT A LEDGER — it is a COMMITMENT, which is why it took a schema to
+      // find it. 20260819000000 gives a gathering a budget drawn on a fund, `fund_id` SET
+      // NULL, and a CHECK (`gatherings_budget_needs_fund`) that a budget names a fund. So it
+      // does something none of the three above do, and in two opposite ways depending on
+      // whether an amount has been typed in: with a budget set, the fund DELETE is REFUSED
+      // outright with a bare 23514 (the RI SET NULL is an ordinary UPDATE and the CHECK is
+      // enforced on it); with no budget set, the link is severed with no error at all. This
+      // count is what turns the first into a sentence and what notices the second. Both
+      // measured; see the field's comment.
+      const [contributions, disbursements, transfers, gatherings] = await Promise.all([
         count('fund_contributions', `fund_id.eq.${id}`),
         count('fund_disbursements', `fund_id.eq.${id}`),
         count('fund_transfers', `from_fund_id.eq.${id},to_fund_id.eq.${id}`),
-        count('event_expenses', `fund_id.eq.${id}`),
         count('gatherings', `fund_id.eq.${id}`),
       ])
       return {
         ...NONE,
-        contributions, disbursements, transfers, expenses, gatherings,
-        any: contributions + disbursements + transfers + expenses + gatherings > 0,
+        contributions, disbursements, transfers, gatherings,
+        any: contributions + disbursements + transfers + gatherings > 0,
       }
     }
     case 'fund_milestone': {
       const disbursements = await count('fund_disbursements', `milestone_id.eq.${id}`)
       return { ...NONE, disbursements, any: disbursements > 0 }
-    }
-    case 'event': {
-      const expenses = await count('event_expenses', `event_id.eq.${id}`)
-      return { ...NONE, expenses, any: expenses > 0 }
-    }
-    case 'event_budget_item': {
-      const expenses = await count('event_expenses', `budget_item_id.eq.${id}`)
-      return { ...NONE, expenses, any: expenses > 0 }
     }
   }
 }
@@ -259,7 +252,6 @@ export function moneyAttachedMessage(noun: string, attached: MoneyAttached): str
   if (attached.contributions) parts.push(plural(attached.contributions, 'contribution', 'contributions'))
   if (attached.disbursements) parts.push(plural(attached.disbursements, 'disbursement', 'disbursements'))
   if (attached.transfers) parts.push(plural(attached.transfers, 'transfer', 'transfers'))
-  if (attached.expenses) parts.push(plural(attached.expenses, 'expense', 'expenses'))
   // "1 gathering" rather than "1 gathering budget": the count includes a gathering that
   // names this fund and has not had an amount typed into it yet (see the field comment),
   // and naming a budget that does not exist yet would be the one part of this sentence a

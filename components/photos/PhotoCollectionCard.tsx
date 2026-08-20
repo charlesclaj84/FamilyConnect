@@ -25,9 +25,6 @@ export function PhotoCollectionCard({ collection }: Props) {
       </div>
       <div className="px-3 py-2.5">
         <p className="font-medium text-sm truncate">{collection.name}</p>
-        {collection.event_name && (
-          <p className="text-xs text-muted-foreground truncate">{collection.event_name}</p>
-        )}
         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
           <Camera className="h-3 w-3" />
           {collection.photo_count} photo{collection.photo_count !== 1 ? 's' : ''}

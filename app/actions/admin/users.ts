@@ -16,103 +16,21 @@ export interface FamilyRole {
   sort_order: number
 }
 
-export interface AssignedRole extends FamilyRole {
-  assignment_id: string
-  assignment_scope: 'national' | 'regional' | 'chapter'
-  chapter_id: string | null
-  chapter_name: string | null
-  region_id: string | null
-  region_name: string | null
-}
-
-export interface MemberWithRoles {
-  people_id: string
-  user_id: string
-  first_name: string | null
-  last_name: string | null
-  primary_email: string | null
-  chapter_id: string | null
-  chapter_name: string | null
-  roles: AssignedRole[]
-}
-
 export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
 
 /**
- * The family's members with the board positions each holds. Read by the Event Detail screen.
+ * `getFamilyMembersWithRoles()` AND ITS TWO TYPES WERE DELETED ON 2026-08-19, with Events.
  *
- * IT DEMANDED NOTHING BUT A SESSION until 2026-08-19 — and it publishes the whole roster
- * including `primary_email` through the service role, so a session was not enough. The gate
- * is `admin/events:view`, matching the ONE page that calls it. `requireRead` rather than
- * `requireScope` because `requireView` on that page is `can()`: a caller who may open it must
- * not find its member panel mysteriously empty.
+ * It published the whole roster — `primary_email` included — through the service role, and
+ * its one caller was the Event Detail screen. That screen is gone, and a `'use server'` export
+ * with no caller is not dead code: it is a live HTTP endpoint nobody exercises, which is
+ * exactly the shape AGENTS.md records two afternoons of finding holes in. Its gate was
+ * `admin/events:view`, a key `20260819000006` deletes, so leaving it would also have left a
+ * function resolving a resource that no longer exists.
+ *
+ * `AssignedRole` and `MemberWithRoles` went with it, having no other reader. `FamilyRole`
+ * above stays — the Elections position picker below returns it.
  */
-export async function getFamilyMembersWithRoles(): Promise<MemberWithRoles[]> {
-  const g = await requireRead('admin/events')
-  if (!g.ok) return []
-
-  const familyCode = g.familyCode
-  const admin = createAdminClient()
-
-  const { data: people, error: peopleError } = await admin
-    .from('people')
-    .select('id, user_id, first_name, last_name, primary_email, chapter_id, chapters(name)')
-    .eq('family_code', familyCode)
-    .not('user_id', 'is', null)
-    .order('last_name')
-    .order('first_name')
-
-  // §8, both halves. `data` alone cannot tell a refused query from a family of one, and the
-  // failure mode here is the one AGENTS.md §8 is written about: a junction table added later
-  // to either embedded pair makes these PGRST201, `people` comes back `undefined`, the guard
-  // below returns `[]`, and the Event Detail screen renders "no members" over a family of a
-  // hundred and forty with nothing in the log.
-  if (peopleError) {
-    console.error(`[users] member roster read failed for ${familyCode}: ${peopleError.message}`)
-    return []
-  }
-  if (!people?.length) return []
-
-  const userIds = people.map(p => p.user_id as string)
-  const { data: userRoles, error: rolesError } = await admin
-    .from('user_roles')
-    .select('id, user_id, role_id, scope, chapter_id, region_id, family_roles(id, name, category, sort_order, scope), chapters(name), regions(name)')
-    .eq('family_code', familyCode)
-    .in('user_id', userIds)
-
-  if (rolesError) {
-    console.error(`[users] role read failed for ${familyCode}: ${rolesError.message}`)
-    // NOT fatal, and the asymmetry is deliberate: a lost roles read costs the titles beside
-    // the names, and failing the whole panel over it would trade a missing caption for a
-    // missing roster. Same trade `app/actions/members.ts` makes on the same two tables.
-  }
-
-  const rolesByUserId: Record<string, AssignedRole[]> = {}
-  for (const ur of userRoles ?? []) {
-    const role = ur.family_roles as unknown as FamilyRole
-    if (!rolesByUserId[ur.user_id]) rolesByUserId[ur.user_id] = []
-    if (role) rolesByUserId[ur.user_id].push({
-      ...role,
-      assignment_id:    ur.id,
-      assignment_scope: ur.scope as 'national' | 'regional' | 'chapter',
-      chapter_id:       ur.chapter_id ?? null,
-      chapter_name:     (ur.chapters as unknown as { name: string } | null)?.name ?? null,
-      region_id:        (ur as { region_id?: string | null }).region_id ?? null,
-      region_name:      (ur.regions as unknown as { name: string } | null)?.name ?? null,
-    })
-  }
-
-  return people.map(p => ({
-    people_id:    p.id,
-    user_id:      p.user_id as string,
-    first_name:   p.first_name,
-    last_name:    p.last_name,
-    primary_email: p.primary_email,
-    chapter_id:   p.chapter_id ?? null,
-    chapter_name: (p.chapters as unknown as { name: string } | null)?.name ?? null,
-    roles:        (rolesByUserId[p.user_id as string] ?? []).sort((a, b) => a.sort_order - b.sort_order),
-  }))
-}
 
 /**
  * The board positions this family has, for the Elections screen's position dropdown.

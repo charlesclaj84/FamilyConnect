@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CirclePlus, ClipboardCheck, Star, Trash2 } from 'lucide-react'
+import { CalendarDays, CirclePlus, ClipboardCheck, LayoutList, Star, Trash2 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,9 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import { MainRail } from '@/components/layout/MainRail'
+import { AdminGatheringTemplatesClient } from '@/components/admin/AdminGatheringTemplatesClient'
+import { ADMIN_GATHERING_PANES, type AdminGatheringPane } from '@/lib/gathering-panes'
+import type { GatheringTemplate } from '@/app/actions/admin/gathering-templates'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { GATHERING_PILL_SHAPE, GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
@@ -75,16 +78,25 @@ import {
  * that sentence is surfaced verbatim.
  */
 
-export type AdminGatheringPane = 'gatherings' | 'queue'
-
+/**
+ * THE PANE IDS LIVE IN `lib/gathering-panes.ts`, not here.
+ *
+ * This file is `'use client'`, and the PAGE has to validate `?pane=` before it decides what to
+ * fetch. A Server Component importing a runtime value out of a client module gets a client
+ * REFERENCE rather than the value — `/announcements` rendered its error boundary on exactly
+ * that, `ANNOUNCEMENT_PANES.includes is not a function` — so ids and order are pure data and
+ * only the ICONS and LABELS, which are client concerns, are here.
+ */
 const PANE_LABEL: Record<AdminGatheringPane, string> = {
   gatherings: 'Gatherings',
   queue:      'Review queue',
+  templates:  'Templates',
 }
 
 const PANE_ICON = {
   gatherings: CalendarDays,
   queue:      ClipboardCheck,
+  templates:  LayoutList,
 } as const
 
 interface TemplateOption {
@@ -108,6 +120,24 @@ interface Props {
   mayCreate: boolean
   mayEdit: boolean
   mayDelete: boolean
+  /**
+   * `admin/gatherings:view` — whether the Gatherings and Review queue panes exist at all.
+   *
+   * FALSE IS A REAL STATE since the template library became a pane here: a family may grant
+   * somebody the library and not the console, and that caller lands on this screen with
+   * Templates as the only tab. The PAGE 404s a caller holding neither, and skips both fetches
+   * when this is false — so `initialGatherings` and `initialQueue` are empty rather than
+   * fetched-and-hidden (§5).
+   */
+  mayViewConsole: boolean
+
+  // ── The Templates pane ────────────────────────────────────────────────────────────
+  /** `admin/gathering-templates:view`. False means the library was never read. */
+  mayViewTemplates: boolean
+  libraryTemplates: GatheringTemplate[]
+  mayCreateTemplates: boolean
+  mayEditTemplates: boolean
+  mayDeleteTemplates: boolean
   /** `gatherings/budget:view`. False means no money was fetched at all, not merely hidden. */
   mayManageBudget: boolean
   /**
@@ -134,6 +164,8 @@ function progressCaption(counts: TaskProgress): string {
 export function AdminGatheringsClient({
   initialPane, initialGatherings, initialQueue, templates, funds,
   mayCreate, mayEdit, mayDelete, mayManageBudget, mayAuthorTemplates,
+  mayViewConsole, mayViewTemplates, libraryTemplates,
+  mayCreateTemplates, mayEditTemplates, mayDeleteTemplates,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -180,19 +212,29 @@ export function AdminGatheringsClient({
 
   return (
     <div className="space-y-5">
+      {/* Built from what the caller may actually see, so a visible tab always leads somewhere
+          they can go. The two console panes share one grant and travel together; Templates has
+          its own, and a family really does split them — an organizer who runs the gatherings is
+          not necessarily the person who authors the checklists.
+
+          The create trigger is PER PANE. "New gathering" belongs to the list and would be a
+          non sequitur over the library, whose own inline "Add a template" form is part of the
+          pane (see `AdminGatheringTemplatesClient`) rather than a rail action. */}
       <MainRail
         label="Gathering management areas"
-        items={(['gatherings', 'queue'] as const).map(id => ({
-          id,
-          label: id === 'queue' && queue.length > 0
-            ? `${PANE_LABEL[id]} (${queue.length})`
-            : PANE_LABEL[id],
-          icon: PANE_ICON[id],
-          href: `/admin/gatherings?pane=${id}`,
-        }))}
+        items={ADMIN_GATHERING_PANES
+          .filter(id => (id === 'templates' ? mayViewTemplates : mayViewConsole))
+          .map(id => ({
+            id,
+            label: id === 'queue' && queue.length > 0
+              ? `${PANE_LABEL[id]} (${queue.length})`
+              : PANE_LABEL[id],
+            icon: PANE_ICON[id],
+            href: `/admin/gatherings?pane=${id}`,
+          }))}
         active={pane}
         onSelect={selectPane}
-        action={mayCreate && (
+        action={pane !== 'templates' && mayCreate && (
           <Button variant="affirm" onClick={() => setCreating(true)}>
             <CirclePlus className="h-4 w-4 mr-1" /> New gathering
           </Button>
@@ -200,7 +242,20 @@ export function AdminGatheringsClient({
       />
 
       <div className="mt-5 min-w-0 space-y-4">
-        {pane === 'gatherings' ? (
+        {pane === 'templates' ? (
+          // Both conjuncts kept, as everywhere else in this tree: the page falls back to a pane
+          // the caller can open, so the second should never decide anything — which is exactly
+          // why it is written down. A stale `?pane=` plus a grant removed mid-session must not
+          // render a library over `[]` and call it empty.
+          mayViewTemplates && (
+            <AdminGatheringTemplatesClient
+              initialTemplates={libraryTemplates}
+              mayCreate={mayCreateTemplates}
+              mayEdit={mayEditTemplates}
+              mayDelete={mayDeleteTemplates}
+            />
+          )
+        ) : pane === 'gatherings' ? (
           <>
             <FormError message={listError} />
             {gatherings.length === 0 ? (

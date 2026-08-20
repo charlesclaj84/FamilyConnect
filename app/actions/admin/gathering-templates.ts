@@ -68,6 +68,23 @@ export interface TemplateStep {
   kind: GatheringStepKind
   required: boolean
   budgetDefaultCents: number | null
+  /**
+   * For a step of kind `'template'`: the template this step INCLUDES. Null for every other
+   * kind, and the database locks the two together in both directions
+   * (`gathering_template_steps_child_matches_kind`).
+   *
+   * A step of this kind is not answered by anybody. When a gathering is built, it expands
+   * into the child template's own steps — see `instantiateTemplateTasks`, which is where the
+   * recursion lives and where the depth guard is.
+   */
+  childTemplateId: string | null
+  /**
+   * The child's name, for the screen. Resolved from the templates already read rather than
+   * joined, because the library read has all of them in hand — and because a step whose child
+   * the caller cannot see (an 'own'-scope grant, a template somebody else authored) gets
+   * `null` here rather than a name leaking out of a row that was filtered out.
+   */
+  childTemplateName: string | null
 }
 
 export interface GatheringTemplate {
@@ -77,20 +94,17 @@ export interface GatheringTemplate {
   whoMaySchedule: GatheringTemplateScheduler
   isArchived: boolean
   /**
-   * Where a segment built from this template is USUALLY held — `gathering_templates.default_location`
-   * (20260819000001), null for "not stated".
+   * THERE IS NO `defaultLocation` ANY MORE, and its absence is the decision rather than an
+   * omission. `gathering_templates.default_location` was a template AUTHOR stating where this
+   * kind of gathering is usually held, copied onto every segment built from it — a guess at a
+   * fact that belongs to one occasion, which then had to be corrected on each segment it
+   * landed on. `20260819000007` drops the column and the answer is a step of kind
+   * `'location'`: the template says somebody has to settle the venue, and a named relative
+   * settles it with a due date and a review, like every other fact about a gathering.
    *
-   * IT IS A DEFAULT THAT IS COPIED, NEVER A PLACE THAT IS READ THROUGH. When a template is
-   * linked to a gathering, `attachTemplatesToGathering` writes this value onto
-   * `gathering_template_uses.location` and the segment owns it from then on. That is the same
-   * copy-not-reference rule `gathering_tasks.label` follows and it matters more here, not less:
-   * a segment is a thing PEOPLE HAVE BEEN TOLD ABOUT, so editing "Family Picnic" next month to
-   * say it is usually at Zilker must not silently move a picnic forty relatives already have
-   * directions to. There is deliberately no trigger and no DEFAULT expression in the database
-   * doing the copy — the migration asserts a freshly linked segment comes out NULL if the
-   * action does not do it.
+   * `gathering_template_uses.location` is untouched. A segment's own place is still stated per
+   * segment, by `setGatheringSegment`, and every value already copied onto one stayed there.
    */
-  defaultLocation: string | null
   steps: TemplateStep[]
   /**
    * Gatherings built from this template — the count of `gathering_template_uses` rows.
@@ -135,6 +149,30 @@ function readBudget(value: number | null | undefined): { ok: true; cents: number
   return { ok: true, cents: value }
 }
 
+/**
+ * The `childTemplateId` a caller sent, checked against the `kind` they sent with it.
+ *
+ * The database locks the two together in both directions
+ * (`gathering_template_steps_child_matches_kind`), so this is the layer that turns each half
+ * of that CHECK into a sentence somebody can act on rather than a 23514. It does NOT verify
+ * the id belongs to the family — that is §4 and it needs a query, so it stays at the call
+ * sites where the family code is in hand.
+ */
+function readChild(
+  kind: GatheringStepKind,
+  value: string | null | undefined,
+): { ok: true; templateId: string | null } | { ok: false; message: string } {
+  if (kind === 'template') {
+    const id = typeof value === 'string' ? value.trim() : ''
+    if (!id) return { ok: false, message: 'Pick the template this step includes' }
+    return { ok: true, templateId: id }
+  }
+  // A child on any other kind is a reference nothing would ever read — refused rather than
+  // dropped silently, because a caller sending one has misunderstood what they are building.
+  if (value) return { ok: false, message: 'Only a template step can include another template' }
+  return { ok: true, templateId: null }
+}
+
 // ── Reading the library ────────────────────────────────────────────────────────
 
 /** The row shapes the three reads below return, declared rather than inferred. */
@@ -142,7 +180,6 @@ interface TemplateRow {
   id: string
   name: string
   description: string | null
-  default_location: string | null
   who_may_schedule: string
   is_archived: boolean
   created_by: string | null
@@ -157,6 +194,7 @@ interface StepRow {
   kind: string
   required: boolean
   budget_default_cents: number | null
+  child_template_id: string | null
 }
 
 /**
@@ -200,7 +238,7 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
   const admin = createAdminClient()
   const base = admin
     .from('gathering_templates')
-    .select('id, name, description, default_location, who_may_schedule, is_archived, created_by')
+    .select('id, name, description, who_may_schedule, is_archived, created_by')
     .eq('family_code', g.familyCode)
   // The narrowing goes on BEFORE the ordering, because `.order()` returns a transform
   // builder that has no `.eq()` left on it — a filter chained after a sort does not compile.
@@ -225,7 +263,7 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
 
   const [stepsRes, usesRes] = await Promise.all([
     admin.from('gathering_template_steps')
-      .select('id, template_id, position, label, help_text, kind, required, budget_default_cents')
+      .select('id, template_id, position, label, help_text, kind, required, budget_default_cents, child_template_id')
       .eq('family_code', g.familyCode)
       .in('template_id', ids)
       // `ORDER BY position, created_at` — the read order the migration's comment names,
@@ -238,6 +276,12 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
       .eq('family_code', g.familyCode)
       .in('template_id', ids),
   ])
+
+  // Names for the `template` steps, and ONLY of templates this read already returned. A step
+  // whose child was filtered out by the 'own' narrowing gets a null name and the screen says
+  // so — resolving it with a second query would publish the name of a template the caller was
+  // deliberately not shown (§5).
+  const nameById = new Map<string, string>(templates.map(t => [t.id, t.name]))
 
   const stepsByTemplate = new Map<string, TemplateStep[]>()
   if (stepsRes.error) {
@@ -253,11 +297,13 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
         position:           row.position,
         label:              row.label,
         helpText:           row.help_text ?? null,
-        // The column CHECKs the same seven values, so this is a narrowing rather than a
+        // The column CHECKs the same nine values, so this is a narrowing rather than a
         // guess — and `isGatheringStepKind` is what makes it one the compiler can see.
         kind:               isGatheringStepKind(row.kind) ? row.kind : 'text',
         required:           row.required,
         budgetDefaultCents: row.budget_default_cents ?? null,
+        childTemplateId:    row.child_template_id ?? null,
+        childTemplateName:  row.child_template_id ? nameById.get(row.child_template_id) ?? null : null,
       })
       stepsByTemplate.set(row.template_id, list)
     }
@@ -277,14 +323,13 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
   }
 
   return templates.map(t => ({
-    id:              t.id,
-    name:            t.name,
-    description:     t.description ?? null,
-    defaultLocation: t.default_location ?? null,
-    whoMaySchedule:  isScheduler(t.who_may_schedule) ? t.who_may_schedule : 'admin',
-    isArchived:      t.is_archived,
-    steps:           stepsByTemplate.get(t.id) ?? [],
-    usedByCount:     uses.get(t.id) ?? 0,
+    id:             t.id,
+    name:           t.name,
+    description:    t.description ?? null,
+    whoMaySchedule: isScheduler(t.who_may_schedule) ? t.who_may_schedule : 'admin',
+    isArchived:     t.is_archived,
+    steps:          stepsByTemplate.get(t.id) ?? [],
+    usedByCount:    uses.get(t.id) ?? 0,
   }))
 }
 
@@ -293,13 +338,6 @@ export async function getGatheringTemplates(): Promise<GatheringTemplate[]> {
 export async function createGatheringTemplate(input: {
   name: string
   description?: string
-  /**
-   * The **Usual location** field — optional, and `.trim() || null` below so an empty box is
-   * "not stated" rather than an empty string. A segment's place is "the pavilion by the lake" as
-   * often as it is a street address, which is why it is one line of free text like
-   * `gatherings.location` and not an `addresses` reference.
-   */
-  defaultLocation?: string | null
   whoMaySchedule: GatheringTemplateScheduler
 }): Promise<ActionResult & { templateId?: string }> {
   const g = await requireScope(RESOURCE, 'create')
@@ -326,7 +364,6 @@ export async function createGatheringTemplate(input: {
       family_code:      g.familyCode,
       name,
       description:      input.description?.trim() || null,
-      default_location: input.defaultLocation?.trim() || null,
       who_may_schedule: input.whoMaySchedule,
       created_by:       g.personId,
     })
@@ -361,17 +398,6 @@ export async function updateGatheringTemplate(input: {
   templateId: string
   name?: string
   description?: string | null
-  /**
-   * Absent is "leave it alone", explicit `null` is "clear it" — the same convention
-   * `description` beside it uses, and typed `string | null` for the same reason.
-   *
-   * CHANGING THIS MOVES NOTHING THAT ALREADY EXISTS, which is the whole point of the copy: every
-   * gathering already built from this template keeps the place it was given. That is stated here
-   * as well as on the interface because this is the function somebody will reach for when they
-   * mean "move the picnic", and it is not the one — `setGatheringSegment` in
-   * app/actions/admin/gatherings.ts is.
-   */
-  defaultLocation?: string | null
   whoMaySchedule?: GatheringTemplateScheduler
   isArchived?: boolean
 }): Promise<ActionResult> {
@@ -398,9 +424,6 @@ export async function updateGatheringTemplate(input: {
   }
   if (input.description !== undefined) {
     patch.description = input.description?.trim() || null
-  }
-  if (input.defaultLocation !== undefined) {
-    patch.default_location = input.defaultLocation?.trim() || null
   }
   if (input.whoMaySchedule !== undefined) {
     if (!isScheduler(input.whoMaySchedule)) {
@@ -525,6 +548,25 @@ export async function deleteGatheringTemplate(templateId: string): Promise<Actio
 
 // ── Steps ──────────────────────────────────────────────────────────────────────
 
+/**
+ * ── A STEP MAY BE ANOTHER TEMPLATE, AND `childTemplateId` IS HOW ───────────────────
+ * Kind `'template'` and a `childTemplateId` are locked to each other in both directions, by
+ * the database (`gathering_template_steps_child_matches_kind`) and by the two branches below.
+ * Such a step is never handed to anybody: it expands into the child template's own steps when
+ * a gathering is built — `instantiateTemplateTasks` is where the recursion and its depth guard
+ * live.
+ *
+ * `childTemplateId` IS AN ID FROM THE CLIENT, so it gets §4's treatment exactly as
+ * `templateId` does: it is verified to belong to this family before it is written. The
+ * database refuses it underneath as well — `tg_gathering_template_step_same_family()` was
+ * widened to walk it — because this runs on the SERVICE ROLE and no policy is in the path.
+ *
+ * AND IT MUST NOT MAKE A LOOP. A template containing itself, directly or through three hops,
+ * makes instantiation non-terminating. The trigger refuses it in SQL with a recursive walk,
+ * which is the layer that cannot be skipped by a second write path; this action does not
+ * re-walk the graph in TypeScript, because two implementations of one rule is how they come
+ * to disagree — it surfaces the trigger's own sentence instead.
+ */
 export async function addTemplateStep(input: {
   templateId: string
   label: string
@@ -532,6 +574,8 @@ export async function addTemplateStep(input: {
   helpText?: string
   required?: boolean
   budgetDefaultCents?: number | null
+  /** Required when `kind` is `'template'`, and refused for every other kind. */
+  childTemplateId?: string | null
 }): Promise<ActionResult & { stepId?: string }> {
   const g = await requireScope(RESOURCE, 'create')
   if (!g.ok) return { success: false, message: g.message }
@@ -540,15 +584,28 @@ export async function addTemplateStep(input: {
   if (!label) return { success: false, message: 'A step needs a label' }
   // Checked at runtime for the reason `isGatheringStepKind`'s own comment gives: the
   // annotation is erased, the endpoint is public, and the only thing left underneath is a
-  // CHECK whose 23514 reads as a bug rather than as "that is not one of the seven".
+  // CHECK whose 23514 reads as a bug rather than as "that is not one of the nine".
   if (!isGatheringStepKind(input.kind)) return { success: false, message: 'Choose what the step asks for' }
   const budget = readBudget(input.budgetDefaultCents)
   if (!budget.ok) return { success: false, message: 'A suggested budget must be a whole number of cents, and not negative' }
+
+  const child = readChild(input.kind, input.childTemplateId)
+  if (!child.ok) return { success: false, message: child.message }
 
   // §4. The step carries the caller's own family_code — which satisfies every policy — while
   // `template_id` could name another family's template. Verified before it is written.
   if (!(await belongsToFamily('gathering_templates', input.templateId, g.familyCode))) {
     return { success: false, message: 'Template not found' }
+  }
+  // The SECOND id from the client, and it gets the same look. The one-hop loop is refused
+  // here as well as by a CHECK, so the caller reads a sentence rather than a constraint name.
+  if (child.templateId) {
+    if (child.templateId === input.templateId) {
+      return { success: false, message: 'A template cannot include itself' }
+    }
+    if (!(await belongsToFamily('gathering_templates', child.templateId, g.familyCode))) {
+      return { success: false, message: 'That template was not found' }
+    }
   }
 
   const admin = createAdminClient()
@@ -578,10 +635,15 @@ export async function addTemplateStep(input: {
       kind:                 input.kind,
       required:             input.required === true,
       budget_default_cents: budget.cents,
+      child_template_id:    child.templateId,
     })
     .select('id')
     .single()
 
+  // The trigger's own sentence, surfaced verbatim when it is one a person can act on. A loop
+  // through several templates is refused in SQL and nowhere else — see the header — so
+  // swallowing this into "Could not add that step" would leave an author with no idea which
+  // of the templates they picked closed the circle.
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/gathering-templates')
   return { success: true, stepId: data.id }
@@ -603,6 +665,7 @@ export async function updateTemplateStep(input: {
   helpText?: string | null
   required?: boolean
   budgetDefaultCents?: number | null
+  childTemplateId?: string | null
 }): Promise<ActionResult> {
   const g = await requireEdit(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
@@ -617,9 +680,26 @@ export async function updateTemplateStep(input: {
     if (!label) return { success: false, message: 'A step needs a label' }
     patch.label = label
   }
+  // KIND AND CHILD MOVE TOGETHER OR NOT AT ALL, because the database locks them to each other
+  // and a patch that changed one alone would be refused by a CHECK with nothing useful to say.
+  // Sending `kind` without `childTemplateId` is therefore read as "and clear the child", which
+  // is exactly right for retyping a template step into a short-answer one; the screen sends
+  // both, and this is what makes a caller that does not still write a coherent row.
   if (input.kind !== undefined) {
     if (!isGatheringStepKind(input.kind)) return { success: false, message: 'Choose what the step asks for' }
+    const child = readChild(input.kind, input.childTemplateId)
+    if (!child.ok) return { success: false, message: child.message }
     patch.kind = input.kind
+    patch.child_template_id = child.templateId
+  } else if (input.childTemplateId !== undefined) {
+    // A child without a kind is a caller changing which template a `template` step includes.
+    // The kind is not read back off the row for it: the CHECK underneath refuses the pair if
+    // the row is not a `template` step, and a read-modify-write here would race a concurrent
+    // retype of the same step.
+    if (!input.childTemplateId) {
+      return { success: false, message: 'Pick the template this step includes' }
+    }
+    patch.child_template_id = input.childTemplateId
   }
   if (input.helpText !== undefined) patch.help_text = input.helpText?.trim() || null
   if (input.required !== undefined) {
@@ -633,6 +713,15 @@ export async function updateTemplateStep(input: {
   }
 
   if (Object.keys(patch).length === 0) return { success: false, message: 'Nothing to change' }
+
+  // §4 on the second id, same as `addTemplateStep`. The one-hop loop is caught here so the
+  // author reads a sentence; the multi-hop one is the trigger's, whose message is surfaced.
+  if (typeof patch.child_template_id === 'string') {
+    const childId = patch.child_template_id
+    if (!(await belongsToFamily('gathering_templates', childId, g.familyCode))) {
+      return { success: false, message: 'That template was not found' }
+    }
+  }
 
   const { error } = await createAdminClient()
     .from('gathering_template_steps')

@@ -117,21 +117,13 @@ interface TemplateOption {
   name: string
   description: string | null
   /**
-   * The template's **Usual location**, used to PRE-FILL the place when it is linked — optional
-   * on this prop, and the optionality is the interesting part.
-   *
-   * The copy itself is the ACTION's: `addGatheringTemplate` writes the template's
-   * `default_location` onto the segment whenever no place is stated, so an organizer who leaves
-   * the box empty gets the usual place whether or not this screen ever knew it. What the value
-   * buys here is only that the box is not empty — somebody can see the place before committing
-   * to it, and edit it for the one year the picnic is somewhere else.
-   *
-   * `?` because the page composes this list from the UNION of two self-gating reads and one of
-   * them — `getSchedulableTemplates`, the member-facing one — does not project the column. Typed
-   * required, this screen would not compile against its own page. Absent, the pre-fill is simply
-   * skipped and the placeholder says what will happen instead, which is the honest degradation.
+   * THERE IS NO `defaultLocation` HERE ANY MORE. A template used to state where its gatherings
+   * were usually held, this screen pre-filled the segment's place from it, and
+   * `addGatheringTemplate` copied it anyway when the box was left empty. `20260819000007` drops
+   * the column: a venue belongs to one occasion, not to a template, and a template that wants
+   * one now carries a step of kind **A place** for a named relative to settle. The box below
+   * starts empty and an empty box means "not stated".
    */
-  defaultLocation?: string | null
 }
 
 interface FundOption {
@@ -289,17 +281,12 @@ export function AdminGatheringDetailClient({
       // the action's because the comparison is.
       if (result.warning) setTemplateWarning(result.warning)
       // The new tasks come with the refresh — they are instantiated server-side from the
-      // template's steps, and inventing them here would be a second copy of that logic.
-      //
-      // The PLACE, though, mirrors one line of the action deliberately: with no place stated,
-      // `addGatheringTemplate` copies the template's `default_location` onto the segment, so
-      // showing an empty cell here would contradict the row that lands a moment later. `??`
-      // rather than `||` on the fallback, because `stated` is already `.trim() || null` and an
-      // empty box has therefore already become "not stated".
+      // template's steps, and inventing them here would be a second copy of that logic. The
+      // place is `stated` and nothing else: there is no default left for the action to copy,
+      // so an empty box here and an empty cell a moment later are the same fact.
       if (chosen) {
         setUsedTemplates(prev => [...prev, {
-          id: chosen.id, name: chosen.name, occursOn,
-          location: stated ?? chosen.defaultLocation ?? null,
+          id: chosen.id, name: chosen.name, occursOn, location: stated,
         }])
       }
       router.refresh()
@@ -665,19 +652,11 @@ export function AdminGatheringDetailClient({
                     setAddingTemplateId(chosenId)
                     setTemplateError('')
                     setTemplateWarning('')
-                    // PRE-FILLED FROM THE TEMPLATE'S USUAL PLACE, in the event handler and never
-                    // in an effect: an effect runs after paint, and re-seeding a field from a
-                    // prop there is what `react-hooks/set-state-in-effect` is about. Choosing a
-                    // template is a keystroke, so this is the same pattern `TransactionsClient`
-                    // uses for a dialog's dates — seed it where the decision happens.
-                    //
-                    // `?? ''` covers two different absences with one answer, and both are right:
-                    // a template with no usual place, and a template whose `defaultLocation` this
-                    // page never projected (see `TemplateOption`). Either way the box is empty,
-                    // and an empty box means "not stated" — which `addGatheringTemplate` then
-                    // answers by copying the template's usual place anyway. So the pre-fill is a
-                    // courtesy; it is never what makes the place correct.
-                    setAddingPlace(templates.find(t => t.id === chosenId)?.defaultLocation ?? '')
+                    // CLEARED, not pre-filled. It used to seed from the template's usual place;
+                    // that column is gone (see `TemplateOption`), and clearing is what stops a
+                    // place typed for one template silently following the organizer to the next
+                    // one they pick.
+                    setAddingPlace('')
                   }}
                 >
                   <option value="">— Choose a template —</option>

@@ -6,7 +6,6 @@ import {
   REMOVED_FAMILY_RESOURCES,
 } from '@/lib/auth/family'
 import { getMyShellState } from '@/app/actions/membership'
-import { getMyAssignmentCount } from '@/app/actions/event-planning'
 import { isGenorraStaff } from '@/lib/auth/staff'
 import TopBar from '@/components/layout/TopBar'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -43,7 +42,6 @@ export const metadata: Metadata = {
 }
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  let hasAssignments = false
   let viewable: string[] = []
   let familyCode = ''
   /** Gates the idle timer — there is nothing to sign out if nobody resolved. */
@@ -78,15 +76,18 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       signedIn = true
       // The sidebar shows a page only if the member may view it. There is no
       // is_admin branch any more — group policy is the single authority.
-      // Count only outstanding items (shared with the Event Planning page) so the
-      // nav link hides once everything is completed or cancelled. This also sweeps
-      // overdue tasks into the 'cancelled' state.
+      //
+      // NOTHING HERE COUNTS THE CALLER'S OWN WORKLOAD ANY MORE. `getMyAssignmentCount()`
+      // used to run beside these, so the rail could hide Event Planning until a member had
+      // something assigned; that route is retired with the rest of Events, and Gatherings
+      // deliberately does not do it — `/gatherings` has a real empty state, and a row that is
+      // sometimes there is worse than a row that is sometimes empty. It also cost every
+      // request in the product one query to decide one link.
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, assignmentCount, code, shell, membership, staff] = await Promise.all([
+      const [resources, code, shell, membership, staff] = await Promise.all([
         viewableResources(user.id),
-        getMyAssignmentCount(),
         getMyFamilyCode(user.id),
         // Costs one extra round of the same cache()-wrapped reads the three above
         // already warmed — getMyFamilies, getMyPermissionSet and getMyFamilyTier are
@@ -116,7 +117,6 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       viewable = familyRemoved
         ? [...resources].filter(r => REMOVED_FAMILY_RESOURCES.includes(r))
         : [...resources]
-      hasAssignments = assignmentCount > 0
       familyCode = code
       shellFingerprint = shell.fingerprint
       isStaff = staff
@@ -157,7 +157,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           hides the round entirely. Cream is what the kit puts outside that corner. */}
       <div className="min-h-screen flex flex-col">
         <div className="flex flex-1 flex-col bg-background md:flex-row">
-          <Sidebar hasAssignments={hasAssignments} viewable={viewable} />
+          <Sidebar viewable={viewable} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
               ─────────────────────────────────────────────────────────────────────
               FamilySwitcher lands its change with `router.refresh()`, and a refresh
@@ -226,7 +226,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
                 what puts the shape over the bar's background is tree order alone. Moving
                 this line above TopBar hides the top third of the bite again. */}
             <div className="relative z-10">
-              <TopBar hasAssignments={hasAssignments} viewable={viewable} isStaff={isStaff} />
+              <TopBar viewable={viewable} isStaff={isStaff} />
               <ShellSwoop />
               {children}
             </div>

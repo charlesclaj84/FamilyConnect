@@ -164,8 +164,8 @@ BEGIN
   -- with no `family_code` of its own is family data anyway if it has a foreign
   -- key to something that has one — and the chains are longer than one hop in
   -- this schema, which is the mistake the first version of this file made and
-  -- which running it caught immediately: `event_hotel_booking_details` and
-  -- `event_hotel_price_estimates` reach `family_code` through
+  -- which running it caught immediately: the retired `event_hotel_booking_details`
+  -- and `event_hotel_price_estimates` reached `family_code` through
   -- `event_hotel_bookings` → `events`, two hops away, and a one-hop test
   -- reported both as unclassified global lookups.
   --

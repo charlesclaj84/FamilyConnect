@@ -98,9 +98,13 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
       label: 'Take payment the way your family pays',
       detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds behind them.',
     },
+    // THIS BULLET SOLD RSVPs, MEAL TOTALS AND DAY-OF CHECK-IN until 2026-08-19, and all three
+    // went with the Events product. What replaced it is what the family actually gets:
+    // Dues Projections, which IS a Plus route (`lib/features.ts`) and is the one figure
+    // leadership asks for that this tier really delivers today.
     {
-      label: 'Head counts you do not have to guess',
-      detail: 'RSVPs, t-shirt and meal totals, and check-in on the day.',
+      label: 'Know what is still owed, before you have to ask',
+      detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
     },
     {
       label: 'A profit and loss for your treasurer',
@@ -108,7 +112,7 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     },
     {
       label: 'The numbers leadership asks for',
-      detail: 'Dues collected against outstanding, turnout and t-shirt counts.',
+      detail: 'Dues collected against outstanding, and the family’s size over time.',
     },
     {
       label: 'Elect your officers properly',
@@ -120,7 +124,7 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     },
     {
       label: 'Photographs, findable',
-      detail: 'Collections per event with tagging, and a face against every name.',
+      detail: 'Collections per gathering with tagging, and a face against every name.',
     },
   ],
   premium: [

@@ -112,13 +112,16 @@ export async function selectChatParticipants() {
   return rawSelect('chat_participants', 'id, room_id, user_id')
 }
 
-export async function selectEventRsvp() {
-  return rawSelect('event_rsvp', 'id, event_id, submitted_by, is_attending')
-}
-
-export async function selectEventAssignments() {
-  return rawSelect('event_assignments', 'id, event_id, assigned_to, response_status')
-}
+// `selectEventRsvp` AND `selectEventAssignments` WERE HERE and their tables are dropped
+// (20260819000006). Their two cases in `cases.mjs` went in the same commit — a `rawSelect` over
+// a relation PostgREST cannot resolve answers an error rather than zero rows, so they would have
+// gone red for a reason that says nothing about who the caller is.
+//
+// What they were evidence for is recorded where the cases were: `events` was not an `admin/` key,
+// so General granted view 'any' on it and the permission disjunct WOULD have admitted a pending
+// applicant. What stopped it was `auth_person_id()` returning NULL for them, which makes
+// `auth_permission()` answer 'none' before the grant is consulted. Two gates; those tables were
+// held by the other one.
 
 export async function selectUserRoles() {
   return rawSelect('user_roles', 'id, user_id, role_id, family_code')

@@ -9,20 +9,14 @@ import {
   GitBranch,
   Wallet,
   MessageCircle,
-  Calendar,
   CalendarDays,
   CalendarCog,
-  ClipboardList,
-  ClipboardCheck,
-  LayoutList,
   PartyPopper,
   ShieldCheck,
   UsersRound,
-  ListChecks,
   CalendarClock,
   HeartHandshake,
   History,
-  Inbox,
   Menu,
   X,
   BookOpen,
@@ -127,18 +121,21 @@ const adminItems: NavItem[] = [
   // the pane's caption is the grid's caption, which is what "one rail item, one permission
   // resource" is actually about.
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
-  // GATHERINGS' TWO ADMIN ROWS. An admin route missing from this list is permissioned and
-  // linked from NOWHERE — lib/features.ts's header warns about that for a route whose
-  // status is flipped, and it arrives the same way for a route that is new. It is not a
-  // 404 and not a gate; it is a working, protected page nobody can find. `/admin/gatherings`
-  // schedules a gathering, hands out its tasks and rules on the answers;
-  // `/admin/gathering-templates` authors the step lists a gathering can be built FROM, and
-  // it is listed second for the same reason Event Templates trails Event Management: the
-  // screen an administrator opens most often reads first, and the library is the thing you
-  // set up once. Both are filtered by the same two independent gates as everything else in
-  // this list (roadmap status, then `viewable`), so neither needs a condition of its own.
-  { href: '/admin/gatherings',          label: 'Gathering Management', icon: CalendarCog },
-  { href: '/admin/gathering-templates', label: 'Gathering Templates',  icon: LayoutList },
+  // ONE GATHERINGS ROW, TWO PANES, TWO KEYS. `/admin/gatherings` is a rail: Management
+  // schedules a gathering, hands out its tasks and rules on the answers, and Templates
+  // authors the step lists a gathering is built FROM. They were two rail items until
+  // 2026-08-19 and the panes still carry a grant each, so BOTH keys are listed — an admin
+  // route missing from this list is permissioned and linked from NOWHERE, which is not a 404
+  // and not a gate but a working, protected page nobody can find.
+  //
+  // NO Event Management OR Event Templates ROWS. Both routes are deleted with the rest of the
+  // Events product; see lib/features.ts.
+  {
+    href: '/admin/gatherings',
+    label: 'Gatherings',
+    icon: CalendarCog,
+    viewKeys: ['admin/gatherings', 'admin/gathering-templates'],
+  },
   // NO Announcement Management ROW. The route is deleted (20260813000000) — posting,
   // pinning and deleting all live on Community > Announcements now, each control gated by
   // the `announcements` grant that governs it. An admin duplicate of a member page is a
@@ -158,35 +155,38 @@ const adminItems: NavItem[] = [
 // Build the nav groups for the current user. Every item is listed unconditionally
 // and then filtered by what the member may actually view — the permission model is
 // the single authority, so there is no separate isAdmin branch here any more.
-function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGroup[] {
-  // GATHERINGS SHARES THIS HEADING WITH EVENTS, AND SHARES NOTHING ELSE WITH IT. The two
-  // are separate products on separate tables answering separate questions — Events is when
-  // it is and who is coming, Gatherings is who is doing what and has it been accepted (see
-  // the long note beside `/gatherings` in lib/features.ts). A member does not think in
-  // those terms, though: both are "the family is getting together", so both live under the
-  // one heading rather than growing a second section that would read as a competing
-  // product. Nothing here merges them, and nothing here may start to.
+function buildNavGroups(viewable: Set<string>): NavGroup[] {
+  // ── GATHERINGS ─────────────────────────────────────────────────────────────────────
+  // THIS SECTION WAS CALLED "EVENTS" UNTIL 2026-08-19 and held seven rows: Upcoming Events,
+  // Event Planning, Gatherings, My Gathering Tasks, Calendar, Event Management, Event
+  // Templates. Four of those seven were the Events product, which is retired — the routes,
+  // the actions and the components are deleted, and `lib/features.ts` says at length why the
+  // entries are DELETED rather than parked behind `status: 'future'`. So the heading names
+  // what is under it: three rows, all Gatherings.
   //
-  // ORDER IS MEMBER-FACING FIRST, THEN THE CALENDAR THAT SPANS BOTH, THEN THE ADMIN PAIR —
-  // which is why Calendar sits between the two halves rather than at the top. It is the one
-  // item in this group that shows gatherings and events TOGETHER, so it belongs after the
-  // things it aggregates and before the screens that create them.
+  // `hasAssignments` WENT WITH EVENT PLANNING, and its absence is the decision the old note
+  // beside it argued for. That prop existed because `/event-planning` read as broken when a
+  // member had nothing assigned, so the row was hidden until they did — and the comment
+  // already said Gatherings does not do that: `/gatherings` has a real empty state, and a row
+  // that is sometimes there is worse than a row that is sometimes empty. There is nothing
+  // left in this group that is conditional on the caller's own workload.
   //
-  // MY GATHERING TASKS IS UNCONDITIONAL, unlike Event Planning directly above it, and the
-  // difference is deliberate. `hasAssignments` exists because /event-planning is a page that
-  // reads as broken when a member has nothing assigned; /gatherings/my-tasks has a real
-  // empty state ("nothing is assigned to you"), and hiding it would mean a member who has
-  // just been handed a task cannot find it until the shell happens to rebuild — and the
-  // shell is built once per tab (see ShellWatcher). A row that is sometimes there is worse
-  // than a row that is sometimes empty.
-  const eventItems: NavItem[] = [
-    { href: '/events', label: 'Upcoming Events', icon: Calendar },
-    ...(hasAssignments ? [{ href: '/event-planning', label: 'Event Planning', icon: ClipboardList }] : []),
-    { href: '/gatherings',          label: 'Gatherings',         icon: PartyPopper },
-    { href: '/gatherings/my-tasks', label: 'My Gathering Tasks', icon: ClipboardCheck },
-    { href: '/calendar',            label: 'Calendar',           icon: CalendarDays },
-    { href: '/admin/events',      label: 'Event Management', icon: CalendarClock },
-    { href: '/admin/event-types', label: 'Event Templates',  icon: ListChecks },
+  // ORDER IS MEMBER-FACING FIRST, THEN THE CALENDAR THAT SPANS IT. Gatherings is a rail of
+  // two panes now — the family's gatherings, and the tasks assigned to the caller — so what
+  // was two rows is one, and the admin pair below is one row for the same reason.
+  const gatheringItems: NavItem[] = [
+    // TWO KEYS, ONE ROW. `/gatherings` opens for either `gatherings` (the family's list) or
+    // `gatherings/my-tasks` (the caller's own tasks), because the page resolves them one at a
+    // time and renders whichever panes survive. Without the second key here a member granted
+    // only their own tasks would have a working page and no link to it — the same failure the
+    // Members row's four `viewKeys` exist to prevent.
+    {
+      href: '/gatherings',
+      label: 'Gatherings',
+      icon: PartyPopper,
+      viewKeys: ['gatherings', 'gatherings/my-tasks'],
+    },
+    { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   ]
 
   const groups: NavGroup[] = [
@@ -223,18 +223,31 @@ function buildNavGroups(hasAssignments: boolean, viewable: Set<string>): NavGrou
       section: { label: 'Community', icon: UsersRound },
       items: [
         { href: '/chat',          label: 'Chat',             icon: MessageCircle },
-        { href: '/announcements', label: 'Announcements',    icon: Megaphone },
-        // The archive of the dashboard's Recent Updates card — announcements and the
-        // member's own notifications together, searchable. Directly under Announcements
-        // because that is what most of it is.
-        { href: '/updates',       label: 'Updates',          icon: Inbox },
+        // ONE ROW FOR THREE PANES, since 2026-08-19. Announcements is a rail — General (the
+        // board), Updates (the archive of announcements and the member's own notifications)
+        // and Birthdays — so the three keys are listed here for the reason `admin/users`
+        // lists four: `viewableResources()` resolves a nav item against the key derived from
+        // its href, and a member holding ONLY the archive or ONLY the birthdays pane would
+        // otherwise have a working page and no link to it. That is a grant taken away in
+        // effect if not on paper.
+        //
+        // NO SEPARATE Updates ROW. It had one until the archive became a pane; `/updates`
+        // still exists and redirects to `?pane=updates`, so a second row here would be two
+        // rail items for one pane — the thing "one rail item, one permission resource" is
+        // actually about.
+        {
+          href: '/announcements',
+          label: 'Announcements',
+          icon: Megaphone,
+          viewKeys: ['announcements', 'updates', 'announcements/birthdays'],
+        },
         { href: '/members',       label: 'Directory',        icon: UsersRound },
         { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
       ],
     },
   ]
 
-  groups.push({ section: { label: 'Events', icon: CalendarClock }, items: eventItems })
+  groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
 
   // SUMMARY FIRST, THEN TWO OF THE THREE SCREENS IT SUMMARISES — the third, Payment History,
   // is in Reporting below — and then the forward reading of the same money. Dues, Donations
@@ -696,9 +709,9 @@ function RailBrand() {
  * Only the top-left. The kit rounds its bottom corners too, but its sidebar is a card on a
  * canvas; this one runs to the bottom of a page of unknown length.
  */
-export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
+export function Sidebar({ viewable }: { viewable: string[] }) {
   const pathname = usePathname()
-  const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
+  const navGroups = buildNavGroups(new Set(viewable))
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
@@ -752,10 +765,10 @@ export function Sidebar({ hasAssignments = false, viewable }: { hasAssignments?:
  *
  * `Sidebar` above is now desktop-only and holds no state at all.
  */
-export function MobileNav({ hasAssignments = false, viewable }: { hasAssignments?: boolean; viewable: string[] }) {
+export function MobileNav({ viewable }: { viewable: string[] }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navGroups = buildNavGroups(hasAssignments, new Set(viewable))
+  const navGroups = buildNavGroups(new Set(viewable))
 
   // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)

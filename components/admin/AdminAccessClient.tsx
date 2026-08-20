@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   MoreVertical, Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
-  Users, KeyRound, Clock, Network,
+  Users, KeyRound, Clock, Network, ChevronDown,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -183,13 +183,18 @@ export function AdminAccessClient({
   // Built from what the caller may actually see, so a visible tab always leads
   // somewhere they can go. Every entry is conditional and each reads its OWN key —
   // four grants, four tabs, any combination of which is a legitimate caller. Order is
-  // Members → Pending Approval → Permission Templates → Organization regardless of which
-  // of them survive, so the two people-shaped tabs stay adjacent.
+  // Members → Organization → Pending Approval → Permission Templates regardless of which of
+  // them survive, so a caller holding two of the four sees them in the same relative order
+  // as a caller holding all four.
   //
-  // ORGANIZATION IS LAST, and that is a decision rather than the end of a list. The first
-  // three are all about PEOPLE — who is here, who wants in, what each may do — and the
-  // fourth is about the family's SHAPE. Putting it between Members and Pending Approval
-  // would split the pair that reads as one sequence.
+  // ORGANIZATION SITS SECOND, since 2026-08-19, and it was last until then. The argument for
+  // last was that the other three are about PEOPLE — who is here, who wants in, what each
+  // may do — while this one is about the family's SHAPE, so it should not split them. The
+  // argument that won is that shape is what the other three are READ AGAINST: the Members
+  // table's Region and Chapter columns are this tab's rows, so an administrator setting a
+  // family up does Members, then its shape, and only then works the queue and the grids —
+  // which are both ongoing jobs rather than setup. Pending Approval and Permission Templates
+  // stay adjacent either way, which is the pairing that actually matters.
   //
   // `Network` and not the `ShieldCheck` the old rail item carried: that icon is the
   // "this template can administer" marker three times over on the Permission Templates
@@ -198,6 +203,16 @@ export function AdminAccessClient({
     ...(canViewAccess ? [
       { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
     ] : []),
+    ...(canViewOrganization ? [{
+      id: 'organization' as const,
+      label: 'Organization',
+      icon: Network,
+      // THE SAME URL `/admin/chapters` REDIRECTS TO, and the caption is the same word the
+      // permission grid prints for `admin/chapters` — AGENTS.md: the grid caption is the
+      // rail caption, which is the whole point of "one rail item, one permission
+      // resource". The KEY did not move with the label; see the redirect page.
+      href: '/admin/users?tab=organization',
+    }] : []),
     ...(canViewApprovals ? [{
       id: 'approvals' as const,
       label: 'Pending Approval',
@@ -209,16 +224,6 @@ export function AdminAccessClient({
       label: 'Permission Templates',
       icon: KeyRound,
       href: '/admin/users?tab=templates',
-    }] : []),
-    ...(canViewOrganization ? [{
-      id: 'organization' as const,
-      label: 'Organization',
-      icon: Network,
-      // THE SAME URL `/admin/chapters` REDIRECTS TO, and the caption is the same word the
-      // permission grid prints for `admin/chapters` — AGENTS.md: the grid caption is the
-      // rail caption, which is the whole point of "one rail item, one permission
-      // resource". The KEY did not move with the label; see the redirect page.
-      href: '/admin/users?tab=organization',
     }] : []),
   ]
 
@@ -839,6 +844,41 @@ function RowMenu({ label, disabled, children }: {
 
 // ── Templates ───────────────────────────────────────────────────────────────
 
+/**
+ * What a closed feature row says it currently grants — "View All · Edit Own", or the honest
+ * empty version.
+ *
+ * ── IT IS WHAT MAKES COLLAPSING THE GRID SAFE ──────────────────────────────────────
+ * Every switch used to be on screen at once. Hiding them behind a disclosure is only an
+ * improvement if the closed row still answers "what does this template grant here" — without
+ * that an administrator would have to open all forty features to read a template, which is
+ * strictly worse than the wall it replaced.
+ *
+ * ONLY WHAT IS ACTUALLY GRANTED IS NAMED. A resource declares only the actions something reads
+ * (AGENTS.md), and most declare one or two of the four — so listing every action with a dash
+ * beside the absent ones would put three pieces of nothing on almost every row. `'none'` is
+ * likewise omitted rather than printed: the interesting fact is what a template CAN do.
+ *
+ * "Nothing" IS SAID OUT LOUD rather than left blank, because a blank row reads as a row whose
+ * summary failed to load. A new template is a complete grid of denials, so this is the state
+ * every row is in for the minute after one is created.
+ */
+function grantSummary(resource: ResourceSummary, policy: PolicyMap): string {
+  const granted = ACTIONS
+    .filter(action => scopesFor(resource, action).length > 0)
+    .map(action => ({ action, scope: policy[`${resource.key}:${action}`] ?? 'none' }))
+    .filter(({ scope }) => scope !== 'none')
+
+  if (granted.length === 0) return 'Nothing'
+  return granted
+    // Capitalised action, then the scope's own word — "View All", "Edit Own". `create` has no
+    // own/any distinction (`SCOPES_FOR`), so its granted state reads "Create All", which is the
+    // same word the switch itself carries: two vocabularies for one control would be worse.
+    .map(({ action, scope }) =>
+      `${action[0].toUpperCase()}${action.slice(1)} ${SCOPE_LABEL[scope]}`)
+    .join(' · ')
+}
+
 function TemplatesTab({
   templates, resources, selectedTemplateId, policy, rights, onError, onSelect,
 }: {
@@ -879,6 +919,28 @@ function TemplatesTab({
 
   const selected = templates.find(t => t.id === selectedTemplateId) ?? null
   const sections = groupResources(resources)
+  /**
+   * Which feature's switches are showing, or null for none — an accordion, one at a time.
+   *
+   * Keyed on the RESOURCE KEY rather than an index, so it survives `resources` being
+   * re-ordered or filtered by tier, and it is reset when the selected TEMPLATE changes:
+   * leaving a feature open across that switch would show one template's grid heading over
+   * another's switches for the moment before the props land.
+   *
+   * Genuinely UI-local state, so no `useServerState` and no key — AGENTS.md exempts exactly
+   * this ("which nav section is expanded, which dialog is open"). Nothing here is seeded from
+   * a family-scoped prop and nothing is written back.
+   */
+  const [openResource, setOpenResource] = useState<string | null>(null)
+  const [openFor, setOpenFor] = useState<string | null>(selectedTemplateId)
+  if (openFor !== selectedTemplateId) {
+    // Derived during render rather than in an effect: an effect runs after paint, so the
+    // first frame after switching template would draw the old feature's panel over the new
+    // template's grants. This is the pattern React's own docs call "adjusting state when a
+    // prop changes", and it is why `openFor` exists at all.
+    setOpenFor(selectedTemplateId)
+    setOpenResource(null)
+  }
 
   // `confirmWith` is required rather than optional: every caller has to state what it
   // is asking the user, or pass an explicit null to opt out (creates only).
@@ -1072,115 +1134,179 @@ function TemplatesTab({
                 {selected.description || 'What members on this template may do.'}
                 {' '}Changes apply immediately to all {selected.memberCount} member
                 {selected.memberCount === 1 ? '' : 's'} on it. Only features that have shipped
-                are listed, and each row shows only the actions that mean something for it.
+                are listed; each row says what it grants today, and opening one shows the
+                actions that mean something for it.
               </CardDescription>
             </CardHeader>
-            {/* THIS GRID FOLDS TOO, and it is the one that looked like it could not.
-                A permission matrix has no subordinate columns — the four actions ARE
-                the content — so the argument for folding it is not width, it is that
-                `min-w-[34rem]` in an `overflow-x-auto` box scrolled the FEATURE column
-                out of view. On a narrow screen you ended up looking at four unlabelled
-                switch groups with no indication of which row you were about to change,
-                on the one screen in the app where changing the wrong row hands somebody
-                authority they should not have.
+            {/* ── ONE DISCLOSURE PER FEATURE, since 2026-08-19 ─────────────────────────
+                It was a `<table>`: a row per feature and a column per action, every switch on
+                screen at once. Three things were wrong with that on a family of any size.
 
-                So below `sm` each action becomes a labelled line under the feature name.
-                It is taller, and that is the correct trade: this is a screen an
-                administrator visits to make one deliberate change, not a list they
-                scan. The same buttons are rendered in both layouts — one is always
-                `display: none`, so only one is ever focusable — rather than a second
-                implementation that could drift from the first. */}
+                It is LONG. Forty-odd resources times four actions is a wall of a hundred and
+                sixty controls, and an administrator comes here to change ONE of them.
+
+                It could not be read narrow. The table sat in an `overflow-x-auto` box over a
+                `min-w-[34rem]`, so on a phone the FEATURE column scrolled out of view and left
+                four unlabelled switch groups with no indication of which row you were about to
+                change — on the one screen in the app where changing the wrong row hands
+                somebody authority they should not have. The fix at the time was a second,
+                stacked rendering under `sm`, which meant two layouts to keep in step.
+
+                And a column per action is a column of BLANKS. A resource declares only the
+                actions something reads (AGENTS.md), so most rows have one or two of the four;
+                the rest of the grid was empty cells that read as switches somebody forgot.
+
+                So each feature is a disclosure now: its name, a summary of what it currently
+                grants, and — when it is opened — the actions it actually has. One layout at
+                every width, nothing folded, and the feature's name is never off screen while
+                its switches are.
+
+                AN ACCORDION, one open at a time. "Then when selected that feature's settings
+                show" is the ask, and it is also what keeps the list scannable: several open at
+                once and the page is the wall again, in a different shape.
+
+                NOT A `role="tablist"`, NOT A `<details>`. It is a real `<button>` carrying
+                `aria-expanded` and `aria-controls`, which is the whole of what a disclosure
+                promises and all of it is implemented — the same standard `MainRail` and
+                `RowMenu` refuse to claim more than. `<details>` was the obvious alternative and
+                is worse here: its open state is DOM state rather than React state, so the
+                accordion (close the others) would mean reaching for refs, and Safari announces
+                a summary element inconsistently. */}
             <CardContent className="overflow-visible">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    {/* Not "Page": the rows under Accounting > Transactions are
-                        capabilities — the add buttons on the Transactions page — and
-                        have no route of their own. */}
-                    <th className="py-2 pr-4 font-medium">Feature</th>
-                    {ACTIONS.map(a => (
-                      <th key={a} className={cn('py-2 pr-3 font-medium capitalize', COLLAPSING_CELL)}>{a}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sections.map(({ category, label, rows }) => (
-                    <Fragment key={category}>
-                      <tr>
-                        <td colSpan={5} className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {label}
-                        </td>
-                      </tr>
+              <div className="space-y-5">
+                {sections.map(({ category, label, rows }) => (
+                  <div key={category} className="space-y-1.5">
+                    {/* A real heading, not a styled div: this is a section of a form and a
+                        screen reader reaching it should be told so. `h3` gets its size and
+                        weight here because preflight resets them and `globals.css` gives an
+                        `h3` only a colour. */}
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {label}
+                    </h3>
+                    <ul className="divide-y rounded-xl border">
                       {rows.map(({ resource: r, header, nested }) => {
-                        // One definition, rendered into the action column at `sm` and up
-                        // and into the stacked line below it.
-                        const scopeButtons = (action: typeof ACTIONS[number]) => {
-                          const current = policy[`${r.key}:${action}`] ?? 'none'
-                          return scopesFor(r, action).map(scope => (
-                            <button key={scope} type="button" disabled={!rights.edit || isPending}
-                              onClick={() => run({
-                                title: 'Change what this template grants',
-                                description:
-                                  `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
-                                  `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
-                                  `This applies to all ${selected.memberCount} member` +
-                                  `${selected.memberCount === 1 ? '' : 's'} on the template.`,
-                                confirmLabel: 'Change',
-                                destructive: scope === 'none',
-                              }, () => setTemplatePermission(selected.id, r.key, action, scope))}
-                              title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
-                              className={cn('rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60',
-                                current === scope ? SCOPE_STYLE[scope] : 'text-muted-foreground hover:bg-muted')}>
-                              {SCOPE_LABEL[scope]}
-                            </button>
-                          ))
-                        }
+                        const open = openResource === r.key
+                        const panelId = `perm-panel-${r.key.replace(/[^a-z0-9]+/gi, '-')}`
+                        // Every action this resource actually declares, with the scopes that
+                        // mean something for it. Computed once and used three times — for the
+                        // summary line, to decide whether there is anything to open, and to
+                        // draw the panel — so the three cannot disagree.
+                        const actionable = ACTIONS
+                          .map(action => ({ action, scopes: scopesFor(r, action) }))
+                          .filter(({ scopes }) => scopes.length > 0)
+
                         return (
-                        <Fragment key={r.key}>
-                          {header && (
-                            <tr>
-                              <td colSpan={5} className="pt-3 pb-1 pl-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <Fragment key={r.key}>
+                            {header && (
+                              <li className="bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                 └ {header}
-                              </td>
-                            </tr>
-                          )}
-                          <tr className="border-b align-top last:border-0 sm:align-middle">
-                            <td className={cn('py-1.5 pr-4', nested && 'pl-8')}>
-                              {r.label}
-                              {/* Not a `RowMeta`: that renders one inline run of values,
-                                  and these are four labelled groups of controls. Same
-                                  `sm:hidden` contract, different shape. */}
-                              <div className="mt-1.5 space-y-1 sm:hidden">
-                                {ACTIONS.map(action => {
-                                  const buttons = scopeButtons(action)
-                                  // A resource declares only the actions something reads
-                                  // (AGENTS.md), so most rows have fewer than four. An
-                                  // empty label is a switch that does nothing.
-                                  if (buttons.length === 0) return null
+                              </li>
+                            )}
+                            <li className={cn(nested && 'pl-4')}>
+                              {/* THE SUMMARY IS ON THE CLOSED ROW, and that is what makes
+                                  collapsing them safe. Without it an administrator would have
+                                  to open every feature to find out what a template grants,
+                                  which is strictly worse than the table it replaced. */}
+                              <button
+                                type="button"
+                                aria-expanded={open}
+                                aria-controls={panelId}
+                                onClick={() => setOpenResource(open ? null : r.key)}
+                                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted/50"
+                              >
+                                <ChevronDown
+                                  aria-hidden="true"
+                                  className={cn(
+                                    'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                                    open ? 'rotate-0' : '-rotate-90',
+                                  )}
+                                />
+                                <span className="min-w-0 flex-1 truncate font-medium">{r.label}</span>
+                                {/* `sr-only` on the wide screens' behalf as well: the same
+                                    words a sighted reader sees, so nothing is announced that
+                                    is not there and nothing on screen is unannounced. */}
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  {grantSummary(r, policy)}
+                                </span>
+                              </button>
+
+                              {/* HIDDEN WITH `hidden`, NOT UNMOUNTED, so `aria-controls` on the
+                                  button always points at an element that exists — a control
+                                  naming a missing id is worse than no `aria-controls` at all.
+                                  The switches inside are not focusable while it is hidden,
+                                  which is the property that matters. */}
+                              <div id={panelId} hidden={!open} className="space-y-2 px-3 pb-3 pl-9">
+                                {actionable.length === 0 ? (
+                                  // A resource with no actions at all. It exists so the
+                                  // feature can be REGISTERED (see AGENTS.md on why a page
+                                  // needs a row even when nothing is granted per action), and
+                                  // saying so is better than an empty panel.
+                                  <p className="text-xs text-muted-foreground">
+                                    Nothing to set here — this feature is either always
+                                    available or governed by the rows above it.
+                                  </p>
+                                ) : actionable.map(({ action, scopes }) => {
+                                  const current = policy[`${r.key}:${action}`] ?? 'none'
                                   return (
-                                    <div key={action} className="flex items-center gap-2">
-                                      <span className="w-12 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                    <div key={action} className="flex flex-wrap items-center gap-2">
+                                      {/* A `<div role="group">` with an accessible name, not a
+                                          bare label beside buttons: these are three toggle
+                                          buttons that act as one choice, and the group name is
+                                          what tells a screen reader which feature and which
+                                          verb they belong to. The visible word is `aria-hidden`
+                                          so it is not announced twice. */}
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-14 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground"
+                                      >
                                         {action}
                                       </span>
-                                      <div className="flex gap-0.5">{buttons}</div>
+                                      <div
+                                        role="group"
+                                        aria-label={`${r.label} — who may ${action}`}
+                                        className="flex gap-0.5"
+                                      >
+                                        {scopes.map(scope => (
+                                          <button
+                                            key={scope}
+                                            type="button"
+                                            // `aria-pressed`, which the table version did not
+                                            // have: three buttons where one is "on" is a toggle
+                                            // set, and a colour is not an accessible state.
+                                            aria-pressed={current === scope}
+                                            disabled={!rights.edit || isPending}
+                                            onClick={() => run({
+                                              title: 'Change what this template grants',
+                                              description:
+                                                `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
+                                                `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
+                                                `This applies to all ${selected.memberCount} member` +
+                                                `${selected.memberCount === 1 ? '' : 's'} on the template.`,
+                                              confirmLabel: 'Change',
+                                              destructive: scope === 'none',
+                                            }, () => setTemplatePermission(selected.id, r.key, action, scope))}
+                                            title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
+                                            className={cn(
+                                              'rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60',
+                                              current === scope ? SCOPE_STYLE[scope] : 'text-muted-foreground hover:bg-muted',
+                                            )}
+                                          >
+                                            {SCOPE_LABEL[scope]}
+                                          </button>
+                                        ))}
+                                      </div>
                                     </div>
                                   )
                                 })}
                               </div>
-                            </td>
-                            {ACTIONS.map(action => (
-                              <td key={action} className={cn('py-1.5 pr-3', COLLAPSING_CELL)}>
-                                <div className="flex gap-0.5">{scopeButtons(action)}</div>
-                              </td>
-                            ))}
-                          </tr>
-                        </Fragment>
+                            </li>
+                          </Fragment>
                         )
                       })}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
+                    </ul>
+                  </div>
+                ))}
+              </div>
               <p className="mt-4 text-xs text-muted-foreground">
                 <span className="font-medium">All</span> = every record in the family ·
                 {' '}<span className="font-medium">Own</span> = only records this member created or belongs to ·

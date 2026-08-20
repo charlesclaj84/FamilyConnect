@@ -20,7 +20,7 @@ const PAGE_TITLE = 'Why Families Choose Us Over Group Chats and Spreadsheets'
 // last thing a searcher saw was an ellipsis. Load-bearing words first, per the note on
 // APP_SEO_DESCRIPTION in lib/brand.ts.
 const PAGE_DESCRIPTION =
-  `A group text loses the RSVPs, a spreadsheet loses the money, a social group loses the privacy. See why families switch to ${APP_NAME}.`
+  `A group text loses the plan, a spreadsheet loses the money, a social group loses the privacy. See why families switch to ${APP_NAME}.`
 
 export const metadata: Metadata = {
   // 40 characters → 50 with the appended product name. The draft title rendered at 67
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
  *  * A claim about a named competitor's features or price is a factual assertion about
  *    somebody else's business, and it is wrong the moment they ship a release. Comparative
  *    advertising that turns out to be inaccurate is actionable in a way that "a spreadsheet
- *    cannot chase an RSVP" simply is not.
+ *    cannot chase the person who said they would book the hall" simply is not.
  *  * Nobody can verify our claim about their roadmap, but every reader can verify the
  *    category claims here against their own last reunion. Arguments the reader can check
  *    themselves are the ones that persuade.
@@ -59,7 +59,7 @@ const ALTERNATIVES: readonly {
     what: 'The family group text',
     problem:
       'Ninety messages deep, four people said yes, two said "maybe", and one asked what the date was again. Nothing is a record.',
-    cost: 'You will recount the head count three times and still guess on the t-shirts.',
+    cost: 'Nobody can say who agreed to do what, so the same three people do all of it.',
   },
   {
     icon: TableProperties,
@@ -95,7 +95,7 @@ const REASONS: readonly {
     icon: Layers,
     title: 'It is one place, not five',
     detail:
-      'The reunion, the dues, the directory, the photographs and the family tree are the same account, so the RSVP list already knows who is family and the payment already knows which fund it belongs to. Nothing is exported and re-imported.',
+      'The reunion, the dues, the directory, the photographs and the family tree are the same account, so the person you hand a job to is already on the tree and the payment already knows which fund it belongs to. Nothing is exported and re-imported.',
     tone: 'text-brand-accent',
     chip: 'bg-brand-accent/12',
   },

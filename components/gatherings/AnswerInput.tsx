@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { dollarsToCents } from '@/lib/currency-utils'
-import { parseAnswer, type GatheringStepKind } from '@/lib/gatherings'
+import { parseAnswer, type GatheringTaskKind } from '@/lib/gatherings'
 
 /**
  * The control an assignee answers ONE gathering task with, and the two conversions either
@@ -58,7 +58,7 @@ import { parseAnswer, type GatheringStepKind } from '@/lib/gatherings'
  * build cannot make sense of seeds an EMPTY field rather than the string `[object Object]`.
  * `parseAnswer` is idempotent on its own output, which is what makes that safe.
  */
-export function draftFromAnswer(kind: GatheringStepKind, answer: unknown): string {
+export function draftFromAnswer(kind: GatheringTaskKind, answer: unknown): string {
   const parsed = parseAnswer(kind, answer)
   if (!parsed) return ''
   if ('text' in parsed) return parsed.text
@@ -85,7 +85,7 @@ export function draftFromAnswer(kind: GatheringStepKind, answer: unknown): strin
  * newline-separated list, one of the four yes/no words). A conversion here for those would be
  * a second normaliser standing in front of the only one.
  */
-export function answerFromDraft(kind: GatheringStepKind, draft: string): unknown {
+export function answerFromDraft(kind: GatheringTaskKind, draft: string): unknown {
   if (kind !== 'money') return draft
 
   const trimmed = draft.trim()
@@ -100,7 +100,7 @@ export function answerFromDraft(kind: GatheringStepKind, draft: string): unknown
 }
 
 export interface AnswerInputProps {
-  kind: GatheringStepKind
+  kind: GatheringTaskKind
   /** The draft, always a string — see the header. */
   value: string
   onChange: (next: string) => void
@@ -264,6 +264,27 @@ export function AnswerInput({
           autoGrow
           rows={1}
           aria-label={ariaLabel}
+          value={value}
+          disabled={disabled}
+          onChange={e => onChange(e.target.value)}
+        />
+      )
+
+    case 'location':
+      return (
+        // A PLACE, AND ITS OWN BRANCH RATHER THAN A FALL-THROUGH TO `text`. It stores the
+        // same `{ text }` shape, so the difference is entirely in the field: a placeholder
+        // that says what a place looks like, and `autoComplete="street-address"`, which is
+        // what lets a phone offer the addresses it already knows. Neither belongs on a
+        // short-answer box asking for a caterer's phone number.
+        //
+        // Full width, unlike a date or an amount: an address is long, and `NARROW` would put
+        // "Zilker Park, 2100 Barton Springs Rd" behind a horizontal scroll on a phone.
+        <Input
+          id={fieldId}
+          aria-label={ariaLabel}
+          autoComplete="street-address"
+          placeholder="Where it is — a venue, an address, a room"
           value={value}
           disabled={disabled}
           onChange={e => onChange(e.target.value)}

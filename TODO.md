@@ -440,7 +440,7 @@ trap below.
 `search_path` somewhere along the way, so the list below is one longer than the advisors
 report. Re-measured on that date against the local stack —
 `npx supabase db advisors --local --type security --level warn` — and the survivors are
-`auth_uid_is_room_participant`, `_perm_predicate`, `cancel_overdue_event_assignments`,
+`auth_uid_is_room_participant`, `_perm_predicate`,
 `set_updated_at`, `update_funds_updated_at` and `update_photo_collections_updated_at`.
 
 Worth stating because it is the thing a reader would want to know: **every function added
@@ -458,7 +458,7 @@ findings, all WARN, so they do **not** fail the gate (`--fail-on error`). AGENTS
 |---|---|---|
 | `auth_uid_is_room_participant` | **yes** | Runs as its owner with RLS off, and is evaluated by **Realtime** as the subscribing role (AGENTS.md §2b). The escalation shape. |
 | `_perm_predicate` | no | Central to the composed policies, but SECURITY INVOKER — runs as the caller, so shadowing it buys the caller nothing they did not have. |
-| `fund_balance_cents`, `cancel_overdue_event_assignments`, `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. |
+| `fund_balance_cents`, `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. `cancel_overdue_event_assignments` was on this row and is **dropped** (`20260819000006` §C) — it had no caller anywhere in the tree and its body read two tables that no longer exist. |
 
 **The exposure is real but currently narrow**, and worth stating precisely rather than as a
 severity label. With a mutable `search_path`, a caller who can CREATE objects in a schema
@@ -485,10 +485,13 @@ worst way to find out. Exercise it directly in the verify block.
 `20260806000015` and `20260806000016` closed the anon-callable-function hole and the
 reasoning is now AGENTS.md §2b. Three loose ends survived it:
 
-* `cancel_overdue_event_assignments()` keeps its `authenticated` grant although all
-  three call sites use the admin client. It is SECURITY INVOKER, so it is RLS-contained
-  and confers nothing a direct UPDATE would not — kept because removing a grant nothing
-  is *proven* to need was the worse trade at the time. Add a caller check, then revoke.
+* ~~`cancel_overdue_event_assignments()` keeps its `authenticated` grant although all
+  three call sites use the admin client.~~ **CLOSED BY DELETION**, `20260819000006` §C. The
+  resolution is worth a line because the reasoning here was sound and still lost: the grant was
+  kept because "removing a grant nothing is *proven* to need was the worse trade", and what
+  eventually settled it was discovering the function had **no caller at all** — the three the
+  note names had gone with the screens. A publicly-executable function whose callers have been
+  deleted is not a narrow exposure kept deliberately; it is one nobody re-read.
 * `get_my_family_code()` is granted on hosted only if a hosted policy references it,
   because the lockdown derives policy-helper grants from `pg_policies` per database.
   Confirm nothing depends on it, then drop it from both.
@@ -593,12 +596,16 @@ its verdict, and `tests/rls` has a case for it. All four would move with it.
 
 Recorded 2026-08-19.
 
-## `getMyGatheringTaskCount` is a live endpoint with no product caller
+## ~~`getMyGatheringTaskCount` is a live endpoint with no product caller~~ — CLOSED
 
-**Action:** either build the thing it was written for — a count beside **My Gathering Tasks** in
-the Events nav group, which is the only surface that would want it — or delete the export and the
-two `tests/rls` cases and the `seed.mjs` note that go with it. Do not leave it as it is
-indefinitely; an export nobody calls is an endpoint nobody re-reads.
+**Closed 2026-08-19.** The Dashboard calls it: a **My Tasks** Quick Action appears when the count
+is above zero and is absent when it is not, which is the one entry on that row conditional on the
+caller's own workload rather than on a grant. `components/dashboard/tiles.ts` argues why that is
+right there and wrong in the rail (where the Gatherings row is unconditional, so a task handed out
+this morning can be found this morning).
+
+The action itself was unchanged — it already counted `open` and `denied` only, which is exactly
+"what is waiting on you" and is why a count that never goes down was never a risk.
 
 `GATHERINGS_SPEC.md` §4.1 names the signature, so it was written to contract rather than
 speculatively, and that is why it was not simply removed on 2026-08-19: the spec is binding.

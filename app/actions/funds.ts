@@ -19,7 +19,6 @@ export interface Fund {
   created_at: string
   priority: number
   minimum_cents: number
-  event_id: string | null
   open_contributions: boolean
   /**
    * Set when the application depends on this fund existing. 'donations' holds every
@@ -141,6 +140,12 @@ export interface FundWithStats extends Fund {
 
 export async function getFunds(): Promise<FundWithStats[]> {
   const supabase = await createClient()
+  // ── THERE WAS AN `event_expenses` TERM HERE AND IT IS GONE (2026-08-19) ────────────
+  // Five embeds and a sixth read, briefly on the admin client, because `event_expenses`
+  // subtracted from a fund's balance. `20260819000006` drops that table and takes the same
+  // term out of `fund_balance_cents()`, so this sum and the database's own answer still agree
+  // — which is the only thing that ever mattered about it.
+  //
   // TRANSFERS ARE A SECOND QUERY, NOT A SIXTH EMBED, and the reason is the one
   // DISBURSEMENT_SELECT records below: fund_transfers has TWO foreign keys to `funds`
   // — the source and the destination — so both embeds would need
@@ -159,7 +164,7 @@ export async function getFunds(): Promise<FundWithStats[]> {
   const [{ data }, { data: transfers }] = await Promise.all([
     supabase
       .from('funds')
-      .select('*, fund_milestones(id), fund_disbursements(amount_cents), fund_allocations(basis_points), fund_contributions(amount_cents), event_expenses(amount_cents)')
+      .select('*, fund_milestones(id), fund_disbursements(amount_cents), fund_allocations(basis_points), fund_contributions(amount_cents)')
       .eq('active', true)
       .order('priority')
       .order('name'),
@@ -195,7 +200,6 @@ export async function getFunds(): Promise<FundWithStats[]> {
   return rows.map(f => {
     const disbursed = sum(f.fund_disbursements)
     const contributed = sum(f.fund_contributions)
-    const expensed = sum(f.event_expenses)
     const transferred = netTransfers.get(f.id) ?? 0
     return {
       id: f.id,
@@ -206,19 +210,22 @@ export async function getFunds(): Promise<FundWithStats[]> {
       created_at: f.created_at,
       priority: f.priority ?? 100,
       minimum_cents: f.minimum_cents ?? 0,
-      event_id: f.event_id ?? null,
       open_contributions: f.open_contributions ?? false,
       system_key: f.system_key ?? null,
       total_disbursed_cents: disbursed,
       total_contributed_cents: contributed,
       net_transfers_cents: transferred,
       // The one definition of a fund balance, and it is the database's too — see
-      // fund_balance_cents() in 20260812000002, which is what transferBetweenFunds
-      // asks before letting money leave a fund. Money that routed here STAYS here:
-      // a disbursement reduces this fund and no other, and nothing re-runs the dues
-      // waterfall over history. The only way an amount leaves for another fund is a
+      // fund_balance_cents() (20260812000002, rewritten by 20260819000006), which is what
+      // transferBetweenFunds asks before letting money leave a fund. Money that routed here
+      // STAYS here: a disbursement reduces this fund and no other, and nothing re-runs the
+      // dues waterfall over history. The only way an amount leaves for another fund is a
       // fund_transfers row, which is why the term is here rather than implied.
-      balance_cents: contributed - disbursed - expensed + transferred,
+      //
+      // FOUR TERMS SINCE 2026-08-19, down from five. `event_expenses` was the fifth and its
+      // table is dropped; the same term came out of `fund_balance_cents()` in the same
+      // migration, so the two definitions still agree.
+      balance_cents: contributed - disbursed + transferred,
       milestone_count: embedMany(f.fund_milestones).length,
       allocation_bps: effective.get(f.id) ?? 0,
     }
@@ -580,8 +587,9 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   // silently dropped. The transfer case was caught because it changes another fund's
   // balance; the plainer case, of destroying this fund's own history, was not.
   //
-  // `event_expenses.fund_id` is SET NULL and is in the list too: an event's spend charged
-  // to nothing is a figure with no source.
+  // `event_expenses.fund_id` was a third kind of money on this list — an event's spend
+  // charged to nothing being a figure with no source — and that table is dropped
+  // (20260819000006), so contributions, disbursements and transfers are the whole of it.
   const attached = await moneyAttachedTo('fund', id, familyCode)
   if (attached.any) {
     return { success: false, message: moneyAttachedMessage(existing.name, attached) }

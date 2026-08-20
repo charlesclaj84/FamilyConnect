@@ -13,7 +13,7 @@ import {
 import {
   parseAnswer, taskProgress,
   GATHERING_STATUSES,
-  type GatheringStatus, type GatheringStepKind, type GatheringTaskStatus,
+  type GatheringStatus, type GatheringTaskKind, type GatheringTaskStatus,
   type TaskProgress,
 } from '@/lib/gatherings'
 
@@ -155,7 +155,7 @@ export interface AdminGatheringTaskRow {
   id: string
   label: string
   helpText: string | null
-  kind: GatheringStepKind
+  kind: GatheringTaskKind
   required: boolean
   position: number
   status: GatheringTaskStatus
@@ -178,7 +178,7 @@ export interface AdminGatheringDetail extends AdminGatheringRow {
 export interface ReviewQueueRow {
   taskId: string
   label: string
-  kind: GatheringStepKind
+  kind: GatheringTaskKind
   required: boolean
   dueOn: string | null
   answer: unknown | null
@@ -370,8 +370,8 @@ const LIVE_STATUSES = ['planning', 'scheduled'] as const
  * `gatherings/budget:view`.
  *
  * ── THE BALANCE COMES FROM `fund_balance_cents(p_fund_id)`, THROUGH THE SERVICE ROLE ─
- * That function is the database's own five-term definition of a balance (contributions −
- * disbursements − event_expenses + transfers in − transfers out), it is `STABLE` with
+ * That function is the database's own four-term definition of a balance (contributions −
+ * disbursements + transfers in − transfers out), it is `STABLE` with
  * `SET search_path = ''`, and it has NO `authenticated` EXECUTE grant anywhere in the
  * migration chain — so `createAdminClient().rpc(...)` is the only way to call it, exactly as
  * its one other call site in the app does (`transferBetweenFunds`). Recomputing the sum on the
@@ -729,7 +729,7 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
       id:           t.id,
       label:        t.label,
       helpText:     t.help_text,
-      kind:         t.kind as GatheringStepKind,
+      kind:         t.kind as GatheringTaskKind,
       required:     t.required,
       position:     t.position,
       status:       t.status as GatheringTaskStatus,
@@ -835,7 +835,7 @@ export async function getGatheringReviewQueue(): Promise<ReviewQueueRow[]> {
   return rows.map(row => ({
     taskId:            row.id,
     label:             row.label,
-    kind:              row.kind as GatheringStepKind,
+    kind:              row.kind as GatheringTaskKind,
     required:          row.required,
     dueOn:             row.due_on,
     answer:            row.answer ?? null,
@@ -852,8 +852,8 @@ export async function getGatheringReviewQueue(): Promise<ReviewQueueRow[]> {
  * The family's funds and what each holds, for the budget panel's fund picker.
  *
  * ── THE BALANCE IS COMPUTED ON THE ADMIN CLIENT, THROUGH THE RPC ────────────────────
- * `fund_balance_cents(p_fund_id)` is the database's own five-term definition — contributions
- * minus disbursements minus event expenses, plus transfers in, minus transfers out — and it
+ * `fund_balance_cents(p_fund_id)` is the database's own four-term definition — contributions
+ * minus disbursements, plus transfers in, minus transfers out — and it
  * has **no `authenticated` EXECUTE grant** anywhere in the migration chain, so the service
  * role is the only caller it has. That is not merely a permission detail: a balance
  * recomputed on the USER client (which is what `getFunds` does) silently omits the transfer
@@ -1154,22 +1154,22 @@ function normalizeBudget(
  * `instantiateTemplateTasks` re-verifies each one again on its own, because it is imported by
  * three call sites and must not trust any of them.
  *
- * `default_location` COMES BACK WITH THE NAME, so every caller that links a template hands
- * `attachTemplatesToGathering` the value it copies onto the segment. It is projected here rather
- * than read separately for the reason the archive flag is: this is already the one family-scoped
- * read of these rows, and a second one is a second chance for the two to disagree about which
- * row they were talking about.
+ * IT NO LONGER PROJECTS `default_location`. That column is dropped (`20260819000007`): a
+ * template stated where its gatherings were usually held and the value was copied onto every
+ * segment built from it, which is a template author guessing at a fact belonging to one
+ * occasion. A step of kind `'location'` asks a named relative instead, so there is nothing left
+ * for this read to carry across.
  */
 async function resolveTemplates(
   admin: AdminClient,
   familyCode: string,
   templateIds: readonly string[],
 ): Promise<
-  { rows: { id: string; name: string; defaultLocation: string | null }[] } | { message: string }
+  { rows: { id: string; name: string }[] } | { message: string }
 > {
   const { data, error } = await admin
     .from('gathering_templates')
-    .select('id, name, default_location, is_archived')
+    .select('id, name, is_archived')
     .in('id', templateIds)
     .eq('family_code', familyCode)
 
@@ -1178,9 +1178,7 @@ async function resolveTemplates(
     return { message: 'Could not read the templates' }
   }
 
-  const rows = (data ?? []) as {
-    id: string; name: string; default_location: string | null; is_archived: boolean
-  }[]
+  const rows = (data ?? []) as { id: string; name: string; is_archived: boolean }[]
   // Every id asked for came back inside the family. One missing means it is another family's or
   // does not exist, and both answer the same sentence — telling a caller which is an
   // enumeration signal about another family's data.
@@ -1192,10 +1190,7 @@ async function resolveTemplates(
   }
 
   // Back into the order the caller named them, so the tasks come out in that order.
-  const byId = new Map(rows.map(r => [
-    r.id,
-    { id: r.id, name: r.name, defaultLocation: r.default_location ?? null },
-  ]))
+  const byId = new Map(rows.map(r => [r.id, { id: r.id, name: r.name }]))
   return {
     rows: templateIds.flatMap(id => {
       const row = byId.get(id)
@@ -1569,12 +1564,12 @@ async function gatheringSpan(
  * non-archived template of the family's, for the reason `createGathering` accepts any:
  * `who_may_schedule` constrains an ordinary member, not the authority it defers to.
  *
- * ── THE DAY AND THE PLACE ARE OPTIONAL, AND THE PLACE HAS A DEFAULT ───────────
+ * ── THE DAY AND THE PLACE ARE BOTH OPTIONAL, AND NEITHER HAS A DEFAULT ────────
  * Both absent is the ordinary case and leaves the segment reading exactly as one linked before
- * 20260819000001 did. When `location` is absent, `attachTemplatesToGathering` copies the
- * template's `default_location` — the copy happens there, once, at the moment of linking, so that
- * all three create paths get it and so that a later edit to the template cannot move an event
- * people have been told about. The full argument is on that function and in the migration.
+ * 20260819000001 did. `location` fell back to the template's `default_location` until
+ * 20260819000007 dropped that column — a template author stating a venue that belongs to one
+ * occasion — so an unstated place is now simply unstated, and a template that wants one carries
+ * a step of kind `'location'` for a named relative to answer.
  *
  * `occursOn` IS VALIDATED AND NOT MERELY TYPED. `normalizeDate` is the same validator the
  * gathering's own dates go through, which round-trips the value through `Date.UTC` so
@@ -1593,7 +1588,7 @@ export async function addGatheringTemplate(input: {
   templateId: string
   /** This segment's day, `YYYY-MM-DD`. Absent or null is "not stated". */
   occursOn?: string | null
-  /** This segment's place. Absent or null falls back to the template's `default_location`. */
+  /** This segment's place. Absent or null is "not stated"; there is no default. */
   location?: string | null
 }): Promise<ActionResult & { warning?: string }> {
   const g = await requireEdit('admin/gatherings')
@@ -1646,11 +1641,9 @@ export async function addGatheringTemplate(input: {
     return { success: false, message: 'Could not read this gathering’s templates' }
   }
 
-  // The place the caller stated wins; absent, `attachTemplatesToGathering` copies the template's
-  // `default_location`, which `resolveTemplates` has already brought back on the row. `.trim() ||
-  // null` so an empty box means "not stated" and therefore FALLS BACK, rather than writing '' and
-  // suppressing the default — which is the one thing the `??` in that function cannot decide for
-  // itself, because '' is a value.
+  // `.trim() || null` so an empty box is "not stated" rather than a stated place of no
+  // characters — the same expression every optional text field in this feature applies, and the
+  // one thing `??` cannot decide for itself, because '' is a value.
   const stated = (input.location ?? '').trim() || null
   const failures = await attachTemplatesToGathering(
     admin, input.gatheringId, g.familyCode,

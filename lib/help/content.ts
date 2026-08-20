@@ -117,7 +117,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-rail',
             heading: 'The rail down the left',
             blocks: [
-              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Events**, **Accounting**, **Reporting**, **Resources**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
+              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Gatherings**, **Accounting**, **Reporting**, **Resources**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
               p('The rail only lists screens you can actually open. If a heading you expected is missing, it is because every screen under it is either not part of your family plan or not something your family has given you. That is not a fault — see [Who can do what](/help/who-can-do-what).'),
               p('On a phone the rail is behind the **Menu** button at the top left. It closes itself as soon as you pick something.'),
             ],
@@ -352,20 +352,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'at-a-glance',
             heading: 'At a Glance',
             blocks: [
-              p('Up to four figures, and each appears only if it is genuinely yours to see:'),
+              p('The panel is about YOU and your standing with the family. Up to three figures across the top, and each appears only if it is genuinely yours to see:'),
               defs(
                 { term: 'Family Members', text: 'How many approved people are in the family. People recorded on the tree without an account are counted — they are family. People still waiting to be approved are not.' },
-                { term: 'Dues Collected', text: 'What the family has taken in this year. Shown only to somebody who may see the ledgers.' },
                 { term: 'Pending Approval', text: 'How many people are waiting. It appears only when somebody actually is, and only for whoever can act on it.' },
                 { term: 'Upcoming Gatherings', text: 'How many gatherings have not finished yet. It appears only while at least one has not, and **View calendar** under it leads to [Calendar](/calendar).' },
               ),
+              p('Under the figures, in the same panel: **Remaining Balance** — what you still owe — and **Donation Drives**, the ones the family currently has open. Both have their own sections below.'),
+              note('**Dues Collected** was a fourth figure here until 2026-08-19 and is now a card of its own further down the page. It is what the FAMILY has taken in rather than anything about you, which is a treasurer\'s figure read deliberately rather than glanced at. Who may see it did not change: it is still whoever may see the ledgers.'),
             ],
           },
           {
             id: 'quick-actions',
             heading: 'Quick Actions',
             blocks: [
-              p('Shortcuts to the three things people do most — add a member, record a payment, send a message. A button appears only if you may do the thing it names, so an empty Quick Actions panel is not a fault.'),
+              p('Shortcuts to the things people do most — add a member, record a payment, send a message. A button appears only if you may do the thing it names, so an empty Quick Actions panel is not a fault.'),
+              p('**My Tasks** is the exception and is the only button here that is not about a permission. It appears when a gathering task is actually waiting on you, leads straight to it, and goes away when there is nothing left — see [My Gathering Tasks](/help/gathering-tasks#what-it-is). Everything else on the row is a job you MAY do; this is one you have been asked to.'),
             ],
           },
           {
@@ -381,15 +383,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'balance',
             heading: 'Remaining Balance',
             blocks: [
-              p('What you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/account-summary) leads with, and **View Dues** takes you to the schedule-by-schedule detail on [Dues](/dues).'),
+              p('Inside **At a Glance**, under the figures: what you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/account-summary) leads with, and **View Dues** takes you to the schedule-by-schedule detail on [Dues](/dues).'),
             ],
           },
           {
             id: 'donation-drives',
             heading: 'Donation Drives',
             blocks: [
-              p('Every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Donations](/donations).'),
+              p('Also inside **At a Glance**, under the balance: every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Donations](/donations).'),
               p('The soonest to close comes first, and the panel names the count if there are more than three. It does not appear at all when no drive is open, which is most families most of the time.'),
+            ],
+          },
+          {
+            id: 'collected',
+            heading: 'Collected this year',
+            blocks: [
+              p('What the family has taken in this year in dues and donations, with **View payments** through to the ledger. It was a figure inside **At a Glance** until 2026-08-19 and is a card of its own now: that panel is about the reader, and this is the organisation\'s income.'),
+              p('It is shown only to somebody who may see the ledgers, and it is absent rather than blank for anybody else — an empty figure invites a member to wonder what they are missing. A family that has genuinely taken in nothing shows a zero, which is a different thing and a real answer.'),
             ],
           },
           {
@@ -470,16 +480,16 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'announcements',
         title: 'Announcements',
-        summary: 'Family news, who sees it, what pinning actually does, and whose birthday is coming up.',
+        summary: 'Family news, the archive of everything sent, what pinning actually does, and whose birthday is coming up.',
         route: '/announcements',
         sections: [
           {
             id: 'reading',
             heading: 'The board',
             blocks: [
-              p('[Announcements](/announcements) is two panes. **General** is the board and is what the screen opens on; **Birthdays** is who to write to next, and it is the last section of this chapter.'),
+              p('[Announcements](/announcements) is three panes. **General** is the board and is what the screen opens on; **Updates** is the archive of everything the family has announced and everything sent to you, covered in [Updates](/help/updates#what-it-is); **Birthdays** is who to write to next, and it is the last section of this chapter.'),
               p('The board is a stack of posts, newest first, each showing who wrote it and when. Pinned posts are marked and also ride at the top of everybody\'s Recent Updates on the dashboard.'),
-              p('The two panes are granted separately, so a family can hand out the birthday list without handing out the board, or the other way round. A pane that is not there is one you have not been given — see [Who can do what](/help/who-can-do-what#missing).'),
+              p('The three panes are granted separately, so a family can hand out the birthday list without handing out the board, or the other way round. A pane that is not there is one you have not been given — see [Who can do what](/help/who-can-do-what#missing).'),
             ],
           },
           {
@@ -547,7 +557,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'One list, two kinds of thing',
             blocks: [
-              p('[Updates](/updates) is the long version of the **Recent Updates** card on your [Dashboard](/dashboard). That card shows the newest few; this shows all of them, newest first, and lets you search.'),
+              p('Updates is the **Updates** pane of [Announcements](/announcements), and the long version of the **Recent Updates** card on your [Dashboard](/dashboard). That card shows the newest few; this shows all of them, newest first, and lets you search.'),
+              p('It had a menu row of its own until 2026-08-19 and no longer does — the family\'s news lives on one screen. The old address still works and lands on the pane, so a link anybody has sent still opens the right list.'),
               p('Two kinds of row appear:'),
               defs(
                 { term: 'Announcement', text: 'Family news somebody posted on the board. Opening it goes to [Announcements](/announcements), which carries the full text.' },
@@ -586,7 +597,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'If announcements are not in your list',
             blocks: [
               p('The page will say so, above the list. Announcements are the family\'s board and are granted separately from your own messages, so a member who has not been given the board sees only what has been sent to them — see [Who can do what](/help/who-can-do-what#missing).'),
-              p('This page can be switched off entirely too, in which case it is not in your menu at all. Your own messages are still in the bell, and the board is still at [Announcements](/announcements); this page is the two together.'),
+              p('This pane can be switched off entirely too, in which case Announcements opens without it. Your own messages are still in the bell, and the board is still the **General** pane; this one is the two together.'),
             ],
           },
         ],
@@ -653,7 +664,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'view-vs-edit',
             heading: 'View and Edit',
             blocks: [
-              p('The tree opens in **View**. Switching to **Edit** turns on the **+** buttons, the record editor and the remove controls. Any approved member may edit — building the family\'s tree is something the family does together.'),
+              p('The tree opens in **View**. Switching to **Edit** turns on the **+** buttons, the record editor and the remove controls. Every member starts able to edit, because building the family\'s tree is something the family does together — but it is a permission like any other now, so your administrators can narrow it from [Members](/admin/users). If the **Edit** switch is not there, that is why.'),
+              p('Clicking a card opens the panel where that person\'s record and their connections are managed. **That panel follows your Directory permission, not the tree\'s** — a family that has restricted the [Member Directory](/members) has said the roster is not for everybody, and the panel is where a record is read one person at a time. The canvas itself still draws every name and shows how everybody connects.'),
               note('Nothing on the tree removes anybody from the family. Removing a connection removes the *link* between two people, not either person.'),
             ],
           },
@@ -725,129 +737,19 @@ export const HELP_PARTS: readonly HelpPart[] = [
   },
 
   {
-    id: 'events',
-    title: 'Events',
-    blurb: 'Getting the reunion on the calendar, and getting everybody to it.',
+    // THE PART WAS CALLED "EVENTS" AND HELD SIX CHAPTERS until 2026-08-19. Three of them
+    // documented the Events product — Events and RSVPs, Event Planning, Running an event —
+    // and all three are deleted with it, along with every cross-reference the Gatherings
+    // chapters made to them. A manual chapter for a screen that no longer exists is worse
+    // than no chapter: it is the product telling a confused member to go somewhere that 404s.
+    id: 'gatherings',
+    title: 'Gatherings',
+    blurb: 'Getting the reunion on the calendar, and getting the work of it handed out.',
     chapters: [
-      {
-        slug: 'events',
-        title: 'Events and RSVPs',
-        summary: 'Finding what is coming up, saying who is attending, and reading the details.',
-        route: '/events',
-        sections: [
-          {
-            id: 'browsing',
-            heading: 'What is coming up',
-            blocks: [
-              p('[Upcoming Events](/events) lists everything ahead, with the dates, the place and the RSVP deadline. **Confirmed** means the event has been approved rather than merely drafted. Click through for the whole thing.'),
-            ],
-          },
-          {
-            id: 'the-page',
-            heading: 'An event page',
-            blocks: [
-              p('The description, the dates and the address, and then whichever of these the organisers have filled in:'),
-              defs(
-                { term: 'Official Information', text: 'The formal wording — venue rules, dress, what to bring.' },
-                { term: 'Itinerary', text: 'The individual sessions inside the event, with their own times and places.' },
-                { term: 'Hotels', text: 'Room blocks, with rates and booking details.' },
-                { term: 'Who is coming', text: 'A summary of the RSVPs so far.' },
-              ),
-            ],
-          },
-          {
-            id: 'rsvp',
-            heading: 'Responding for your household',
-            blocks: [
-              p('You RSVP for everybody in your household at once, not just yourself — that is what makes a head count usable.'),
-              steps(
-                'Press **Edit RSVP**.',
-                'Set **Yes** or **No** for each person listed.',
-                'Press **Save RSVP** and confirm the count.',
-              ),
-              p('Each person\'s t-shirt size is shown beside their name while you are editing, so a missing one is obvious before the order goes in. Fill it in on [My Profile](/personal-info?section=additional).'),
-              note('You can change your answer as often as you like until the RSVP deadline. After it, the response is locked and you will need to speak to whoever is organising.'),
-            ],
-          },
-        ],
-      },
-      {
-        slug: 'event-planning',
-        title: 'Event Planning',
-        summary: 'The planning tasks assigned to you, and how to respond to them.',
-        route: '/event-planning',
-        sections: [
-          {
-            id: 'assignments',
-            heading: 'Your assignments',
-            blocks: [
-              p('When an event is created from a template, its checklist is handed out to named people. This page is your share of it — one row per item, with the event it belongs to and its deadline.'),
-              p('The rail item only appears while you have something outstanding. It disappears when everything is done, which is the intended end state rather than a fault.'),
-            ],
-          },
-          {
-            id: 'responding',
-            heading: 'Responding',
-            blocks: [
-              p('Each item asks for the answer its template said it needed — a tick, a date, a list, or the names of people — and records it against the event. An item left past its deadline is marked rather than silently forgotten, so whoever is running the event can see where the gaps are.'),
-            ],
-          },
-        ],
-      },
-      {
-        slug: 'running-events',
-        title: 'Running an event',
-        summary: 'Creating events, reusable templates, approving, and day-of check-in.',
-        route: '/admin/events',
-        sections: [
-          {
-            id: 'creating',
-            heading: 'Creating an event',
-            blocks: [
-              steps(
-                'Open [Event Management](/admin/events) and start a new event.',
-                'Name it, and pick a template if you have one.',
-                'Set the dates — or tick **All Day** — and the venue and address.',
-                'Save. It is a draft until it is approved.',
-              ),
-              p('From the event\'s own page you then add the itinerary, the hotel blocks, and the planning assignments.'),
-            ],
-          },
-          {
-            id: 'templates',
-            heading: 'Event Templates',
-            blocks: [
-              p('[Event Templates](/admin/event-types) are reusable blueprints — a named kind of event with a planning checklist attached. Creating an event from one hands its checklist out automatically instead of somebody rebuilding the same list every year.'),
-              p('Templates are worth the effort the second time you run the same kind of event, and not before.'),
-            ],
-          },
-          {
-            id: 'approving',
-            heading: 'Approving',
-            blocks: [
-              p('A drafted event is visible but not confirmed. Approving it marks it **Confirmed** for the family. It is a separate permission from creating one, so a committee can propose and one person can commit.'),
-            ],
-          },
-          {
-            id: 'checkin',
-            heading: 'Day-of check-in',
-            blocks: [
-              p('Each event has a **Check-In** screen for the day itself: the expected list from the RSVPs, and a mark against each person as they arrive. It is designed to be worked on a phone at a door.'),
-            ],
-          },
-          {
-            id: 'rsvps',
-            heading: 'Reading the responses',
-            blocks: [
-              p('The event page carries the RSVP summary — who has answered, who is coming, and the t-shirt counts drawn from each attendee\'s profile. Somebody with no size on file shows as missing rather than as a guess.'),
-            ],
-          },
-        ],
-      },
       {
         slug: 'gatherings',
         title: 'Gatherings',
-        summary: 'What a gathering is, how one is scheduled from a template, and how to read its tasks and its budget.',
+        summary: 'What a gathering is, how one is scheduled from a template, how to read its tasks and its budget, and where your own tasks are.',
         route: '/gatherings',
         sections: [
           {
@@ -855,7 +757,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'A gathering, and how it differs from an event',
             blocks: [
               p('[Gatherings](/gatherings) is the family organising the work of getting together. A gathering is a named occasion — a reunion, a memorial, a banquet — broken into the jobs it takes, with a relative\'s name against each one and an answer somebody accepts. Its question is who is doing what, and whether it has been done and accepted.'),
-              p('[Upcoming Events](/events) is the other half of the same weekend and is not the same screen. An event answers when it is, where it is and who is coming: dates, RSVPs, hotel blocks, a list at the door. Both are in the product, both keep their own screens, and neither reads the other — see [Events and RSVPs](/help/events#browsing). Use an event when you need a head count; use a gathering when you need the preparation handed out.'),
+              p('The screen is two panes. **Gatherings** is everything the family is planning, covered by this chapter; **My Tasks** is your own share of it, covered by [My Gathering Tasks](/help/gathering-tasks#what-it-is). The two are granted separately, so a family can hand somebody their own tasks without handing them the family-wide list.'),
+              note('There was a separate Events product until 2026-08-19 — RSVPs by household, hotel room blocks and day-of check-in — and it is gone. Gatherings replaced it, and those three things are not in the product today: a step of a gathering can ASK a relative for any of them, but there is no attendee count, no room block and no check-in list. Everything the family had recorded is kept; nothing new can be added to it.'),
               p('A gathering is always built from at least one template — a named, ordered list of steps somebody authored once. Every step of every template it is built from becomes a task on the gathering, so nothing is forgotten between one year and the next. The library is [Gathering Templates](/admin/gathering-templates).'),
               p('Each of those templates is a **segment**: a part of the occasion with its own day and its own place. That is what lets one gathering be a three-day reunion — the Welcome on Friday evening at one address, the Picnic on Saturday at another, the Send Off on Sunday morning — rather than one block of dates with everything filed under it. A gathering that happens all at once in one place simply states neither, and reads as it always has.'),
             ],
@@ -933,10 +836,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Your share of a gathering',
             blocks: [
-              p('[My Gathering Tasks](/gatherings/my-tasks) is everything anybody has asked you to do for a gathering, across every gathering, soonest deadline first — a task with no deadline sits at the bottom. The line at the top counts what is waiting on you and says separately how many have come back for another look.'),
+              p('**My Tasks** is the second pane of [Gatherings](/gatherings), and it is everything anybody has asked you to do for a gathering, across every gathering, soonest deadline first — a task with no deadline sits at the bottom. The tab carries the count of what is waiting on you, and the line at the top says separately how many have come back for another look.'),
+              p('It had a menu row of its own until 2026-08-19 and is a pane now. The old address still works and lands on the pane, which is what keeps a link in an old notification pointing at the right place. A [Dashboard](/dashboard) Quick Action appears when something is waiting on you and disappears when nothing is.'),
               p('Each card names the gathering, the template the task came from, when it is due and what it may spend. A task past its deadline is marked rather than quietly forgotten. Whatever help text the step carried is printed under the title: that is the person who wrote it telling you what counts as done.'),
-              p('This is the Gatherings counterpart of [Event Planning](/help/event-planning#assignments), and the difference is what happens after you answer. An event assignment records your answer against the event and that is the end of it. A gathering task goes to whoever is organising, who accepts it or hands it back with notes — so a task is finished when somebody has said so, not when you have typed something in.'),
-              note('The rail item is always there, unlike Event Planning above it, and an empty page says nothing is assigned to you. That is the intended state for most members most of the time rather than a fault — and it is always there so that a task handed to you this morning can be found this morning.'),
+              p('WHAT MAKES A TASK DIFFERENT FROM A FORM YOU FILL IN is what happens after you answer. It goes to whoever is organising, who accepts it or hands it back with notes — so a task is finished when somebody has said so, not when you have typed something in.'),
+              note('The pane is always there and an empty one says nothing is assigned to you. That is the intended state for most members most of the time rather than a fault — and it is always there so that a task handed to you this morning can be found this morning.'),
             ],
           },
           {
@@ -993,15 +897,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'calendar',
         title: 'Calendar',
-        summary: 'The month grid that puts gatherings and events on the same days, how to move between months, and what it does on a phone.',
+        summary: 'The month grid that puts every gathering on the day it falls, how to move between months, and what it does on a phone.',
         route: '/calendar',
         sections: [
           {
             id: 'what-it-is',
-            heading: 'One month, both kinds',
+            heading: 'One month at a time',
             blocks: [
-              p('[Calendar](/calendar) is a real month grid — weeks down, weekdays across, Sunday first — with the family\'s gatherings and its events on the days they fall. It is the one screen that shows both together, and it creates neither: everything on it is a link into [Gatherings](/gatherings) or [Upcoming Events](/events), where the thing itself lives and is edited.'),
-              p('The legend under the grid names the three treatments — **Premier gathering**, **Gathering** and **Event** — and every entry says which it is in words as well as in colour, so the distinction survives both a screen reader and a reader who cannot separate the two hues.'),
+              p('[Calendar](/calendar) is a real month grid — weeks down, weekdays across, Sunday first — with the family\'s gatherings on the days they fall. It creates nothing: everything on it is a link into [Gatherings](/gatherings), where the thing itself lives and is edited.'),
+              p('The legend under the grid names the two treatments — **Premier gathering** and **Gathering** — and every entry says which it is in words as well as in colour, so the distinction survives both a screen reader and a reader who cannot separate the two hues. There was a third for an Event until 2026-08-19; that product is retired.'),
             ],
           },
           {
@@ -1032,7 +936,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'missing',
             heading: 'When something is not on it',
             blocks: [
-              p('A line above the grid appears when a whole kind of entry is missing — gatherings, events, or both. It means one of two things and cannot tell which: that screen has not been shared with you, or it could not be read just now.'),
+              p('A line above the grid appears when the gatherings are missing from it. It means one of two things and cannot tell which: that screen has not been shared with you, or it could not be read just now.'),
               p('Either way the month you are looking at is not the whole month, which is why the line is there at all — an empty August with nothing said about it reads as a fact about the family. A month that genuinely has nothing on it says that instead.'),
             ],
           },
@@ -1041,19 +945,20 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'gathering-management',
         title: 'Gathering Management',
-        summary: 'Scheduling a gathering, setting its fund and budget, handing out the tasks, and ruling on the answers that come back — including taking an approval back.',
+        summary: 'Scheduling a gathering, setting its fund and budget, handing out the tasks, ruling on the answers that come back, and authoring the templates it is all built from.',
         route: '/admin/gatherings',
         sections: [
           {
             id: 'what-it-is',
-            heading: 'Two panes, and what they are for',
+            heading: 'Three panes, and what they are for',
             blocks: [
-              p('[Gathering Management](/admin/gatherings) is the organising side of [Gatherings](/gatherings), on one rail with two panes:'),
+              p('[Gatherings](/admin/gatherings) under Admin is the organising side of [Gatherings](/gatherings), on one rail with three panes:'),
               bullets(
                 '**Gatherings** — every gathering the family has, with its dates, its status, its budget against the fund it draws on, and how much of its work has been approved.',
                 '**Review queue** — every answer waiting on a decision, across every gathering at once. The pane carries the count while anything is waiting.',
+                '**Templates** — the library every gathering is built from, covered by [Gathering Templates](/help/gathering-templates#what-it-is).',
               ),
-              p('[Event Management](/help/running-events#creating) is the equivalent screen for Events and stays exactly where it is. The two divide the same occasion between them: an event is drafted, approved, RSVP\'d and checked in at the door, while a gathering is built from templates, handed out person by person, and accepted a piece at a time. Nothing here touches an event, and nothing there touches a gathering.'),
+              p('Templates had a menu row of its own until 2026-08-19 and is a pane here now; its old address still works and lands on the pane. It is granted separately from the other two, so a family can let somebody author the checklists without letting them commit the family to a gathering — or the other way round, which is the commoner arrangement.'),
             ],
           },
           {
@@ -1079,17 +984,17 @@ export const HELP_PARTS: readonly HelpPart[] = [
               defs(
                 { term: 'Segment', text: 'The template this part came from, with how many tasks came with it.' },
                 { term: 'Day', text: 'The date this part happens on. Optional — leave it empty for a gathering that happens all at once.' },
-                { term: 'Place', text: 'Where this part is held. Optional, and it starts at whatever the template usually uses.' },
+                { term: 'Place', text: 'Where this part is held. Optional, and it starts empty — a template no longer states a usual one.' },
                 { term: 'Tasks', text: 'How many of the gathering\'s tasks came from that template.' },
               ),
               p('Type into either box and a **Save** button appears on that row, so nothing is written per keystroke and one row saving does not lock the others. Both are what the relatives being asked to help actually read: a segment\'s day and place are printed under its heading on the gathering\'s own page.'),
               steps(
                 'Choose a template under **Add another segment**.',
-                'Set **Day** and **Place**, or leave either empty. The place fills itself in from that template\'s usual location the moment you pick it.',
+                'Set **Day** and **Place**, or leave either empty.',
                 'Press **Add its steps**. Every step of that template becomes a task on this gathering, and nothing about the tasks already there changes.',
               ),
               p('A day outside the gathering\'s own dates is **saved and remarked on rather than refused**, and the remark is a quiet line on the row rather than a red one: nothing failed, there is simply a date to reconcile. That is deliberate — dates move, and an organiser shifting the weekend should not be stopped by a segment they were not looking at. The line appears when the segment is saved, so a gathering whose dates moved afterwards is worth a look down this panel.'),
-              note('A segment\'s place is a COPY, taken when the template was linked, and never a reference back to it. Changing a template\'s **Usual location** afterwards moves nothing that already exists — the same rule the tasks follow, and for the same reason: nobody should find that an occasion they had already been told about has quietly moved.'),
+              note('A segment\'s place belongs to the segment and to nothing else. Templates used to state a **Usual location** that was copied onto every segment built from them, and that is gone (2026-08-19): a venue belongs to one occasion, and a template that needs one asks for it with a step of kind **A place** — handed to a named relative, with a due date, and reviewed like every other answer.'),
             ],
           },
           {
@@ -1153,16 +1058,16 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'gathering-templates',
         title: 'Gathering Templates',
-        summary: 'Authoring the step-by-step lists a gathering is built from, deciding who may schedule from one, and archiving one that has been used.',
+        summary: 'Authoring the step-by-step lists a gathering is built from, including a step that is another template, deciding who may schedule from one, and archiving one that has been used.',
         route: '/admin/gathering-templates',
         sections: [
           {
             id: 'what-it-is',
             heading: 'What a template is',
             blocks: [
-              p('[Gathering Templates](/admin/gathering-templates) is the library a gathering is built from. A template is a name and an ordered list of steps — one per thing somebody has to do or decide — and scheduling a gathering from it under [Gathering Management](/admin/gatherings) turns every step into a task waiting to be handed to a relative.'),
-              p('Editing a template never changes a gathering already built from it. Every task keeps its own copy of what it asked and every segment keeps its own copy of where it is held, so a step renamed here — or a location corrected — reaches next year\'s reunion and not the one currently running, and nobody\'s answer is ever rewritten out from under them. That is what makes the library safe to keep tidying, and the card says so.'),
-              p('It is the Gatherings counterpart of [Event Templates](/help/running-events#templates), which does the same job on the Events side: a template there hands a planning checklist out against an event, and one here hands out tasks that come back to be accepted. The two libraries are separate and neither reads the other.'),
+              p('The **Templates** pane of [Gatherings](/admin/gatherings) under Admin is the library a gathering is built from. A template is a name and an ordered list of steps — one per thing somebody has to do or decide — and scheduling a gathering from it turns every step into a task waiting to be handed to a relative.'),
+              p('It had a menu row of its own until 2026-08-19 and is a pane now. The old address still works and lands on it.'),
+              p('Editing a template never changes a gathering already built from it. Every task keeps its own copy of what it asked, so a step renamed here reaches next year\'s reunion and not the one currently running, and nobody\'s answer is ever rewritten out from under them. That is what makes the library safe to keep tidying, and the card says so.'),
             ],
           },
           {
@@ -1171,13 +1076,12 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               steps(
                 'Type a name under **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
-                'Put the usual place under **Usual location** if there is one — "Zilker Park, Austin". It is optional, and it can be filled in or changed on the card afterwards.',
                 'Choose **Who can schedule from this**.',
                 'Press **Add template**.',
                 'On the card that appears, add a **Description** and press **Save changes**, then give it a step for each thing somebody has to do.',
               ),
               p('A name has to be unique within the family, so a second "Family Reunion" is refused rather than added quietly beside the first. The description is what an organiser reads before scheduling from it, and it is shown beside the template when they pick one.'),
-              p('**Usual location** is a default and nothing more. It is copied onto a segment when this template is added to a gathering, and never read back through afterwards — so changing it here moves no gathering that already exists, and a year the picnic is held somewhere else is recorded on that segment rather than by editing the library. See [Gathering Management](/help/gathering-management#segments).'),
+              note('There was a **Usual location** field here until 2026-08-19 and there is not now. A template stating where its gatherings are usually held was an author guessing at a fact that belongs to one occasion, and the guess then had to be corrected on every segment it was copied onto. Ask for the venue instead: a step of kind **A place**, handed to a named relative with a due date.'),
             ],
           },
           {
@@ -1192,18 +1096,37 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Set a **Suggested budget ($)** if the job costs money.',
                 'Press **Add step**.',
               ),
-              p('There are seven kinds of step, and the choice decides what the person answering is given:'),
+              p('There are nine kinds of step. Eight of them decide what the person answering is given:'),
               defs(
-                { term: 'Short answer', text: 'One line — a name, a phone number, a venue.' },
+                { term: 'Short answer', text: 'One line — a name, a phone number, an answer in a few words.' },
                 { term: 'Long answer', text: 'A paragraph — notes, a description, an explanation.' },
                 { term: 'A date', text: 'A single calendar date, picked from a date field.' },
+                { term: 'A place', text: 'A venue, an address, a room. One line, and a phone will offer the addresses it already knows.' },
                 { term: 'A list', text: 'Any number of lines, one item each, added and removed as they go.' },
                 { term: 'Yes or no', text: 'A decision. They must choose; leaving it blank is not an answer.' },
                 { term: 'A number', text: 'A count or a quantity. Money has its own kind — use that one for money.' },
                 { term: 'An amount of money', text: 'An amount in dollars, recorded to the cent.' },
               ),
+              p('The ninth is the odd one out and is the next section.'),
               p('The arrows on a row move a step earlier or later, and that order is the order the tasks are handed out in. **Save** appears on a row once something on it has changed, so nothing is written per keystroke. Deleting a step leaves every task already made from it exactly where it is.'),
               p('A suggested budget is only a starting figure copied onto the task. It can be changed on the gathering, and what counts against the fund is the gathering\'s own budget — see [Gathering Management](/help/gathering-management#money).'),
+            ],
+          },
+          {
+            id: 'nested',
+            heading: 'A step that is another template',
+            blocks: [
+              p('The ninth kind is **Another template**, and nobody answers it. Pick a template and every step of THAT template becomes a task of its own, at that point in the list, whenever a gathering is built from this one.'),
+              p('It is for the checklist your family runs inside several different occasions. Write the five steps of "Catering" once, then give "Family Reunion", "Memorial Service" and "Scholarship Banquet" a step of Catering each — and correcting the catering list next year corrects all three.'),
+              steps(
+                'Under **Add a step**, type a label — it heads nothing on its own, so name it for what the reader of this template should see, "The catering checklist".',
+                'Choose **Another template** under **What it asks for**.',
+                'Pick the one to include under **Template to include**.',
+                'Press **Add step**.',
+              ),
+              p('**Required** and **Suggested budget** are not offered for this kind and that is deliberate: nobody is going to answer it, so there is nothing to require and no single job to price. The steps it brings in carry their own.'),
+              p('A template cannot include itself, and it cannot include anything that leads back to it — A inside B inside A is refused with a sentence saying so. Only the family\'s other templates are offered, and an archived one may still be included: archiving means "do not start anything NEW from this", which is about scheduling a gathering rather than about composing a checklist.'),
+              note('Editing the included template changes what the NEXT gathering gets and never a gathering already running — the same rule every other step follows, for the same reason. So this is safe to keep tidying, and correcting a shared checklist genuinely reaches every template that includes it.'),
             ],
           },
           {
@@ -1592,9 +1515,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               defs(
                 { term: 'Members', text: 'Everybody in the family, and which permission template each is on. Four columns — Name, Region, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
+                { term: 'Organization', text: 'The family\'s regions and chapters — how a spread-out family divides itself up. It sits second because it is what the Members table\'s Region and Chapter columns are read against. It has a chapter of its own: [Organization](/help/regions-and-chapters).' },
                 { term: 'Pending Approval', text: 'The people asking to join, and the invitations you have sent.' },
                 { term: 'Permission Templates', text: 'The templates themselves, and what each one grants.' },
-                { term: 'Organization', text: 'The family\'s regions and chapters — how a spread-out family divides itself up. It has a chapter of its own: [Organization](/help/regions-and-chapters).' },
               ),
               p('The four are granted separately and the page opens for any of them — somebody can work the approvals queue without being able to edit templates, and somebody can keep the family\'s chapters in order without being able to see the roster at all.'),
             ],
@@ -1626,9 +1549,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('Every member is on exactly one template, and that template is the whole of what they can do. There is no second layer — no groups to union, no per-person exceptions to reconcile.'),
               steps(
                 'Open **Permission Templates** and create one, optionally starting from a copy of an existing template.',
-                'Work down the grid, setting each feature\'s **view**, **create**, **edit** and **delete**.',
+                'Find the feature you want to change. Each one is a row saying what it grants today — "View All", "Edit Own", or **Nothing**.',
+                'Click the row to open it. Its **view**, **create**, **edit** and **delete** appear underneath, and only the ones that mean something for that feature.',
+                'Set each one to **All**, **Own** or **—**. The change is confirmed and then applies immediately.',
                 'Put people on it from the row menu on the **Members** tab.',
               ),
+              p('One feature is open at a time, so opening another closes the one before it. That is deliberate: forty features times four settings is a wall of switches, and an administrator comes here to change one of them.'),
+              p('A closed row is still the answer. It says what the template grants for that feature, so reading a whole template is reading down the list rather than opening every row — and **Nothing** is written out rather than left blank, because a blank row reads as one that failed to load.'),
               p('Changing a template changes it for everybody on it, straight away.'),
             ],
           },

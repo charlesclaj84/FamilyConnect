@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { requireView } from '@/lib/auth/permissions'
-import { isApprovedMember } from '@/lib/auth/family'
-import { canAny } from '@/lib/auth/permissions'
+import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { getFamilyTree } from '@/app/actions/family-tree'
 import { PageShell } from '@/components/layout/PageShell'
 import { FamilyTreeBuilder, TreeLegend } from '@/components/family-tree/FamilyTreeBuilder'
@@ -82,13 +80,49 @@ export default async function FamilyTreePage() {
   // NOT A GATE. It decides what is offered, not what is permitted: every action re-checks
   // for itself, because this boolean travels in the RSC payload and a caller who edits it
   // has changed a prop rather than a permission.
-  const canEdit = await isApprovedMember(user.id)
+  //
+  // ── IT IS THE GRANT NOW, since 20260819000008 ─────────────────────────────────────
+  // It was `isApprovedMember(user.id)` until then, because `family-tree` was an
+  // unregistered key and there was no grant to ask about. The comment above predicted
+  // this would be "a change to THIS LINE and nothing else", and that was very nearly
+  // right: the other half is that the six write actions gate themselves on the same
+  // grant, because a page guard is a convenience and a `'use server'` export is a URL.
+  //
+  // `canAny` and not `can`, matching `requireTreeEditor()` in the action module exactly.
+  // The two must agree or the canvas offers an Edit mode whose every write is refused —
+  // and an Own grant is precisely the case where `can` and `canAny` disagree.
+  //
+  // Approved membership is still required and is not dropped: a pending applicant
+  // resolves to 'none' on every resource, so `canAny` refuses them on its own.
+  const canEdit = await canAny(user.id, 'family-tree', 'edit')
 
   // WHO MAY MOVE THE BLOODLINE ANCHOR — `admin/family:edit`, the same grant that renames
   // the family, because it is the same kind of decision: one setting that changes what
   // every member sees. Deliberately NOT the tree's self-service rule. Any member may say
   // who their father is; redefining whose line the family descends from is not that.
   const canSetAnchor = await canAny(user.id, 'admin/family', 'edit')
+
+  // WHETHER A CARD OPENS A PERSON PANEL AT ALL — the Directory's grant, not the tree's.
+  //
+  // The tree is gated on its own key (above), so a family may show the SHAPE of itself to
+  // somebody it has not given the roster to: who is related to whom is what a tree is for.
+  // What the panel behind a card adds is the RECORD — names, nickname, birthday, gender,
+  // and the invitation control — and that is the Member Directory's question, on the
+  // Directory's key. A family that restricted `members` has said the roster is not for
+  // everybody, and this is the one surface that would otherwise hand it back a card at a
+  // time.
+  //
+  // `can`, not `canAny`: an Own view grant on `members` is a real grant — it is the RLS
+  // predicate that narrows the roster to the caller's own row — so it should open the
+  // panel and let the narrowing happen, exactly as the Directory itself does. The tree
+  // canvas draws names either way; that is `family-tree:view`'s business and not this
+  // boolean's.
+  //
+  // THE COUPLING IS DELIBERATE AND IS THE ONE AGENTS.md §4 WARNS ABOUT, so it is worth
+  // being exact about what is and is not coupled. `belongsToFamily` still uses the service
+  // role, so a restricted Directory cannot break a WRITE the tree makes — the hazard that
+  // section is about. What is coupled is only whether this one dialog opens.
+  const canViewDirectory = await can(user.id, 'members', 'view')
 
   return (
     <PageShell className="space-y-6">
@@ -106,7 +140,12 @@ export default async function FamilyTreePage() {
           the sentence that offered "one person's line rather than the family's" described
           a distinction that no longer exists. Clicking anybody on the canvas re-centres
           the tree on them, which is what that link was for. */}
-      <FamilyTreeBuilder tree={tree} canEdit={canEdit} canSetAnchor={canSetAnchor} />
+      <FamilyTreeBuilder
+        tree={tree}
+        canEdit={canEdit}
+        canSetAnchor={canSetAnchor}
+        canViewDirectory={canViewDirectory}
+      />
     </PageShell>
   )
 }

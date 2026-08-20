@@ -54,16 +54,30 @@ import {
  * calendar" — so this was never a fourth tile somebody invented, it was a specified one the
  * repo had not built. It counts UPCOMING, non-cancelled gatherings and it leads to
  * `/calendar`, which is the caption the kit itself writes under the figure.
+ *
+ * ── `dues` LEFT THIS LIST ON 2026-08-19 AND BECAME A WIDGET ────────────────────────
+ * "Dues Collected" was the family's collected total, as a metric tile. It is
+ * `FamilyDuesCollectedCard` now, in the narrow column beside the tree — and the swap is the
+ * point rather than a move: At a Glance is what is true of the READER (what they owe, what
+ * their family is asking them to give to, what is coming up), and the family's collected
+ * total is a fact about the ORGANISATION that a treasurer reads, not a prompt. It is also the
+ * one tile whose figure grew without bound, so a five-figure sum was setting the row's
+ * column width for everybody.
+ *
+ * Its GRANT did not change and neither did its destination: the card keys on the same two
+ * ledger keys and still leads to the dues ledger. Nothing about who may see the number moved.
  */
-export type TileId = 'members' | 'dues' | 'approvals' | 'gatherings'
+export type TileId = 'members' | 'approvals' | 'gatherings'
 
-/** Resource keys, ANY of which grants the tile. */
+/**
+ * Resource keys, ANY of which grants the tile.
+ *
+ * `DUES_COLLECTED_RESOURCE` below is the same shape for the widget that used to be the `dues`
+ * tile — it is here rather than in the component for the reason this whole table is: the page
+ * looks a grant up before it decides whether to run the query.
+ */
 export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
   members: ['members'],
-  // Either ledger will do, mirroring the SELECT policy on dues_payments exactly.
-  // `20260808000001` records why neither is `dues`: that key no longer exists, and a
-  // member's OWN history behind My Summary must never depend on a ledger grant.
-  dues: ['transactions/dues-payments', 'transactions/donation-payments'],
   approvals: ['admin/approvals'],
   // `calendar`, NOT `gatherings`, and the difference is the whole rule this file states: a
   // tile borrows the grant of ITS DESTINATION, and this one's destination is the month
@@ -77,6 +91,19 @@ export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
   // zero and the tile is omitted, which is "nothing to show" rather than a leak.
   gatherings: ['calendar'],
 }
+
+/**
+ * The two keys that grant the family's collected-dues figure — either will do, mirroring the
+ * SELECT policy on `dues_payments` exactly.
+ *
+ * `20260808000001` records why neither is `dues`: that key no longer exists, and a member's
+ * OWN history behind Summary must never depend on a ledger grant. This was `TILE_RESOURCE.dues`
+ * until the tile became `FamilyDuesCollectedCard`; the keys are unchanged, so no family's
+ * answer to "may I see this" moved with the pixels.
+ */
+export const DUES_COLLECTED_RESOURCE = [
+  'transactions/dues-payments', 'transactions/donation-payments',
+] as const
 
 export interface TileMeta {
   label: string
@@ -98,7 +125,6 @@ export interface TileMeta {
  */
 export const TILE_META: Record<TileId, TileMeta> = {
   members:    { label: 'Family Members',       href: '/members',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
-  dues:       { label: 'Dues Collected',       href: '/transactions?ledger=dues-payments', linkLabel: 'View payments',  accent: 'legacy',  icon: HandCoins },
   approvals:  { label: 'Pending Approval',     href: '/admin/users?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
   // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
   // captions are the kit's too — "View calendar" under the count, because the figure is a
@@ -115,13 +141,26 @@ export interface ResolvedTile {
 // ── Quick actions ────────────────────────────────────────────────────────────────────
 
 /**
- * The Golden Master draws six. Three of them — Create Event, Add Photos, Upload Document
- * — point at features still `status: 'future'` in `lib/features.ts`, so they are not
- * here. That is omission, not oversight: a control that leads to `/coming-soon` is a
- * dead affordance, and the sidebar already refuses to render one. When Events, Photos or
- * Documents ship, add the entry and it appears for whoever holds the grant.
+ * The Golden Master draws six. Two of the ones it draws — Add Photos, Upload Document —
+ * point at features still `status: 'future'` in `lib/features.ts`, so they are not here. That
+ * is omission, not oversight: a control that leads to `/coming-soon` is a dead affordance, and
+ * the sidebar already refuses to render one. Its "Create Event" is gone for a different
+ * reason: the Events product is retired (2026-08-19) and there is no such screen to point at.
+ *
+ * `my-gathering-tasks` IS THE ONE ENTRY HERE THAT IS CONDITIONAL ON THE CALLER'S OWN WORK
+ * rather than on a grant, and it is the only one of its kind on this row. Every other button
+ * offers a job somebody MAY do; this one appears when there is something waiting on them —
+ * `getMyGatheringTaskCount()` above zero — and disappears when there is not.
+ *
+ * That is deliberate and it is the opposite of what the rail does with the same fact: the
+ * Gatherings row in the sidebar is unconditional, because a member who has just been handed a
+ * task must be able to find it, and a row that is sometimes there is worse than a row that is
+ * sometimes empty. Quick Actions is not a destination list — it is "what should I do now" —
+ * and a permanent button reading "My Tasks" over an empty page is the dead affordance this
+ * card already refuses to draw for a missing grant.
  */
-export type QuickActionId = 'add-member' | 'record-payment' | 'send-message'
+export type QuickActionId =
+  | 'add-member' | 'record-payment' | 'send-message' | 'my-gathering-tasks'
 
 export interface QuickActionMeta {
   label: string
@@ -139,6 +178,9 @@ export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
   'add-member':     { label: 'Add Member',     href: '/admin/users',                       accent: 'primary', icon: UserPlus },
   'record-payment': { label: 'Record Payment', href: '/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
   'send-message':   { label: 'Send Message',   href: '/chat',                              accent: 'warm',    icon: MessageCircle },
+  // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
+  // that goes through a redirect is a Back button that walks through one.
+  'my-gathering-tasks': { label: 'My Tasks', href: '/gatherings?pane=my-tasks', accent: 'legacy', icon: ClipboardCheck },
 }
 
 /**
@@ -163,6 +205,11 @@ export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; actio
   'add-member':     { resource: 'admin/users',                 action: 'create' },
   'record-payment': { resource: 'transactions/dues-payments',  action: 'create' },
   'send-message':   { resource: 'chat',                        action: 'view' },
+  // `view`, and on the pane's own key. Answering a task you were handed is self-service —
+  // `create` and `edit` both default to scope 'none' (AGENTS.md §2), so demanding either would
+  // hide the button from every member the tasks are actually for. The real question is whether
+  // this member may reach the screen at all, which is exactly what `view` on that key answers.
+  'my-gathering-tasks': { resource: 'gatherings/my-tasks',     action: 'view' },
 }
 
 /**
@@ -177,6 +224,11 @@ export const ROUTE_FOR_GRANT: Record<string, string> = {
   'admin/approvals': '/admin/approvals',
   'admin/users': '/admin/users',
   'chat': '/chat',
+  // `/gatherings` and NOT `/gatherings/my-tasks`, even though the key is the longer one:
+  // `isFeatureLive` asks the registry whether the SCREEN has shipped, and the screen is the
+  // pane. Both entries carry the same status today, so this cannot change the answer — it is
+  // written the way it is so that it stays right if the two ever diverge.
+  'gatherings/my-tasks': '/gatherings',
   // The key and the route happen to coincide here, as they do for `members` and `chat`
   // above. Listed anyway, because the page looks every tile's route up THROUGH this table —
   // `isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])` — and an absent entry is

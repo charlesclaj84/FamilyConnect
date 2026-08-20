@@ -48,14 +48,13 @@
  *     dues plans and a contribution ledger for cash", and dues schedules and funds are
  *     where that is set up. What Plus adds is taking payment by card and the P&L, which
  *     is `/family-finances` and the unbuilt payments work — not the setup screen.
- *   * **`/admin/events` and `/admin/event-types` are FREE**, because "put the reunion on
- *     the calendar" is a Free bullet and `/events` cannot show a reunion that nothing can
- *     create. The RSVPs and head counts inside them are sold as Plus and are NOT split
- *     out; see the note on `tier` above for why a per-route field cannot express that and
- *     what would.
- *   * **`/event-planning` is FREE by decision**, closing FutureFeature.md decision 3,
- *     which warned it would otherwise "decide itself as Free by default". It ships with
- *     the events set and no marketing surface sells it separately.
+ *   * **Every Gatherings route is FREE**, and it is forced rather than generous. "Put the
+ *     reunion on the calendar" is a Free bullet, a gathering can only be created FROM a
+ *     template, and `/calendar` is the only screen left that shows a reunion at all — so
+ *     selling the authoring screen would make an existing Free bullet false. This entry
+ *     used to say the same thing about `/admin/events` and `/admin/event-types`, which were
+ *     retired on 2026-08-19 along with `/events` and `/event-planning`; the argument
+ *     transferred to their replacements intact.
  *
  * NOTHING IS PREMIUM, and that is correct rather than an omission. Every Premium bullet
  * — the apps, push notifications, email distributions, automatic dues reminders, the
@@ -70,7 +69,7 @@ import { DEFAULT_TIER, type FamilyTier } from '@/lib/tiers'
 export type FeatureStatus = 'live' | 'future'
 
 export interface Feature {
-  /** Canonical route. Nested paths (`/events/abc`) inherit this feature's entry. */
+  /** Canonical route. Nested paths (`/gatherings/abc`) inherit this feature's entry. */
   href: string
   label: string
   status: FeatureStatus
@@ -90,12 +89,14 @@ export interface Feature {
    * time pressure.
    *
    * WHAT THIS CANNOT EXPRESS: a tier boundary that runs THROUGH a page rather than
-   * around it. `/events` is Free ("put the reunion on the calendar") and the RSVPs and
-   * head counts inside it are sold as Plus, and a per-route field cannot say that. The
-   * mechanism for it already exists and is the same one permissions use — give the
-   * capability its own sub-key with its own registry entry, the way
-   * `transactions/dues-payments` does. Until somebody does that for RSVPs, the page's
-   * tier governs everything on it.
+   * around it. The worked example was `/events`, which was Free ("put the reunion on the
+   * calendar") while the RSVPs and head counts inside it were sold as Plus — a per-route
+   * field cannot say that, and the route is retired now without the problem having been
+   * solved. The mechanism for it already exists and is the same one permissions use: give
+   * the capability its own sub-key with its own registry entry, the way
+   * `transactions/dues-payments` does, and the way `gatherings/budget` already gates the
+   * money band on a page whose own tier is Free. Until somebody does that, a page's tier
+   * governs everything on it.
    */
   tier: FamilyTier
   /** One-liner shown on the Coming Soon screen and in inline placeholders. */
@@ -203,6 +204,48 @@ export const FEATURES: readonly Feature[] = [
     tier: 'free',
     blurb: 'Every payment, donation, contribution, disbursement and fund transfer the family has recorded.',
   },
+  // ── THE FIRST TIER BOUNDARY THAT RUNS *THROUGH* A PAGE, and the mechanism the `tier`
+  // note above says to use for one. Added 2026-08-19.
+  //
+  // Fund transfers are Plus; the other four ledgers on `/transactions` are Free. That is
+  // a decision about the CAPABILITY rather than the screen — moving the family's savings
+  // out of the pot it was collected for is treasury work, and `transactions/fund-transfers`
+  // has been its own permission resource since 20260812000002 for the same reason
+  // ("emptying a fund is not the same judgement as paying a member what they are owed").
+  //
+  // THIS ROW EXISTS ONLY TO CARRY THE TIER, and three things follow that a reader will
+  // otherwise take for mistakes:
+  //
+  //   * `/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
+  //     is a pane on `/transactions?ledger=transfers`. The entry is here because
+  //     `tierAllows()` resolves a key through `requiredTier()`, which is `getFeature()`'s
+  //     longest-prefix match — so without this row the sub-key inherits `/transactions`
+  //     and is Free, which is exactly what `lib/auth/tier.ts` documents as the default
+  //     behaviour ("a tab is part of the page it is on"). This is the deliberate exception
+  //     to it, and the only way to state one.
+  //   * `status: 'live'` MATTERS. `proxy.ts` gates by prefix, so a `'future'` row here
+  //     would rewrite `/transactions/...` paths to Coming Soon — and, worse, `getResources()`
+  //     drops any grid row under a `'future'` prefix, so the Fund Transfers switch would
+  //     vanish from Members & Access with no error at all.
+  //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list in
+  //     `components/layout/Sidebar.tsx` keyed on `viewKeys`, so a FEATURES row does not
+  //     conjure a destination. What it does add is the key to `viewableResources()`, which
+  //     is harmless and correct: the Transactions page resolves each ledger with `can()`
+  //     plus `tierAllows()` directly.
+  //
+  // THE PAGE HAS TO HONOUR IT, and gating the fetch is the point rather than the tab
+  // (§5): `app/(protected)/transactions/page.tsx` ands `tierAllows()` into every ledger's
+  // view answer, so a Free family does not receive the transfer rows in the RSC payload
+  // at all. It withholds a SCREEN BAND and never a row — no policy consults
+  // `families.tier` and none may start to, so a family that lapses to Free keeps every
+  // transfer it ever recorded and loses the pane that lists them.
+  {
+    href: '/transactions/fund-transfers',
+    label: 'Fund Transfers',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Moving money between the family’s funds, with both sides of the transfer on one row.',
+  },
   // ── What the family is owed, as opposed to what it took ───────────────────
   // `plus`, and that is NOT a judgement made here — `lib/plans.ts` already sells "Dues
   // collected against outstanding" on the Plus card under "The numbers leadership asks
@@ -210,10 +253,17 @@ export const FEATURES: readonly Feature[] = [
   // is the drift FutureFeature.md §4 exists to catch, running the other way.
   //
   // It does NOT flip `/admin/reports`, which is the other route that bullet covers.
-  // Reports promises four things — membership, dues collected vs. outstanding, RSVP
+  // Reports promised four things — membership, dues collected vs. outstanding, RSVP
   // turnout, t-shirt counts — and delivering one of them under that name would put a
   // live screen behind a card that still advertises three it does not do. This route
   // claims exactly what it does; Reports stays `future` until it can claim the rest.
+  //
+  // ONE OF THOSE FOUR NO LONGER HAS A SOURCE, since Events was retired on 2026-08-19: RSVP
+  // turnout was read off `event_rsvp_attendees`, a dropped table, and nothing in this product
+  // records who is coming to anything. T-SHIRT COUNTS SURVIVED by moving — the sizes were
+  // always columns on a member's own profile, and `getOrgStats` reads them from `people` now.
+  // The blurb below is trimmed to what can actually be built, and whoever ships that screen
+  // owes `lib/plans.ts` the same look.
   //
   // RESTRICTED BY DEFAULT, unlike almost everything else in this category. Every figure
   // is family-wide and the member table names people against what they still owe, so
@@ -272,6 +322,12 @@ export const FEATURES: readonly Feature[] = [
   // FEATURES, so without this line the `updates` grid switch would exist, resolve correctly,
   // and never produce a rail item for anybody — silently. It is also what `getFeature()`
   // resolves for the route, and `/updates` has no parent to inherit from.
+  //
+  // THE ROUTE IS A REDIRECT SINCE 2026-08-19 and the entry stays for exactly the reason
+  // above. The archive is the Updates pane of `/announcements` now, and `/updates` sends
+  // callers there; the SIDEBAR row went with it, so the key reaches a member through the
+  // Announcements row's `viewKeys` instead. That is the same arrangement `/admin/chapters`
+  // has had since the Organization pane absorbed it — read that entry beside this one.
   {
     href: '/updates',
     label: 'Updates',
@@ -316,34 +372,32 @@ export const FEATURES: readonly Feature[] = [
   // `direct-lineage` row from `permission_resources` when the Personal pages were made
   // always-viewable, so retiring the route needed no migration of its own.
 
-  // ── Events: LIVE ────────────────────────────────────────────────────────────
-  // All four event routes came back together, and they have to: `/events` cannot show a
-  // reunion that `/admin/events` is not there to create, and `/event-planning` lists
-  // assignments that only `/admin/event-types` and `/admin/events` hand out. Shipping the
-  // member-facing half alone would have been an empty page with no way to fill it.
+  // ── Events: RETIRED, 2026-08-19. Do not re-add these four entries ─────────
+  // `/events`, `/event-planning`, `/admin/events` and `/admin/event-types` were live here
+  // until Gatherings replaced them, and every one of them is gone: the routes, the six
+  // action modules behind them, the components, the four `permission_resources` rows and
+  // the twelve `permission_table_map` rows. `20260819000006` is the migration.
   //
-  // Same as announcements, no migration was needed — all four keys are registered, the
-  // two admin ones are 'restricted' per family, and `events` and `event-planning` default
-  // to 'everyone' for view.
+  // THIS IS A DELETION, NOT A `status: 'future'`. AGENTS.md is explicit that Coming Soon
+  // withholds a ROUTE and does nothing whatever to the server actions behind it — the
+  // `/admin/chapters` and `/admin/boardpositions` relights are two afternoons of finding
+  // out what that costs — so parking a retired product behind the roadmap gate would have
+  // left six action modules published as HTTP endpoints with nobody exercising them. The
+  // treatment is `/admin/groups`' and `/admin/announcements`': the entry goes, because the
+  // page is not awaiting launch, it no longer exists.
   //
-  // WHAT DID NOT COME BACK WITH THEM: the storage rework. `event-photos` is a `public`
-  // bucket whose policies carry no family predicate, and `deleteEventPhoto` takes its
-  // object path from the client. Those were queued behind this flip and are now ahead of
-  // it — see FutureFeature.md, where the item moved out of the Free list for that reason.
-  {
-    href: '/events',
-    label: 'Events',
-    status: 'live',
-    tier: 'free',
-    blurb: 'Reunion itineraries, hotel room blocks, and RSVPs for your whole household.',
-  },
-  {
-    href: '/event-planning',
-    label: 'Event Planning',
-    status: 'live',
-    tier: 'free',
-    blurb: 'Your assigned planning tasks, with deadlines and completion tracking.',
-  },
+  // AND THE THIRTEEN `event_*` TABLES ARE DROPPED TOO, along with `funds.event_id`,
+  // `photo_collections.event_id`, `cancel_overdue_event_assignments()` and the
+  // `event_expenses` term in `fund_balance_cents()`. `20260819000006` says at length why a
+  // half-retirement — unreachable tables nothing reads — is the expensive state, and why
+  // dropping them was available at all: no family is using the product yet, so there were no
+  // records to protect.
+  //
+  // A FUND'S BALANCE IS NOW contributions − disbursements + transfers in − transfers out.
+  // Four terms, in the database and in `app/actions/funds.ts` and in
+  // `getActiveFundsForRouting`, which is what keeps the three from disagreeing about what a
+  // fund holds. The P&L's "Total Spent" is disbursements now, which is the first honest
+  // version of that figure — it counted event spend and nothing else before.
 
   // ── Gatherings: LIVE, and NOT a replacement for Events ─────────────────────
   // A gathering is something the family has to ORGANISE, not merely a date to turn up on.
@@ -353,26 +407,33 @@ export const FEATURES: readonly Feature[] = [
   // handed to a named relative, who submits an answer an organizer then approves or denies
   // with notes. A gathering carries a budget drawn on a fund and each task carries its own
   // line against it; a gathering can be flagged premier, which puts it across the top of the
-  // Dashboard. `/calendar` shows gatherings and events together, a month at a time.
+  // Dashboard. `/calendar` shows every gathering on the days it falls, a month at a time.
   //
-  // EVENTS IS NOT BEING RETIRED, ABSORBED OR RENAMED. `/events`, `/event-planning`,
-  // `/admin/events` and `/admin/event-types` stay exactly where they are, on their own
-  // tables, their own resource keys and their own policies, and the four entries in this
-  // file are untouched. The two products answer different questions — Events answers "when
-  // is it and who is coming", Gatherings answers "who is doing what, and has it been done
-  // and accepted" — and unifying them would mean re-policying every `event_*` table, which
-  // is the class of change "How migrations reach the hosted project" is a whole section of
-  // AGENTS.md about. The rail lists both sets under one Events heading; that is a heading,
-  // not a merge.
+  // EVENTS IS RETIRED AND GATHERINGS IS WHAT REPLACED IT, since 2026-08-19. The header of
+  // this block said the opposite for a day — "not being retired, absorbed or renamed" — on
+  // the argument that the two answered different questions (Events: when is it and who is
+  // coming; Gatherings: who is doing what, and has it been done and accepted). Both
+  // questions are answered here now: a gathering carries its dates and its place, `/calendar`
+  // shows it a month at a time, and the tasks are the half Events never had. What the old
+  // note was really protecting against was re-policying twelve `event_*` tables, and the
+  // migration does not do that either — it drops their POLICIES rather than rewriting them,
+  // leaving the rows unreachable and intact.
+  //
+  // WHAT IS NOT REPLACED, and is worth naming so nobody assumes otherwise: RSVPs, hotel room
+  // blocks and day-of check-in. Those were Events screens and they are gone with it, not
+  // ported. A step of a gathering template can ask a relative for any of it — that is what
+  // the step kinds are for — but there is no attendee count, no room block and no check-in
+  // list in this product today.
   //
   // ALL FIVE ARE FREE, AND THE TEMPLATE LIBRARY IS THE ONE SOMEBODY WILL WANT TO SELL. It
   // cannot be sold, and the reason is structural rather than generous: a gathering can only
   // be created FROM a template, so a family with no template library has no way to schedule
   // a gathering at all. `/pricing`'s Free plan already promises "The reunion on the
   // calendar" (`lib/plans.ts`), so putting the authoring screen behind Plus would make an
-  // existing Free bullet false — which is the same reading `/admin/events` and
-  // `/admin/event-types` were made Free under, recorded in the tier notes at the top of this
-  // file. `/calendar` is that bullet said out loud: it IS the calendar it names.
+  // existing Free bullet false — which is the same reading the retired `/admin/events` and
+  // `/admin/event-types` were made Free under. `/calendar` is that bullet said out loud: it
+  // IS the calendar it names, and since Events was retired it is the ONLY thing keeping that
+  // bullet true.
   //
   // The RSVP caveat on `tier` above applies here too, with the same answer. If a capability
   // INSIDE a gathering is ever sold separately it gets its own sub-key with its own entry,
@@ -416,7 +477,7 @@ export const FEATURES: readonly Feature[] = [
     label: 'Calendar',
     status: 'live',
     tier: 'free',
-    blurb: 'A real month grid with every gathering and event on the days it falls.',
+    blurb: 'A real month grid with every gathering on the days it falls.',
   },
 
   // ── On the roadmap: accounting ──────────────────────────────────────────────
@@ -668,30 +729,14 @@ export const FEATURES: readonly Feature[] = [
     label: 'Reports',
     status: 'future',
     tier: 'plus',
-    blurb: 'Membership, dues collected vs. outstanding, RSVP turnout, and t-shirt counts.',
-  },
-  // Both live with `/events` — see the note there for why the four move together, and for
-  // the storage work that did NOT come with them.
-  {
-    href: '/admin/events',
-    label: 'Event Management',
-    status: 'live',
-    tier: 'free',
-    blurb: 'Build events, assign the to-do list, and run day-of check-in.',
-  },
-  {
-    href: '/admin/event-types',
-    label: 'Event Templates',
-    status: 'live',
-    tier: 'free',
-    blurb: 'Reusable event blueprints that auto-assign the planning checklist.',
+    blurb: 'Membership over time, and dues collected against what is still outstanding.',
   },
   // The organizer half of Gatherings — see the long note beside `/gatherings` above for what
-  // a gathering is, why Events keeps every one of its four routes, and why none of the five
-  // new keys is a `TAB_RESOURCES` case. Both of these sit here rather than up there for the
-  // same reason `/admin/events` and `/admin/event-types` do: this file groups by AUDIENCE,
-  // and the member-facing rows are in the events block while the two admin rows are in the
-  // admin block. They ship together and they have to — `/admin/gatherings` cannot schedule a
+  // a gathering is, what retiring Events did and did not replace, and why none of the five
+  // keys is a `TAB_RESOURCES` case. Both of these sit here rather than up there for the
+  // reason every other admin route does: this file groups by AUDIENCE, so the member-facing
+  // rows are up in the Gatherings block and the two admin rows are down here in the admin
+  // block. They ship together and they have to — `/admin/gatherings` cannot schedule a
   // gathering that `/admin/gathering-templates` was not there to author, and `/gatherings`
   // cannot show one that nothing scheduled.
   {
