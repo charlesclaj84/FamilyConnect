@@ -8,7 +8,7 @@ import {
   MoreVertical, Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
   Users, KeyRound, Clock, Network, ChevronDown,
 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1027,14 +1027,64 @@ function TemplatesTab({
    * a family-scoped prop and nothing is written back.
    */
   const [openResource, setOpenResource] = useState<string | null>(null)
+  /**
+   * Which SECTION cards are unfolded — Community, Gatherings, Accounting, and the rest.
+   *
+   * ── EVERY CARD STARTS CLOSED, AND THE SET TRACKS OPEN SO THAT STAYS TRUE ──────────
+   * An empty set is the initial state and means the whole grid is folded: five named cards,
+   * each saying how many features it holds and how many this template grants, and nothing
+   * else. That is the screen an administrator actually arrives at — they come here to change
+   * ONE switch and they know which area it is in, so opening with forty-six features on
+   * screen makes them scroll past forty-five of them.
+   *
+   * IT TRACKS OPEN RATHER THAN CLOSED FOR ONE REASON, and it is the reason the state was
+   * flipped when the default was: whichever way round it is, an empty set has to mean the
+   * DEFAULT. Storing the closed ones would make a category added by a later migration arrive
+   * unfolded while every other card is shut — one card behaving differently from the rest
+   * because nobody edited a list.
+   *
+   * WHAT PAYS FOR HIDING THINGS ON A PERMISSIONS SCREEN. A switch nobody can find is a
+   * permission nobody can grant, so the fold is only admissible because the closed card is
+   * not silent: it carries "6 features · 4 granted", which answers "is what I am looking for
+   * in here" without opening it, and **Expand all** puts the old full-length page back in one
+   * press. Same bargain the per-feature rows already make one level down, where the closed
+   * row carries `grantSummary`.
+   *
+   * ── NOT AN ACCORDION, unlike the feature rows inside it ───────────────────────────
+   * One-at-a-time is right for a FEATURE, because opening one is a step in changing it and
+   * the panel below is what you are reading. It is wrong for a SECTION: comparing what
+   * Community grants against what Admin grants is an ordinary thing to want, and an accordion
+   * would make it impossible. So sections toggle independently.
+   *
+   * Genuinely UI-local state, so no `useServerState` and no key — AGENTS.md exempts exactly
+   * this ("which nav section is expanded, which dialog is open"). Nothing here is seeded from
+   * a family-scoped prop and nothing is written back.
+   */
+  const [openSections, setOpenSections] = useState<ReadonlySet<string>>(new Set())
   const [openFor, setOpenFor] = useState<string | null>(selectedTemplateId)
   if (openFor !== selectedTemplateId) {
     // Derived during render rather than in an effect: an effect runs after paint, so the
     // first frame after switching template would draw the old feature's panel over the new
     // template's grants. This is the pattern React's own docs call "adjusting state when a
     // prop changes", and it is why `openFor` exists at all.
+    //
+    // The SECTIONS are reset too, and back to CLOSED: a fold is a reading position rather
+    // than a claim about the template, so carrying it across would not be wrong — but a
+    // template arrives the same way every time, which is the property that lets somebody
+    // learn where things are.
     setOpenFor(selectedTemplateId)
     setOpenResource(null)
+    setOpenSections(new Set())
+  }
+
+  const allCollapsed = openSections.size === 0
+  function toggleSection(category: string) {
+    setOpenSections(prev => {
+      const next = new Set(prev)
+      if (next.has(category)) next.delete(category)
+      else next.add(category)
+      return next
+    })
   }
 
   // `confirmWith` is required rather than optional: every caller has to state what it
@@ -1232,6 +1282,24 @@ function TemplatesTab({
                 are listed; each row says what it grants today, and opening one shows the
                 actions that mean something for it.
               </CardDescription>
+              {/* THE ONE CONTROL THAT MAKES "CLOSED BY DEFAULT" HONEST. Every section starts
+                  folded, so an administrator who wants the whole grid — to read it end to end,
+                  or to find a switch whose area they do not know — gets it back in a single
+                  press rather than five. It reads the state rather than toggling a flag of its
+                  own, so it is never out of step with the cards: open one by hand and it turns
+                  into Collapse all. */}
+              {sections.length > 1 && (
+                <CardAction>
+                  <button
+                    type="button"
+                    onClick={() => setOpenSections(
+                      allCollapsed ? new Set(sections.map(s => s.category)) : new Set())}
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    {allCollapsed ? 'Expand all' : 'Collapse all'}
+                  </button>
+                </CardAction>
+              )}
             </CardHeader>
             {/* ── ONE DISCLOSURE PER FEATURE, since 2026-08-19 ─────────────────────────
                 It was a `<table>`: a row per feature and a column per action, every switch on
@@ -1268,17 +1336,78 @@ function TemplatesTab({
                 accordion (close the others) would mean reaching for refs, and Safari announces
                 a summary element inconsistently. */}
             <CardContent className="overflow-visible">
-              <div className="space-y-5">
-                {sections.map(({ category, label, rows }) => (
-                  <div key={category} className="space-y-1.5">
-                    {/* A real heading, not a styled div: this is a section of a form and a
-                        screen reader reaching it should be told so. `h3` gets its size and
-                        weight here because preflight resets them and `globals.css` gives an
-                        `h3` only a colour. */}
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {label}
-                    </h3>
-                    <ul className="divide-y rounded-xl border">
+              {/* ── A CARD PER SECTION, EACH ONE FOLDABLE, since 2026-08-20 ──────────────
+                  The sections were an `h3` over a bordered list, five of them stacked inside
+                  one card. That reads as one long document with five headings in it, and the
+                  headings are the only thing separating forty-six features — so an
+                  administrator looking for one switch scrolls past every other area to reach
+                  it. A card is what says "this is a thing on its own", and a fold is what
+                  gets the other four out of the way.
+
+                  NESTED CARDS ARE DELIBERATE AND SHALLOW. The outer card is the TEMPLATE —
+                  its name, its description, and how many members it applies to — and the
+                  inner ones are the areas of the product it grants. Two levels, and the inner
+                  card carries `size="sm"` and no ring of its own so it reads as a panel
+                  within a card rather than a second card floating on one.
+
+                  THE DISCLOSURE IS THE HEADER, and it is a real `<button>` with
+                  `aria-expanded` and `aria-controls` — the same standard the feature rows
+                  inside it already meet, and for the reasons stated there: not a `<details>`,
+                  whose open state is DOM state rather than React state, and not a
+                  `role="tablist"`, which would promise arrow-key roving nothing implements. */}
+              <div className="space-y-3">
+                {sections.map(({ category, label, rows }) => {
+                  const collapsed = !openSections.has(category)
+                  const sectionId = `perm-section-${category.replace(/[^a-z0-9]+/gi, '-')}`
+                  // WHAT THE FOLDED CARD STILL SAYS. A collapsed section that shows only its
+                  // name makes the reader open all five to find where a grant lives, which is
+                  // the same failure the per-feature summary line was added to prevent one
+                  // level down. So the header carries how many features the area holds and how
+                  // many of them this template grants anything on.
+                  const grantedCount = rows.filter(({ resource }) =>
+                    grantSummary(resource, policy) !== 'Nothing').length
+
+                  return (
+                    <Card key={category} size="sm" className="ring-0 border">
+                      {/* `p-0` on the header and the padding moved onto the button, so the
+                          whole strip is the hit target rather than the text inside it. */}
+                      <CardHeader className="p-0">
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          aria-controls={sectionId}
+                          onClick={() => toggleSection(category)}
+                          className="flex w-full items-center gap-2 rounded-t-xl px-3 py-2 text-left hover:bg-muted/50"
+                        >
+                          <ChevronDown
+                            aria-hidden="true"
+                            className={cn(
+                              'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                              collapsed ? '-rotate-90' : 'rotate-0',
+                            )}
+                          />
+                          {/* A real heading, not a styled div: this is a section of a form and
+                              a screen reader reaching it should be told so. `h3` gets its size
+                              and weight here because preflight resets them and `globals.css`
+                              gives an `h3` only a colour. It is INSIDE the button, which is
+                              allowed — a heading is flow content and a button may contain it —
+                              and it is what puts the section into the document outline whether
+                              the card is folded or not. */}
+                          <h3 className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {label}
+                          </h3>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {rows.length} feature{rows.length === 1 ? '' : 's'}
+                            {grantedCount > 0 && ` · ${grantedCount} granted`}
+                          </span>
+                        </button>
+                      </CardHeader>
+
+                      {/* HIDDEN WITH `hidden`, NOT UNMOUNTED, so `aria-controls` always points
+                          at an element that exists and the feature panel a reader had open
+                          inside this section is still open when they unfold it. */}
+                      <CardContent id={sectionId} hidden={collapsed} className="overflow-visible px-3">
+                        <ul className="divide-y rounded-xl border">
                       {rows.map(({ resource: r, header, nested }) => {
                         const open = openResource === r.key
                         const panelId = `perm-panel-${r.key.replace(/[^a-z0-9]+/gi, '-')}`
@@ -1398,9 +1527,11 @@ function TemplatesTab({
                           </Fragment>
                         )
                       })}
-                    </ul>
-                  </div>
-                ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
               <p className="mt-4 text-xs text-muted-foreground">
                 <span className="font-medium">All</span> = every record in the family ·

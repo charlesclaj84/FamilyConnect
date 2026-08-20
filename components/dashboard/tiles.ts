@@ -222,24 +222,53 @@ export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; actio
  * whose destination is not its own resource key. Checked with `isFeatureLive()` on top
  * of the grant — two independent narrowings, exactly as the sidebar does it.
  */
-export const ROUTE_FOR_GRANT: Record<string, string> = {
-  'members': '/community/directory',
+//
+// ── EVERY KEY OF THIS TABLE IS A PERMISSION KEY, WHICH IS WHY IT BROKE ─────────────────
+// 20260820000004 moved 42 keys, and the code sweep that went with it replaced a bare key only
+// inside a permission CALL — because `'members'`, `'chat'` and `'calendar'` are also a tab id,
+// a chat room type and a tile id, and a blind replace would have corrupted all three. An
+// OBJECT KEY is neither shape, so the three entries here kept their old spelling while
+// `TILE_RESOURCE` above moved to the new one.
+//
+// THE FAILURE WAS NOT A WRONG LINK, IT WAS A WHITE SCREEN. The page resolves a tile's route
+// as `ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]]`, which became `undefined`, and
+// `isFeatureLive(undefined)` reaches `covers()` in lib/features.ts — `pathname.startsWith(...)`
+// on undefined is a TypeError, thrown during the server render of the Dashboard. The comment
+// on the `calendar` entry below already warned that an absent entry resolves to
+// `isFeatureLive(undefined)`; it called that "a silently unresolved feature rather than an
+// error", and that was the one thing about it that was wrong.
+//
+// A KEYED-BY-KEY TABLE IS THE SHAPE TO CHECK FIRST after any key move: `LEDGER_RESOURCE`,
+// `SECTION_RESOURCE` and `TILE_RESOURCE` all hold keys as VALUES, which the sweep did reach.
+// This was the only table in the tree that held them as KEYS — and rather than fix the three
+// entries and leave the shape, it is DERIVED now. `routeForGrant(key)` answers `'/' + key`,
+// which is what a resource key means, and only the genuine exceptions are written down. A key
+// with no entry cannot occur, so the next key move cannot reproduce this.
+/**
+ * The route whose feature status governs a grant, for anything whose destination is not
+ * simply its own key.
+ *
+ * DERIVED, NOT LISTED, since the Dashboard broke on this table. Only the exceptions are
+ * written down; every other key resolves to `'/' + key`, which is what a resource key MEANS
+ * (AGENTS.md §1). A key with no entry is therefore impossible rather than `undefined`.
+ */
+const ROUTE_OVERRIDE: Record<string, string> = {
+  // `/reporting/transactions` and not the sub-key's own path: neither ledger is a route, and
+  // `isFeatureLive` asks the registry whether a SCREEN has shipped. The screen is the ledger
+  // page they are both panes of.
   'reporting/transactions/dues-payments': '/reporting/transactions',
   'reporting/transactions/donation-payments': '/reporting/transactions',
-  'admin/members/approvals': '/admin/members/approvals',
-  'admin/members': '/admin/members',
-  'chat': '/community/chat',
-  // `/gatherings` and NOT `/gatherings/my-tasks`, even though the key is the longer one:
-  // `isFeatureLive` asks the registry whether the SCREEN has shipped, and the screen is the
-  // pane. Both entries carry the same status today, so this cannot change the answer — it is
-  // written the way it is so that it stays right if the two ever diverge.
+  // `/gatherings` and NOT `/gatherings/my-tasks`, even though the key is the longer one, for
+  // the same reason: the screen is the pane's page. Both entries carry the same status today,
+  // so this cannot change the answer — it is written the way it is so that it stays right if
+  // the two ever diverge.
   'gatherings/my-tasks': '/gatherings',
-  // The key and the route happen to coincide here, as they do for `members` and `chat`
-  // above. Listed anyway, because the page looks every tile's route up THROUGH this table —
-  // `isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])` — and an absent entry is
-  // `isFeatureLive(undefined)`, which is a silently unresolved feature rather than an error.
-  'calendar': '/gatherings/calendar',
 }
+
+export function routeForGrant(key: string): string {
+  return ROUTE_OVERRIDE[key] ?? `/${key}`
+}
+
 
 /**
  * Tailwind pairs for an accent chip, resolved here so no component restates them.

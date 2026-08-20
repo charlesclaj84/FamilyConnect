@@ -31,7 +31,7 @@ import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHer
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
-  TILE_RESOURCE, QUICK_ACTION_GRANT, ROUTE_FOR_GRANT, DUES_COLLECTED_RESOURCE,
+  TILE_RESOURCE, QUICK_ACTION_GRANT, routeForGrant, DUES_COLLECTED_RESOURCE,
   type ResolvedTile, type QuickActionId,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
@@ -155,20 +155,20 @@ export default async function DashboardPage() {
     canViewDonations, canViewGatherings, canViewCalendar, mayViewUpdates,
     canViewMyTasks, canViewDuesCollected,
   ] = await Promise.all([
-    isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.members[0]])
+    isFeatureLive(routeForGrant(TILE_RESOURCE.members[0]))
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
       : false,
     // `create`, not `view` — a button captioned with a verb promises the verb. See the
     // note on QUICK_ACTION_GRANT.
-    isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['add-member'].resource])
+    isFeatureLive(routeForGrant(QUICK_ACTION_GRANT['add-member'].resource))
       ? can(user.id, QUICK_ACTION_GRANT['add-member'].resource, QUICK_ACTION_GRANT['add-member'].action)
       : false,
     // `canAny`, per AGENTS.md: recording money for somebody is not an "own" action, and
     // the row a member would own is the abuse case.
-    isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['record-payment'].resource])
+    isFeatureLive(routeForGrant(QUICK_ACTION_GRANT['record-payment'].resource))
       ? canAny(user.id, QUICK_ACTION_GRANT['record-payment'].resource, QUICK_ACTION_GRANT['record-payment'].action)
       : false,
-    isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['send-message'].resource])
+    isFeatureLive(routeForGrant(QUICK_ACTION_GRANT['send-message'].resource))
       ? can(user.id, QUICK_ACTION_GRANT['send-message'].resource, QUICK_ACTION_GRANT['send-message'].action)
       : false,
     // The Family Tree card. `family-tree` is the key the page and every one of its actions
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
     // to /calendar and a tile borrows the grant of its destination — offering a count under
     // a link to a screen this family has switched off would be a dead affordance. The figure
     // is narrowed a second time by the read below, which gates itself on `gatherings:view`.
-    isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])
+    isFeatureLive(routeForGrant(TILE_RESOURCE.gatherings[0]))
       ? can(user.id, TILE_RESOURCE.gatherings[0], 'view')
       : false,
     // The "View all updates" link at the foot of the Recent Updates card. `/community/updates` is a
@@ -218,7 +218,7 @@ export default async function DashboardPage() {
     // the cheap one: without the grant there is no button, and the COUNT below decides whether
     // there is anything to press it for. `can`, not `canAny` — scope 'own' is exactly what
     // that pane shows, so it is a complete reason to be offered the way in.
-    isFeatureLive(ROUTE_FOR_GRANT[QUICK_ACTION_GRANT['my-gathering-tasks'].resource])
+    isFeatureLive(routeForGrant(QUICK_ACTION_GRANT['my-gathering-tasks'].resource))
       ? can(user.id, QUICK_ACTION_GRANT['my-gathering-tasks'].resource, QUICK_ACTION_GRANT['my-gathering-tasks'].action)
       : false,
     // THE FAMILY'S COLLECTED-DUES WIDGET, which was the `dues` TILE until 2026-08-19. The keys
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
     // the action's own gate for §5's reason: the point is not to run the query at all.
     Promise.all(
       DUES_COLLECTED_RESOURCE.map(key =>
-        isFeatureLive(ROUTE_FOR_GRANT[key]) ? can(user.id, key, 'view') : false),
+        isFeatureLive(routeForGrant(key)) ? can(user.id, key, 'view') : false),
     ).then(answers => answers.some(Boolean)),
   ])
 
