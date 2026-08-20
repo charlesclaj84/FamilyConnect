@@ -361,7 +361,7 @@ export function AdminAccountShell({
           id: group.label,
           label: group.label,
           icon: group.icon,
-          href: `/admin/account?section=${group.items[0].sections[0]}`,
+          href: `/admin/accounting?section=${group.items[0].sections[0]}`,
         }))}
         active={activeGroup?.label ?? ''}
         onSelect={label => {
@@ -533,7 +533,7 @@ function SectionLink({ id, label, icon: Icon, active, onSelect }: {
 }) {
   return (
     <a
-      href={`/admin/account?section=${id}`}
+      href={`/admin/accounting?section=${id}`}
       aria-current={active ? 'page' : undefined}
       onClick={e => {
         // Leave modified and non-primary clicks to the browser.
@@ -583,7 +583,7 @@ function ProcessingPanel() {
  * Inert for the same reason as ProcessingPanel, and more so: a form that looked
  * functional would invite a treasurer to type a real account and routing number
  * into fields that discard them. Nothing here is stored yet, and the schema this
- * needs (encrypted at rest, readable by far fewer people than 'admin/account'
+ * needs (encrypted at rest, readable by far fewer people than 'admin/accounting'
  * grants today) does not exist.
  */
 function BankInfoPanel() {

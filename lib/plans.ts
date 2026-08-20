@@ -7,7 +7,7 @@
  * into an advertisement, complete with a hero, testimonials and a "Create Your Free
  * Account" button aimed at somebody who already has one. Two surfaces inside the product
  * were doing exactly that, and both now answer the question where it was asked:
- * `/admin/family` (the plan panel) and `/upgrade` (the tier wall).
+ * `/admin/settings` (the plan panel) and `/upgrade` (the tier wall).
  *
  * ── IT IS NOT DERIVED FROM `/pricing`, AND MUST NOT BE ──────────────────────────────
  * The same rule `lib/features.ts` states about `PLANS[]`: that table is prose about

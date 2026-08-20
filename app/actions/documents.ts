@@ -99,7 +99,7 @@ export async function uploadDocument(
     return { success: false, message: dbError.message }
   }
 
-  revalidatePath('/documents')
+  revalidatePath('/review/documents')
   revalidatePath('/admin/documents')
   return { success: true }
 }
@@ -121,7 +121,7 @@ export async function deleteDocument(id: string, filePath?: string): Promise<{ s
   if (!row) return { success: false, message: 'Document not found' }
 
   // An uploader may delete their own document; deleting someone else's needs 'any'.
-  const g = await requireOwn('documents', 'delete', row.uploaded_by)
+  const g = await requireOwn('review/documents', 'delete', row.uploaded_by)
   if (!g.ok) return { success: false, message: g.message }
   if (row.family_code !== g.familyCode) return { success: false, message: 'Document not found' }
 
@@ -130,7 +130,7 @@ export async function deleteDocument(id: string, filePath?: string): Promise<{ s
   // Storage after the row: a failed delete then leaves a reachable file rather than
   // a row pointing at nothing.
   await admin.storage.from('documents').remove([row.file_path])
-  revalidatePath('/documents')
+  revalidatePath('/review/documents')
   revalidatePath('/admin/documents')
   return { success: true }
 }

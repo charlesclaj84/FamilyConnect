@@ -285,9 +285,9 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
 }
 
 /**
- * Where an approvals row goes. `/admin/users?tab=approvals` and not `/admin/approvals`,
+ * Where an approvals row goes. `/admin/members?tab=approvals` and not `/admin/members/approvals`,
  * which is now only a redirect — the queue is a tab on Members & Access. One copy, shared
  * by the link and the switch-then-push branch, and matching the `link` that
  * lib/notifications.ts writes onto the notification rows for the same queue.
  */
-const APPROVALS_HREF = '/admin/users?tab=approvals'
+const APPROVALS_HREF = '/admin/members?tab=approvals'

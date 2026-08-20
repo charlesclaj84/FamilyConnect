@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
  *
  * IT IS EXPORTED BECAUSE THREE FILES HELD A COPY OF IT. `TopBar` matched
  * `max-w-6xl px-4 sm:px-6` by hand so its controls would land on the right edge of the
- * page's content rather than the viewport's, and `/chat` matched it again by hand because
+ * page's content rather than the viewport's, and `/community/chat` matched it again by hand because
  * it cannot use `PageShell` (its two panes run to the edges of the window). Three copies
  * of one number, each with a comment saying it must equal the other two, is the shape that
  * drifts — so the number lives here and they import it.

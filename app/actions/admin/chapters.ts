@@ -32,7 +32,7 @@ import {
  *     family's structure through the admin client, which applies no RLS.
  *   * **`deleteCustomRole` had no `family_code` conjunct either**, and the board-position
  *     actions at the foot of this file were all gated on `admin/chapters` — the wrong key
- *     for a screen that is `/admin/boardpositions`. Both are fixed, and that whole section
+ *     for a screen that is `/admin/members/board-positions`. Both are fixed, and that whole section
  *     was rewritten again on 2026-08-19 when board positions became per-family and the page
  *     went live; its own header records what changed and why.
  *   * **Deleting a chapter somebody was in raised a raw 23503 at the user**, and deleting a
@@ -127,12 +127,12 @@ export interface ScopeUsage {
  * Revalidate the screen that draws regions and chapters.
  *
  * THERE ARE TWO PATHS AND ONLY ONE OF THEM RENDERS ANYTHING. On 2026-08-19 the screen
- * became the **Organization** pane of Members & Access, and `/admin/chapters` became a bare
- * `redirect('/admin/users?tab=organization')` — kept as a route (and as a FEATURES entry)
+ * became the **Organization** pane of Members & Access, and `/admin/members/organization` became a bare
+ * `redirect('/admin/members?tab=organization')` — kept as a route (and as a FEATURES entry)
  * so old links, bookmarks and `viewableResources()` all keep working, which the note on that
  * entry explains at length.
  *
- * So `revalidatePath('/admin/chapters')` alone, which is what all five writes below did
+ * So `revalidatePath('/admin/members/organization')` alone, which is what all five writes below did
  * until this function existed, invalidates the cache of a page that renders nothing and
  * leaves the cache of the page that renders everything untouched. It is not user-visible
  * TODAY — `AdminRegionsChaptersClient` updates optimistically and never calls
@@ -144,8 +144,8 @@ export interface ScopeUsage {
  * segment, and the cost of the extra call is nil.
  */
 function revalidateOrganization() {
-  revalidatePath('/admin/users')
-  revalidatePath('/admin/chapters')
+  revalidatePath('/admin/members')
+  revalidatePath('/admin/members/organization')
 }
 
 // ── Regions ────────────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ function revalidateOrganization() {
  * cannot use the user client, behave identically for the screen that reads both.
  */
 export async function getRegions(): Promise<Region[]> {
-  const g = await requireScope('admin/chapters', 'view')
+  const g = await requireScope('admin/members/organization', 'view')
   if (!g.ok) return []
 
   const { data, error } = await createAdminClient()
@@ -181,7 +181,7 @@ export async function getRegions(): Promise<Region[]> {
 export async function createRegion(
   name: string,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const g = await requireScope('admin/chapters', 'create')
+  const g = await requireScope('admin/members/organization', 'create')
   if (!g.ok) return { success: false, error: g.message }
 
   const trimmed = name.trim()
@@ -216,7 +216,7 @@ export async function createRegion(
  * obstructive, and the confirmation on the screen says how many.
  */
 export async function deleteRegion(id: string): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/chapters', 'delete')
+  const g = await requireScope('admin/members/organization', 'delete')
   if (!g.ok) return { success: false, error: g.message }
 
   // §3. Read the row inside the family before deciding anything about it: the service-role
@@ -298,7 +298,7 @@ export async function createChapter(
   name: string,
   regionId?: string | null,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const g = await requireScope('admin/chapters', 'create')
+  const g = await requireScope('admin/members/organization', 'create')
   if (!g.ok) return { success: false, error: g.message }
 
   const trimmed = name.trim()
@@ -348,7 +348,7 @@ export async function setChapterRegion(
   chapterId: string,
   regionId: string | null,
 ): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/chapters', 'edit')
+  const g = await requireScope('admin/members/organization', 'edit')
   if (!g.ok) return { success: false, error: g.message }
 
   if (!(await belongsToFamily('chapters', chapterId, g.familyCode))) {
@@ -366,9 +366,9 @@ export async function setChapterRegion(
   if (error) return { success: false, error: error.message }
   revalidateOrganization()
   // Who owes a regional due has just changed, so every screen that prices one is stale.
-  revalidatePath('/dues')
-  revalidatePath('/account-summary')
-  revalidatePath('/dues-projections')
+  revalidatePath('/accounting/dues')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/reporting/dues-projections')
   return { success: true }
 }
 
@@ -383,7 +383,7 @@ export async function setChapterRegion(
  * in the schema precisely so there is no version of this that happens quietly.
  */
 export async function deleteChapter(id: string): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/chapters', 'delete')
+  const g = await requireScope('admin/members/organization', 'delete')
   if (!g.ok) return { success: false, error: g.message }
 
   // §3, as in deleteRegion: the id alone must never be the whole predicate.
@@ -417,7 +417,7 @@ export async function deleteChapter(id: string): Promise<{ success: boolean; err
  * being the thing that refuses.
  */
 export async function getScopeUsage(): Promise<ScopeUsage> {
-  const g = await requireScope('admin/chapters', 'view')
+  const g = await requireScope('admin/members/organization', 'view')
   if (!g.ok) return { regions: {}, chapters: {} }
   const [regions, chapters] = await Promise.all([
     scopeAttachmentsFor('region', g.familyCode),
@@ -428,7 +428,7 @@ export async function getScopeUsage(): Promise<ScopeUsage> {
 
 // ── Board positions ────────────────────────────────────────────────────────────
 //
-// THESE SERVE `/admin/boardpositions`, AND THEY ARE KEYED ON IT SINCE 2026-08-18.
+// THESE SERVE `/admin/members/board-positions`, AND THEY ARE KEYED ON IT SINCE 2026-08-18.
 // They were gated on `admin/chapters` — the key of the screen they happen to share a file
 // with — which was harmless only while both routes served Coming Soon. Bringing Regions &
 // Chapters back would have handed the family's board-position catalogue to anybody granted
@@ -514,7 +514,7 @@ export interface AssignableMember {
  * from.
  */
 export async function getBoardPositions(): Promise<BoardPosition[]> {
-  const g = await requireScope('admin/boardpositions', 'view')
+  const g = await requireScope('admin/members/board-positions', 'view')
   if (!g.ok) return []
 
   const admin = createAdminClient()
@@ -564,7 +564,7 @@ export async function createBoardPosition(input: {
   category: PositionCategory
   scope: PositionScope
 }): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'create')
+  const g = await requireScope('admin/members/board-positions', 'create')
   if (!g.ok) return { success: false, error: g.message }
 
   const name = input.name.trim()
@@ -621,8 +621,8 @@ export async function createBoardPosition(input: {
     }
     return { success: false, error: error.message }
   }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/admin/elections')
+  revalidatePath('/admin/members/board-positions')
+  revalidatePath('/review/election-management')
   return { success: true }
 }
 
@@ -659,7 +659,7 @@ export async function renameBoardPosition(
   id: string,
   name: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'edit')
+  const g = await requireScope('admin/members/board-positions', 'edit')
   if (!g.ok) return { success: false, error: g.message }
 
   const next = name.trim()
@@ -701,12 +701,12 @@ export async function renameBoardPosition(
     }
     return { success: false, error: error.message }
   }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/admin/elections')
+  revalidatePath('/admin/members/board-positions')
+  revalidatePath('/review/election-management')
   // The name is printed under members' names in the Directory, on the dashboard and on My
   // Profile — through `formatRoleTitle`, which reads it live rather than storing a copy — so
   // those screens are stale until their next render.
-  revalidatePath('/members')
+  revalidatePath('/community/directory')
   return { success: true }
 }
 
@@ -721,7 +721,7 @@ export async function renameBoardPosition(
  * one reference instead of five, so the count is inline rather than through that module.
  */
 export async function deleteBoardPosition(id: string): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'delete')
+  const g = await requireScope('admin/members/board-positions', 'delete')
   if (!g.ok) return { success: false, error: g.message }
 
   const admin = createAdminClient()
@@ -752,8 +752,8 @@ export async function deleteBoardPosition(id: string): Promise<{ success: boolea
   const { error } = await admin.from('family_roles').delete()
     .eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/admin/elections')
+  revalidatePath('/admin/members/board-positions')
+  revalidatePath('/review/election-management')
   return { success: true }
 }
 
@@ -763,7 +763,7 @@ export async function deleteBoardPosition(id: string): Promise<{ success: boolea
  * Five reads and a TypeScript join, for the reason in the section header.
  */
 export async function getBoardPositionHolders(): Promise<BoardPositionHolder[]> {
-  const g = await requireScope('admin/boardpositions', 'view')
+  const g = await requireScope('admin/members/board-positions', 'view')
   if (!g.ok) return []
 
   const admin = createAdminClient()
@@ -824,7 +824,7 @@ export async function getBoardPositionHolders(): Promise<BoardPositionHolder[]> 
  * an office".
  */
 export async function getAssignableMembers(): Promise<AssignableMember[]> {
-  const g = await requireScope('admin/boardpositions', 'view')
+  const g = await requireScope('admin/members/board-positions', 'view')
   if (!g.ok) return []
 
   const { data, error } = await createAdminClient()
@@ -869,7 +869,7 @@ export async function assignBoardPosition(input: {
   chapterId?: string | null
   regionId?: string | null
 }): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'edit')
+  const g = await requireScope('admin/members/board-positions', 'edit')
   if (!g.ok) return { success: false, error: g.message }
 
   const admin = createAdminClient()
@@ -934,8 +934,8 @@ export async function assignBoardPosition(input: {
     }
     return { success: false, error: error.message }
   }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/members')
+  revalidatePath('/admin/members/board-positions')
+  revalidatePath('/community/directory')
   return { success: true }
 }
 
@@ -949,7 +949,7 @@ export async function assignBoardPosition(input: {
 export async function revokeBoardPosition(
   assignmentId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const g = await requireScope('admin/boardpositions', 'edit')
+  const g = await requireScope('admin/members/board-positions', 'edit')
   if (!g.ok) return { success: false, error: g.message }
 
   const admin = createAdminClient()
@@ -960,8 +960,8 @@ export async function revokeBoardPosition(
   const { error } = await admin.from('user_roles').delete()
     .eq('id', assignmentId).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/admin/boardpositions')
-  revalidatePath('/members')
+  revalidatePath('/admin/members/board-positions')
+  revalidatePath('/community/directory')
   return { success: true }
 }
 
@@ -979,7 +979,7 @@ export async function getBoardPositionScopeOptions(): Promise<{
   regions: { id: string; name: string }[]
   chapters: { id: string; name: string }[]
 }> {
-  const g = await requireScope('admin/boardpositions', 'view')
+  const g = await requireScope('admin/members/board-positions', 'view')
   if (!g.ok) return { regions: [], chapters: [] }
 
   const admin = createAdminClient()

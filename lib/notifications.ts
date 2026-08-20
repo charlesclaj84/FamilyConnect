@@ -186,7 +186,7 @@ export async function notifyMembershipAppeal(opts: {
 }
 
 /** Where both of the above send an administrator. One copy, so the two cannot diverge. */
-const APPROVALS_LINK = '/admin/users?tab=approvals'
+const APPROVALS_LINK = '/admin/members?tab=approvals'
 
 /**
  * Bounded, because every field here is free text the applicant typed and it ends up in
@@ -220,7 +220,7 @@ function describeApplicant(opts: { applicantName?: string | null; applicantEmail
  * submitting member happens to be allowed to see.
  *
  * WHY THIS IS THE GENERAL FORM AND `notifyApprovers` IS NOW A CALL INTO IT. This function
- * was `notifyApprovers`, with `'admin/approvals'` and `'edit'` written into its two queries
+ * was `notifyApprovers`, with `'admin/members/approvals'` and `'edit'` written into its two queries
  * as literals. Gatherings needs the identical resolver for `admin/gatherings:edit`, and the
  * one thing that must not happen is a second copy of it — that is the rule the rest of this
  * module is built on, and the two membership messages had already drifted from each other
@@ -333,7 +333,7 @@ export async function notifyApprovers(opts: {
   body?: string
   link?: string
 }): Promise<void> {
-  await notifyGrantHolders({ ...opts, resourceKey: 'admin/approvals', action: 'edit' })
+  await notifyGrantHolders({ ...opts, resourceKey: 'admin/members/approvals', action: 'edit' })
 }
 
 // ── GATHERINGS ───────────────────────────────────────────────────────────────────────────────

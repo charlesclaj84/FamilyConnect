@@ -11,7 +11,7 @@ import {
 } from '@/lib/gatherings'
 
 /**
- * The template library — `/admin/gathering-templates`.
+ * The template library — `/admin/gatherings/templates`.
  *
  * A template is a named, ordered list of STEPS. Scheduling a gathering from one copies
  * every step into `gathering_tasks`, and that copy is the whole reason this screen is safe
@@ -117,11 +117,11 @@ export interface GatheringTemplate {
   usedByCount: number
 }
 
-const RESOURCE = 'admin/gathering-templates'
+const RESOURCE = 'admin/gatherings/templates'
 
 /** Every route whose content changes when the library does. */
 function revalidateLibrary(): void {
-  revalidatePath('/admin/gathering-templates')
+  revalidatePath('/admin/gatherings/templates')
   // `getSchedulableTemplates()` on /gatherings and the new-gathering dialog on
   // /admin/gatherings both read this table, and both are filtered by `is_archived` and
   // `who_may_schedule` — so an archive or a scheduler change is visible on all three.
@@ -645,7 +645,7 @@ export async function addTemplateStep(input: {
   // swallowing this into "Could not add that step" would leave an author with no idea which
   // of the templates they picked closed the circle.
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/gathering-templates')
+  revalidatePath('/admin/gatherings/templates')
   return { success: true, stepId: data.id }
 }
 
@@ -730,7 +730,7 @@ export async function updateTemplateStep(input: {
     .eq('family_code', g.familyCode)
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/gathering-templates')
+  revalidatePath('/admin/gatherings/templates')
   return { success: true }
 }
 
@@ -772,7 +772,7 @@ export async function deleteTemplateStep(stepId: string): Promise<ActionResult> 
     .eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/admin/gathering-templates')
+  revalidatePath('/admin/gatherings/templates')
   return { success: true }
 }
 
@@ -880,6 +880,6 @@ export async function moveTemplateStep(input: {
     if (failure) return { success: false, message: failure.message }
   }
 
-  revalidatePath('/admin/gathering-templates')
+  revalidatePath('/admin/gatherings/templates')
   return { success: true }
 }

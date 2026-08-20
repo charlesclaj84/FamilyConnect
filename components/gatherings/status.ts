@@ -16,7 +16,7 @@ import type { GatheringStatus, GatheringTaskStatus } from '@/lib/gatherings'
  * `components/events/status.ts` is the pattern and the reason: the event lifecycle badge was
  * two byte-identical copies in two components until it was named once. Six Gatherings
  * screens read these two records — `/gatherings`, `/gatherings/[id]`, `/gatherings/my-tasks`,
- * `/calendar`, `/admin/gatherings`, `/admin/gatherings/[id]` — and a status recoloured on one
+ * `/gatherings/calendar`, `/admin/gatherings`, `/admin/gatherings/[id]` — and a status recoloured on one
  * of them and not the others is a bug nobody sees until two screens are open side by side.
  *
  * ── THE TOKENS, AND WHY EACH ONE ────────────────────────────────────────────────────

@@ -605,7 +605,7 @@ export async function sendMessage(
           .eq('family_code', room.family_code)
 
         if (people?.length) {
-          const link = '/chat'
+          const link = '/community/chat'
           // Replace any existing unread chat notification for this room per recipient
           for (const person of people) {
             await admin.from('notifications')

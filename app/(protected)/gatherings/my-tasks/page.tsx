@@ -13,7 +13,7 @@ import { redirect } from 'next/navigation'
  *   * The KEY has to survive. `viewableResources()` builds the sidebar by walking `FEATURES`,
  *     so `gatherings/my-tasks` is only ever in a caller's answer because there is an entry for
  *     this href. Delete the route and the pane's own grant becomes unresolvable — the shape
- *     `/admin/chapters` kept its entry for when Regions & Chapters became a pane.
+ *     `/admin/members/organization` kept its entry for when Regions & Chapters became a pane.
  *   * The key is `gatherings/my-tasks` BECAUSE the route exists. AGENTS.md is explicit that a
  *     resource key is the route without its leading slash, so keeping the route is what keeps
  *     the key honest — and it avoids a migration copying every family's grant onto a renamed

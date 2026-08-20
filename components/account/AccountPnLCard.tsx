@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet, Landmark } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PnLData } from '@/app/actions/dues'
@@ -7,25 +7,54 @@ interface Props {
   data: PnLData
 }
 
+/**
+ * The statement itself — the three lines of a profit and loss, then where the money sits.
+ *
+ * ── THE CAPTIONS ARE ACCOUNTING WORDS NOW, AND ONE OF THEM WAS WRONG ────────────────
+ * Renamed 2026-08-20, reading the screen as a treasurer would:
+ *
+ *   Total Collected  ->  Income        both are what came in, and "collected" says nothing
+ *                                      about donations, which are half of this figure.
+ *   Total Spent      ->  Expenses      matches the line it faces.
+ *   Net Balance      ->  Net surplus   THE ONE THAT WAS WRONG. A BALANCE IS A STOCK — what
+ *                        / Net deficit is held at a moment, which on this page is the fund
+ *                                      balances further down. Income less expenses is a FLOW
+ *                                      over a period, and calling it a balance invites
+ *                                      somebody to reconcile it against the funds and find it
+ *                                      does not tie. The two figures genuinely differ, and
+ *                                      the reason is now stated on the page rather than left
+ *                                      to be discovered by whoever is asked to explain it.
+ *
+ * ── THE PERIOD IS STATED, BECAUSE A STATEMENT WITHOUT ONE IS NOT A STATEMENT ────────
+ * There is no date filter anywhere in `getFamilyPnL`: every figure is LIFE TO DATE, from the
+ * family's first recorded entry. That was already true and nothing said so, which is how a
+ * number ends up in a board pack under the wrong heading. Naming the period is the honest
+ * minimum; a period selector is a feature, and this is not it.
+ */
 export function AccountPnLCard({ data }: Props) {
   const net = data.netCents
   const isPositive = net >= 0
+  const unrouted = data.unroutedIncomeCents
 
   return (
     <div className="space-y-5">
-      {/* ── Stat cards ── */}
+      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        Life to date · every entry the family has recorded
+      </p>
+
+      {/* ── The three lines ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-2xl border bg-card p-5 space-y-2">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-full bg-brand-affirm"><TrendingUp className="h-4 w-4 text-brand-on-affirm" /></div>
-            <span className="text-sm text-muted-foreground font-medium">Total Collected</span>
+            <span className="text-sm text-muted-foreground font-medium">Income</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalCollectedCents)}</p>
           <div className="text-xs text-muted-foreground space-y-0.5">
             {/* Dues AND donations: both are dues_payments rows, so both are in this
                 total. Labelling it "Dues" alone understated what came in. */}
             <p className="flex items-center justify-between gap-2"><span>Dues &amp; donations</span><span className="font-medium text-foreground">{formatCurrency(data.totalIncomeCents)}</span></p>
-            <p className="flex items-center justify-between gap-2"><span>Contributions</span><span className="font-medium text-foreground">{formatCurrency(data.totalContributionsCents)}</span></p>
+            <p className="flex items-center justify-between gap-2"><span>Direct contributions</span><span className="font-medium text-foreground">{formatCurrency(data.totalContributionsCents)}</span></p>
           </div>
         </div>
 
@@ -35,16 +64,15 @@ export function AccountPnLCard({ data }: Props) {
                 red chip on a normal state spends the alarm colour where nothing is wrong.
                 Only the deficit arms below are destructive. */}
             <div className="p-1.5 rounded-full bg-brand-warm"><TrendingDown className="h-4 w-4 text-brand-on-warm" /></div>
-            <span className="text-sm text-muted-foreground font-medium">Total Spent</span>
+            <span className="text-sm text-muted-foreground font-medium">Expenses</span>
           </div>
           <p className="text-3xl font-bold">{formatCurrency(data.totalExpenseCents)}</p>
           {/* IT COUNTED EVENT SPEND UNTIL 2026-08-19 and counts DISBURSEMENTS now — money
               that actually left a fund, which is the only outgoing this product records since
-              the Events tables were dropped. The caption says which, because "Total Spent"
-              over a figure whose source has changed is the kind of number a treasurer
-              reconciles against a bank statement. */}
+              the Events tables were dropped. The caption says which, because a figure whose
+              source has changed is the kind a treasurer reconciles against a bank statement. */}
           <p className="text-xs text-muted-foreground">
-            {data.totalExpenseCents === 0 ? 'Nothing paid out yet' : 'Paid out of the family’s funds'}
+            {data.totalExpenseCents === 0 ? 'Nothing paid out yet' : 'Disbursed from the family’s funds'}
           </p>
         </div>
 
@@ -53,13 +81,43 @@ export function AccountPnLCard({ data }: Props) {
             <div className={`p-1.5 rounded-full ${isPositive ? 'bg-brand-affirm' : 'bg-destructive/10'}`}>
               <Scale className={`h-4 w-4 ${isPositive ? 'text-brand-on-affirm' : 'text-destructive'}`} />
             </div>
-            <span className="text-sm text-muted-foreground font-medium">Net Balance</span>
+            <span className="text-sm text-muted-foreground font-medium">
+              {isPositive ? 'Net surplus' : 'Net deficit'}
+            </span>
           </div>
           <p className={`text-3xl font-bold ${isPositive ? 'text-brand-affirm' : 'text-destructive'}`}>
             {isPositive ? '+' : ''}{formatCurrency(net)}
           </p>
-          <p className="text-xs text-muted-foreground">{isPositive ? 'Running a surplus' : 'Running a deficit'}</p>
+          <p className="text-xs text-muted-foreground">Income less expenses</p>
         </div>
+      </div>
+
+      {/* ── WHERE THE COLLECTED MONEY IS SITTING ──────────────────────────────────────
+          The line a treasurer asks for and no screen answered: dues that reached no fund,
+          because no routing rule named one. It is NOT an error and is not drawn as one —
+          money is unallocated for as long as it takes somebody to allocate it, and a family
+          running one pot with no routing at all is running perfectly well. The marker is
+          `--brand-withheld`, the token for an amount being held back rather than for a
+          failure; `--destructive` owns errors (AGENTS.md, "Colours live in one place").
+
+          A NEGATIVE FIGURE IS POSSIBLE and reads "routed beyond dues income": an
+          administrator may contribute straight to a fund, so more can have been routed into
+          funds than dues ever brought in. The sign is shown rather than clamped. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-2xl border bg-card px-5 py-4">
+        <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Landmark className="h-4 w-4" />
+          {unrouted < 0 ? 'Routed beyond dues income' : 'Collected, not yet routed to a fund'}
+        </span>
+        <span className={`text-xl font-semibold tabular-nums ${unrouted === 0 ? '' : 'text-brand-withheld'}`}>
+          {formatCurrency(Math.abs(unrouted))}
+        </span>
+        <p className="w-full text-xs text-muted-foreground">
+          {unrouted === 0
+            ? 'Every dues payment has been routed into a fund.'
+            : unrouted < 0
+              ? 'More has gone into funds than dues brought in — direct contributions make up the difference.'
+              : 'Dues collected against a schedule with no routing rule stay here until one is set up on Accounting.'}
+        </p>
       </div>
 
       {/* ── Income → Routing ── */}
@@ -95,12 +153,18 @@ export function AccountPnLCard({ data }: Props) {
         </CardContent>
       </Card>
 
-      {/* ── Fund Balances ── */}
+      {/* ── Fund Balances ──
+          A STOCK, NOT A FLOW, which is why the caption at the top stopped saying "Net
+          Balance": these are what each fund holds now, and they do NOT sum to the net figure
+          above. Three reasons, every one of them ordinary — dues that were never routed into
+          a fund (the line above), contributions made straight to one, and transfers between
+          them. A reader who tries to reconcile the two and is told none of this concludes
+          that one of them is broken. */}
       {data.funds.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-primary" /> Fund Balances
+              <Wallet className="h-4 w-4 text-primary" /> Fund balances today
             </CardTitle>
           </CardHeader>
           <CardContent>

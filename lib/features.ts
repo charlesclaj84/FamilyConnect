@@ -31,7 +31,7 @@
  * THE 2026-08-20 FLIP OF SIX ROUTES MEASURED THE REST OF THAT COST, and it is three things
  * rather than one — the permission grid gains a switch per key, Home stops badging the route
  * Coming Soon to strangers, and `npm run help:check` fails until the route has a chapter or a
- * stated allowance. The long note above `/family-finances` sets out all three. None of them is
+ * stated allowance. The long note above `/reporting/pl-summary` sets out all three. None of them is
  * a reason not to flip; they are the things to have decided before merging one.
  *
  * Two rules keep this file safe to import from anywhere:
@@ -50,26 +50,26 @@
  * length; three are worth carrying here, because each is a decision this table makes and
  * a reader will otherwise think is a mistake.
  *
- *   * **`/admin/account` is STANDARD**, and this bullet said FREE until 2026-08-19 on the
+ *   * **`/admin/accounting` is STANDARD**, and this bullet said FREE until 2026-08-19 on the
  *     argument that Free sold "a real ledger for the money you collect". It no longer does:
  *     the whole ledger moved up a rung when Standard was inserted, so the setup screen moved
  *     with the thing it sets up. What PLUS still adds on top is unchanged — taking payment by
- *     card and the P&L, which is `/family-finances` and the unbuilt payments work.
+ *     card and the P&L, which is `/reporting/pl-summary` and the unbuilt payments work.
  *   * **THE LEDGER IS FIVE ROUTES, NOT ONE**, and they had to move together or the tier
  *     boundary would run through the middle of one member's money.
- *     `/transactions`, `/admin/account`, `/dues`, `/donations` and `/payment-history` are all
- *     `standard`, and `/account-summary` — which is a digest of the last three plus the
+ *     `/reporting/transactions`, `/admin/accounting`, `/accounting/dues`, `/accounting/donations` and `/reporting/payment-history` are all
+ *     `standard`, and `/accounting/summary` — which is a digest of the last three plus the
  *     family's fund balances — went with them, because a Free family reading a Summary with
  *     every section withheld is worse than a Free family with no Summary. Free keeps no money
  *     surface at all, which is the decision, stated plainly so nobody restores one route out
  *     of six and calls it a fix.
  *   * **GATHERINGS ARE SPLIT, and the split is the one thing here a per-route field only just
  *     manages to express.** Free sells "the gathering on a shared calendar" — a date, a place
- *     and the details — so `/calendar`, `/gatherings` and `/admin/gatherings` are FREE. What
- *     Standard sells is planning: `/admin/gathering-templates` (the checklists a gathering is
+ *     and the details — so `/gatherings/calendar`, `/gatherings` and `/admin/gatherings` are FREE. What
+ *     Standard sells is planning: `/admin/gatherings/templates` (the checklists a gathering is
  *     built from), `/gatherings/my-tasks` (the duties), and `/gatherings/budget` (the money
  *     band). The last two are rows that exist ONLY to carry a tier, the same device
- *     `/transactions/fund-transfers` uses; both are argued at their entries.
+ *     `/reporting/transactions/fund-transfers` uses; both are argued at their entries.
  *
  *     THIS BULLET USED TO READ "Every Gatherings route is FREE … forced rather than generous",
  *     and what made it forced was that a gathering could only be created FROM a template. That
@@ -157,21 +157,21 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Every family this account belongs to, and which one opens when you log in.',
   },
   {
-    href: '/chat',
+    href: '/community/chat',
     label: 'Chat',
     status: 'live',
     tier: 'free',
     blurb: 'Real-time group threads and private direct messages with the family.',
   },
   {
-    href: '/members',
+    href: '/community/directory',
     label: 'Directory',
     status: 'live',
     tier: 'free',
     blurb: 'Search and browse everyone in the family, with roles and contact info.',
   },
   {
-    href: '/account-summary',
+    href: '/accounting/summary',
     // "Summary", not "My Summary", since 20260812000001. Everything in the Personal half
     // of this product is the caller's own, and the possessive was carried by four
     // labels in a row; the page still shows nobody else's money, which is a property of
@@ -209,31 +209,31 @@ export const FEATURES: readonly Feature[] = [
   // family whose treasurer cannot record a payment has nothing for a member to read, so
   // leaving these Free would have sold three screens that are empty by construction.
   //
-  // `/account-summary` above moved for the same reason and is the case worth checking first
+  // `/accounting/summary` above moved for the same reason and is the case worth checking first
   // when this looks wrong: it is a digest of these three, so it cannot be a rung below them.
   {
-    href: '/dues',
+    href: '/accounting/dues',
     label: 'Dues',
     status: 'live',
     tier: 'standard',
     blurb: 'Every schedule you are on, what each installment costs, and when the next one falls due.',
   },
   {
-    href: '/donations',
+    href: '/accounting/donations',
     label: 'Donations',
     status: 'live',
     tier: 'standard',
     blurb: 'The drives your family is running, how far each has got, and what you have given.',
   },
   {
-    href: '/payment-history',
+    href: '/reporting/payment-history',
     label: 'Payment History',
     status: 'live',
     tier: 'standard',
     blurb: 'Every payment recorded against you, with its date, method, status and reference.',
   },
   {
-    href: '/transactions',
+    href: '/reporting/transactions',
     label: 'Transactions',
     status: 'live',
     tier: 'standard',
@@ -242,7 +242,7 @@ export const FEATURES: readonly Feature[] = [
   // ── THE FIRST TIER BOUNDARY THAT RUNS *THROUGH* A PAGE, and the mechanism the `tier`
   // note above says to use for one. Added 2026-08-19.
   //
-  // Fund transfers are Plus; the other four ledgers on `/transactions` are Standard as of
+  // Fund transfers are Plus; the other four ledgers on `/reporting/transactions` are Standard as of
   // 2026-08-19 and were Free when this was written. The boundary still runs THROUGH the page,
   // which is what this row is for — only the rung underneath it moved. That is
   // a decision about the CAPABILITY rather than the screen — moving the family's savings
@@ -253,15 +253,15 @@ export const FEATURES: readonly Feature[] = [
   // THIS ROW EXISTS ONLY TO CARRY THE TIER, and three things follow that a reader will
   // otherwise take for mistakes:
   //
-  //   * `/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
-  //     is a pane on `/transactions?ledger=transfers`. The entry is here because
+  //   * `/reporting/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
+  //     is a pane on `/reporting/transactions?ledger=transfers`. The entry is here because
   //     `tierAllows()` resolves a key through `requiredTier()`, which is `getFeature()`'s
-  //     longest-prefix match — so without this row the sub-key inherits `/transactions`
+  //     longest-prefix match — so without this row the sub-key inherits `/reporting/transactions`
   //     and is Free, which is exactly what `lib/auth/tier.ts` documents as the default
   //     behaviour ("a tab is part of the page it is on"). This is the deliberate exception
   //     to it, and the only way to state one.
   //   * `status: 'live'` MATTERS. `proxy.ts` gates by prefix, so a `'future'` row here
-  //     would rewrite `/transactions/...` paths to Coming Soon — and, worse, `getResources()`
+  //     would rewrite `/reporting/transactions/...` paths to Coming Soon — and, worse, `getResources()`
   //     drops any grid row under a `'future'` prefix, so the Fund Transfers switch would
   //     vanish from Members & Access with no error at all.
   //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list in
@@ -277,7 +277,7 @@ export const FEATURES: readonly Feature[] = [
   // `families.tier` and none may start to, so a family that lapses to Free keeps every
   // transfer it ever recorded and loses the pane that lists them.
   {
-    href: '/transactions/fund-transfers',
+    href: '/reporting/transactions/fund-transfers',
     label: 'Fund Transfers',
     status: 'live',
     tier: 'plus',
@@ -289,11 +289,13 @@ export const FEATURES: readonly Feature[] = [
   // for". Shipping this Free would leave a paid bullet describing a free feature, which
   // is the drift FutureFeature.md §4 exists to catch, running the other way.
   //
-  // It does NOT flip `/admin/reports`, which is the other route that bullet covers.
-  // Reports promised four things — membership, dues collected vs. outstanding, RSVP
-  // turnout, t-shirt counts — and delivering one of them under that name would put a
-  // live screen behind a card that still advertises three it does not do. This route
-  // claims exactly what it does; Reports stays `future` until it can claim the rest.
+  // It did NOT flip `/admin/reports`, the other route that bullet covered, and the reason
+  // is why that route no longer exists. Reports promised four things — membership, dues
+  // collected vs. outstanding, RSVP turnout, t-shirt counts — and delivering one of them
+  // under that name would have put a live screen behind a card advertising three it does
+  // not do. It was DELETED on 2026-08-20 rather than eventually made to claim the rest;
+  // `/reporting/membership` took the one question worth keeping. This route has always claimed
+  // exactly what it does, which is the property that made it the model for the split.
   //
   // ONE OF THOSE FOUR NO LONGER HAS A SOURCE, since Events was retired on 2026-08-19: RSVP
   // turnout was read off `event_rsvp_attendees`, a dropped table, and nothing in this product
@@ -308,7 +310,7 @@ export const FEATURES: readonly Feature[] = [
   // through to `everyone` (§6). The grant follows `transactions/dues-payments:view` at
   // scope 'any': anybody who can already read the whole ledger can read a sum of it.
   {
-    href: '/dues-projections',
+    href: '/reporting/dues-projections',
     label: 'Dues Projections',
     status: 'live',
     tier: 'plus',
@@ -342,13 +344,13 @@ export const FEATURES: readonly Feature[] = [
   // `category = 'admin'` resource gets from the same migration. So the flip changes who can
   // REACH them and nothing about who may do what once there.
   {
-    href: '/announcements',
+    href: '/community/announcements',
     label: 'Announcements',
     status: 'live',
     tier: 'free',
     blurb: 'Family-wide news, with the important updates pinned to the top.',
   },
-  // `/updates` — the archive behind the dashboard's Recent Updates card, added 2026-08-19.
+  // `/community/updates` — the archive behind the dashboard's Recent Updates card, added 2026-08-19.
   //
   // `tier: 'free'` is the only defensible value and is not a default: the two things it
   // archives are `announcements` (free) and `notifications` (which has no tier because it has
@@ -358,21 +360,21 @@ export const FEATURES: readonly Feature[] = [
   // THE ENTRY IS WHAT PUTS THE KEY IN A CALLER'S VIEWABLE SET. `viewableResources()` walks
   // FEATURES, so without this line the `updates` grid switch would exist, resolve correctly,
   // and never produce a rail item for anybody — silently. It is also what `getFeature()`
-  // resolves for the route, and `/updates` has no parent to inherit from.
+  // resolves for the route, and `/community/updates` has no parent to inherit from.
   //
   // THE ROUTE IS A REDIRECT SINCE 2026-08-19 and the entry stays for exactly the reason
-  // above. The archive is the Updates pane of `/announcements` now, and `/updates` sends
+  // above. The archive is the Updates pane of `/community/announcements` now, and `/community/updates` sends
   // callers there; the SIDEBAR row went with it, so the key reaches a member through the
-  // Announcements row's `viewKeys` instead. That is the same arrangement `/admin/chapters`
+  // Announcements row's `viewKeys` instead. That is the same arrangement `/admin/members/organization`
   // has had since the Organization pane absorbed it — read that entry beside this one.
   {
-    href: '/updates',
+    href: '/community/updates',
     label: 'Updates',
     status: 'live',
     tier: 'free',
     blurb: 'Every announcement and everything sent to you, searchable, newest first.',
   },
-  // The family-wide tree, and since 2026-08-13 the ONLY tree: `/members/family-tree` —
+  // The family-wide tree, and since 2026-08-13 the ONLY tree: `/community/directory/family-tree` —
   // the per-member lineage view — has been deleted along with `FamilyTreeClient`,
   // `app/actions/ancestors.ts` and `app/actions/spouse.ts`. Both surfaces were always two
   // readers of `person_relationships`, so nothing was migrated; this canvas re-centres on
@@ -397,7 +399,7 @@ export const FEATURES: readonly Feature[] = [
   // withholds the canvas, never the graph, so a family that lapses finds every relationship
   // intact and every schedule still billing the people it always billed.
   {
-    href: '/family-tree',
+    href: '/community/family-tree',
     label: 'Family Tree',
     status: 'live',
     tier: 'standard',
@@ -426,7 +428,7 @@ export const FEATURES: readonly Feature[] = [
   //
   // THIS IS A DELETION, NOT A `status: 'future'`. AGENTS.md is explicit that Coming Soon
   // withholds a ROUTE and does nothing whatever to the server actions behind it — the
-  // `/admin/chapters` and `/admin/boardpositions` relights are two afternoons of finding
+  // `/admin/members/organization` and `/admin/members/board-positions` relights are two afternoons of finding
   // out what that costs — so parking a retired product behind the roadmap gate would have
   // left six action modules published as HTTP endpoints with nobody exercising them. The
   // treatment is `/admin/groups`' and `/admin/announcements`': the entry goes, because the
@@ -453,13 +455,13 @@ export const FEATURES: readonly Feature[] = [
   // handed to a named relative, who submits an answer an organizer then approves or denies
   // with notes. A gathering carries a budget drawn on a fund and each task carries its own
   // line against it; a gathering can be flagged premier, which puts it across the top of the
-  // Dashboard. `/calendar` shows every gathering on the days it falls, a month at a time.
+  // Dashboard. `/gatherings/calendar` shows every gathering on the days it falls, a month at a time.
   //
   // EVENTS IS RETIRED AND GATHERINGS IS WHAT REPLACED IT, since 2026-08-19. The header of
   // this block said the opposite for a day — "not being retired, absorbed or renamed" — on
   // the argument that the two answered different questions (Events: when is it and who is
   // coming; Gatherings: who is doing what, and has it been done and accepted). Both
-  // questions are answered here now: a gathering carries its dates and its place, `/calendar`
+  // questions are answered here now: a gathering carries its dates and its place, `/gatherings/calendar`
   // shows it a month at a time, and the tasks are the half Events never had. What the old
   // note was really protecting against was re-policying twelve `event_*` tables, and the
   // migration does not do that either — it drops their POLICIES rather than rewriting them,
@@ -477,7 +479,7 @@ export const FEATURES: readonly Feature[] = [
   // a gathering at all. `/pricing`'s Free plan already promises "The reunion on the
   // calendar" (`lib/plans.ts`), so putting the authoring screen behind Plus would make an
   // existing Free bullet false — which is the same reading the retired `/admin/events` and
-  // `/admin/event-types` were made Free under. `/calendar` is that bullet said out loud: it
+  // `/admin/event-types` were made Free under. `/gatherings/calendar` is that bullet said out loud: it
   // IS the calendar it names, and since Events was retired it is the ONLY thing keeping that
   // bullet true.
   //
@@ -500,7 +502,7 @@ export const FEATURES: readonly Feature[] = [
   // which is worth spelling out, because they look like they are. A row in FEATURES carries
   // the TIER for a key; `TAB_RESOURCES` decides whether `viewableResources()` should hand the
   // key back so a rail item can appear. The budget band needs the first and must not have the
-  // second, exactly like `/transactions/fund-transfers`. (That list gained a second
+  // second, exactly like `/reporting/transactions/fund-transfers`. (That list gained a second
   // entry on 2026-08-19 — `admin/chapters`, the Organization pane — which does not change
   // this reasoning: read the note on it, because the ground it earns its place on is not the
   // one `admin/users/templates` earns its place on.)
@@ -543,7 +545,7 @@ export const FEATURES: readonly Feature[] = [
   // two carried the same tier so nothing turned on the match. They do not — the duties are
   // Standard and the gathering itself is Free — so `/gatherings` and `/admin/gatherings` must
   // resolve their My Tasks and Review panes with `tierAllows()` BY HAND, above their union of
-  // grants, the way `/admin/users` does for Organization. A page that calls `requireTier` on
+  // grants, the way `/admin/members` does for Organization. A page that calls `requireTier` on
   // `'gatherings'` alone and then opens a pane governed by this key has published a Standard
   // screen to a Free family, and nothing anywhere reports it.
   {
@@ -554,7 +556,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Every gathering task assigned to you, what to send back, and by when.',
   },
   {
-    href: '/calendar',
+    href: '/gatherings/calendar',
     label: 'Calendar',
     status: 'live',
     tier: 'free',
@@ -562,7 +564,7 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── IN REVIEW: SIX ROUTES CAME OFF `status: 'future'` ON 2026-08-20 ─────────
-  // `/family-finances`, `/photos`, `/documents`, `/elections`, `/admin/elections` and
+  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/review/elections`, `/review/election-management` and
   // `/admin/reports` were all Coming Soon until this commit. Every one of them was already
   // BUILT — a page that gates itself with `requireView`, an action module behind it, and a
   // `permission_resources` row registered since 20260618000000 — and gated only because
@@ -612,31 +614,74 @@ export const FEATURES: readonly Feature[] = [
   // The note this replaces claimed `dues:edit` gated "recording a payment for someone
   // other than yourself". That stopped being true in 20260806000000, which moved
   // recording to transactions/dues-payments:create.
+  // CAPTIONED "P&L Summary" SINCE 2026-08-20, and REVIEWED — it is a Reporting rail item now
+  // rather than one of the six the block above put behind a Review heading. The route and the
+  // resource key both stay `family-finances`: that string is in `permission_table_map`, in
+  // every grant already issued and in this href, so renaming the path would orphan all of it
+  // to retitle a heading. Same trade `admin/family` made when it became "Settings".
+  //
+  // The label is the caption the rail prints and the caption the permission grid prints, so
+  // 20260820000003 moves `permission_resources.label` in the same commit — one row, one
+  // caption, per AGENTS.md's "One rail item, one permission resource".
   {
-    href: '/family-finances',
-    label: 'Family Finances',
+    href: '/reporting/pl-summary',
+    label: 'P&L Summary',
     status: 'live',
     tier: 'plus',
-    blurb: 'Fund balances, contributions, and a clean profit-and-loss ledger.',
+    blurb: 'Income against expenses, what each fund holds, and what has not been routed yet.',
+  },
+
+  // ── Reporting: who the family is made up of ─────────────────────────────────
+  // THE REPLACEMENT FOR `/admin/reports`, and not a rename of it — that route is DELETED
+  // (page, action module, client and `permission_resources` row; 20260820000003). It sold
+  // four things and delivered a mixture: a member count, a gathering count, dues collected,
+  // t-shirt sizes and the last twenty money entries. Every money figure on it duplicated a
+  // screen that owns one — `/reporting/pl-summary` for the statement, `/reporting/transactions` for the
+  // ledger, `/reporting/dues-projections` for what is outstanding — and the one question an organizer
+  // actually brings to a report, *where are our people and how many can we reach*, it did
+  // not answer.
+  //
+  // So this is a member-facing key under `community` rather than an admin tool, because what
+  // it publishes is counts and place names and nothing else: no name, no address, no
+  // birthday and no id crosses to the browser. It is `plus` because that is where the
+  // "numbers leadership asks for" bullet already sells this on `/pricing`, and it is where
+  // `/admin/reports` was.
+  // CAPTIONED "Membership", not "Membership Report". The word "Report" was doing no work: the
+  // row sits under a rail heading that already says Reporting, which is the same argument that
+  // shortened "Family Settings" to "Settings" under Admin (20260812000001). The ROUTE and the
+  // KEY stay `membership-report`, because a resource key IS the route without its leading
+  // slash (§1) and `/membership` would be a fourth word in a family that already has
+  // `/community/directory` for the Directory.
+  //
+  // THREE RAIL ITEMS NOW READ ALIKE — Directory (Community), Members (Admin) and Membership
+  // (Reporting) — and that is the same arrangement AGENTS.md already sanctions for "Dues"
+  // appearing under both Accounting and Transactions: the section heading is what tells them
+  // apart, and each caption is right under its own heading.
+  {
+    href: '/reporting/membership',
+    label: 'Membership',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Members by region and chapter, who has finished joining, and adults against minors.',
   },
 
   // ── In review: resources ────────────────────────────────────────────────────
   {
-    href: '/photos',
+    href: '/review/photos',
     label: 'Photos',
     status: 'live',
     tier: 'plus',
     blurb: 'A shared gallery for every gathering — upload, caption, and relive it.',
   },
   {
-    href: '/documents',
+    href: '/review/documents',
     label: 'Documents',
     status: 'live',
     tier: 'plus',
     blurb: 'Bylaws, forms, meeting minutes, and family records in one shared place.',
   },
   {
-    href: '/elections',
+    href: '/review/elections',
     label: 'Elections',
     status: 'live',
     tier: 'plus',
@@ -649,9 +694,9 @@ export const FEATURES: readonly Feature[] = [
   //
   // `/admin` IS STILL 'future' AND MUST STAY THAT WAY, which is not an oversight of the
   // 2026-08-20 review flip above. It is NOT A PAGE — there is no app/(protected)/admin/page.tsx
-  // — it is the prefix that gates every nested admin route nobody has registered here. The two
-  // routes that flip named (`/admin/elections` and `/admin/reports`) each carry their own entry
-  // below and so win the longest-prefix match on their own account. Flipping this row would
+  // — it is the prefix that gates every nested admin route nobody has registered here.
+  // `/review/election-management`, the one route from that flip still under this prefix, carries its own
+  // entry below and so wins the longest-prefix match on its own account. Flipping this row would
   // silently publish the NEXT admin route somebody adds without an entry of its own, which is
   // the failure this catch-all exists to prevent.
   //
@@ -670,7 +715,7 @@ export const FEATURES: readonly Feature[] = [
   // running it — the name every other admin page is about, and the code people join by.
   // It has to be live for a second reason beyond being built: getResources() drops any
   // resource key whose path resolves to a 'future' feature, and getFeature()
-  // longest-prefix-matches — so with no entry here `/admin/family` would resolve to the
+  // longest-prefix-matches — so with no entry here `/admin/settings` would resolve to the
   // catch-all `/admin` above, and the row would vanish from the permission grid with no
   // error anywhere. Who actually sees it is the permission model's business:
   // 20260812000000 registers it 'restricted' per family, so it is administrators-only
@@ -683,7 +728,7 @@ export const FEATURES: readonly Feature[] = [
   // permission_table_map, the `families` policy and every grant already issued, so
   // renaming the path would orphan them all to retitle a heading.
   {
-    href: '/admin/family',
+    href: '/admin/settings',
     label: 'Settings',
     status: 'live',
     tier: 'free',
@@ -695,7 +740,7 @@ export const FEATURES: readonly Feature[] = [
   // stale /admin/groups URL now 404s, which is right: it is not a feature awaiting
   // launch, it is a page that no longer exists.
   {
-    href: '/admin/users',
+    href: '/admin/members',
     // "Members", not "Members & Access", since 20260812000001. The "& Access" half was
     // there to say the page had absorbed Groups & Permissions; two renames later it is
     // the only members screen an administrator has, and the qualifier only competed with
@@ -723,7 +768,7 @@ export const FEATURES: readonly Feature[] = [
   // administrators included. It is a resource key that happens to have a redirect at the
   // matching path, not a page awaiting launch.
   {
-    href: '/admin/approvals',
+    href: '/admin/members/approvals',
     label: 'Member Approvals',
     status: 'live',
     tier: 'free',
@@ -752,18 +797,18 @@ export const FEATURES: readonly Feature[] = [
   // 20260817000008, which states the whole argument.
   //
   // THE ROUTE IS NOW A REDIRECT, AND THE ENTRY STAYS (2026-08-19). Regions & Chapters is a
-  // PANE of Members & Access, captioned "Organization"; `/admin/chapters` forwards to
-  // `/admin/users?tab=organization` and renders nothing of its own. Three things depend on
-  // this row surviving that, and it is the `/admin/approvals` argument in every particular:
+  // PANE of Members & Access, captioned "Organization"; `/admin/members/organization` forwards to
+  // `/admin/members?tab=organization` and renders nothing of its own. Three things depend on
+  // this row surviving that, and it is the `/admin/members/approvals` argument in every particular:
   //
   //   * `viewableResources()` walks FEATURES, so this is what keeps the key
   //     `admin/chapters` in a caller's viewable set — and the Members row in `Sidebar.tsx`
   //     lists it in `viewKeys`, so a member holding Organization and nothing else still has
   //     a link to the page that opens for them.
   //   * `npm run help:check` asserts every manual chapter's `route` is an exact href in this
-  //     list. The Regions & Chapters chapter carries `route: '/admin/chapters'`.
+  //     list. The Regions & Chapters chapter carries `route: '/admin/members/organization'`.
   //   * `tier` and `status` are read by ROUTE, and deleting this row does not make them
-  //     unknown — `getFeature()` longest-prefix-matches, so `/admin/chapters` would fall
+  //     unknown — `getFeature()` longest-prefix-matches, so `/admin/members/organization` would fall
   //     through to the `/admin` catch-all above, which is `tier: 'free'` and
   //     `status: 'future'`. Both halves of that are wrong: the pane would be handed to every
   //     plan (making the Plus bullet on /pricing false), and `proxy.ts` would intercept the
@@ -779,13 +824,13 @@ export const FEATURES: readonly Feature[] = [
   // Chapters" was. The `blurb` below is what carries the specifics on all three, and it is
   // deliberately unchanged.
   {
-    href: '/admin/chapters',
+    href: '/admin/members/organization',
     label: 'Organization',
     status: 'live',
     tier: 'plus',
     blurb: 'Organize a large family into regional chapters with scoped leadership.',
   },
-  // The route is `/admin/boardpositions`, renamed from the old `/admin/user-roles`.
+  // The route is `/admin/members/board-positions`, renamed from the old `/admin/user-roles`.
   // The permission resource key was renamed to match in 20260805000006 — requireView()
   // looks the page up by that key, so the path and the key have to stay in step. The
   // `user_roles` TABLE keeps its name; only the route and the resource key moved.
@@ -822,7 +867,7 @@ export const FEATURES: readonly Feature[] = [
   //
   // ── AND SINCE 2026-08-20 THE ROUTE IS A REDIRECT, NOT A SCREEN ──────────────────
   // Board Positions is the SECOND HALF of Members & Access's Organization pane, beside Regions
-  // & Chapters, and `/admin/boardpositions` rewrites to `/admin/users?tab=organization`. The
+  // & Chapters, and `/admin/members/board-positions` rewrites to `/admin/members?tab=organization`. The
   // entry stays for the three reasons the redirect page argues at length — old links, the key
   // in `viewableResources()`'s answer, and `help:check` asserting every chapter's `route` is a
   // FEATURES href — and the key is also in `TAB_RESOURCES` below, on the same footing as
@@ -831,21 +876,21 @@ export const FEATURES: readonly Feature[] = [
   // `status: 'live'` AND `tier: 'plus'` BOTH STILL MATTER even though nothing renders here.
   // `'future'` would send `proxy.ts` after the redirect itself and rewrite it to Coming Soon —
   // a live pane advertised as unbuilt — and would drop the grid row out of `getResources()`.
-  // The tier is what `/admin/users` ands into the pane's grant by hand, since that page's own
+  // The tier is what `/admin/members` ands into the pane's grant by hand, since that page's own
   // key is Free.
   {
-    href: '/admin/boardpositions',
+    href: '/admin/members/board-positions',
     label: 'Board Positions',
     status: 'live',
     tier: 'plus',
     blurb: 'Keep the offices your family holds, and record who holds each one.',
   },
-  // BOTH OF THE NEXT TWO CAME OFF THE GATE ON 2026-08-20 and are in the rail's Review
-  // section, not here in Admin — see the block above `/family-finances` for what the flip
-  // cost and what it published. Neither is documented in the manual yet; both are named in
+  // ELECTION MANAGEMENT CAME OFF THE GATE ON 2026-08-20 and is in the rail's Review section,
+  // not here in Admin — see the block above `/reporting/pl-summary` for what that flip cost and
+  // what it published. It is not documented in the manual yet and is named in
   // `UNDOCUMENTED_OK` in scripts/help-check.mjs with that as the stated reason.
   {
-    href: '/admin/elections',
+    href: '/review/election-management',
     label: 'Election Management',
     status: 'live',
     tier: 'plus',
@@ -854,7 +899,7 @@ export const FEATURES: readonly Feature[] = [
   // THERE IS NO `/admin/announcements` ENTRY, and its absence is deliberate rather than an
   // oversight. The route is deleted — page, client and permission resource
   // (20260813000000) — because it was a second screen answering the same question as
-  // `/announcements`: post news, pin it, delete it. Everything it could do, the member
+  // `/community/announcements`: post news, pin it, delete it. Everything it could do, the member
   // page now does under the same `announcements` key, gated per control by
   // `announcements:edit` and `announcements:delete`. A stale URL 404s, which is correct:
   // it is not a feature awaiting launch, it is a page that no longer exists — the same
@@ -862,20 +907,24 @@ export const FEATURES: readonly Feature[] = [
   //
   // Do not re-add it on the strength of the note that used to sit here about the rail. The
   // `Sidebar.tsx` `adminItems` entry went with it.
-  {
-    href: '/admin/reports',
-    label: 'Reports',
-    status: 'live',
-    tier: 'plus',
-    blurb: 'Membership over time, and dues collected against what is still outstanding.',
-  },
+  // THERE IS NO `/admin/reports` ENTRY, and its absence is a DELETION rather than a gate.
+  // Removed 2026-08-20 with the page, `app/actions/admin/reports.ts`, `AdminReportsClient`
+  // and the `permission_resources` row (20260820000003). What replaced it is
+  // `/reporting/membership` above, which is a different screen answering a question that one
+  // did not — the argument is at that entry. A stale URL 404s, which is correct: it is not a
+  // feature awaiting launch, it is a page that no longer exists, and that is the same
+  // treatment `/admin/announcements` and `/admin/groups` got.
+  //
+  // Do not re-add it on the strength of the marketing item that used to point here. The
+  // `Leadership reports` card in `/features`'s ALSO grid points at `/reporting/membership` now,
+  // and its blurb was rewritten to describe what that screen actually does.
   // The organizer half of Gatherings — see the long note beside `/gatherings` above for what
   // a gathering is, what retiring Events did and did not replace, and why none of the five
   // keys is a `TAB_RESOURCES` case. Both of these sit here rather than up there for the
   // reason every other admin route does: this file groups by AUDIENCE, so the member-facing
   // rows are up in the Gatherings block and the two admin rows are down here in the admin
   // block. They ship together and they have to — `/admin/gatherings` cannot schedule a
-  // gathering that `/admin/gathering-templates` was not there to author, and `/gatherings`
+  // gathering that `/admin/gatherings/templates` was not there to author, and `/gatherings`
   // cannot show one that nothing scheduled.
   {
     href: '/admin/gatherings',
@@ -885,33 +934,33 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Schedule a gathering, set its budget, hand out the tasks, and rule on the answers.',
   },
   {
-    href: '/admin/gathering-templates',
+    href: '/admin/gatherings/templates',
     label: 'Gathering Templates',
     status: 'live',
     tier: 'standard',
     blurb: 'Reusable step-by-step lists that every gathering is built from.',
   },
   // ── SEPARATION OF DUTIES IS SOLD ON STANDARD, AND THIS ROW IS HOW ────────────────
-  // Added 2026-08-19. Second instance of the `/transactions/fund-transfers` device — a
+  // Added 2026-08-19. Second instance of the `/reporting/transactions/fund-transfers` device — a
   // registry row whose only job is to carry a tier for a sub-key — and everything that entry
   // says about it applies here. Three things a reader will otherwise take for mistakes:
   //
-  //   * `/admin/users/templates` IS NOT A ROUTE. The permission grids are a PANE of
-  //     `/admin/users`, and the key is in `TAB_RESOURCES` below precisely because it has no
+  //   * `/admin/members/templates` IS NOT A ROUTE. The permission grids are a PANE of
+  //     `/admin/members`, and the key is in `TAB_RESOURCES` below precisely because it has no
   //     route to be found by. The row is here because `tierAllows()` resolves a key through
   //     `requiredTier()`, which is `getFeature()`'s longest-prefix match — so without it the
-  //     sub-key inherits `/admin/users` and is Free, which is what `lib/auth/tier.ts`
+  //     sub-key inherits `/admin/members` and is Free, which is what `lib/auth/tier.ts`
   //     documents as the default ("a tab is part of the page it is on"). This is the
   //     deliberate exception, and a row is the only way to state one.
   //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list keyed on
   //     `viewKeys`, so a row here conjures no destination. What it adds is the key to
   //     `viewableResources()`, which is what the key was already in `TAB_RESOURCES` for.
   //   * `status: 'live'` MATTERS, for the reason spelled out on the fund-transfers row:
-  //     `'future'` would rewrite `/admin/users/...` to Coming Soon at the edge AND drop every
+  //     `'future'` would rewrite `/admin/members/...` to Coming Soon at the edge AND drop every
   //     grid row under the prefix out of `getResources()`, so the switches would vanish with
   //     no error at all.
   //
-  // THE PAGE HAS TO HONOUR IT, and `/admin/users` already had the machinery: it resolves its
+  // THE PAGE HAS TO HONOUR IT, and `/admin/members` already had the machinery: it resolves its
   // four panes by hand and ands `tierAllows()` into the Organization one. The Templates pane
   // now does the same, and the pane is ABSENT rather than empty (§5). A Free family keeps
   // every template it ever built and every grant on it — this withholds the EDITOR, not the
@@ -919,7 +968,7 @@ export const FEATURES: readonly Feature[] = [
   // permission model that switched off with a plan would be a downgrade that hands the family
   // more access than it paid for rather than less.
   {
-    href: '/admin/users/templates',
+    href: '/admin/members/templates',
     label: 'Permission Templates',
     status: 'live',
     tier: 'standard',
@@ -927,10 +976,10 @@ export const FEATURES: readonly Feature[] = [
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded
   // payments, and the funds those payments route into. The route stays
-  // `/admin/account` because that string is also the permission resource key, wired
+  // `/admin/accounting` because that string is also the permission resource key, wired
   // into RLS via permission_table_map. Only the display name changed.
   {
-    href: '/admin/account',
+    href: '/admin/accounting',
     label: 'Accounting',
     status: 'live',
     tier: 'standard',
@@ -945,7 +994,7 @@ function covers(pathname: string, href: string): boolean {
 
 /**
  * Resolve the feature owning `pathname`, preferring the most specific match so
- * `/admin/reports` reports Reports rather than the catch-all Admin Tools entry.
+ * `/review/election-management` reports Election Management rather than the catch-all Admin Tools entry.
  */
 export function getFeature(pathname: string): Feature | undefined {
   let match: Feature | undefined
@@ -1021,7 +1070,7 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  *
  * `admin/chapters` is the same case since 2026-08-19 — Organization is the fourth of
  * those tabs — AND IT IS REDUNDANT TODAY, which is the honest way to record it rather
- * than leaving a future reader to discover it. `/admin/chapters` is still a FEATURES
+ * than leaving a future reader to discover it. `/admin/members/organization` is still a FEATURES
  * entry (a redirect into the same page, and the note on that entry says why the entry
  * has to stay), so `viewableResources()` already finds the key by walking FEATURES and
  * this listing adds nothing but a second insert into a Set. That is exactly the ground
@@ -1029,16 +1078,16 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  * NOT here.
  *
  * It is listed anyway, and the reason is what the two entries do NOT share. The
- * `/admin/approvals` path is quoted in notification links and invitation emails outside
+ * `/admin/members/approvals` path is quoted in notification links and invitation emails outside
  * this codebase's control, so nobody will ever be tempted to delete that entry.
- * `/admin/chapters` renders nothing at all now, which makes deleting it look like
+ * `/admin/members/organization` renders nothing at all now, which makes deleting it look like
  * tidying up — and the day somebody does, this line is what stops the Organization pane
  * from silently disappearing from the rail for the one caller whose only grant it is.
  * A key that gates a tab belongs in the list of keys that gate tabs.
  *
  * `announcements/birthdays` is the THIRD, added 2026-08-19, and it is the pure form of the
  * case — the one entry here whose key has no route of any kind, so nothing else could ever
- * find it. `/announcements` opens for EITHER `announcements` or `announcements/birthdays`
+ * find it. `/community/announcements` opens for EITHER `announcements` or `announcements/birthdays`
  * (the page decomposes `requireView` and says why), and `viewableResources()` resolves the
  * nav item for that href against the `announcements` key alone. So a family that grants the
  * Birthdays pane while restricting the board leaves that member a page that works and no
@@ -1048,12 +1097,12 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  *
  * `admin/boardpositions` is the FOURTH, added 2026-08-20, and it is the `admin/chapters`
  * case exactly — including the redundancy. Board Positions became the second half of the same
- * Organization pane, `/admin/boardpositions` is still a FEATURES entry (a redirect into it),
+ * Organization pane, `/admin/members/board-positions` is still a FEATURES entry (a redirect into it),
  * so `viewableResources()` already finds the key by walking FEATURES and this line adds
  * nothing but a second insert into a Set.
  *
  * It is listed anyway, and for the reason that entry gives about itself rather than a new one:
- * `/admin/boardpositions` renders nothing at all now, which makes deleting it look like
+ * `/admin/members/board-positions` renders nothing at all now, which makes deleting it look like
  * tidying up — and the day somebody does, this line is what stops the offices half of
  * Organization silently disappearing from the rail for the one caller whose only grant it is.
  * A key that gates a tab belongs in the list of keys that gate tabs.
@@ -1061,6 +1110,6 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  * Read all four notes before adding anything to either list.
  */
 export const TAB_RESOURCES: readonly string[] = [
-  'admin/users/templates', 'admin/chapters', 'announcements/birthdays',
-  'admin/boardpositions',
+  'admin/members/templates', 'admin/members/organization', 'community/announcements/birthdays',
+  'admin/members/board-positions',
 ]

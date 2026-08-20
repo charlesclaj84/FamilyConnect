@@ -22,7 +22,7 @@ export const metadata = { title: 'Gatherings — Admin' }
  * that fund it claims, and how much of the work has come back. **Review queue** is every
  * submitted task in the family waiting for a ruling, which is the half of the loop an
  * organizer would otherwise have to go looking for one gathering at a time. **Templates** is
- * the library a gathering is built FROM — a route of its own (`/admin/gathering-templates`)
+ * the library a gathering is built FROM — a route of its own (`/admin/gatherings/templates`)
  * until 2026-08-19, and still one: that page redirects here, which is what keeps its resource
  * key honest and keeps `viewableResources()` able to find it, since that walks `FEATURES` by
  * href.
@@ -33,7 +33,7 @@ export const metadata = { title: 'Gatherings — Admin' }
  * third. A family that lets somebody author checklists without letting them commit the family
  * to a gathering is an ordinary arrangement, which is exactly why the two keys did not merge
  * when the screens did. So this decomposes `requireView` rather than calling it, the way
- * `/announcements` and `/gatherings` do, and 404s a caller holding neither.
+ * `/community/announcements` and `/gatherings` do, and 404s a caller holding neither.
  *
  * WHAT IS NOT DROPPED IN THE PROCESS: `requireView` is three checks, not one —
  * `requireFamilyActive`, then `requireTier`, then the permission test — and only the third is
@@ -109,8 +109,8 @@ export default async function AdminGatheringsPage({
   // below is chosen from these answers rather than filtered afterwards.
   const [mayViewConsole, templatesGranted, templatesInPlan] = await Promise.all([
     can(user.id, 'admin/gatherings', 'view'),
-    can(user.id, 'admin/gathering-templates', 'view'),
-    tierAllows(user.id, 'admin/gathering-templates'),
+    can(user.id, 'admin/gatherings/templates', 'view'),
+    tierAllows(user.id, 'admin/gatherings/templates'),
   ])
 
   // ── THE LIBRARY IS STANDARD; THE CONSOLE IS FREE ────────────────────────────────────
@@ -121,7 +121,7 @@ export default async function AdminGatheringsPage({
   //
   // `requireTier` above cannot see it — it resolves `admin/gatherings`, which is Free — and a
   // pane resolved with `can()` alone consults no tier at all. So the grant is anded with
-  // `tierAllows()`, exactly as `/admin/users` does for Organization and Permission Templates,
+  // `tierAllows()`, exactly as `/admin/members` does for Organization and Permission Templates,
   // and the pane is ABSENT rather than empty with every one of its fetches skipped (§5).
   //
   // NOT ONE TEMPLATE IS DELETED OR HIDDEN FROM THE DATABASE. A family that lapses to Free
@@ -133,7 +133,7 @@ export default async function AdminGatheringsPage({
     // Somebody whose only reason to be here is the library, on a family whose plan does not
     // include it, is owed the upgrade screen their old route gave them — `/admin/gathering-
     // templates` redirects here, so `notFound()` would deny a screen that exists. Only once
-    // the grant is known to be held, for the reason `/admin/users` states: telling somebody
+    // the grant is known to be held, for the reason `/admin/members` states: telling somebody
     // with no grant at all that the family needs an upgrade discloses its billing.
     if (templatesGranted) redirect('/upgrade?from=%2Fadmin%2Fgathering-templates')
     notFound()
@@ -154,9 +154,9 @@ export default async function AdminGatheringsPage({
   // authorship of a draft should authorize. Every action re-checks.
   const [mayCreateTemplates, mayEditTemplates, mayDeleteTemplates] = mayViewTemplates
     ? await Promise.all([
-      canAny(user.id, 'admin/gathering-templates', 'create'),
-      canAny(user.id, 'admin/gathering-templates', 'edit'),
-      canAny(user.id, 'admin/gathering-templates', 'delete'),
+      canAny(user.id, 'admin/gatherings/templates', 'create'),
+      canAny(user.id, 'admin/gatherings/templates', 'edit'),
+      canAny(user.id, 'admin/gatherings/templates', 'delete'),
     ])
     : [false, false, false]
 
@@ -191,7 +191,7 @@ export default async function AdminGatheringsPage({
   // `isAdminGatheringPane` comes from a PURE module rather than from the client component: a
   // Server Component importing a runtime value out of a `'use client'` file gets a client
   // reference instead of the value, which is what threw `.includes is not a function` on
-  // `/announcements` and rendered its error boundary.
+  // `/community/announcements` and rendered its error boundary.
   const requested = (await searchParams).pane
   const paneAllowed = (id: AdminGatheringPane) =>
     id === 'templates' ? mayViewTemplates : mayViewConsole

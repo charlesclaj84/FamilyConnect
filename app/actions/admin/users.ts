@@ -36,7 +36,7 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  * The board positions this family has, for the Elections screen's position dropdown.
  *
  * TWO THINGS CHANGED ON 2026-08-19. It demanded nothing but a session — a live endpoint
- * publishing the family's catalogue to anybody signed in, and `/admin/elections` being
+ * publishing the family's catalogue to anybody signed in, and `/review/election-management` being
  * `status: 'future'` withholds the page and never the action (AGENTS.md, "Coming Soon
  * withholds a page. It does not withhold an action"). And it read the 25 built-in positions
  * plus the family's own, minus a `family_role_exclusions` filter; `20260819000004` retired
@@ -47,7 +47,7 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  * the two keys are two jobs. The reads are deliberately similar and deliberately separate.
  */
 export async function getAllRoles(): Promise<FamilyRole[]> {
-  const g = await requireRead('admin/elections')
+  const g = await requireRead('review/election-management')
   if (!g.ok) return []
 
   const { data, error } = await createAdminClient()
@@ -100,7 +100,7 @@ export async function getMyRoles(): Promise<MyRoleSummary[]> {
 //
 //   getFamilyMemberRoles      a map of every member's titles, gated by a session alone, with
 //                             NO CALL SITE anywhere in the product.
-//   assignRole                gated `can(…, 'admin/boardpositions', 'edit')` — which scope
+//   assignRole                gated `can(…, 'admin/members/board-positions', 'edit')` — which scope
 //                             'own' satisfies — and then wrote FOUR client-supplied ids
 //                             (`targetUserId`, `roleId`, `chapterId`, `regionId`) onto a
 //                             `user_roles` row carrying the caller's own family_code. Every
@@ -118,7 +118,7 @@ export async function getMyRoles(): Promise<MyRoleSummary[]> {
 // with the difference that these were exploitable.
 //
 // `assignBoardPosition` and `revokeBoardPosition` in app/actions/admin/chapters.ts replace
-// the two that matter, beside the catalogue they operate on, and `/admin/boardpositions` is
+// the two that matter, beside the catalogue they operate on, and `/admin/members/board-positions` is
 // the screen that calls them. Rewriting rather than patching was deliberate: the new pair
 // takes a **people.id** and resolves the account itself, so §4's question is answered by the
 // same read that supplies the value the table stores.
@@ -137,7 +137,7 @@ export async function updateUserProfile(
   // `admin/users` is the screen this write belongs to, and it is `canAny` because the row is
   // somebody ELSE's — 'own' on `people` means the caller's own row, which is
   // `saveProfileSection`'s job, not this one's.
-  if (!(await canAny(user.id, 'admin/users', 'edit'))) return { success: false, error: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
 
   // Two things this needs that it did not have, both required by AGENTS.md §3 for a
   // service-role write — which sees past RLS entirely, so nothing else was applying

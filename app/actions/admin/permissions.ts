@@ -60,8 +60,8 @@ import { chapterPlaces } from '@/lib/chapter-places'
  * and the database must never disagree about who may do what.
  */
 
-const RESOURCE = 'admin/users'
-const TEMPLATE_RESOURCE = 'admin/users/templates'
+const RESOURCE = 'admin/members'
+const TEMPLATE_RESOURCE = 'admin/members/templates'
 
 export type AdminResult = { success: true } | { success: false; message: string }
 
@@ -332,7 +332,7 @@ function safeQuery(query: string): string {
  * Paged and searched in the database on purpose: a family can run to several hundred
  * people, and shipping them all to the browser to filter client-side does not scale.
  *
- * Gated on 'admin/users' rather than 'members'. This runs on the service role, so RLS
+ * Gated on 'admin/members' rather than 'members'. This runs on the service role, so RLS
  * never narrows it, and it returns more than the directory does — every member's
  * email, their template, and whether their access is switched off. That is this
  * page's data, and this page's key governs it.
@@ -357,7 +357,7 @@ export async function searchMembers(opts: {
     .select(
       // phone, city and state used to be three of the Members table's columns and are now
       // three of its detail dialog's fields (2026-08-19). They are roster PII either way,
-      // this action is gated on 'admin/users' rather than 'members' — see the doc comment —
+      // this action is gated on 'admin/members' rather than 'members' — see the doc comment —
       // and NEITHER the projection nor the grant moved when the values did: the same key
       // that showed a phone number in a cell shows it in the dialog.
       //
@@ -531,7 +531,7 @@ export async function getResources(): Promise<ResourceSummary[]> {
 /**
  * One template's grid. Reading a family's permission configuration is itself
  * privileged — it is the map of who may do what — so this gates on view over
- * 'admin/users' rather than being treated as harmless lookup data.
+ * 'admin/members' rather than being treated as harmless lookup data.
  *
  * `templateId` arrives from the client and the read runs on the service role, so the
  * template is confirmed to belong to the caller's family before anything is returned.
@@ -686,7 +686,7 @@ export async function createTemplate(
       .upsert(rows, { onConflict: 'template_id,resource_key,action' })
   }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   return { success: true }
 }
 
@@ -712,7 +712,7 @@ export async function renameTemplate(
     if (error.code === '23505') return { success: false, message: 'A template with that name already exists.' }
     return { success: false, message: 'Could not rename the template.' }
   }
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   return { success: true }
 }
 
@@ -759,7 +759,7 @@ export async function deleteTemplate(templateId: string): Promise<AdminResult> {
     .eq('family_code', auth.familyCode)
   if (error) return { success: false, message: 'Could not delete the template.' }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
   return { success: true }
 }
@@ -808,7 +808,7 @@ export async function setTemplatePermission(
   )
   if (error) return { success: false, message: 'Could not save the permission.' }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
   return { success: true }
 }
@@ -903,7 +903,7 @@ export async function applyTemplate(personId: string, templateId: string): Promi
   if (error) return { success: false, message: 'Could not apply that template. Please try again.' }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
   return { success: true }
 }
@@ -934,7 +934,7 @@ export async function setMemberEnabled(personId: string, enabled: boolean): Prom
   if (error) return { success: false, message: 'Could not change that member. Please try again.' }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
   return { success: true }
 }

@@ -1726,6 +1726,117 @@ Two more that have already shaped call sites:
   the invitation token when the send worked and hands it back, with an explicit failure
   notice, when it did not.
 
+# The route tree IS the nav rail. A screen lives where the rail says it does
+
+**One rule, and everything else in this section is its consequences:**
+
+> A screen's route is `/<its rail section>/<its rail caption>`, kebab-cased. Its folder is
+> that path, and its permission key is that path without the leading slash.
+
+So Admin > Members is `app/(protected)/admin/members/page.tsx`, route `/admin/members`, key
+`admin/members`. Reporting > P&L Summary is `app/(protected)/reporting/pl-summary/`, route
+`/reporting/pl-summary`, key `reporting/pl-summary`. There is nothing to look up: given the
+rail, you can write the path, and given the path you can find the file and the grant.
+
+`20260820000004` moved 42 keys and 30 route directories to make this true. Before it, the
+tree was the archaeology of the order things were built in — `/family-finances` was a
+Reporting screen captioned "P&L Summary", `/admin/users` was captioned "Members", `/members`
+was captioned "Directory" and sat under Community while `/admin/users` sat under Admin. Every
+one of those was defensible on the day it was written and none of them was findable a year
+later.
+
+## The three that move together, and the four that do not
+
+**Move together:** the folder, the route, and the key. §1 already forces the last two — "the
+resource key is the route without its leading slash" — so the only new obligation is that the
+route follows the rail. A rail item renamed or moved to another section is a route change and
+therefore a MIGRATION; see below for what one costs.
+
+**The four exceptions, each stated rather than discovered:**
+
+* **A screen with no rail section stays at the root.** The rail's first group has no heading
+  and holds Dashboard; Help is its own single-item section at the bottom. `/dashboard` and
+  `/help`, not `/dashboard/dashboard`.
+* **A screen that is not in the rail at all stays at the root.** My Profile and My Families
+  are reached from the account menu in the top bar, and `20260806000006` deliberately removed
+  their `permission_resources` rows so they can never be restricted. `/personal-info`,
+  `/my-families`.
+* **A section whose own index page IS the section does not double up.** The Gatherings
+  section holds Gatherings and Calendar; the first is `/gatherings`, not
+  `/gatherings/gatherings`, and the second is `/gatherings/calendar`. The test is whether the
+  section and the item mean the same thing — and note that `/gatherings/[id]` already lives
+  under that segment, so doubling would also have collided.
+* **A pane, a redirect or a tier-carrying sub-key nests under its rail item.** These are not
+  rail items and have no caption of their own, so they take their parent's path:
+  `admin/members/approvals`, `admin/members/organization`, `admin/gatherings/templates`,
+  `reporting/transactions/fund-transfers`, `accounting/summary/funds`.
+
+**`/admin` is not an exception and not a page.** It is the prefix catch-all in
+`lib/features.ts` that gates every nested admin route nobody has registered, and it stays
+`status: 'future'`.
+
+## What a rename actually costs, which is why the rule is worth having
+
+Six things reference a key, and `20260805000006` is the file that enumerated them for one
+key; `20260820000004` is the same list applied to 42. Every one of them is a place a rename
+can be half-done:
+
+1. `permission_resources.key` — the row itself.
+2. `template_permissions.resource_key` — every grant on every template.
+3. `resource_visibility.resource_key` — the per-family show/hide.
+4. `permission_table_map.resource_key` — which table the key gates.
+5. **The composed POLICY EXPRESSIONS.** `_perm_predicate()` interpolates the key with `%L`,
+   so 94 policies each carry `auth_permission('old-key'::text, …)` as literal text. Updating
+   the map does NOT change them — the map is only read when the sweep runs. Left behind, they
+   ask about a key that no longer exists, `auth_permission` falls through to its default, and
+   the table goes **world-readable for view while every write fails closed**.
+6. **Function bodies.** Six SECURITY DEFINER functions gate themselves with
+   `auth_permission('<key>', …)`, `auth_can('<key>', …)` or `resource_key = '<key>'` written
+   into their own source — `set_membership_status`, `apply_permission_template` and four
+   others. All three shapes were found by an assertion failing, one after another, not by
+   reading. Enumerate them, do not recall them:
+   `grep -rhoE "auth_[a-z_]+\('[a-z/-]+'" supabase/migrations/*.sql | sort -u`
+
+None of the foreign keys is `ON UPDATE CASCADE`, so a key cannot be `UPDATE`d in place:
+dependents are copied to the new key and the old rows dropped, in that order.
+
+## Sweeping the code: routes are safe, bare keys are not
+
+A route literal always has a leading slash and can be replaced mechanically, longest-key
+first. **A bare key cannot**, and this is the trap:
+
+| String | Is a permission key | Is also |
+|---|---|---|
+| `'dues'` | yes | a `dues_schedules.kind`, a ledger id, an Accounting section id |
+| `'photos'` | yes | a table, a storage bucket, a document category |
+| `'members'` | yes | a tab id, a dashboard tile id |
+| `'chat'` | yes | a `chat_rooms.type` |
+| `'donations'` | yes | a ledger id, a fund `system_key` |
+
+There were 246 such occurrences and fewer than 30 were keys. So a bare key is replaced ONLY
+inside a permission-call shape, and the shapes are enumerated from the signatures rather than
+remembered — every exported helper in `lib/auth/*` that takes a `resource: string`, plus
+`tierAllows`. The first sweep used a hand-written list and missed `requireFamilyActive`,
+`requireTier` and `scopeFor`.
+
+**Four things catch what the sweep misses, and all four earned their place here:**
+
+* `npm run typecheck` caught a local `canSee('dues')` helper that takes a *ledger id* and had
+  been rewritten as though it took a key.
+* `npm run help:check` caught both halves of the manual: chapter `route`s that had moved, and
+  `[label](/route)` links that had NOT been swept, because that form has a `(` before the
+  slash rather than a quote.
+* **`npm run test:rls` caught the two SQL shapes**, through positive controls — five actions
+  where the family's own administrator could no longer do their own job, while every attack
+  assertion still passed. An action nobody can perform is perfectly isolated.
+* The migration's own assertions caught the rest, and they are written to name the offending
+  key rather than to say "something is wrong".
+
+**A help chapter's `slug` is NOT a route and must never be swept with one.** It is the
+chapter's identity in `/help/<slug>` and it moves with nothing. Sweeping bare keys across
+`lib/help/content.ts` renamed nine chapters — the replacements cascaded down the file — and
+the repair was to restore the file and re-apply routes only.
+
 # The main rail is a standard component
 
 `components/layout/MainRail.tsx` is **the default primary in-page navigation**. A page

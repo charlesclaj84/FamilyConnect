@@ -1,5 +1,5 @@
 /**
- * The `/announcements` rail's vocabulary — the pane ids, their order, and the sentence under
+ * The `/community/announcements` rail's vocabulary — the pane ids, their order, and the sentence under
  * each one.
  *
  * ── WHY THIS IS A MODULE OF ITS OWN AND NOT A CONST IN THE SHELL ────────────────────
@@ -10,7 +10,7 @@
  *
  *     TypeError: ….ANNOUNCEMENT_PANES.includes is not a function
  *
- * on every load of `/announcements`, and the whole page rendered the error boundary. Type-only
+ * on every load of `/community/announcements`, and the whole page rendered the error boundary. Type-only
  * imports across that boundary are erased and so are fine; a runtime VALUE never is.
  *
  * The same rule is already written down elsewhere in this tree for the same reason —
@@ -25,7 +25,7 @@
  *   birthdays  who is next, inside the horizon     `announcements/birthdays`
  *
  * One rail item, one permission resource (AGENTS.md). `updates` was a route of its own until
- * 2026-08-19 and still is one — `/updates` redirects here — which is why it keeps its own key
+ * 2026-08-19 and still is one — `/community/updates` redirects here — which is why it keeps its own key
  * rather than becoming a sub-key of `announcements`: the key is the route without its leading
  * slash, and the route still exists.
  */

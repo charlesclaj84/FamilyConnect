@@ -301,6 +301,76 @@
   --chart-3: var(--genorra-growth);
   --chart-4: var(--genorra-legacy);
   --chart-5: var(--genorra-nurturing);
+
+  /* Data visualisation — DARK IS SELECTED, NOT FLIPPED. Every slot is re-derived against
+     --genorra-card-dark and re-checked there; an automatic inversion of the light values
+     puts the categorical pair outside the dark lightness band [0.48, 0.67] and drops the
+     sequential ramp's dark end below the ground it is drawn on. Heritage lifts and Legacy
+     deepens, which is the same move --brand-primary and --brand-accent already make. */
+  --viz-cat-1: #8d434e;
+  --viz-cat-2: #bd8b31;
+  --viz-muted: #78706a;
+  --viz-seq-1: #80434b;
+  --viz-seq-2: #a0545f;
+  --viz-seq-3: #bc6a75;
+  --viz-seq-4: #d2858f;
+  --viz-seq-5: #dea7ac;
+
+  /* ── DATA VISUALISATION ────────────────────────────────────────────────────────
+     The palette the charts on /membership-report draw with, and the ONLY one they may.
+
+     WHY IT IS NOT `--chart-1..5` ABOVE. Those five are shadcn's slots, recoloured to the
+     brand's five hues when the ramp was built and consumed by NOTHING — there was no chart
+     in the product until 2026-08-20. Measured against the data-viz checks the day the first
+     one arrived, they FAIL in both themes and it is not close: Heritage sits below the
+     lightness band (L 0.387) and below the chroma floor, Nurturing sand is 1.39:1 on a white
+     card, and Growth olive against Warmth terracotta is ΔE 4.5 under simulated protanopia
+     against a floor of 6 — two adjacent slices a red-blind reader cannot tell apart. They are
+     left exactly as they are, because something shadcn generates may yet want them; nothing
+     in app/ or components/ references one, and no chart may start to.
+
+     THE SLOTS BELOW ARE VALIDATED, and the numbers are the record of it rather than a
+     claim — recomputed for both themes against the surface each actually renders on (the
+     card: #ffffff light, --genorra-card-dark dark):
+
+       --viz-cat-1 / --viz-cat-2   categorical, two slots. Heritage and Legacy, which is the
+                                   brand's signature pairing and the widest separation its
+                                   hue wheel offers: ΔE 32.6 light / 21.2 dark under the worse
+                                   of simulated protanopia and deuteranopia, against a target
+                                   of 8. Both inside the lightness band and over the chroma
+                                   floor in their own theme.
+       --viz-muted                 the de-emphasis fill — "not recorded", "nobody has asked".
+                                   A near-neutral warm grey ON PURPOSE: those buckets are the
+                                   ABSENCE of an answer, and giving one a third hue would
+                                   claim it is a third kind of member. 3.13:1 light, 3.49:1
+                                   dark against the card.
+       --viz-seq-1..5              one hue, five steps, darkest first — for a breakdown whose
+                                   reader's job is MAGNITUDE (which chapter is biggest) rather
+                                   than identity. Adjacent steps are ≥0.06 apart in OKLCH L,
+                                   and the pale end clears the card at 2.22:1 light / 2.28:1
+                                   dark.
+
+     TWO SLOTS IS THE CEILING FOR CATEGORICAL, and that is a fact about this brand rather
+     than a lack of ambition. Every GENORRA hue is warm — Heritage 9°, Warmth 39°, Legacy 78°,
+     Growth 113° — and simulated protan/deutan vision collapses that arc toward a single axis,
+     so a third categorical slot cannot clear the separation floor without leaving the brand.
+     A breakdown needing more than two identities uses the sequential ramp and a legend, which
+     is what the region and chapter donuts do. Do not add --viz-cat-3.
+
+     THE CONTRAST WARNING IS ANSWERED BY THE SCREEN, not waived: gold is 2.33:1 on a white
+     card and Heritage-lift 2.46:1 on the dark one, which is under the 3:1 mark a fill should
+     clear on its own. The relief the checks require is a visible label and a table view, and
+     every chart on that page ships both — a legend naming each slice with its count and
+     percentage, and the full figures in a table beneath. A chart added later that drops
+     either has to re-open this. */
+  --viz-cat-1: #7d3541;
+  --viz-cat-2: #d4a14a;
+  --viz-muted: #99908a;
+  --viz-seq-1: #712f3a;
+  --viz-seq-2: #96414f;
+  --viz-seq-3: #b55967;
+  --viz-seq-4: #cd7984;
+  --viz-seq-5: #dc9ea4;
   --radius: 0.625rem;
   /* The nav rail is RECESSED from the page, not level with it.
      This was `--genorra-light` — byte-for-byte `--background` — so the shadcn sidebar

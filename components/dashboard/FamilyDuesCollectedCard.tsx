@@ -41,7 +41,7 @@ export function FamilyDuesCollectedCard({ collectedCents }: { collectedCents: nu
 
   return (
     <Link
-      href="/transactions?ledger=dues-payments"
+      href="/reporting/transactions?ledger=dues-payments"
       className="group flex flex-col gap-3 rounded-3xl border bg-card p-5 text-card-foreground shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-card-hover,var(--shadow-card))]"
     >
       <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-legacy text-brand-on-legacy">

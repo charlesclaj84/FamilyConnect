@@ -68,15 +68,15 @@ export const DEFAULT_LEDGER: Ledger = 'dues'
  * both admin grids with no error.
  */
 export const LEDGER_RESOURCE: Record<Ledger, string> = {
-  dues:           'transactions/dues-payments',
-  donations:      'transactions/donation-payments',
-  contributions:  'transactions/fund-contributions',
-  disbursements:  'transactions/fund-disbursements',
+  dues:           'reporting/transactions/dues-payments',
+  donations:      'reporting/transactions/donation-payments',
+  contributions:  'reporting/transactions/fund-contributions',
+  disbursements:  'reporting/transactions/fund-disbursements',
   // Its own key, deliberately not folded into disbursements. Paying a member what they
   // are owed and re-deciding what the family saved FOR are different judgements — and a
   // transfer can empty a fund whose minimum balance dues spent a year filling. Added by
   // 20260812000002, which also declines to carry the disbursement grant across.
-  transfers:      'transactions/fund-transfers',
+  transfers:      'reporting/transactions/fund-transfers',
 }
 
 // DISBURSEMENT_RESOURCE was here, aliasing LEDGER_RESOURCE.disbursements for the delete
@@ -85,7 +85,7 @@ export const LEDGER_RESOURCE: Record<Ledger, string> = {
 // wants the create grant reads LEDGER_RESOURCE.disbursements like the other three.
 
 /** Posting a correcting entry against an existing payment. */
-export const REVERSAL_RESOURCE = 'transactions/reversals'
+export const REVERSAL_RESOURCE = 'reporting/transactions/reversals'
 
 /**
  * Forgiving forms for hand-typed URLs, and for the ids these ledgers had while they
@@ -95,7 +95,7 @@ export const REVERSAL_RESOURCE = 'transactions/reversals'
 const LEDGER_ALIASES: Record<string, Ledger> = {
   payment: 'dues',
   payments: 'dues',
-  'payment-history': 'dues',
+  'reporting/payment-history': 'dues',
   due: 'dues',
   donation: 'donations',
   gift: 'donations',

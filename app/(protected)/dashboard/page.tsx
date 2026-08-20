@@ -84,7 +84,7 @@ export const metadata = { title: 'Dashboard' }
  * the route.
  *
  * ONE PANEL DOES SWITCH ITSELF ON, and it is the model for how the rest should arrive:
- * `announcementsLive` below is read from the registry, so flipping `/announcements` to live
+ * `announcementsLive` below is read from the registry, so flipping `/community/announcements` to live
  * both un-gated the page and started fetching the pinned news for this screen. No edit here
  * was needed. That is what a panel wired to the registry looks like, and it is precisely
  * what the three rows above do not have.
@@ -98,7 +98,7 @@ export const metadata = { title: 'Dashboard' }
  * tile over a fetched number has already published the number.
  *
  * This page shipped a live instance of exactly that. The member count was fetched
- * unconditionally on the admin client and rendered inside `<Link href="/members">` — so a
+ * unconditionally on the admin client and rendered inside `<Link href="/community/directory">` — so a
  * family that restricted its Member Directory still handed every member the exact
  * approved-member count, under a link that 404s. `canViewMembers` below is that hole
  * closed, and it is the reason the grants are resolved in their own `Promise.all` above
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
   // Two independent narrowings on each, exactly as the sidebar applies them: has the
   // feature shipped at all (lib/features.ts), and may THIS member view it (the
   // permission model). Either one false and the query below is never issued.
-  const announcementsLive = isFeatureLive('/announcements')
+  const announcementsLive = isFeatureLive('/community/announcements')
   const [
     canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
     canViewDonations, canViewGatherings, canViewCalendar, mayViewUpdates,
@@ -177,7 +177,7 @@ export default async function DashboardPage() {
     // recorded in TODO.md as a decision to make rather than assumed here: the check is
     // written the same way every other one on this page is, so registering the resource
     // later starts narrowing this card without anybody having to remember it exists.
-    isFeatureLive('/family-tree') ? can(user.id, 'family-tree', 'view') : false,
+    isFeatureLive('/community/family-tree') ? can(user.id, 'community/family-tree', 'view') : false,
     // The Donation Drives card. It BORROWS the Donations screen's grant rather than
     // getting a `dashboard/*` key of its own — the rule in components/dashboard/tiles.ts,
     // which 20260806000006 settled: a dashboard panel is a pointer at a job that already
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
     // The key is `donations` since 20260815000000, which promoted My Summary's three
     // panes to screens; it was `account-summary/donations`, and the migration copied
     // every family's grant across, so nothing about who sees this card changed.
-    isFeatureLive('/donations') ? can(user.id, 'donations', 'view') : false,
+    isFeatureLive('/accounting/donations') ? can(user.id, 'accounting/donations', 'view') : false,
     // The premier gathering band. `gatherings` is the key `/gatherings` and every one of its
     // reads gate on, and the band's whole content is one row of that table — a title, a
     // location, dates and a task count — so it borrows that grant rather than getting a
@@ -205,14 +205,14 @@ export default async function DashboardPage() {
     isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])
       ? can(user.id, TILE_RESOURCE.gatherings[0], 'view')
       : false,
-    // The "View all updates" link at the foot of the Recent Updates card. `/updates` is a
+    // The "View all updates" link at the foot of the Recent Updates card. `/community/updates` is a
     // permissioned screen of its own (20260819000005), so the link is resolved rather than
     // rendered unconditionally — a link to a page that 404s is worse than no link, which is
     // exactly why the card carried a comment where the link is until that page existed.
     //
     // A GRANT AND NOT A FETCH, which is why it sits here and adds nothing below: the card
     // already has its rows. This decides whether it offers the archive.
-    isFeatureLive('/updates') ? can(user.id, 'updates', 'view') : false,
+    isFeatureLive('/community/updates') ? can(user.id, 'community/updates', 'view') : false,
     // THE "My Tasks" QUICK ACTION, which is the one entry on that row conditional on the
     // caller's own workload rather than only on a grant. Both halves are needed and this is
     // the cheap one: without the grant there is no button, and the COUNT below decides whether
@@ -327,7 +327,7 @@ export default async function DashboardPage() {
     // because the band renders nothing either way. No placeholder, no badge.
     canViewGatherings ? getPremierGathering() : Promise.resolve(null),
     // The count behind the "Upcoming Gatherings" tile, gated on the CALENDAR grant because
-    // that is where the tile leads. `canViewCalendar` here and `requireRead('calendar')`
+    // that is where the tile leads. `canViewCalendar` here and `requireRead('gatherings/calendar')`
     // inside the action must stay the SAME key: gate the count on `gatherings` instead and
     // the guard refuses for a caller this line was willing to ask, answering 0 — which is
     // the value at which the tile is omitted, so "I could not count" would be rendered as

@@ -17,7 +17,7 @@
  * because deleting a family is not built — nothing has a foreign key to `families`,
  * so a DELETE would remove one row and orphan the other 34 tables' worth.
  */
-export const FAMILY_RESOURCE = 'admin/family'
+export const FAMILY_RESOURCE = 'admin/settings'
 
 /**
  * The separate grant that admits removing the family, declaring the single action
@@ -33,7 +33,7 @@ export const FAMILY_RESOURCE = 'admin/family'
  * /admin/family, which has its own view grant, so a view switch here would be a control
  * nothing reads.
  */
-export const REMOVE_FAMILY_RESOURCE = 'admin/family/remove'
+export const REMOVE_FAMILY_RESOURCE = 'admin/settings/remove'
 
 /** Matches the limit create_family() applies, so a family cannot be renamed to
  *  something it could not have been created as. */

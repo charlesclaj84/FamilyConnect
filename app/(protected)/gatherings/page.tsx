@@ -111,7 +111,7 @@ export default async function GatheringsPage({ searchParams }: Props) {
   // matter. It does now: the DUTIES are what Standard sells, and `/gatherings/my-tasks` has
   // its own registry row saying so. A pane resolved with `can()` alone consults no tier, so
   // without this line a Free family would be handed the assigned-work half of the feature —
-  // the same hole `/admin/users` had to close by hand for Organization, and the reason that
+  // the same hole `/admin/members` had to close by hand for Organization, and the reason that
   // page's essay is worth reading before touching this one.
   //
   // The pane is ABSENT rather than empty, and the fetch below is skipped with it (§5). No task
@@ -139,8 +139,8 @@ export default async function GatheringsPage({ searchParams }: Props) {
       // Only to decide whether the "no templates yet" sentence may LINK to the library. `can`,
       // not `canAny`, because the library pane resolves through `can` — a link offered on any
       // other basis is a link to a 404.
-      can(user.id, 'admin/gathering-templates', 'view'),
-      tierAllows(user.id, 'admin/gathering-templates'),
+      can(user.id, 'admin/gatherings/templates', 'view'),
+      tierAllows(user.id, 'admin/gatherings/templates'),
     ])
     : [false, false, false]
 

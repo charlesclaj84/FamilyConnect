@@ -76,7 +76,7 @@ export function announcementToUpdateItem(a: FeedAnnouncement): UpdateItem {
     body: a.body,
     // Every announcement has somewhere to go — the board carries the full text, which a
     // truncated row cannot. Notifications are the ones with a nullable link.
-    link: '/announcements',
+    link: '/community/announcements',
     at: a.published_at,
     author: a.author_name,
     familyPinned: isFamilyPinned(a),

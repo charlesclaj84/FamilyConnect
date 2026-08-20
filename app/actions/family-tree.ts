@@ -13,7 +13,7 @@ import {
 } from '@/lib/family-tree'
 
 /**
- * The family-wide tree at `/family-tree` — now the only tree in the product.
+ * The family-wide tree at `/community/family-tree` — now the only tree in the product.
  *
  * ── WHAT IT IS BUILT ON, AND WHY NOT A NEW TABLE ────────────────────────────────────
  * `people` and `person_relationships`, the pair 20260602000003 created. A tree table of
@@ -89,7 +89,7 @@ import {
 async function requireTreeEditor() {
   const g = await requireMember()
   if (!g.ok) return g
-  if (!(await canAny(g.userId, 'family-tree', 'edit'))) {
+  if (!(await canAny(g.userId, 'community/family-tree', 'edit'))) {
     return { ok: false as const, message: 'Not authorized' }
   }
   return g
@@ -188,7 +188,7 @@ type PersonRow = {
  * §3's requirement, and the only thing standing between one family's tree and another's.
  */
 export async function getFamilyTree(): Promise<FamilyTree> {
-  const g = await requireRead('family-tree')
+  const g = await requireRead('community/family-tree')
   if (!g.ok || !g.familyCode) return EMPTY_TREE
 
   const admin = createAdminClient()
@@ -659,8 +659,8 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
     }
   }
 
-  revalidatePath('/family-tree')
-  revalidatePath('/members')
+  revalidatePath('/community/family-tree')
+  revalidatePath('/community/directory')
   return {
     success: true,
     personId,
@@ -880,8 +880,8 @@ export async function editPersonRecord(
 
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/family-tree')
-  revalidatePath('/members')
+  revalidatePath('/community/family-tree')
+  revalidatePath('/community/directory')
   return { success: true }
 }
 
@@ -949,8 +949,8 @@ export async function invitePersonRecord(
   )
   if (!sent.success) return { success: false, message: sent.message }
 
-  revalidatePath('/family-tree')
-  revalidatePath('/members')
+  revalidatePath('/community/family-tree')
+  revalidatePath('/community/directory')
   // The send fails soft (lib/email/README.md), so the caller is told which of the two
   // things happened rather than being shown "invited" over a message that never went.
   return { success: true, emailed: sent.emailed }
@@ -1018,7 +1018,7 @@ export async function setRelationshipKind(
 
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/community/family-tree')
   return { success: true }
 }
 
@@ -1172,7 +1172,7 @@ export async function setRelationshipType(
     }
   }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/community/family-tree')
   return { success: true }
 }
 
@@ -1204,7 +1204,7 @@ export async function setRelationshipType(
 export async function setBloodlineAnchor(
   personId: string | null,
 ): Promise<{ success: boolean; message?: string }> {
-  const g = await requireEdit('admin/family')
+  const g = await requireEdit('admin/settings')
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'No family selected' }
 
@@ -1223,7 +1223,7 @@ export async function setBloodlineAnchor(
 
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/community/family-tree')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -1273,6 +1273,6 @@ export async function removeRelationship(
 
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/family-tree')
+  revalidatePath('/community/family-tree')
   return { success: true }
 }

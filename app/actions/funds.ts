@@ -372,7 +372,7 @@ const CONTRIBUTION_SELECT =
  *
  * Read through the user's client, not the admin one, so RLS does the family scoping
  * and the permission model decides who may see it — this is a page, not a background
- * job, and 'family-finances' is exactly the right gate.
+ * job, and 'reporting/pl-summary' is exactly the right gate.
  */
 export async function getFundContributions(): Promise<FundContribution[]> {
   const supabase = await createClient()
@@ -506,7 +506,7 @@ export async function createFund(input: {
   // a grant that means anything here — see canAny. Checked in the action because a
   // server action is reachable directly, whatever gates the page that renders it.
   // Creating a fund is Accounting configuration, not a transaction.
-  if (!(await canAny(user.id, 'admin/account/funds', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'create'))) return { success: false, message: 'Not authorized' }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   // New funds go to the end of the priority order (lowest precedence).
@@ -531,9 +531,9 @@ export async function createFund(input: {
   }).select('id').single()
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
-  revalidatePath('/family-finances')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/pl-summary')
   return { success: true, id: data.id }
 }
 
@@ -545,7 +545,7 @@ export async function updateFund(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/account/funds', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // Deactivating a system fund is deleting it by another name — an inactive fund drops
@@ -562,8 +562,8 @@ export async function updateFund(
 
   const { error } = await admin.from('funds').update(input).eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/admin/accounting')
   return { success: true }
 }
 
@@ -572,7 +572,7 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/account/funds', 'delete'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // A system fund is permanent. 20260807000003's trigger is what actually refuses this —
@@ -614,8 +614,8 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   // service-role client would otherwise let an id alone reach another family.
   const { error } = await admin.from('funds').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/admin/accounting')
   return { success: true }
 }
 
@@ -635,7 +635,7 @@ export async function createMilestone(
 
   const familyCode = await getMyFamilyCode(user.id)
   // What an award is worth — its own section, its own grant.
-  if (!(await canAny(user.id, 'admin/account/milestones', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/milestones', 'create'))) return { success: false, message: 'Not authorized' }
 
   // The fund must be this family's — the insert below bypasses RLS.
   const { data: fund } = await admin
@@ -652,7 +652,7 @@ export async function createMilestone(
   }).select('id, fund_id, name, description, amount_cents, sort_order').single()
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/account')
+  revalidatePath('/admin/accounting')
   return { success: true, milestone: data }
 }
 
@@ -664,12 +664,12 @@ export async function updateMilestone(
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/account/milestones', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/milestones', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   const { error } = await admin.from('fund_milestones').update(input).eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/account')
+  revalidatePath('/admin/accounting')
   return { success: true }
 }
 
@@ -678,7 +678,7 @@ export async function deleteMilestone(id: string): Promise<{ success: boolean; m
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/account/milestones', 'delete'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/milestones', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
 
   // A milestone is what a disbursement was FOR, and `fund_disbursements.milestone_id` is
@@ -702,7 +702,7 @@ export async function deleteMilestone(id: string): Promise<{ success: boolean; m
 
   const { error } = await admin.from('fund_milestones').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/account')
+  revalidatePath('/admin/accounting')
   return { success: true }
 }
 
@@ -733,9 +733,9 @@ export async function recordDisbursement(input: {
   // to THEMSELVES, so honouring scope 'own' would authorize precisely the payout a
   // restricted grant exists to prevent.
   // Paying money OUT of a fund. Its own grant, separate from logging money in:
-  // 'transactions/fund-disbursements' create. canAny throughout — the disbursement
+  // 'reporting/transactions/fund-disbursements' create. canAny throughout — the disbursement
   // paying the caller THEMSELVES is the abuse case, so scope 'own' must never admit.
-  if (!(await canAny(user.id, 'transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'reporting/transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
 
   // WHO PAID IT OUT. Required, not best-effort — this is money leaving the family, and
   // an unattributed payout is the one row in the ledger that cannot be asked about.
@@ -792,17 +792,17 @@ export async function recordDisbursement(input: {
   })
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
-  revalidatePath('/transactions')
-  revalidatePath('/family-finances')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/transactions')
+  revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
 
 // deleteDisbursement was removed here, and its removal is enforced rather than
 // declared: 20260807000002 makes fund_disbursements append-only with a trigger the
 // service role cannot bypass, drops the RLS DELETE policy, and narrows the
-// 'transactions/fund-disbursements' resource to {view,create} so Members & Access stops
+// 'reporting/transactions/fund-disbursements' resource to {view,create} so Members & Access stops
 // offering a Delete column for it. Deleting the record of money that left the family is
 // not a capability this app has.
 //
@@ -858,7 +858,7 @@ export async function saveFundAllocations(
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   // Redrawing the split that every future payment follows.
-  if (!(await canAny(user.id, 'admin/account/routing', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/routing', 'edit'))) return { success: false, message: 'Not authorized' }
   const myPersonId = await getMyPersonId(user.id)
 
   // Allocations must total exactly 100% (or all zero to disable routing).
@@ -900,8 +900,8 @@ export async function saveFundAllocations(
     if (error) return { success: false, message: error.message }
   }
 
-  revalidatePath('/admin/account')
-  revalidatePath('/family-finances')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
 
@@ -929,7 +929,7 @@ export async function recordFundContribution(input: {
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   // Logging money INTO a fund by hand.
-  if (!(await canAny(user.id, 'transactions/fund-contributions', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'reporting/transactions/fund-contributions', 'create'))) return { success: false, message: 'Not authorized' }
 
   // WHO RECORDED IT. Checked rather than assumed: getMyPersonId returns '' when it
   // cannot resolve a row, and an empty string is not a uuid — so the unchecked version
@@ -980,9 +980,9 @@ export async function recordFundContribution(input: {
     recorded_by: myPersonId,
   })
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/account')
-  revalidatePath('/transactions')
-  revalidatePath('/family-finances')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/transactions')
+  revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
 
@@ -1043,7 +1043,7 @@ export async function transferBetweenFunds(input: {
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await canAny(user.id, 'transactions/fund-transfers', 'create'))) {
+  if (!(await canAny(user.id, 'reporting/transactions/fund-transfers', 'create'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -1102,10 +1102,10 @@ export async function transferBetweenFunds(input: {
   })
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/account-summary')
-  revalidatePath('/admin/account')
-  revalidatePath('/transactions')
-  revalidatePath('/family-finances')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/transactions')
+  revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
 

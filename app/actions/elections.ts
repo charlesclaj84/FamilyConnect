@@ -137,7 +137,7 @@ export async function getElectionResults(id: string): Promise<ElectionVoteCount[
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!(await belongsToFamily('elections', id, familyCode))) return []
-  if (!(await can(user.id, 'elections', 'view'))) return []
+  if (!(await can(user.id, 'review/elections', 'view'))) return []
 
   const admin = createAdminClient()
   const { data: votes } = await admin
@@ -179,7 +179,7 @@ export async function submitNomination(
     accepted: myPerson?.id === nomineeId ? true : null,
   })
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/elections/${electionId}`)
+  revalidatePath(`/review/elections/${electionId}`)
   return { success: true }
 }
 
@@ -194,7 +194,7 @@ export async function respondToNomination(
     .update({ accepted })
     .eq('id', nominationId)
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/elections/${electionId}`)
+  revalidatePath(`/review/elections/${electionId}`)
   return { success: true }
 }
 
@@ -214,7 +214,7 @@ export async function castVote(
     { onConflict: 'election_id,position_id,voter_id' }
   )
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/elections/${electionId}`)
+  revalidatePath(`/review/elections/${electionId}`)
   return { success: true }
 }
 
@@ -273,12 +273,12 @@ export async function createElection(input: {
       pinned: false,
       author_id: myPerson?.id ?? null,
     })
-    revalidatePath('/announcements')
+    revalidatePath('/community/announcements')
     revalidatePath('/dashboard')
   }
 
-  revalidatePath('/elections')
-  revalidatePath('/admin/elections')
+  revalidatePath('/review/elections')
+  revalidatePath('/review/election-management')
   return { success: true, id: election.id }
 }
 
@@ -289,29 +289,29 @@ export async function updateElectionStatus(
   // Opening and closing a ballot is a family-wide act, so it needs the unrestricted
   // grant — and the family filter below, because the service-role client applies no
   // RLS and an id alone would otherwise reach another family's election.
-  const g = await requireEdit('elections')
+  const g = await requireEdit('review/elections')
   if (!g.ok) return { success: false, message: g.message }
 
   const admin = createAdminClient()
   const { error } = await admin
     .from('elections').update({ status }).eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/elections')
-  revalidatePath('/admin/elections')
+  revalidatePath('/review/elections')
+  revalidatePath('/review/election-management')
   return { success: true }
 }
 
 export async function deleteElection(id: string): Promise<{ success: boolean; message?: string }> {
   // Deleting takes every nomination and vote with it, so it is gated on the delete
   // grant rather than edit.
-  const g = await requireDelete('elections')
+  const g = await requireDelete('review/elections')
   if (!g.ok) return { success: false, message: g.message }
 
   const admin = createAdminClient()
   const { error } = await admin
     .from('elections').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/elections')
-  revalidatePath('/admin/elections')
+  revalidatePath('/review/elections')
+  revalidatePath('/review/election-management')
   return { success: true }
 }

@@ -9,7 +9,7 @@ interface Props {
 export function PhotoCollectionCard({ collection }: Props) {
   return (
     <Link
-      href={`/photos/${collection.id}`}
+      href={`/review/photos/${collection.id}`}
       className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow"
     >
       <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">

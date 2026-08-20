@@ -24,7 +24,7 @@ import { matchHelpRoute, type HelpRouteEntry } from './route-match'
  *             in the declared order a plain first-match-wins bug passes case 4's assertion,
  *             so one ordering is not a test of a tie-break.
  *   3. boundary loosened — `pathname.startsWith(route + '/')` ->
- *      `pathname.startsWith(route)`, so `/dues-projections` matches `/dues`
+ *      `pathname.startsWith(route)`, so `/reporting/dues-projections` matches `/accounting/dues`
  *          -> 1 red: 'does not let one route match a longer route that merely starts with
  *             it'
  *   4. boundary dropped entirely — the `startsWith` disjunct removed, exact match only
@@ -45,8 +45,8 @@ import { matchHelpRoute, type HelpRouteEntry } from './route-match'
  */
 
 const ENTRIES: readonly HelpRouteEntry[] = [
-  { route: '/dues', slug: 'my-dues', title: 'Your dues' },
-  { route: '/dues-projections', slug: 'dues-projections', title: 'Dues Projections' },
+  { route: '/accounting/dues', slug: 'my-dues', title: 'Your dues' },
+  { route: '/reporting/dues-projections', slug: 'reporting/dues-projections', title: 'Dues Projections' },
   { route: '/gatherings', slug: 'gatherings', title: 'Gatherings' },
   { route: '/admin', slug: 'admin-overview', title: 'Admin' },
   { route: '/admin/gatherings', slug: 'gathering-management', title: 'Gathering Management' },
@@ -54,7 +54,7 @@ const ENTRIES: readonly HelpRouteEntry[] = [
 
 describe('matchHelpRoute', () => {
   it('matches a route exactly', () => {
-    expect(matchHelpRoute('/dues', ENTRIES)?.slug).toBe('my-dues')
+    expect(matchHelpRoute('/accounting/dues', ENTRIES)?.slug).toBe('my-dues')
   })
 
   it('matches a child path against its parent entry', () => {
@@ -83,10 +83,10 @@ describe('matchHelpRoute', () => {
   })
 
   it('does not let one route match a longer route that merely starts with it', () => {
-    // The boundary case, and a real pair of routes in this app: `/dues-projections` is a
-    // treasurer's screen and `/dues` is the member's own. A prefix test without the `/`
+    // The boundary case, and a real pair of routes in this app: `/reporting/dues-projections` is a
+    // treasurer's screen and `/accounting/dues` is the member's own. A prefix test without the `/`
     // sends every visitor of the first to the chapter for the second.
-    expect(matchHelpRoute('/dues-projections', ENTRIES)?.slug).toBe('dues-projections')
+    expect(matchHelpRoute('/reporting/dues-projections', ENTRIES)?.slug).toBe('reporting/dues-projections')
     expect(matchHelpRoute('/duesx', ENTRIES)).toBeNull()
   })
 
@@ -97,11 +97,11 @@ describe('matchHelpRoute', () => {
   })
 
   it('returns null for an empty index', () => {
-    expect(matchHelpRoute('/dues', [])).toBeNull()
+    expect(matchHelpRoute('/accounting/dues', [])).toBeNull()
   })
 
   it('does not treat a parent segment as a match on the way up', () => {
-    // `/du` is a prefix of `/dues` in the other direction, and must not match it.
+    // `/du` is a prefix of `/accounting/dues` in the other direction, and must not match it.
     expect(matchHelpRoute('/du', ENTRIES)).toBeNull()
   })
 })

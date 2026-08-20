@@ -170,7 +170,7 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
  * requireEdit(), which is requireScope(…, 'edit') and so goes through canAny(). Scope
  * 'own' would otherwise pass, and there is no personal copy of the family's name to
  * own — a narrowed grant would silently mean what the unrestricted one means. The
- * policy on `families` tests `auth_permission('admin/family','edit') = 'any'` for the
+ * policy on `families` tests `auth_permission('admin/settings','edit') = 'any'` for the
  * same reason, and scopesFor() stops the grid offering the button at all.
  *
  * The USER client, so the policy 20260812000000 adds is what actually admits the write
@@ -230,7 +230,7 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
  * There is no billing. Any of the three tiers can be picked and nothing is charged, which
  * is why the panel that calls this says so in as many words rather than reading as a
  * checkout. What it buys today is the ability to SEE the tier gates work — put a family on
- * Free and `/family-finances`, `/photos`, `/documents` and `/elections` become the upgrade
+ * Free and `/reporting/pl-summary`, `/review/photos`, `/review/documents` and `/review/elections` become the upgrade
  * screen; put them back on Plus and they return, with every row they ever entered intact,
  * because no policy consults `families.tier` and none may start to (20260813000003).
  *

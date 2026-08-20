@@ -102,7 +102,7 @@ interface ChapterRow {
  * wrong one to build a bill from — see `familyChapterRegions` in app/actions/dues.ts, which
  * deliberately does not share this.
  *
- * Skipped entirely for a family with no chapters — which is most of them, `/admin/chapters`
+ * Skipped entirely for a family with no chapters — which is most of them, `/admin/members/organization`
  * being `tier: 'plus'` — so the two member tables cost no extra round trip to gain two
  * columns they will render as "—" and "National".
  */

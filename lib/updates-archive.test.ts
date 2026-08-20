@@ -6,7 +6,7 @@ import {
 } from './updates-archive'
 
 /**
- * `lib/updates-archive.ts` decides which rows a page of `/updates` shows, and it is the one
+ * `lib/updates-archive.ts` decides which rows a page of `/community/updates` shows, and it is the one
  * part of that feature no database can check: the merge happens in TypeScript because a
  * merged page of a union cannot be produced by two PostgREST range requests.
  *

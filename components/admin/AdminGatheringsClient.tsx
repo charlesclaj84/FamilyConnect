@@ -83,7 +83,7 @@ import {
  *
  * This file is `'use client'`, and the PAGE has to validate `?pane=` before it decides what to
  * fetch. A Server Component importing a runtime value out of a client module gets a client
- * REFERENCE rather than the value — `/announcements` rendered its error boundary on exactly
+ * REFERENCE rather than the value — `/community/announcements` rendered its error boundary on exactly
  * that, `ANNOUNCEMENT_PANES.includes is not a function` — so ids and order are pure data and
  * only the ICONS and LABELS, which are client concerns, are here.
  */
@@ -145,7 +145,7 @@ interface Props {
    * template library may LINK to it.
    *
    * A different key from everything else here, and a family really does split them: an organizer
-   * who schedules gatherings is not necessarily a template author. `/admin/gathering-templates`
+   * who schedules gatherings is not necessarily a template author. `/admin/gatherings/templates`
    * 404s a caller without `view` on its own key, so a link offered on any other basis is a link
    * to a 404 — the standard `/gatherings` already sets for its own one-sentence link.
    */
@@ -792,7 +792,7 @@ function NewGatheringDialog({
               There are no templates to build from, so this will be a date on the family
               calendar with no tasks.{' '}
               {mayAuthorTemplates
-                ? <>Add one in the <Link href="/admin/gathering-templates">template library</Link> and a
+                ? <>Add one in the <Link href="/admin/gatherings/templates">template library</Link> and a
                     gathering becomes a checklist handed out as tasks.</>
                 : <>A template is a checklist handed out as tasks — somebody who can author
                     templates has to add the first.</>}

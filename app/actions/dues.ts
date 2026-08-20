@@ -326,8 +326,37 @@ export interface PnLFundBalance {
  */
 export interface PnLData {
   totalIncomeCents: number        // paid dues + donations (both are dues_payments)
+  /**
+   * Money contributed straight to a fund, rather than collected as dues and routed there.
+   *
+   * ── IT EXCLUDED `'reversal'` FROM 2026-08-20, AND THAT WAS A DOUBLE COUNT ──────────
+   * A reversal writes TWO rows: a negative `dues_payments` row, which `totalIncomeCents`
+   * above already subtracts, and a mirroring negative `fund_contributions` row carrying
+   * `source = 'reversal'`, which un-routes the money from the fund it landed in. The filter
+   * here was `source !== 'dues_routing'`, so the second row fell through and the reversal
+   * came off `totalCollectedCents` TWICE — a reversed $500 payment made the family's
+   * lifetime income read $1,000 lower than it is.
+   *
+   * The rule the filter is really expressing is "money that did not arrive as a dues
+   * payment", because anything that did is counted on the income line. A reversal is a dues
+   * payment's shadow and belongs on that side of the split with it.
+   */
   totalContributionsCents: number // manual + member fund contributions
   totalCollectedCents: number     // dues + contributions
+  /**
+   * Collected and not yet allocated to any fund — income less what routing actually moved.
+   *
+   * ADDED 2026-08-20. Every other figure on this statement is either what came in or what
+   * went out, and this is the one that says where the money is SITTING: a family whose
+   * routing rules do not cover a schedule collects dues that reach no fund, and until
+   * somebody looks at this line nothing on any screen says so. It is not an error and is not
+   * rendered as one — an unallocated balance is an ordinary state on the day a payment lands.
+   *
+   * NEGATIVE IS POSSIBLE AND IS NOT NONSENSE: an administrator may contribute to a fund
+   * directly, so more can have been routed into funds than dues ever brought in. The screen
+   * says "over-allocated" rather than hiding the sign.
+   */
+  unroutedIncomeCents: number
   /**
    * MONEY THAT LEFT A FUND — `fund_disbursements`, and nothing else.
    *
@@ -357,8 +386,8 @@ type AdminClient = ReturnType<typeof createAdminClient>
  * never from a caller's claim about which permission to check.
  */
 const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
-  dues: 'admin/account/dues',
-  donation: 'admin/account/donations',
+  dues: 'admin/accounting/dues',
+  donation: 'admin/accounting/donations',
 }
 
 /**
@@ -370,7 +399,7 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
  * become endpoints.
  *
  * ONE CALL REPLACING ONE LINE, at all eight sites that used to say
- * `revalidatePath('/account-summary')`. Until 20260815000000 that single path held the
+ * `revalidatePath('/accounting/summary')`. Until 20260815000000 that single path held the
  * whole of a member's own accounting, as three panes behind a rail; the panes are three
  * screens now, so the same eight events have four pages to invalidate instead of one.
  * Written as a list rather than resolved per call site deliberately: the alternative is
@@ -379,10 +408,10 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
  * looking at a figure that changed a minute ago.
  */
 function revalidateMemberMoney() {
-  revalidatePath('/account-summary')
-  revalidatePath('/dues')
-  revalidatePath('/donations')
-  revalidatePath('/payment-history')
+  revalidatePath('/accounting/summary')
+  revalidatePath('/accounting/dues')
+  revalidatePath('/accounting/donations')
+  revalidatePath('/reporting/payment-history')
 }
 
 /**
@@ -885,8 +914,8 @@ export async function getScheduleUsage(): Promise<Record<string, ScheduleUsage>>
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return {}
   const [mayDues, mayDonations] = await Promise.all([
-    can(user.id, 'admin/account/dues', 'view'),
-    can(user.id, 'admin/account/donations', 'view'),
+    can(user.id, 'admin/accounting/dues', 'view'),
+    can(user.id, 'admin/accounting/donations', 'view'),
   ])
   if (!mayDues && !mayDonations) return {}
   const familyCode = await getMyFamilyCode(user.id)
@@ -983,7 +1012,7 @@ export async function createDuesSchedule(
   }
 
   revalidateMemberMoney()
-  revalidatePath('/admin/account')
+  revalidatePath('/admin/accounting')
   return { success: true, schedule: mapSchedule({ ...data, donation_beneficiaries: beneficiaryIds.map(person_id => ({ person_id })) }) }
 }
 
@@ -1153,8 +1182,8 @@ export async function updateDuesSchedule(
   }
 
   revalidateMemberMoney()
-  revalidatePath('/admin/account')
-  revalidatePath('/transactions')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/transactions')
   return { success: true }
 }
 
@@ -1203,7 +1232,7 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
 
   const { error } = await admin.from('dues_schedules').delete().eq('id', id).eq('family_code', familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/admin/account')
+  revalidatePath('/admin/accounting')
   revalidateMemberMoney()
   return { success: true }
 }
@@ -1725,8 +1754,8 @@ export async function getFamilyDuesCollected(): Promise<number | null> {
   if (!user) return null
 
   const entitled =
-    (await canAny(user.id, 'transactions/dues-payments', 'view'))
-    || (await canAny(user.id, 'transactions/donation-payments', 'view'))
+    (await canAny(user.id, 'reporting/transactions/dues-payments', 'view'))
+    || (await canAny(user.id, 'reporting/transactions/donation-payments', 'view'))
   if (!entitled) return null
 
   // `error` is read rather than discarded. `const { data }` alone turns a refused query
@@ -1993,7 +2022,7 @@ export interface DuesProjectionResult {
  *
  * ── WHAT CROSSES THE BOUNDARY ───────────────────────────────────────────────────────
  * Totals and one row per person. No payment rows, no dates, no methods, no references —
- * the ledger is `/transactions`, behind its own grants, and a projection does not need to
+ * the ledger is `/reporting/transactions`, behind its own grants, and a projection does not need to
  * republish it. What it does publish is every member's standing by name, which is why the
  * resource is `restricted` by default rather than `everyone` (§6). Since the roster grew, that
  * now includes the names of people with no account; their names are already on the family tree
@@ -2011,7 +2040,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  if (!(await canAny(user.id, 'dues-projections', 'view'))) return null
+  if (!(await canAny(user.id, 'reporting/dues-projections', 'view'))) return null
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!familyCode) return null
@@ -2217,7 +2246,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
  *
  * ── IT OFFERS ONLY WHAT EXISTS ─────────────────────────────────────────────────────
  * Empty arrays for a family with no regions and no chapters — which is every Free family,
- * since `/admin/chapters` is `tier: 'plus'` — and the form then offers National alone
+ * since `/admin/members/organization` is `tier: 'plus'` — and the form then offers National alone
  * rather than a disabled tease for something they cannot create from that screen. National
  * is not in either list because it is not a row: it is the absence of a region, and the
  * form's own default.
@@ -2229,7 +2258,7 @@ export async function getDuesScopeOptions(): Promise<{
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { regions: [], chapters: [] }
-  if (!(await can(user.id, 'admin/account/dues', 'view'))) return { regions: [], chapters: [] }
+  if (!(await can(user.id, 'admin/accounting/dues', 'view'))) return { regions: [], chapters: [] }
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!familyCode) return { regions: [], chapters: [] }
@@ -2360,7 +2389,7 @@ export async function recordPayment(input: {
   // processor attests instead of the member.
   //
   // The branch this replaces was also a live privilege escalation:
-  //     if (!(await can(user.id, 'dues', 'edit')) && input.person_id !== myPerson.id)
+  //     if (!(await can(user.id, 'accounting/dues', 'edit')) && input.person_id !== myPerson.id)
   // can() is TRUE for scope 'own', so an own-scoped grant made the first operand false,
   // short-circuited the && , and authorised recording a payment for ANYONE.
   // (That `dues` key no longer exists at all — 20260808000001 retired it.)
@@ -2369,8 +2398,8 @@ export async function recordPayment(input: {
   // for yourself is precisely the abuse case.
   const kind: ScheduleKind = schedule.kind === 'donation' ? 'donation' : 'dues'
   const resource = kind === 'donation'
-    ? 'transactions/donation-payments'
-    : 'transactions/dues-payments'
+    ? 'reporting/transactions/donation-payments'
+    : 'reporting/transactions/dues-payments'
   if (!(await canAny(user.id, resource, 'create'))) {
     return {
       success: false,
@@ -2437,8 +2466,8 @@ export async function recordPayment(input: {
   }
 
   revalidateMemberMoney()
-  revalidatePath('/admin/account')
-  revalidatePath('/family-finances')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/pl-summary')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -2471,7 +2500,7 @@ export async function reversePayment(
   if (!myPersonId) return { success: false, message: 'Profile not found' }
 
   // Its own grant: undoing a posting is not the same authority as making one.
-  if (!(await canAny(user.id, 'transactions/reversals', 'create'))) {
+  if (!(await canAny(user.id, 'reporting/transactions/reversals', 'create'))) {
     return { success: false, message: 'You do not have permission to reverse payments.' }
   }
 
@@ -2539,25 +2568,45 @@ export async function reversePayment(
   }
 
   revalidateMemberMoney()
-  revalidatePath('/transactions')
-  revalidatePath('/admin/account')
-  revalidatePath('/family-finances')
+  revalidatePath('/reporting/transactions')
+  revalidatePath('/admin/accounting')
+  revalidatePath('/reporting/pl-summary')
   revalidatePath('/dashboard')
   return { success: true }
 }
 
 // ── P&L ────────────────────────────────────────────────────────────────────
 
-export async function getFamilyPnL(): Promise<PnLData> {
-  const empty: PnLData = {
-    totalIncomeCents: 0, totalContributionsCents: 0, totalCollectedCents: 0,
-    totalExpenseCents: 0, netCents: 0,
-    payments: [], routing: [], funds: [],
-  }
+/**
+ * The family's statement: what came in, what went out, and what each fund holds.
+ *
+ * ── IT DEMANDED NOTHING BUT A SESSION UNTIL 2026-08-20 ──────────────────────────────
+ * This is a `'use server'` export, so it has a URL, and it publishes the family's lifetime
+ * income, its lifetime spend, every fund's balance and EVERY PAID DUES PAYMENT WITH THE
+ * PAYER'S NAME. Any signed-in member of any family could call it and read their own
+ * family's whole financial position, whatever their grants said.
+ *
+ * `/reporting/pl-summary` being `status: 'future'` withheld the PAGE and did nothing whatever to
+ * this — AGENTS.md, "Coming Soon withholds a page. It does not withhold an action" — which
+ * is the same shape `/admin/members/organization` and `/admin/members/board-positions` were both found in on the
+ * days they were relit, and the reason that section is not written as one bad afternoon.
+ *
+ * `canAny`, NOT `can`. `can()` is true for scope 'own', and there is no own version of a
+ * family-wide statement: a member's own money is /payment-history, which is own-only by
+ * construction. An own-scoped grant here would hand somebody the whole ledger, so
+ * `family-finances` is in `NO_OWNER_KEYS` and this is what enforces it.
+ *
+ * ── `null`, NEVER A ZEROED SHAPE ────────────────────────────────────────────────────
+ * The refused answer used to be a `PnLData` of zeroes, which renders as a complete
+ * statement reading "$0.00 collected" — a family's treasurer would take that to a board
+ * meeting. Same reasoning as `getDuesProjection`, and the page 404s on it.
+ */
+export async function getFamilyPnL(): Promise<PnLData | null> {
   const supabase = await createClient()
   const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return empty
+  if (!user) return null
+  if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) return null
   const familyCode = await getMyFamilyCode(user.id)
 
   // THREE READS, DOWN FROM SIX. `event_budget_items`, `event_expenses` and `events` are
@@ -2614,11 +2663,29 @@ export async function getFamilyPnL(): Promise<PnLData> {
     ? allPayments
     : allPayments.filter(p => !p.schedule_id || !hidden.has(p.schedule_id))
 
-  // Money collected outside of dues (admin top-ups + member contributions).
+  // Money collected OUTSIDE of dues — admin top-ups and member contributions.
+  //
+  // `'reversal'` IS EXCLUDED, SINCE 2026-08-20, AND ITS ABSENCE WAS A DOUBLE COUNT. A
+  // reversal writes a negative `dues_payments` row (already subtracted from
+  // `totalIncomeCents` above) AND a mirroring negative `fund_contributions` row that
+  // un-routes the money from the fund. The old filter was `!== 'dues_routing'`, so the
+  // mirror fell through to here and the same reversal came off the family's collected total
+  // twice. See the note on `totalContributionsCents`.
+  const NOT_DUES = (source: string | null) => source !== 'dues_routing' && source !== 'reversal'
   const totalContributionsCents = (contribRes.data ?? [])
-    .filter(c => c.source !== 'dues_routing')
+    .filter(c => NOT_DUES(c.source))
     .reduce((s, c) => s + (c.amount_cents ?? 0), 0)
   const totalCollectedCents = totalIncomeCents + totalContributionsCents
+
+  // WHERE THE DUES ACTUALLY WENT. Routing moves a paid dues payment into one or more funds
+  // as `dues_routing` rows, and a reversal takes it back out again — so the two together are
+  // what the funds have received on the income line's behalf, and the remainder is money the
+  // family holds that no fund is named for. A family whose routing rules miss a schedule
+  // collects into that remainder indefinitely with nothing anywhere saying so.
+  const routedFromDuesCents = (contribRes.data ?? [])
+    .filter(c => !NOT_DUES(c.source))
+    .reduce((s, c) => s + (c.amount_cents ?? 0), 0)
+  const unroutedIncomeCents = totalIncomeCents - routedFromDuesCents
 
   const fundNameById = new Map<string, string>((fundsRes.data ?? []).map(f => [f.id, f.name]))
   const fundPriorityById = new Map<string, number>((fundsRes.data ?? []).map(f => [f.id, f.priority ?? 100]))
@@ -2684,6 +2751,7 @@ export async function getFamilyPnL(): Promise<PnLData> {
     totalIncomeCents,
     totalContributionsCents,
     totalCollectedCents,
+    unroutedIncomeCents,
     totalExpenseCents,
     netCents: totalCollectedCents - totalExpenseCents,
     payments,

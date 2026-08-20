@@ -22,7 +22,7 @@ import {
  * text where its neighbour renders a pill, another reaches for the word "Denied" because
  * "Needs another look" reads oddly in a narrow column. Naming the composition once means a
  * status looks the same on `/gatherings`, `/gatherings/[id]`, `/gatherings/my-tasks`,
- * `/calendar`, `/admin/gatherings` and `/admin/gatherings/[id]`, and there is nothing left
+ * `/gatherings/calendar`, `/admin/gatherings` and `/admin/gatherings/[id]`, and there is nothing left
  * at a call site to get wrong.
  *
  * ── NO `'use client'`, DELIBERATELY ─────────────────────────────────────────────────

@@ -1072,12 +1072,12 @@ function BudgetForm({
     return (
       <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
         There is no active fund to draw a budget on.{' '}
-        {/* `/admin/account` is a different key, and the money and the gatherings are exactly the
+        {/* `/admin/accounting` is a different key, and the money and the gatherings are exactly the
             two jobs a family splits — so an organizer with no Accounting grant would be sent
             from here to a 404. Unlinked words in that case; the sentence still says what has to
             happen and who it needs. */}
         {mayViewAccounting
-          ? <>Create one under <Link href="/admin/account?section=funds">Accounting</Link> and it becomes available here.</>
+          ? <>Create one under <Link href="/admin/accounting?section=funds">Accounting</Link> and it becomes available here.</>
           : <>Somebody who runs the family&rsquo;s Accounting has to create one, and it becomes available here.</>}
       </p>
     )

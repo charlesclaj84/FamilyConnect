@@ -1,5 +1,5 @@
 /**
- * How `/updates` pages a feed that is two tables.
+ * How `/community/updates` pages a feed that is two tables.
  *
  * ── THE PROBLEM THIS EXISTS FOR ─────────────────────────────────────────────────────
  * The archive is announcements and notifications interleaved by date, and **a merged page

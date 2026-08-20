@@ -188,7 +188,7 @@ export async function createCollection(input: {
   }).select('id').single()
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/photos')
+  revalidatePath('/review/photos')
   return { success: true, id: data.id }
 }
 
@@ -232,7 +232,7 @@ export async function uploadPhoto(
     return { success: false, message: dbError.message }
   }
 
-  revalidatePath(`/photos/${collectionId}`)
+  revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }
 
@@ -245,7 +245,7 @@ export async function deletePhoto(
   const { error: dbError } = await supabase.from('photos').delete().eq('id', id)
   if (dbError) return { success: false, message: dbError.message }
   await supabase.storage.from('photos').remove([filePath])
-  revalidatePath(`/photos/${collectionId}`)
+  revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }
 
@@ -268,7 +268,7 @@ export async function tagPersonInPhoto(
   })
 
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/photos/${collectionId}`)
+  revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }
 
@@ -285,7 +285,7 @@ export async function untagPersonFromPhoto(
     .eq('person_id', personId)
 
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/photos/${collectionId}`)
+  revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }
 
@@ -299,7 +299,7 @@ export async function deleteCollection(id: string): Promise<{ success: boolean; 
 
   // Deleting a collection cascades to every photo in it, so the creator may remove
   // their own and anyone else needs the unrestricted delete grant.
-  const g = await requireOwn('photos', 'delete', row.created_by)
+  const g = await requireOwn('review/photos', 'delete', row.created_by)
   if (!g.ok) return { success: false, message: g.message }
   if (row.family_code !== g.familyCode) return { success: false, message: 'Collection not found' }
 
@@ -317,6 +317,6 @@ export async function deleteCollection(id: string): Promise<{ success: boolean; 
     await supabase.storage.from('photos').remove(paths)
   }
 
-  revalidatePath('/photos')
+  revalidatePath('/review/photos')
   return { success: true }
 }

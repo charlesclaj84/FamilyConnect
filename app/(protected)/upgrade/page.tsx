@@ -68,12 +68,12 @@ export default async function UpgradePage({ searchParams }: Props) {
   // registered 'restricted' per family (20260812000000), so for most members this is
   // false and the screen says to ask an administrator instead.
   //
-  // No tier check on it, deliberately: `/admin/family` is Free, so it is reachable from
+  // No tier check on it, deliberately: `/admin/settings` is Free, so it is reachable from
   // every plan — including the one that sent the member here. If it ever stopped being
   // Free, this link would need `tierAllows` too, or it would bounce them straight back.
   const [currentTier, canOpenSettings] = await Promise.all([
     getMyFamilyTier(user.id),
-    can(user.id, 'admin/family', 'view'),
+    can(user.id, 'admin/settings', 'view'),
   ])
 
   return (
@@ -82,7 +82,7 @@ export default async function UpgradePage({ searchParams }: Props) {
       blurb={blurb}
       currentTier={currentTier}
       requiredTier={requiredTier(from ?? '')}
-      settingsHref={canOpenSettings ? '/admin/family' : null}
+      settingsHref={canOpenSettings ? '/admin/settings' : null}
     />
   )
 }

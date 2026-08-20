@@ -1120,7 +1120,7 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
  * ── THE GATE IS `calendar`, NOT `gatherings`, AND THAT IS THE POINT OF THIS FUNCTION ─
  * `components/dashboard/tiles.ts` puts the rule plainly: a tile borrows the grant of ITS
  * DESTINATION, and this one's caption is the kit's own "View calendar" — it leads to
- * `/calendar`. So the tile appears for a holder of `calendar:view`, and the count behind it has
+ * `/gatherings/calendar`. So the tile appears for a holder of `calendar:view`, and the count behind it has
  * to be gated on the SAME key. Gated on `gatherings` instead, the guard would refuse and answer
  * 0 for a caller who can open the calendar but whose family has narrowed `gatherings:view` —
  * and 0 is the value at which the page omits the tile. "I could not count" would be rendered as
@@ -1130,7 +1130,7 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
  * The ROWS are still the `gatherings` policy's decision, because this reads on the USER client.
  * That is the right division and it is the one `tiles.ts` already argues for: a family that
  * restricted `gatherings:view` counts zero through RLS, and a caller holding it at scope `'own'`
- * counts their own — exactly what `/calendar` will show them when they follow the tile, since
+ * counts their own — exactly what `/gatherings/calendar` will show them when they follow the tile, since
  * `getCalendarMonth` reads gatherings on the user client for the same reason. A count on the
  * admin client would promise a month that then rendered emptier than the tile.
  *
@@ -1157,7 +1157,7 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
  * "not entitled" by not calling this at all.
  */
 export async function getUpcomingGatheringCount(): Promise<number> {
-  const g = await requireRead('calendar')
+  const g = await requireRead('gatherings/calendar')
   if (!g.ok) return 0
 
   const today = todayLocal()
@@ -1580,7 +1580,7 @@ export async function scheduleGathering(input: {
   const failures = await attachTemplatesToGathering(admin, gatheringId, g.familyCode, ordered, 0)
 
   revalidatePath('/gatherings')
-  revalidatePath('/calendar')
+  revalidatePath('/gatherings/calendar')
   revalidatePath('/admin/gatherings')
   revalidatePath('/dashboard')
 

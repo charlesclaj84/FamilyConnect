@@ -127,13 +127,13 @@ const SECTION_ALIASES: Record<string, AccountSection> = {
  * A key under a future-status prefix disappears from both admin grids silently.
  */
 export const SECTION_RESOURCE: Record<AccountSection, string> = {
-  dues:       'admin/account/dues',
-  donations:  'admin/account/donations',
-  funds:      'admin/account/funds',
-  routing:    'admin/account/routing',
-  milestones: 'admin/account/milestones',
-  processing: 'admin/account/processing',
-  bank:       'admin/account/bank',
+  dues:       'admin/accounting/dues',
+  donations:  'admin/accounting/donations',
+  funds:      'admin/accounting/funds',
+  routing:    'admin/accounting/routing',
+  milestones: 'admin/accounting/milestones',
+  processing: 'admin/accounting/processing',
+  bank:       'admin/accounting/bank',
 }
 
 /** What the caller may do in one section. Resolved server-side, passed down as props. */

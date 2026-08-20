@@ -118,7 +118,7 @@ export const PILLARS: readonly Pillar[] = [
       'A planning screen in the product, showing one gathering laid out with its details.',
   },
   {
-    route: '/family-finances',
+    route: '/reporting/pl-summary',
     eyebrow: 'Money, handled',
     title: 'A real treasury, not a shoebox',
     short:
@@ -141,7 +141,7 @@ export const PILLARS: readonly Pillar[] = [
       'The finances screen: fund balances, dues collected against outstanding, and the routing waterfall that fills each fund in priority order.',
   },
   {
-    route: '/family-tree',
+    route: '/community/family-tree',
     eyebrow: 'Know your family',
     title: 'The family record, kept properly',
     short:
@@ -156,7 +156,7 @@ export const PILLARS: readonly Pillar[] = [
     // route that has been deleted is not 'future', it is absent — so `getFeature()` finds
     // nothing, there is nothing to badge, and the bullet read as shipped.
     //
-    // The screen that replaced both is `/family-tree`, and the words below are ITS words.
+    // The screen that replaced both is `/community/family-tree`, and the words below are ITS words.
     // Tracing one line back is the tree's focus canvas plus its Bloodline toggle — but
     // "Bloodline" is an in-canvas control, not a thing to sell a family, so the bullet
     // names the outcome and leaves the control unnamed. Recording a relative with no

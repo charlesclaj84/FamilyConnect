@@ -51,7 +51,7 @@ export const metadata = { title: 'Gathering — Admin' }
  *
  * ── TWO MORE GRANTS, FOR TWO LINKS THAT LEAVE THIS KEY ──────────────────────────────
  * The **Member view** button goes to `/gatherings/[id]` and the "no fund yet" sentence goes to
- * `/admin/account`. Each destination gates on its OWN key and 404s a caller without it, and both
+ * `/admin/accounting`. Each destination gates on its OWN key and 404s a caller without it, and both
  * splits are ordinary for a family to make — an organizer without the member-facing list, an
  * organizer without Accounting. Resolved from the destinations' keys, with `can` because that is
  * what `requireView` resolves through over there.
@@ -90,10 +90,10 @@ export default async function AdminGatheringDetailPage({
     canAny(user.id, 'admin/gatherings', 'delete'),
     canAny(user.id, 'gatherings/budget', 'view'),
     can(user.id, 'gatherings', 'view'),
-    can(user.id, 'admin/account', 'view'),
+    can(user.id, 'admin/accounting', 'view'),
     tierAllows(user.id, 'gatherings/budget'),
-    tierAllows(user.id, 'admin/gathering-templates'),
-    tierAllows(user.id, 'admin/account'),
+    tierAllows(user.id, 'admin/gatherings/templates'),
+    tierAllows(user.id, 'admin/accounting'),
   ])
 
   const mayManageBudget = budgetGranted && budgetInPlan

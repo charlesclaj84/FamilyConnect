@@ -13,7 +13,7 @@ import { UPDATES_PAGE_SIZE } from '@/lib/updates-archive'
 import type { UpdatesArchive } from '@/app/actions/updates'
 
 /**
- * `/updates` — the archive of the dashboard's Recent Updates feed.
+ * `/community/updates` — the archive of the dashboard's Recent Updates feed.
  *
  * ── IT RENDERS WHAT IT IS HANDED, AND NAVIGATES TO CHANGE IT ────────────────────────
  * No `useState` seeded from the rows, and no client-side accumulation of pages. The server
@@ -49,9 +49,9 @@ import type { UpdatesArchive } from '@/app/actions/updates'
 interface Props {
   archive: UpdatesArchive
   /**
-   * Where `?q=` and `?pages=` are pushed to. Defaults to `/updates`, which is what this
-   * component was written against; the Announcements rail passes `/announcements` because
-   * the archive is a PANE there and `/updates` merely redirects to it. Hard-coding the old
+   * Where `?q=` and `?pages=` are pushed to. Defaults to `/community/updates`, which is what this
+   * component was written against; the Announcements rail passes `/community/announcements` because
+   * the archive is a PANE there and `/community/updates` merely redirects to it. Hard-coding the old
    * route here would have made every search and every "Show older" go through that redirect.
    */
   basePath?: string
@@ -67,7 +67,7 @@ interface Props {
 }
 
 export function UpdatesArchiveClient({
-  archive, basePath = '/updates', keepParams,
+  archive, basePath = '/community/updates', keepParams,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()

@@ -72,7 +72,7 @@ export async function getApplicants(): Promise<{
   decided: Applicant[]
   canDecide: boolean
 }> {
-  const g = await requireRead('admin/approvals')
+  const g = await requireRead('admin/members/approvals')
   if (!g.ok) return { pending: [], decided: [], canDecide: false }
 
   const admin = createAdminClient()
@@ -131,7 +131,7 @@ export async function getApplicants(): Promise<{
     pending: rows.filter(r => r.membership_status === 'pending').map(toApplicant),
     decided: rows.filter(r => r.membership_status === 'rejected').map(toApplicant),
     // Drives the UI only. The RPC decides for real.
-    canDecide: await canAny(g.userId, 'admin/approvals', 'edit'),
+    canDecide: await canAny(g.userId, 'admin/members/approvals', 'edit'),
   }
 }
 
@@ -161,7 +161,7 @@ export async function getApplicants(): Promise<{
  * 20260807000000 set for this column.
  */
 export async function getPendingApprovalCount(): Promise<number> {
-  const g = await requireRead('admin/approvals')
+  const g = await requireRead('admin/members/approvals')
   if (!g.ok) return 0
 
   const admin = createAdminClient()
@@ -230,7 +230,7 @@ export async function getPendingApprovalQueues(): Promise<PendingQueue[]> {
 
   const [families, scopes] = await Promise.all([
     getMyFamilies(user.id),
-    scopeInFamilies(user.id, 'admin/approvals', 'view'),
+    scopeInFamilies(user.id, 'admin/members/approvals', 'view'),
   ])
 
   const workable = families.filter(f => (scopes.get(f.familyCode) ?? 'none') !== 'none')
@@ -288,7 +288,7 @@ async function decide(
   // The friendly layer. canAny and not can(): admitting a stranger to the family has
   // no coherent "own" version — the row a member would own is their own application,
   // and self-approval is the abuse case the RPC also refuses outright.
-  if (!(await canAny(user.id, 'admin/approvals', 'edit'))) {
+  if (!(await canAny(user.id, 'admin/members/approvals', 'edit'))) {
     return { success: false, message: 'Not authorized' }
   }
 

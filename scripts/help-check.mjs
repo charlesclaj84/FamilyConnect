@@ -123,7 +123,7 @@
  *      (`slug="members-and-access" section="bloodline"`)             -> help links, naming
  *                                                                       the chapter it is
  *                                                                       not in
- *  14. a second chapter given `route: '/dues'`                       -> chapter routes
+ *  14. a second chapter given `route: '/accounting/dues'`                       -> chapter routes
  *
  * Two false positives were confirmed absent while writing 6: `HelpLink.tsx`'s own doc
  * comment quotes `slug=` and `section=` in prose and is not counted (the scan requires an
@@ -467,16 +467,16 @@ function checkRawFields() {
  */
 const UNDOCUMENTED_OK = {
   '/help': 'the manual itself — there is no chapter about the chapters',
-  '/admin/approvals':
+  '/admin/members/approvals':
     'the path is a redirect into Members & Access\'s Pending Approval tab, which is ' +
     'documented at members-and-access#approving',
   // NOT A ROUTE AT ALL, and the only entry on this list of that kind. The `lib/features.ts`
-  // row for `/transactions/fund-transfers` exists solely to carry `tier: 'plus'` for the
+  // row for `/reporting/transactions/fund-transfers` exists solely to carry `tier: 'plus'` for the
   // sub-key — `tierAllows()` resolves a key through `getFeature()`'s longest-prefix match,
-  // so without a row of its own the ledger would inherit `/transactions` and be Free. The
-  // ledger itself is a pane on `/transactions?ledger=transfers` and is documented with the
+  // so without a row of its own the ledger would inherit `/reporting/transactions` and be Free. The
+  // ledger itself is a pane on `/reporting/transactions?ledger=transfers` and is documented with the
   // other four, in the chapter for the page it is actually on.
-  '/transactions/fund-transfers':
+  '/reporting/transactions/fund-transfers':
     'not a route — a registry row carrying the Plus tier for the Fund Transfers ledger, ' +
     'which is documented with the other four at transactions#ledgers',
   // TWO MORE OF THE SAME KIND, added 2026-08-19 with the Standard plan. Both are
@@ -485,33 +485,33 @@ const UNDOCUMENTED_OK = {
   // the chapter for the screen they are actually part of. An allowance rather than a chapter,
   // because a chapter for a non-route would appear in the contents as a screen a member can
   // open, which is the one thing the manual must not claim.
-  '/admin/users/templates':
+  '/admin/members/templates':
     'not a route — a registry row carrying the Standard tier for the Permission Templates ' +
     'pane of Members & Access, which is documented at members-and-access#templates',
   '/gatherings/budget':
     'not a route — a registry row carrying the Standard tier for the money band on a ' +
     'gathering, which is documented at gatherings#budget',
 
-  // ── THE SIX ROUTES IN THE RAIL'S REVIEW SECTION, 2026-08-20 ────────────────────────
+  // ── THE ROUTES IN THE RAIL'S REVIEW SECTION, 2026-08-20 ────────────────────────────
   // Each of these is a real screen with a real chapter owed. See the note above for why the
   // chapter is not being written in advance of the review, and remove the entry in the same
   // commit that writes it.
-  '/family-finances':
+  //
+  // SIX WENT ON THIS LIST AND TWO CAME STRAIGHT BACK OFF, which is the mechanism working:
+  // `/reporting/pl-summary` was reviewed, renamed P&L Summary and given the `p-and-l-summary`
+  // chapter, and `/admin/reports` was reviewed and deleted, so it is no longer a FEATURES
+  // href at all — the mirror check below would have failed the run if the allowance had been
+  // left behind, which is exactly what that check is for.
+  '/review/photos':
     'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
     'owed and is written by the commit that reviews the screen',
-  '/photos':
+  '/review/documents':
     'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
     'owed and is written by the commit that reviews the screen',
-  '/documents':
+  '/review/elections':
     'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
     'owed and is written by the commit that reviews the screen',
-  '/elections':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
-  '/admin/elections':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
-  '/admin/reports':
+  '/review/election-management':
     'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
     'owed and is written by the commit that reviews the screen',
 }

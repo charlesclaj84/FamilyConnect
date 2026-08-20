@@ -231,7 +231,7 @@ export async function inviteMember(
   }
 
   // Invitations are listed on the Pending Approval tab of Members & Access.
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/my-families')
   return {
     success: true,
@@ -253,7 +253,7 @@ export async function inviteMember(
  * gain (AGENTS.md §3: prefer the user's client where RLS can do the work).
  */
 export async function getInvitations(): Promise<FamilyInvitation[]> {
-  const g = await requireRead('admin/approvals')
+  const g = await requireRead('admin/members/approvals')
   if (!g.ok) return []
 
   const supabase = await createClient()
@@ -412,7 +412,7 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
     ? await requestConfirmationResend(email)
     : false
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/my-families')
 
   return {
@@ -440,7 +440,7 @@ export async function revokeInvitation(invitationId: string): Promise<Invitation
   if (error) return { success: false, message: 'Could not cancel that invitation.' }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   return { success: true }
 }
 

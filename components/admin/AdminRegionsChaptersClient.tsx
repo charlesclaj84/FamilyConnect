@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
@@ -18,7 +19,7 @@ import {
 } from '@/app/actions/admin/chapters'
 
 /**
- * Regions & Chapters — two tables and two forms.
+ * Regions & Chapters — two tables, and a create dialog behind each.
  *
  * ── WHY IT IS TWO TABLES AND NOT THE OLD ACCORDION ─────────────────────────────────
  * It was a stack of collapsible region cards, each holding a flex row per chapter with a
@@ -97,7 +98,37 @@ export function AdminRegionsChaptersClient({
   const [newChapterRegion, setNewChapterRegion] = useState('')
   const [regionError, setRegionError] = useState('')
   const [chapterError, setChapterError] = useState('')
+  // ── THE TWO ADD FORMS ARE DIALOGS, SINCE 2026-08-20 ──────────────────────────────
+  // They were inline blocks sitting above their tables, and the argument for moving them is
+  // the one `AdminBoardPositionsClient` already made on this same screen: the thing an
+  // administrator comes here to READ is the table, and a create form parked above it pushes
+  // the answer down the page every time — worst below `sm`, where the chapter form's three
+  // fields stack and the table starts off the bottom of the phone.
+  //
+  // AND IT DISAGREED WITH ITS OWN NEIGHBOUR. Adding a board position is a dialog on the very
+  // same Organization pane, so the three create-shaped actions on one screen opened two
+  // different ways. All three are dialogs now and the pane has one idiom.
+  //
+  // The ERROR STATE IS SHARED between the dialog and the table, deliberately: a create can
+  // only fail while its dialog is open, and a DELETE reports through the same `FormError`
+  // under the table. Two error slots per section would mean the same sentence in two places.
+  const [showAddRegion, setShowAddRegion] = useState(false)
+  const [showAddChapter, setShowAddChapter] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // Closing is not the same as cancelling and both land here: the draft is dropped and the
+  // error with it, so re-opening never shows a refusal about something nobody typed.
+  function closeAddRegion() {
+    setShowAddRegion(false)
+    setNewRegion('')
+    setRegionError('')
+  }
+  function closeAddChapter() {
+    setShowAddChapter(false)
+    setNewChapter('')
+    setNewChapterRegion('')
+    setChapterError('')
+  }
 
   const usageOfRegion = (id: string) => usage.regions[id] ?? NOTHING
   const usageOfChapter = (id: string) => usage.chapters[id] ?? NOTHING
@@ -111,7 +142,10 @@ export function AdminRegionsChaptersClient({
     startTransition(async () => {
       const result = await createRegion(name)
       if (!result.success) { setRegionError(result.error ?? 'Could not add that region'); return }
-      setNewRegion('')
+      // Closed only on success. A refusal — a duplicate name, the reserved word "National" —
+      // leaves the dialog open with what was typed still in it, because the fix is one edit
+      // away and re-typing a name to read the reason is the wrong way round.
+      closeAddRegion()
       setRegions(prev => [...prev, {
         id: result.id!, family_code: '', name, created_at: new Date().toISOString(),
       }].sort((a, b) => a.name.localeCompare(b.name)))
@@ -151,7 +185,10 @@ export function AdminRegionsChaptersClient({
       const regionId = newChapterRegion || null
       const result = await createChapter(name, regionId)
       if (!result.success) { setChapterError(result.error ?? 'Could not add that chapter'); return }
-      setNewChapter('')
+      // Closed only on success — see `handleAddRegion`. The chosen region is read into
+      // `regionId` above before the close clears it, so the optimistic row below still knows
+      // which region it landed in.
+      closeAddChapter()
       setChapters(prev => [...prev, {
         id: result.id!, family_code: '', name, region_id: regionId,
         region_name: regionId ? (regions.find(r => r.id === regionId)?.name ?? null) : null,
@@ -198,32 +235,30 @@ export function AdminRegionsChaptersClient({
     <div className="space-y-10">
       {/* ── REGIONS ──────────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <div>
-          <h2 className="text-lg">Regions</h2>
-          <p className="text-sm text-muted-foreground">
-            A group of chapters — “Texas”, “Eastern”, “Southeast”. Optional: a family can run
-            on chapters alone, or on neither.
-          </p>
-        </div>
-
-        {mayCreate && (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="new-region">Add a region</Label>
-              <Input
-                id="new-region"
-                placeholder="e.g. Texas"
-                value={newRegion}
-                onChange={e => { setNewRegion(e.target.value); setRegionError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddRegion() }}
-              />
-            </div>
-            <Button disabled={!newRegion.trim() || isPending} onClick={handleAddRegion}>
+        {/* THE TRIGGER SITS ON THE HEADING ROW, opposite the section title, which is where
+            every other create trigger in the admin area sits. It is the whole of what the
+            inline form left behind: one button, and the table starts immediately under it. */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg">Regions</h2>
+            <p className="text-sm text-muted-foreground">
+              A group of chapters — “Texas”, “Eastern”, “Southeast”. Optional: a family can run
+              on chapters alone, or on neither.
+            </p>
+          </div>
+          {mayCreate && (
+            <Button size="sm" className="shrink-0" onClick={() => { setRegionError(''); setShowAddRegion(true) }}>
               <Plus className="h-4 w-4" /> Add region
             </Button>
-          </div>
-        )}
-        <FormError message={regionError} />
+          )}
+        </div>
+
+        {/* ONE ERROR STATE, ONE PLACE TO SHOW IT. Creating and deleting share `regionError`,
+            and while the dialog is open the dialog is the place — a refusal rendered in both
+            would be the same sentence twice, once underneath a scrim. AGENTS.md is explicit
+            that a message inside a scrolling panel belongs with the buttons rather than with
+            the field, and the corollary is that it belongs in exactly one panel. */}
+        <FormError message={showAddRegion ? '' : regionError} />
 
         {regions.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
@@ -291,45 +326,24 @@ export function AdminRegionsChaptersClient({
 
       {/* ── CHAPTERS ─────────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <div>
-          <h2 className="text-lg">Chapters</h2>
-          <p className="text-sm text-muted-foreground">
-            Where a member actually belongs. {nationalCount === 0
-              ? 'Nothing is under National.'
-              : `${nationalCount} ${nationalCount === 1 ? 'chapter is' : 'chapters are'} under National.`}{' '}
-            A member picks their chapter on their own profile.
-          </p>
-        </div>
-
-        {mayCreate && (
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="new-chapter">Add a chapter</Label>
-              <Input
-                id="new-chapter"
-                placeholder="e.g. Houston"
-                value={newChapter}
-                onChange={e => { setNewChapter(e.target.value); setChapterError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddChapter() }}
-              />
-            </div>
-            <div className="min-w-0 space-y-1.5 sm:w-48">
-              <Label htmlFor="new-chapter-region">In region</Label>
-              <Select
-                id="new-chapter-region"
-                value={newChapterRegion}
-                onChange={e => setNewChapterRegion(e.target.value)}
-              >
-                <option value="">National</option>
-                {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </Select>
-            </div>
-            <Button disabled={!newChapter.trim() || isPending} onClick={handleAddChapter}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg">Chapters</h2>
+            <p className="text-sm text-muted-foreground">
+              Where a member actually belongs. {nationalCount === 0
+                ? 'Nothing is under National.'
+                : `${nationalCount} ${nationalCount === 1 ? 'chapter is' : 'chapters are'} under National.`}{' '}
+              A member picks their chapter on their own profile.
+            </p>
+          </div>
+          {mayCreate && (
+            <Button size="sm" className="shrink-0" onClick={() => { setChapterError(''); setShowAddChapter(true) }}>
               <Plus className="h-4 w-4" /> Add chapter
             </Button>
-          </div>
-        )}
-        <FormError message={chapterError} />
+          )}
+        </div>
+
+        <FormError message={showAddChapter ? '' : chapterError} />
 
         {chapters.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
@@ -418,6 +432,97 @@ export function AdminRegionsChaptersClient({
           </div>
         )}
       </section>
+
+      {/* ── THE TWO CREATE DIALOGS ────────────────────────────────────────────────────
+          A real `<form>` inside each, which is what makes Enter in the name box submit —
+          the inline versions bought that with an `onKeyDown` handler per input, and a form
+          element does it for every field at once and for the right reasons. `AdminBoardPositions`
+          on this same pane spent an afternoon as a `<div>` during which Enter did nothing.
+
+          BOTH ARE GATED ON `mayCreate` AS WELL AS ON THEIR OWN FLAG. The trigger is already
+          withheld without the grant, so the flag can never be set — the second condition is
+          for the same reason the actions re-check: a control that cannot be reached is not a
+          gate, and this one costs a boolean. */}
+      <Dialog
+        open={showAddRegion && mayCreate}
+        onClose={closeAddRegion}
+        title="Add a region"
+        description="A group of chapters. A family can run on chapters alone, or on neither."
+      >
+        <form onSubmit={e => { e.preventDefault(); handleAddRegion() }} className="mt-2 space-y-3">
+          <div className="space-y-1.5">
+            <Label required htmlFor="new-region">Region</Label>
+            <Input
+              id="new-region"
+              placeholder="e.g. Texas"
+              autoFocus
+              value={newRegion}
+              onChange={e => { setNewRegion(e.target.value); setRegionError('') }}
+            />
+          </div>
+          {/* NAMED HERE rather than left to the refusal, because "National" is the one name
+              `createRegion` rejects and the reason is not guessable: it is the ABSENCE of a
+              region, which is why it needs no row. */}
+          <p className="text-xs text-muted-foreground">
+            Every chapter you do not put in a region sits under <strong>National</strong>, so
+            there is no need to create one for it — and “National” is not a name a region can
+            take.
+          </p>
+          <FormError message={regionError} />
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeAddRegion}>Cancel</Button>
+            <Button type="submit" disabled={!newRegion.trim() || isPending}>
+              {isPending ? 'Adding…' : 'Add region'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={showAddChapter && mayCreate}
+        onClose={closeAddChapter}
+        title="Add a chapter"
+        description="Where a member actually belongs. They pick it on their own profile."
+      >
+        <form onSubmit={e => { e.preventDefault(); handleAddChapter() }} className="mt-2 space-y-3">
+          <div className="space-y-1.5">
+            <Label required htmlFor="new-chapter">Chapter</Label>
+            <Input
+              id="new-chapter"
+              placeholder="e.g. Houston"
+              autoFocus
+              value={newChapter}
+              onChange={e => { setNewChapter(e.target.value); setChapterError('') }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-chapter-region">In region</Label>
+            <Select
+              id="new-chapter-region"
+              value={newChapterRegion}
+              onChange={e => setNewChapterRegion(e.target.value)}
+            >
+              <option value="">National</option>
+              {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            </Select>
+          </div>
+          {/* THE CONSEQUENCE, SAID ONCE, WHERE THE CHOICE IS MADE. Since 20260817000008 a
+              region decides who owes a REGIONAL DUE, so this select is not a filing
+              convenience — and it is correctable afterwards from the Region column, which is
+              what keeps the sentence reassuring rather than alarming. */}
+          <p className="text-xs text-muted-foreground">
+            A chapter’s region decides which regional dues its members owe. You can move a
+            chapter to another region at any time from the <strong>Region</strong> column.
+          </p>
+          <FormError message={chapterError} />
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeAddChapter}>Cancel</Button>
+            <Button type="submit" disabled={!newChapter.trim() || isPending}>
+              {isPending ? 'Adding…' : 'Add chapter'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   )
 }

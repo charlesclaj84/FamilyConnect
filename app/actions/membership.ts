@@ -103,7 +103,7 @@ export async function appealMembershipDecision(
   // The dashboard renders the waiting screen from this status, and Members & Access shows
   // the row in its queue.
   revalidatePath('/dashboard')
-  revalidatePath('/admin/users')
+  revalidatePath('/admin/members')
   revalidatePath('/my-families')
   return { success: true }
 }

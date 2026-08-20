@@ -8,7 +8,7 @@ import { getMyFamilyCode } from '@/lib/auth/family'
  * Both halves were module-private in `app/actions/announcements.ts` until 2026-08-19, and the
  * comment on `addressedTo` there already recorded the reason they should not be: *"declared
  * once because it was written out three times and the three copies had already begun to
- * differ."* `/updates` is the fourth reader, and a `'use server'` file cannot share a helper —
+ * differ."* `/community/updates` is the fourth reader, and a `'use server'` file cannot share a helper —
  * everything exported from one gets a URL, and only async functions may be exported at all. So
  * the rule moves here, where two actions import it and there is still one copy.
  *

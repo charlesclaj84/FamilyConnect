@@ -255,7 +255,7 @@ export function AdminElectionsClient({ initialElections, roles }: Props) {
                         <PlayCircle className="h-3 w-3 mr-1" /> {STATUS_ACTION[e.status]}
                       </Button>
                     )}
-                    <Link href={`/elections/${e.id}`}>
+                    <Link href={`/review/elections/${e.id}`}>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                         <ChevronRight className="h-3.5 w-3.5" />
                       </Button>

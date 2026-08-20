@@ -41,9 +41,9 @@ describe('parseInline', () => {
   })
 
   it('reads a link', () => {
-    expect(parseInline('see [Directory](/members) for names')).toEqual([
+    expect(parseInline('see [Directory](/community/directory) for names')).toEqual([
       { kind: 'text', text: 'see ' },
-      { kind: 'link', text: 'Directory', href: '/members' },
+      { kind: 'link', text: 'Directory', href: '/community/directory' },
       { kind: 'text', text: ' for names' },
     ])
   })
@@ -59,9 +59,9 @@ describe('parseInline', () => {
   })
 
   it('does not let a link swallow a closing parenthesis of its own sentence', () => {
-    expect(parseInline('(open [Chat](/chat) first)')).toEqual([
+    expect(parseInline('(open [Chat](/community/chat) first)')).toEqual([
       { kind: 'text', text: '(open ' },
-      { kind: 'link', text: 'Chat', href: '/chat' },
+      { kind: 'link', text: 'Chat', href: '/community/chat' },
       { kind: 'text', text: ' first)' },
     ])
   })
@@ -75,15 +75,15 @@ describe('parseInline', () => {
   })
 
   it('carries a query string in an href', () => {
-    expect(parseInline('[Dues](/dues?from=summary)')).toEqual([
-      { kind: 'link', text: 'Dues', href: '/dues?from=summary' },
+    expect(parseInline('[Dues](/accounting/dues?from=summary)')).toEqual([
+      { kind: 'link', text: 'Dues', href: '/accounting/dues?from=summary' },
     ])
   })
 })
 
 describe('stripInline', () => {
   it('drops every marker and keeps the sentence readable', () => {
-    expect(stripInline('press **Save** on [Settings](/admin/family)'))
+    expect(stripInline('press **Save** on [Settings](/admin/settings)'))
       .toBe('press Save on Settings')
   })
 

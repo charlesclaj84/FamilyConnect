@@ -268,7 +268,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           {templates.length === 0 && mayAuthorTemplates && (
             <p className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               This will be a date on the family calendar with no tasks.{' '}
-              <Link href="/admin/gathering-templates" className="font-medium underline">
+              <Link href="/admin/gatherings/templates" className="font-medium underline">
                 Author a template
               </Link>
               {' '}and a gathering can be built from it, with every step handed to a relative.

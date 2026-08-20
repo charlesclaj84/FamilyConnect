@@ -161,7 +161,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
         <h2 className="text-lg">{month.label}</h2>
         <div className="flex items-center gap-1">
           <Link
-            href={`/calendar?month=${month.prevMonth}`}
+            href={`/gatherings/calendar?month=${month.prevMonth}`}
             aria-label={`Go to ${monthLabel(month.prevMonth)}`}
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
@@ -171,13 +171,13 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
           {/* No `month` at all, so the page falls back to the current month. That is one
               fewer place that has to agree about what today is. */}
           <Link
-            href="/calendar"
+            href="/gatherings/calendar"
             className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
             This month
           </Link>
           <Link
-            href={`/calendar?month=${month.nextMonth}`}
+            href={`/gatherings/calendar?month=${month.nextMonth}`}
             aria-label={`Go to ${monthLabel(month.nextMonth)}`}
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >

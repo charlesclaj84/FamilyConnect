@@ -107,6 +107,13 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- and must stay so: permission_table_map, the composed RLS policies and every grant
   -- already issued all name it.
   ('members',             'Directory',              'community',  70),
+  -- Added by 20260820000003, which replaced /admin/reports with a screen that answers the
+  -- one question that page had and no other screen owns: where the family's people are and
+  -- how many of them can be reached. `community` because it is about the family's PEOPLE —
+  -- and because a key not shaped `admin/…` may not carry the `admin` category at all, which
+  -- 20260817000004 asserts in both directions. Restated here for the usual reason: this
+  -- insert is ON CONFLICT DO UPDATE on label, category and sort_order.
+  ('membership-report',   'Membership',             'community',  72),
   ('events',              'Events',                 'events',     80),
   ('event-planning',      'Event Planning',         'events',     90),
   -- Added by 20260819000000 — GATHERINGS, a second product under the Events heading and
@@ -145,7 +152,13 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   ('account-summary',     'Summary',                'accounting', 100),
   ('dues',                'Dues',                   'accounting', 110),
   ('transactions',        'Transactions',           'accounting', 115),
-  ('family-finances',     'Family Finances',        'accounting', 120),
+  -- Captioned 'P&L Summary' since 20260820000003, when the rail item moved from Accounting
+  -- to Reporting: "Family Finances" beside four other readings of the family's money does
+  -- not say which one it is, and what this screen uniquely holds is the STATEMENT. The KEY
+  -- and the route both stay `family-finances` — that string is in permission_table_map and
+  -- in every grant already issued. Restated here because this insert is ON CONFLICT DO
+  -- UPDATE on label, so leaving it would revert the caption on every fresh database.
+  ('family-finances',     'P&L Summary',            'accounting', 120),
   ('photos',              'Photos',                 'resources',  130),
   ('documents',           'Documents',              'resources',  140),
   ('elections',           'Elections',              'resources',  150),
@@ -238,6 +251,12 @@ INSERT INTO public.permission_resources (key, label, category, sort_order) VALUE
   -- would otherwise re-add the old key on replay.
   ('admin/boardpositions','Board Positions',        'admin',      190),
   ('admin/elections',     'Election Management',    'admin',      200),
+  -- RETIRED BY 20260820000003, which DELETES this row — the screen sold four things and
+  -- delivered a mixture of five, every money figure of which duplicated a screen that owns
+  -- one. It is deliberately still inserted here rather than removed: the group_permissions
+  -- seed further down this same file names the key, `resource_key` is a foreign key, and a
+  -- fresh database would abort mid-chain without it. The later migration is what removes it,
+  -- and a fresh `db reset` therefore ends with it gone exactly as hosted is.
   ('admin/reports',       'Reports',                'admin',      210),
   ('admin/events',        'Event Management',       'admin',      220),
   ('admin/event-types',   'Event Templates',        'admin',      230),

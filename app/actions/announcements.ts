@@ -194,7 +194,7 @@ function chapterNamesFor(
   rows: readonly RawAnnouncement[],
 ): Promise<ReadonlyMap<string, string>> {
   // Skipped entirely when nothing on the page is chapter-scoped, which is most families —
-  // `/admin/chapters` is `tier: 'plus'`. The board and Recent Updates therefore cost no extra
+  // `/admin/members/organization` is `tier: 'plus'`. The board and Recent Updates therefore cost no extra
   // round trip to name a chapter they will never print.
   if (!rows.some(r => r.chapter_id)) {
     return Promise.resolve(new Map<string, string>())
@@ -241,12 +241,12 @@ function mapAnnouncement(
 /**
  * `addressedTo` AND `myChapterId` MOVED TO lib/announcement-audience.ts ON 2026-08-19.
  *
- * `/updates` is the fourth reader of the audience rule and the comment that used to sit here
+ * `/community/updates` is the fourth reader of the audience rule and the comment that used to sit here
  * already said why there must be one copy: it was written out three times and the three had
  * begun to differ. A `'use server'` file cannot share a helper — everything exported from one
  * gets a URL — so the rule lives in a plain module both actions import, which is the same shape
  * `lib/notifications.ts` and `lib/invitations.ts` use. That module also holds the SQL twin of
- * the rule, which `/updates` needs because it pages, and the argument for why two expressions
+ * the rule, which `/community/updates` needs because it pages, and the argument for why two expressions
  * of one rule are admissible there.
  */
 
@@ -261,7 +261,7 @@ function byPinThenDate(a: Announcement, b: Announcement): number {
 /**
  * Every announcement in the family, unfiltered by chapter — the board's own list.
  *
- * The chapter filter is deliberately NOT applied here. `/announcements` is the family's
+ * The chapter filter is deliberately NOT applied here. `/community/announcements` is the family's
  * notice board and shows what has been posted; narrowing it would make an author unable
  * to see their own chapter post from a different chapter, and would make the list
  * disagree with the delete button beside each row.
@@ -390,7 +390,7 @@ export async function createAnnouncement(
     .eq('user_id', user.id)
     .eq('family_code', familyCode)
     .maybeSingle()
-  const isAdmin = await can(user.id, 'announcements', 'edit')
+  const isAdmin = await can(user.id, 'community/announcements', 'edit')
 
   // Anyone can post and target an audience (National / Regional / Chapter);
   // only admins can pin to everyone's Recent Updates.
@@ -425,7 +425,7 @@ export async function createAnnouncement(
   }).select('id').single()
 
   if (error) return { success: false, message: error.message }
-  revalidatePath('/announcements')
+  revalidatePath('/community/announcements')
   revalidatePath('/dashboard')
   return { success: true, id: data?.id }
 }
@@ -442,13 +442,13 @@ export async function deleteAnnouncement(
     .from('announcements').select('author_id, family_code').eq('id', id).maybeSingle()
   if (!row) return { success: false, message: 'Announcement not found' }
 
-  const g = await requireOwn('announcements', 'delete', row.author_id)
+  const g = await requireOwn('community/announcements', 'delete', row.author_id)
   if (!g.ok) return { success: false, message: g.message }
   if (row.family_code !== g.familyCode) return { success: false, message: 'Announcement not found' }
 
   const { error } = await admin.from('announcements').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/announcements')
+  revalidatePath('/community/announcements')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -459,14 +459,14 @@ export async function togglePinAnnouncement(
 ): Promise<{ success: boolean; message?: string }> {
   // Not an ownership call like delete: pinning puts an announcement at the top of every
   // member's Recent Updates, so it takes the unrestricted grant even over your own.
-  const g = await requireEdit('announcements')
+  const g = await requireEdit('community/announcements')
   if (!g.ok) return { success: false, message: g.message }
 
   const admin = createAdminClient()
   const { error } = await admin
     .from('announcements').update({ pinned }).eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
-  revalidatePath('/announcements')
+  revalidatePath('/community/announcements')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -562,7 +562,7 @@ export async function repinAnnouncementForMe(
  * Whose birthday is coming up in the next sixty days, soonest first.
  *
  * ── WHAT GATES IT, AND WHAT STILL DECIDES THE ROWS ─────────────────────────────────
- * `requireRead('announcements/birthdays')` gates the FETCH, which is the whole of AGENTS.md
+ * `requireRead('community/announcements/birthdays')` gates the FETCH, which is the whole of AGENTS.md
  * §5: the roster reaches the browser in the RSC payload whether the pane renders it or not,
  * so a caller without the grant must never have it read on their behalf. `requireRead` uses
  * `can()`, so scope 'own' passes — and that is correct here rather than sloppy, because the
@@ -635,7 +635,7 @@ export async function repinAnnouncementForMe(
  * The residual imprecision is worth naming so nobody reads more into this than is there:
  * "today" is the SERVER's today, and on hosted that is UTC, so between midnight and dawn UTC
  * a family in the Americas is told about a day that has not begun for them. Every date read
- * in this product has that property, `/calendar` and `/gatherings` included, and the fix
+ * in this product has that property, `/gatherings/calendar` and `/gatherings` included, and the fix
  * would be a `today` parameter arriving from the browser — which is a value from a caller, on
  * a public endpoint, deciding what the answer is. Not worth it for a birthday, and it is a
  * horizon of sixty days: the row is on the list either way, one day out on its countdown.
@@ -648,7 +648,7 @@ export async function repinAnnouncementForMe(
  * there too so the two cannot disagree.
  */
 export async function getUpcomingBirthdays(): Promise<UpcomingBirthday[]> {
-  const g = await requireRead('announcements/birthdays')
+  const g = await requireRead('community/announcements/birthdays')
   if (!g.ok) return []
 
   const supabase = await createClient()

@@ -24,7 +24,7 @@ import { ACCENT_CHIP, QUICK_ACTION_META, type QuickActionId } from '@/components
  * no button, and the destination would 404 on them.
  *
  * ── WHY THIS IS A CLIENT COMPONENT, since 2026-08-13 ────────────────────────────────
- * One action stopped being a link. "Add Member" used to navigate to `/admin/users` and
+ * One action stopped being a link. "Add Member" used to navigate to `/admin/members` and
  * leave the member to find the invite button when they got there — a caption with a verb
  * on it that did nothing but change the address bar. It now opens `InviteMemberDialog`
  * in place, which is the control it was always naming.

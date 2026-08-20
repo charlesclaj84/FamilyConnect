@@ -455,7 +455,7 @@ function ScheduleFields({
           </label>
           <p className="text-xs text-muted-foreground">
             {!hasBloodline
-              ? <>Your family has not said which ancestor its line descends from, so there is no bloodline to restrict this to. Set <strong className="font-medium">Bloodline descends from</strong> on the <a href="/family-tree">family tree</a> first.</>
+              ? <>Your family has not said which ancestor its line descends from, so there is no bloodline to restrict this to. Set <strong className="font-medium">Bloodline descends from</strong> on the <a href="/community/family-tree">family tree</a> first.</>
               : form.bloodlineOnly
                 ? 'Only members descended from the family’s line owe this. Anybody who married in, and any step, adopted or foster relative, owes nothing and will not see it on their Dues screen.'
                 : 'Every member owes this, however they came into the family.'}

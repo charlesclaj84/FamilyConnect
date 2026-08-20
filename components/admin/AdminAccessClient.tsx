@@ -95,7 +95,7 @@ export interface ApprovalsData {
  * The three write flags travel WITH the data rather than being resolved here, because
  * they are three separate grants on `admin/chapters` and only the server can resolve
  * them (§5: the page decides, the UI follows). They are `canAny` on the page for the
- * reason `/admin/chapters` gave: a region is family-wide configuration with nobody to
+ * reason `/admin/members/organization` gave: a region is family-wide configuration with nobody to
  * own it, so scope 'own' means nothing and `can()` would offer a button every action
  * then refuses.
  */
@@ -180,7 +180,7 @@ interface Props {
   /**
    * Whether the caller may view `admin/chapters` AND the family's plan includes it —
    * drives the Organization tab. It is BOTH, resolved on the page, and it must stay
-   * both: `/admin/chapters` is `tier: 'plus'` while this page is Free, so a grant check
+   * both: `/admin/members/organization` is `tier: 'plus'` while this page is Free, so a grant check
    * alone would light this pane up for a Free family. Nothing here can check a tier, and
    * nothing here should try to.
    */
@@ -214,7 +214,7 @@ export function AdminAccessClient({
     if (t !== 'members') params.set('tab', t)
     if (t === 'templates' && template) params.set('template', template)
     const qs = params.toString()
-    router.push(qs ? `/admin/users?${qs}` : '/admin/users')
+    router.push(qs ? `/admin/members?${qs}` : '/admin/members')
   }
 
   // Built from what the caller may actually see, so a visible tab always leads
@@ -238,29 +238,29 @@ export function AdminAccessClient({
   // pane, and the same glyph meaning two things on one screen is worse than a new one.
   const tabs: MainRailItem<AccessTab>[] = [
     ...(canViewAccess ? [
-      { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/users' },
+      { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/members' },
     ] : []),
     ...(canViewOrganization ? [{
       id: 'organization' as const,
       label: 'Organization',
       icon: Network,
-      // THE SAME URL `/admin/chapters` REDIRECTS TO, and the caption is the same word the
+      // THE SAME URL `/admin/members/organization` REDIRECTS TO, and the caption is the same word the
       // permission grid prints for `admin/chapters` — AGENTS.md: the grid caption is the
       // rail caption, which is the whole point of "one rail item, one permission
       // resource". The KEY did not move with the label; see the redirect page.
-      href: '/admin/users?tab=organization',
+      href: '/admin/members?tab=organization',
     }] : []),
     ...(canViewApprovals ? [{
       id: 'approvals' as const,
       label: 'Pending Approval',
       icon: Clock,
-      href: '/admin/users?tab=approvals',
+      href: '/admin/members?tab=approvals',
     }] : []),
     ...(canViewTemplates ? [{
       id: 'templates' as const,
       label: 'Permission Templates',
       icon: KeyRound,
-      href: '/admin/users?tab=templates',
+      href: '/admin/members?tab=templates',
     }] : []),
   ]
 
@@ -387,7 +387,7 @@ export function AdminAccessClient({
                   How the family divides itself up geographically. A chapter belongs to one
                   region, or it sits under National — which is where everything starts and
                   where a member with no chapter stays. Dues can be scoped to a region or a
-                  chapter under <Link href="/admin/account?section=dues">Accounting</Link>.
+                  chapter under <Link href="/admin/accounting?section=dues">Accounting</Link>.
                 </p>
                 {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same
                     as the Permission Templates icon's: a control where a reader can be
@@ -396,9 +396,9 @@ export function AdminAccessClient({
                     20260817000008 what a nationally scoped due bills.
 
                     It also patches a real gap the move opened. The top bar's question mark
-                    resolves `usePathname()` against the chapter routes, so on `/admin/users`
+                    resolves `usePathname()` against the chapter routes, so on `/admin/members`
                     it lands on the Members chapter whichever pane is open — and the chapter
-                    that documents THIS half still carries `route: '/admin/chapters'`, a route
+                    that documents THIS half still carries `route: '/admin/members/organization'`, a route
                     that is now a redirect nobody navigates to. This link is the only thing on
                     the screen pointing at the chapter that describes it, which is why it is
                     the `inline` variant: there is no heading for an icon to sit beside, and a
@@ -776,7 +776,7 @@ function MemberRow({ member, templates, rights, busy, run, onView }: {
             <div className="my-1 border-t" />
 
             {member.status === 'pending' ? (
-              <Link href="/admin/users?tab=approvals" onClick={close}
+              <Link href="/admin/members?tab=approvals" onClick={close}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
                 Review in Pending Approval

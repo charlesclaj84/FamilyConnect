@@ -33,6 +33,7 @@ import {
   ClipboardCheck,
   Gavel,
   PieChart,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -95,7 +96,7 @@ const adminItems: NavItem[] = [
   // Accounting and Transactions in the permission grid.
   //
   // A FOURTH KEY SINCE 2026-08-19: `admin/chapters`, the Organization pane that used to be
-  // the `/admin/chapters` rail item directly below. It has to be listed here or the move
+  // the `/admin/members/organization` rail item directly below. It has to be listed here or the move
   // TAKES A GRANT AWAY in effect if not on paper — a member holding Organization and none of
   // the other three would have a working page and no link to it, which is the failure the
   // `admin/users/templates` entry in `TAB_RESOURCES` already exists to prevent.
@@ -110,16 +111,16 @@ const adminItems: NavItem[] = [
   //
   // Note the key is NOT `admin/users/organization`: a pane takes a sub-key by convention,
   // and this one is a key that RLS policies already name (see the redirect page for the
-  // whole argument). The tier gate travels with it — `/admin/chapters` is `tier: 'plus'`, so
+  // whole argument). The tier gate travels with it — `/admin/members/organization` is `tier: 'plus'`, so
   // `viewableResources()` drops the key for a Free family and the pane simply is not there,
   // while the other three keys keep this row visible.
   {
-    href: '/admin/users',
+    href: '/admin/members',
     label: 'Members',
     icon: UsersRound,
     viewKeys: [
-      'admin/users', 'admin/approvals', 'admin/users/templates',
-      'admin/chapters', 'admin/boardpositions',
+      'admin/members', 'admin/members/approvals', 'admin/members/templates',
+      'admin/members/organization', 'admin/members/board-positions',
     ],
   },
   // NO Regions & Chapters ROW and NO Board Positions ROW, since 2026-08-19 and 2026-08-20,
@@ -127,7 +128,7 @@ const adminItems: NavItem[] = [
   // Organization pane of Members & Access above — one rail item, four panes, and the row you
   // want is the one captioned Members.
   //
-  // BOTH ROUTES still EXIST: each is a redirect to `/admin/users?tab=organization` and each
+  // BOTH ROUTES still EXIST: each is a redirect to `/admin/members?tab=organization` and each
   // is still a `FEATURES` entry, because `viewableResources()` walks that registry and the
   // keys `admin/chapters` and `admin/boardpositions` have to stay in its answer — the Members
   // row above lists both in `viewKeys`, so a member whose only admin grant is one of them
@@ -140,7 +141,7 @@ const adminItems: NavItem[] = [
   // "Organization" about both halves, because no row is about both. The grid still prints
   // "Organization" for `admin/chapters` and "Board Positions" for `admin/boardpositions`,
   // which is right — an administrator moves two switches, and they are two jobs.
-  { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
+  { href: '/admin/accounting',        label: 'Accounting',           icon: Wallet },
   // ONE GATHERINGS ROW, TWO PANES, TWO KEYS. `/admin/gatherings` is a rail: Management
   // schedules a gathering, hands out its tasks and rules on the answers, and Templates
   // authors the step lists a gathering is built FROM. They were two rail items until
@@ -154,7 +155,7 @@ const adminItems: NavItem[] = [
     href: '/admin/gatherings',
     label: 'Gatherings',
     icon: CalendarCog,
-    viewKeys: ['admin/gatherings', 'admin/gathering-templates'],
+    viewKeys: ['admin/gatherings', 'admin/gatherings/templates'],
   },
   // NO Announcement Management ROW. The route is deleted (20260813000000) — posting,
   // pinning and deleting all live on Community > Announcements now, each control gated by
@@ -173,7 +174,7 @@ const adminItems: NavItem[] = [
   // won. Settings is the thing you set up once and then leave alone, so it belongs where
   // a reader stops looking rather than where they start, and one order is easier to hold
   // in the head than two.
-  { href: '/admin/family',         label: 'Settings',             icon: Settings },
+  { href: '/admin/settings',         label: 'Settings',             icon: Settings },
 ]
 
 // Build the nav groups for the current user. Every item is listed unconditionally
@@ -210,7 +211,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       icon: PartyPopper,
       viewKeys: ['gatherings', 'gatherings/my-tasks'],
     },
-    { href: '/calendar', label: 'Calendar', icon: CalendarDays },
+    { href: '/gatherings/calendar', label: 'Calendar', icon: CalendarDays },
   ]
 
   const groups: NavGroup[] = [
@@ -246,7 +247,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // it, so if a surface ever needs it again it is set here by hand exactly as it was.
       section: { label: 'Community', icon: UsersRound },
       items: [
-        { href: '/chat',          label: 'Chat',             icon: MessageCircle },
+        { href: '/community/chat',          label: 'Chat',             icon: MessageCircle },
         // ONE ROW FOR THREE PANES, since 2026-08-19. Announcements is a rail — General (the
         // board), Updates (the archive of announcements and the member's own notifications)
         // and Birthdays — so the three keys are listed here for the reason `admin/users`
@@ -255,18 +256,18 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
         // otherwise have a working page and no link to it. That is a grant taken away in
         // effect if not on paper.
         //
-        // NO SEPARATE Updates ROW. It had one until the archive became a pane; `/updates`
+        // NO SEPARATE Updates ROW. It had one until the archive became a pane; `/community/updates`
         // still exists and redirects to `?pane=updates`, so a second row here would be two
         // rail items for one pane — the thing "one rail item, one permission resource" is
         // actually about.
         {
-          href: '/announcements',
+          href: '/community/announcements',
           label: 'Announcements',
           icon: Megaphone,
-          viewKeys: ['announcements', 'updates', 'announcements/birthdays'],
+          viewKeys: ['community/announcements', 'community/updates', 'community/announcements/birthdays'],
         },
-        { href: '/members',       label: 'Directory',        icon: UsersRound },
-        { href: '/family-tree',   label: 'Family Tree',      icon: GitBranch },
+        { href: '/community/directory',       label: 'Directory',        icon: UsersRound },
+        { href: '/community/family-tree',   label: 'Family Tree',      icon: GitBranch },
       ],
     },
   ]
@@ -294,9 +295,9 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { label: 'Accounting', icon: Wallet },
     items: [
-      { href: '/account-summary',  label: 'Summary',         icon: Wallet },
-      { href: '/dues',             label: 'Dues',            icon: CalendarClock },
-      { href: '/donations',        label: 'Donations',       icon: HeartHandshake },
+      { href: '/accounting/summary',  label: 'Summary',         icon: Wallet },
+      { href: '/accounting/dues',             label: 'Dues',            icon: CalendarClock },
+      { href: '/accounting/donations',        label: 'Donations',       icon: HeartHandshake },
       // DUES PROJECTIONS LEFT THIS GROUP ON 2026-08-20 and is in Reporting below. The note
       // that used to stand here argued for keeping it — "the request named two screens" — and
       // the note on Reporting said moving a third would be scope creep. It was asked for, so
@@ -343,25 +344,41 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // what a resource is ABOUT, and regrouping the grid would mean a migration moving a row out
   // of a category that describes it correctly.
   //
-  // `/admin/reports` STILL STAYS OUT, and the reason changed on 2026-08-20 without changing
-  // the answer. It was `status: 'future'`, so it was in no rail at all — `buildNavGroups`
-  // renders from `viewKeys` and a future route is never viewable, which made placing it here
-  // placing a row nobody could see. It is LIVE now, and it is in the Review section below with
-  // the other five routes that flipped, because live is not the same as walked. This is still
-  // where it belongs the day somebody has been through it: membership over time and dues
-  // collected against what is outstanding are readings of the family's money, which is what
-  // this group is. The group is shaped for it.
+  // `/admin/reports` IS NOT HERE AND NEVER WILL BE. This paragraph argued about where to put
+  // it twice — first as `status: 'future'` and so in no rail at all, then as a live-but-unwalked
+  // row in Review — and the review deleted it (2026-08-20). What is in this group instead is
+  // `/reporting/membership`, which answers the one question that page had that no other screen
+  // owns: where the family's people are and how many of them can be reached. The four money
+  // figures it also drew each duplicated a screen in this very group.
   //
-  // BarChart3 as the section icon, already imported for Family Finances and Reports. Both
-  // of those are readings of the family's money too, so the glyph is doing the same job in
-  // all three places rather than being borrowed — and section icons are reused as item icons
-  // elsewhere in this file already (BookOpen heads Resources and labels the manual).
+  // BarChart3 as the section icon, and it is now the only place in this file using it. Every
+  // row under this heading is a READING — of the money, or of the membership — which is the
+  // one job the glyph is doing here; section icons are reused as item icons elsewhere in this
+  // file already (BookOpen heads Resources and labels the manual).
   groups.push({
     section: { label: 'Reporting', icon: BarChart3 },
     items: [
-      { href: '/payment-history',  label: 'Payment History',  icon: History },
-      { href: '/transactions',     label: 'Transactions',     icon: ArrowRightLeft },
-      { href: '/dues-projections', label: 'Dues Projections', icon: TrendingUp },
+      // MEMBERSHIP LEADS, and the position is the point rather than alphabetical accident.
+      // The other four rows are all readings of the MONEY; this one is a reading of the
+      // PEOPLE the money is collected from, so it is the row that gives the other four their
+      // denominator. A treasurer asking "why is this year's total down" starts here.
+      //
+      // It is what `/admin/reports` was deleted in favour of, and it is in this group rather
+      // than under Admin because it is a member-facing reading rather than a tool for running
+      // the family — the same argument that put Payment History and Transactions here.
+      { href: '/reporting/membership', label: 'Membership',       icon: PieChart },
+      { href: '/reporting/payment-history',  label: 'Payment History',   icon: History },
+      { href: '/reporting/transactions',     label: 'Transactions',      icon: ArrowRightLeft },
+      { href: '/reporting/dues-projections', label: 'Dues Projections',  icon: TrendingUp },
+      // P&L SUMMARY ARRIVED HERE ON 2026-08-20, from Accounting by way of Review, and the
+      // caption changed with the move. "Family Finances" beside four other readings of the
+      // family's money does not say which one it is; what this screen uniquely holds is the
+      // STATEMENT — income against expenses, and the bottom line. The route and the key are
+      // still `family-finances`; see lib/features.ts for why renaming them was not on offer.
+      //
+      // LAST, because it is the only row here that is a SUMMARY of the two above it: the
+      // ledger and the projection are where a figure on it is explained.
+      { href: '/reporting/pl-summary',  label: 'P&L Summary',       icon: Scale },
     ],
   })
 
@@ -381,14 +398,20 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
 
   // ── REVIEW: LIVE, BUT NOT YET WALKED ───────────────────────────────────────────────
-  // The six routes that came off `status: 'future'` in lib/features.ts on 2026-08-20. Every
-  // one of them was already built — a page gating itself with `requireView`, an action module
+  // What is left of the six routes that came off `status: 'future'` in lib/features.ts on
+  // 2026-08-20. TWO HAVE ALREADY LEFT, which is the section working rather than the section
+  // shrinking: `/reporting/pl-summary` was reviewed, renamed P&L Summary and moved to Reporting
+  // above, and `/admin/reports` was reviewed and DELETED outright — a screen that sold four
+  // things and delivered a mixture of five, replaced by the Membership Report. Deleting is a
+  // legitimate outcome of a review and is the one this heading exists to make possible.
+  //
+  // Every route still here was already built — a page gating itself with `requireView`, an action module
   // behind it and a `permission_resources` row registered since 20260618000000 — and gated
   // only because nobody had been through it end to end. They are reachable now so that
   // somebody can be.
   //
-  // WHY ONE SECTION RATHER THAN SIX ROWS PUT BACK WHERE THEY BELONG. Two of these are
-  // Accounting, three were Resources and two are Admin, and scattering them is exactly what
+  // WHY ONE SECTION RATHER THAN THE ROWS PUT BACK WHERE THEY BELONG. Three of these were
+  // Resources and one is Admin, and scattering them is exactly what
   // makes a review impossible to finish: there would be no list of what is left, and the only
   // way to tell a reviewed screen from an unreviewed one would be to remember. One heading is
   // the worklist. It empties itself — each row leaves for its real section as its screen is
@@ -407,21 +430,18 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // these — the review is what will decide it. Set it per row if a walk finds one, which is
   // the badge doing its actual job rather than being applied six times in advance.
   //
-  // TWO ICONS ARE NEW, and only because this section puts pairs side by side that were never
-  // neighbours: Gavel for Election Management (Vote is the member's ballot, one row above it)
-  // and PieChart for Reports (BarChart3 is Family Finances, three rows above it). Two rows in
-  // one collapsed list wearing the same glyph is not a list of six things, it is a list of
-  // four. Each row keeps its original icon when it leaves for its real section, where its
-  // twin is somewhere else entirely.
+  // ONE ICON IS NEW, and only because this section puts side by side two rows that were never
+  // neighbours: Gavel for Election Management, where Vote is the member's own ballot one row
+  // above it. Two rows in one collapsed list wearing the same glyph is not a list of four
+  // things, it is a list of three. The row keeps its original icon when it leaves for Admin,
+  // where its twin is somewhere else entirely.
   groups.push({
     section: { label: 'Review', icon: ClipboardCheck },
     items: [
-      { href: '/family-finances', label: 'Family Finances',    icon: BarChart3 },
-      { href: '/photos',          label: 'Photos',             icon: Camera },
-      { href: '/documents',       label: 'Documents',          icon: FileText },
-      { href: '/elections',       label: 'Elections',          icon: Vote },
-      { href: '/admin/elections', label: 'Election Management', icon: Gavel },
-      { href: '/admin/reports',   label: 'Reports',            icon: PieChart },
+      { href: '/review/photos',          label: 'Photos',              icon: Camera },
+      { href: '/review/documents',       label: 'Documents',           icon: FileText },
+      { href: '/review/elections',       label: 'Elections',           icon: Vote },
+      { href: '/review/election-management', label: 'Election Management', icon: Gavel },
     ],
   })
 
@@ -600,7 +620,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   // the registry agree about which feature a path belongs to, rather than each having its
   // own answer. It changes nothing for any pair already in this file: no other two nav
   // hrefs are nested (/dues and /dues-projections only look it — `startsWith` needs a
-  // literal '/dues/'), so every existing group resolves to exactly the row it did before.
+  // literal '/accounting/dues/'), so every existing group resolves to exactly the row it did before.
   //
   // Scoped to the GROUP on purpose. Nothing stops two sections listing hrefs that nest —
   // Events already carries /admin/events, which the Admin section deliberately does not

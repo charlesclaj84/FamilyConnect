@@ -161,7 +161,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
       )}
 
       {showViewLink && (
-        <Link href="/dues" className={buttonVariants({ size: 'sm', variant: 'outline' }) + ' w-full justify-center'}>
+        <Link href="/accounting/dues" className={buttonVariants({ size: 'sm', variant: 'outline' }) + ' w-full justify-center'}>
           View Dues
         </Link>
       )}

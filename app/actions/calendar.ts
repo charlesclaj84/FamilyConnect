@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
 
 /**
- * One month of the family calendar — `/calendar`.
+ * One month of the family calendar — `/gatherings/calendar`.
  *
  * The page draws the grid with `buildCalendarMonth` from `lib/calendar.ts`; this is the read
  * that fills it, and all it does is turn the family's gatherings into a list of
@@ -79,7 +79,7 @@ export interface CalendarMonthData {
  * reason: for the withheld-source case it is honest ("gatherings are not shown"), and for a
  * malformed month it would be a lie about the caller's permissions.
  *
- * That last case is not reachable from the page. `/calendar` normalises the query string before
+ * That last case is not reachable from the page. `/gatherings/calendar` normalises the query string before
  * it calls — `isValidMonth(raw) ? raw : today.slice(0, 7)` — because `buildCalendarMonth`
  * and `monthLabel` THROW on anything else, so only a direct POST to this action's URL can get
  * here with a bad month. A server action is a public HTTP endpoint, which is why the check below
@@ -142,13 +142,13 @@ interface GatheringRow {
 }
 
 export async function getCalendarMonth(month: string): Promise<CalendarMonthData> {
-  // BEFORE THE DATABASE IS TOUCHED. `month` arrives in the query string — `/calendar` is
+  // BEFORE THE DATABASE IS TOUCHED. `month` arrives in the query string — `/gatherings/calendar` is
   // addressable and bookmarkable on purpose — so it is an arbitrary string, and every date
   // bound below is derived from it. `isValidMonth` pins the month RANGE as well as the shape,
   // so "2026-13" is refused here rather than becoming January 2027 in a `Date.UTC` call.
   if (!isValidMonth(month)) return NOTHING
 
-  const g = await requireRead('calendar')
+  const g = await requireRead('gatherings/calendar')
   if (!g.ok) return NOTHING
 
   // `can()` rather than `canAny()`: scope 'own' is a legitimate way to hold view here — the

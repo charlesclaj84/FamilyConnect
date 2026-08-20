@@ -111,14 +111,20 @@ const ALSO: readonly {
    */
   soon?: boolean
 }[] = [
-  { icon: MessagesSquare, route: '/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
-  { icon: Megaphone, route: '/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  { icon: Network, route: '/family-tree', title: 'The family tree', blurb: 'Four generations around whoever you click, with blood and marriage told apart.' },
-  { icon: Vote, route: '/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
-  { icon: Images, route: '/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, route: '/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
-  { icon: MapPinned, route: '/admin/chapters', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
-  { icon: BarChart3, route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership over time, and dues collected against what is still outstanding, at a glance.' },
+  { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
+  { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
+  { icon: Network, route: '/community/family-tree', title: 'The family tree', blurb: 'Four generations around whoever you click, with blood and marriage told apart.' },
+  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
+  { icon: Images, route: '/review/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
+  { icon: FileText, route: '/review/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
+  { icon: MapPinned, route: '/admin/members/organization', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
+  // REPOINTED 2026-08-20: `/admin/reports` is deleted, and a `route` naming a path this
+  // registry no longer has does not fail — `getFeature()` longest-prefix-matches, so it
+  // would have resolved to the `/admin` catch-all and printed a Coming Soon pill and a Free
+  // tag over a Plus screen that ships. The blurb was rewritten with it: the old one sold
+  // "membership over time", and nothing in this product has ever recorded a membership
+  // figure over time.
+  { icon: BarChart3, route: '/reporting/membership', title: 'Leadership reports', blurb: 'Members by region and chapter, how many have finished joining, and adults against minors.' },
   { icon: Store, tier: null, soon: true, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
 

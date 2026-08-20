@@ -11,7 +11,7 @@ import {
 } from '@/lib/updates-archive'
 
 /**
- * `/updates` — the archive behind the dashboard's Recent Updates card.
+ * `/community/updates` — the archive behind the dashboard's Recent Updates card.
  *
  * ── WHAT IT IS FOR ──────────────────────────────────────────────────────────────────
  * The card shows every pinned announcement plus six other rows and nothing renders row
@@ -24,7 +24,7 @@ import {
  * The awkwardness TODO.md recorded is real and is answered here rather than papered over:
  *
  *   * `announcements` is governed by `announcements`, and this reads it on the USER client
- *     so the composed policy decides which rows come back. `can(…, 'announcements', 'view')`
+ *     so the composed policy decides which rows come back. `can(…, 'community/announcements', 'view')`
  *     is resolved FIRST and the query skipped when the caller does not hold it — §5, and
  *     also honesty: `announcementsIncluded: false` is what lets the screen say the board is
  *     not part of this list, instead of showing an archive that silently has no
@@ -135,7 +135,7 @@ export async function getUpdatesArchive(input?: {
   // belong on the PAGE and deliberately not here (AGENTS.md — "the server actions behind a
   // paid page are deliberately not tier-checked", so a family that downgrades keeps its
   // records), and `notFound()` is a page's way of refusing, not an action's.
-  const g = await requireRead('updates')
+  const g = await requireRead('community/updates')
   if (!g.ok) return EMPTY
 
   const pages = clampPages(input?.pages)
@@ -144,7 +144,7 @@ export async function getUpdatesArchive(input?: {
   const fetch = archiveFetchCount(pages)
 
   const [mayViewBoard, personId, chapterId] = await Promise.all([
-    can(user.id, 'announcements', 'view'),
+    can(user.id, 'community/announcements', 'view'),
     getMyPersonId(user.id),
     readMyChapterId(),
   ])
@@ -215,7 +215,7 @@ export async function getUpdatesArchive(input?: {
       body: a.body,
       // Every announcement has somewhere to go — the board carries the full text, which a
       // truncated row cannot. Notifications are the ones with a nullable link.
-      link: '/announcements',
+      link: '/community/announcements',
       at: a.published_at,
       author: a.people
         ? `${(a.people as { first_name: string; last_name: string }).first_name} ${(a.people as { first_name: string; last_name: string }).last_name}`

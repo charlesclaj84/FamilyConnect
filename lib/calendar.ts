@@ -1,5 +1,5 @@
 /**
- * The month grid behind `/calendar`, and the month arithmetic every link on it depends on.
+ * The month grid behind `/gatherings/calendar`, and the month arithmetic every link on it depends on.
  *
  * ── WHY THIS IS A PURE MODULE ───────────────────────────────────────────────────────
  * AGENTS.md §7b, and one thing sharper than the general rule: EVERY DATE BUG IN THIS

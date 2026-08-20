@@ -73,8 +73,8 @@ export async function proxy(request: NextRequest) {
   // through this matcher. Cookies are copied across for the same reason the roadmap
   // gate copies them: a response built from scratch drops any rotated by the session
   // refresh above.
-  if (pathname === '/admin/approvals') {
-    const moved = NextResponse.redirect(new URL('/admin/users?tab=approvals', request.url))
+  if (pathname === '/admin/members/approvals') {
+    const moved = NextResponse.redirect(new URL('/admin/members?tab=approvals', request.url))
     supabaseResponse.cookies.getAll().forEach((cookie) => moved.cookies.set(cookie))
     return moved
   }

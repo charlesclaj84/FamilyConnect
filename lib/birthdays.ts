@@ -1,6 +1,6 @@
 /**
  * Whose birthday is next, and when — the whole of the arithmetic behind the **Birthdays**
- * pane on `/announcements`.
+ * pane on `/community/announcements`.
  *
  * ── WHY THIS IS A PURE MODULE ───────────────────────────────────────────────────────
  * AGENTS.md §7b, and the sharper version of that rule which `lib/calendar.ts` states in

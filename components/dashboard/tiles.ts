@@ -53,7 +53,7 @@ import {
  * cards and the second is an olive calendar chip over `3` / "Upcoming Events" / "View
  * calendar" — so this was never a fourth tile somebody invented, it was a specified one the
  * repo had not built. It counts UPCOMING, non-cancelled gatherings and it leads to
- * `/calendar`, which is the caption the kit itself writes under the figure.
+ * `/gatherings/calendar`, which is the caption the kit itself writes under the figure.
  *
  * ── `dues` LEFT THIS LIST ON 2026-08-19 AND BECAME A WIDGET ────────────────────────
  * "Dues Collected" was the family's collected total, as a metric tile. It is
@@ -77,8 +77,8 @@ export type TileId = 'members' | 'approvals' | 'gatherings'
  * looks a grant up before it decides whether to run the query.
  */
 export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
-  members: ['members'],
-  approvals: ['admin/approvals'],
+  members: ['community/directory'],
+  approvals: ['admin/members/approvals'],
   // `calendar`, NOT `gatherings`, and the difference is the whole rule this file states: a
   // tile borrows the grant of ITS DESTINATION, and this one's destination is the month
   // calendar. Gating it on `gatherings:view` would offer a member a way through to a screen
@@ -89,7 +89,7 @@ export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
   // it uses — `getGatherings()` gates itself on `gatherings:view` and answers `[]` without
   // it. That is the right way round: a caller holding the calendar and not gatherings counts
   // zero and the tile is omitted, which is "nothing to show" rather than a leak.
-  gatherings: ['calendar'],
+  gatherings: ['gatherings/calendar'],
 }
 
 /**
@@ -102,7 +102,7 @@ export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
  * answer to "may I see this" moved with the pixels.
  */
 export const DUES_COLLECTED_RESOURCE = [
-  'transactions/dues-payments', 'transactions/donation-payments',
+  'reporting/transactions/dues-payments', 'reporting/transactions/donation-payments',
 ] as const
 
 export interface TileMeta {
@@ -124,12 +124,12 @@ export interface TileMeta {
  * Directory; "Dues Collected" leads to the Transactions dues ledger.
  */
 export const TILE_META: Record<TileId, TileMeta> = {
-  members:    { label: 'Family Members',       href: '/members',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
-  approvals:  { label: 'Pending Approval',     href: '/admin/users?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
+  members:    { label: 'Family Members',       href: '/community/directory',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
+  approvals:  { label: 'Pending Approval',     href: '/admin/members?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
   // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
   // captions are the kit's too — "View calendar" under the count, because the figure is a
   // count of gatherings and the way through is the calendar that shows them beside events.
-  gatherings: { label: 'Upcoming Gatherings',  href: '/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
+  gatherings: { label: 'Upcoming Gatherings',  href: '/gatherings/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
 }
 
 /** A tile with its value resolved, which is all the component ever sees. */
@@ -144,8 +144,8 @@ export interface ResolvedTile {
  * The Golden Master draws six. Two of the ones it draws — Add Photos, Upload Document — are
  * still not here, and the reason changed on 2026-08-20 without changing the answer. Both
  * pointed at features that were `status: 'future'` in `lib/features.ts`, and a control leading
- * to `/coming-soon` is a dead affordance the sidebar already refuses to render. `/photos` and
- * `/documents` are LIVE now, in the rail's Review section, which is the opposite claim: live
+ * to `/coming-soon` is a dead affordance the sidebar already refuses to render. `/review/photos` and
+ * `/review/documents` are LIVE now, in the rail's Review section, which is the opposite claim: live
  * but not yet walked by anybody. A Quick Action is the most confident thing on the Dashboard —
  * "this is the job to do next" — so it is the last place to point at a screen under review,
  * not the first. Add either button when its screen leaves Review. Its "Create Event" is gone
@@ -180,9 +180,9 @@ export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
   // button themselves. It is kept because it is still the true answer to "where does this
   // job live", which is what the row menu and the permission grid both reflect, and
   // because dropping it would make this the one entry with a different shape.
-  'add-member':     { label: 'Add Member',     href: '/admin/users',                       accent: 'primary', icon: UserPlus },
-  'record-payment': { label: 'Record Payment', href: '/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
-  'send-message':   { label: 'Send Message',   href: '/chat',                              accent: 'warm',    icon: MessageCircle },
+  'add-member':     { label: 'Add Member',     href: '/admin/members',                       accent: 'primary', icon: UserPlus },
+  'record-payment': { label: 'Record Payment', href: '/reporting/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
+  'send-message':   { label: 'Send Message',   href: '/community/chat',                              accent: 'warm',    icon: MessageCircle },
   // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
   // that goes through a redirect is a Back button that walks through one.
   'my-gathering-tasks': { label: 'My Tasks', href: '/gatherings?pane=my-tasks', accent: 'legacy', icon: ClipboardCheck },
@@ -207,9 +207,9 @@ export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
  * button asks is "may this member reach Chat at all".
  */
 export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; action: 'view' | 'create' }> = {
-  'add-member':     { resource: 'admin/users',                 action: 'create' },
-  'record-payment': { resource: 'transactions/dues-payments',  action: 'create' },
-  'send-message':   { resource: 'chat',                        action: 'view' },
+  'add-member':     { resource: 'admin/members',                 action: 'create' },
+  'record-payment': { resource: 'reporting/transactions/dues-payments',  action: 'create' },
+  'send-message':   { resource: 'community/chat',              action: 'view' },
   // `view`, and on the pane's own key. Answering a task you were handed is self-service —
   // `create` and `edit` both default to scope 'none' (AGENTS.md §2), so demanding either would
   // hide the button from every member the tasks are actually for. The real question is whether
@@ -223,12 +223,12 @@ export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; actio
  * of the grant — two independent narrowings, exactly as the sidebar does it.
  */
 export const ROUTE_FOR_GRANT: Record<string, string> = {
-  'members': '/members',
-  'transactions/dues-payments': '/transactions',
-  'transactions/donation-payments': '/transactions',
-  'admin/approvals': '/admin/approvals',
-  'admin/users': '/admin/users',
-  'chat': '/chat',
+  'members': '/community/directory',
+  'reporting/transactions/dues-payments': '/reporting/transactions',
+  'reporting/transactions/donation-payments': '/reporting/transactions',
+  'admin/members/approvals': '/admin/members/approvals',
+  'admin/members': '/admin/members',
+  'chat': '/community/chat',
   // `/gatherings` and NOT `/gatherings/my-tasks`, even though the key is the longer one:
   // `isFeatureLive` asks the registry whether the SCREEN has shipped, and the screen is the
   // pane. Both entries carry the same status today, so this cannot change the answer — it is
@@ -238,7 +238,7 @@ export const ROUTE_FOR_GRANT: Record<string, string> = {
   // above. Listed anyway, because the page looks every tile's route up THROUGH this table —
   // `isFeatureLive(ROUTE_FOR_GRANT[TILE_RESOURCE.gatherings[0]])` — and an absent entry is
   // `isFeatureLive(undefined)`, which is a silently unresolved feature rather than an error.
-  'calendar': '/calendar',
+  'calendar': '/gatherings/calendar',
 }
 
 /**

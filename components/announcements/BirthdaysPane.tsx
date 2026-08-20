@@ -12,7 +12,7 @@ import {
 } from '@/lib/birthdays'
 
 /**
- * THE BIRTHDAYS PANE — the second half of `/announcements`.
+ * THE BIRTHDAYS PANE — the second half of `/community/announcements`.
  *
  * ── WHAT IT PRINTS, AND WHY EVERY ONE OF THE FIVE FACTS IS THERE ────────────────────
  * A name, a date, the DAY OF THE WEEK, how many days away, and the age they turn. The

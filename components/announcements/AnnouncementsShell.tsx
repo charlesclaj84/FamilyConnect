@@ -13,7 +13,7 @@ import type { UpdatesArchive } from '@/app/actions/updates'
 import type { PermissionScope } from '@/lib/auth/permissions'
 
 /**
- * THE `/announcements` RAIL — the notice board, the archive of everything sent, and whose
+ * THE `/community/announcements` RAIL — the notice board, the archive of everything sent, and whose
  * birthday is next.
  *
  * ── WHY THESE THREE ARE ONE SCREEN ──────────────────────────────────────────────────
@@ -21,7 +21,7 @@ import type { PermissionScope } from '@/lib/auth/permissions'
  * it has been told and had sent to it (the archive), and what it should be told SOON (a
  * birthday). A birthday is not an announcement — it has no row, no author and nothing to pin —
  * but it is the commonest reason anybody writes one, so it belongs a click from the composer
- * rather than behind a route of its own. The archive was `/updates`, a destination of its own
+ * rather than behind a route of its own. The archive was `/community/updates`, a destination of its own
  * in the rail, and read as a THIRD place the family's news lived; that route still exists and
  * redirects here, so every link anybody has shared still lands on the same list.
  *
@@ -58,7 +58,7 @@ import type { PermissionScope } from '@/lib/auth/permissions'
  * "show older" are `?q=` and `?pages=` resolved on the SERVER, because the merge of two tables
  * in date order is the feature and a second implementation in the browser would be free to
  * disagree with `lib/updates-archive.ts`. So the pane is handed the base href to build those
- * links on, which is this page and its `?pane=updates` rather than the old `/updates`.
+ * links on, which is this page and its `?pane=updates` rather than the old `/community/updates`.
  *
  * ── NO `useServerState`, AND NO KEY ON THE PANE ──────────────────────────────────────
  * The only state here is which pane is open, which is the genuinely UI-local kind AGENTS.md
@@ -121,19 +121,19 @@ export function AnnouncementsShell({
       id: 'general' as const,
       label: 'General',
       icon: Megaphone,
-      href: '/announcements?pane=general',
+      href: '/community/announcements?pane=general',
     }] : []),
     ...(mayViewUpdates ? [{
       id: 'updates' as const,
       label: 'Updates',
       icon: Inbox,
-      href: '/announcements?pane=updates',
+      href: '/community/announcements?pane=updates',
     }] : []),
     ...(mayViewBirthdays ? [{
       id: 'birthdays' as const,
       label: 'Birthdays',
       icon: Cake,
-      href: '/announcements?pane=birthdays',
+      href: '/community/announcements?pane=birthdays',
     }] : []),
   ]
 
@@ -169,11 +169,11 @@ export function AnnouncementsShell({
 
       {pane === 'updates' && mayViewUpdates && archive && (
         // `basePath` and `keepParams` so the archive's own `?q=` and `?pages=` links come back
-        // to THIS pane. Without them it would navigate to `/updates`, which redirects here —
+        // to THIS pane. Without them it would navigate to `/community/updates`, which redirects here —
         // one extra hop, and a Back button that walks through redirects.
         <UpdatesArchiveClient
           archive={archive}
-          basePath="/announcements"
+          basePath="/community/announcements"
           keepParams={{ pane: 'updates' }}
         />
       )}

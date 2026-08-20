@@ -44,7 +44,7 @@ export function alphaMarkers(fx) {
     // ── THE REGION, ADDED 2026-08-19, AND ITS ABSENCE UNTIL NOW WAS A REAL GAP ──────────
     //
     // A region has been in this fixture since 2026-08-18 and was findable in a response by
-    // nothing at all. That was survivable while `regions` was read only by `/admin/chapters`,
+    // nothing at all. That was survivable while `regions` was read only by `/admin/members/organization`,
     // whose own cases assert on `fx.alpha.region.id` explicitly — and it stopped being
     // survivable today, because `chapterPlaces` in app/actions/members.ts and its deliberate
     // twin in app/actions/admin/permissions.ts now WALK `people.chapter_id -> chapters.region_id
@@ -400,7 +400,7 @@ export const CASES = [
       // [crux, and for a PAIR] An applicant is inside ALPHA's boundary by every test the
       // cross-family case above applies — `auth_family_code()` resolves ALPHATEST for them
       // deliberately — so this is where the membership gate is actually asserted. TWO gates
-      // stand here and either alone answers empty: `requireRead('announcements/birthdays')`,
+      // stand here and either alone answers empty: `requireRead('community/announcements/birthdays')`,
       // where `resolveScope()` denies a non-approved caller outright, and the `people` SELECT
       // policy's own `auth_membership_approved()`. Both have to go before an applicant reads a
       // single birthday, which is what the mutation record in the header measures.
@@ -448,7 +448,7 @@ export const CASES = [
   // THE CONTROL RUNS AS ALPHA'S ADMINISTRATOR, not as the default member, and that is
   // the policy being honest rather than the fixture being bent: the composed SELECT
   // policy on `chapters` is
-  //     family_code = auth_family_code() AND auth_permission('admin/chapters','view') = 'any'
+  //     family_code = auth_family_code() AND auth_permission('admin/members/organization','view') = 'any'
   // so a plain member reads no chapters at all and `[]` is their correct answer. Using
   // the default actor here would have failed the control for a reason that is not a bug.
   read('announcements.getChapters', 'app/actions/announcements.ts', 'getChapters', {
@@ -523,7 +523,7 @@ export const CASES = [
 
   // ── money ─────────────────────────────────────────────────────────────────
   // These two ran their control as the ADMIN until 20260808000002, and not because the
-  // policy wanted a grant: permission_table_map points dues_schedules at 'admin/account'
+  // policy wanted a grant: permission_table_map points dues_schedules at 'admin/accounting'
   // with own_expr and self_expr both 'false', so the composed SELECT reduced to
   // admin/account:view = 'any' — a key General holds at 'none'. A plain member read
   // ZERO schedules, which meant getMyDuesSummary returned [] and My Summary was blank
@@ -704,6 +704,103 @@ export const CASES = [
       && projectionStatus(r, fx.alpha.uninvitedRecord.id) === 'pending-invite',
   }),
 
+  // ── The membership report: counts, and the two tables no member can read ──
+  //
+  // `getMembershipReport` reads FOUR tables on the admin client, and two of them are ones an
+  // ordinary member is refused outright: the composed SELECT policies on `chapters` and
+  // `regions` both demand `admin/chapters:view = 'any'` (their `permission_table_map` rows
+  // carry an `own_expr` of the literal 'false'). So there is no policy underneath half this
+  // action at all, and every conjunct protecting it is a hand-written `.eq('family_code', …)`
+  // — AGENTS.md §3's obligation in its purest form.
+  //
+  // ── THE ASSERTIONS ARE EXACT COUNTS, AND THEY HAVE TO BE ──────────────────────────────
+  // This action returns COUNTS and PLACE NAMES and nothing else — no person, no id, no
+  // birthday — so the default marker scan can only catch a leaked region or chapter NAME.
+  // That is one of the four reads. The other three leak as a number that is too big and
+  // carries no ALPHA string in it at all, and a relative assertion cannot see it: the four
+  // breakdowns are four reductions of ONE roster, so they go on summing to the total no
+  // matter whose people are in it.
+  //
+  // The first draft asserted only those internal sums and `>= 1` floors, and TWO of the three
+  // mutations below sailed through it. So the numbers are the fixture's own roster, written
+  // down. WHEN THE FIXTURE GROWS A PERSON, THESE GO RED and the repair is to update them —
+  // that is the cost of an absolute, and it is the price of the case meaning anything.
+  //
+  //   ALPHA  11 people · 5 active, 1 invited, 5 pending invite · 2 regions, 3 chapters
+  //   BRAVO  10 people · 4 active, 1 invited, 5 pending invite · 2 regions, 3 chapters
+  //
+  // TO SEE IT FAIL — required before treating this as evidence (§7). Three mutations, run
+  // with `node --import ./tests/rls/register.mjs ./tests/rls/run.mjs getMembershipReport`,
+  // and all three were run on 2026-08-20:
+  //
+  //   drop `.eq('family_code', …)` from the `people` read     BOTH halves fail — each family
+  //                                                            reports the two rosters added
+  //                                                            together
+  //   drop it from the `chapters` read                        ATTACK fails on the marker:
+  //                                                            'ALPHATEST chapter' is a label
+  //                                                            in BRAVO's byChapter
+  //   drop it from the `family_invitations` read              ATTACK fails: BRAVO's
+  //                                                            uninvitedRecord is counted as
+  //                                                            Invited on the strength of
+  //                                                            ALPHA's row — 2 invited, 4
+  //                                                            pending rather than 1 and 5
+  //
+  // THE CONTROL IS ALPHA'S ADMINISTRATOR, not its plain member, and that is a fact about the
+  // feature: 20260820000003 registers this key `restricted` and carries the grant across from
+  // `admin/reports`, so alphaMember — the suite's default owner — is correctly refused and
+  // gets null. A control that failed there would report this case as proving nothing.
+  read('reports.getMembershipReport', 'app/actions/reports.ts', 'getMembershipReport', {
+    positiveActor: 'alphaAdmin',
+    expectAttack: (r) =>
+      r !== null
+      // BRAVO's own geography is there — which is what stops every line below from passing
+      // on an empty report, the failure mode §7's positive-control argument is about.
+      && r.byChapter.some(s => s.label === `${BRAVO} chapter`)
+      && r.byRegion.some(s => s.label === `${BRAVO} region`)
+      // ...and ALPHA's is not, by name. This duplicates the marker scan deliberately: a
+      // marker says "an ALPHA string came out" and this says which field it came out of.
+      && r.byChapter.every(s => s.label !== `${ALPHA} chapter`)
+      && r.byRegion.every(s => s.label !== `${ALPHA} region`)
+      // THE ROSTER, EXACTLY. Nothing else in this case can see an unscoped `people` read.
+      && r.total === 10
+      && r.chapterCount === 3 && r.regionCount === 2
+      // THE INVITATION SPLIT, EXACTLY, which is what sees an unscoped `family_invitations`
+      // read: ALPHA holds an open invitation to BRAVO's uninvited record's address (see
+      // `crossFamilyInvitation` in seed.mjs), so a leak moves one person from the third
+      // bucket to the second and both these numbers move with them.
+      && (r.byInvitation.find(s => s.key === 'active')?.count ?? -1) === 4
+      && (r.byInvitation.find(s => s.key === 'invited')?.count ?? -1) === 1
+      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 5
+      // The four breakdowns are four reductions of one roster and must each account for all
+      // of it — a person who fell out of a bucket is a person the screen does not mention.
+      && r.byInvitation.reduce((n, s) => n + s.count, 0) === r.total
+      && r.byAge.reduce((n, s) => n + s.count, 0) === r.total
+      && r.byChapter.reduce((n, s) => n + s.count, 0) === r.total
+      && r.byRegion.reduce((n, s) => n + s.count, 0) === r.total,
+    expectPositive: (r) =>
+      r !== null
+      && r.total === 11
+      // ALPHA's own geography resolves for a caller reading it through the admin client —
+      // the same property `members.getMembers`'s control asserts about `chapterPlaces`, and
+      // the one that fails silently as "everybody is National" if an embed is refused (§8).
+      && r.byChapter.some(s => s.label === `${ALPHA} chapter`)
+      && r.byRegion.some(s => s.label === `${ALPHA} region`)
+      // EMPTY PLACES ARE LISTED, which is the feature and not an incidental. The fixture
+      // seeds a spare chapter and a spare region in each family with nobody in them; a report
+      // built from `people.chapters(name)` — the way the retired /admin/reports built its
+      // chapter list — would omit both.
+      && r.byChapter.some(s => s.label === `${ALPHA} spare chapter` && s.count === 0)
+      && r.byRegion.some(s => s.label === `${ALPHA} spare region` && s.count === 0)
+      // All three invitation states are reachable in ALPHA's fixture, so the split is
+      // exercised rather than merely present: alphaMember has an account, invitedRecord has
+      // an open invitation, uninvitedRecord has neither.
+      && (r.byInvitation.find(s => s.key === 'active')?.count ?? -1) === 5
+      && (r.byInvitation.find(s => s.key === 'invited')?.count ?? -1) === 1
+      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 5
+      && r.byInvitation.reduce((n, s) => n + s.count, 0) === r.total
+      && r.byAge.reduce((n, s) => n + s.count, 0) === r.total,
+  }),
+
   // ── A drive is hidden from the people it is FOR ───────────────────────────
   // A THIRD KIND OF CLAIM, alongside "can BRAVO reach ALPHA" and "can an ALPHA
   // administrator see another member's own things". This one is: can a caller holding
@@ -768,7 +865,7 @@ export const CASES = [
   // composed by 20260618000001's sweep, which is exactly why it needs a case of its
   // own: nothing else in the chain would notice if the family conjunct were dropped
   // from a policy that no other file generates. The control is the ADMIN, because the
-  // SELECT policy demands `auth_permission('transactions/fund-transfers','view') =
+  // SELECT policy demands `auth_permission('reporting/transactions/fund-transfers','view') =
   // 'any'` — a plain member holds none, and `[]` is their correct answer.
   //
   // [crux], and verified as such: rebuild the policy without its
@@ -1057,7 +1154,7 @@ const templateGrantProbe = (resourceKey, action) => async (db, fx) => {
 const markAlphaGeneralBankView = async (db, fx) => {
   const { error } = await db.from('template_permissions').upsert({
     template_id: fx.alpha.generalTemplateId,
-    resource_key: 'admin/account/bank',
+    resource_key: 'admin/accounting/bank',
     action: 'view',
     scope: 'own',
   }, { onConflict: 'template_id,resource_key,action' })
@@ -1082,7 +1179,7 @@ const bankGrantsProbe = async (db, fx) => {
   const { data, error } = await db
     .from('template_permissions')
     .select('action, scope, permission_templates!inner(family_code, name)')
-    .eq('resource_key', 'admin/account/bank')
+    .eq('resource_key', 'admin/accounting/bank')
   if (error) throw new Error(`probe template_permissions: ${error.message}`)
   const fixture = [fx.alpha.familyCode, fx.bravo.familyCode]
   const rows = (data ?? [])
@@ -1518,7 +1615,7 @@ export const MORE_CASES = [
 
   // -- GIVING AND TAKING AWAY A BOARD POSITION (2026-08-19) -------------------
   //
-  // `/admin/boardpositions` went live on 2026-08-19 and grew the thing it had never had: a
+  // `/admin/members/board-positions` went live on 2026-08-19 and grew the thing it had never had: a
   // way to record who holds an office. The assignment actions below replace four exports in
   // `app/actions/admin/users.ts` that had NO CALL SITE and were reachable anyway —
   // `assignRole` wrote four client-supplied ids onto a `user_roles` row carrying the caller's
@@ -1629,7 +1726,7 @@ export const MORE_CASES = [
         && r.chapters.some(x => x.id === fx.alpha.chapter.id),
     }),
   // AND THE ELECTIONS-FACING READ OF THE SAME TABLE, in the other module. It demanded nothing
-  // but a session until 2026-08-19 — `/admin/elections` being `status: 'future'` withholds the
+  // but a session until 2026-08-19 — `/review/election-management` being `status: 'future'` withholds the
   // page and never the action — and it is gated on `admin/elections` rather than
   // `admin/boardpositions`, because an elections organiser may hold one screen and not the
   // other. That is the case for asserting it separately rather than treating it as a duplicate.
@@ -1714,7 +1811,7 @@ export const MORE_CASES = [
 
   // -- THE UPDATES ARCHIVE (20260819000005) ----------------------------------
   //
-  // `/updates` is the archive behind the dashboard's Recent Updates card: `announcements` and
+  // `/community/updates` is the archive behind the dashboard's Recent Updates card: `announcements` and
   // the caller's own `notifications`, merged by date, searchable. BOTH reads go through the
   // USER client, so family isolation on both tables is RLS's — which is what §7 is written
   // about, and what these cases are for.
@@ -1998,7 +2095,7 @@ export const MORE_CASES = [
     // the resource catalog: the grid would silently lose its own row, and the policies
     // on permission_templates would start evaluating a key nothing registers.
     expectPositive: r =>
-      r?.['admin/users:edit'] === 'any' && r?.['admin/users/templates:edit'] === 'any',
+      r?.['admin/members:edit'] === 'any' && r?.['admin/members/templates:edit'] === 'any',
   }),
   read('admin/permissions.getResources', 'app/actions/admin/permissions.ts', 'getResources', {
     positive: 'not-applicable',
@@ -2021,7 +2118,7 @@ export const MORE_CASES = [
   //
   //   B. A, plus the UPDATE policy stripped to `family_code = auth_family_code()`
   //        → the two grant cases FAIL with ROW MUTATED; cross-family still passes.
-  //      So `auth_permission('admin/family','edit') = 'any'` is exactly what those two
+  //      So `auth_permission('admin/settings','edit') = 'any'` is exactly what those two
   //      are evidence for, and it is not shared with the cross-family one.
   //
   //   C. B, plus `family_code = auth_family_code()` removed from the UPDATE policy
@@ -2070,7 +2167,7 @@ export const MORE_CASES = [
     mod: 'app/actions/admin/family.ts', fn: 'renameFamily',
     // The half family scoping cannot catch. alphaMember is inside the boundary and
     // approved; what has to refuse them is the grant — canAny() in the action, and
-    // `auth_permission('admin/family','edit') = 'any'` in the policy. Naming the family
+    // `auth_permission('admin/settings','edit') = 'any'` in the policy. Naming the family
     // is family-wide configuration with no owner, so 'own' must not be a way in either.
     attacker: 'alphaMember',
     args: () => ['Renamed by a member with no grant'],
@@ -2228,7 +2325,7 @@ export const MORE_CASES = [
   //
   //   1. Drop `.eq('family_code', familyCode)` from the SOURCE fund lookup in
   //      transferBetweenFunds  → (cross-family) goes red.
-  //   2. Drop `canAny(user.id, 'transactions/fund-transfers', 'create')`
+  //   2. Drop `canAny(user.id, 'reporting/transactions/fund-transfers', 'create')`
   //                            → (member with no grant) goes red.
   //   3. Drop `.eq('family_code', familyCode)` from the DESTINATION lookup
   //                            → (one fund from each family) STAYS GREEN.
@@ -2298,7 +2395,7 @@ export const MORE_CASES = [
     mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
     // The half family scoping cannot catch. alphaMember is inside the boundary and
     // approved; what has to refuse them is the grant — canAny() in the action, and
-    // `auth_permission('transactions/fund-transfers','create') = 'any'` in the INSERT
+    // `auth_permission('reporting/transactions/fund-transfers','create') = 'any'` in the INSERT
     // policy beneath it. A transfer has no owner, so 'own' must not be a way in either.
     attacker: 'alphaMember',
     args: fx => [{
@@ -2574,7 +2671,7 @@ export const PENDING_CASES = [
   // The family-wide tree, which is now the only one — `ancestors.getFamilyMembers` was
   // this line until its module was deleted with the lineage view (2026-08-13). It is the
   // sharper test of the two anyway: `getFamilyTree` reads the WHOLE roster on the ADMIN
-  // client, deliberately, so nothing but `requireRead('family-tree')` stands between an
+  // client, deliberately, so nothing but `requireRead('community/family-tree')` stands between an
   // unadmitted applicant and every name, gender and birthday in the family.
   read('family-tree.getFamilyTree (pending member)', 'app/actions/family-tree.ts', 'getFamilyTree', {
     attacker: 'alphaPending',
@@ -2693,7 +2790,7 @@ export const PENDING_CASES = [
   // NOT [crux], and labelled so rather than left looking like evidence. The SELECT
   // policy on fund_transfers does carry `auth_membership_approved()` (20260812000002
   // §6), but neutering it changes nothing here: the conjunct beside it demands
-  // `auth_permission('transactions/fund-transfers','view') = 'any'`, auth_permission()
+  // `auth_permission('reporting/transactions/fund-transfers','view') = 'any'`, auth_permission()
   // resolves through auth_person_id(), and auth_person_id() already returns NULL for
   // anyone not approved. The applicant is refused twice over and this case cannot tell
   // which refusal did it.
@@ -2940,8 +3037,8 @@ export const PENDING_CASES = [
     id: 'admin/permissions.setTemplatePermission (pending member)',
     mod: 'app/actions/admin/permissions.ts', fn: 'setTemplatePermission',
     attacker: 'alphaPending',
-    args: fx => [fx.alpha.generalTemplateId, 'admin/account/bank', 'view', 'any'],
-    probe: templateGrantProbe('admin/account/bank', 'view'),
+    args: fx => [fx.alpha.generalTemplateId, 'admin/accounting/bank', 'view', 'any'],
+    probe: templateGrantProbe('admin/accounting/bank', 'view'),
     positiveActor: 'alphaAdmin',
   },
 
@@ -3361,10 +3458,10 @@ export const APPROVAL_CASES = [
     // no permission_table_map row, so no policy is composed from it, and no action
     // consults it. A grant that meant something would make every case after this one
     // depend on the order they run in.
-    args: fx => [fx.alpha.generalTemplateId, 'admin/account/bank', 'edit', 'any'],
+    args: fx => [fx.alpha.generalTemplateId, 'admin/accounting/bank', 'edit', 'any'],
     // template_permissions has a composite primary key and no `id`, so snapshot()'s
     // .order('id') cannot be used here.
-    probe: templateGrantProbe('admin/account/bank', 'edit'),
+    probe: templateGrantProbe('admin/accounting/bank', 'edit'),
     positiveActor: 'alphaAdmin',
   },
   {
@@ -4567,7 +4664,7 @@ export const MONEY_CASES = [
  *   g9c g9b AND `getMyPermissionSet`'s `const approved = true` (g5a) AND `auth_person_id()`
  *       without its `membership_status = 'approved'` conjunct (g5c)
  *         FAIL  getUpcomingGatheringCount (pending member)  unexpected: 4
- *       FOUR GATES, and this is where the pending half finally bites: `requireRead('calendar')`
+ *       FOUR GATES, and this is where the pending half finally bites: `requireRead('gatherings/calendar')`
  *       resolving through `getMyPermissionSet`, `auth_membership_approved()` in the policy, and
  *       `auth_permission()` collapsing to 'none' because `auth_person_id()` is NULL for an
  *       applicant. Any one of them left standing answers 0.
@@ -5149,7 +5246,7 @@ export const GATHERING_CASES = [
   }),
   // Hand-written rather than derived, because the derived pending case carries the parent's
   // `expectAttack` across and this half needs the opposite number: an applicant is refused by
-  // `requireRead('calendar')` and the action answers 0, while bravoAdmin legitimately counts
+  // `requireRead('gatherings/calendar')` and the action answers 0, while bravoAdmin legitimately counts
   // their own family's two. One assertion cannot be both, so the parent sets `noPending` and
   // this states its own.
   //

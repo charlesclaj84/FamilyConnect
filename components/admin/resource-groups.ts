@@ -175,7 +175,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *
  *     `updates` is the tenth, and it is the `announcements/birthdays` case again: an Own grant
  *     is indistinguishable from All rather than from a denial. The key gates ONE thing —
- *     whether `/updates` opens — and 20260819000005 writes it no `permission_table_map` row
+ *     whether `/community/updates` opens — and 20260819000005 writes it no `permission_table_map` row
  *     and asserts the absence, so no policy in the database evaluates it and there is no
  *     `own_expr` for it anywhere.
  *
@@ -204,14 +204,22 @@ export const CATEGORY_LABEL: Record<string, string> = {
  *
  *     And no policy in the database evaluates this key at all: 20260819000008 writes no
  *     `permission_table_map` row and asserts the absence in both directions, because a row
- *     there would compose an `auth_permission('family-tree', …)` factor onto
+ *     there would compose an `auth_permission('community/family-tree', …)` factor onto
  *     `relationship_types` — whose `own_expr` is 'false' — and a fresh database would then
  *     carry policies hosted has not got. That migration's header has the whole argument.
  */
 const NO_OWNER_KEYS: readonly string[] = [
-  'admin/family', 'admin/family/remove', 'dues-projections', 'admin/chapters',
-  'gatherings/budget', 'admin/gatherings', 'announcements/birthdays',
-  'admin/boardpositions', 'updates', 'family-tree',
+  'admin/settings', 'admin/settings/remove', 'reporting/dues-projections', 'admin/members/organization',
+  'gatherings/budget', 'admin/gatherings', 'community/announcements/birthdays',
+  'admin/members/board-positions', 'community/updates', 'community/family-tree',
+  // TWO MORE ON 2026-08-20, and both are family-wide READINGS with no personal version.
+  // `membership-report` counts the whole family, and a member's own answer to "where am I"
+  // is their profile. `family-finances` is the P&L Summary — the family's statement, whose
+  // own-scoped counterpart is /payment-history, an entirely different screen behind an
+  // entirely different key. An 'own' grant on either would be a switch that reads as a
+  // narrowing and grants the whole thing, which is what this list exists to prevent: both
+  // actions resolve with `canAny`, so 'own' has never been a way to hold them.
+  'reporting/membership', 'reporting/pl-summary',
 ]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
