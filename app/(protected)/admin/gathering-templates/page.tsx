@@ -25,7 +25,12 @@ import { redirect } from 'next/navigation'
  * effect would be to answer 404 where the real page answers /upgrade or the removed-family
  * notice.
  *
- * The same arrangement `/admin/chapters` has had since the Organization pane absorbed it.
+ * The same arrangement `/admin/chapters` has had since the Organization pane absorbed it — and
+ * since 2026-08-19 the parallel is exact rather than merely similar: this key is
+ * `tier: 'standard'` on a page that is Free, exactly as `admin/chapters` is `tier: 'plus'` on a
+ * page that is Free. Both target pages and `tierAllows()` into the pane's grant by hand and
+ * redirect a caller who holds ONLY that pane to `/upgrade` with this route in `?from=`. A guard
+ * here would answer 404 instead, which is the true answer to a different question.
  */
 export default function AdminGatheringTemplatesPage() {
   redirect('/admin/gatherings?pane=templates')

@@ -288,6 +288,107 @@ END $$;
 -- `service_role` keeps EXECUTE by default.
 REVOKE ALL ON FUNCTION public.seed_family_permission_templates(text) FROM PUBLIC, anon, authenticated;
 
+-- ── 4b. UNWRAP THE TWO SWEPT SELECT POLICIES HOSTED STILL HAS ──────────────
+-- ADDED AFTER THIS FILE FAILED ON HOSTED, and the failure is the interesting part
+-- rather than the fix. §5d aborted with:
+--
+--     ROLLBACK: 2 policy/policies evaluate family-tree.
+--
+-- which is exactly the case that assertion's own comment anticipated ("the two can
+-- disagree: 20260806000006 removed the map rows by CASCADE and would have left any
+-- composed policy standing") — and the header above then went on to assume it had
+-- not happened. It had. The premise "hosted: the map stays empty and no policy is
+-- composed" was FALSE, for a reason the chain makes plain once you look:
+--
+--   20260618000000   seeded `family-tree` into permission_resources — that VALUES
+--                    list was EDITED LATER to remove it, and an applied migration is
+--                    never re-read, so hosted ran the version that had it.
+--   20260618000001   the FK therefore resolved on hosted, three map rows were
+--                    inserted, and the sweep WRAPPED the affected base policies.
+--   20260806000006   deleted the key; ON DELETE CASCADE took the map rows away and
+--                    LEFT THE COMPOSED POLICIES STANDING. §1 of that file rebuilt
+--                    person_relationships' INSERT/UPDATE/DELETE longhand — it says so
+--                    — and rebuilt no SELECT policy at all, because a `view` clause on
+--                    an unregistered key is a tautology and was therefore harmless.
+--
+-- SO THE TWO SURVIVORS ARE PRECISELY THE SELECT HALF THAT FILE LEFT ALONE, and they
+-- are named by 20260618000001's own map: `person_relationships` (own_expr
+-- `person_id = auth_person_id()`) and `relationship_types` (own_expr `'false'`).
+-- `family_ancestors` is the third mapped table and does not exist.
+--
+-- ── WHY UNWRAPPING, RATHER THAN ACCEPTING THEM ──────────────────────────────
+-- Registering the key is what makes them stop being tautologies. §3 grants every
+-- existing template view `'any'`, so NOTHING CHANGES ON THE DAY THIS DEPLOYS — and
+-- the first family to use the switch this migration adds would meet a hosted-only
+-- bug: `relationship_types.own_expr` is `'false'`, so any scope other than `'any'`
+-- collapses that policy to FALSE and every addition on the canvas answers "That
+-- relationship type is not set up". AGENTS.md records that exact symptom from the
+-- weeks the table sat empty. A laptop would never reproduce it, because a fresh chain
+-- skips the map rows.
+--
+-- The other direction — put `family-tree` back in the map so fresh databases match
+-- hosted — is what the header argues against at length, and this is the evidence for
+-- that argument rather than a change to it: the coupling breaks a family that uses
+-- the feature, so the coupling is what has to go.
+--
+-- ── AND WHY IT IS SAFE TO REBUILD THEM LONGHAND ─────────────────────────────
+-- Same method 20260806000006 §1 used, for the same reason: the shape changes rather
+-- than one factor, so a textual patch of a policy expression is the wrong tool. The
+-- base expressions are not being invented — they are what a FRESH database has today,
+-- from 20260615000004 and 20260602000003 respectively, which is the definition of the
+-- state this is restoring hosted to.
+--
+-- IDEMPOTENT AND A NO-OP ON A FRESH DATABASE. Nothing matches the predicate there, so
+-- neither DROP runs and both CREATEs are guarded on absence.
+DO $mig$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT tablename, policyname FROM pg_policies
+     WHERE schemaname = 'public'
+       AND tablename IN ('person_relationships', 'relationship_types')
+       AND (COALESCE(qual, '') LIKE '%family-tree%'
+            OR COALESCE(with_check, '') LIKE '%family-tree%')
+  LOOP
+    RAISE NOTICE 'unwrapping swept policy %.% (evaluated family-tree)', r.tablename, r.policyname;
+    EXECUTE format('DROP POLICY %I ON public.%I', r.policyname, r.tablename);
+  END LOOP;
+
+  -- Recreated only if the drop above took the table's SELECT policy with it. Guarded on
+  -- the POLICY rather than on the drop, so a database that never had the composed one
+  -- and a database that just lost it end up in the same place.
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='person_relationships')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_policies
+        WHERE schemaname='public' AND tablename='person_relationships' AND cmd = 'SELECT')
+  THEN
+    -- Verbatim from 20260615000004, which is the current base policy for this table.
+    EXECUTE $q$
+      CREATE POLICY "family can view relationships"
+        ON public.person_relationships FOR SELECT TO authenticated
+        USING (family_code = public.auth_family_code())
+    $q$;
+    RAISE NOTICE 'restored base SELECT policy on person_relationships';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='relationship_types')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_policies
+        WHERE schemaname='public' AND tablename='relationship_types' AND cmd = 'SELECT')
+  THEN
+    -- Verbatim from 20260602000003. `USING (true)` is correct and is not an oversight:
+    -- this is a GLOBAL lookup table with no family_code — one of the three rows AGENTS.md
+    -- calls product data — so there is nothing to scope it by and nothing in it to leak.
+    EXECUTE $q$
+      CREATE POLICY "authenticated users can read relationship types"
+        ON public.relationship_types FOR SELECT TO authenticated
+        USING (true)
+    $q$;
+    RAISE NOTICE 'restored base SELECT policy on relationship_types';
+  END IF;
+END $mig$;
+
 -- ── 5. Verify, unconditionally ─────────────────────────────────────────────
 -- Catalogue and grid reads only, so no fixture is needed and this cannot be one of
 -- the verify blocks AGENTS.md warns about — the kind that skips quietly and reports

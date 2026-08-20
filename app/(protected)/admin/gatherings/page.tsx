@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import {
   getAdminGatherings, getGatheringReviewQueue, getGatheringFundOptions,
 } from '@/app/actions/admin/gatherings'
@@ -37,8 +38,14 @@ export const metadata = { title: 'Gatherings — Admin' }
  * WHAT IS NOT DROPPED IN THE PROCESS: `requireView` is three checks, not one —
  * `requireFamilyActive`, then `requireTier`, then the permission test — and only the third is
  * being widened. The other two are called explicitly, in the same order, on
- * `'admin/gatherings'`; both entries are `tier: 'free'`, so which key `requiredTier` resolves
- * cannot change the answer, and neither key is in `REMOVED_FAMILY_RESOURCES`.
+ * `'admin/gatherings'`; neither key is in `REMOVED_FAMILY_RESOURCES`.
+ *
+ * WHICH KEY `requireTier` RESOLVES DOES MATTER NOW, and it did not until 2026-08-19. Both
+ * entries used to be `tier: 'free'`; `admin/gathering-templates` is `'standard'` since
+ * Standard was inserted. Resolving it on `'admin/gatherings'` is the deliberate choice rather
+ * than an oversight — the console is Free and a Free family must reach it — and the library
+ * pane ands `tierAllows()` in for itself below. Calling `requireTier` on the library key
+ * instead would redirect a Free organizer to `/upgrade` over a pane they never asked for.
  *
  * ── §5, WHICH IS WHY THE GRANTS ARE ALL RESOLVED BEFORE ANYTHING IS FETCHED ────────
  * Gate the FETCH and not the tab. Each pane's queries are skipped entirely for a caller who
@@ -70,6 +77,20 @@ export const metadata = { title: 'Gatherings — Admin' }
  * `getGatheringTemplates()` IS NOW ALSO THE TEMPLATES PANE'S OWN DATA, read once and used
  * twice. It is called when EITHER the library pane is open to this caller or they may create a
  * gathering, which is the union of the two reasons this page has to ask for it.
+ *
+ * BOTH TEMPLATE READS ARE ALSO TIER-GATED SINCE 2026-08-19, including the one behind the
+ * create dialog's picker, and that half is easy to leave out. `getSchedulableTemplates()`
+ * gates on `gatherings:create` and knows nothing about the plan, so a family that lapsed to
+ * Free would be offered its old templates in the picker and could instantiate a whole tree of
+ * tasks from one — which is the paid capability, arriving through the screen that was supposed
+ * to withhold it. The dialog on Free therefore offers no templates at all, and schedules a
+ * gathering with none: a date, a place and the details, which is what Free sells.
+ *
+ * `scheduleGathering` itself is deliberately NOT tier-checked, per the rule in AGENTS.md about
+ * paid pages and their actions — a family that downgrades must not find an endpoint refusing
+ * to talk about its own history. What that means here is honest rather than uncomfortable: the
+ * tier withholds the SCREEN, so a caller who knows a template id can still POST one. The
+ * permission model is what stops somebody who should not, and it is unchanged.
  */
 export default async function AdminGatheringsPage({
   searchParams,
@@ -86,11 +107,37 @@ export default async function AdminGatheringsPage({
 
   // Grants first, always — the order of this function is its security model, and every fetch
   // below is chosen from these answers rather than filtered afterwards.
-  const [mayViewConsole, mayViewTemplates] = await Promise.all([
+  const [mayViewConsole, templatesGranted, templatesInPlan] = await Promise.all([
     can(user.id, 'admin/gatherings', 'view'),
     can(user.id, 'admin/gathering-templates', 'view'),
+    tierAllows(user.id, 'admin/gathering-templates'),
   ])
-  if (!mayViewConsole && !mayViewTemplates) notFound()
+
+  // ── THE LIBRARY IS STANDARD; THE CONSOLE IS FREE ────────────────────────────────────
+  // Added 2026-08-19 with the Standard plan, and it is the whole reason this page's two keys
+  // could not stay interchangeable. Free sells "the gathering on a shared calendar" — a date,
+  // a place and the details, which is the Gatherings pane and the Review queue beside it.
+  // Standard sells PLANNING, which is this library: the checklists a gathering is built from.
+  //
+  // `requireTier` above cannot see it — it resolves `admin/gatherings`, which is Free — and a
+  // pane resolved with `can()` alone consults no tier at all. So the grant is anded with
+  // `tierAllows()`, exactly as `/admin/users` does for Organization and Permission Templates,
+  // and the pane is ABSENT rather than empty with every one of its fetches skipped (§5).
+  //
+  // NOT ONE TEMPLATE IS DELETED OR HIDDEN FROM THE DATABASE. A family that lapses to Free
+  // keeps every template it ever authored and finds them where they were when it upgrades
+  // again — and every gathering already built from one keeps its tasks, because a task is a
+  // COPY of its step rather than a reference to it.
+  const mayViewTemplates = templatesGranted && templatesInPlan
+  if (!mayViewConsole && !mayViewTemplates) {
+    // Somebody whose only reason to be here is the library, on a family whose plan does not
+    // include it, is owed the upgrade screen their old route gave them — `/admin/gathering-
+    // templates` redirects here, so `notFound()` would deny a screen that exists. Only once
+    // the grant is known to be held, for the reason `/admin/users` states: telling somebody
+    // with no grant at all that the family needs an upgrade discloses its billing.
+    if (templatesGranted) redirect('/upgrade?from=%2Fadmin%2Fgathering-templates')
+    notFound()
+  }
 
   const [mayCreate, mayEdit, mayDelete, mayManageBudget] = mayViewConsole
     ? await Promise.all([
@@ -121,8 +168,8 @@ export default async function AdminGatheringsPage({
     // picker takes the names out of it. The action self-gates, so a caller with neither reason
     // to ask gets `[]` from it either way; this line is what keeps the request from being made
     // at all.
-    mayViewTemplates || mayCreate ? getGatheringTemplates() : [],
-    mayCreate ? getSchedulableTemplates() : [],
+    mayViewTemplates || (mayCreate && templatesInPlan) ? getGatheringTemplates() : [],
+    mayCreate && templatesInPlan ? getSchedulableTemplates() : [],
   ])
 
   // The union, keyed by id and carrying only what the picker prints. The library read comes

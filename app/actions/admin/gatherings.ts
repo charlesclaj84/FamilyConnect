@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireDelete, requireEdit, requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import { belongsToFamily } from '@/lib/auth/family'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { attachTemplatesToGathering } from '@/lib/gathering-instantiate'
@@ -544,7 +545,24 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
 
   // Resolved BEFORE the select string is chosen, which is what makes the withholding a
   // fetch that did not happen rather than a field that was dropped (§5).
+  // AND THE PLAN, SINCE 2026-08-19. `gatherings/budget` is `tier: 'standard'` — a registry row
+  // in `lib/features.ts` carries it, because the key has no route of its own and would
+  // otherwise inherit `/gatherings`, which is Free. It is anded in HERE rather than only at
+  // the page for §5's reason: the money columns are chosen from this answer, so a tier
+  // resolved upstairs and passed down would be a figure fetched and then hidden.
+  //
+  // THIS NARROWS AND DOES NOT REFUSE, which is the line `getGatheringFundOptions` below is
+  // written about at length: every gathering still comes back, with `budget: null` where the
+  // money is withheld. A tier that made this function answer `[]` would be telling a Free
+  // family it has no gatherings, and the RLS suite's positive control catches exactly that.
+  //
+  // IT WITHHOLDS THE FETCH AND NOT THE ROW. The columns stay on `gatherings` and
+  // `gathering_tasks`, whose SELECT policy is keyed on `gatherings:view`, and no grant and no
+  // plan can narrow a column — the migration that created this key says so at length. A family
+  // that lapses to Free keeps every budget it ever set and reads it again on the day it moves
+  // back up. This is a screen band, which is all a tier may ever be.
   const canSeeBudget = await canAny(g.userId, 'gatherings/budget', 'view')
+    && await tierAllows(g.userId, 'gatherings/budget')
 
   const admin = createAdminClient()
   const [gatheringsRes, tasksRes, usesRes, templatesRes] = await Promise.all([
@@ -639,7 +657,24 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
   if (!g.ok) return null
   if (!gatheringId) return null
 
+  // AND THE PLAN, SINCE 2026-08-19. `gatherings/budget` is `tier: 'standard'` — a registry row
+  // in `lib/features.ts` carries it, because the key has no route of its own and would
+  // otherwise inherit `/gatherings`, which is Free. It is anded in HERE rather than only at
+  // the page for §5's reason: the money columns are chosen from this answer, so a tier
+  // resolved upstairs and passed down would be a figure fetched and then hidden.
+  //
+  // THIS NARROWS AND DOES NOT REFUSE, which is the line `getGatheringFundOptions` below is
+  // written about at length: every gathering still comes back, with `budget: null` where the
+  // money is withheld. A tier that made this function answer `[]` would be telling a Free
+  // family it has no gatherings, and the RLS suite's positive control catches exactly that.
+  //
+  // IT WITHHOLDS THE FETCH AND NOT THE ROW. The columns stay on `gatherings` and
+  // `gathering_tasks`, whose SELECT policy is keyed on `gatherings:view`, and no grant and no
+  // plan can narrow a column — the migration that created this key says so at length. A family
+  // that lapses to Free keeps every budget it ever set and reads it again on the day it moves
+  // back up. This is a screen band, which is all a tier may ever be.
   const canSeeBudget = await canAny(g.userId, 'gatherings/budget', 'view')
+    && await tierAllows(g.userId, 'gatherings/budget')
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -873,6 +908,31 @@ export async function getGatheringReviewQueue(): Promise<ReviewQueueRow[]> {
 export async function getGatheringFundOptions(): Promise<{ id: string; name: string; balanceCents: number }[]> {
   const g = await requireScope('admin/gatherings', 'view')
   if (!g.ok) return []
+  // ── NO TIER CHECK HERE, AND THAT IS A CORRECTION RATHER THAN AN OMISSION ──────────
+  // One was added on 2026-08-19 when `gatherings/budget` became `tier: 'standard'`, and
+  // `npm run test:rls` refused it within the hour — not the attack half, the POSITIVE CONTROL:
+  // ALPHA's own administrator, entitled to this call, got `[]` because the fixture's families
+  // are on the default plan. That is the failure AGENTS.md describes in advance ("the first
+  // time a family downgraded, one would start answering 'Not authorized' for their own
+  // history"), reproduced on the first run.
+  //
+  // THE LINE IS BETWEEN NARROWING AND REFUSING, and it is the whole reason two of the three
+  // budget resolutions in this feature DO consult the plan while this one does not:
+  //
+  //   narrowing  `getAdminGatherings` and `getGatheringDetail` choose which COLUMNS to select
+  //              and answer `budget: null` for a caller who may not see money. A tier folded
+  //              into that answer withholds a screen band and returns every row — which is
+  //              what a tier is for, and it is the same shape `getResources()` has used to
+  //              tier-filter the permission grid since 20260813000003.
+  //   refusing   this function's whole return value IS the money. A tier here does not narrow
+  //              anything; it answers "no funds" to an administrator whose family has funds,
+  //              which is a lie about their own records rather than a screen they have not
+  //              bought.
+  //
+  // What withholds the fund picker from a Free family is therefore the PAGE:
+  // `/admin/gatherings` and `/admin/gatherings/[id]` both and `tierAllows()` into
+  // `mayManageBudget` and skip this call entirely, so §5 is discharged by the request never
+  // being made. That is also where `/transactions` puts it for its Plus ledger.
   if (!(await canAny(g.userId, 'gatherings/budget', 'view'))) return []
 
   const admin = createAdminClient()
@@ -1007,9 +1067,18 @@ function normalizeDate(value: string | null | undefined): string | null | undefi
  *  * **`status` still takes its default of `'planning'`.** Creating the work and announcing it
  *    are two decisions; `updateGathering` moves it.
  *
- * `templateIds` must be non-empty in both. A gathering is scheduled FROM a template — that is
- * the requirement the whole feature is shaped by, and an empty list would create a row with no
- * work in it that nothing could distinguish from one whose tasks failed to instantiate.
+ * `templateIds` MAY BE EMPTY IN BOTH, as of 2026-08-19, and this said the opposite — "a
+ * gathering is scheduled FROM a template … the requirement the whole feature is shaped by".
+ * Standard moved the boundary: Free sells the gathering on a shared calendar (a date, a place
+ * and the details) and Standard sells the planning, so the template LIBRARY is
+ * `tier: 'standard'` while this console is Free, and an organizer on Free has no template to
+ * build from. `scheduleGathering`'s header carries the full argument and the answer to the old
+ * objection — nothing distinguishes a planned gathering by its task count, and a partial
+ * instantiation is reported in `message` rather than inferred from what is missing.
+ *
+ * NO TIER IS CHECKED HERE, and that is the house rule rather than an omission: the actions
+ * behind a paid page are not tier-checked, or the first family to downgrade would meet one
+ * refusing to talk about its own history. The PAGE withholds both template reads on the plan.
  */
 export async function createGathering(input: {
   title: string
@@ -1051,13 +1120,16 @@ export async function createGathering(input: {
     return { success: false, message: 'Fund not found' }
   }
 
+  // NO TEMPLATES IS A VALID GATHERING — a date on the family calendar with no tasks. See the
+  // header. `resolveTemplates` is skipped rather than called with an empty set: it would answer
+  // `{ rows: [] }` by accident (its completeness check is `0 !== 0`, which passes) and an
+  // accident is a thing that stops being true the day somebody adds a filter to that query.
   const templateIds = [...new Set((input.templateIds ?? []).filter(Boolean))]
-  if (templateIds.length === 0) {
-    return { success: false, message: 'Choose at least one template to build this gathering from' }
-  }
 
   const admin = createAdminClient()
-  const templates = await resolveTemplates(admin, g.familyCode, templateIds)
+  const templates = templateIds.length === 0
+    ? { rows: [] as { id: string; name: string }[] }
+    : await resolveTemplates(admin, g.familyCode, templateIds)
   if ('message' in templates) return { success: false, message: templates.message }
 
   const { data: created, error } = await admin

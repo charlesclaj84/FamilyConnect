@@ -7,7 +7,7 @@ import { CalendarDays, CirclePlus, ClipboardCheck, LayoutList, Star, Trash2 } fr
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label, RequiredMark } from '@/components/ui/label'
+import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
@@ -669,14 +669,18 @@ function ReviewCard({
 // ── Creating a gathering ─────────────────────────────────────────────────────────────
 
 /**
- * TEMPLATE-FIRST, because a gathering can only be built from a template.
+ * TEMPLATE-FIRST, AND THE TEMPLATE IS OPTIONAL — two things that used to be one.
  *
- * `createGathering` refuses an empty `templateIds`, and that is the shape of the feature
- * rather than a validation quirk: the steps of the templates chosen here are what become the
- * tasks, so a gathering with no template is a row with no work in it that nothing could
- * distinguish from one whose tasks failed to instantiate. The picker is therefore first and is
- * required, and the dialog says so when the family has no templates yet instead of offering an
- * empty list.
+ * This said "a gathering can only be built from a template" and the picker was REQUIRED. As of
+ * 2026-08-19 `createGathering` accepts an empty list, because Standard moved the tier boundary
+ * to run between the DATE and the PLANNING: Free sells the gathering on a shared calendar, the
+ * template library is `tier: 'standard'`, and this console is Free — so an organizer on Free
+ * has no template to build from and must still be able to put the reunion on the calendar. The
+ * full argument is in `scheduleGathering`'s header.
+ *
+ * FIRST is kept and REQUIRED is dropped, and the two were never the same claim. Choosing a
+ * template changes what the rest of the form is for, so it still leads; a `RequiredMark` on a
+ * group the form will submit without teaches an organizer that the mark means nothing.
  *
  * The money fields appear only where the money grant is held AND the family has an active
  * fund. `gatherings_budget_needs_fund` refuses a budget with no fund — mirrored here as a
@@ -731,10 +735,6 @@ function NewGatheringDialog({
   function handleCreate() {
     const trimmedTitle = title.trim()
     if (!trimmedTitle) { setError('A gathering needs a title'); return }
-    if (templateIds.length === 0) {
-      setError('Choose at least one template to build this gathering from')
-      return
-    }
     setError('')
     startTransition(async () => {
       const result = await createGathering({
@@ -775,21 +775,27 @@ function NewGatheringDialog({
         {/* A `<fieldset>`/`<legend>` rather than a `Label`, because this group is several
             checkboxes and a `<label>` may name only one control — a bare `<Label>` with no
             `htmlFor` and no nested input labels NOTHING, so the seven checkboxes below were
-            announced as an unnamed group and `RequiredMark`'s `sr-only` "(required)" was
-            attached to the same nothing. `GatheringsClient`'s copy of this dialog already does
+            announced as an unnamed group. (The `RequiredMark` that used to sit in this legend
+            is gone — a template is optional now — but the `<fieldset>`/`<legend>` reasoning is
+            about NAMING the group and is unaffected by that.) `GatheringsClient`'s copy of this dialog already does
             it this way; the two must not diverge. */}
         <fieldset className="space-y-1.5">
-          <legend className="text-sm font-medium">
-            Built from<RequiredMark />
-          </legend>
+          <legend className="text-sm font-medium">Built from</legend>
           {templates.length === 0 ? (
+            // NOT AN OBSTACLE ANY MORE, WHICH IS WHY THE SENTENCE CHANGED. It used to say a
+            // gathering "needs at least one" template, which was true and is not. What it says
+            // now is what happens if you carry on — a date with no tasks — and what a template
+            // would buy. `mayAuthorTemplates` is grant AND plan, resolved on the page, so the
+            // link cannot land on `/upgrade` or a 404; a Free family gets the second branch,
+            // which is the same sentence a member without the grant gets and is true of both.
             <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-              There are no templates to build from.{' '}
+              There are no templates to build from, so this will be a date on the family
+              calendar with no tasks.{' '}
               {mayAuthorTemplates
-                ? <>Add one in the <Link href="/admin/gathering-templates">template library</Link> — a gathering is a
-                    template’s steps handed out as tasks, so it needs at least one.</>
-                : <>A gathering is a template’s steps handed out as tasks, so it needs at least
-                    one — somebody who can author templates has to add the first.</>}
+                ? <>Add one in the <Link href="/admin/gathering-templates">template library</Link> and a
+                    gathering becomes a checklist handed out as tasks.</>
+                : <>A template is a checklist handed out as tasks — somebody who can author
+                    templates has to add the first.</>}
             </p>
           ) : (
             <>
@@ -820,7 +826,7 @@ function NewGatheringDialog({
               </div>
               <p className="text-xs text-muted-foreground">
                 {templateIds.length === 0
-                  ? 'Every step of the templates you pick becomes a task you can hand out.'
+                  ? 'Every step of the templates you pick becomes a task you can hand out. Pick none and this is a date with no tasks.'
                   : `${templateIds.length} chosen · their steps become this gathering’s tasks, in the order shown`}
               </p>
             </>

@@ -51,9 +51,12 @@ const NO_RIGHTS: AccessRights = { view: false, create: false, edit: false, remov
  * getApplicants() runs requireRead('admin/approvals'), and every read and write in
  * app/actions/admin/chapters.ts runs requireScope('admin/chapters', …).
  *
- * ── THE ORGANIZATION PANE IS THE ONE WITH A TIER GATE, AND IT IS NOT OPTIONAL ────────
- * This is the part of the move that is not a two-line change, and it is the part a later
- * reader is most likely to simplify away.
+ * ── TWO PANES CARRY A TIER GATE, AND NEITHER IS OPTIONAL ─────────────────────────────
+ * This said "the Organization pane is the one" until 2026-08-19, when Standard was inserted
+ * and Permission Templates became `tier: 'standard'`. Organization is still `tier: 'plus'`.
+ * The argument below is written about Organization and applies to BOTH unchanged — which is
+ * the point of stating it once: this is the part of a pane move that is not a two-line
+ * change, and the part a later reader is most likely to simplify away.
  *
  * `requireView` derives the plan from the RESOURCE KEY, through `requiredTier()`. This
  * page's key is `admin/users`, which is `tier: 'free'` — so the guard at the top of a page
@@ -118,15 +121,37 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   // `tierAllows` is in the same round trip because `getMyFamilyTier` is `cache()`d per
   // request — `getResources()` below asks the same question again for the grid's own
   // filter, and both resolve to one query.
-  const [canViewAccess, canViewApprovals, canViewTemplates, canViewChapters, chaptersInPlan] =
-    await Promise.all([
-      can(user.id, 'admin/users', 'view'),
-      can(user.id, 'admin/approvals', 'view'),
-      can(user.id, 'admin/users/templates', 'view'),
-      can(user.id, 'admin/chapters', 'view'),
-      tierAllows(user.id, 'admin/chapters'),
-    ])
+  const [
+    canViewAccess, canViewApprovals, templatesGranted, canViewChapters,
+    templatesInPlan, chaptersInPlan,
+  ] = await Promise.all([
+    can(user.id, 'admin/users', 'view'),
+    can(user.id, 'admin/approvals', 'view'),
+    can(user.id, 'admin/users/templates', 'view'),
+    can(user.id, 'admin/chapters', 'view'),
+    tierAllows(user.id, 'admin/users/templates'),
+    tierAllows(user.id, 'admin/chapters'),
+  ])
 
+  // TWO OF THE FOUR PANES ARE ABOVE FREE NOW, and the second one arrived on 2026-08-19 with
+  // the Standard plan: Permission Templates is `tier: 'standard'` and Organization is
+  // `tier: 'plus'`. `lib/features.ts` carries a registry row for `/admin/users/templates`
+  // whose ONLY job is to say so — without it the sub-key inherits `/admin/users` and is Free,
+  // which is what `lib/auth/tier.ts` documents as the default for a tab.
+  //
+  // The shape is exactly the Organization one and the essay above argues it in full: `can()
+  // AND tierAllows()`, which is what `viewableResources()` computes for the same key, so the
+  // rail and the page cannot disagree; the fetch is SKIPPED rather than fetched and hidden
+  // (§5); and the pane is ABSENT rather than empty. `requireTier` at the top of the page
+  // cannot do this job for either of them — it derives the plan from `admin/users`, which is
+  // Free, so a pane resolved with `can()` alone consults no tier at all.
+  //
+  // WHAT IT WITHHOLDS IS THE EDITOR AND NOT THE MODEL. A Free family keeps every template it
+  // ever built and every grant on it, and `auth_permission()` goes on reading whichever
+  // template each member is on. A permission model that switched off with the plan would hand
+  // a downgraded family MORE access than it paid for, which is the one direction a tier gate
+  // must never fail in.
+  const canViewTemplates = templatesGranted && templatesInPlan
   const canViewOrganization = canViewChapters && chaptersInPlan
 
   // No pane at all. The 404 requireView() would have given, and for the same reason — a
@@ -134,6 +159,11 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   // comment argues for: somebody who holds Organization and nothing else, on a family whose
   // plan does not include it, is owed the upgrade screen their old route gave them.
   if (!canViewAccess && !canViewApprovals && !canViewTemplates && !canViewOrganization) {
+    // TEMPLATES IS OFFERED FIRST when a caller holds both withheld grants, because it is the
+    // cheaper rung: Standard opens the Permission Templates pane, and being sent to the
+    // Premium-side answer for a family that needs one upgrade less is a worse sale and a
+    // worse answer. A caller holding only one of the two gets that one either way.
+    if (templatesGranted) redirect('/upgrade?from=%2Fadmin%2Fusers%2Ftemplates')
     if (canViewChapters) redirect('/upgrade?from=%2Fadmin%2Fchapters')
     notFound()
   }

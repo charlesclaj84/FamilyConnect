@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import {
   getGatherings, getMyGatheringTasks, getSchedulableTemplates, type MyTaskRow,
 } from '@/app/actions/gatherings'
@@ -41,10 +42,16 @@ interface Props {
  * notice that explains it and a tier boundary still redirects to `/upgrade`. Copying the
  * union-of-grants shape without those two lines is how this goes wrong later.
  *
- * Both are called on `'gatherings'` rather than once per key, which is exact rather than a
- * shortcut: `requireFamilyActive` consults `REMOVED_FAMILY_RESOURCES` (neither key is on it)
- * and `requireTier` resolves `getFeature('/gatherings')`, which is the entry
- * `/gatherings/my-tasks` would inherit anyway — and both entries state `tier: 'free'`.
+ * `requireFamilyActive` is called on `'gatherings'` rather than once per key, which is exact
+ * rather than a shortcut: it consults `REMOVED_FAMILY_RESOURCES` and neither key is on it, so
+ * the two would answer identically.
+ *
+ * `requireTier` IS ALSO CALLED ON `'gatherings'` AND IS NO LONGER THE WHOLE TIER STORY. It was
+ * until 2026-08-19, when both entries said `tier: 'free'` and the longest-prefix match could
+ * not change the answer. `/gatherings/my-tasks` is `tier: 'standard'` now, so the guard above
+ * checks the FREE half — the right thing for a page whose own key is Free, since a Free family
+ * must still reach its gatherings — and the My Tasks pane ands `tierAllows()` in for itself
+ * below. Both are needed and neither substitutes for the other.
  *
  * ── THE ORDER OF THIS FUNCTION IS ITS SECURITY MODEL ────────────────────────────────
  * Guards, then GRANTS, then fetches — and the fetch pass passes `Promise.resolve([])` in place
@@ -92,27 +99,67 @@ export default async function GatheringsPage({ searchParams }: Props) {
   await requireFamilyActive(user.id, 'gatherings')
   await requireTier(user.id, 'gatherings')
 
-  const [mayViewGatherings, mayViewMyTasks] = await Promise.all([
+  const [mayViewGatherings, myTasksGranted, myTasksInPlan] = await Promise.all([
     can(user.id, 'gatherings', 'view'),
     can(user.id, 'gatherings/my-tasks', 'view'),
+    tierAllows(user.id, 'gatherings/my-tasks'),
   ])
-  if (!mayViewGatherings && !mayViewMyTasks) notFound()
+
+  // ── MY TASKS IS STANDARD; THE GATHERING ITSELF IS FREE ──────────────────────────────
+  // Added 2026-08-19. `requireTier` above resolves `getFeature('/gatherings')`, which is Free,
+  // and this note used to say the two entries carried the same tier so the match could not
+  // matter. It does now: the DUTIES are what Standard sells, and `/gatherings/my-tasks` has
+  // its own registry row saying so. A pane resolved with `can()` alone consults no tier, so
+  // without this line a Free family would be handed the assigned-work half of the feature —
+  // the same hole `/admin/users` had to close by hand for Organization, and the reason that
+  // page's essay is worth reading before touching this one.
+  //
+  // The pane is ABSENT rather than empty, and the fetch below is skipped with it (§5). No task
+  // row is withheld from anybody: a Free family that had tasks keeps every one of them, and
+  // `submitGatheringTask` is deliberately NOT tier-checked, so a member who is mid-answer when
+  // a family lapses is never told their own work is unauthorized.
+  const mayViewMyTasks = myTasksGranted && myTasksInPlan
+  if (!mayViewGatherings && !mayViewMyTasks) {
+    // The one caller owed the upgrade screen rather than a 404: somebody whose ONLY reason to
+    // be here is their own task list, on a family whose plan does not include it. Before the
+    // tier existed they got this page; `/gatherings/my-tasks` redirects here, so a bare
+    // `notFound()` would answer "that does not exist" about a screen that does. Only once the
+    // grant is known to be held — telling somebody with no grant at all that the family needs
+    // an upgrade is a disclosure about its billing and a worse answer than the 404 a
+    // restricted screen owes.
+    if (myTasksGranted) redirect('/upgrade?from=%2Fgatherings%2Fmy-tasks')
+    notFound()
+  }
 
   // The two create-side grants, resolved only for a caller who is being shown the list they
   // belong to. Neither is meaningful on the tasks pane.
-  const [mayCreate, mayAuthorTemplates] = mayViewGatherings
+  const [mayCreate, templatesGranted, templatesInPlan] = mayViewGatherings
     ? await Promise.all([
       canAny(user.id, 'gatherings', 'create'),
       // Only to decide whether the "no templates yet" sentence may LINK to the library. `can`,
       // not `canAny`, because the library pane resolves through `can` — a link offered on any
       // other basis is a link to a 404.
       can(user.id, 'admin/gathering-templates', 'view'),
+      tierAllows(user.id, 'admin/gathering-templates'),
     ])
-    : [false, false]
+    : [false, false, false]
+
+  // THE PLAN AS WELL AS THE GRANT, since the library became `tier: 'standard'` on 2026-08-19.
+  // It decides one link, and the grant alone would make that link a redirect to `/upgrade` —
+  // offering somebody a way to fix an empty fieldset that lands them on a sales screen is worse
+  // than not offering it, because the sentence beside it says what to do and the door is shut.
+  const mayAuthorTemplates = templatesGranted && templatesInPlan
 
   const [gatherings, templates, tasks] = await Promise.all([
     mayViewGatherings ? getGatherings() : Promise.resolve([]),
-    mayCreate ? getSchedulableTemplates() : Promise.resolve([]),
+    // AND THE PICKER IS TIER-GATED TOO, which is the half that is easy to miss:
+    // `getSchedulableTemplates` gates on `gatherings:create` and knows nothing about the plan,
+    // so a family that lapsed to Free would be offered its old templates and could instantiate
+    // a whole tree of tasks from one — the paid capability, arriving through the screen meant
+    // to withhold it. On Free the dialog offers none and schedules a date, which is what Free
+    // sells. `scheduleGathering` is deliberately NOT tier-checked (AGENTS.md); this is the
+    // screen half, and the screen half is all a tier may ever be.
+    mayCreate && templatesInPlan ? getSchedulableTemplates() : Promise.resolve([]),
     mayViewMyTasks ? getMyGatheringTasks() : Promise.resolve([] as MyTaskRow[]),
   ])
 

@@ -160,15 +160,19 @@ function webApplication() {
  * One tier as an `Offer`, derived from `TIER_PRICE` and `TIER_IS_SOLD` in `lib/plans.ts`.
  *
  * ── WHY `priceSpecification` AND NOT `price` FOR THE PAID TIERS ──────────────
- * Because each has TWO rates — month to month, or the year paid in advance — and a bare
- * `price` can carry one number. Two sibling `Offer`s per tier would be the other shape and
- * is worse: a consumer showing "from $10" alongside "from $100" for the same plan reads as
- * two products. An array of `UnitPriceSpecification`s with `billingDuration` says what is
- * actually true, which is one offer purchasable on two cycles.
+ * This said "because each has TWO rates — month to month, or the year paid in advance" and
+ * emitted an array of two `UnitPriceSpecification`s. There is ONE rate since 2026-08-19: the
+ * annual price and its discount were both withdrawn, so the second entry is gone.
+ *
+ * The specification is KEPT for the one rate rather than collapsed to a bare `price`, and the
+ * reason is `billingDuration`. A `price: '15.00'` on a subscription says fifteen dollars and
+ * says nothing about per what — a consumer is free to render it as the cost of the product,
+ * which for a monthly plan is the one number it is not. `unitCode: 'MON'` with a duration of 1
+ * says what is true and is what a rich result needs to quote us correctly.
  *
  * ── `availability` IS THE HONEST HALF ───────────────────────────────────────
- * A price is announced and neither paid tier can be bought — `TIER_IS_SOLD` is false for
- * both, there is no billing, and `/pricing` says Coming soon on both cards with a disabled
+ * Prices are announced and no paid tier can be bought — `TIER_IS_SOLD` is false for all three,
+ * there is no billing, and `/pricing` says Coming soon on every paid card with a disabled
  * button. `PreOrder` is the vocabulary for exactly that. Marking them `InStock` because a
  * figure exists would be a claim the page contradicts on the same screen.
  *
@@ -208,23 +212,16 @@ function tierOffer(tier: FamilyTier) {
         billingIncrement: 1,
         unitCode: 'MON',
       },
-      {
-        '@type': 'UnitPriceSpecification',
-        price: (price.yearlyCents / 100).toFixed(2),
-        priceCurrency: 'USD',
-        billingDuration: 12,
-        billingIncrement: 12,
-        unitCode: 'MON',
-        description: 'Paid in advance for the year',
-      },
     ],
   }
 }
 
 /**
  * The `WebApplication` node as `/pricing` may state it: the same `@id` as the landing
- * page's, so the two are ONE entity rather than two products with one name, carrying all
- * three offers because that page shows all three.
+ * page's, so the two are ONE entity rather than two products with one name, carrying every
+ * tier's offer because that page shows every tier. `TIERS.map` rather than a list, so a plan
+ * inserted in the middle is emitted without an edit here — which is what happened when Standard
+ * arrived, and nothing in this file changed.
  *
  * Everything except `offers` is spread from `webApplication()` rather than restated, which
  * is the point — the feature list, the description and the publisher pointer have exactly

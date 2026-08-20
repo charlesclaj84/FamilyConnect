@@ -29,21 +29,35 @@
  *    `lib/features.ts` states the same rule for the same reason — `proxy.ts` is bundled
  *    separately from the render path — and this module is imported from it.
  *
- * 2. **Tiers are ORDERED and INCLUSIVE.** Premium contains Plus contains Free, exactly
- *    as `/pricing` sells them ("Everything in Plus, plus:"). So a check is `>=` on the
- *    rank and never an equality: `tier === 'plus'` would lock a Premium family out of
- *    the thing they pay the most for, and it is the mistake this module exists to make
- *    unavailable.
+ * 2. **Tiers are ORDERED and INCLUSIVE.** Premium contains Plus contains Standard
+ *    contains Free, exactly as `/pricing` sells them ("Everything in Plus, plus:"). So a
+ *    check is `>=` on the rank and never an equality: `tier === 'plus'` would lock a
+ *    Premium family out of the thing they pay the most for, and it is the mistake this
+ *    module exists to make unavailable.
+ *
+ * ── STANDARD WAS INSERTED IN THE MIDDLE ON 2026-08-19, WHICH IS WHY RULE 2 MATTERS ──
+ * It went in BETWEEN Free and Plus rather than on the end, and everything derived from
+ * `TIERS` re-ranked itself correctly because the order is the semantics: `TIER_RANK` is
+ * built from the array, `tierMeets` reads the rank, and `planAddsBetween()` walks it. The
+ * one thing that could not re-derive is `families_tier_check` in the database, which is why
+ * inserting a tier is a MIGRATION as well as an edit here — 20260819000008 widened the
+ * CHECK, and its header says what would have happened without it (every write of the new
+ * value refused by Postgres, on a value the app considers ordinary).
+ *
+ * NOTHING WAS RE-RANKED IN THE DATABASE, and nothing needed to be: no policy consults
+ * `families.tier` and none may, so the column holds a word rather than a position. A family
+ * on Plus is still on Plus and reaches strictly more than it did — the routes that moved
+ * moved DOWN from Plus or UP from Free, and Plus contains both.
  */
 
-export type FamilyTier = 'free' | 'plus' | 'premium'
+export type FamilyTier = 'free' | 'standard' | 'plus' | 'premium'
 
 /**
  * Cheapest first. The ORDER is the semantics — `TIER_RANK` is derived from it, so adding
  * a tier in the middle re-ranks everything correctly and adding one at the end does not
  * disturb what is already sold.
  */
-export const TIERS: readonly FamilyTier[] = ['free', 'plus', 'premium']
+export const TIERS: readonly FamilyTier[] = ['free', 'standard', 'plus', 'premium']
 
 /** Higher includes lower. Derived, so it cannot disagree with TIERS. */
 export const TIER_RANK: Record<FamilyTier, number> = Object.fromEntries(
@@ -68,6 +82,7 @@ export const DEFAULT_TIER: FamilyTier = 'free'
  */
 export const TIER_LABEL: Record<FamilyTier, string> = {
   free: 'Free',
+  standard: 'Standard',
   plus: 'Plus',
   premium: 'Premium',
 }
@@ -75,11 +90,12 @@ export const TIER_LABEL: Record<FamilyTier, string> = {
 /** One line per plan, lifted from the taglines on `/pricing` so the two cannot drift. */
 export const TIER_TAGLINE: Record<FamilyTier, string> = {
   free: 'Get your whole family in one place. All of them.',
-  plus: 'For families with dues to collect and a reunion to run.',
+  standard: 'Run the family: the tree, the money and who is doing what.',
+  plus: 'For families collecting real payments and answering to a board.',
   premium: 'In every relative’s pocket, and out in the world.',
 }
 
-/** True when a value is one of the three. Narrows, so callers need no cast. */
+/** True when a value is one of the four. Narrows, so callers need no cast. */
 export function isFamilyTier(value: unknown): value is FamilyTier {
   return typeof value === 'string' && (TIERS as readonly string[]).includes(value)
 }

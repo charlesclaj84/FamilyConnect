@@ -3,7 +3,7 @@ import { Lock, ArrowRight, Check, Crown } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { FEATURES } from '@/lib/features'
 import {
-  PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice, monthsFreeOnAnnual,
+  PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
 } from '@/lib/plans'
 import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tiers'
 
@@ -80,7 +80,6 @@ export function UpgradeScreen({
   // the floor, so `tierMeets` is always true for it and no page redirects here. Read
   // defensively anyway rather than asserted: a screen is the wrong place to throw.
   const price = TIER_PRICE[required]
-  const months = price ? monthsFreeOnAnnual(price) : null
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center sm:px-6">
@@ -149,17 +148,17 @@ export function UpgradeScreen({
             "what is this?" and the price is what they ask second. A figure above the
             benefit list would answer the second question first.
 
-            Both rates, because the annual one is the better deal and is easy to miss, and
-            the saving is DERIVED so the sentence cannot contradict the two numbers beside
-            it. `monthsFreeOnAnnual` returns null when it does not divide into whole months,
-            in which case the claim is simply not made. */}
+            ONE RATE, since 2026-08-19. There were two — month to month and the year paid in
+            advance — with a derived "two months free" clause between them; the annual rate and
+            its discount were both withdrawn. The "no annual plan" half is stated rather than
+            left to a bare figure, because a price on an upgrade screen with no term beside it
+            reads as a commitment, and there is none to make. */}
         {price && (
           <p className="mt-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">
               {formatPlanPrice(price.monthlyCents)} a month
             </span>
-            , or {formatPlanPrice(price.yearlyCents)} for the year paid in advance
-            {months ? ` — ${months === 2 ? 'two' : months} months free` : ''}.
+            . No annual plan, no contract.
             {!TIER_IS_SOLD[required] && ' Not on sale yet; nothing is billed today.'}
           </p>
         )}

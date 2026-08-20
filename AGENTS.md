@@ -1299,10 +1299,38 @@ FutureFeature.md's storage warning carries it.
 Six tables — `gathering_templates`, `gathering_template_steps`, `gatherings`,
 `gathering_template_uses`, `gathering_tasks`, `gathering_task_submissions` — and six resource keys:
 `gatherings`, `gatherings/my-tasks`, `gatherings/budget`, `calendar`, `admin/gatherings`,
-`admin/gathering-templates`. Everything is `tier: 'free'`, and that is forced rather than generous:
-a gathering can only be created FROM a template, so putting the authoring screen behind Plus would
-make `/pricing`'s existing Free bullet ("The reunion on the calendar") false — and since Events
-went, `/calendar` is the ONLY thing keeping that bullet true.
+`admin/gathering-templates`.
+
+**THE SIX KEYS ARE SPLIT ACROSS TWO PLANS SINCE 2026-08-19**, and this said "everything is
+`tier: 'free'`, and that is forced rather than generous" — forced because a gathering could only be
+created FROM a template, so selling the authoring screen would have made `/pricing`'s Free bullet
+false. Standard was inserted between Free and Plus and the boundary now runs THROUGH the feature,
+between the DATE and the PLANNING:
+
+| Free | Standard |
+|---|---|
+| `calendar`, `gatherings`, `admin/gatherings` | `admin/gathering-templates`, `gatherings/my-tasks`, `gatherings/budget` |
+
+What made the split possible is the one behaviour change that went with it: **`scheduleGathering`
+and `createGathering` accept an EMPTY template list now**, so a Free family's gathering is a date,
+a place and a description on the calendar. Without that the split would have left Free selling a
+calendar nothing could be put on, which is the argument the old paragraph was making and it was
+right — it was an argument about the ACTION, not about the tier.
+
+Three consequences a change here will get wrong:
+
+* **`/admin/gatherings` is FREE and its Templates pane is not.** That page decomposes
+  `requireView` over two keys, so it ands `tierAllows()` into the library pane by hand and
+  redirects a templates-only caller to `/upgrade`. Same for `/gatherings` and its My Tasks pane.
+  `requireTier` at the top of either page resolves the page's OWN key and cannot see a pane.
+* **`gatherings/budget` and `admin/users/templates` have `FEATURES` rows that are not routes**,
+  carrying nothing but the tier — the `/transactions/fund-transfers` device. Both are named in
+  `help-check.mjs`'s `UNDOCUMENTED_OK` for that reason.
+* **The template READS are tier-gated, the WRITES are not.** `getSchedulableTemplates` and
+  `getGatheringTemplates` are skipped for a Free family so the picker offers nothing; the actions
+  keep taking `templateIds`, because the actions behind a paid page are deliberately not
+  tier-checked (see the tier section below). The tier withholds the screen; the permission model
+  is what stops the wrong person.
 
 ## FOUR ROUTES ARE REDIRECTS, AND THEIR KEYS ARE WHY THEY EXIST
 
@@ -1326,7 +1354,9 @@ and `/announcements` (General · Updates · Birthdays) all decompose `requireVie
 `can()` calls, because any one of their keys is a sufficient reason to be on the screen. Every one of
 them therefore owes `requireFamilyActive` and `requireTier` BY HAND, above the grants, in that
 order — see "A PAGE THAT RESOLVES PANES BY HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND
-TOO". All three do. `/admin/users` still does not, and that gap is recorded where it is.
+TOO". All three do, and so does `/admin/users` — it was the exception until the
+`requireFamilyActive` line was added to it; the note where that gap was recorded now records the
+repair instead.
 
 The pane ids and their ledes live in PURE modules — `lib/gathering-panes.ts`,
 `lib/announcement-panes.ts`, `components/admin/account-sections.ts` — and never in the `'use
@@ -1727,15 +1757,26 @@ reporting it.
 
 `/announcements` is the worked example done right: `requireFamilyActive`, then `requireTier`,
 then the union of the two pane grants, in that order and argued in the file. `/admin/users`
-carries only half. `canViewOrganization` is `can(…) AND tierAllows(…)`, because Organization is
-a Plus feature while its other three tabs are not, and a chapters-only caller on a Free family
+does the same now — it carried only half until the removal gap below was closed.
+`canViewOrganization` is `can(…) AND tierAllows(…)`, because Organization is a Plus feature
+while the Members and Pending Approval tabs are not, and a chapters-only caller on a Free family
 gets `redirect('/upgrade…')` rather than a 404 — which is what `requireView('admin/chapters')`
 used to answer for them; everyone else gets pane-absence rather than a redirect, because an
 administrator who opened the Members tab must not be thrown onto a sales screen over a pane they
-were not looking at. But **it has never called `requireFamilyActive`**: that predates the
-removal feature rather than being a decision this arrangement made, and it is a real gap — an
-administrator of a REMOVED family can still open Members & Access. Whoever next touches that
-page owes it the line.
+were not looking at.
+
+**TWO OF ITS FOUR PANES CARRY A TIER GATE SINCE 2026-08-19**, and the second one is the reason
+this is worth reading before touching that page: Permission Templates is `tier: 'standard'`, so
+`canViewTemplates` is `can(…) AND tierAllows(…)` on exactly the Organization pattern, and the
+no-pane branch offers `/upgrade` for TEMPLATES first because Standard is the cheaper rung. The
+sub-key has no route, so a `FEATURES` row in `lib/features.ts` is what carries the tier at all —
+without it `tierAllows` longest-prefix-matches `/admin/users` and answers Free.
+
+**AND THE `requireFamilyActive` GAP IS CLOSED.** This paragraph read "it has never called
+`requireFamilyActive` … an administrator of a REMOVED family can still open Members & Access.
+Whoever next touches that page owes it the line." The line is there. It is keyed on
+`admin/users` rather than on the tab being asked for, because none of the four keys is in
+`REMOVED_FAMILY_RESOURCES` and so all four would answer identically.
 
 What this is NOT licence for: folding two keys together because one screen happens to show
 both. If a family could never sensibly hold one and not the other, they were one job and should
@@ -1813,6 +1854,21 @@ fail differently on purpose:
 |---|---|
 | not shipped | Coming Soon, from `proxy.ts`. Nobody can have it yet, on any plan. |
 | above the tier | `/upgrade`, from `requireView`. It works, and this family has not bought it. |
+
+**THERE ARE FOUR PLANS SINCE 2026-08-19 — Free, Standard, Plus, Premium — and Standard went in
+the MIDDLE.** Everything derived from `TIERS` re-ranked itself, because the array order IS the
+semantics: `TIER_RANK`, `tierMeets`, `tiersIncludedIn` and `planAddsBetween` all read it. Two
+things did not and had to be edited in the same commit — `families_tier_check` in the database
+(`20260819000009`), and `inheritsFrom` on the card above the new one in `PLANS[]`. Nothing else,
+which is the property to preserve when a fifth arrives.
+
+What moved, and it is a restructure rather than an addition: the family tree, the whole
+dues-and-donations ledger (six routes), the permission-template editor and the planning half of
+Gatherings all went UP from Free to Standard, and profile pictures came DOWN from Plus. That was
+admissible on one ground, and it is a fact rather than an argument — **no family is using this
+product yet**, so there is nobody to grandfather. `20260819000009`'s header is where that is
+recorded, along with what a restructure of this shape would owe if it happened after billing
+exists.
 
 Answering both with one screen was the obvious shortcut and is wrong in both directions:
 telling a paying family that a shipped feature is "coming soon" is a lie, and telling a
@@ -1893,6 +1949,27 @@ Four things about the mechanism are load-bearing.
   match `auth_family_code()`, and why the server actions behind a paid page are
   deliberately *not* tier-checked — the first time a family downgraded, one would start
   answering "Not authorized" for their own history.
+
+  **A READ ACTION MAY NARROW ON THE PLAN. IT MAY NEVER REFUSE ON ONE.** The exception to the
+  sentence above, and the line is sharp enough to state as a test: does the tier change which
+  COLUMNS come back, or does it change WHETHER ANYTHING comes back?
+
+  | | |
+  |---|---|
+  | narrowing — allowed | `getResources()` tier-filters the permission grid; `getAdminGatherings` and `getGatheringDetail` answer `budget: null` for a caller whose plan excludes the money band. Every row still returns. |
+  | refusing — forbidden | an action whose whole return value is the withheld thing, answering `[]`. That is not a screen band; it is a lie about the family's own records. |
+
+  Learned by doing it: a tier check went into `getGatheringFundOptions` on 2026-08-19 on §5's
+  "gate the fetch" reflex, and `npm run test:rls` refused it on the first run — **through the
+  POSITIVE CONTROL, not the attack.** ALPHA's own administrator, entitled to the call, got `[]`
+  because the fixture's families are on the default plan. That is §7's argument for the control
+  half in one line: the attack passed, because a function that answers nothing to everybody is
+  perfectly isolated.
+
+  Where the withheld thing IS the whole answer, the tier belongs at the PAGE, which skips the
+  call — so the fetch never happens and §5 is discharged without the action having to lie.
+  `/transactions` puts its Plus ledger's tier there; `/admin/gatherings` and
+  `/admin/gatherings/[id]` put the fund picker's there.
 * **The browser can never set it; one server action can.** A tier is a billing fact.
   `families_guard_tier` (`20260813000003`) refuses any change made by the `authenticated`
   role — the same shape as `people_guard_permission_template` and
@@ -1903,7 +1980,7 @@ Four things about the mechanism are load-bearing.
 
   Since 2026-08-13 `setFamilyTier` (`app/actions/admin/family.ts`) moves it deliberately,
   through the **service role**, gated on `admin/family:edit` at scope `'any'`; the Plan
-  panel at the top of `/admin/family` offers all three. **It is scaffolding, not billing** —
+  panel at the top of `/admin/family` offers every one of them. **It is scaffolding, not billing** —
   nothing is charged, and the panel says so rather than dressing itself as a checkout.
   Keep the boundary where the guard draws it: around the ROLE the browser speaks as, never
   around the column, so a new write to `families` cannot become a self-upgrade by accident.
@@ -1917,15 +1994,50 @@ Four things about the mechanism are load-bearing.
 
 **What it cannot express: a tier boundary running THROUGH a page.** The worked example was
 `/events`, which was Free ("put the reunion on the calendar") while the RSVPs inside it were sold
-as Plus — and that route is retired without the problem having been solved. The mechanism already
-exists and is the one permissions use: give the capability its own sub-key with its own registry
-entry, as `transactions/dues-payments` does and as `gatherings/budget` already does for the money
-band on a page whose own tier is Free. Until somebody does, a page's tier governs everything on it.
+as Plus — and that route was retired without the problem having been solved. The mechanism is the
+one permissions use: give the capability its own sub-key with its own registry entry. Until
+somebody does, a page's tier governs everything on it.
+
+**FOUR SUB-KEYS DO IT TODAY, and three of the four arrived on 2026-08-19 with Standard.** This
+paragraph read as a gap; it is a pattern now, and the pattern has a shape worth copying exactly:
+
+| Sub-key | On a page that is | Carried by |
+|---|---|---|
+| `transactions/fund-transfers` | `/transactions`, Standard | a `FEATURES` row that is not a route |
+| `gatherings/budget` | `/gatherings`, Free | a `FEATURES` row that is not a route |
+| `admin/users/templates` | `/admin/users`, Free | a `FEATURES` row that is not a route |
+| `admin/gathering-templates` | `/admin/gatherings`, Free | a real route that redirects into the pane |
+
+All four cost the same three things and every one of them is easy to leave out. A `FEATURES` row
+with `status: 'live'` (a `'future'` row rewrites the PARENT's paths to Coming Soon at the edge and
+drops the grid switch out of `getResources()`); an `UNDOCUMENTED_OK` entry in `help-check.mjs` for
+the ones that are not routes; and the PAGE anding `tierAllows()` into that pane's grant by hand,
+because `requireView`/`requireTier` resolve the page's own key and cannot see a pane.
 
 **`PLANS[]` on `/pricing` is not derived from this and must not be.** One bullet spans
 several routes and several routes are sold in no bullet at all. Moving a bullet between
 cards now changes more than a document: check whether a route has to move with it —
 `grep "tier: '" lib/features.ts` is the whole job.
+
+**A TIER TAG THAT SITS BESIDE A ROUTE *IS* DERIVED, AND MUST BE.** The distinction is the one
+above, one level down: a BULLET is prose about benefits and corresponds to nothing, while a
+tag on a card that already names a route is a second copy of this registry. `/features`'s
+`ALSO` grid carried a hand-typed `'Free' | 'Plus'` next to a `route` for months and went on
+printing it while Standard was inserted underneath — nothing in the tree could notice. It reads
+`getFeature(route).tier` through `TIER_LABEL` now, and the hand-set field is admissible only for
+an item with no route at all.
+
+**AND A PRICE IN PROSE IS STILL A PRICE.** `TIER_PRICE` in `lib/plans.ts` is the one place any
+figure is written down — the cards, the FAQ, the plan panel, the upgrade screen and the one
+sentence on `/features` all read it. Typing "$5 a month" into a paragraph is how two pages come
+to disagree, and the paragraph is the copy nobody thinks to check.
+
+**THERE IS ONE RATE PER TIER, MONTHLY.** An annual price at ten months for twelve existed until
+2026-08-19 and both it and the discount were withdrawn. The "two months free" sentence on three
+surfaces vanished on its own, because it was DERIVED from the two figures rather than typed
+beside them — which is the whole argument for deriving a claim about a number, demonstrated. Do
+not put a yearly figure back by multiplying: it commits the product to an annual plan with no
+billing, no terms and no answer for a family that downgrades in March.
 
 # The product explains itself, and the explanation is part of the screen
 

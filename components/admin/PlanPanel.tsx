@@ -12,7 +12,7 @@ import { verifyCurrentPassword } from '@/lib/supabase/client'
 import { useServerState } from '@/lib/use-server-state'
 import { setFamilyTier } from '@/app/actions/admin/family'
 import {
-  PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice, monthsFreeOnAnnual,
+  PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
   planAddsBetween, planChange,
   type PlanChange, type PlanHighlight,
 } from '@/lib/plans'
@@ -195,7 +195,6 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
           // `null` for Free, which has no price rather than a price of zero — see the
           // comment beside the figure below.
           const price = TIER_PRICE[plan]
-          const months = price ? monthsFreeOnAnnual(price) : null
           return (
             <li
               key={plan}
@@ -240,17 +239,18 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                   belongs — the tagline above has already said what Free is.
 
                   NOT A CHECKOUT, and the row says so separately: `TIER_IS_SOLD` is what
-                  draws the "Not sold yet" pill above, and it is false for both priced tiers.
-                  A figure and a purchase are different facts. */}
+                  draws the "Not sold yet" pill above, and it is false for every priced tier —
+                  all three of them. A figure and a purchase are different facts. */}
               {price && (
                 <p className="mt-1 text-sm">
                   <span className="font-semibold text-brand-ink">
                     {formatPlanPrice(price.monthlyCents)}
                   </span>
-                  <span className="text-muted-foreground">
-                    {' '}/month · or {formatPlanPrice(price.yearlyCents)} a year paid in advance
-                    {months ? ` (${months === 2 ? 'two' : months} months free)` : ''}
-                  </span>
+                  {/* ONE RATE. The annual figure and its "(two months free)" clause were
+                      withdrawn on 2026-08-19 — see `TIER_PRICE`. "No annual plan" replaces them
+                      rather than a bare "/month": a figure with no term beside it invites an
+                      administrator to assume a commitment, and there is none to make. */}
+                  <span className="text-muted-foreground"> /month · no annual plan</span>
                 </p>
               )}
 
@@ -584,8 +584,7 @@ function PlanDetailDialog({ plan, current, onClose }: {
           // three renderings.
           const price = TIER_PRICE[plan]
           const rate = price
-            ? ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, or `
-              + `${formatPlanPrice(price.yearlyCents)} for the year paid in advance.`
+            ? ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, month to month.`
             : ''
           return `${rate} There is no payment step yet — nothing here is billed.`
         })()}

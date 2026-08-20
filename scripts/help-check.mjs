@@ -464,6 +464,18 @@ const UNDOCUMENTED_OK = {
   '/transactions/fund-transfers':
     'not a route — a registry row carrying the Plus tier for the Fund Transfers ledger, ' +
     'which is documented with the other four at transactions#ledgers',
+  // TWO MORE OF THE SAME KIND, added 2026-08-19 with the Standard plan. Both are
+  // `lib/features.ts` rows whose only job is to carry a tier for a sub-key that has no route
+  // of its own — the device the entry above describes — and both surfaces ARE documented, in
+  // the chapter for the screen they are actually part of. An allowance rather than a chapter,
+  // because a chapter for a non-route would appear in the contents as a screen a member can
+  // open, which is the one thing the manual must not claim.
+  '/admin/users/templates':
+    'not a route — a registry row carrying the Standard tier for the Permission Templates ' +
+    'pane of Members & Access, which is documented at members-and-access#templates',
+  '/gatherings/budget':
+    'not a route — a registry row carrying the Standard tier for the money band on a ' +
+    'gathering, which is documented at gatherings#budget',
 }
 
 function checkUndocumented() {

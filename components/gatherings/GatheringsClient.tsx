@@ -7,7 +7,7 @@ import { CalendarDays, CirclePlus, MapPin, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label, RequiredMark } from '@/components/ui/label'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
@@ -55,20 +55,30 @@ import { scheduleGathering, type GatheringSummary } from '@/app/actions/gatherin
  * becomes a second, deliberate press. `NewGatheringDialog` in `AdminGatheringsClient` handles
  * the identical contract from `createGathering` the same way; the two must not diverge.
  *
- * ── THE DIALOG IS TEMPLATE-FIRST, AND THAT IS THE PRODUCT ───────────────────────────
- * A gathering can only exist as an instance of one or more templates — that is what makes it
- * different from an Event, and it is what the action enforces (`templateIds` must be
- * non-empty). So the templates come first in the form, above the title: a member who has not
- * chosen one has not started, and asking for a title first would let them fill in a whole form
- * before finding out.
+ * ── THE DIALOG IS TEMPLATE-FIRST, AND A TEMPLATE IS NO LONGER REQUIRED ──────────────
+ * This said "a gathering can only exist as an instance of one or more templates" until
+ * 2026-08-19, and the form was built on it: the fieldset came first, above the title, and a
+ * family with no template got a paragraph INSTEAD of the create button.
  *
- * ── AND A FAMILY WITH NO TEMPLATE GETS A SENTENCE, NOT A DISABLED BUTTON ────────────
- * `templates` is empty either because nobody has authored one or because every one of them is
- * marked `who_may_schedule = 'admin'` and this caller is not an organizer. Both are the same
- * answer to the member — there is nothing here for you to schedule from — and a greyed-out
- * button is the worst way to say it, because it looks like a permission problem and offers no
- * next step. The sentence names what a template is and who authors one, and links to the
- * library only when the caller can actually open it.
+ * Standard changed the boundary rather than the shape. `/pricing` sells "the gathering on a
+ * shared calendar" on Free — a date, a place and the details — and sells the checklists, the
+ * assigned duties and the budget a rung up, so `admin/gathering-templates` is `tier:
+ * 'standard'` and a Free family HAS no templates to be offered. Requiring one would leave Free
+ * selling a calendar nothing can be put on. `scheduleGathering` accepts an empty list now and
+ * its header argues that at length.
+ *
+ * What survives is the ORDER: when there are templates the fieldset is still first, because
+ * choosing one changes what the rest of the form is for, and finding that out after filling in
+ * a title is the wrong way round.
+ *
+ * ── WHAT A FAMILY WITH NO TEMPLATE SEES NOW ─────────────────────────────────────────
+ * The button, and a one-line note inside the dialog saying this will be a date with no tasks.
+ * `templates` is empty for four different reasons — the plan does not include the library,
+ * nobody has authored one, every one is `who_may_schedule = 'admin'` and this caller is not an
+ * organizer, or every one is archived — and they are all the same answer to the member, so the
+ * note does not try to distinguish them. It links to the library only when the caller both
+ * holds the grant AND is on a plan that includes it, because a link that lands on `/upgrade` is
+ * a worse offer than no link.
  */
 export interface GatheringRow extends GatheringSummary {
   /**
@@ -152,7 +162,6 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
 
   function handleSchedule() {
     const name = title.trim()
-    if (chosen.length === 0) { setError('Choose at least one template to schedule from'); return }
     if (!name) { setError('Give the gathering a title'); return }
     if (!startsOn) { setError('Choose the day it starts'); return }
     if (endsOn && endsOn < startsOn) { setError('The last day cannot be before the first'); return }
@@ -196,31 +205,19 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
 
   return (
     <div className="space-y-8">
+      {/* THE TRIGGER NO LONGER DEPENDS ON THERE BEING A TEMPLATE, and until 2026-08-19 it
+          did: a family with none got a paragraph here INSTEAD of the button, because a
+          gathering could only exist as an instance of one. It can exist as a date now, which
+          is what Free sells — so the button is offered to anybody who may schedule, and the
+          templates, if there are any, are an optional fieldset inside the dialog. */}
       {mayCreate && (
-        templates.length > 0 ? (
-          <div className="flex justify-end">
-            {/* Affirm, never the default burgundy — that is what an active rail item looks
-                like, and this is a create trigger. */}
-            <Button variant="affirm" onClick={() => setOpen(true)}>
-              <CirclePlus className="h-4 w-4 mr-1" /> Schedule a gathering
-            </Button>
-          </div>
-        ) : (
-          <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            A gathering is built from a template — a named list of the jobs it takes, which an
-            organizer authors once and the family schedules from again and again. There is no
-            template here for you to start one from yet.
-            {mayAuthorTemplates && (
-              <>
-                {' '}
-                <Link href="/admin/gathering-templates" className="font-medium underline">
-                  Author one
-                </Link>
-                {' '}and it becomes available to schedule.
-              </>
-            )}
-          </p>
-        )
+        <div className="flex justify-end">
+          {/* Affirm, never the default burgundy — that is what an active rail item looks
+              like, and this is a create trigger. */}
+          <Button variant="affirm" onClick={() => setOpen(true)}>
+            <CirclePlus className="h-4 w-4 mr-1" /> Schedule a gathering
+          </Button>
+        </div>
       )}
 
       <Section
@@ -235,28 +232,57 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
       />
 
       {/* The dialog is only MOUNTED for a caller who could open it. `open` can never be true
-          otherwise — the trigger is the only thing that sets it — but a form whose template
-          fieldset would render as an empty bordered box is not markup worth keeping reachable. */}
-      {mayCreate && templates.length > 0 && (
+          otherwise — the trigger is the only thing that sets it — but markup nobody can reach
+          is not worth keeping reachable. It no longer also requires a template: the fieldset
+          that needed one is conditional now, inside. */}
+      {mayCreate && (
       <Dialog
         open={open}
         onClose={closeDialog}
         title="Schedule a gathering"
-        description="Choose the templates it is built from, then say when and where."
+        description="Say when and where. If there are templates, choose what it is built from."
         className="max-w-lg"
       >
         <div className="mt-2 space-y-3">
+          {/* THE FIELDSET IS CONDITIONAL AND OPTIONAL, which are two separate changes made on
+              2026-08-19 and both matter.
+
+              CONDITIONAL, because `templates` is empty for a family whose plan does not include
+              the library at all (`admin/gathering-templates` is `tier: 'standard'`), as well as
+              for one where nobody has authored a template or where every one of them is marked
+              `who_may_schedule = 'admin'`. An empty bordered box above the title, with a legend
+              claiming the gathering is "built from" it, reads as a broken form.
+
+              OPTIONAL, because a gathering may now be just a date — see `scheduleGathering`.
+              The `RequiredMark` came off the legend with the guard in `handleSchedule`, and the
+              two had to move together: a form that marks a group required and then submits
+              without it teaches a member that the mark means nothing. */}
+          {/* AND WHEN THERE ARE NONE, THE OFFER TO AUTHOR ONE SURVIVES. This sentence is what
+              is left of the paragraph that used to stand in place of the trigger, and it is
+              kept for the reason that paragraph existed: an organizer looking at a form with no
+              template fieldset has no way to learn that templates are the thing that turns a
+              date into assigned work. It links only when the caller can actually open the
+              library — `mayAuthorTemplates` is resolved with `can`, and on the PLAN as well
+              since the library is `tier: 'standard'`, so the link cannot land on `/upgrade` or
+              a 404. */}
+          {templates.length === 0 && mayAuthorTemplates && (
+            <p className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              This will be a date on the family calendar with no tasks.{' '}
+              <Link href="/admin/gathering-templates" className="font-medium underline">
+                Author a template
+              </Link>
+              {' '}and a gathering can be built from it, with every step handed to a relative.
+            </p>
+          )}
+
+          {templates.length > 0 && (
           <fieldset className="space-y-1.5">
             {/* A `<fieldset>`/`<legend>` rather than a `Label`, because this group is several
-                checkboxes and a `<label>` may name only one control. `RequiredMark` is imported
-                rather than hand-rolled: the mark is `--brand-accent` and not `--destructive`
-                (a field nobody has filled in yet is not in an error state), it is set at
-                `0.7em` so it reads as an annotation rather than as part of the name, and it
-                carries its own `sr-only` "(required)" so a screen reader does not say "star".
-                Forty call sites wrote the wrong version by hand before it existed. */}
-            <legend className="text-sm font-medium">
-              Built from<RequiredMark />
-            </legend>
+                checkboxes and a `<label>` may name only one control. There is no
+                `RequiredMark` on it any more — a template is optional since 2026-08-19 — but
+                the reason for the `<fieldset>` is about NAMING the group and is unchanged: a
+                bare `<Label>` with no `htmlFor` and no nested input labels nothing at all. */}
+            <legend className="text-sm font-medium">Built from</legend>
             <div className="space-y-2 rounded-xl border p-3">
               {templates.map(template => (
                 <label key={template.id} className="flex cursor-pointer items-start gap-2 select-none">
@@ -277,9 +303,11 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
             </div>
             <p className="text-xs text-muted-foreground">
               Every step of every template you choose becomes a task on this gathering, ready to
-              hand out.
+              hand out. Choose none and this is a date on the family calendar with no tasks —
+              an organizer can build it out later.
             </p>
           </fieldset>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="gathering-title" required>Title</Label>

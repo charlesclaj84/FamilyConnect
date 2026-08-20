@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView, can, canAny } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import {
   getAdminGatheringDetail, getGatheringAssignableMembers, getGatheringFundOptions,
 } from '@/app/actions/admin/gatherings'
@@ -68,21 +69,42 @@ export default async function AdminGatheringDetailPage({
 
   await requireView(user.id, 'admin/gatherings')
 
-  const [mayEdit, mayDelete, mayManageBudget, mayViewMemberPage, mayViewAccounting] =
-    await Promise.all([
-      canAny(user.id, 'admin/gatherings', 'edit'),
-      canAny(user.id, 'admin/gatherings', 'delete'),
-      canAny(user.id, 'gatherings/budget', 'view'),
-      can(user.id, 'gatherings', 'view'),
-      can(user.id, 'admin/account', 'view'),
-    ])
+  // ── THREE OF THESE ANSWERS ARE A GRANT *AND* A PLAN SINCE 2026-08-19 ──────────────
+  // `requireView('admin/gatherings')` above resolves the tier for THIS page, which is Free.
+  // Three of the things on it are not, and each is its own registry row in `lib/features.ts`
+  // rather than a judgement made here:
+  //
+  //   gatherings/budget            standard — the money band, and the fund picker behind it
+  //   admin/gathering-templates    standard — the checklists this gathering can be rebuilt from
+  //   admin/account               standard — where the "set up a fund" link goes
+  //
+  // The last one is the one worth pausing on: it is not a fetch at all, it is a LINK, and a
+  // link offered to a family whose plan does not include its destination is a link that
+  // bounces off `/upgrade`. Withholding it is the same rule as withholding a fetch, applied to
+  // the only thing on this page that has no data behind it.
+  const [
+    mayEdit, mayDelete, budgetGranted, mayViewMemberPage, accountingGranted,
+    budgetInPlan, templatesInPlan, accountingInPlan,
+  ] = await Promise.all([
+    canAny(user.id, 'admin/gatherings', 'edit'),
+    canAny(user.id, 'admin/gatherings', 'delete'),
+    canAny(user.id, 'gatherings/budget', 'view'),
+    can(user.id, 'gatherings', 'view'),
+    can(user.id, 'admin/account', 'view'),
+    tierAllows(user.id, 'gatherings/budget'),
+    tierAllows(user.id, 'admin/gathering-templates'),
+    tierAllows(user.id, 'admin/account'),
+  ])
+
+  const mayManageBudget = budgetGranted && budgetInPlan
+  const mayViewAccounting = accountingGranted && accountingInPlan
 
   const [gathering, members, funds, libraryTemplates, schedulableTemplates] = await Promise.all([
     getAdminGatheringDetail(id),
     mayEdit ? getGatheringAssignableMembers() : [],
     mayManageBudget ? getGatheringFundOptions() : [],
-    mayEdit ? getGatheringTemplates() : [],
-    mayEdit ? getSchedulableTemplates() : [],
+    mayEdit && templatesInPlan ? getGatheringTemplates() : [],
+    mayEdit && templatesInPlan ? getSchedulableTemplates() : [],
   ])
 
   if (!gathering) notFound()

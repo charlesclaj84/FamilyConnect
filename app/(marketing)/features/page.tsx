@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
-  BarChart3, Store, ShieldCheck, Users,
+  BarChart3, Store, ShieldCheck, Users, Network,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,9 @@ import {
 import { PILLARS } from '@/components/marketing/pillars'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
-import { isFeatureFuture } from '@/lib/features'
+import { isFeatureFuture, getFeature } from '@/lib/features'
+import { DEFAULT_TIER, TIER_LABEL } from '@/lib/tiers'
+import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
@@ -65,26 +67,41 @@ export const metadata: Metadata = {
 /**
  * THE TIER TAG IS NOT DECORATION. This grid used to sit under a heading reading
  * "Included, not upsold — every one of these ships in the same account", which was true
- * when it was written and stopped being true the moment the tiers were set: photo
- * collections, elections, documents, chapters and reports are Plus. Per-feature
- * permissions were on that list and are now Free — the privacy section below says so
- * without a tier tag, and that omission is the current answer rather than an oversight.
+ * when it was written and stopped being true the moment the tiers were set.
  *
  * A features page that implies a paid capability is free is the most expensive kind of
  * marketing error — the customer discovers it at the exact moment they were ready to
  * commit, and what they learn is that we were not straight with them. So each card says
  * which tier it belongs to, and the tags link to /pricing.
  *
- * `tier: null` means NOT YET ASSIGNED and renders no tag at all. Trusted Vendors is the
- * only one, because it was not in the tier breakdown — do not guess it into a tier to make
- * the grid look tidy.
+ * ── AND IT IS DERIVED NOW, WHICH IT WAS NOT UNTIL 2026-08-19 ────────────────────────
+ * Every item with a `route` takes its tier from `lib/features.ts` through `getFeature()`, and
+ * its NAME from `TIER_LABEL`. It used to be a hand-typed `'Free' | 'Plus'` sitting beside a
+ * route that already knew the answer — a second copy of the tier table, on the one page whose
+ * entire argument is that it does not misrepresent what a plan includes.
+ *
+ * Inserting Standard made that cost concrete rather than theoretical: five of these items kept
+ * their routes and changed nothing, and this list would have gone on printing whatever was
+ * typed here, silently, with nothing in the tree able to notice. The `status` badge beside it
+ * has been derived from the same registry since it was written, for exactly this reason; the
+ * tier was the half that was not.
+ *
+ * `tier` IS THEREFORE ONLY SETTABLE ON A ROUTE-LESS ITEM, which is the rule `soon` already
+ * states, and `null` means NOT YET ASSIGNED and renders no tag. Trusted Vendors is the only
+ * one, because it was not in the tier breakdown — do not guess it into a tier to make the grid
+ * look tidy.
  */
 const ALSO: readonly {
   icon: LucideIcon
   title: string
   blurb: string
-  tier: 'Free' | 'Plus' | null
-  /** Route in `lib/features.ts` whose status decides the badge. Never linked. */
+  /**
+   * Hand-set, and ONLY for a capability with no route to derive from — see above. An item with
+   * a `route` must not set this: the registry is the answer, and a string that disagrees with
+   * it is precisely the drift the derivation exists to prevent.
+   */
+  tier?: 'Free' | null
+  /** Route in `lib/features.ts` whose status AND tier decide both badges. Never linked. */
   route?: string
   /**
    * Hand-set, and ONLY for a capability with no route to derive from. Trusted Vendors is
@@ -94,13 +111,14 @@ const ALSO: readonly {
    */
   soon?: boolean
 }[] = [
-  { icon: MessagesSquare, tier: 'Free', route: '/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
-  { icon: Megaphone, tier: 'Free', route: '/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  { icon: Vote, tier: 'Plus', route: '/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
-  { icon: Images, tier: 'Plus', route: '/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, tier: 'Plus', route: '/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
-  { icon: MapPinned, tier: 'Plus', route: '/admin/chapters', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
-  { icon: BarChart3, tier: 'Plus', route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership over time, and dues collected against what is still outstanding, at a glance.' },
+  { icon: MessagesSquare, route: '/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
+  { icon: Megaphone, route: '/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
+  { icon: Network, route: '/family-tree', title: 'The family tree', blurb: 'Four generations around whoever you click, with blood and marriage told apart.' },
+  { icon: Vote, route: '/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
+  { icon: Images, route: '/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
+  { icon: FileText, route: '/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
+  { icon: MapPinned, route: '/admin/chapters', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
+  { icon: BarChart3, route: '/admin/reports', title: 'Leadership reports', blurb: 'Membership over time, and dues collected against what is still outstanding, at a glance.' },
   { icon: Store, tier: null, soon: true, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
 
@@ -108,6 +126,32 @@ const ALSO: readonly {
 function isComingSoon(item: { route?: string; soon?: boolean }) {
   return item.soon === true || (item.route ? isFeatureFuture(item.route) : false)
 }
+
+/**
+ * The tier tag's text — the registry's answer for anything with a route, the hand-set value
+ * otherwise, and `null` for an item with neither.
+ *
+ * `getFeature()` longest-prefix-matches, so a typo in a `route` above degrades to whatever the
+ * nearest registered parent says rather than to no tag at all. That is the same behaviour the
+ * `status` badge has always had here, and it is why the routes in this list are exact hrefs
+ * from `lib/features.ts` rather than approximations of them.
+ */
+function tierTag(item: { route?: string; tier?: 'Free' | null }): string | null {
+  if (item.route) return TIER_LABEL[getFeature(item.route)?.tier ?? DEFAULT_TIER]
+  return item.tier ?? null
+}
+
+/**
+ * The one FIGURE this page states, read from `TIER_PRICE` rather than typed.
+ *
+ * A price in prose is still a price: `lib/plans.ts` is the single place any of them is written
+ * down precisely so that a change cannot leave one page saying $5 and another $7. The empty
+ * string is the honest fallback for an unpriced tier — the sentence around it names Standard
+ * either way, and a "$0" or a "TBA" would both be claims nobody made.
+ */
+const STANDARD_RATE = TIER_PRICE.standard
+  ? formatPlanPrice(TIER_PRICE.standard.monthlyCents)
+  : ''
 
 export default function FeaturesPage() {
   return (
@@ -223,9 +267,10 @@ export default function FeaturesPage() {
               pillar rather than as a note about all three. */}
           <Reveal delay={200}>
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
-              Free covers the family tree, the directory, chat, announcements and putting
-              the gathering on the calendar with its work handed out. Card and digital
-              payments, the dues projections and the treasury reports are Plus.{' '}
+              Free covers the directory, chat, announcements and putting the gathering on a
+              shared calendar. The family tree, the dues ledger and handing out the work are
+              Standard, at {STANDARD_RATE} a month. Card and digital payments, the dues
+              projections and the treasury reports are Plus.{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
                 See what is in each tier
               </Link>
@@ -242,7 +287,7 @@ export default function FeaturesPage() {
             id="also-heading"
             eyebrow="And the rest"
             title="Everything else it does"
-            lede="Chat and announcements come with the free account; the organizational machinery is Plus. Every card says which tier it belongs to, and which are still on the way — finding either out at checkout is not a nice surprise."
+            lede="Chat and announcements come with the free account; running the family is Standard and the organizational machinery is Plus. Every card says which tier it belongs to, and which are still on the way — finding either out at checkout is not a nice surprise."
           />
 
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -257,20 +302,30 @@ export default function FeaturesPage() {
                         that costs, and the answer is one tap away rather than a scroll
                         back up to the nav. `tier: null` renders nothing — see the note
                         on ALSO about not guessing an unassigned feature into a tier. */}
-                    {item.tier && (
-                      <Link
-                        href="/pricing"
-                        aria-label={`${item.title} is included in the ${item.tier} plan — see pricing`}
-                        className={cn(
-                          'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-opacity hover:opacity-80',
-                          item.tier === 'Free'
-                            ? 'bg-brand-affirm/15 text-brand-affirm'
-                            : 'bg-brand-legacy/20 text-brand-ink',
-                        )}
-                      >
-                        {item.tier}
-                      </Link>
-                    )}
+                    {(() => {
+                      // Resolved once here rather than read off the item, because it is
+                      // DERIVED from `lib/features.ts` for anything with a route — see the note
+                      // on `ALSO`. Free stays affirm-green and every paid tier is gold: the tag
+                      // answers "is this in the free account?", and giving Standard, Plus and
+                      // Premium a colour each would ask the reader to learn a key on a page
+                      // that does not print one.
+                      const tier = tierTag(item)
+                      if (!tier) return null
+                      return (
+                        <Link
+                          href="/pricing"
+                          aria-label={`${item.title} is included in the ${tier} plan — see pricing`}
+                          className={cn(
+                            'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-opacity hover:opacity-80',
+                            tier === 'Free'
+                              ? 'bg-brand-affirm/15 text-brand-affirm'
+                              : 'bg-brand-legacy/20 text-brand-ink',
+                          )}
+                        >
+                          {tier}
+                        </Link>
+                      )
+                    })()}
                   </div>
                   <h3 className="text-base font-semibold">{item.title}</h3>
                   {/* Its own line, under the title, rather than crowded into the header

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember, requireRead, requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import { getMyNameInFamily } from '@/lib/auth/family'
 import { todayLocal } from '@/lib/date-utils'
 import { attachTemplatesToGathering } from '@/lib/gathering-instantiate'
@@ -695,7 +696,14 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
   // nothing.
   const [canManage, canSeeBudget] = await Promise.all([
     canAny(g.userId, 'admin/gatherings', 'edit'),
-    canAny(g.userId, 'gatherings/budget', 'view'),
+    // Grant AND plan — `gatherings/budget` is `tier: 'standard'` since 2026-08-19, and the
+    // tier is resolved here rather than at the page because the money columns are chosen
+    // from this answer (§5). `getMyFamilyTier` is `cache()`d per request, so it costs no
+    // extra query. It withholds the FETCH and never a row: see `getAdminGatherings`.
+    Promise.all([
+      canAny(g.userId, 'gatherings/budget', 'view'),
+      tierAllows(g.userId, 'gatherings/budget'),
+    ]).then(([granted, inPlan]) => granted && inPlan),
   ])
 
   const [tasksRes, usesRes] = await Promise.all([
@@ -1419,13 +1427,33 @@ export async function submitGatheringTask(input: {
  * `who_may_schedule` says nothing about who may EDIT a template. That is always
  * `admin/gathering-templates`, and this action never writes to one.
  *
- * ── `templateIds` MUST BE NON-EMPTY ─────────────────────────────────────────────────
- * A gathering is scheduled FROM a template — that is the whole requirement, and it is what
- * makes the tier decision defensible (the whole feature is Free, because a gathering that
- * could not be created from a template would make the Free plan's "the reunion on the
- * calendar" bullet false). An empty list would create a gathering with no work in it, which
- * is a row with nothing to do and no way to tell it apart from one whose tasks failed to
- * instantiate.
+ * ── `templateIds` MAY NOW BE EMPTY, AND THAT REVERSES WHAT THIS SAID ────────────────
+ * This section read "`templateIds` MUST BE NON-EMPTY" until 2026-08-19, on the argument that a
+ * gathering IS a template instantiated and that an empty list would create "a row with nothing
+ * to do and no way to tell it apart from one whose tasks failed to instantiate". The second
+ * half of that was the real objection and it is answered below; the first half stopped being
+ * true when Standard was inserted.
+ *
+ * WHAT CHANGED: the tier boundary now runs between the DATE and the PLANNING.
+ * `/pricing` sells "the gathering on a shared calendar" on Free — a date, a place and the
+ * details — and sells the checklists, the assigned duties and the budget on Standard. A
+ * template is Standard (`admin/gathering-templates`), so a Free family has none and can be
+ * offered none; requiring one would leave Free selling a calendar that nothing can be put on,
+ * which is a bullet that is false rather than a feature that is limited.
+ *
+ * SO A TEMPLATE-LESS GATHERING IS A FIRST-CLASS THING: a title, a span, a place and a summary,
+ * on the calendar and on the list, with no tasks. The distinction the old note worried about —
+ * telling it apart from one whose instantiation failed — is drawn where it always was and not
+ * by the task count: `attachTemplatesToGathering` reports its failures and this action returns
+ * them in `message` while still reporting success, because the gathering is on screen either
+ * way. Nothing infers "planned" from "has tasks".
+ *
+ * NO TIER IS CHECKED HERE, deliberately, and that is the house rule rather than an oversight
+ * (AGENTS.md: the server actions behind a paid page are not tier-checked, or the first family
+ * to downgrade would find one refusing to talk about its own history). A caller who knows a
+ * template id can still pass one on a Free family; what withholds the paid capability is that
+ * the SCREEN offers no templates, and what stops the wrong person doing it is the permission
+ * model, which is unchanged. `/admin/gatherings` gates both template reads on the plan.
  *
  * ── THE SET FORM OF §4 ──────────────────────────────────────────────────────────────
  * The ids are verified by ONE family-scoped `.in('id', …)` read that must return every id it
@@ -1456,19 +1484,23 @@ export async function scheduleGathering(input: {
   // would refuse the second copy with a 23505 halfway through instantiation, leaving a
   // gathering built from some of the templates it was asked for.
   const templateIds = [...new Set((input.templateIds ?? []).filter(Boolean))]
-  if (templateIds.length === 0) {
-    return { success: false, message: 'Choose at least one template to schedule from' }
-  }
 
   const admin = createAdminClient()
-  const { data: templates, error: templateError } = await admin
-    .from('gathering_templates')
-    // NO `default_location` — that column is dropped (`20260819000007`). A segment linked by
-    // this path states no place at all, and a template that wants one carries a step of kind
-    // `'location'` for a relative to answer.
-    .select('id, name, who_may_schedule, is_archived')
-    .in('id', templateIds)
-    .eq('family_code', g.familyCode)
+
+  // NO TEMPLATES IS A VALID GATHERING — see the essay above. The read below is skipped rather
+  // than run with an empty `.in()`: PostgREST answers `[]` for that, `rows.length !==
+  // templateIds.length` is `0 !== 0`, and it would happen to work — which is exactly the kind
+  // of accident that stops working when somebody adds a filter. Skipping says what is meant.
+  const { data: templates, error: templateError } = templateIds.length === 0
+    ? { data: [] as unknown[], error: null }
+    : await admin
+      .from('gathering_templates')
+      // NO `default_location` — that column is dropped (`20260819000007`). A segment linked by
+      // this path states no place at all, and a template that wants one carries a step of kind
+      // `'location'` for a relative to answer.
+      .select('id, name, who_may_schedule, is_archived')
+      .in('id', templateIds)
+      .eq('family_code', g.familyCode)
 
   if (templateError) {
     console.error(`[gatherings] schedule could not read templates in ${g.familyCode}: ${templateError.message}`)

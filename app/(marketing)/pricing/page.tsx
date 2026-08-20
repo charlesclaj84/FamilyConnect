@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, HeartHandshake, Zap, Crown } from 'lucide-react'
+import { Check, HeartHandshake, Sparkles, Zap, Crown } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
@@ -9,9 +9,8 @@ import { Testimonials } from '@/components/marketing/Testimonials'
 import { PageHero, SectionHeading, CtaBand, ComingSoonBadge, MoreLink } from '@/components/marketing/sections'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
-import {
-  TIER_PRICE, annualSavingCents, formatPlanPrice, monthsFreeOnAnnual,
-} from '@/lib/plans'
+import { TIER_PRICE, formatPlanPrice, type TierPrice } from '@/lib/plans'
+import { TIERS, TIER_LABEL } from '@/lib/tiers'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
@@ -28,8 +27,18 @@ export const metadata: Metadata = {
 /**
  * ── ANNOUNCED 2026-08-17 ────────────────────────────────────────────────────
  *
- * The figures are real: Plus is $10 a month or $100 for the year paid in advance, Premium
- * $25 or $250. They live in `TIER_PRICE` in `lib/plans.ts` rather than here, because the
+ * The figures are real: Standard is $5 a month, Plus $15 and Premium $25. ONE RATE EACH —
+ * there was a second until 2026-08-19, the year paid in advance at ten months for twelve, and
+ * both the discount and the annual rate itself were withdrawn. The "two months free" sentence
+ * that stood beside every figure DISAPPEARED ON ITS OWN, because it was derived from the two
+ * numbers rather than typed beside them; that is the whole argument for deriving a claim about
+ * a price, made once and worth keeping.
+ *
+ * Do not put a yearly figure back on a card by multiplying by twelve. `lib/plans.ts` says why:
+ * it commits us to an annual plan that does not exist, including to what happens when somebody
+ * who paid for a year downgrades in March.
+ *
+ * They live in `TIER_PRICE` in `lib/plans.ts` rather than here, because the
  * in-product plan panel and the upgrade screen show the same numbers and two copies of a
  * price is how a member comes to read $10 on one screen and $12 on the next. See that
  * file's header for why the price is shared and the benefit LISTS deliberately are not.
@@ -70,21 +79,30 @@ const PRICING_IS_ANNOUNCED = true
  * stays Free is a giveaway, and one that moves to Free while its route stays Plus is a
  * page a customer was promised and cannot open.
  *
- * Three tiers, and each one INHERITS the tier below it rather than restating it. That is
- * what `inheritsFrom` does: Plus renders "Everything in Free, plus:" and lists only what
- * it adds; Premium does the same for Plus. Two reasons it is modelled rather than typed:
+ * FOUR TIERS SINCE 2026-08-19 — Standard was inserted between Free and Plus — and each one
+ * INHERITS the tier below it rather than restating it. That is what `inheritsFrom` does:
+ * Standard renders "Everything in Free", Plus "Everything in Standard", Premium "Everything in
+ * Plus", and each lists only what it adds. Two reasons it is modelled rather than typed:
  *
  *  * A restated list drifts. Add a feature to Free and you have to remember to add it to
- *    two other cards, and the day you forget, the expensive tier appears to offer LESS
- *    than the free one. The inheritance line cannot go stale.
+ *    three other cards, and the day you forget, the expensive tier appears to offer LESS
+ *    than the free one. The inheritance line cannot go stale. Inserting a tier IN THE MIDDLE
+ *    is the proof: it cost one `inheritsFrom` edit on the card above it, and no card had to
+ *    have anything copied into it.
  *  * It is also the honest shape of the offer. A customer reading Premium needs to know
  *    they keep everything below it, and "Everything in Plus" says that in three words.
  *
  * `price: null` renders NOTHING in the price slot — no figure and no "to be announced" line,
- * since the card already says Coming soon beside its name. Plus and Premium now carry real
- * figures, derived from `TIER_PRICE` in `lib/plans.ts`; `available` is still false on both,
- * so both keep the Coming soon badge and the disabled button. A price and a purchase are
- * separate facts and this page states both.
+ * since the card already says Coming soon beside its name. All three paid tiers carry real
+ * figures, derived from `TIER_PRICE` in `lib/plans.ts`; `available` is false on all three, so
+ * each keeps the Coming soon badge and the disabled button. A price and a purchase are separate
+ * facts and this page states both.
+ *
+ * FREE IS NOT RENDERED WITH THE OTHERS. It is pulled out into a full-width band above the
+ * three paid cards — see `FREE_PLAN` below and the essay in the section itself. It stays in
+ * this table rather than being declared separately, so the inheritance chain terminates
+ * somewhere real and "Everything in Free" on the Standard card is a reference rather than a
+ * string.
  *
  * `adds` carries only what has actually been decided. Add to them freely — the card grows.
  * Premium is the one to watch: it began as the family website `LivingSitePreview`
@@ -103,14 +121,18 @@ interface Plan {
   name: string
   tagline: string
   /**
-   * The headline figure and its period, plus an optional second line for the annual rate.
+   * The headline figure and its period.
    *
    * `null` while a price is not announced — which is still a supported state; see the note
    * on `PRICING_IS_ANNOUNCED`. Free carries a hand-written `$0 / forever` rather than coming
    * from `TIER_PRICE`, because Free has no price rather than a price of zero and `$0` is a
-   * marketing statement rather than an amount anybody is charged.
+   * marketing statement rather than an amount anybody is charged. It is also what `FREE_PLAN`
+   * below identifies Free BY, which is why that `period` string is load-bearing.
+   *
+   * THERE WAS AN `annual` FIELD HERE and it is gone with the annual rate itself (2026-08-19).
+   * One figure per plan now, month to month.
    */
-  price: { amount: string; period: string; annual?: string } | null
+  price: { amount: string; period: string } | null
   /** Name of the tier this one contains, or null for the base tier. */
   inheritsFrom: string | null
   /** What THIS tier adds on top of the one it inherits. */
@@ -123,66 +145,73 @@ interface Plan {
    *
    * Free and Plus both used to draw `Sparkles`, which made two different offers look like
    * the same offer at a glance — and on a pricing page the glance is most of the decision.
-   * A tick for what you already have, a lift for the tier that adds the machinery, a crown
+   * A tick for what you already have, `Sparkles` for the tier that turns a place to be into
+   * a family being run, a lift for the one that adds the organizational machinery, a crown
    * for the one that reaches every relative and puts the family on the public internet.
    */
   icon: LucideIcon
 }
 
 /**
- * Both paid figures, derived from `TIER_PRICE` in `lib/plans.ts` — the one place the numbers
+ * Every paid figure, derived from `TIER_PRICE` in `lib/plans.ts` — the one place the numbers
  * are written down, shared with the in-product plan panel and the upgrade screen.
  *
- * THE ANNUAL LINE IS DERIVED, INCLUDING ITS ARGUMENT. `monthsFreeOnAnnual()` works the
- * saving out from the two figures and returns `null` when it does not divide into whole
- * months, so "two months free" can never contradict the numbers above it — and a future
- * price that saves 1.6 months falls back to the currency amount instead of rounding into a
- * claim. That is the same rule as everything else on this page: no sentence about a number
- * that is typed beside the number.
+ * IT IS THREE LINES NOW because there is one rate. The annual line and the "two months free"
+ * clause it carried are gone (see the note on `PRICING_IS_ANNOUNCED`), and with them the whole
+ * of the arithmetic this function used to do. The rule that arithmetic existed to serve still
+ * holds and is worth restating for whoever reinstates an annual price: no sentence about a
+ * number is typed beside the number.
  */
-function planPrice(tier: 'plus' | 'premium'): Plan['price'] {
+function planPrice(tier: 'standard' | 'plus' | 'premium'): Plan['price'] {
   const price = TIER_PRICE[tier]
   if (!price) return null
-
-  const months = monthsFreeOnAnnual(price)
-  const saving = months
-    ? `${months === 2 ? 'two' : months} months free`
-    : `save ${formatPlanPrice(annualSavingCents(price))}`
-
-  return {
-    amount: formatPlanPrice(price.monthlyCents),
-    period: '/month',
-    annual: `or ${formatPlanPrice(price.yearlyCents)} a year paid in advance — ${saving}`,
-  }
+  return { amount: formatPlanPrice(price.monthlyCents), period: '/month' }
 }
 
+const STANDARD_PRICE: Plan['price'] = planPrice('standard')
 const PLUS_PRICE: Plan['price'] = planPrice('plus')
 const PREMIUM_PRICE: Plan['price'] = planPrice('premium')
 
 /**
  * The price FAQ's answer, built from the same figures the cards render.
  *
- * It says what neither card can: that the prices are set and neither plan can be bought
- * yet. A visitor reading a figure beside a Coming soon badge deserves that sentence
- * somewhere, and the FAQ is where a price question is actually asked.
+ * It says what no card can: that the prices are set and none of the paid plans can be bought
+ * yet. A visitor reading a figure beside a Coming soon badge deserves that sentence somewhere,
+ * and the FAQ is where a price question is actually asked.
+ *
+ * IT WALKS THE TIERS RATHER THAN NAMING TWO, since 2026-08-19. The hand-written version took
+ * `TIER_PRICE.plus` and `TIER_PRICE.premium` by name, so inserting Standard would have left an
+ * answer that quoted two of three prices and read as complete — which is the same class of
+ * failure as a hand-copied figure, arriving through a hand-copied LIST instead.
  */
-function plusPremiumPriceAnswer(): string {
-  const plus = TIER_PRICE.plus
-  const premium = TIER_PRICE.premium
-  if (!plus || !premium) {
-    return 'Neither has been announced yet. Create a free account and you will hear first.'
+function paidPlanPriceAnswer(): string {
+  // Every tier that HAS a price, in plan order, derived from `TIERS` so a tier added in the
+  // middle is quoted here without an edit. Free drops out by having no price rather than by
+  // being named — see `TIER_PRICE`, where `null` means "no price" and not "a price of zero".
+  const paid = TIERS.flatMap(tier => {
+    const price = TIER_PRICE[tier]
+    return price ? [{ tier, price }] : []
+  })
+
+  if (paid.length === 0) {
+    return 'None has been announced yet. Create a free account and you will hear first.'
   }
 
-  const rate = (p: typeof plus) =>
-    `${formatPlanPrice(p.monthlyCents)} a month, or ${formatPlanPrice(p.yearlyCents)} for the year paid in advance`
-  const months = monthsFreeOnAnnual(plus)
-  const saving = months === monthsFreeOnAnnual(premium) && months
-    ? ` Paying for the year up front is ${months === 2 ? 'two' : months} months free on either plan.`
-    : ''
+  const rate = (p: TierPrice) => `${formatPlanPrice(p.monthlyCents)} a month`
+  const sentences = paid.map(({ tier, price }) => `${TIER_LABEL[tier]} is ${rate(price)}.`)
 
-  return `Plus is ${rate(plus)}. Premium is ${rate(premium)}.${saving} ` +
-    'Neither is on sale yet — there is no billing in the product, so both cards say Coming ' +
-    'soon. Create a free account and you will hear when they open.'
+
+  // ── ONE RATE, SO THERE IS NO SAVING SENTENCE ANY MORE ──────────────────────────────
+  // This used to add "paying for the year up front is two months free on either plan", derived
+  // from the annual figure and dropped automatically when it stopped being true. Both the
+  // discount and the annual rate were withdrawn on 2026-08-19, so the clause has nothing to
+  // derive from and is gone rather than commented out. The `month to month` phrase below is
+  // what replaces it, and it is doing a job: a single figure with no period stated invites the
+  // reader to assume a contract, which is the opposite of what is on offer.
+  return `${sentences.join(' ')} No annual plan and no contract — month to month, for the ` +
+    'whole family however big it is. ' +
+    'None of them is on sale yet — there is no billing in the product, so every paid card says ' +
+    'Coming soon. Create a free account and you will hear when they open.'
 }
 
 /**
@@ -203,19 +232,26 @@ function plusPremiumPriceAnswer(): string {
  *  * FREE opens on getting everybody in at all, because a per-member price is the objection
  *    that keeps half a family out, and closes on chat — the one thing here a family already
  *    has, in the group text they are probably reading this on. Heavily used, least gained.
- *  * PLUS opens on taking a payment that is not cash, which is the limit Free names out
- *    loud, then knowing what is still owed. It ends on the photographs and the profile
- *    pictures: loved,
- *    opened daily, and not the machinery this tier is sold as.
+ *  * STANDARD opens on the LEDGER rather than on the tree, and that ranking is the rule
+ *    applied rather than an accident. A family that has lost track of who paid has a problem
+ *    this afternoon; a family that cannot draw its tree has a project. The tree is second
+ *    because it is what people come to a family product for, and the duties are third because
+ *    they are the part nobody knew they wanted. Profile pictures go last: loved, opened daily,
+ *    and not what anybody buys a tier for.
+ *  * PLUS opens on taking a payment that is not cash, which is the limit Standard names out
+ *    loud, then on knowing what is still owed. It ends on the photographs — loved, and not the
+ *    machinery this tier is sold as.
  *  * PREMIUM opens on chasing relatives for money they already agreed to pay. Notifications
  *    outrank the apps deliberately — nobody has ever complained about the absence of an app,
  *    whereas "half the family says they never saw it" is a sentence every organizer has
  *    said — and the website, the tier's signature, does not lead at all.
  *
- * WHAT IS NOT CLAIMED. Free's ledger is cash only, and that is stated rather than
- * softened — a family that signs up expecting to take card payments and finds they
- * cannot has been misled, and that is a refund and a review. Naming the limit is also
- * what makes Plus obviously worth paying for.
+ * WHAT IS NOT CLAIMED, AND THE FLOOR MOVED ON 2026-08-19. Free no longer includes a ledger at
+ * all — it is Standard's first bullet — so the sentence that used to matter most here ("Free's
+ * ledger is cash only") now belongs to Standard, and it is still stated rather than softened:
+ * a family that pays for Standard expecting to take card payments and finds they cannot has
+ * been misled, and that is a refund and a review. Naming the limit on the card that has it is
+ * also what makes the tier above obviously worth paying for.
  */
 const PLANS: readonly Plan[] = [
   {
@@ -230,30 +266,21 @@ const PLANS: readonly Plan[] = [
         detail: 'Unlimited members. No per-person fee, so nobody gets left out to keep a bill down.',
       },
       {
-        // "DIRECT LINEAGE" WAS HERE UNTIL 2026-08-19 and named `/direct-lineage`, a route
-        // deleted on 2026-08-13. The Family Tree is what replaced it, and it traces a line
-        // back through the generations by re-centring on whoever you click — so the benefit
-        // survives and only the product's name for it changed. Nothing derived caught this
-        // for six days, because a DELETED route has no `lib/features.ts` entry to badge
-        // Coming Soon from; see the note in `components/marketing/pillars.ts`.
-        label: 'Never lose track of who is who again',
-        detail: 'The Family Tree, traced back through the generations, and a directory you can search.',
+        // "DIRECT LINEAGE" WAS HERE UNTIL 2026-08-19, THEN THE FAMILY TREE FOR ONE DAY, and now
+        // neither: the tree moved to Standard when that plan was inserted. What Free keeps is
+        // the DIRECTORY, and splitting them apart was the point — "never lose track of who is
+        // who" was doing two jobs at once, and they are two different questions. Who is in this
+        // family and how do I reach them is the directory; how are we related is the tree.
+        label: 'Everybody in one place, and reachable',
+        detail: 'A directory you can search, with the contact details you actually need.',
       },
       {
-        label: 'Put the reunion on the calendar',
-        detail: 'The date, the place and the details in one shared page.',
+        label: 'Put the reunion on a shared calendar',
+        detail: 'The date, the place and the details, on one page the whole family can see.',
       },
       {
         label: 'News that reaches the whole family',
         detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
-      },
-      {
-        label: 'A real ledger for the money you collect',
-        detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
-      },
-      {
-        label: 'Separation of duties',
-        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
       },
       {
         label: 'Keep talking between gatherings',
@@ -264,10 +291,61 @@ const PLANS: readonly Plan[] = [
     featured: false,
   },
   {
-    name: 'Plus',
-    tagline: 'For families with dues to collect and a reunion to run.',
-    price: PLUS_PRICE,
+    name: 'Standard',
+    tagline: 'Run the family: the tree, the money and who is doing what.',
+    price: STANDARD_PRICE,
     inheritsFrom: 'Free',
+    icon: Sparkles,
+    // ── WHERE THIS TIER CAME FROM, 2026-08-19 ─────────────────────────────────────────
+    // Carved out of Free rather than invented: the tree, the dues-and-donations ledger,
+    // per-feature permissions and the planning half of Gatherings were all on the Free card,
+    // and profile pictures came DOWN from Plus. Nothing here is unbuilt — every bullet names a
+    // route that works today, which makes it the one paid card that could be sold tomorrow.
+    //
+    // IT OPENS ON THE LEDGER RATHER THAN THE TREE, which is this page's ranking rule applied
+    // rather than an accident: the thing that hurts most goes first. A family that has lost
+    // track of who paid has a problem this afternoon; a family that cannot draw its tree has a
+    // project. The tree is second because it is what people come to a family product FOR, and
+    // the duties are third because they are the part nobody knew they wanted.
+    adds: [
+      {
+        label: 'A real ledger for the money you collect',
+        detail: 'Dues plans, a contribution ledger and funds — recorded instead of remembered. Cash on this plan.',
+      },
+      {
+        label: 'The family tree, traced back',
+        detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
+      },
+      {
+        label: 'Everybody knows their duties',
+        detail: 'A gathering built from a checklist, every step handed to a named relative, and a ruling on what comes back.',
+      },
+      {
+        label: 'Plan what the gathering costs',
+        detail: 'A budget drawn on one of your funds, and what each task has claimed against it.',
+      },
+      {
+        label: 'Separation of duties',
+        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
+      },
+      {
+        label: 'A face against every name',
+        detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
+      },
+    ],
+    available: false,
+    // THE FEATURED CARD MOVED HERE FROM PLUS on 2026-08-19, and the rule is unchanged: exactly
+    // one is true, and it marks where the eye should land. Standard is that card now because
+    // it is the one whose every bullet is BUILT — Plus still sells card payments and reports
+    // that do not exist yet — and because it is the cheapest step out of Free, which is the
+    // decision most visitors are actually making.
+    featured: true,
+  },
+  {
+    name: 'Plus',
+    tagline: 'For families collecting real payments and answering to a board.',
+    price: PLUS_PRICE,
+    inheritsFrom: 'Standard',
     icon: Zap,
     // ── DETAILS DELIBERATELY SHORT ────────────────────────────────────────────
     // Eight items with two-line explanations each made this the tallest card by a wide
@@ -306,17 +384,16 @@ const PLANS: readonly Plan[] = [
         label: 'The paperwork, and the structure to match',
         detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
       },
+      // PROFILE PICTURES WERE THE EIGHTH BULLET HERE and moved to Standard on 2026-08-19.
+      // `lib/plans.ts` carries the same move in the in-product copy, by hand and on purpose —
+      // see the note above `PLANS[]`. A bullet left on two cards sells one capability twice.
       {
         label: 'Every photograph, findable',
-        detail: 'Collections per event, with tagging.',
-      },
-      {
-        label: 'A face against every name',
-        detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
+        detail: 'Collections per gathering, with tagging.',
       },
     ],
     available: false,
-    featured: true,
+    featured: false,
   },
   {
     name: 'Premium',
@@ -355,11 +432,26 @@ const PLANS: readonly Plan[] = [
   },
 ]
 
+/**
+ * FREE IS RENDERED ON ITS OWN, ACROSS THE FULL WIDTH — the section below argues why at
+ * length. Split here rather than at the call site so the two halves cannot disagree about
+ * which plan is which, and derived from `PLANS[]` rather than declared twice: adding a paid
+ * tier is still one entry in that table and nothing else.
+ *
+ * THE SPLIT IS ON THE PRICE, not on the name and not on the index. `TIER_PRICE` gives Free
+ * `null` and every paid tier a figure (`lib/plans.ts`: "Free has no price rather than a price
+ * of zero"), and `PLANS[0]` is Free only for as long as nobody reorders the array — which is
+ * exactly the kind of thing a later edit does without noticing. A name test would be worse
+ * still: it is one rename away from rendering nothing at the top of the page.
+ */
+const FREE_PLAN: Plan = PLANS.find(p => p.price === null || p.price.period === 'forever')!
+const PAID_PLANS: readonly Plan[] = PLANS.filter(p => p !== FREE_PLAN)
+
 const FAQ = [
   {
     question: `Is ${APP_NAME} really free?`,
     answer:
-      'Yes, and not as a trial. Unlimited family members, the Family Tree, the member directory, family chat, announcements, gatherings with the family calendar, and a dues ledger for cash contributions cost nothing, with no card required and no expiry date.',
+      'Yes, and not as a trial. Unlimited family members, the member directory, family chat, announcements and your gatherings on a shared family calendar cost nothing, with no card required and no expiry date. What is paid for is running the family rather than having one — the family tree, the dues ledger and handing out the work are Standard, and the price of that is on the card above, for the whole family however big it is.',
   },
   {
     question: 'Is there a limit on how many family members we can add?',
@@ -367,28 +459,34 @@ const FAQ = [
       'No, on any tier including Free. The product is built for a family with a hundred or more adults in it — that is the ordinary case rather than the exception — and there is never a per-member charge. A price that grows with your family is a price that keeps relatives out, which defeats the point.',
   },
   {
-    question: 'What is the difference between Free and Plus?',
+    question: 'Where does Free stop and Standard begin?',
     answer:
-      'Free gets your whole family in one place, with per-feature permissions so nobody has more authority than their job needs. Plus is for running it as an organization: taking card, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only, seeing what every relative still owes for the year, officer elections, photo collections with tagging, profile pictures, documents, regions and chapters, a profit and loss statement and leadership reports.',
+      'Free gets your whole family into one place: a directory everyone can search, family-wide and private chat, announcements on everybody’s dashboard, and your gatherings on a shared calendar with the date, the place and the details. Standard is for running the family — the family tree traced back through the generations, a real dues and donations ledger, gatherings planned properly with a checklist and every step handed to a named relative, per-feature permissions, and a photograph against every name.',
   },
   {
-    question: 'Can we only take cash payments on the free plan?',
+    question: 'What does Plus add on top of Standard?',
     answer:
-      'Yes. Free includes dues plans and a contribution ledger, and you record cash payments into it. Accepting card, debit, PayPal, Apple Pay, Google Pay and Cash App payments — with funds and automatic routing behind them — is part of Plus.',
+      'The organization around the family. Taking card, debit, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only; seeing what every relative still owes for the year; officer elections; photo collections with tagging; documents; regions and chapters with their own leadership; a profit and loss statement and leadership reports.',
+  },
+  {
+    question: 'Can we only record cash payments on Standard?',
+    answer:
+      'Yes. Standard includes dues plans, funds and a contribution ledger, and you record cash payments into it — which is what most families are doing in a notebook today. Accepting card, debit, PayPal, Apple Pay, Google Pay and Cash App payments, with automatic routing into your funds behind them, is part of Plus.',
   },
   {
     question: 'Will the free features we use today start costing money?',
     answer:
-      'No. What is listed under Free on this page stays free. Paid tiers are for capability added on top, not for taking away what your family already relies on.',
+      'No. What is listed under Free on this page stays free — every relative, the directory, chat, announcements and the shared calendar — and there is no per-member charge on any plan. The paid tiers are capability added on top, not a toll on what your family already relies on.',
   },
   {
-    question: 'What will Plus and Premium cost?',
-    // ANSWERED FROM `TIER_PRICE`, not typed. An FAQPage node whose answer contradicts the
-    // card three inches above it is the mismatch this whole file is careful about, and a
-    // hand-written "$10 a month" here is one price change away from being that. The saving
-    // sentence is derived too, and disappears rather than rounds if a future price stops
-    // dividing into whole months.
-    answer: plusPremiumPriceAnswer(),
+    question: 'What will the paid plans cost?',
+    // ANSWERED FROM `TIER_PRICE`, not typed — and from `TIERS`, so the answer names every
+    // paid plan rather than the two somebody happened to type. An FAQPage node whose answer
+    // contradicts the card three inches above it is the mismatch this whole file is careful
+    // about, and a hand-written "$10 a month" here is one price change away from being that.
+    // The saving sentence was derived too, which is why it vanished on its own the day the
+    // annual rate did instead of surviving as a claim about a price that no longer exists.
+    answer: paidPlanPriceAnswer(),
   },
   {
     question: 'Do you sell our family’s data?',
@@ -437,111 +535,169 @@ export default function PricingPage() {
           <SectionHeading
             id="plans-heading"
             eyebrow="Plans"
-            title="Three tiers. The free one is not a trial"
-            lede="Get every relative in, keep the family tree and talk to each other — free, forever. Pay only when you start running it like an organization."
+            title="Four plans. The free one is not a trial"
+            lede="Get every relative in and talk to each other — free, forever. Pay when you start running the family like an organization."
           />
 
-          {/* Three tiers, each inheriting the one below it. `items-stretch` rather than
-              `items-start` so all three cards share a height — with different-length
-              lists, `items-start` left the two paid cards floating at different heights
-              and the row read as broken rather than as three options. */}
-          <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-3">
-            {PLANS.map((plan, i) => {
+          {/* ── FREE RUNS THE FULL WIDTH; THE THREE PAID PLANS SHARE ONE ROW ─────
+              Four cards in a row was the obvious layout and is the wrong one at every width
+              this page is read at: in a 5xl measure it gives each plan about 240px, which
+              wraps a price onto two lines and turns a six-bullet list into a column of
+              fragments. Widening the measure to fit four only moves the problem — the cards
+              get their pixels back and the row gets too wide to compare across, which is the
+              one job a pricing table has.
+
+              So Free is promoted out of the comparison, and the argument is commercial rather
+              than typographic. FREE IS NOT ONE OF FOUR OPTIONS; IT IS THE FLOOR THE OTHER
+              THREE STAND ON. Every paid card says "Everything in …" and that chain terminates
+              here, so laying it across the top states the offer's actual shape: this is what
+              you get for nothing, and the three below are what you add to it. It also lets
+              Free's own bullets run in two columns instead of one narrow stack — the only
+              place on this page where more width makes the copy read faster rather than just
+              bigger.
+
+              WHAT THAT BUYS THE THREE THAT MATTER: the row that is left is three columns of
+              the width these cards were designed for, on one level and at one height. The
+              comparison a visitor actually makes — Standard against Plus against Premium — is
+              the one thing on the page that is not compromised by the fourth plan existing. */}
+          <Reveal>
+            <div className="relative mt-12 overflow-hidden rounded-2xl border-2 border-brand-primary/30 bg-card p-6 shadow-[var(--shadow-card-hover)] sm:p-7">
+              <span className="absolute right-0 top-0 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
+                Available now
+              </span>
+
+              {/* `lg:` and not `md:`: the right-hand half carries two columns of bullets, so
+                  splitting the band before there is room for four columns of text leaves both
+                  halves too narrow. Below that it stacks, which is the order the eye reads it
+                  in anyway — offer, price, button, then what is in it. */}
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
+                <div className="lg:border-r lg:pr-10">
+                  <h3 className="text-2xl">{FREE_PLAN.name}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{FREE_PLAN.tagline}</p>
+
+                  {FREE_PLAN.price && (
+                    <p className="mt-5 flex items-baseline gap-2">
+                      <span className="text-5xl font-semibold text-brand-ink">
+                        {FREE_PLAN.price.amount}
+                      </span>
+                      <span className="text-muted-foreground">{FREE_PLAN.price.period}</span>
+                    </p>
+                  )}
+
+                  <Link href={ACCOUNT_ROUTES.register} className="mt-5 block">
+                    <Button size="lg" className="w-full text-base">
+                      Get Started Free
+                    </Button>
+                  </Link>
+                  <p className="mt-3 text-center text-xs text-muted-foreground">
+                    No card. No trial period.
+                  </p>
+                </div>
+
+                {/* TWO COLUMNS OF BULLETS, and `sm:` rather than `lg:` deliberately: on a
+                    tablet the band has already stacked, so this half has the whole measure to
+                    itself and one column of four bullets would run a long way down the page
+                    for no reason. */}
+                <ul className="grid gap-3.5 text-sm sm:grid-cols-2 sm:gap-x-8">
+                  {FREE_PLAN.adds.map(item => (
+                    <li key={item.label} className="flex gap-3">
+                      <FREE_PLAN.icon
+                        className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm"
+                        aria-hidden="true"
+                      />
+                      <span className="leading-relaxed">
+                        <span className="block font-medium text-foreground">{item.label}</span>
+                        {item.detail && (
+                          <span className="mt-0.5 block text-muted-foreground">{item.detail}</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* One line, doing a job neither the band nor the cards can: it names the boundary
+              they sit either side of. Without it the three paid cards read as a second,
+              unrelated table that happens to be on the same page. */}
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Then, when the family needs more than a place to be —
+          </p>
+
+          {/* Three paid tiers, each inheriting the one below it. `items-stretch` rather than
+              `items-start` so all three share a height — with different-length lists,
+              `items-start` left them floating at different heights and the row read as broken
+              rather than as three options.
+
+              EVERY CARD HERE IS UNBUYABLE, which is what let the `plan.available` branches
+              come out of this block: Free was the only tier with `available: true` and it is
+              not in this list any more. The flag stays on the type and on the data, because it
+              is what turns the band above into a real offer and these into Coming soon — the
+              day one of them can be bought, the branch comes back HERE rather than being
+              rediscovered from scratch. */}
+          <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-3">
+            {PAID_PLANS.map((plan, i) => {
               const priced = Boolean(plan.price) && (plan.available || PRICING_IS_ANNOUNCED)
               return (
                 <Reveal key={plan.name} delay={i * 150} className="h-full">
                   <div
                     className={cn(
                       'relative flex h-full flex-col overflow-hidden rounded-2xl p-6 sm:p-7',
-                      plan.available
-                        ? 'border-2 border-brand-primary/30 bg-card shadow-[var(--shadow-card-hover)]'
-                        : plan.featured
-                          // The featured roadmap tier gets a solid border and the card
-                          // surface, so the eye lands on it — but NOT the affirmative
-                          // fill, which would read as buyable.
-                          ? 'border-2 border-brand-legacy/50 bg-card shadow-[var(--shadow-card)]'
-                          : 'border border-dashed bg-brand-soft/30',
+                      plan.featured
+                        // The featured tier gets a solid border and the card surface, so the
+                        // eye lands on it — but NOT the affirmative fill, which would read as
+                        // buyable.
+                        ? 'border-2 border-brand-legacy/50 bg-card shadow-[var(--shadow-card)]'
+                        : 'border border-dashed bg-brand-soft/30',
                     )}
                   >
-                    {plan.available && (
-                      <span className="absolute right-0 top-0 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
-                        Available now
-                      </span>
-                    )}
-
                     <div className="flex flex-wrap items-center gap-2.5">
                       <h3 className="text-2xl">{plan.name}</h3>
-                      {!plan.available && <ComingSoonBadge />}
+                      <ComingSoonBadge />
                     </div>
                     <p className="mt-1 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
 
-                    {/* NOTHING RENDERS HERE FOR AN UNPRICED TIER — no figure, and no
-                        "price to be announced" standing in for one. The card already says
-                        Coming soon beside its name and Not yet available on its button, so
-                        a third line saying the same thing was the over-explaining this site
-                        was asked to stop.
+                    {/* NOTHING RENDERS HERE FOR AN UNPRICED TIER — no figure, and no "price to
+                        be announced" standing in for one. The card already says Coming soon
+                        beside its name and Not yet available on its button, so a third line
+                        saying the same thing was the over-explaining this site was asked to
+                        stop.
 
-                        The rule the absence protects is unchanged: no placeholder FIGURE.
-                        A number here is a commercial representation people budget against
-                        and crawlers cache, and the cached result outlives the edit that was
-                        going to fix it. Set a price back to `null` and the slot empties.
+                        The rule the absence protects is unchanged: no placeholder FIGURE. A
+                        number here is a commercial representation people budget against and
+                        crawlers cache, and the cached result outlives the edit that was going
+                        to fix it. Set a price back to `null` and the slot empties.
 
-                        THE ANNUAL LINE SITS UNDER THE MONTHLY ONE, not beside it. A toggle
-                        between two rates is the usual treatment and it is the wrong one for
-                        three cards read side by side: it hides half of each offer behind a
-                        control, and the visitor comparing Plus with Premium then has to
-                        remember which way it was set. Both figures on the card, monthly
-                        first because it is the smaller commitment and the one being led
-                        with. `min-h-14` grows to `min-h-20` so a card with an annual line
-                        and a card without still share a baseline for the button below. */}
-                    <div className="mt-6 min-h-20">
+                        `min-h-14` RATHER THAN `min-h-20`, because there is no annual line under
+                        the figure any more — one rate, since 2026-08-19. The floor exists so a
+                        priced and an unpriced card share a baseline for the button below; it
+                        has to track the tallest price block, and shrank when that block did. */}
+                    <div className="mt-6 min-h-14">
                     {priced && plan.price && (
-                      <>
-                        <p className="flex items-baseline gap-2">
-                          <span className="text-5xl font-semibold text-brand-ink">
-                            {plan.price.amount}
-                          </span>
-                          <span className="text-muted-foreground">{plan.price.period}</span>
-                        </p>
-                        {plan.price.annual && (
-                          <p className="mt-1.5 text-sm text-muted-foreground">
-                            {plan.price.annual}
-                          </p>
-                        )}
-                      </>
+                      <p className="flex items-baseline gap-2">
+                        <span className="text-5xl font-semibold text-brand-ink">
+                          {plan.price.amount}
+                        </span>
+                        <span className="text-muted-foreground">{plan.price.period}</span>
+                      </p>
                     )}
                     </div>
 
-                    {plan.available ? (
-                      <>
-                        <Link href={ACCOUNT_ROUTES.register} className="mt-6 block">
-                          <Button size="lg" className="w-full text-base">
-                            Get Started Free
-                          </Button>
-                        </Link>
-                        <p className="mt-3 text-center text-xs text-muted-foreground">
-                          No card. No trial period.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Button size="lg" disabled className="mt-6 w-full text-base">
-                          Not yet available
-                        </Button>
-                        <p className="mt-3 text-center text-xs text-muted-foreground">
-                          Create a free account and you will hear about it first.
-                        </p>
-                      </>
-                    )}
+                    <Button size="lg" disabled className="mt-6 w-full text-base">
+                      Not yet available
+                    </Button>
+                    <p className="mt-3 text-center text-xs text-muted-foreground">
+                      Create a free account and you will hear about it first.
+                    </p>
 
                     {/* ── THE INHERITED TIER IS THE FIRST LIST ITEM ──────────────
-                        It used to be a sentence above the list reading "Everything in
-                        Plus, plus:", which says "plus" twice and reads as a stutter —
-                        made worse by one of the tiers being NAMED Plus. As a checked
-                        row at the top of the list it needs no connecting words at all:
-                        the list is what you get, and the first thing you get is
-                        everything below. It also stops the two paid cards drifting out
-                        of step with Free the way a copied list would. */}
+                        It used to be a sentence above the list reading "Everything in Plus,
+                        plus:", which says "plus" twice and reads as a stutter — made worse by
+                        one of the tiers being NAMED Plus. As a checked row at the top of the
+                        list it needs no connecting words at all: the list is what you get, and
+                        the first thing you get is everything below. It also stops these cards
+                        drifting out of step with the Free band the way a copied list would. */}
                     <div className="mt-7 flex-1 border-t pt-6">
                       <ul className="space-y-3.5 text-sm">
                         {plan.inheritsFrom && (
@@ -559,17 +715,14 @@ export default function PricingPage() {
                         {plan.adds.map(item => (
                           <li key={item.label} className="flex gap-3">
                             <plan.icon
-                              className={cn(
-                                'mt-0.5 h-4 w-4 shrink-0',
-                                plan.available ? 'text-brand-affirm' : 'text-brand-accent',
-                              )}
+                              className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent"
                               aria-hidden="true"
                             />
                             <span className="leading-relaxed">
-                              {/* The benefit is the scannable line and carries the
-                                  weight; the mechanism sits under it in muted text for
-                                  whoever slowed down. A single run of body text makes
-                                  the reader find the point themselves. */}
+                              {/* The benefit is the scannable line and carries the weight; the
+                                  mechanism sits under it in muted text for whoever slowed
+                                  down. A single run of body text makes the reader find the
+                                  point themselves. */}
                               <span className="block font-medium text-foreground">
                                 {item.label}
                               </span>
@@ -607,10 +760,11 @@ export default function PricingPage() {
               <p className="max-w-2xl text-muted-foreground">
                 Because a family portal with half the family in it is worth nothing, and a
                 per-member price guarantees half the family stays out. So getting everyone
-                in is free and always will be — the tree, the directory, the chat, the
-                announcements and your first reunion. We charge when a family starts
-                needing the machinery of an organization: taking card payments, knowing
-                who still owes, electing officers, answering to a board.
+                in is free and always will be — the directory, the chat, the announcements
+                and the reunion on a shared calendar, for every relative, with no card. We
+                charge when a family starts being RUN rather than gathered: keeping the tree,
+                collecting dues, handing out the work — and, higher up, taking card payments,
+                electing officers and answering to a board.
               </p>
               <MoreLink href="/why-us">See how that compares to the alternatives</MoreLink>
             </div>

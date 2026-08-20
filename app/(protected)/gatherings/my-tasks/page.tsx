@@ -25,6 +25,12 @@ import { redirect } from 'next/navigation'
  * itself and 404s a caller holding neither. Adding a `requireView` here would be a second,
  * weaker copy of that check whose only effect would be to answer 404 where the real page
  * answers /upgrade or the removed-family notice.
+ *
+ * AND THAT MATTERS MORE SINCE 2026-08-19, when this key became `tier: 'standard'` while
+ * `/gatherings` stayed Free. A caller whose family's plan excludes the duties is redirected to
+ * `/upgrade?from=%2Fgatherings%2Fmy-tasks` BY `/gatherings` — which is the answer they are owed
+ * and is precisely what a `requireView('gatherings/my-tasks')` here would have replaced with a
+ * 404. The guard being absent is what makes the tier boundary legible.
  */
 export default function MyGatheringTasksPage() {
   redirect('/gatherings?pane=my-tasks')

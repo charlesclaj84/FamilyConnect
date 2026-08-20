@@ -461,11 +461,15 @@ and they are struck rather than deleted so the reasoning survives.
    than tidy anything.
 7. **Trusted Vendors** — directory, marketplace, or discount list? No code exists. Its `soon`
    flag on `/features` is hand-set because it has no route to derive from.
-8. **Profile pictures are sold as Plus and ship free to everyone.** `AvatarUpload` is on
-   `/personal-info`, which is live and Free, so the work is *withdrawing* a capability. Three
-   calls come with it — whether families already using it are grandfathered, what happens to
-   the pictures already uploaded, and where the check goes. `lib/features.ts` cannot express it
-   (item 2 above is the mechanism). **It also got entangled further:** the `avatars` bucket is
+8. **Profile pictures are sold as Standard and ship free to everyone.** Sold as PLUS until
+   2026-08-19, when the bullet moved down a rung with the Standard restructure — the mismatch is
+   one tier narrower and is not closed. `AvatarUpload` is on `/personal-info`, which is live and
+   Free, so the work is still *withdrawing* a capability. Three calls come with it — whether
+   families already using it are grandfathered, what happens to the pictures already uploaded,
+   and where the check goes. `lib/features.ts` cannot express it as things stand (item 2 above is
+   the mechanism), because the upload sits on a Free page: it needs a sub-key of its own, which
+   is now a well-worn device rather than a proposal — `gatherings/budget`, `admin/users/templates`
+   and `transactions/fund-transfers` all do it. **It also got entangled further:** the `avatars` bucket is
    still world-readable by URL, and `components/ui/Avatar.tsx` now carries an
    `eslint-disable-next-line @next/next/no-img-element` with **no stated reason** — see the
    resize note under Supporting work §1.
@@ -1184,7 +1188,7 @@ something a Free family is using today.
 | Claim | Where | State |
 |---|---|---|
 | ~~**RSVPs, head counts and check-in**~~ — ~~"Stop guessing the head count"~~ | ~~Plus bullet 2~~ | **CLOSED 2026-08-19, by deleting the feature AND the bullet in one commit.** It was live behind two Free routes and sold as Plus — a giveaway on the second-strongest line of the featured card. The bullet is now "Know what is still owed, before you have to ask" (Dues Projections), which is genuinely a Plus route. |
-| **Profile pictures** — "A face against every name" | Plus bullet 8 | **Open.** `AvatarUpload` on `/personal-info`, live and Free. Runs both ways at once: costs revenue while it stays free, costs trust the moment it is withdrawn from families using it. |
+| **Profile pictures** — "A face against every name" | ~~Plus bullet 8~~ → **Standard bullet 6** | **STILL OPEN, AND CHEAPER TO CLOSE, 2026-08-19.** The bullet moved DOWN a tier when Standard was inserted, which does not fix the mismatch — `AvatarUpload` is on `/personal-info`, which is live and Free, so the capability is still shipping a tier below where it is sold. What changed is the size of the withdrawal: it is now one rung rather than two, and the tier it is sold on is the one that most families needing it will be on anyway. The three calls in §2 item 8 are unchanged and still have to be made. |
 | ~~**Per-feature permissions** — "Separation of duties"~~ | **Free bullet 6** | **Resolved** by the 2026-08-12 pricing edit. |
 
 **Live and sold in no tier at all — this was one item, became six, and is now four.** The safe
@@ -1194,8 +1198,8 @@ and it now means "said, and not yet sold".
 
 | Capability | Route(s) | Tier | Note |
 |---|---|---|---|
-| **Gatherings** — templates, scheduled gatherings, assigned tasks, submission review, budgets against a fund, the premier gathering on the Dashboard | `/gatherings`, `/gatherings/my-tasks`, `/admin/gatherings`, `/admin/gathering-templates` | **Free**, decided | Six resource keys, six tables. Named on **no** marketing surface, which makes it the largest unsold thing in the product. Decision 10. |
-| **The calendar** | `/calendar` | **Free**, decided | A month grid with every gathering on the day it falls. The Free card sells "Put the reunion on the calendar" and this is that sentence said out loud — and the card does not mention it. |
+| **Gatherings** — templates, scheduled gatherings, assigned tasks, submission review, budgets against a fund, the premier gathering on the Dashboard | `/gatherings`, `/gatherings/my-tasks`, `/admin/gatherings`, `/admin/gathering-templates` | ~~Free~~ → **Free AND Standard**, sold on both | **OFF THIS LIST AS OF 2026-08-19, and it is the one that came furthest.** It was the largest unsold thing in the product — six keys, six tables, named on no marketing surface. The Standard restructure split it across two plans and put both halves on `/pricing`: Free sells "the gathering on a shared calendar" and Standard sells "plan the gathering, not just the date" and "everybody knows their duties". `admin/gathering-templates`, `gatherings/my-tasks` and `gatherings/budget` are Standard; `calendar`, `gatherings` and `admin/gatherings` are Free. |
+| ~~**The calendar**~~ | `/calendar` | **Free**, sold | Off this list too, same commit. The Free card's third bullet is now "Put the reunion on a shared calendar", which is this screen said out loud rather than a sentence that happened to be true of it. |
 | **The updates archive** | `/updates` | **Free**, decided | Every announcement and everything sent to you, searchable. |
 | **Family removal and restore** | `/admin/family`, plus the staff console | **Free**, decided | Correctly unsold — a family should not have to buy the way out. Listed because the public-website work inherits a question from it. |
 | ~~**Board positions**~~ | `/admin/boardpositions` | **Plus**, enforced | Off this list: it was already `tier: 'plus'`, and the decision is now recorded rather than inferred. Still appears only inside the `/features` chapters card's blurb. |
@@ -1213,12 +1217,31 @@ invisible to every derived badge, because there is no bullet to badge. Six accum
 and four remain. Nothing will ever surface them but this table, which is the same argument the
 top of this file makes about a deleted route.
 
-**One more surface to check when a bullet moves.** The `/features` "and the rest" grid has eight
-cards and derives seven of its Coming Soon pills from the registry. `/admin/chapters` going live
-un-badged its card automatically and correctly. It has **no card for Gatherings, the calendar,
-the updates archive, dues projections or board positions**, and no mechanism can add one — a
-card is a hand-written entry, so five live capabilities are absent from the catalogue rather than
-badged wrongly in it.
+**One more surface to check when a bullet moves.** The `/features` "and the rest" grid derives
+its Coming Soon pills from the registry, and since 2026-08-19 its TIER TAGS too — that was the
+last hand-typed copy of the tier table in the tree, and inserting Standard would have left it
+printing "Plus" beside five routes with nothing able to notice. It gained a Family Tree card in
+the same commit and now has nine. It still has **no card for Gatherings, the calendar, the
+updates archive, dues projections or board positions**, and no mechanism can add one — a card is
+a hand-written entry, so five live capabilities are absent from the catalogue rather than badged
+wrongly in it.
+
+**AND ONE MISMATCH THE STANDARD RESTRUCTURE CREATED, recorded here rather than discovered later.**
+The whole dues-and-donations ledger moved to Standard — `/transactions`, `/admin/account`,
+`/dues`, `/donations`, `/payment-history`, `/account-summary` — and the **Dashboard is still
+Free** and still renders `FamilyDuesCollectedCard` and `DonationDrivesCard`, which are money.
+
+It is the smallest kind of leak and it is not nothing. A family that has only ever been Free can
+record no payment and open no drive, so both widgets read zero or render nothing at all: there is
+no figure to leak because there is no ledger to leak it from. What is real is the family that
+DOWNGRADES — it keeps every row (a tier withholds screens, never rows, and must) and its
+dashboard goes on printing a collected total for a ledger nobody can open. Two ways to settle it
+and neither is free: a sub-key for the dashboard's money band, the device
+`transactions/fund-transfers` and `gatherings/budget` already are; or the decision that a
+family's own headline total is Free on purpose, in which case say so on the card. **Do not settle
+it by tier-checking the dashboard action** — `/dashboard` has no `permission_resources` row at all
+(`20260806000006` deleted it) and giving it one to hide a figure would make the landing screen
+restrictable, which is a much larger change than the one being made.
 
 ---
 

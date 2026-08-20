@@ -749,7 +749,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'gatherings',
         title: 'Gatherings',
-        summary: 'What a gathering is, how one is scheduled from a template, how to read its tasks and its budget, and where your own tasks are.',
+        summary: 'What a gathering is, how one is scheduled, how to read its tasks and its budget, and where your own tasks are.',
         route: '/gatherings',
         sections: [
           {
@@ -759,7 +759,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('[Gatherings](/gatherings) is the family organising the work of getting together. A gathering is a named occasion — a reunion, a memorial, a banquet — broken into the jobs it takes, with a relative\'s name against each one and an answer somebody accepts. Its question is who is doing what, and whether it has been done and accepted.'),
               p('The screen is two panes. **Gatherings** is everything the family is planning, covered by this chapter; **My Tasks** is your own share of it, covered by [My Gathering Tasks](/help/gathering-tasks#what-it-is). The two are granted separately, so a family can hand somebody their own tasks without handing them the family-wide list.'),
               note('There was a separate Events product until 2026-08-19 — RSVPs by household, hotel room blocks and day-of check-in — and it is gone. Gatherings replaced it, and those three things are not in the product today: a step of a gathering can ASK a relative for any of them, but there is no attendee count, no room block and no check-in list. Everything the family had recorded is kept; nothing new can be added to it.'),
-              p('A gathering is always built from at least one template — a named, ordered list of steps somebody authored once. Every step of every template it is built from becomes a task on the gathering, so nothing is forgotten between one year and the next. The library is [Gathering Templates](/admin/gathering-templates).'),
+              p('A gathering can be built from one or more templates — a named, ordered list of steps somebody authored once. Every step of every template it is built from becomes a task on the gathering, so nothing is forgotten between one year and the next. The library is [Gathering Templates](/admin/gathering-templates).'),
+              p('A gathering with no template is a date on [the calendar](/calendar) with a place and a description and no tasks — which is all some occasions need, and is where one often starts. An organiser can add a template to it later, and the steps become tasks then.'),
               p('Each of those templates is a **segment**: a part of the occasion with its own day and its own place. That is what lets one gathering be a three-day reunion — the Welcome on Friday evening at one address, the Picnic on Saturday at another, the Send Off on Sunday morning — rather than one block of dates with everything filed under it. A gathering that happens all at once in one place simply states neither, and reads as it always has.'),
             ],
           },
@@ -782,15 +783,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'scheduling',
             heading: 'Scheduling one',
             blocks: [
-              p('**Schedule a gathering** appears when you may start one and there is at least one template you may start it from. The form asks for the templates before the title, because a gathering cannot exist without them:'),
+              p('**Schedule a gathering** appears when you may start one. The form asks for the templates before the title, because ticking one changes what the rest of the form is for:'),
               steps(
                 'Press **Schedule a gathering**.',
-                'Tick one or more templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out, and each template you tick becomes a segment of the gathering.',
+                'Tick any templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out, and each template you tick becomes a segment of the gathering. Tick none and the gathering is a date with no tasks.',
                 'Fill in **Title** and **First day**, and **Last day** only if it runs more than one day.',
                 '**Where** and **What it is** are optional.',
-                'Press **Schedule gathering**. You land on the gathering itself, where the tasks it just made are waiting.',
+                'Press **Schedule gathering**. You land on the gathering itself, where any tasks it just made are waiting.',
               ),
-              p('Each template decides for itself who may schedule from it, so the list offered here is not the whole library — one set to Administrators only is not on it unless you can manage gatherings, and an archived template cannot start anything new. Where nothing is offered at all the page says so in a sentence rather than greying the button out: nothing is wrong with your access, and what is missing is a template somebody has to author.'),
+              p('Each template decides for itself who may schedule from it, so the list offered here is not the whole library — one set to Administrators only is not on it unless you can manage gatherings, and an archived template cannot start anything new. Where nothing is offered at all, the form says the gathering will be a date with no tasks and points at the library for whoever can author one: nothing is wrong with your access.'),
             ],
           },
           {
@@ -967,13 +968,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               steps(
                 'Press **New gathering**.',
-                'Tick the templates under **Built from**. Their steps become its tasks, in the order the templates are named.',
+                'Tick any templates under **Built from**. Their steps become its tasks, in the order the templates are named. Tick none and the gathering is a date with no tasks, which a template can be added to later.',
                 'Fill in **Title** and **Starts**, and **Ends** only if it runs more than a day.',
                 '**Location** and **Summary** are optional — the summary is what the people being asked to help will read.',
                 'Choose a **Fund** and a **Budget ($)** if it is spending money, and tick **Show this across the top of the Dashboard** if it is the one the family should see first.',
                 'Press **Create gathering**, then **Open the gathering** to start handing out its tasks.',
               ),
-              p('There is no blank gathering: it is built from at least one template or it is not built at all. Each template you tick becomes a segment of it, which is the next section.'),
+              p('Each template you tick becomes a segment of the gathering, which is the next section. A gathering with none is the occasion itself — its dates, its place and its description — and is what the family calendar shows either way.'),
             ],
           },
           {
@@ -1809,12 +1810,12 @@ export const HELP_PARTS: readonly HelpPart[] = [
         summary: 'What each plan includes, and what happens at the boundary.',
         sections: [
           {
-            id: 'three',
-            heading: 'Three plans',
+            id: 'plans',
+            heading: 'The plans',
             blocks: [
-              p('Free, Plus and Premium, and they are inclusive — Plus is everything in Free and more, Premium is everything in Plus and more. What each one includes is listed on the plan panel at the top of [Settings](/admin/family), which is the copy that is kept current.'),
-              p('Each paid plan shows two prices on that panel: one for paying monthly, and a lower one for the whole year paid in advance. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
-              note('Free is free, and not a trial. Plus and Premium have prices and are not on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Both cards say so.'),
+              p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed on the plan panel at the top of [Settings](/admin/family), which is the copy that is kept current.'),
+              p('Each paid plan shows one price on that panel, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
+              note('Free is free, and not a trial. The three paid plans have prices and none is on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Every paid card says so.'),
             ],
           },
           {

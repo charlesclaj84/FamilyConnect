@@ -23,8 +23,9 @@
  *
  * ── THE PRICE LIVES HERE, AND IT IS THE ONE THING `/pricing` DOES SHARE ─────────────
  * This section used to say a price MAY NOT appear here, on the grounds that none had been
- * decided. Two have been (2026-08-17), so `TIER_PRICE` below is the figure and both the
- * marketing page and the two in-product surfaces read it from here.
+ * decided. Three have been now — two on 2026-08-17 and Standard on 2026-08-19 — so
+ * `TIER_PRICE` below is the figure and both the marketing page and the two in-product
+ * surfaces read it from here.
  *
  * That is not a contradiction of the paragraph above, and the distinction is worth being
  * precise about, because it is the whole reason one is shared and the other is not:
@@ -63,34 +64,71 @@ export interface PlanHighlight {
  * `tiersIncludedIn()` is what a caller uses to render the inheritance.
  */
 export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
+  // ── FREE LOST THREE BULLETS TO STANDARD ON 2026-08-19 ─────────────────────────────
+  // The tree, the ledger and separation of duties went up a rung, and the calendar bullet was
+  // NARROWED rather than moved: Free still puts a gathering on a shared calendar with its
+  // date, place and details, and everything that turns that date into assigned work is
+  // Standard. What is left is the promise the product is built on — get every relative in, at
+  // no charge, and be able to find them and talk to them.
   free: [
     {
       label: 'Every relative, at no charge',
       detail: 'Unlimited members, with no per-person fee.',
     },
     {
-      label: 'The family tree and the directory',
-      detail: 'Who is who, how they are related, and how to reach them.',
+      label: 'A directory of the whole family',
+      detail: 'Who is who, and how to reach them.',
     },
     {
-      label: 'The reunion on the calendar',
-      detail: 'The date, the place and the details in one shared page.',
+      label: 'The gathering on a shared calendar',
+      detail: 'The date, the place and the details, on one page everybody can see.',
     },
     {
       label: 'Announcements the whole family sees',
       detail: 'Family news on everyone’s dashboard instead of buried in a group text.',
     },
     {
+      label: 'Chat, family-wide and private',
+      detail: 'Keep talking between gatherings.',
+    },
+  ],
+  // ── STANDARD, ADDED 2026-08-19 ────────────────────────────────────────────────────
+  // Four bullets came UP from Free and one came DOWN from Plus, and the two directions carry
+  // different risks. Coming UP off Free is a thing families would have kept if there were any
+  // — no family is using this product yet, which is what makes the restructure admissible at
+  // all and is stated in the migration rather than assumed here. Coming DOWN from Plus
+  // (profile pictures) is a giveaway, and a giveaway is the safe direction: nobody was ever
+  // charged for it.
+  //
+  // WHAT MAKES THIS ONE TIER RATHER THAN FIVE SEPARATE FLIPS: everything here is the work of
+  // RUNNING the family rather than of having one. The tree records how it fits together, the
+  // ledger records what it collects, the duties record who is doing what, and the permission
+  // grid records who may do which. Free is the family in one place; Standard is the family
+  // being run.
+  standard: [
+    {
+      label: 'The family tree, traced back',
+      detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
+    },
+    {
       label: 'A real ledger for the money you collect',
       detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
+    },
+    {
+      label: 'Plan the gathering, not just the date',
+      detail: 'Checklists a gathering is built from, and a budget drawn on one of your funds.',
+    },
+    {
+      label: 'Everybody knows their duties',
+      detail: 'Every step handed to a named relative, with what came back and whether it was accepted.',
     },
     {
       label: 'Separation of duties',
       detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
     },
     {
-      label: 'Chat, family-wide and private',
-      detail: 'Keep talking between gatherings.',
+      label: 'A face against every name',
+      detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
     },
   ],
   plus: [
@@ -122,9 +160,12 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
       label: 'The paperwork, and the structure to match',
       detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
     },
+    // THE FACE HALF OF THIS BULLET MOVED TO STANDARD on 2026-08-19. Profile pictures are sold
+    // a rung lower now, and leaving them named here would sell one capability twice — the
+    // drift the note above `PLANS[]` on /pricing is about, in miniature.
     {
       label: 'Photographs, findable',
-      detail: 'Collections per gathering with tagging, and a face against every name.',
+      detail: 'Collections per gathering, with tagging.',
     },
   ],
   premium: [
@@ -160,42 +201,33 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
  * `remainingBalanceCents`, `formatCurrency`). Floating-point dollars are how a total comes
  * out at $99.99999999.
  *
- * `yearly` is the whole twelve months paid in advance, NOT a discounted monthly rate — so it
- * is compared against twelve times `monthly` rather than being derived from it. Both figures
- * today work out to ten months for twelve, which is a real argument and therefore worth
- * stating on the page; `annualSavingCents()` and `monthsFreeOnAnnual()` derive it so the
- * sentence cannot drift from the numbers above it.
- */
-export interface TierPrice {
-  /** Per month, month to month. */
+ * ── ONE RATE, MONTHLY. THERE IS NO ANNUAL PRICE AND NO DISCOUNT ────────────────────
+ * There were both until 2026-08-19: a `yearlyCents` per tier, priced at ten months for twelve,
+ * and three surfaces deriving a "two months free" sentence from the pair. The discount went
+ * first (twelve times monthly), and then the annual rate itself, because a second figure that
+ * saves nothing is a second figure nobody needs — it doubled the price block on every card and
+ * in every sentence to say the same thing twice.
+ *
+ * `annualSavingCents()` and `monthsFreeOnAnnual()` went with it. THEY ARE NOT COMING BACK AS
+ * HELPERS ON A SINGLE FIGURE: the reason they existed was that a claim about a saving must be
+ * derived from the two numbers rather than typed beside them, so that a price change cannot
+ * leave a sentence contradicting the figures above it. If an annual rate is reinstated, both
+ * come back with it and the rule comes back with them — a saving is never written by hand.
+ *
+ * WHAT A CALLER MUST NOT DO IN THE MEANTIME is state a yearly figure by multiplying. Twelve
+ * times the monthly rate is arithmetic anybody can do, and putting it on a card commits us to
+ * an annual plan that does not exist — including to what happens when somebody who paid for a
+ * year downgrades in March, which nothing in this product has an answer for.
+ */export interface TierPrice {
+  /** Per month, month to month. The only rate there is — see above. */
   monthlyCents: number
-  /** Charged once, covering twelve months. */
-  yearlyCents: number
 }
 
 export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
   free: null,
-  plus: { monthlyCents: 1_000, yearlyCents: 10_000 },
-  premium: { monthlyCents: 2_500, yearlyCents: 25_000 },
-}
-
-/** What paying for the year up front saves against twelve monthly payments. */
-export function annualSavingCents(price: TierPrice): number {
-  return price.monthlyCents * 12 - price.yearlyCents
-}
-
-/**
- * The saving expressed as months, when it divides evenly — "two months free" lands where
- * "$20 a year" does not.
- *
- * `null` when it does not divide, which is the honest answer rather than a rounded one: a
- * price change that made the saving 1.6 months would otherwise be advertised as "1 month
- * free" or "2 months free", and both are wrong. Callers fall back to the currency figure.
- */
-export function monthsFreeOnAnnual(price: TierPrice): number | null {
-  const saving = annualSavingCents(price)
-  if (saving <= 0 || saving % price.monthlyCents !== 0) return null
-  return saving / price.monthlyCents
+  standard: { monthlyCents: 500 },
+  plus: { monthlyCents: 1_500 },
+  premium: { monthlyCents: 2_500 },
 }
 
 /**
@@ -233,11 +265,12 @@ export function formatPlanPrice(cents: number): string {
  */
 export const TIER_IS_SOLD: Record<FamilyTier, boolean> = {
   free: true,
+  standard: false,
   plus: false,
   premium: false,
 }
 
-/** The three tiers, cheapest first — re-exported so a UI need not import two modules. */
+/** Every tier, cheapest first — re-exported so a UI need not import two modules. */
 export const PLAN_ORDER: readonly FamilyTier[] = TIERS
 
 /** What moving from one plan to another does, in both directions. See `planChange()`. */

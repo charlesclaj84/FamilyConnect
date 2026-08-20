@@ -44,23 +44,47 @@
  * length; three are worth carrying here, because each is a decision this table makes and
  * a reader will otherwise think is a mistake.
  *
- *   * **`/admin/account` is FREE.** Free sells "a real ledger for the money you collect —
- *     dues plans and a contribution ledger for cash", and dues schedules and funds are
- *     where that is set up. What Plus adds is taking payment by card and the P&L, which
- *     is `/family-finances` and the unbuilt payments work — not the setup screen.
- *   * **Every Gatherings route is FREE**, and it is forced rather than generous. "Put the
- *     reunion on the calendar" is a Free bullet, a gathering can only be created FROM a
- *     template, and `/calendar` is the only screen left that shows a reunion at all — so
- *     selling the authoring screen would make an existing Free bullet false. This entry
- *     used to say the same thing about `/admin/events` and `/admin/event-types`, which were
- *     retired on 2026-08-19 along with `/events` and `/event-planning`; the argument
- *     transferred to their replacements intact.
+ *   * **`/admin/account` is STANDARD**, and this bullet said FREE until 2026-08-19 on the
+ *     argument that Free sold "a real ledger for the money you collect". It no longer does:
+ *     the whole ledger moved up a rung when Standard was inserted, so the setup screen moved
+ *     with the thing it sets up. What PLUS still adds on top is unchanged — taking payment by
+ *     card and the P&L, which is `/family-finances` and the unbuilt payments work.
+ *   * **THE LEDGER IS FIVE ROUTES, NOT ONE**, and they had to move together or the tier
+ *     boundary would run through the middle of one member's money.
+ *     `/transactions`, `/admin/account`, `/dues`, `/donations` and `/payment-history` are all
+ *     `standard`, and `/account-summary` — which is a digest of the last three plus the
+ *     family's fund balances — went with them, because a Free family reading a Summary with
+ *     every section withheld is worse than a Free family with no Summary. Free keeps no money
+ *     surface at all, which is the decision, stated plainly so nobody restores one route out
+ *     of six and calls it a fix.
+ *   * **GATHERINGS ARE SPLIT, and the split is the one thing here a per-route field only just
+ *     manages to express.** Free sells "the gathering on a shared calendar" — a date, a place
+ *     and the details — so `/calendar`, `/gatherings` and `/admin/gatherings` are FREE. What
+ *     Standard sells is planning: `/admin/gathering-templates` (the checklists a gathering is
+ *     built from), `/gatherings/my-tasks` (the duties), and `/gatherings/budget` (the money
+ *     band). The last two are rows that exist ONLY to carry a tier, the same device
+ *     `/transactions/fund-transfers` uses; both are argued at their entries.
+ *
+ *     THIS BULLET USED TO READ "Every Gatherings route is FREE … forced rather than generous",
+ *     and what made it forced was that a gathering could only be created FROM a template. That
+ *     is no longer true: `scheduleGathering` accepts an empty template list now, which is
+ *     exactly what makes a Free gathering a date on the calendar rather than a promise nobody
+ *     can keep. Splitting the tier without that change would have left Free selling a calendar
+ *     nothing could be put on.
  *
  * NOTHING IS PREMIUM, and that is correct rather than an omission. Every Premium bullet
  * — the apps, push notifications, email distributions, automatic dues reminders, the
  * public family website — is unbuilt and has no route, so there is nothing here to mark.
  * The tier exists in `lib/tiers.ts` and a family can be put on it; it currently buys
  * everything Plus buys and nothing more, which is the honest state of that plan.
+ *
+ * ── WHAT A TIER STILL CANNOT DO, RESTATED BECAUSE STANDARD MADE IT TEMPTING ─────────
+ * It withholds SCREENS, never rows. A family moved down from Standard to Free keeps every
+ * dues payment, every relationship on the tree and every task it ever recorded, and finds
+ * them where they were the day it moves back up. No policy consults `families.tier`, none may
+ * start to, and the server actions behind a paid page are deliberately NOT tier-checked — the
+ * first time a family downgraded, one of them would start answering "Not authorized" about
+ * the family's own history.
  */
 
 import { APP_NAME } from '@/lib/brand'
@@ -149,7 +173,7 @@ export const FEATURES: readonly Feature[] = [
     // permission key in permission_resources and in every grant already issued.
     label: 'Summary',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     // A DIGEST OF THE THREE ENTRIES BELOW plus the family's fund balances, since
     // 20260815000000. It used to BE those three, as panes on a rail; they are screens
     // now, and this page is what it has always been called. Each section here is
@@ -173,41 +197,48 @@ export const FEATURES: readonly Feature[] = [
   // The migration asserts the difference rather than describing it: no
   // permission_table_map row, and no policy evaluating auth_permission('dues', …).
   //
-  // ALL THREE ARE FREE, like the page they came off. Nothing about a member reading
-  // their own balance was ever sold, and splitting one Free screen into three would be
-  // a strange moment to start.
+  // ALL THREE ARE STANDARD SINCE 2026-08-19, and this note said FREE — "nothing about a
+  // member reading their own balance was ever sold". What changed is not a judgement about
+  // reading a balance: it is that the LEDGER moved, and these three are windows onto it. A
+  // family whose treasurer cannot record a payment has nothing for a member to read, so
+  // leaving these Free would have sold three screens that are empty by construction.
+  //
+  // `/account-summary` above moved for the same reason and is the case worth checking first
+  // when this looks wrong: it is a digest of these three, so it cannot be a rung below them.
   {
     href: '/dues',
     label: 'Dues',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Every schedule you are on, what each installment costs, and when the next one falls due.',
   },
   {
     href: '/donations',
     label: 'Donations',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'The drives your family is running, how far each has got, and what you have given.',
   },
   {
     href: '/payment-history',
     label: 'Payment History',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Every payment recorded against you, with its date, method, status and reference.',
   },
   {
     href: '/transactions',
     label: 'Transactions',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Every payment, donation, contribution, disbursement and fund transfer the family has recorded.',
   },
   // ── THE FIRST TIER BOUNDARY THAT RUNS *THROUGH* A PAGE, and the mechanism the `tier`
   // note above says to use for one. Added 2026-08-19.
   //
-  // Fund transfers are Plus; the other four ledgers on `/transactions` are Free. That is
+  // Fund transfers are Plus; the other four ledgers on `/transactions` are Standard as of
+  // 2026-08-19 and were Free when this was written. The boundary still runs THROUGH the page,
+  // which is what this row is for — only the rung underneath it moved. That is
   // a decision about the CAPABILITY rather than the screen — moving the family's savings
   // out of the pot it was collected for is treasury work, and `transactions/fund-transfers`
   // has been its own permission resource since 20260812000002 for the same reason
@@ -350,11 +381,20 @@ export const FEATURES: readonly Feature[] = [
   // The permission key is still `family-tree` and is still answered by THIS entry. That is
   // now simply the route without its leading slash, which it was not while the lineage
   // view shared the key from a different path.
+  //
+  // STANDARD SINCE 2026-08-19, and it is the one route in that move that a reader will
+  // question, because a family tree is what people think this product IS. That is the reason
+  // rather than an objection to it: the tree is the first thing worth paying for, and Free
+  // still answers "who is in this family and how do I reach them" through the Directory,
+  // which is a different question from "how are we related". `bloodline_only` on a dues
+  // schedule reads `person_relationships` and is NOT tier-checked, deliberately — the tier
+  // withholds the canvas, never the graph, so a family that lapses finds every relationship
+  // intact and every schedule still billing the people it always billed.
   {
     href: '/family-tree',
     label: 'Family Tree',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'A multi-generation tree of parents, grandparents, children, and spouses.',
   },
 
@@ -448,7 +488,13 @@ export const FEATURES: readonly Feature[] = [
   // can never be a caller's ONLY reason to reach a page: both pages that draw that band are
   // already gated on `gatherings:view` and `admin/gatherings:view` respectively, so a member
   // holding the budget key and neither of those has no page to be linked to. That is exactly
-  // the case the note on `TAB_RESOURCES` says to leave out. (That list gained a second
+  // the case the note on `TAB_RESOURCES` says to leave out.
+  //
+  // IT DOES HAVE A REGISTRY ROW SINCE 2026-08-19, and the two facts are not in tension —
+  // which is worth spelling out, because they look like they are. A row in FEATURES carries
+  // the TIER for a key; `TAB_RESOURCES` decides whether `viewableResources()` should hand the
+  // key back so a rail item can appear. The budget band needs the first and must not have the
+  // second, exactly like `/transactions/fund-transfers`. (That list gained a second
   // entry on 2026-08-19 — `admin/chapters`, the Organization pane — which does not change
   // this reasoning: read the note on it, because the ground it earns its place on is not the
   // one `admin/users/templates` earns its place on.)
@@ -457,19 +503,48 @@ export const FEATURES: readonly Feature[] = [
     label: 'Gatherings',
     status: 'live',
     tier: 'free',
-    blurb: 'Family gatherings built from a template, with every task assigned and tracked.',
+    // "built from a template" came out of this blurb on 2026-08-19: a template is Standard
+    // now, and a Free gathering is a date, a place and the details. The page is the same page.
+    blurb: 'What the family is planning, when it falls, and where.',
+  },
+  // ── THE MONEY BAND, AND THE THIRD ROW THAT EXISTS ONLY TO CARRY A TIER ───────────
+  // Added 2026-08-19 with Standard. `gatherings/budget` has been a permission resource since
+  // 20260819000000 and had no registry row, so it inherited `/gatherings` and was Free.
+  // Budgeting a gathering against a fund is planning, which is what Standard sells, so the
+  // row states it.
+  //
+  // WHAT THIS DOES AND DOES NOT WITHHOLD, and the distinction is already argued at length in
+  // the migration that created the key: `gatherings/budget` gates whether the app FETCHES the
+  // money columns, and it cannot hide them, because they live on `gatherings` and
+  // `gathering_tasks` whose SELECT policy is keyed on `gatherings:view` and no grant can
+  // narrow a column. Adding a TIER on top changes nothing about that: it withholds the same
+  // screen band from a Free family that the permission key withholds from a member without
+  // the grant. If it ever has to become confidentiality, the money moves to its own table
+  // with its own map row — a migration, not a comment, and not this row.
+  {
+    href: '/gatherings/budget',
+    label: 'Gathering Budgets',
+    status: 'live',
+    tier: 'standard',
+    blurb: 'What a gathering may spend, which fund it draws on, and what each task has claimed.',
   },
   // MORE SPECIFIC THAN `/gatherings`, WHICH IS WHY IT NEEDS ITS OWN ENTRY. `getFeature()`
   // prefers the longest match, so this row is what answers for `/gatherings/my-tasks` while
-  // `/gatherings/[id]` still inherits the row above. Both carry the same status and tier, so
-  // nothing here turns on which one wins — what does turn on it is `viewableResources()`,
-  // which needs the KEY `gatherings/my-tasks` in its answer or the rail item disappears for
-  // everybody.
+  // `/gatherings/[id]` still inherits the row above. `viewableResources()` also needs the KEY
+  // `gatherings/my-tasks` in its answer or the rail item disappears for everybody.
+  //
+  // WHICH ROW WINS NOW MATTERS, and it did not before 2026-08-19: this note used to say the
+  // two carried the same tier so nothing turned on the match. They do not — the duties are
+  // Standard and the gathering itself is Free — so `/gatherings` and `/admin/gatherings` must
+  // resolve their My Tasks and Review panes with `tierAllows()` BY HAND, above their union of
+  // grants, the way `/admin/users` does for Organization. A page that calls `requireTier` on
+  // `'gatherings'` alone and then opens a pane governed by this key has published a Standard
+  // screen to a Free family, and nothing anywhere reports it.
   {
     href: '/gatherings/my-tasks',
     label: 'My Gathering Tasks',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Every gathering task assigned to you, what to send back, and by when.',
   },
   {
@@ -750,8 +825,42 @@ export const FEATURES: readonly Feature[] = [
     href: '/admin/gathering-templates',
     label: 'Gathering Templates',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Reusable step-by-step lists that every gathering is built from.',
+  },
+  // ── SEPARATION OF DUTIES IS SOLD ON STANDARD, AND THIS ROW IS HOW ────────────────
+  // Added 2026-08-19. Second instance of the `/transactions/fund-transfers` device — a
+  // registry row whose only job is to carry a tier for a sub-key — and everything that entry
+  // says about it applies here. Three things a reader will otherwise take for mistakes:
+  //
+  //   * `/admin/users/templates` IS NOT A ROUTE. The permission grids are a PANE of
+  //     `/admin/users`, and the key is in `TAB_RESOURCES` below precisely because it has no
+  //     route to be found by. The row is here because `tierAllows()` resolves a key through
+  //     `requiredTier()`, which is `getFeature()`'s longest-prefix match — so without it the
+  //     sub-key inherits `/admin/users` and is Free, which is what `lib/auth/tier.ts`
+  //     documents as the default ("a tab is part of the page it is on"). This is the
+  //     deliberate exception, and a row is the only way to state one.
+  //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list keyed on
+  //     `viewKeys`, so a row here conjures no destination. What it adds is the key to
+  //     `viewableResources()`, which is what the key was already in `TAB_RESOURCES` for.
+  //   * `status: 'live'` MATTERS, for the reason spelled out on the fund-transfers row:
+  //     `'future'` would rewrite `/admin/users/...` to Coming Soon at the edge AND drop every
+  //     grid row under the prefix out of `getResources()`, so the switches would vanish with
+  //     no error at all.
+  //
+  // THE PAGE HAS TO HONOUR IT, and `/admin/users` already had the machinery: it resolves its
+  // four panes by hand and ands `tierAllows()` into the Organization one. The Templates pane
+  // now does the same, and the pane is ABSENT rather than empty (§5). A Free family keeps
+  // every template it ever built and every grant on it — this withholds the EDITOR, not the
+  // model: `auth_permission()` still reads whatever template each member is on, because a
+  // permission model that switched off with a plan would be a downgrade that hands the family
+  // more access than it paid for rather than less.
+  {
+    href: '/admin/users/templates',
+    label: 'Permission Templates',
+    status: 'live',
+    tier: 'standard',
+    blurb: 'The grid that decides who may do what, one row per feature and four switches across.',
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded
   // payments, and the funds those payments route into. The route stays
@@ -761,7 +870,7 @@ export const FEATURES: readonly Feature[] = [
     href: '/admin/account',
     label: 'Accounting',
     status: 'live',
-    tier: 'free',
+    tier: 'standard',
     blurb: 'Dues schedules, funds, and payment routing for the whole family.',
   },
 ]
