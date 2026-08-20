@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { can, canAny } from '@/lib/auth/permissions'
@@ -1676,13 +1677,23 @@ export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: bo
     return { success: false, message: 'Schedule not found' }
   }
 
-  const { error } = await supabase
-    .from('dues_member_plans')
-    .delete()
-    .eq('person_id', myPerson.id)
-    .eq('family_code', familyCode)
-    .eq('schedule_id', scheduleId)
-  if (error) return { success: false, message: error.message }
+  // The four policies on this table are all `family_code = auth_family_code() AND
+  // person_id = auth_person_id()`, so a member deleting their OWN enrolment is admitted and
+  // there is no grant to withhold — which is exactly why this one is worth confirming. A
+  // zero-row delete here means the plan was already gone, or the schedule id belongs to a
+  // row that is not theirs, and neither is an error PostgREST reports
+  // (lib/confirmed-write.ts). Reporting success over it left the member looking at an
+  // enrolment they had just been told was cleared.
+  const outcome = await confirmWrite(() =>
+    supabase
+      .from('dues_member_plans')
+      .delete()
+      .eq('person_id', myPerson.id)
+      .eq('family_code', familyCode)
+      .eq('schedule_id', scheduleId)
+      .select('id'))
+  if (!outcome.ok) return { success: false, message: outcome.message }
+
   revalidateMemberMoney()
   revalidatePath('/dashboard')
   return { success: true }

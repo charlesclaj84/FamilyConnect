@@ -8,7 +8,7 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  * The Golden Master's EVENT half of the welcome hero, finally on screen — as a second
  * Heritage band directly under the greeting, announcing the family's premier gathering.
  *
- * The kit (`public/dashboard/03_VECTOR_ASSETS/components/Welcome_EventHero.svg`) draws one
+ * The kit (`design/dashboard/v1_0/03_VECTOR_ASSETS/components/Welcome_EventHero.svg`) draws one
  * 790x515 composition holding TWO things: the greeting on cream at the top-left, and a
  * featured event on a burgundy band at the bottom, with one swoop between them. The repo
  * INVERTED that — `WelcomeHero` makes the whole band burgundy, puts the greeting inside it

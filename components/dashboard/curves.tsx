@@ -4,7 +4,7 @@ import { TREE_WATERMARK_PATH, TREE_WATERMARK_VIEWBOX } from './tree-watermark-pa
  * The Golden Master's swoop — the organic edge along the bottom of the Heritage band.
  *
  * GEOMETRY IS THE KIT'S. The `d` is `eventHero` from
- * `public/dashboard/05_DESIGN_SYSTEM/curve-paths.json`, unaltered, authored against the
+ * `design/dashboard/v1_0/05_DESIGN_SYSTEM/curve-paths.json`, unaltered, authored against the
  * hero's 790x515 box. Only the top edge of that shape is used here: the band is a
  * coloured `<div>` and this sits at its foot, so the path's own upper half is off-canvas
  * above the window. That is why the viewBox starts at y=200 rather than 0.
@@ -46,7 +46,7 @@ export function HeroCurve({ className }: { className?: string }) {
  * The kit's gold hairline along the right half of that same swoop.
  *
  * GEOMETRY IS THE KIT'S, verbatim. The `d` is the stroked path in
- * `public/dashboard/03_VECTOR_ASSETS/components/Welcome_EventHero.svg`, where it is drawn
+ * `design/dashboard/v1_0/03_VECTOR_ASSETS/components/Welcome_EventHero.svg`, where it is drawn
  * `stroke="#d99714" stroke-width="1.9059" fill="none"`. It is the one unbuilt element of
  * that composition that can be honoured EXACTLY, because it was authored in the same
  * 790x515 space as `HeroCurve` above: it runs from (372, 286.76) to (791.3, 231.35), and

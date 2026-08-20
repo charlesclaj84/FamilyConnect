@@ -30,5 +30,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // `design/` holds the vendor design kits, delivered as-is. The Dashboard Golden Master
+  // ships five stub .tsx components in `06_REACT/`, which `**/*.tsx` above would otherwise
+  // type-check — so a kit drop whose stubs do not compile would turn `npm run typecheck` red
+  // on somebody else's file. Excluded for the same reason eslint.config.mjs ignores them:
+  // editing a handoff kit to satisfy our toolchain destroys the one property that makes it
+  // useful as a reference, which is that it is byte-for-byte what the designer delivered.
+  "exclude": ["node_modules", "design"]
 }

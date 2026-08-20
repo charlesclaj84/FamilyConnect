@@ -116,12 +116,23 @@ jobs:
       # `|| true` before that, because blocking on a baseline of 39 fails every PR from the
       # first one and teaches everybody that a red tick is normal.
       #
-      # 30 WARNINGS REMAIN AND DO NOT FAIL THIS. eslint exits 0 on warnings, and no
-      # `--max-warnings` is set, deliberately: most are `no-unused-vars` and
-      # `react-hooks/incompatible-library`, the latter being React Compiler's correct
-      # objection to react-hook-form's `watch()`, which cannot be memoized safely and is not
-      # ours to fix. Tightening this to `--max-warnings 0` is a separate decision that needs
-      # those triaged first — TODO.md carries it.
+      # AND A WARNING FAILS IT TOO, since 2026-08-20. `npm run lint` is
+      # `eslint --max-warnings 0`, so the flag lives in package.json rather than here — one
+      # place, and a laptop run gives the same answer CI does.
+      #
+      # This said "30 WARNINGS REMAIN AND DO NOT FAIL THIS", and named
+      # `react-hooks/incompatible-library` as the group that had to be triaged first: React
+      # Compiler's correct objection to react-hook-form's `watch()`, which cannot be
+      # memoized safely. That group is gone — every form needing a live field value uses
+      # `useWatch`, which is a real hook (see the long note under the imports in
+      # `PersonalInfoForm`, because the cost of `watch()` was never the line it appeared on:
+      # the compiler skips the WHOLE component). The unused-vars are cleared, and the three
+      # `no-img-element` sites carry a targeted disable with the reason written beside it.
+      #
+      # WHAT THAT BUYS is that a new warning cannot accumulate quietly. What it costs is
+      # that a rule which fires on legitimate code now needs a disable and a sentence saying
+      # why — which is the trade taken deliberately, and is why those three sites read the
+      # way they do rather than being silenced from here.
       - name: Lint
         run: npm run lint
 

@@ -65,7 +65,7 @@ try {
   process.exit(2)
 }
 
-const KIT = resolve(ROOT, 'public/dashboard')
+const KIT = resolve(ROOT, 'design/dashboard/v1_0')
 const SOURCE_BITMAP = resolve(KIT, '01_REFERENCE/FamilyTree_Golden_Crop.png')
 const SOURCE_VECTOR = resolve(KIT, '03_VECTOR_ASSETS/FamilyTree_Golden_ExactPixelVector.svg')
 const TARGET = resolve(ROOT, 'components/dashboard/illustrations/family-tree.png')

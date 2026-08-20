@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
@@ -189,11 +190,21 @@ export async function respondToNomination(
   electionId: string
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('election_nominations')
-    .update({ accepted })
-    .eq('id', nominationId)
-  if (error) return { success: false, message: error.message }
+
+  // `election_nominations`' composed policy carries `nominee_id = auth_person_id()` as its
+  // `self_expr`, so a nominee always reaches their own row — and anybody ELSE matches zero
+  // rows unless the family granted them `review/elections:edit`. Zero rows is not an error
+  // (lib/confirmed-write.ts), so this used to tell somebody their answer was recorded when
+  // no row had changed, which on a nomination is the worst place for it: the election goes
+  // ahead reading an `accepted` the nominee believes they set.
+  const outcome = await confirmWrite(() =>
+    supabase
+      .from('election_nominations')
+      .update({ accepted })
+      .eq('id', nominationId)
+      .select('id'))
+  if (!outcome.ok) return { success: false, message: outcome.message }
+
   revalidatePath(`/review/elections/${electionId}`)
   return { success: true }
 }

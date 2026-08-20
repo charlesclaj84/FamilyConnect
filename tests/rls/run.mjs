@@ -71,6 +71,15 @@ async function runRead(c, fx, actors, markers) {
 
   // ── attack: BRAVO's administrator, using ALPHA's arguments ────────────────
   const attacker = actors[c.attacker ?? 'bravoAdmin']
+  // `setup` RUNS FOR READS TOO, and it did not until 2026-08-20. Write cases have always
+  // had it; read cases silently ignored it, so a case that planted a row to be read
+  // asserted against whatever happened to be there. STORAGE_CASES found that the expensive
+  // way: two `documents` cases seed an object as the service role, passed when run alone
+  // (the object was left over from an earlier run — Storage is not reset by `seed()`), and
+  // failed in the full suite after a fresh `db reset`. Both phases get it, exactly as
+  // runWrite does, because the attack half needs the row present just as much: a download
+  // refused because the file is missing is not evidence that a policy refused it.
+  if (c.setup) await c.setup(db, fx)
   const attack = await callAs(attacker, action, args)
   if (attack.threw) {
     // A refusal is a perfectly good outcome — the data did not come out.
@@ -91,6 +100,7 @@ async function runRead(c, fx, actors, markers) {
     return
   }
   const owner = actors[c.positiveActor ?? 'alphaMember']
+  if (c.setup) await c.setup(db, fx)
   const control = await callAs(owner, action, c.positiveArgs ? c.positiveArgs(fx) : args)
   if (control.threw) {
     record(c.id, 'control', false, RED(`owner could not call it: ${control.threw.message}`))
@@ -117,6 +127,30 @@ async function runWrite(c, fx, actors) {
     unchanged
       ? (attack.threw ? GREY(`refused: ${attack.threw.message}`) : GREY('no-op — row untouched'))
       : RED(`ROW MUTATED\n         before ${before}\n         after  ${after}`))
+
+  // ── AND, OPTIONALLY, WHAT THE CALLER WAS TOLD ────────────────────────
+  // `expectRefusal` is a SECOND assertion on the same attack call, not a replacement for the
+  // probe above: the probe answers *did the row change*, this answers *was the caller told the
+  // truth about it*. Those are different failures and only one of them is isolation — an action
+  // that changes nothing and reports `{ success: true }` passes the probe assertion perfectly,
+  // which is exactly the defect lib/confirmed-write.ts exists to close, and exactly why reading
+  // a green attack line for two months was not enough to notice it.
+  //
+  // Only on the attack half, deliberately. The control half already asserts the write LANDED,
+  // and a case that also pinned the owner's success message would be asserting copy.
+  if (c.expectRefusal) {
+    const told = attack.threw
+      ? { ok: false, detail: `threw instead of reporting: ${attack.threw.message}` }
+      : c.expectRefusal(attack.value, fx)
+    // PHASE 'told', NOT 'attack'. The summary buckets every failed `attack` line under
+    // "another family's data was reachable", and this failure is not that — it is one
+    // family's own member being lied to. Filed as an attack line it reported a leak that
+    // had not happened, which is the kind of wrong label that gets a suite distrusted.
+    record(`${c.id} — and says so`, 'told', told.ok === true,
+      told.ok === true
+        ? GREY(told.detail ?? '')
+        : RED(told.detail ?? `reported: ${JSON.stringify(attack.value)?.slice(0, 200)}`))
+  }
 
   // ── positive control: the rightful owner must be able to do it ────────────
   if (c.positive === 'not-applicable') {
@@ -190,6 +224,14 @@ console.log(`${selected.length} actions · ${results.length} assertions · ` +
 if (leaked.length) {
   console.log(RED(`\n${leaked.length} ISOLATION FAILURE(S) — another family's data was reachable:`))
   for (const r of leaked) console.log(RED(`  · ${r.id}`))
+}
+
+const dishonest = results.filter(r => r.phase === 'told' && !r.ok)
+if (dishonest.length) {
+  console.log(RED(`
+${dishonest.length} ACTION(S) REPORTED SUCCESS OVER A WRITE THAT DID NOT HAPPEN.`))
+  console.log(RED('No data crossed a family boundary — the caller was told a lie about their own.'))
+  for (const r of dishonest) console.log(RED(`  · ${r.id}`))
 }
 
 const vacuous = results.filter(r => r.phase === 'control' && !r.ok)

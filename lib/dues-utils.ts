@@ -507,9 +507,21 @@ export function proratedAnnualCents(annualCents: number, share: AgeShare): numbe
  * It follows that a member admitted in August is shown a catch-up covering the whole year
  * to date. That is not this function inventing a charge — the balance already said they
  * owe the full annual amount, since nothing in the product prorates — it is that figure
- * finally being broken down. (`dues_member_plans.start_date` exists and is written by
- * nothing; flooring the ladder there is the change to make if prorating ever arrives, and
- * the balance would have to move with it.)
+ * finally being broken down.
+ *
+ * ── DUES DO NOT PRORATE, AND THAT IS NOW A DECISION RATHER THAN A DEFAULT ────────────
+ * `dues_member_plans.start_date` used to be named here as the place to floor the ladder if
+ * prorating ever arrived. It was dropped on 2026-08-20 (`20260820000005`), because it was
+ * `NOT NULL DEFAULT CURRENT_DATE` and written by nothing — so every row held the date its
+ * plan happened to be created, and a column full of plausible dates that describe nothing
+ * is precisely what a later change picks up and trusts. Flooring on it would have let
+ * anybody shrink their own arrears by re-picking their cadence twice.
+ *
+ * A family that wants a half-year rate says so with a second schedule at a smaller
+ * `amount_cents`, which is a figure an organizer states rather than one a derivation
+ * invents. If real prorating is ever wanted, that migration's header carries what it costs
+ * — and the first item is that `remainingBalanceCents` has to move with the ladder, or the
+ * member's screen shows two numbers describing different debts.
  *
  * ── PURE, AND `today` IS INJECTED ───────────────────────────────────────────────────
  * Every other helper in this file reads `new Date()` internally, which is why none of them

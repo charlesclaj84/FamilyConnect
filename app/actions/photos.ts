@@ -1,8 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
-import { getMyFamilyCode } from '@/lib/auth/family'
+import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
@@ -209,6 +210,24 @@ export async function uploadPhoto(
   if (!file) return { success: false, message: 'No file provided' }
   if (file.size > 10 * 1024 * 1024) return { success: false, message: 'File must be under 10 MB' }
 
+  // ── §4: THE COLLECTION IS A CLIENT-SUPPLIED ID WRITTEN ONTO THE ROW ──────────────
+  // Missing until 2026-08-20, and it is the hole AGENTS.md §4 is entirely about: the
+  // `photos` row this creates carries the CALLER's `family_code`, so every policy on it is
+  // satisfied, while `collection_id` points wherever the caller said — including into
+  // another family's album. Nothing in the database was asked, because nothing in the
+  // database can be: RLS is a predicate over the row being written, not over the ids it
+  // references.
+  //
+  // The damage is the shape `audit_cross_family_refs.sql` exists to find and that no screen
+  // will ever report: the reading side scopes by family, so the photograph resolves to
+  // nothing and both families render a gap where an image should be.
+  //
+  // `belongsToFamily` uses the service role on purpose — the answer must not depend on the
+  // caller holding view permission on `photo_collections`.
+  if (!(await belongsToFamily('photo_collections', collectionId, familyCode))) {
+    return { success: false, message: 'Collection not found' }
+  }
+
   const ext = file.name.split('.').pop()
   const photoId = crypto.randomUUID()
   const filePath = `${familyCode}/${collectionId}/${photoId}.${ext}`
@@ -236,15 +255,47 @@ export async function uploadPhoto(
   return { success: true }
 }
 
+/**
+ * `filePath` is accepted for call-site compatibility and deliberately IGNORED — the path
+ * comes from the deleted row's own RETURNING. See the note beside the storage call, and
+ * `deleteDocument`, which carries the same parameter for the same reason.
+ */
 export async function deletePhoto(
   id: string,
   filePath: string,
   collectionId: string
 ): Promise<{ success: boolean; message?: string }> {
+  void filePath
   const supabase = await createClient()
-  const { error: dbError } = await supabase.from('photos').delete().eq('id', id)
-  if (dbError) return { success: false, message: dbError.message }
-  await supabase.storage.from('photos').remove([filePath])
+
+  // ── THE ROW COUNT IS THE ANSWER, NOT THE ERROR (lib/confirmed-write.ts) ───────────
+  // This is the action TODO.md's table named: `photos` maps to `review/photos`, whose
+  // `delete` falls back to scope 'none', so a member without the grant matched zero rows
+  // and PostgREST reported no error — and this returned `{ success: true }` over a
+  // photograph that was still there on reload. The `.select(...)` is what makes the empty
+  // match visible; `confirmWrite` retries once and then says so. `file_path` is in that
+  // projection so the STORAGE delete below can use the path from the ROW rather than the
+  // one the caller sent — see the note beside it.
+  const outcome = await confirmWrite(() =>
+    supabase.from('photos').delete().eq('id', id).select('id, file_path'))
+  if (!outcome.ok) return { success: false, message: outcome.message }
+
+  // Storage AFTER the row, and its failure is deliberately not fatal — the same ordering
+  // `deleteDocument` uses, for the same reason: a failed object delete leaves a file
+  // nothing points at, while the reverse leaves a row pointing at nothing.
+  //
+  // ── AND THE PATH COMES FROM THE ROW, NEVER FROM THE PARAMETER ────────────────────
+  // Until 2026-08-20 the client's `filePath` went straight to `remove()`. Two things made
+  // that worse than it looks. `20260820000006` is what finally lets this delete succeed at
+  // all — the old policy wanted `auth.uid()` as the first folder while every path starts
+  // with the family code, so it matched nothing for anyone and every "deleted" photograph
+  // stayed in a PUBLIC bucket, still fetchable by URL. And now that it does succeed, a
+  // caller holding the delete grant could pass a mismatched path and take out a DIFFERENT
+  // photograph's file inside their own family, leaving a row pointing at nothing. Reading
+  // the path off the row is the same repair `deleteDocument` made by ignoring its own
+  // `filePath` argument; here the delete's own RETURNING already has the authoritative one.
+  const removed = outcome.rows[0]?.file_path
+  if (removed) await supabase.storage.from('photos').remove([removed])
   revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }
@@ -278,13 +329,18 @@ export async function untagPersonFromPhoto(
   collectionId: string
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('photo_tags')
-    .delete()
-    .eq('photo_id', photoId)
-    .eq('person_id', personId)
+  // `photo_tags` maps to `review/photos` too, with a `self_expr` of the literal `false` —
+  // so there is no self-service route to this and a member without `delete` at 'own' or
+  // 'any' matched nothing while being told the tag was removed. Same fix as deletePhoto.
+  const outcome = await confirmWrite(() =>
+    supabase
+      .from('photo_tags')
+      .delete()
+      .eq('photo_id', photoId)
+      .eq('person_id', personId)
+      .select('photo_id'))
+  if (!outcome.ok) return { success: false, message: outcome.message }
 
-  if (error) return { success: false, message: error.message }
   revalidatePath(`/review/photos/${collectionId}`)
   return { success: true }
 }

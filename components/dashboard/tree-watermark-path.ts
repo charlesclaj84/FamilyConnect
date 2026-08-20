@@ -2,7 +2,7 @@
  * The Golden Master's event-band tree watermark, as its single path.
  *
  * Lifted verbatim from the kit —
- * `public/dashboard/03_VECTOR_ASSETS/EventHero_TreeWatermark_DirectTrace.svg`,
+ * `design/dashboard/v1_0/03_VECTOR_ASSETS/EventHero_TreeWatermark_DirectTrace.svg`,
  * viewBox `0 0 125 119`, one path. Not re-drawn and not simplified, which
  * `00_START_HERE/CLAUDE_START_HERE.md` asks for by name.
  *

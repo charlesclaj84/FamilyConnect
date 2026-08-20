@@ -27,6 +27,7 @@ import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/Memb
 import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
+import { MemberProfileEditDialog } from '@/components/admin/MemberProfileEditDialog'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
 import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
 import { AdminBoardPositionsClient } from '@/components/admin/AdminBoardPositionsClient'
@@ -531,6 +532,13 @@ function MembersTab({ templates, rights, onError }: {
   const [viewingId, setViewingId] = useState<string | null>(null)
   const viewed = data.rows.find(r => r.personId === viewingId) ?? null
 
+  // WHICH MEMBER THE EDIT PANEL IS OPEN ON. Held as an ID rather than as a row, and
+  // deliberately not derived from `data.rows` the way `viewed` is: the edit dialog fetches
+  // its own record and must survive the roster underneath it changing — a save calls
+  // `reload()`, and a row looked up by identity would go momentarily undefined and unmount
+  // the panel mid-transition.
+  const [editingId, setEditingId] = useState<string | null>(null)
+
   async function run(
     options: ConfirmOptions,
     action: () => Promise<{ success: boolean; message?: string }>,
@@ -572,7 +580,40 @@ function MembersTab({ templates, rights, onError }: {
       <MemberDetailsDialog
         member={viewed ? accessDetails(viewed) : null}
         onClose={() => setViewingId(null)}
+        // ── THE HANDOFF: ONE PANEL CLOSES, THE OTHER OPENS ─────────────────────
+        // Offered only where the caller holds `admin/members:edit`, which the PAGE
+        // resolved and passed down as `rights.edit`. This is the UI following that
+        // decision and not the gate — `getMemberProfileForEdit` and `updateUserProfile`
+        // each resolve the grant themselves, because a `'use server'` export has a URL
+        // whether or not a button exists (AGENTS.md §2).
+        //
+        // Both state writes happen here rather than being split across the two dialogs,
+        // so the order cannot be got wrong: the id is captured BEFORE the detail dialog
+        // is closed, since closing it clears the value being captured. The Member
+        // Directory passes no `onEdit` at all and so renders the read-only version of
+        // the same component.
+        onEdit={rights.edit && viewed
+          ? () => { setEditingId(viewed.personId); setViewingId(null) }
+          : undefined}
       />
+
+      {/* MOUNTED ONLY WHILE OPEN, AND KEYED ON THE MEMBER. The key is what discards the
+          previous member's fetched record, form values, error and reset notice — the same
+          mechanism AGENTS.md uses at `<main key={familyCode}>`, and the reason that dialog
+          needs no reset logic of its own. Without it, a second member opened after a first
+          would render the first one's form under the second one's name. */}
+      {editingId && (
+      <MemberProfileEditDialog
+        key={editingId}
+        peopleId={editingId}
+        onClose={() => setEditingId(null)}
+        // `reload()` and not `router.refresh()`: the roster is client-fetched and paged
+        // (usePagedMembers), so a refresh would re-render the shell around a list that
+        // still holds the old name. `run()` above does both for the row actions because
+        // those change a member's ACCESS, which the shell reads; a profile edit does not.
+        onSaved={reload}
+      />
+      )}
     </div>
   )
 }

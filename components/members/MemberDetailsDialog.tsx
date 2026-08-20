@@ -1,5 +1,6 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -109,10 +110,26 @@ export interface MemberDetails {
   extra?: readonly MemberDetailField[]
 }
 
-export function MemberDetailsDialog({ member, onClose }: {
+export function MemberDetailsDialog({ member, onClose, onEdit }: {
   /** The member being shown, or null when the dialog is closed. */
   member: MemberDetails | null
   onClose: () => void
+  /**
+   * Offered only where the caller may actually edit this person — omit it and no button
+   * renders, which is how the Member Directory gets the read-only version of this dialog
+   * without a second component or a flag.
+   *
+   * ── THE ABSENCE OF THIS PROP IS NOT A PERMISSION CHECK ────────────────────────────
+   * It is the UI following a decision the SERVER already made. Members & Access resolves
+   * `admin/members:edit` on the page and passes `rights.edit` down; this prop is the last
+   * link in that chain, not the gate. The gate is `getMemberProfileForEdit`, which resolves
+   * the same grant itself before it will hand over a single column — because a `'use server'`
+   * export is a public HTTP endpoint whether or not a button exists (AGENTS.md §2).
+   *
+   * It takes no argument. The caller already knows which member the dialog is open on — it
+   * supplied it — and passing the person back would invite a second, disagreeing answer.
+   */
+  onEdit?: () => void
 }) {
   // Region and Chapter are IN the table as columns and repeated here on purpose. Below
   // `sm` both fold away (COLLAPSING_CELL), so on a phone the dialog is the only place
@@ -154,11 +171,33 @@ export function MemberDetailsDialog({ member, onClose }: {
               </div>
             ))}
           </dl>
-          <div className="pt-4">
+          <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
             {/* A second way out beside the header's ✕ and Escape. The panel body
                 scrolls and its header does not, so on a short screen this is the
-                affordance a thumb reaches without scrolling back up. */}
-            <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
+                affordance a thumb reaches without scrolling back up.
+
+                `flex-col-reverse` below `sm`: stacked, Close ends up UNDER Edit, so the
+                primary action is the one a thumb reaches first while Close keeps its
+                place at the bottom of the panel. `sm:flex-row` puts them back in
+                reading order. */}
+            <Button variant="outline" className="sm:w-auto" onClick={onClose}>Close</Button>
+            {onEdit && (
+              /* CLOSES THIS DIALOG AND OPENS THE OTHER, rather than growing this one into
+                 a form. Two reasons, and the second is why it is not a toggle inside the
+                 panel: this component is shared with the Member Directory, where there is
+                 no form to grow into; and the edit dialog has to FETCH the other nineteen
+                 columns before it can render anything (AGENTS.md §5 — the roster does not
+                 carry them), so there is a load in between that a panel swapping its own
+                 body would have to render a spinner for.
+
+                 `onEdit` is expected to do both halves. It is one handler rather than
+                 `onClose` plus `onEdit` so the two cannot be called in the wrong order,
+                 which would unmount the trigger mid-transition. */
+              <Button className="sm:w-auto" onClick={onEdit}>
+                <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                Edit profile
+              </Button>
+            )}
           </div>
         </div>
       )}

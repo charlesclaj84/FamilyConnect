@@ -42,7 +42,7 @@ export const metadata = { title: 'Dashboard' }
  * The member's landing screen, in the Golden Master's visual language.
  *
  * ── WHAT THIS PAGE IS NOT ────────────────────────────────────────────────────────────
- * The kit (`public/dashboard/`) composes nine panels. Three of them are omitted here and
+ * The kit (`design/dashboard/v1_0/`) composes nine panels. Three of them are omitted here and
  * every omission is a fact about the product rather than a shortcut:
  *
  *   Upcoming Events (a row card)   There is no Events product any more (2026-08-19), so this

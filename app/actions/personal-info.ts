@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
@@ -81,12 +82,25 @@ export async function uploadAvatar(
 
   // avatar_url is a shared profile field, so this intentionally has no
   // family_code filter: the picture applies to every family the user is in.
-  const { error: updateError } = await supabase
-    .from('people')
-    .update({ avatar_url: publicUrl })
-    .eq('user_id', user.id)
+  //
+  // ── CONFIRMED, BECAUSE THE FAILURE HERE IS INVISIBLE (lib/confirmed-write.ts) ──────
+  // `people` maps to `community/directory` with `user_id = (SELECT auth.uid())` as both its
+  // own- and self-expression, so a member always reaches their own row and this should
+  // never match nothing. "Should never" is the reason to check rather than the reason not
+  // to: the object is ALREADY in a public bucket by this point, so a zero-row update leaves
+  // a photograph uploaded and served by URL while every screen still renders the old one —
+  // and the member is told it saved. There is nothing to roll back and nothing to notice.
+  //
+  // `.select('id')` also counts the rows across every family the user belongs to, which is
+  // the right count for a shared column: one member of three families expects three.
+  const updated = await confirmWrite(() =>
+    supabase
+      .from('people')
+      .update({ avatar_url: publicUrl })
+      .eq('user_id', user.id)
+      .select('id'))
 
-  if (updateError) return { success: false, message: updateError.message }
+  if (!updated.ok) return { success: false, message: updated.message }
 
   revalidatePath('/personal-info')
   revalidatePath('/dashboard')

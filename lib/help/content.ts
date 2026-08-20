@@ -1670,6 +1670,20 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'editing-a-profile',
+            heading: 'Correcting somebody\'s profile',
+            blocks: [
+              p('Press a member\'s name on the **Members** tab to see their record in full, then **Edit profile** to change it. The form is the same three sections a member sees on their own [My Profile](/personal-info) — General, Address and Additional information — so a misspelt surname or a moved address can be fixed while you have them on the phone.'),
+              p('Two things are deliberately not editable here, and both are theirs rather than yours:'),
+              defs(
+                { term: 'Their email address', text: 'Shown, and read-only. It is what they sign in with, so only they can change it — from Sign-in & Security on their own profile. For a relative who has not registered yet it is a generated placeholder, and it becomes a real address when they accept an invitation.' },
+                { term: 'Their password', text: 'Nobody can see or set it, including you. **Send a password reset** emails them a link and they choose the new one; their current password keeps working until they use it.' },
+              ),
+              p('A member is not notified that you changed their profile, so tell them. The **Chapter** they belong to is not here either — members set that themselves, and the [Organization](/help/regions-and-chapters) tab is what decides which chapters exist.'),
+              note('This needs **edit** on Members. Somebody who can only view the roster sees the record and no Edit button.'),
+            ],
+          },
+          {
             id: 'disabling',
             heading: 'Switching a member off',
             blocks: [

@@ -318,59 +318,6 @@ could. `/direct-lineage`, `app/actions/children.ts` and `lib/family-constants.ts
 deleted with it; `editPersonRecord` and `invitePersonRecord` on the tree replaced the
 parent-edits-child and convert-to-adult halves.
 
-## The Dashboard design kit is world-readable, and seven of its images have no provenance
-
-**Action:** decide whether `public/dashboard/` moves out of the served tree. It is a
-licensing question first and a payload question second, and only the first one is urgent.
-
-`public/dashboard/` is the Golden Master handoff kit, added by `c622624`. Everything under
-`public/` is served, so **every byte of it is fetchable by anyone, signed in or not** — no
-route, no gate, no referrer check. These URLs resolve on production today:
-
-```
-genorra.com/dashboard/04_MEDIA/family_hero_source.jpg
-genorra.com/dashboard/01_REFERENCE/Dashboard_Golden_Master_OFFICIAL.png
-genorra.com/dashboard/08_QA/VISUAL_ACCEPTANCE.md
-```
-
-**The images are the part that matters.** `04_MEDIA/` holds seven photographs — a family
-group shot and five portraits of an invented family, plus an event thumbnail. Nothing in
-the kit states a licence, names a photographer, or carries EXIF. So the position today is
-that GENORRA publishes seven photographs of identifiable people under its own domain with
-no established right to do so, and they are indexable. That is a different kind of problem
-from the rest of this file: it is not a defect that might bite, it is a claim being made
-right now on every crawl.
-
-The rest is smaller and worth stating so nobody re-litigates it as if it were the main
-point. About 8.5 MB rides in every clone and every deploy, of which 2.3 MB is one reference
-PNG and 1.38 MB is a "vector" SVG that is 99 % embedded base64. And `08_QA/`, `07_PAGE_PATTERNS/`
-and `00_START_HERE/` are internal design correspondence — no secrets, but written for us
-rather than for readers.
-
-**Why it was left where it is.** `public/home/` holds the brand kits by the same convention
-— "the versioned vendor kits, exactly as delivered; reference material, nothing is served
-out of it" — so `public/dashboard/` is consistent with the rule as written, and moving it
-unilaterally during the dashboard build would have been a second decision smuggled into an
-unrelated commit. The AGENTS.md table row was corrected to describe what is actually there.
-
-Three options, in the order they are probably worth considering:
-
-1. **`git mv public/dashboard design/dashboard-v1_0`.** Kits are reference material and
-   nothing imports them, so nothing breaks. This is the whole fix for all three problems and
-   costs one commit. It does leave `public/home/` inconsistent with it, which is an argument
-   for moving that too and making `design/` the convention.
-2. **Delete `04_MEDIA/` only** and keep the kit in place. Narrowest fix for the licensing
-   question; the images are demo photography the implementation does not use and cannot use
-   (the design treatment is burnt into the pixels — see the note in `WelcomeHero.tsx`).
-3. **Leave it and get provenance.** If the images came from a stock licence that permits
-   web distribution, this is a README away from being fine. Somebody has to know the answer.
-
-Note that (1) and (2) are not undone by history: the blobs stay reachable to anyone who
-clones, which is a separate question from what genorra.com serves. Only a rewrite changes
-that, and for demo photography it is very likely not worth one.
-
-Found 2026-08-12 while implementing the kit.
-
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
 **Action:** decide how a registrant proves they are the pre-entered person, then either
@@ -572,30 +519,6 @@ action, and one `tests/rls` case per refused scope.
 
 Found 2026-08-19 by review, while flipping `/admin/boardpositions` live.
 
-## `updateUserProfile` is an endpoint with no caller
-
-**Action:** decide whether Members & Access is ever going to edit a member's profile from the
-grid. If not, delete the export and sweep the four comments that cite it.
-
-It is a `'use server'` export in `app/actions/admin/users.ts` that writes any `people` row in
-the family through the service role, and nothing in `app/` or `components/` imports it — the
-`getMyGatheringTaskCount` shape below, with a `people` write on it. Two things about it were
-fixed on 2026-08-19 rather than left:
-
-* its gate was `admin/boardpositions:edit`, through a helper shared with the role actions, so
-  "may curate board positions" meant "may rewrite any member's profile". It is
-  `admin/users:edit` at `canAny` now.
-* it could write `primary_email`, which `pickProfileColumns` allows. On a relative with no
-  account that leaves `email_is_placeholder` and `no_email_reason` describing an address that
-  is no longer generated — so anything checking before mailing refuses a working mailbox
-  (AGENTS.md §4b). It now drops that column, as `editPersonRecord` already did.
-
-Deleting it was the other option and was not taken, because three files' comments cite it as
-one of the three writers `lib/profile-columns.ts` exists for, `npm run audit:people` carries
-its verdict, and `tests/rls` has a case for it. All four would move with it.
-
-Recorded 2026-08-19.
-
 ## ~~`getMyGatheringTaskCount` is a live endpoint with no product caller~~ — CLOSED
 
 **Closed 2026-08-19.** The Dashboard calls it: a **My Tasks** Quick Action appears when the count
@@ -639,6 +562,18 @@ disjunct** and the `'own'` and `self` branches of every composed policy decide n
 a mutation: neutering three membership gates at once leaked through `auth_permission()` resolving
 `'any'` from the applicant's own template, never through `self_expr`.
 
+**ONE RESOURCE NARROWER SINCE 2026-08-20, and it arrived as a side effect rather than as work
+on this entry.** `20260820000007` gave the General template `review/photos:delete` at scope
+`'own'`, so `alphaMember` and `alphaOther` now genuinely hold an `'own'` grant —  and
+`photos.deletePhoto (a photo they did not upload)` is the first case in the file whose refusal
+comes from an `own_expr` (`uploader_id = auth_person_id()`) rather than from a missing grant.
+Mutation-checked by neutering that conjunct in the composed policy, which turns it red.
+
+That is one resource out of six, on one action. Everything above still stands for the rest,
+and the shape of the fix is unchanged — except that the fifth actor this asks for is now
+partly there: what is missing is an `'own'` grant on a resource with a *read* to narrow, since
+this one only exercises a DELETE.
+
 This is not specific to Gatherings, and it is worth stating plainly what the green suite does and
 does not mean: 520 assertions are evidence about CROSS-FAMILY ISOLATION, which is what the suite was
 built for and what `20260618000001`'s composed policies most needed checking. They are no evidence
@@ -654,7 +589,7 @@ Recorded 2026-08-19.
 either drop `PremierGatheringHero`'s curve or record the departure in that file's terms so the next
 kit review does not reopen it.
 
-`public/dashboard/00_START_HERE/CLAUDE_START_HERE.md` forbids a second swoop and
+`design/dashboard/v1_0/00_START_HERE/CLAUDE_START_HERE.md` forbids a second swoop and
 `VISUAL_ACCEPTANCE.md` requires "ONE visual swoop". `WelcomeHero` has carried the kit's `eventHero`
 curve at its foot since it shipped, and `PremierGatheringHero` (2026-08-19) carries the same curve at
 its own foot — so a member with a premier gathering sees two.
@@ -669,23 +604,51 @@ could finally be honoured, only registers against that curve in that viewBox.
 
 Recorded 2026-08-19.
 
-## 30 eslint warnings, and whether the gate should fail on them
+## Photo thumbnails download at full size
 
-**Action:** triage the three groups below, then decide about `--max-warnings 0`.
+**Action:** pick one of the three below. It is an infrastructure decision, not a code change.
 
-The 39 **errors** are gone and the Lint step in `verify.yml` is blocking. Warnings are not,
-deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
+`npm run lint` is `eslint --max-warnings 0` since 2026-08-20 and the Lint step in
+`verify.yml` blocks on a single warning. What that closed was the *reporting* question; this
+is the thing the last of those warnings was actually pointing at, and it is real.
 
-* **`@typescript-eslint/no-unused-vars` (22)** — the cheap half, and genuinely dead code.
-  Clearing these first would make the remainder legible.
-* **`react-hooks/incompatible-library` (4)** — React Compiler's correct objection to
-  react-hook-form's `watch()`, which cannot be memoized safely. Not ours to fix; needs
-  either a documented disable or a different form API. This is the group that decides the
-  question, because it is the one that cannot simply be cleared.
-* **`@next/next/no-img-element` (3)** — `<img>` in the photo gallery. A real change:
-  `next/image` needs width/height or `fill`, and these are user uploads of unknown size.
+`/review/photos` renders a grid of thumbnails at a quarter width, and each `<img>` fetches
+the **whole uploaded file** — `uploadPhoto` caps at 10 MB, so a twenty-photograph album can
+be 200 MB of downloads to show twenty thumbnails. On a phone, on a family's data plan.
 
-`--max-warnings 0` is only honest once the middle group has an answer.
+**Why a plain `<img>` was the right pick anyway, and is not the problem.** Every `next/image`
+in this tree is a STATIC import of a file in the repo; there is no `images.remotePatterns` in
+`next.config.ts` at all, and `components/ui/Avatar.tsx` had already made the same call for the
+same class of image — a member's upload in a public Supabase bucket, remote, unknown intrinsic
+size. Reaching for `next/image` to clear a lint warning would have introduced the first remote
+image pipeline in the product as a side effect of a tidy-up. The three sites now carry a
+disable **with the reason written next to it**, which is what makes this entry findable.
+
+Three ways out, and each has a real cost rather than a caveat:
+
+1. **`next/image` with `images.remotePatterns`.** Standard, and it fixes it properly —
+   resizing, lazy loading, modern formats. Costs: a pattern derived from
+   `NEXT_PUBLIC_SUPABASE_URL`, which means `next.config.ts` (which *ships inside the build* —
+   see its own header) gains an environment-dependent rule; and every family photograph goes
+   through Vercel's **metered** optimizer.
+2. **Supabase Storage image transformations** — `getPublicUrl(path, { transform: { width } })`.
+   Resizes at the source, so no remote patterns and no Vercel metering, and it keeps the plain
+   `<img>`. Costs: it is a **paid** Supabase add-on, and the container that serves it is
+   `imgproxy`, which is **not running** in this local stack (`supabase status` lists it under
+   "Stopped services") — so it would work on hosted and silently 404 on every laptop, which is
+   the divergence this repo dislikes most.
+3. **Generate a thumbnail on upload.** `uploadPhoto` writes a second, small object beside the
+   original and `photos` gains a column for it. No new dependency, no metering, works
+   identically everywhere. Costs: the most code, and it does nothing for the photographs
+   already uploaded without a backfill.
+
+**(3) is probably right for this product** — a family gallery's thumbnails never need to be
+recomputed, so paying per-render for something that could be computed once is the wrong shape.
+Nobody has decided, which is why this is here.
+
+**The lightbox should keep its `<img>` under every option.** Somebody has clicked a
+photograph in order to look at it, so the full-size file is the point; and it has no fixed box
+to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ## Authorization
 
@@ -694,76 +657,38 @@ deliberately: `npm run lint` exits 0 on them and no `--max-warnings` is set.
 (see AGENTS.md §7). The suite is green, and neither item below is an isolation failure
 or blocks anything today.
 
-### Members without a grant are told their write succeeded when it did not
+### `saveChapterAndPropagate` never moves a member's children, and never has
 
-**Action:** decide whether self-service writes need a default grant, or whether the
-actions should stop reporting success. It is a product call, which is why it was left.
+**Action:** move the child propagation to the admin client with §3 scoping, the way
+`editPersonRecord` does, or delete it and say the chapter does not cascade.
 
-`create`/`edit`/`delete` default to scope `'none'`, and the composed RLS policies
-(`20260618000001`) honour that — so a plain member's write matches zero rows. The
-actions do not check how many rows they changed, and PostgREST does not treat an
-empty match as an error, so they return `{ success: true }`:
+Found 2026-08-20 while closing the entry above, and it is the same defect class with the
+opposite remedy. The action updates the caller's own `people` row — fine, and honestly
+reported, because the upsert's `.single()` errors if it is refused — and then does this:
 
-| called by a member with no grants | returns | actually happened |
-|---|---|---|
-| `updateChild` | `{success:true}` | nothing |
-| `deletePhoto` | `{success:true}` | nothing |
-| `tagPersonInPhoto` | RLS error, surfaced honestly | nothing |
+```ts
+await supabase.from('people').update({ chapter_id: chapterId ?? null })
+  .in('id', childRels.map(r => r.related_person_id)).is('user_id', null)
+```
 
-Verified against a local database: all three work once the caller is granted the
-resource at scope `'any'`, so the cause is the missing grant and not the action. The
-user-visible version of this is a parent renaming their own child, being told it
-saved, and finding it unchanged on reload.
+on the USER client. `people` maps to `community/directory` with `user_id = (SELECT auth.uid())`
+as both its own- and self-expression, so **a member without `community/directory:edit` at
+`'any'` matches zero rows, every time.** The result is discarded, so nothing notices. A parent
+changes their chapter, is correctly told it saved, and their account-less children stay where
+they were — which is the whole feature the function is named after.
 
-Two separable questions, and they have different answers:
+**`confirmWrite` is the wrong tool here**, and that is why this is an entry rather than a fix:
+the caller's own save DID work, so reporting a failure would be worse than the silence. The
+repair is the admin client, which is exactly the argument AGENTS.md §4b makes for
+`editPersonRecord` — "the `people` UPDATE policy admits only a member's own row, so the user
+client cannot touch a record belonging to nobody".
 
-1. *Should a member be able to manage their own child / their own photo without an
-   administrator granting it?* If yes, seed the grants — probably in the
-   `20260618000000` seed so new families get them too.
-2. *Should an action ever report success for a write that changed nothing?* Almost
-   certainly not, regardless of how (1) is answered. Selecting the affected rows back
-   (`.select()` on the mutation) turns a silent no-op into a real failure message.
-
-`tests/rls` currently runs these positive controls as an ALPHA administrator, so it
-stays green either way. If (1) changes, switch those cases back to `alphaMember` —
-that is the assertion that would then be meaningful.
-
-### `tests/rls` does not cover the Storage-backed uploads
-
-**Action:** extend the harness, or decide the risk is acceptable and say so.
-
-Not covered: `uploadDocument`, `uploadPhoto`, `uploadEventPhoto`, `uploadAvatar` —
-listed in `UNCOVERED` at the bottom of `tests/rls/cases.mjs`.
-
-They take a `FormData` carrying a file and write to Supabase Storage, whose bucket
-policies are a **separate access-control system** from the RLS policies the suite
-exercises. Nothing in this work says anything about whether one family can read or
-overwrite another's objects. Doing it properly means seeding buckets and asserting on
-object paths, which is a different harness rather than three more cases.
-
-### `dues_member_plans.start_date` is a live column nothing reads or writes
-
-**Action:** decide whether dues prorate for a member who joins mid-period, and either
-use this column or drop it.
-
-`20260610000005_accounting.sql` gives every plan row a `start_date DATE NOT NULL DEFAULT
-CURRENT_DATE`. `getMyDuesSummary` does not select it (`select('schedule_id, cadence,
-opted_out')`) and `setMyDuesPlan` does not write it, so every row carries the date its
-plan happened to be created and nothing has ever consulted it.
-
-It became worth deciding on 2026-08-14, when `duesPlanMath` started itemizing arrears.
-A member admitted in August is now told, on screen, that their next installment covers
-the year to date. **That is not new behaviour** — `remainingBalanceCents` has always
-charged them the full annual total, because nothing in this product prorates — but it
-was previously a single number nobody could decompose, and it is now a sentence.
-
-If prorating is wanted, this column is where the ladder should be floored, and **the
-balance has to move with it** or the page shows two figures describing different debts.
-Two traps if it goes that way: the column must be written once and never on a
-re-pick, or a member could reduce their arrears by changing cadence twice; and
-`dues_schedules.start_date` is FROZEN once any payment references it
-(`20260807000001`), so there is no data-entry remedy for a schedule whose start date
-was wrong — the derivation is the only lever.
+Two things it costs beyond the four lines. `npm run audit:people` decides the client by
+whether the FILE imports `createAdminClient` at all, so adding one to
+`app/actions/personal-info.ts` puts **every** `people` write in that file on the review list —
+six sites, not one, each needing a verdict against the three questions. And it needs a
+`tests/rls` case, which today would be the first assertion anywhere that the propagation
+happens at all.
 
 ### `notifications` may not be in the realtime publication
 

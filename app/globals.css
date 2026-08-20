@@ -68,8 +68,8 @@
 
 /* ══ LAYER 1 — THE PALETTE ═══════════════════════════════════════════
    GENORRA's identity colours, named exactly as the brand guide names
-   them (public/home/v1_1/Brand/GENORRA_Brand_Guide.pdf,
-   public/home/v1_1/Web/genorra-colors.css).
+   them (design/home/v1_1/Brand/GENORRA_Brand_Guide.pdf,
+   design/home/v1_1/Web/genorra-colors.css).
    These are FIXED. They are the brand, they are identical in both themes,
    and nothing outside this file may restate one as a hex.
 
@@ -81,7 +81,7 @@
    Everything under "derived" is computed from them for a reason recorded
    on the line; see AGENTS.md, "Colours live in one place". */
 :root {
-  /* Kit v1.1 (public/home/v1_1/Web/genorra-design-tokens.json). v1.1 supersedes v1.0 and
+  /* Kit v1.1 (design/home/v1_1/Web/genorra-design-tokens.json). v1.1 supersedes v1.0 and
      changed two things that matter here: Ink lightened #2E1C22 → #3C2528, and
      Rose became a NAMED brand colour rather than just a gradient stop in the
      mark. Ink is a foreground in three roles, so that shift moved real ratios —

@@ -35,6 +35,10 @@
 import { createHash } from 'node:crypto'
 import { ALPHA, BRAVO, CHARLIE } from './seed.mjs'
 import { SWEEP_NOTIFICATION_TITLE } from './raw/sweep.mjs'
+// The refusal sentence itself, imported rather than retyped. A copy here would go on
+// asserting a string the product had stopped using — the same argument that makes
+// SWEEP_NOTIFICATION_TITLE an import.
+import { WRITE_NOT_SAVED } from '../../lib/confirmed-write.ts'
 
 /** Values that exist only in ALPHA. Finding one in a BRAVO response is a leak. */
 export function alphaMarkers(fx) {
@@ -2477,13 +2481,66 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'depends on tagPersonInPhoto having tagged the owner first; asserted there instead',
   },
+  // ── A MEMBER WHO IS REFUSED MUST BE TOLD, NOT THANKED ─────────────────────
+  //
+  // The only case in this file whose subject is the RETURN VALUE rather than a boundary,
+  // and the only one whose attacker is an ordinary approved member of the family the row
+  // belongs to. Both are deliberate.
+  //
+  // ── THE PREMISE CHANGED ON 2026-08-20, AND THE CASE GOT SHARPER FOR IT ────
+  // This was `(a member with no delete grant)` aimed at `alphaMember`, because the General
+  // grid granted `review/photos` create and edit and NOT delete. `20260820000007` filled
+  // that gap in — the template's own description says "manages only their own records", and
+  // the missing row was an oversight rather than a policy — so `alphaMember` now holds
+  // `delete` at scope `'own'` and can remove the photograph they uploaded.
+  //
+  // So the attacker moved to `alphaOther`: also on General, so also holding `delete` at
+  // `'own'`, and NOT the uploader of `fx.alpha.photo` (the fixture's `owner` is
+  // `alphaMember` — see seed.mjs). What refuses them is the OWN-EXPRESSION,
+  // `uploader_id = auth_person_id()`, rather than the absence of a grant.
+  //
+  // **THAT MAKES THIS THE FIRST ASSERTION IN THIS FILE THAT AN `own_expr` NARROWS
+  // ANYTHING.** TODO.md's entry about the fixture having no scope-'own' actor was written
+  // when every read in the suite was satisfied by the `= 'any'` disjunct; it is one
+  // resource narrower now, and the rest of that entry still stands.
+  //
+  // WHY IT COULD NOT BE SEEN BEFORE, which is the part worth carrying forward whatever the
+  // premise: the probe assertion PASSES either way. A no-op leaves the row untouched, so
+  // `photos.deletePhoto` below has always gone green on its attack half — perfectly
+  // isolated, and perfectly silent about lying to the caller. `expectRefusal` (see runWrite
+  // in run.mjs) is a second assertion on the same call for exactly that reason.
+  //
+  // ORDER MATTERS AND THIS MUST STAY IMMEDIATELY ABOVE `photos.deletePhoto`: that case's
+  // positive control genuinely deletes ALPHA's photo. Run afterwards, this one would get
+  // zero rows because the row was GONE rather than because the caller was refused, and it
+  // would pass while proving nothing — the shape AGENTS.md §7 warns about twice.
+  //
+  // MUTATION-CHECKED 2026-08-20, which is what makes it evidence: reverting deletePhoto to
+  // `const { error } = await …delete().eq('id', id)` turns this line red on its own, and
+  // nothing else in the suite moves.
+  {
+    kind: 'write',
+    id: 'photos.deletePhoto (a photo they did not upload)',
+    mod: 'app/actions/photos.ts', fn: 'deletePhoto',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.photo.id, fx.alpha.photo.file_path, fx.alpha.collection.id],
+    probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.photo.id })(db),
+    expectRefusal: v => v?.success === false && v?.message === WRITE_NOT_SAVED
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected the WRITE_NOT_SAVED refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'the entitled caller is the case below, whose control is now the uploader themselves',
+  },
+  // THE CONTROL IS THE UPLOADER, AND THAT IS WHAT 20260820000007 MADE MEANINGFUL. It was
+  // `alphaAdmin` — scope 'any' on everything — so it asserted only that SOMEBODY could
+  // delete a photograph. `alphaMember` (the default) uploaded this one and holds `delete` at
+  // `'own'`, so the pair now reads: the uploader may, another General member may not.
   {
     kind: 'write',
     id: 'photos.deletePhoto',
     mod: 'app/actions/photos.ts', fn: 'deletePhoto',
     args: fx => [fx.alpha.photo.id, fx.alpha.photo.file_path, fx.alpha.collection.id],
     probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.photo.id })(db),
-    positiveActor: 'alphaAdmin',
   },
   // ── §4 ON THE *SECOND* ID addRelative TAKES ───────────────────────────────
   //
@@ -4209,7 +4266,6 @@ export const REMOVAL_CASES = [
 // anything else in the file. (`f.event` used to be the worse of the two, cascading a photo,
 // an RSVP, an assignment, two budget lines and an expense; that whole fixture is gone with
 // the tables.)
-const ZERO_UUID = '00000000-0000-0000-0000-000000000000'
 
 /**
  * Put every money-free spare row back: existing, and exactly as the fixture seeded it.
@@ -6236,17 +6292,471 @@ export const STAFF_CASES = STAFF_BASE_CASES.flatMap(c => [
 // in this file and has no `family_code` to be swept or scoped, its four accounts have no `people`
 // row for any other case to find, and its own controls touch only the spare and grantee rows the
 // fixture seeds for them. It sits last because that is where a block nothing depends on belongs.
+/**
+ * THE TWO ACTIONS BEHIND **EDIT PROFILE** ON MEMBERS & ACCESS, added 2026-08-20.
+ *
+ * `updateUserProfile` has had a case since Phase 3 and had no CALLER until today — TODO.md
+ * carried the choice between deleting the endpoint and giving it a screen, and it now has one:
+ * the member detail dialog's Edit profile button. Two new actions came with it and both are
+ * exactly the shape AGENTS.md §3 is about — service-role reads with the family conjunct
+ * written by hand, so there is no policy underneath either of them.
+ *
+ * ── WHY THE ATTACK IS THE INTERESTING HALF HERE ─────────────────────────────────────
+ * Both take a `people.id` straight from the client. Drop the `.eq('family_code', …)` from
+ * either and BRAVO's administrator reads ALPHA's date of birth, street address and gender out
+ * of the first, or mails a password-reset link to an ALPHA member out of the second. Neither
+ * would fail, log, or look wrong from BRAVO: the id is valid, the row exists, and the service
+ * role does not care whose family it is in.
+ *
+ * MUTATION-CHECKED 2026-08-20 by removing that conjunct from each action in turn. The read
+ * leaks on the marker scan; the send is caught by `expectAttack`, which is why that one is
+ * spelled out rather than left to the default.
+ */
+const PROFILE_EDIT_CASES = [
+  // The READ. Default marker scan for the attack — the projection carries the person's names,
+  // so an ALPHA row coming back to BRAVO is caught by `alphaMarkers` without a custom
+  // assertion. The control is pinned to `alphaAdmin` because the gate is
+  // `admin/members:edit` at `canAny`, which the General template does not grant: run as
+  // `alphaMember` this would answer 'Not authorized' and the case would be asserting that
+  // nobody can call it, which is perfect isolation and no evidence at all.
+  read('admin/users.getMemberProfileForEdit', 'app/actions/admin/users.ts', 'getMemberProfileForEdit', {
+    args: fx => [fx.users.alphaOther.personId],
+    positiveActor: 'alphaAdmin',
+    expectPositive: v => v?.success === true
+      && v.profile?.peopleId != null
+      // The two things the dialog decides its own shape from. Asserted so a projection that
+      // silently stopped selecting them — which would render an editable email field and hide
+      // the password offer from a real account — turns this red.
+      && typeof v.profile?.hasAccount === 'boolean'
+      && typeof v.profile?.emailIsPlaceholder === 'boolean'
+      // `primary_email` is READ here (the field is shown, disabled) and must never be
+      // writable. That half is asserted by updateUserProfile's own cases.
+      && v.profile?.fields != null
+      && !('primary_email' in v.profile.fields),
+  }),
+
+  // The SEND. `kind: 'read'` because there is no row to probe — the observable is what the
+  // action ANSWERS, and a mail either was or was not requested of GoTrue. `expectAttack` is
+  // spelled out for the same reason: a refusal here is `{ success: false }`, which carries no
+  // ALPHA marker, so the default scan would pass against an action that had just mailed
+  // somebody in another family.
+  read('admin/users.sendMemberPasswordReset', 'app/actions/admin/users.ts', 'sendMemberPasswordReset', {
+    args: fx => [fx.users.alphaOther.personId],
+    expectAttack: v => v?.success === false,
+    positiveActor: 'alphaAdmin',
+    // This really does send a recovery mail on the local stack, which Mailpit catches. That is
+    // the point: the control is what proves the family conjunct above did not simply refuse
+    // everybody, and the only way to prove a send is to send one.
+    //
+    // ── ONE CASCADE TO EXPECT WHEN YOU MUTATE THIS, so it is not read as a second bug ──
+    // GoTrue enforces `[auth.rate_limit] max_frequency` PER ADDRESS — 1s locally — and both
+    // halves of this case aim at the same member. So a mutation that lets the ATTACK send
+    // consumes that window and the control then fails too, with GoTrue's own "you can only
+    // request this after 0 seconds". Measured: removing the family conjunct reports the leak
+    // AND a failed control, and the second one is a consequence of the first rather than a
+    // fixture problem. Unmutated the attack never sends, so the window is free.
+    expectPositive: v => v?.success === true && typeof v.message === 'string',
+  }),
+
+  // ── AND THE ACCOUNT-LESS RELATIVE, WHICH IS A PRODUCT RULE RATHER THAN A BOUNDARY ──
+  // `fx.alpha.child` is a `people` row with no `user_id` — §4b's recorded relative. There is
+  // no password to reset and its `primary_email` is a generated placeholder, so mailing it can
+  // only ever hard-bounce, and a bounce is charged to our sending domain's reputation.
+  //
+  // The attacker is ALPHA'S OWN ADMINISTRATOR, which is unusual in this file and deliberate:
+  // the caller is fully entitled and the refusal is about the RECORD, not about them. Filed as
+  // an attack because the assertion is the same shape — this call must not do the thing.
+  read('admin/users.sendMemberPasswordReset (a relative with no account)',
+    'app/actions/admin/users.ts', 'sendMemberPasswordReset', {
+      args: fx => [fx.alpha.child.id],
+      attacker: 'alphaAdmin',
+      expectAttack: v => v?.success === false && /no account yet/i.test(v?.error ?? ''),
+      positive: 'not-applicable',
+      why: 'the entitled send is asserted by the case above; this row has nobody to send to by construction',
+    }),
+]
+
+/**
+ * SUPABASE STORAGE — the second access-control system, covered from 2026-08-20.
+ *
+ * `UNCOVERED` at the foot of this file named the four upload actions from Phase 3 until
+ * today, with the right reason: bucket policies live on `storage.objects` and are a
+ * SEPARATE system from the composed policies this suite was built for. Nothing in
+ * `20260618000001`'s sweep touches them, `audit:family-scope` does not look at them, and
+ * §2c's whole argument about `public` tables says nothing about a bucket. So the suite was
+ * silent on whether one family could read or overwrite another's files.
+ *
+ * ── WHAT THE FIRST RUN FOUND, so nobody reads these as ceremonial ───────────────────
+ * Three real holes, each measured against the local stack and all three closed by
+ * `20260820000006`:
+ *
+ *   * `photos` INSERT was `bucket_id = 'photos'` and nothing else — any signed-in user, ANY
+ *     path. BRAVO's administrator wrote an object into `ALPHATEST/<alpha collection>/` and
+ *     got a 200, in a bucket that is `public: true` and therefore served by URL.
+ *   * `photos` DELETE was the right pattern aimed at the wrong layout —
+ *     `auth.uid()::text = (storage.foldername(name))[1]` against paths that start with a
+ *     FAMILY CODE. It matched nothing for anybody, so every photograph a family had
+ *     "deleted" was still in a public bucket. Storage reports a refused `remove()` as
+ *     **200 with an empty array**, which is why nothing had ever noticed.
+ *   * `documents` was `auth.uid() IS NOT NULL` on all four commands, on a PRIVATE bucket.
+ *     BRAVO downloaded ALPHA's document, listed ALPHA's filenames, and DELETED an ALPHA
+ *     document. A pending applicant could upload.
+ *
+ * ── WHY HALF OF THESE ARE PROBES AND NOT ACTIONS ────────────────────────────────────
+ * `uploadAvatar` computes its path from `auth.uid()` and never from a parameter, so it
+ * CANNOT express the attack that matters — an object aimed at another user's folder. That
+ * is a good property of the action, and it means the policy underneath is unreachable from
+ * an action-shaped test: the same structural blind spot `raw.mjs` was written for. So the
+ * cases below call the ACTION for the ordinary path and `raw/storage.mjs` for the attack.
+ *
+ * ── THE ASSERTION IS NEVER `error === null` ─────────────────────────────────────────
+ * Storage's failure modes are not uniform. An RLS refusal on an INSERT is a 403 with "new
+ * row violates row-level security policy"; a refused SELECT of a private object is a **404
+ * NoSuchKey**, because a policy that admits no row is indistinguishable from a missing one;
+ * a refused `list()` is `[]`; and a refused `remove()` is a **200 with an empty array**. So
+ * the probes return counts and names, and these cases assert on those.
+ *
+ * ── AND THE PROBE GOES THROUGH THE STORAGE API, NOT THROUGH POSTGREST ───────────────
+ * The first version of this block probed `db.schema('storage').from('objects')` and every
+ * one of its probes silently answered `[]`: **PostgREST exposes `public` and
+ * `graphql_public`, and not `storage`**. The attack halves still passed — `[]` before and
+ * `[]` after is "row untouched" — so four cases were reporting perfect isolation over a
+ * probe that could not see a single object.
+ *
+ * It was the POSITIVE CONTROLS that caught it, all four at once, with "owner's own write did
+ * nothing". That is AGENTS.md §7's argument for the control half in one line, and it is the
+ * second time in this file's history that the control found what the attack could not.
+ * `objectsIn()` below uses the service-role client's own Storage API, which bypasses RLS the
+ * way the service role does everywhere else and can actually see the bucket.
+ */
+
+/**
+ * Every object name directly inside one bucket folder, as the SERVICE ROLE.
+ *
+ * `list()` is one level deep and returns folder entries as well as files, so a case must
+ * point this at the IMMEDIATE parent of the object it cares about — pointed at `ALPHATEST`
+ * when the object is at `ALPHATEST/probe/x.jpg` it reports the folder `probe` and would not
+ * change when the file inside it did.
+ */
+const objectsIn = (bucket, dir) => async db => {
+  const { data, error } = await db.storage.from(bucket).list(dir)
+  if (error) return `LIST FAILED: ${error.message}`
+  return JSON.stringify((data ?? []).map(o => o.name).sort())
+}
+
+/**
+ * Put a real object there as the service role, so a case has something to reach for.
+ *
+ * THE MIME TYPE IS DERIVED FROM THE EXTENSION, and it has to be: `photos`, `avatars` and
+ * `event-photos` all carry an `allowed_mime_types` list of images (20260609000000,
+ * 20260610000001), so seeding a `.jpg` as `application/pdf` is refused by the BUCKET before
+ * any policy is consulted — measured, and it failed this way on the first run. That refusal
+ * is thrown rather than swallowed: a case whose setup quietly planted nothing would assert
+ * against an absent object and pass.
+ */
+const seedObject = (bucket, path) => async db => {
+  const type = /\.pdf$/.test(path) ? 'application/pdf' : 'image/jpeg'
+  await db.storage.from(bucket).remove([path])
+  const { error } = await db.storage.from(bucket)
+    .upload(path, new Blob([new Uint8Array([7, 7, 7, 7])], { type }), { upsert: true })
+  if (error) throw new Error(`setup: could not seed ${bucket}/${path}: ${error.message}`)
+}
+
+const STORAGE_CASES = [
+  // ── avatars: the fix 20260820000002 shipped, now with a test under it ─────
+  //
+  // That migration verified itself with a plpgsql probe, which is the right thing for a
+  // migration and is a point-in-time assertion. This is the standing one, and it runs as a
+  // real signed-in user through the real Storage API rather than as `SET LOCAL role`.
+  {
+    kind: 'write',
+    id: 'storage.avatars (writing into another user\'s folder)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'uploadTo',
+    args: fx => ['avatars', `${fx.users.alphaMember.userId}/avatar.jpg`, 'bravo-was-here'],
+    setup: (db, fx) => db.storage.from('avatars')
+      .remove([`${fx.users.alphaMember.userId}/avatar.jpg`]),
+    probe: (db, fx) => objectsIn('avatars', fx.users.alphaMember.userId)(db),
+    expectRefusal: v => /row-level security/i.test(v?.error?.message ?? '')
+      ? { ok: true, detail: 'refused by the folder policy' }
+      : { ok: false, detail: `expected an RLS refusal, got ${JSON.stringify(v)}` },
+    // The owner writing their OWN folder. Without this the assertion above would pass
+    // against a bucket that refused everybody, which is what a broken policy looks like —
+    // and it is exactly how the old `photos` DELETE policy was wrong.
+    positiveActor: 'alphaMember',
+  },
+  // RENAMING INTO SOMEBODY ELSE'S FOLDER — the `WITH CHECK` half of the UPDATE policy, and
+  // the only assertion in this file with no call site anywhere in the app. Nothing moves an
+  // object, so this policy half exists purely to stop the overwrite hole arriving by a
+  // second route, and it would otherwise rot unnoticed.
+  //
+  // ONE PROBE FUNCTION DOES BOTH HALVES (`moveOwnInto`), because the attacker needs an
+  // object of their own to move and `setup` runs with no actor. Uploading it as the service
+  // role would leave `owner` NULL, and then a refusal could be the source being unreachable
+  // rather than the destination being forbidden — the case would pass for the wrong reason.
+  {
+    kind: 'write',
+    id: 'storage.avatars (renaming an object into another user\'s folder)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'moveOwnInto',
+    attacker: 'bravoAdmin',
+    args: fx => ['avatars',
+      `${fx.users.bravoAdmin.userId}/avatar.jpg`,
+      `${fx.users.alphaMember.userId}/avatar.jpg`],
+    setup: (db, fx) => db.storage.from('avatars')
+      .remove([`${fx.users.alphaMember.userId}/avatar.jpg`]),
+    probe: (db, fx) => objectsIn('avatars', fx.users.alphaMember.userId)(db),
+    // BOTH halves are asserted. `uploaded` proves the attacker really had an object of their
+    // own — without it a missing source would look like a working policy.
+    expectRefusal: v => v?.uploaded && v?.moveError != null
+      ? { ok: true, detail: 'the move was refused' }
+      : { ok: false, detail: `expected upload-then-refused-move, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'nothing in the app moves an object, so there is no entitled caller to contrast with — the upload case above is what proves the bucket is not simply refusing everybody',
+  },
+
+  // ── photos: the two holes 20260820000006 closed ──────────────────────────
+  //
+  // THE CONTROL WRITES INTO THE SAME FOLDER AS THE ATTACK, deliberately. Pointed at a
+  // different folder the probe would not change when the rightful uploader succeeded, and
+  // the runner reports that as a vacuous case — which is how the first draft of this block
+  // was caught.
+  {
+    kind: 'write',
+    id: 'storage.photos (writing into another family\'s folder)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'uploadTo',
+    args: fx => ['photos', `${fx.alpha.familyCode}/${fx.alpha.collection.id}/pwned.jpg`, 'x'],
+    setup: (db, fx) => db.storage.from('photos').remove([
+      `${fx.alpha.familyCode}/${fx.alpha.collection.id}/pwned.jpg`,
+      `${fx.alpha.familyCode}/${fx.alpha.collection.id}/mine.jpg`,
+    ]),
+    probe: (db, fx) =>
+      objectsIn('photos', `${fx.alpha.familyCode}/${fx.alpha.collection.id}`)(db),
+    expectRefusal: v => /row-level security/i.test(v?.error?.message ?? '')
+      ? { ok: true, detail: 'refused by the family-folder policy' }
+      : { ok: false, detail: `expected an RLS refusal, got ${JSON.stringify(v)}` },
+    // This is the half that would have caught a family-folder policy written against
+    // `auth.uid()` — which is exactly the bug the old DELETE policy had — because such a
+    // policy refuses the rightful uploader too.
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => ['photos',
+      `${fx.alpha.familyCode}/${fx.alpha.collection.id}/mine.jpg`, 'mine'],
+  },
+  // THE DELETE THAT COULD NEVER MATCH. The attack half is ordinary cross-family isolation;
+  // the CONTROL is the interesting one, because "the rightful uploader can remove their own
+  // object" was FALSE for the entire life of this bucket and left every deleted photograph
+  // public. A refused `remove()` is a 200 with an empty array, so the count is the
+  // assertion and `error === null` proves nothing at all.
+  {
+    kind: 'write',
+    id: 'storage.photos (another family cannot delete the object)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'removeFrom',
+    setup: (db, fx) => seedObject('photos', `${fx.alpha.familyCode}/probe/deletable.jpg`)(db),
+    args: fx => ['photos', [`${fx.alpha.familyCode}/probe/deletable.jpg`]],
+    probe: (db, fx) => objectsIn('photos', `${fx.alpha.familyCode}/probe`)(db),
+    expectRefusal: v => v?.removed === 0
+      ? { ok: true, detail: 'nothing removed' }
+      : { ok: false, detail: `another family removed ${v?.removed} object(s)` },
+    positiveActor: 'alphaMember',
+  },
+
+  // ── documents: a PRIVATE bucket, where read is the boundary ──────────────
+  //
+  // A read case rather than a write one, because the finding was a DOWNLOAD. The refusal
+  // arrives as a 404 `NoSuchKey` rather than a 403 — a policy that admits no row is
+  // indistinguishable from a missing object, which is the right answer for a private bucket
+  // and is why this asserts on the byte count rather than on a message.
+  read('storage.documents (downloading another family\'s file)',
+    'tests/rls/raw/storage.mjs', 'downloadFrom', {
+      args: fx => ['documents', `${fx.alpha.familyCode}/probe.pdf`],
+      setup: (db, fx) => seedObject('documents', `${fx.alpha.familyCode}/probe.pdf`)(db),
+      expectAttack: v => v?.bytes === 0,
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.bytes > 0,
+    }),
+  // LISTING, which is the smaller leak a download case cannot ask about: whether one family
+  // can discover WHAT another has uploaded. `list()` is a SELECT under the covers and a
+  // refused one is `[]`, so the count is the assertion.
+  read('storage.documents (listing another family\'s files)',
+    'tests/rls/raw/storage.mjs', 'listIn', {
+      args: fx => ['documents', fx.alpha.familyCode],
+      setup: (db, fx) => seedObject('documents', `${fx.alpha.familyCode}/listable.pdf`)(db),
+      expectAttack: v => v?.count === 0,
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.count > 0,
+    }),
+  // A PENDING APPLICANT MAY NOT FILE ANYTHING INTO THE FAMILY'S STORAGE.
+  // `auth_family_code()` resolves ALPHATEST for them deliberately and permanently, so the
+  // family conjunct alone would admit them — this is evidence for the
+  // `auth_membership_approved()` half, the same conjunct 20260806000011 §6 swept into the
+  // `public` tables.
+  {
+    kind: 'write',
+    id: 'storage.documents (a pending applicant uploading)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'uploadTo',
+    attacker: 'alphaPending',
+    args: fx => ['documents', `${fx.alpha.familyCode}/pending.pdf`, 'x'],
+    setup: (db, fx) => db.storage.from('documents').remove([
+      `${fx.alpha.familyCode}/pending.pdf`, `${fx.alpha.familyCode}/approved.pdf`,
+    ]),
+    probe: (db, fx) => objectsIn('documents', fx.alpha.familyCode)(db),
+    expectRefusal: v => /row-level security/i.test(v?.error?.message ?? '')
+      ? { ok: true, detail: 'refused — not an approved member' }
+      : { ok: false, detail: `an applicant uploaded: ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => ['documents', `${fx.alpha.familyCode}/approved.pdf`, 'x'],
+  },
+
+  // ── event-photos: GONE, and the assertion is that it stays gone ──────────
+  //
+  // The bucket was created by 20260609000000 for a feature 20260819000006 retired. It was
+  // frozen by 20260820000006 (all three write policies dropped, nothing put back) and
+  // DELETED outright by 20260820000008 — bucket row, object rows and read policy — after
+  // `scripts/drop-retired-bucket.mjs` removed the bytes through the Storage API, which is
+  // the only thing that can reach them.
+  //
+  // ── THE ASSERTION CHANGED SHAPE WITH IT, AND THAT IS THE POINT ────────────
+  // While the bucket existed, this case asserted an RLS refusal: "new row violates
+  // row-level security policy", because no INSERT policy admitted anybody. Now there is no
+  // bucket, so Storage answers `Bucket not found` instead — a DIFFERENT refusal, from a
+  // different layer, and one that cannot be undone by restoring a policy.
+  //
+  // Asserting on the bucket's ABSENCE rather than on a policy's refusal is strictly
+  // stronger: the old assertion would have gone green again the moment somebody re-created
+  // the bucket without policies, which is a perfectly plausible "let me just check
+  // something" that leaves a public bucket behind. This one only goes green while the
+  // bucket does not exist. `20260609000000` still creates it on every fresh database, so
+  // there IS a migration racing this every reset — which is exactly why the assertion is
+  // worth keeping rather than deleting along with the feature.
+  {
+    kind: 'write',
+    id: 'storage.event-photos (the bucket does not exist)',
+    mod: 'tests/rls/raw/storage.mjs', fn: 'uploadTo',
+    attacker: 'alphaAdmin',
+    args: fx => ['event-photos', `${fx.alpha.familyCode}/orphan.jpg`, 'x'],
+    // Nothing to probe in the bucket, so the probe watches the BUCKET LIST — which is also
+    // what catches the case this is really guarding against: the bucket coming back.
+    probe: async db => {
+      const { data } = await db.storage.listBuckets()
+      return JSON.stringify((data ?? []).map(b => b.id).sort())
+    },
+    expectRefusal: v => /bucket not found/i.test(v?.error?.message ?? '')
+      ? { ok: true, detail: 'no such bucket' }
+      : { ok: false, detail: `expected 'Bucket not found', got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'there is no bucket and no feature — the three live buckets are covered by the cases above',
+  },
+
+  // ── AND THE ACTIONS THEMSELVES, which is what UNCOVERED actually named ───
+  {
+    kind: 'write',
+    id: 'personal-info.uploadAvatar',
+    mod: 'app/actions/personal-info.ts', fn: 'uploadAvatar',
+    args: () => [avatarForm()],
+    setup: (db, fx) => db.storage.from('avatars')
+      .remove([`${fx.users.alphaMember.userId}/avatar.jpg`,
+        `${fx.users.alphaMember.userId}/avatar.png`,
+        `${fx.users.alphaMember.userId}/avatar.webp`]),
+    // WHOSE FOLDER IS WATCHED IS THE WHOLE CASE. The action writes to a path derived from
+    // `auth.uid()` and takes no id at all, so BRAVO uploading can only ever touch BRAVO.
+    // Pointed at BRAVO's folder this would pass while testing nothing — the vacuous probe
+    // AGENTS.md §7 warns about — so it watches ALPHA's folder and asserts a BRAVO upload
+    // cannot land there.
+    probe: (db, fx) => objectsIn('avatars', fx.users.alphaMember.userId)(db),
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'documents.uploadDocument',
+    mod: 'app/actions/documents.ts', fn: 'uploadDocument',
+    args: () => [documentForm()],
+    // The ROW, not the object: `uploadDocument` writes both, and a `documents` row carrying
+    // ALPHA's family_code is what a cross-family write looks like from the app's side.
+    probe: (db, fx) => snapshot('documents', 'id, name, family_code',
+      { family_code: fx.alpha.familyCode })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  // `uploadPhoto` TAKES A COLLECTION ID FROM THE CLIENT, which makes it the one upload with
+  // a §4 shape — and it had no `belongsToFamily` until 2026-08-20. The row it writes carries
+  // the CALLER's family_code, so every policy on `photos` is satisfied while `collection_id`
+  // points into ALPHA's album: a cross-family reference nothing in the database was asked
+  // about, and nothing in the product would ever report, because the reading side scopes by
+  // family and renders a gap where an image should be.
+  {
+    kind: 'write',
+    id: 'photos.uploadPhoto (a collection from another family)',
+    mod: 'app/actions/photos.ts', fn: 'uploadPhoto',
+    args: fx => [fx.alpha.collection.id, photoForm()],
+    probe: (db, fx) => snapshot('photos', 'id, collection_id, family_code',
+      { collection_id: fx.alpha.collection.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+]
+
+// ── FormData builders for the upload actions ────────────────────────────────
+// Functions rather than constants: a `File` body is consumed by the upload and `args` is
+// called once per phase, so a shared instance would make the positive control upload
+// nothing. `File` and `FormData` are Node globals, so nothing here is stubbed.
+function avatarForm() {
+  const fd = new FormData()
+  fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'a.jpg', { type: 'image/jpeg' }))
+  return fd
+}
+function documentForm() {
+  const fd = new FormData()
+  fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'd.pdf', { type: 'application/pdf' }))
+  fd.append('name', 'RLS probe document')
+  fd.append('category', 'other')
+  return fd
+}
+function photoForm() {
+  const fd = new FormData()
+  fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'p.jpg', { type: 'image/jpeg' }))
+  fd.append('caption', 'RLS probe photo')
+  return fd
+}
+
 CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ...APPROVAL_CASES,
-  ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES, ...STAFF_CASES)
+  ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES, ...PROFILE_EDIT_CASES,
+  ...STORAGE_CASES, ...STAFF_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.
  *
- *   uploadDocument, uploadPhoto, uploadEventPhoto, uploadAvatar
- *     Take a FormData carrying a file and write to Supabase Storage, whose
- *     buckets and policies are a separate access-control system from the RLS
- *     policies this suite exercises. Testing them properly means seeding buckets
- *     and asserting on object paths — worth doing, but a different harness.
+ *   THE STORAGE-BACKED UPLOADS — COVERED SINCE 2026-08-20, see STORAGE_CASES above
+ *     This entry read: "uploadDocument, uploadPhoto, uploadEventPhoto, uploadAvatar take a
+ *     FormData carrying a file and write to Supabase Storage, whose buckets and policies are
+ *     a separate access-control system from the RLS policies this suite exercises. Testing
+ *     them properly means seeding buckets and asserting on object paths — worth doing, but a
+ *     different harness."
+ *
+ *     Every word of that was true, including the last clause: `tests/rls/raw/storage.mjs` IS
+ *     a different harness, in the sense `raw.mjs` is — it speaks the Storage API as the
+ *     current actor and substitutes nothing. What the gap cost is the part worth keeping:
+ *     three real holes had been open for months and the first run of these cases found all
+ *     three (the block header lists them, `20260820000006` closes them). The worst was not a
+ *     leak but a REFUSAL — `photos` DELETE could never match any path, so every photograph a
+ *     family had "deleted" was still in a public bucket — and no cross-family assertion
+ *     could ever have found it. The POSITIVE CONTROL did.
+ *
+ *     `uploadEventPhoto` is gone rather than covered: 20260819000006 retired Events and
+ *     deleted the action. It sat in this list for a day after its own deletion, which is the
+ *     smallest possible version of the lesson this whole note is about.
+ *
+ *     WHAT IS STILL NOT REACHED, so the remaining gap is a decision:
+ *
+ *     * A PUBLIC BUCKET'S READ IS NOT ASSERTED BY ANYTHING, because there is nothing to
+ *       assert: `avatars` and `photos` are `public: true`, so any URL is fetchable by
+ *       anybody, signed in or not. Both migrations that touched these policies say the same
+ *       thing — the hole was WRITE, and narrowing read is a product decision with a real
+ *       cost (a signed URL per image per render). A case asserting the current behaviour
+ *       would be asserting the decision, and would go red on the day somebody took it.
+ *     * IMAGE TRANSFORMS AND SIGNED URLS are untouched. `getPublicUrl` needs no policy at
+ *       all on a public bucket, and nothing in the tree calls `createSignedUrl`.
+ *     * `event-photos` IS GONE — this entry read "STILL HOLDS ITS OBJECTS" until
+ *       2026-08-20. `scripts/drop-retired-bucket.mjs` removed the bytes through the Storage
+ *       API and `20260820000008` removed the bucket, its object rows and its read policy.
+ *       Both halves were needed: SQL cannot reach the storage backend, and a script cannot
+ *       stop `20260609000000` re-creating the bucket on every `db reset`. The case above now
+ *       asserts the bucket's ABSENCE, which no policy can undo.
  *
  *   createFund, createElection, createCollection, addChild
  *     Create rows in the CALLER's own family, derived from their own
@@ -6386,7 +6896,17 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...REMOVAL_CASES, ..
  *       inspecting it. Mutation s1 in the header is what separates the two layers, and it found
  *       that the read has only one of them.
  */
-export const UNCOVERED = [
-  'documents.uploadDocument', 'photos.uploadPhoto',
-  'event-photos.uploadEventPhoto', 'personal-info.uploadAvatar',
-]
+/**
+ * EMPTY SINCE 2026-08-20, and kept rather than deleted.
+ *
+ * It held the four Storage-backed uploads from Phase 3 until STORAGE_CASES covered three of
+ * them and 20260819000006 deleted the fourth. The export stays because it is the shape this
+ * file wants for the next gap — a NAMED list beats a paragraph, since a name can be diffed
+ * and a paragraph is read once — and because an empty array is a stronger statement than a
+ * missing symbol: it says somebody looked.
+ *
+ * The narrative exemptions above are a different thing and are not moving here. Those are
+ * lists of REASONS rather than of names, which is what let `createDuesSchedule` fall off one
+ * of them when a migration gave it two foreign ids.
+ */
+export const UNCOVERED = []

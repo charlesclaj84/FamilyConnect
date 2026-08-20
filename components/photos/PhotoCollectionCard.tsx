@@ -14,6 +14,18 @@ export function PhotoCollectionCard({ collection }: Props) {
     >
       <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
         {collection.cover_photo_url ? (
+          /* A PLAIN <img>, DELIBERATELY, AND NOT next/image.
+             The URL is a member's uploaded photograph in a public Supabase bucket, so it is
+             remote and its intrinsic size is unknown — `next/image` would need
+             `images.remotePatterns` in next.config.ts (there are none today; every
+             `next/image` in this tree is a STATIC import) and would put every family
+             photograph through Vercel's metered optimizer. `components/ui/Avatar.tsx` made
+             the same call for the same class of image.
+             That is not the same as saying a 10 MB upload should be downloaded whole to fill
+             a thumbnail — it should not, and TODO.md carries the three ways to fix it. It is
+             an infrastructure decision rather than a lint one, and this comment is here so
+             the next person meets the decision instead of the warning. */
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={collection.cover_photo_url}
             alt={collection.name}

@@ -431,6 +431,28 @@ went.** Both are in `app/actions/family-tree.ts`:
 | a parent edits their child | `editPersonRecord` — ANY approved member may edit ANY row with no `user_id` |
 | "Convert to Adult" | `invitePersonRecord` — sends a real invitation; they join the approvals queue |
 
+**A THIRD EDITING SURFACE ARRIVED 2026-08-20 and it is the one for a member WITH an account.**
+`updateUserProfile` had existed since Phase 3 as an endpoint with no caller; the member detail
+dialog on Members & Access now offers **Edit profile**, behind `admin/members:edit` at
+`canAny`. The three surfaces divide by whose row it is, and the division is worth keeping
+straight because each has a different gate:
+
+| Surface | Whose row | Gate |
+|---|---|---|
+| `saveProfileSection` | your own | `requireMember()` — none needed; it is yours |
+| `editPersonRecord` | a record with **no** `user_id` | `requireMember()`, and never a row with an account |
+| `updateUserProfile` | anybody in the family | `canAny('admin/members', 'edit')` |
+
+All three go through `pickProfileColumns`, and the last two additionally `delete
+patch.primary_email` — the address rule above is about the ROW, not about who is writing it.
+`getMemberProfileForEdit` reads the form's initial values behind the SAME grant as the save,
+because reading a record in order to edit it must not be one grant cheaper than editing it.
+
+The dialog offers **Send a password reset**, which is not the mail cannon the email rules
+forbid: it takes a `people.id` and resolves the address itself from a family-scoped row, so
+the caller cannot choose the recipient. It refuses a row with no `user_id` and a placeholder
+address — there is no account to reset and a generated address can only hard-bounce.
+
 Four bounds on `editPersonRecord`, and the third is the one that looks like caution and
 is not:
 
@@ -751,9 +773,22 @@ Two boundaries to keep. **This withholds no rows and changes no ledger:**
 and moving arrears into the balance would change the dashboard headline and every sum built
 from it. And **a member who joined mid-year owes from the period start** — which is not this
 function inventing a charge, it is the balance's existing policy finally being itemized,
-since nothing in the product prorates. `dues_member_plans.start_date` exists, is written by
-nothing, and is where to floor the ladder if prorating ever arrives — the balance would have
-to move with it.
+since nothing in the product prorates.
+
+**DUES DO NOT PRORATE, AND SINCE 2026-08-20 THAT IS A DECISION RATHER THAN A DEFAULT.** This
+paragraph used to end by naming `dues_member_plans.start_date` as where to floor the ladder if
+prorating ever arrived. `20260820000005` DROPPED that column, and the reason is the general
+lesson: it was `NOT NULL DEFAULT CURRENT_DATE` and written by nothing, so every row held the
+date its plan row happened to be created — a column full of plausible dates that describe
+nothing, which is precisely what a later change picks up and trusts. Flooring on it would have
+let anybody shrink their own arrears by re-picking their cadence twice. Same shape as
+`is_minor` (§4b): a stored value where a derivation belongs.
+
+A family wanting a half-year rate says so with a second schedule at a smaller `amount_cents`
+— a figure an organizer states rather than one a derivation invents. If real prorating is ever
+wanted, that migration's header carries what it costs, and the first item is that
+`remainingBalanceCents` has to move with the ladder or the member's screen shows two numbers
+describing different debts.
 
 The catch-up marker is `--brand-withheld`, never `--destructive`. An unpaid installment is
 neither an error nor a deletion, and reporting a failure is `form-message.tsx`'s job.
@@ -847,6 +882,87 @@ SELECT conrelid::regclass, confrelid::regclass, count(*)
 FROM pg_constraint WHERE contype='f' AND connamespace='public'::regnamespace
 GROUP BY 1,2 HAVING count(*) > 1;
 ```
+
+## 8b. A write that changed nothing is a failed write. Report it
+
+§8's rule with the stakes moved from reading to writing, and the same root cause: PostgREST
+does not treat an empty match as an error.
+
+`create`, `edit` and `delete` default to scope `'none'` on a permission template, and the
+composed policies honour that — so a plain member's UPDATE or DELETE matches **zero rows**
+and supabase-js hands back `{ error: null }`. An action whose only failure signal is `error`
+then reports success over a write that did not happen:
+
+```ts
+const { error } = await supabase.from('photos').delete().eq('id', id)
+if (error) return { success: false, message: error.message }
+return { success: true }                      // ← a lie whenever 0 rows matched
+```
+
+The member-visible version is somebody deleting a photograph, being told it went, and finding
+it there on reload — with nothing anywhere to explain why, because nothing went wrong as far
+as the database is concerned.
+
+**`confirmWrite` in [lib/confirmed-write.ts](lib/confirmed-write.ts) is the one mechanism.**
+It ends the statement in `.select(...)`, so `data` is the rows actually touched; retries once
+before reporting, because a transient PostgREST failure is indistinguishable from a refusal at
+this layer and recovers where a refusal does not; and returns the ROWS, not a count, so a
+DELETE can read the row it just removed. Five call sites today — `deletePhoto`,
+`untagPersonFromPhoto`, `respondToNomination`, `clearMyDuesPlan`, `uploadAvatar`.
+
+Four things about it are load-bearing:
+
+* **UPDATE and DELETE only. Never INSERT.** The retry is safe because those two are
+  idempotent. A retried INSERT after a first attempt that actually landed creates a second
+  row. An INSERT refused by RLS raises 42501 anyway and is already honest — which is why
+  `tagPersonInPhoto` was the one row in TODO's table reporting the truth while its two
+  neighbours did not.
+* **It is for actions that rely on RLS to narrow, not for guarded ones.** An action behind
+  `requireEdit` is refused at the GUARD and never reaches the database, so it has no silent
+  case to close. The defect lives exactly where there is no grant check because none is
+  wanted: the self-service writes, and the ones with no check at all.
+* **`.select()` reads the affected rows back THROUGH the SELECT policy**, so a caller who may
+  write a row and not read it is told a landed write failed. That inverse is rare here — view
+  falls back to `'everyone'`, writes to `'none'` — and where a surface genuinely needs it, the
+  answer is a permission check in the action rather than a wider helper.
+* **The probe assertion in `tests/rls` cannot see this.** A no-op leaves the row untouched, so
+  the attack half goes green over an action that is lying to the caller. `expectRefusal` on a
+  write case is a SECOND assertion on the same call for that reason, recorded under its own
+  `told` phase so the summary does not report it as a family boundary being crossed.
+  `photos.deletePhoto (a photo they did not upload)` is the worked example and was
+  mutation-checked: reverting the action turns that one line red and nothing else moves.
+  It was `(a member with no delete grant)` until `20260820000007` gave the General template
+  `review/photos:delete` at scope `'own'` — so the refusal it asserts is now the
+  OWN-EXPRESSION narrowing rather than a missing grant, which is a better test of the same
+  mechanism and the first assertion in that suite that an `own_expr` narrows anything.
+
+**A DEFAULT GRANT IS THE OTHER HALF, AND IT IS A PRODUCT DECISION.** Reporting the refusal
+honestly does not answer whether the caller should have been refused. `20260820000007` answered
+that for one resource: the General template already granted `review/photos` at `create: 'any'`
+and `edit: 'own'` and simply had no `delete` row, so a member could upload a photograph and
+retitle it and never remove it — and its own description says "manages only their own records".
+One row fixed it, and it covers tags too, because `permission_table_map` points both `photos`
+and `photo_tags` at that key with `uploader_id` and `tagged_by` as their own-expressions.
+
+Two things about that migration are the pattern rather than the instance. It backfills
+**`is_system` templates only** — a custom grid is one an administrator built and looked at, and
+a migration must not overrule a cell somebody set in a UI that showed them the answer. And it
+updates a row **only where it still reads `'none'`**, so a family that had already widened it to
+`'any'` keeps what they chose; a backfill that overwrote `'any'` with `'own'` would be a silent
+downgrade issued by a migration whose purpose is to widen.
+
+**What is deliberately NOT converted:** `markNotificationRead` and
+`markAllNotificationsRead` return `void`. Nothing is told anything, so there is no false
+success to correct, and the bell re-reads its list on every navigation — the optimistic
+marker is right there. Do not widen this rule into "every write returns a count".
+
+**And one instance of this class is a genuine bug rather than a report problem, still open:**
+`saveChapterAndPropagate`'s child propagation. It updates other people's rows on the USER
+client, and the `people` UPDATE policy admits only the caller's own row — so for any member
+without `community/directory:edit` at `'any'` it matches nothing, every time. The member's own
+chapter saves and their account-less children silently do not follow. Reporting a failure
+there would be wrong (their own save worked); the repair is the admin client with §3 scoping,
+the way `editPersonRecord` does it. TODO.md carries it.
 
 ## Running the database locally
 
@@ -1339,7 +1455,10 @@ which is why `getGatheringFundOptions` calls it through the admin client - grant
 `authenticated` would put the per-viewer version back within reach. The migration asserts the grant
 is ABSENT.
 
-**THE `event-photos` STORAGE BUCKET SURVIVES AND IS NOW ORPHANED.** `20260819000006` drops tables;
+**THE `event-photos` STORAGE BUCKET IS GONE, as of 2026-08-20** — `20260820000008` deletes the
+bucket, its object rows and its read policy, after `scripts/drop-retired-bucket.mjs` removed the
+bytes through the Storage API. What follows is kept because it is the argument for why a dropped
+TABLE does not drop a BUCKET, and the next retirement will need it. `20260819000006` drops tables;
 `storage.*` is out of its scope exactly as it is out of `truncate_entire_database.sql`'s. So the
 bucket, its three policies and every object already in it are still there, still `public: true`,
 still with no family predicate - nothing writes to it or reads it, and anything uploaded is still
@@ -1365,20 +1484,85 @@ the tree and in the top bar. DELETE was equally open.
 **and** UPDATE's `WITH CHECK`, that last one because without it an owner could RENAME their
 object into somebody else's folder, which is the same hole by another route.
 
-Three things to carry forward:
+## THE OTHER THREE BUCKETS WERE CLOSED THE NEXT DAY, BY A TEST RATHER THAN BY READING
 
-* **`documents` and `event-photos` still have the open policies.** Named in that migration
-  rather than fixed: `event-photos` is orphaned and owed a drop, and `documents` is behind
-  `status: 'future'` with no per-user layout yet to enforce — inventing a path convention in a
-  migration would be deciding that feature's storage layout somewhere nobody would find it.
-* **A public bucket's READ is a separate question and was deliberately not answered.** Narrowing
-  it is a product decision (every avatar would need a signed URL per render); the hole was
-  WRITE.
+`20260820000006`, and how it was found is the point. `tests/rls` grew a Storage harness
+(`tests/rls/raw/storage.mjs`), which is the gap `cases.mjs`'s `UNCOVERED` list had recorded
+since Phase 3 — and its **first run** found three holes that had been open for months:
+
+| Bucket | What was measured |
+|---|---|
+| `photos` INSERT | `bucket_id = 'photos'` and nothing else. BRAVO's administrator wrote an object into `ALPHATEST/<alpha collection>/` and got a 200, in a bucket that is `public: true`. |
+| `photos` DELETE | The right pattern aimed at the WRONG LAYOUT — `auth.uid()` against paths that begin with a family code. It matched nothing **for anybody**. |
+| `documents` | `auth.uid() IS NOT NULL` on all four commands, on a PRIVATE bucket. BRAVO downloaded ALPHA's document, listed ALPHA's filenames, and DELETED an ALPHA document. |
+
+**The `photos` DELETE one is the one to learn from, and it is not a leak.** Nobody could ever
+delete a photograph's FILE, so every image a family had "deleted" was still in a public
+bucket, still fetchable at its URL, indefinitely — and `deletePhoto` could not tell, because
+**Storage reports a refused `remove()` as 200 with an empty array.** No cross-family
+assertion could ever have found that; it was the POSITIVE CONTROL that did, which is
+§7's argument for the control half made twice in one day (the other was `getPhotoCollections`
+in 2026-08-19's dropped-table embed).
+
+Four things follow, and the first two are the ones a future bucket gets wrong:
+
+* **THE PREDICATE MUST MATCH THE LAYOUT.** `avatars` is per-USER, so
+  `(auth.uid())::text = (storage.foldername(name))[1]` is right there. `photos` and
+  `documents` are per-FAMILY, and a family code is not a uuid — so the same expression can
+  only ever match nothing, which is exactly how a policy comes to be *silently* wrong rather
+  than loudly wrong. The family form is
+  `(storage.foldername(name))[1] = public.auth_family_code()`, ANDed with
+  `public.auth_membership_approved()` so an applicant cannot file objects into a family that
+  has not admitted them (measured before the fix: they could).
+* **A HELPER IN A STORAGE POLICY NEEDS ITS EXECUTE GRANT, exactly as in `public`.** A policy
+  expression is evaluated as the QUERYING role (§2b, rule 2), so a missing grant makes every
+  query *error* rather than be refused — a broken feature, not a closed hole. That migration
+  asserts both grants before it writes a policy.
+* **A public bucket's READ is a separate question and is still deliberately unanswered.**
+  Narrowing it is a product decision (every avatar would need a signed URL per render); the
+  hole was WRITE. `documents` is the exception and was narrowed, because it is `public: false`
+  and its read policy IS the boundary rather than a formality.
 * **Probing storage from a migration cannot clean up after itself.** A trigger refuses direct
   `DELETE FROM storage.objects` ("Use the Storage API instead", 42501), so the verify block
   inserts inside a plpgsql `BEGIN … EXCEPTION` — an implicit subtransaction — and raises a
   sentinel to unwind it. Compare the sentinel by MESSAGE, or a policy that wrongly refused the
   OWNER would be swallowed by the same handler and reported as a pass.
+
+**`event-photos` IS DROPPED, and it took a script AND a migration — which is the part worth
+carrying forward.** It was frozen first (`20260820000006` dropped its three write policies and
+put nothing back, so §2c denied every write) and removed on 2026-08-20. Two removals, because
+each tool can only do one of them:
+
+| | |
+|---|---|
+| `scripts/drop-retired-bucket.mjs` | the BYTES, through the Storage API — the only thing that reaches the storage backend. Refuses any bucket not on its own short retired-list, so it cannot be pointed at `photos`. |
+| `20260820000008` | the SCHEMA — the bucket row, the object rows and the read policy. |
+
+**The migration is not optional and the reason is `20260609000000`**: that applied file creates
+the bucket on every fresh database, so without a migration deleting it, `db reset` resurrects
+it on every laptop forever while hosted no longer has it. That is the local/hosted divergence
+"How migrations reach the hosted project" exists to prevent, arriving through storage instead
+of through a policy.
+
+**Two mechanics to reuse.** `storage.protect_delete()` refuses a direct
+`DELETE FROM storage.objects` (42501, "Use the Storage API instead") and reads its own escape
+hatch — `SET LOCAL storage.allow_delete_query = 'true'` — so a migration goes through the
+front door rather than disabling a trigger it does not own. And **order matters on hosted**:
+run the script BEFORE the merge, because once the rows are gone nothing can enumerate which
+bytes to delete, and they become orphans only a manual sweep of the backend would find.
+
+**The test moved with it.** `STORAGE_CASES` asserted an RLS refusal while the bucket existed;
+it now asserts the bucket's ABSENCE, which is strictly stronger — the old assertion would have
+gone green again the moment somebody re-created the bucket without policies.
+
+**And a test probing Storage cannot use PostgREST.** `db.schema('storage').from('objects')`
+answers nothing at all: PostgREST exposes `public` and `graphql_public`, not `storage`. The
+first draft of those cases did exactly that, and every probe returned `[]` — so four attack
+halves reported perfect isolation over a probe that could not see a single object, and it was
+the four positive controls, failing together, that said so. Probe through the service-role
+client's own **Storage API** (`db.storage.from(bucket).list(dir)`), and point it at the
+object's IMMEDIATE parent, because `list()` is one level deep and reports a folder rather
+than the file inside it.
 
 Six tables — `gathering_templates`, `gathering_template_steps`, `gatherings`,
 `gathering_template_uses`, `gathering_tasks`, `gathering_task_submissions` — and six resource keys:
@@ -2389,7 +2573,7 @@ worth understanding before touching a colour.
 * **Layer 1 — the palette.** `--genorra-*` in `:root`: Heritage burgundy, Warmth
   terracotta, Growth olive, Legacy gold, Nurturing sand, Light, Ink. Named exactly as
   the brand guide names them, identical in both themes, and taken verbatim from
-  `public/home/v1_1/Web/genorra-colors.css`. **Do not use these in a component.** They answer
+  `design/home/v1_1/Web/genorra-colors.css`. **Do not use these in a component.** They answer
   "what colour is GENORRA?", not "what colour is this button?".
 
 * **Layer 2 — the roles.** `--brand-*`, surfaced as Tailwind utilities through
@@ -2621,18 +2805,44 @@ than retyping them, so adding a fourth is one edit.
 
 ## Artwork paths, and the versioned kits
 
-`public/` holds exactly three things:
+**`public/` holds exactly ONE thing, and `design/` holds the kits.** This said "three"
+until 2026-08-20, and the two that left are the reason the sentence is worth stating as a
+rule rather than as a description:
 
 | Folder | What it is |
 |---|---|
-| `public/identity/` | **The only BRAND artwork the site serves.** Named by role, wired through `lib/brand.ts`. |
-| `public/home/` | The versioned vendor kits, exactly as delivered — `v1_1/` current, `v1_0/` superseded. Reference material; nothing is served out of it. |
-| `public/dashboard/` | The Dashboard "Golden Master" handoff kit, exactly as delivered. Reference material on the same footing as `home/` — **nothing is served out of it.** |
+| `public/identity/` | **The only artwork the site serves at all.** Named by role, wired through `lib/brand.ts`. |
+| `design/home/` | The versioned brand kits, exactly as delivered — `v1_1/` current, `v1_0/` superseded. |
+| `design/dashboard/v1_0/` | The Dashboard "Golden Master" handoff kit, exactly as delivered. |
+
+**EVERYTHING UNDER `public/` IS SERVED, WHICH IS WHAT MADE THE OLD ARRANGEMENT A CLAIM
+RATHER THAN A FILING DECISION.** Both kits sat there, so every byte of both was fetchable
+by anybody, signed in or not — no route, no gate, no referrer check. The part that
+mattered was not the payload: `design/dashboard/v1_0/04_MEDIA/` holds seven photographs of
+identifiable people, and nothing in the kit states a licence, names a photographer or
+carries EXIF. So the product was publishing them under its own domain, indexably, with no
+established right to do so. Moving them out is the whole fix, and it costs one commit
+because nothing imported them.
+
+The convention is `design/<kit>/<version>/`, and the version folder is not optional even
+for a kit that arrived without one — the Dashboard kit did not and was filed as `v1_0`
+anyway, so that the next drop has somewhere to go that is not a rename. The kit-bump rule
+below turns entirely on being able to diff one version against the next.
+[design/README.md](design/README.md) carries the rest, including what a history rewrite
+would and would not undo.
+
+Two consequences to keep, because both are easy to undo by accident. **`design/` is out of
+the toolchain deliberately** — `eslint.config.mjs` ignores `design/**/*.{ts,tsx,js,jsx}`
+and `tsconfig.json` excludes `design`, because the Dashboard kit ships five stub React
+components and editing a handoff kit to satisfy our lint and type rules destroys the one
+property that makes it useful as a reference. And **`scripts/kit-illustration.mjs` still
+reads a kit directly**, which is not serving: it derives a PNG at author time. It is the
+one path into `design/` that any code holds.
 
 **Product screenshots are not brand artwork and do not go here.** They are colocated
 with the component that renders them and pulled in with a **static import** —
 `components/marketing/screenshots/*.png`, imported by `FeatureShowcase.tsx`. That keeps
-this table at three rows, and it buys the thing a URL string cannot: `next/image` reads
+`public/` at one row, and it buys the thing a URL string cannot: `next/image` reads
 the intrinsic width, height and blur placeholder from the file, and a path that names
 nothing fails `next build` instead of rendering an empty box. The landing page shipped
 for a while with `image: '/features/events.png'` against a `public/features/` that did
@@ -2662,8 +2872,11 @@ Two things follow, and the second is the one a kit bump gets wrong:
   a round after v1.1 landed; a derived file fails the same way with nothing even to compare.
   Re-run `art:build` as part of any bump, and let `art:check` be what says you did.
 
-**Serve from `identity/`, never from a kit folder.** Two reasons, both of which have
-bitten:
+**Serve from `identity/`, never from a kit folder.** Since 2026-08-20 a kit path could not
+be served even if you tried — `design/` is not under `public/`, so a `src` pointing into
+it 404s in development as loudly as in production, which is the right way round and is the
+main thing the move bought beyond the licensing question. The two original reasons still
+hold and are why the copy into `identity/` is deliberate rather than lazy:
 
 * Kit folders are named for a design deliverable — `SVG_Masters`, `PNG_Exports` — and
   those names would end up in public URLs, where they are permanent. Worse, they are
@@ -2675,7 +2888,7 @@ bitten:
   direction. This was hit while doing the rebrand, not theorised.
 
 **Bumping the kit is a copy, not a reference change.** Drop the new kit in as
-`public/home/v1_N/`, then re-copy every file in `identity/` (and `app/favicon.ico`,
+`design/home/v1_N/`, then re-copy every file in `identity/` (and `app/favicon.ico`,
 `app/icon.svg`, `app/apple-icon.png`) from it and `cmp` each one. Skipping that leaves
 the site serving the *previous* kit's artwork with no error anywhere — which is exactly
 what happened: `identity/` held the v1.0 mark for a full round after v1.1 landed, and
@@ -2698,7 +2911,7 @@ one file works on both light and dark.
 
 ## Typography
 
-Two faces, per `public/home/v1_0/README.txt`: **Cormorant Garamond** for display and **Inter** for
+Two faces, per `design/home/v1_0/README.txt`: **Cormorant Garamond** for display and **Inter** for
 UI and body, both loaded as variable fonts in `app/layout.tsx`.
 
 `h1`/`h2` take the serif automatically from the base layer. **`h3`–`h6` deliberately do

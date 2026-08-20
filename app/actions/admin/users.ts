@@ -6,6 +6,7 @@ import { canAny } from '@/lib/auth/permissions'
 import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pickProfileColumns } from '@/lib/profile-columns'
+import { emailOrigin } from '@/lib/email/send'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
 
 export interface FamilyRole {
@@ -189,4 +190,201 @@ export async function updateUserProfile(
     .eq('id', peopleId)
     .eq('family_code', familyCode)
   return error ? { success: false, error: error.message } : { success: true }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDITING SOMEBODY ELSE'S PROFILE FROM MEMBERS & ACCESS
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// `updateUserProfile` above was a live endpoint with no caller for months — TODO.md carried
+// the choice between deleting it and giving it a screen. It has a screen now: the member
+// detail dialog on Members & Access offers **Edit profile**, which opens a form over the same
+// three profile sections a member sees at /personal-info, minus Sign-in & Security.
+//
+// ── WHY THE READ IS ITS OWN ACTION AND NOT A WIDER ROSTER PROJECTION ────────────────
+// AGENTS.md §5: gate the FETCH, not the button. `searchMembers` publishes name, email, phone,
+// location, chapter, region, template and status for every row on the page — a form needs
+// nineteen more columns including date of birth, gender and a full street address. Adding
+// those to the roster would put the whole family's PII in the RSC payload of a screen that
+// mostly lists people, for the sake of one dialog that is open for one of them; and it would
+// do it under `admin/members:view`, whereas editing is `admin/members:edit`.
+//
+// So this reads ONE person, on demand, and demands the EDIT grant to do it. A caller who may
+// only view the roster cannot reach it at all, which is the correct answer for a projection
+// that exists solely to be edited.
+
+/** One member's editable profile, as the admin edit dialog needs it. */
+export interface MemberProfileForEdit {
+  peopleId: string
+  /** For the dialog title. Composed here so one person reads the same on both screens. */
+  name: string
+  /**
+   * Whether a real account is attached (`user_id IS NOT NULL`). It decides two things in the
+   * dialog and nothing about permission: whether the password-reset offer appears at all, and
+   * which sentence explains why the email field is read-only.
+   */
+  hasAccount: boolean
+  /**
+   * True when `primary_email` is the GENERATED address an account-less record carries
+   * (AGENTS.md §4b). Shown rather than hidden, because an administrator looking at a
+   * generated no-reply address and no explanation will try to correct it.
+   */
+  emailIsPlaceholder: boolean
+  /** Read-only in the dialog. `updateUserProfile` deletes this column from any patch. */
+  email: string | null
+  /** Every column on WRITABLE_PROFILE_COLUMNS except primary_email, as form values. */
+  fields: PersonalInfoData
+}
+
+export async function getMemberProfileForEdit(
+  peopleId: string
+): Promise<{ success: boolean; error?: string; profile?: MemberProfileForEdit }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  // The SAME gate as the write it feeds — `admin/members:edit` at `canAny`, because the row is
+  // somebody else's and scope 'own' on `people` means the caller's own row, which is
+  // `getPersonalInfo`'s job. Reading a form's initial values is part of the edit, so it must
+  // not be reachable one grant cheaper than the save.
+  if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family associated with account' }
+
+  // Admin client with the family conjunct written by hand (AGENTS.md §3). It has to be the
+  // admin client: the `people` SELECT policy is keyed on `community/directory`, so a family
+  // that has restricted its Directory would otherwise break its own Members & Access — the
+  // same coupling `belongsToFamily` uses the service role to avoid.
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('people')
+    // ONE STRING LITERAL, not a concatenation. supabase-js derives the row type from the
+    // literal it is handed, so `'a, b' + 'c'` types every column as GenericStringError and
+    // the whole projection stops compiling — which is the useful direction of that inference
+    // and the reason this line is long rather than wrapped.
+    .select('id, user_id, first_name, last_name, nick_name, prefix, middle_name, suffix, primary_email, primary_phone, email_is_placeholder, street_address, apartment, city, state, zip_code, country, date_of_birth, sunset_date, gender, tshirt_category, tshirt_size, time_zone')
+    .eq('id', peopleId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+
+  // §8 — the error is READ rather than discarded, or a refused query is indistinguishable
+  // from a member who is not in this family, and the dialog would report the wrong thing.
+  if (error) return { success: false, error: error.message }
+  if (!data) return { success: false, error: 'Member not found' }
+
+  const t = (v: unknown) => (typeof v === 'string' ? v : '')
+  return {
+    success: true,
+    profile: {
+      peopleId: data.id as string,
+      name: [data.first_name, data.last_name].filter(Boolean).join(' ').trim(),
+      hasAccount: data.user_id != null,
+      emailIsPlaceholder: Boolean(data.email_is_placeholder),
+      email: (data.primary_email as string | null) ?? null,
+      fields: {
+        prefix: t(data.prefix), first_name: t(data.first_name), middle_name: t(data.middle_name),
+        last_name: t(data.last_name), nick_name: t(data.nick_name), suffix: t(data.suffix),
+        primary_phone: t(data.primary_phone),
+        street_address: t(data.street_address), apartment: t(data.apartment),
+        city: t(data.city), state: t(data.state), zip_code: t(data.zip_code),
+        country: t(data.country),
+        date_of_birth: t(data.date_of_birth), sunset_date: t(data.sunset_date),
+        gender: t(data.gender),
+        tshirt_category: t(data.tshirt_category), tshirt_size: t(data.tshirt_size),
+        time_zone: t(data.time_zone),
+      },
+    },
+  }
+}
+
+/**
+ * Send a member the ordinary "reset your password" email.
+ *
+ * ── WHY THIS IS NOT THE MAIL CANNON AGENTS.md FORBIDS ───────────────────────────────
+ * That rule is about an action taking an ADDRESS: GoTrue already publishes
+ * `POST /auth/v1/recover` reachable with the anon key that ships in the browser bundle, so a
+ * `'use server'` wrapper taking an email is a second public endpoint whose only job is to
+ * reach the first — one that hides every caller behind our server's address in front of the
+ * only rate limiter there is. `ForgotPasswordForm` therefore calls GoTrue from the browser.
+ *
+ * This takes a **people.id** and resolves the address itself, from a row it has already
+ * scoped to the caller's own family, behind `admin/members:edit`. The caller cannot choose
+ * the recipient — they can only name somebody their family already holds a record for — which
+ * is the same distinction `redeem_family_invitation` draws about `p_user_id` (§2b) and the
+ * reason `assignBoardPosition` was rewritten to take a people id rather than an auth id.
+ *
+ * ── TWO REFUSALS BEFORE ANY MAIL, AND BOTH ARE ABOUT §4b ────────────────────────────
+ * A `people` row without a `user_id` has no account to reset, and it carries a GENERATED
+ * address paired with `email_is_placeholder`. Mailing that address cannot reach anybody, and
+ * a hard bounce is charged to our sending domain's reputation — `sendEmail` refuses reserved
+ * TLDs for exactly that reason. So both are refused here, with the sentence that says what to
+ * do instead: an account-less relative is INVITED, not reset.
+ *
+ * ── AND IT CANNOT REPORT DELIVERY, WHICH THE COPY HAS TO OWN ────────────────────────
+ * `/auth/v1/recover` answers 200 for an address with an account, one without, and one that
+ * has never been seen — deliberately, so it cannot be used to enumerate accounts. So a
+ * success here means "GoTrue accepted the request", never "a mail arrived", and the dialog
+ * says exactly that rather than "Sent". Same honesty `ForgotPasswordForm` and the resend
+ * offer on `/login` are written for.
+ */
+export async function sendMemberPasswordReset(
+  peopleId: string
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family associated with account' }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('people')
+    .select('user_id, primary_email, email_is_placeholder')
+    .eq('id', peopleId)
+    .eq('family_code', familyCode)
+    .maybeSingle()
+
+  if (error) return { success: false, error: error.message }
+  if (!data) return { success: false, error: 'Member not found' }
+
+  if (data.user_id == null) {
+    return {
+      success: false,
+      error: 'This relative has no account yet, so there is no password to reset. '
+        + 'Invite them from the family tree instead.',
+    }
+  }
+  if (data.email_is_placeholder || !data.primary_email) {
+    return {
+      success: false,
+      error: 'This record has a placeholder email address, so a reset link has nowhere to go.',
+    }
+  }
+
+  // THE ADDRESS COMES FROM `auth.users`, NOT FROM `people.primary_email`. The two are kept in
+  // step by the app and only the first is what GoTrue will match — a profile whose address was
+  // edited without the account following would otherwise get a 200 and no mail, reported here
+  // as a success. Reading it back is also the last check that the account still exists.
+  const { data: account, error: accountError } = await admin.auth.admin.getUserById(data.user_id as string)
+  if (accountError || !account?.user?.email) {
+    return { success: false, error: 'That member has no sign-in address on record.' }
+  }
+
+  // The ORIGIN comes from configuration, never a request header: `Host` and
+  // `X-Forwarded-Host` are attacker-controlled, and here they would control the hostname
+  // inside a link an email tells somebody to trust. See lib/email/send.ts.
+  const { error: sendError } = await supabase.auth.resetPasswordForEmail(account.user.email, {
+    redirectTo: `${emailOrigin()}/update-password`,
+  })
+  if (sendError) return { success: false, error: sendError.message }
+
+  return {
+    success: true,
+    message: 'A reset link has been requested for that member. '
+      + 'They will receive it if their address is reachable.',
+  }
 }

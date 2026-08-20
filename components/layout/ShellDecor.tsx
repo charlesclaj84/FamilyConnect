@@ -5,7 +5,7 @@ import { APP_MOTTO } from '@/lib/brand'
  * the olive hill that runs out of the rail's foot across the workspace.
  *
  * ALL GEOMETRY IS THE KIT'S, from PATCH 01
- * (`public/dashboard/05_DESIGN_SYSTEM/curve-paths.json` and
+ * (`design/dashboard/v1_0/05_DESIGN_SYSTEM/curve-paths.json` and
  * `03_VECTOR_ASSETS/components/Sidebar.svg`). Nothing is re-drawn. What the patch
  * corrected, and what this file therefore had to change, is worth recording because the
  * first implementation got both halves wrong in the same way — it kept the decoration

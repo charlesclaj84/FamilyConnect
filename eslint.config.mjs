@@ -18,9 +18,10 @@ const eslintConfig = defineConfig([
     // 186 problems: nearly three times the rest of the codebase combined,
     // which is enough noise to make `npm run lint` not worth reading.
     "supabase/.temp/**",
-    // The vendor design kits under public/ are reference material, delivered as-is,
-    // and NOT part of the build — nothing imports them and nothing is served out of
-    // them (see the public/ table in AGENTS.md). `public/home/` never tripped this
+    // The vendor design kits under design/ are reference material, delivered as-is, and
+    // NOT part of the build — nothing imports them, and since 2026-08-20 they are not under
+    // `public/` either, so nothing is served out of them by construction rather than by
+    // convention (see the design/ table in AGENTS.md). `design/home/` never tripped this
     // because it ships no TypeScript; the Dashboard Golden Master kit does, in
     // `06_REACT/`, and its five stub components turned the Lint step red the moment
     // they landed — one hard error for an unescaped apostrophe in a hardcoded
@@ -30,7 +31,11 @@ const eslintConfig = defineConfig([
     // lint rules destroys the one property that makes it useful as a reference: that
     // it is byte-for-byte what the designer delivered, and can be diffed against the
     // next drop. The real implementation lives in components/dashboard/.
-    "public/*/**/*.{ts,tsx,js,jsx}",
+    //
+    // THE GLOB IS `design/**` AND NOT `design/*/**`: the kits are two levels deep now
+    // (`design/<kit>/<version>/`), so the shallower pattern this replaced would have
+    // stopped matching and quietly turned the Lint step red again.
+    "design/**/*.{ts,tsx,js,jsx}",
   ]),
 ]);
 

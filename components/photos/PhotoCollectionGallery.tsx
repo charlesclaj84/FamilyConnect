@@ -143,6 +143,10 @@ export function PhotoCollectionGallery({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
           {photos.map((photo, idx) => (
             <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer" onClick={() => openLightbox(idx)}>
+              {/* Plain <img> — see PhotoCollectionCard for the whole argument. This is the
+                  grid that would benefit most from resizing and the one TODO.md's entry is
+                  really about: N uploads of up to 10 MB each, rendered at a quarter width. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo.url} alt={photo.caption ?? ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               {photo.tags.length > 0 && (
                 <div className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
@@ -165,6 +169,12 @@ export function PhotoCollectionGallery({
             <button onClick={closeLightbox} aria-label="Close photo" className="absolute top-2 right-2 text-white hover:text-white/70 z-10">
               <X className="h-6 w-6" />
             </button>
+            {/* THE LIGHTBOX IS THE ONE PLACE THE FULL-SIZE FILE IS THE POINT, so even if the
+                two grids above ever move to next/image, this one should not: somebody has
+                clicked a photograph to look at it. It also has no fixed box to fill —
+                `max-h-[70vh] object-contain` with a free aspect ratio is exactly what
+                `fill` cannot express without inventing dimensions we do not have. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={currentPhoto.url} alt={currentPhoto.caption ?? ''} className="max-h-[70vh] mx-auto rounded-lg object-contain" />
 
             {/* Caption */}
