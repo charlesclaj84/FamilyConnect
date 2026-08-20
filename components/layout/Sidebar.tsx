@@ -97,6 +97,14 @@ const adminItems: NavItem[] = [
   // the other three would have a working page and no link to it, which is the failure the
   // `admin/users/templates` entry in `TAB_RESOURCES` already exists to prevent.
   //
+  // AND A FIFTH SINCE 2026-08-20: `admin/boardpositions`, which is the SECOND HALF of that
+  // same Organization pane rather than a pane of its own. Regions and chapters are the
+  // family's geography and board positions are its offices — one action module, one set of
+  // three scope words, and a regional position that is meaningless without a region to hold
+  // it for. Two rail items for one answer to one question was the arrangement, and a family
+  // setting itself up had to visit both. Listing the key here is what keeps a board-only
+  // administrator able to reach the screen at all.
+  //
   // Note the key is NOT `admin/users/organization`: a pane takes a sub-key by convention,
   // and this one is a key that RLS policies already name (see the redirect page for the
   // whole argument). The tier gate travels with it — `/admin/chapters` is `tier: 'plus'`, so
@@ -106,20 +114,29 @@ const adminItems: NavItem[] = [
     href: '/admin/users',
     label: 'Members',
     icon: UsersRound,
-    viewKeys: ['admin/users', 'admin/approvals', 'admin/users/templates', 'admin/chapters'],
+    viewKeys: [
+      'admin/users', 'admin/approvals', 'admin/users/templates',
+      'admin/chapters', 'admin/boardpositions',
+    ],
   },
-  { href: '/admin/boardpositions', label: 'Board Positions',      icon: ShieldCheck },
-  // NO Regions & Chapters ROW, since 2026-08-19, and its absence is the move rather than a
-  // deletion. That screen is now the Organization pane of Members & Access above — one rail
-  // item, four panes, and the row you want is the one captioned Members.
+  // NO Regions & Chapters ROW and NO Board Positions ROW, since 2026-08-19 and 2026-08-20,
+  // and both absences are the move rather than a deletion. Both screens are now the
+  // Organization pane of Members & Access above — one rail item, four panes, and the row you
+  // want is the one captioned Members.
   //
-  // `/admin/chapters` still EXISTS: it is a redirect to `/admin/users?tab=organization` and
-  // it is still a `FEATURES` entry, because `viewableResources()` walks that registry and the
-  // key `admin/chapters` has to stay in its answer — the Members row above lists it in
-  // `viewKeys`, so a member whose only admin grant is Organization still gets a link. Adding
-  // a second row here that pointed at the redirect would be two rail items for one pane, and
-  // the pane's caption is the grid's caption, which is what "one rail item, one permission
-  // resource" is actually about.
+  // BOTH ROUTES still EXIST: each is a redirect to `/admin/users?tab=organization` and each
+  // is still a `FEATURES` entry, because `viewableResources()` walks that registry and the
+  // keys `admin/chapters` and `admin/boardpositions` have to stay in its answer — the Members
+  // row above lists both in `viewKeys`, so a member whose only admin grant is one of them
+  // still gets a link. Adding a row here pointing at either redirect would be two rail items
+  // for one pane, and the pane's caption is the grid's caption, which is what "one rail item,
+  // one permission resource" is actually about.
+  //
+  // THE PANE NOW SPANS TWO KEYS AND ITS CAPTION IS HAND-SET, which is the case AGENTS.md
+  // describes for Accounting's Dues & Donations item: no `permission_resources` row says
+  // "Organization" about both halves, because no row is about both. The grid still prints
+  // "Organization" for `admin/chapters` and "Board Positions" for `admin/boardpositions`,
+  // which is right — an administrator moves two switches, and they are two jobs.
   { href: '/admin/account',        label: 'Accounting',           icon: Wallet },
   // ONE GATHERINGS ROW, TWO PANES, TWO KEYS. `/admin/gatherings` is a rail: Management
   // schedules a gathering, hands out its tasks and rules on the answers, and Templates
@@ -273,12 +290,10 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       { href: '/account-summary',  label: 'Summary',         icon: Wallet },
       { href: '/dues',             label: 'Dues',            icon: CalendarClock },
       { href: '/donations',        label: 'Donations',       icon: HeartHandshake },
-      // It is the forward reading of the money the two Reporting screens read backwards:
-      // Payment History and Transactions are what came in, this is what should. It stayed
-      // here rather than moving with them for the reason stated on Reporting below — the
-      // request named two screens — and because it is the one of the three a MEMBER'S own
-      // dues page is the counterpart to, which is what this group is otherwise made of.
-      { href: '/dues-projections', label: 'Dues Projections', icon: TrendingUp },
+      // DUES PROJECTIONS LEFT THIS GROUP ON 2026-08-20 and is in Reporting below. The note
+      // that used to stand here argued for keeping it — "the request named two screens" — and
+      // the note on Reporting said moving a third would be scope creep. It was asked for, so
+      // it moved; the argument for where it belongs is now made in one place, down there.
       { href: '/family-finances',  label: 'Family Finances', icon: BarChart3 },
     ],
   })
@@ -300,12 +315,26 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // groups by what a member came to DO. Regrouping the grid would mean a migration moving
   // two rows out of a category that describes them correctly.
   //
-  // `/admin/reports` and `/dues-projections` are the obvious next candidates and are
-  // DELIBERATELY NOT MOVED. The request named two screens, and moving a third on our own
-  // initiative would be the kind of quiet scope creep that leaves nobody able to say what
-  // was asked for. This group is finished as it stands, not half-finished: if Reports ever
-  // ships (it is `status: 'future'`) somebody may well move it here, and that is a decision
-  // for the day it ships rather than a gap left open now.
+  // DUES PROJECTIONS IS THE THIRD, MOVED HERE 2026-08-20. This paragraph said it and
+  // `/admin/reports` were "the obvious next candidates and DELIBERATELY NOT MOVED", on the
+  // ground that the request named two screens; it was asked for on 2026-08-20 and the
+  // reasoning it was waiting for turns out to be the group's own: Reporting is where the
+  // family's money is READ rather than set up, and a projection is a reading. Payment History
+  // and Transactions are what came in, Dues Projections is what should — three readings of one
+  // ledger, which is a group, where two readings and a forecast in a different group was a
+  // split nobody could state.
+  //
+  // WHAT DID NOT MOVE, AND THIS IS THE SAME DIVERGENCE THE PARAGRAPH ABOVE ARGUES: the
+  // permission grid still prints `dues-projections` under Accounting, at sort_order 125 in the
+  // `accounting` category, because that is the money it is about. No route moved, no key
+  // moved, no migration — the rail groups by what a member came to DO and the grid groups by
+  // what a resource is ABOUT, and regrouping the grid would mean a migration moving a row out
+  // of a category that describes it correctly.
+  //
+  // `/admin/reports` STAYS OUT, and now for a better reason than "nobody asked": it is
+  // `status: 'future'`, so it is in no rail at all — `buildNavGroups` renders from
+  // `viewKeys` and a future route is never viewable. Placing it now would be placing a row
+  // nobody can see. The day it ships it belongs here, and the group is shaped for it.
   //
   // BarChart3 as the section icon, already imported for Family Finances and Reports. Both
   // of those are readings of the family's money too, so the glyph is doing the same job in
@@ -314,8 +343,9 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { label: 'Reporting', icon: BarChart3 },
     items: [
-      { href: '/payment-history',  label: 'Payment History', icon: History },
-      { href: '/transactions',     label: 'Transactions',    icon: ArrowRightLeft },
+      { href: '/payment-history',  label: 'Payment History',  icon: History },
+      { href: '/transactions',     label: 'Transactions',     icon: ArrowRightLeft },
+      { href: '/dues-projections', label: 'Dues Projections', icon: TrendingUp },
     ],
   })
 

@@ -312,6 +312,30 @@ export async function createGroupRoom(
   return { room }
 }
 
+/**
+ * Add somebody to a group room.
+ *
+ * ── THE ROOM MUST BE IN THE CALLER'S ACTIVE FAMILY, AND IT DID NOT HAVE TO BE ───────
+ * Found 2026-08-20 by `npm run audit:family-scope`, which is what that script is for. This
+ * read was `.eq('id', roomId)` on the SERVICE-ROLE client with no family conjunct, and the
+ * only gate underneath was `room.created_by === user.id`. That reads like a stronger check
+ * than family scoping and is a different check entirely:
+ *
+ *   1. A member of two families creates a group in ALPHA.
+ *   2. They switch to BRAVO. `getMyFamilyCode` now answers BRAVO.
+ *   3. `membersOfFamily(admin, BRAVO, [userId])` admits a BRAVO relative...
+ *   4. ...who is inserted into an ALPHA room, and can read every message in it.
+ *
+ * Every step satisfied every check. The creator test authorizes the ACTION and says nothing
+ * about which family's room it acts on — AGENTS.md §4 in its purest form, with the second id
+ * arriving from the caller's own membership rather than from a parameter.
+ *
+ * So the family code is read OFF THE ROOM and both halves are then done against it: the room
+ * must be in the caller's active family, and the person being added must be in that same
+ * family. Reading it off the room alone would be the other bug — it would let the creator of
+ * an ALPHA room add ALPHA members while sitting in BRAVO, which is a cross-family write with
+ * the family conjunct present and pointing at the wrong family.
+ */
 export async function addGroupMember(
   roomId: string,
   userId: string
@@ -321,19 +345,25 @@ export async function addGroupMember(
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family' }
 
   const { data: room } = await admin
     .from('chat_rooms')
     .select('created_by')
     .eq('id', roomId)
+    .eq('family_code', familyCode)
     .eq('kind', 'group')
-    .single()
+    .maybeSingle()
 
+  // ONE SENTENCE FOR "not yours" AND "does not exist", which is deliberate: telling a caller
+  // that a room exists in a family they are not viewing is an enumeration signal, and it is
+  // the same answer `deleteChapter` gives for the same reason.
   if (!room) return { success: false, error: 'Group not found' }
   if (room.created_by !== user.id) return { success: false, error: 'Only the group creator can add members' }
 
-  // Being the creator authorizes adding people — but only people from your family.
-  const familyCode = await getMyFamilyCode(user.id)
+  // Being the creator authorizes adding people — but only people from the room's own family,
+  // which is the family scoping the read above has now established is also the caller's.
   const [allowed] = await membersOfFamily(admin, familyCode, [userId])
   if (!allowed) return { success: false, error: 'That member is not in your family' }
 
@@ -345,6 +375,13 @@ export async function addGroupMember(
   return { success: true }
 }
 
+/**
+ * Take somebody out of a group room. Same family scoping as `addGroupMember` above, and the
+ * same reason — see its header. The damage here is smaller (a removal rather than a grant of
+ * access) and the hole was identical, so it is closed identically rather than argued down:
+ * a check that is present on one of a pair and absent on the other is the one a later reader
+ * assumes was a decision.
+ */
 export async function removeGroupMember(
   roomId: string,
   userId: string
@@ -354,13 +391,16 @@ export async function removeGroupMember(
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family' }
 
   const { data: room } = await admin
     .from('chat_rooms')
     .select('created_by')
     .eq('id', roomId)
+    .eq('family_code', familyCode)
     .eq('kind', 'group')
-    .single()
+    .maybeSingle()
 
   if (!room) return { success: false, error: 'Group not found' }
   if (room.created_by !== user.id) return { success: false, error: 'Only the group creator can remove members' }

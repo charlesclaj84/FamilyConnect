@@ -774,6 +774,20 @@ export const FEATURES: readonly Feature[] = [
   // COMING SOON WITHHELD THE PAGE AND NEVER THE ACTIONS. Every hole above was reachable for
   // as long as the word said `'future'`. Reviewing a roadmap feature's actions is owed when
   // the code is written, not when the flag flips.
+  //
+  // ── AND SINCE 2026-08-20 THE ROUTE IS A REDIRECT, NOT A SCREEN ──────────────────
+  // Board Positions is the SECOND HALF of Members & Access's Organization pane, beside Regions
+  // & Chapters, and `/admin/boardpositions` rewrites to `/admin/users?tab=organization`. The
+  // entry stays for the three reasons the redirect page argues at length — old links, the key
+  // in `viewableResources()`'s answer, and `help:check` asserting every chapter's `route` is a
+  // FEATURES href — and the key is also in `TAB_RESOURCES` below, on the same footing as
+  // `admin/chapters`.
+  //
+  // `status: 'live'` AND `tier: 'plus'` BOTH STILL MATTER even though nothing renders here.
+  // `'future'` would send `proxy.ts` after the redirect itself and rewrite it to Coming Soon —
+  // a live pane advertised as unbuilt — and would drop the grid row out of `getResources()`.
+  // The tier is what `/admin/users` ands into the pane's grant by hand, since that page's own
+  // key is Free.
   {
     href: '/admin/boardpositions',
     label: 'Board Positions',
@@ -983,8 +997,21 @@ export const LIVE_FEATURES: readonly Feature[] = FEATURES.filter(f => f.status =
  * above, this line is not redundant: delete it and the sidebar item disappears for that
  * caller today, not on some future tidy-up.
  *
- * Read all three notes before adding anything to either list.
+ * `admin/boardpositions` is the FOURTH, added 2026-08-20, and it is the `admin/chapters`
+ * case exactly — including the redundancy. Board Positions became the second half of the same
+ * Organization pane, `/admin/boardpositions` is still a FEATURES entry (a redirect into it),
+ * so `viewableResources()` already finds the key by walking FEATURES and this line adds
+ * nothing but a second insert into a Set.
+ *
+ * It is listed anyway, and for the reason that entry gives about itself rather than a new one:
+ * `/admin/boardpositions` renders nothing at all now, which makes deleting it look like
+ * tidying up — and the day somebody does, this line is what stops the offices half of
+ * Organization silently disappearing from the rail for the one caller whose only grant it is.
+ * A key that gates a tab belongs in the list of keys that gate tabs.
+ *
+ * Read all four notes before adding anything to either list.
  */
 export const TAB_RESOURCES: readonly string[] = [
   'admin/users/templates', 'admin/chapters', 'announcements/birthdays',
+  'admin/boardpositions',
 ]

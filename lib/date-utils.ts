@@ -87,6 +87,38 @@ function ordinal(n: number): string {
  * every date in the app to carry a fact almost none of them needed — a payment date,
  * a schedule start, a booking deadline are not read by day of the week.
  */
+/**
+ * The latest of several `YYYY-MM-DD` strings, for the `min` of an END-date input.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────
+ * Wherever a form has a start date and an end date, the end date's picker should not offer a
+ * day before the start — `<input type="date" min=…>` greys those out, so an impossible range
+ * cannot be chosen in the first place and nobody meets a refusal for something the control
+ * could have declined to offer. Several of those forms have a SECOND floor as well: an
+ * existing dues schedule may not have its end date moved into the past (see `ScheduleFields`),
+ * so the real `min` is whichever floor is later.
+ *
+ * ── STRING COMPARISON IS CORRECT HERE, AND ONLY HERE ───────────────────────────────
+ * `YYYY-MM-DD` is fixed-width and big-endian, so lexicographic order IS chronological order —
+ * which is why this takes strings and never touches `Date`. That is the same reason
+ * `lib/calendar.ts` does its arithmetic on strings: `new Date('2026-08-01')` is UTC midnight
+ * and reads as 31 July in any negative offset, and a `min` that is a day out is worse than no
+ * `min` at all because it forbids a legal day.
+ *
+ * It holds ONLY for that format. A caller with a timestamp or a `MM/DD/YYYY` string has a
+ * different problem and must not use this.
+ *
+ * `undefined` for "no floor", which is what an `<input min>` wants for absent — React omits
+ * the attribute entirely, whereas `min=""` is a value some browsers have opinions about.
+ * Empty strings among the inputs are treated as absent, so an unfilled start date imposes no
+ * floor rather than a floor of "".
+ */
+export function latestDate(...dates: (string | null | undefined)[]): string | undefined {
+  const present = dates.filter((d): d is string => typeof d === 'string' && d !== '')
+  if (present.length === 0) return undefined
+  return present.reduce((a, b) => (b > a ? b : a))
+}
+
 export function formatDate(date: string | null | undefined): string | null {
   if (!date) return null
   const [y, m, d] = date.slice(0, 10).split('-').map(Number)

@@ -923,6 +923,19 @@ export async function seed() {
       room_id: f.room.id, sender_id: owner.userId, body: `confidential ${code} message`,
     }).select().single())
 
+    // ── A GROUP ROOM, FOR addGroupMember / removeGroupMember ────────────────────────
+    // `f.room` above is `kind: 'family'` and those two actions demand `kind: 'group'`, so
+    // without this the cases for them would be refused by the KIND filter and prove nothing
+    // about the family conjunct they exist to pin. Created by the same `owner`, which is what
+    // makes the positive control possible: both actions require `created_by = auth.uid()`.
+    f.groupRoom = must('chat group room', await db.from('chat_rooms').insert({
+      kind: 'group', family_code: code, name: `${code} group`, created_by: owner.userId,
+    }).select().single())
+
+    must('chat group participant', await db.from('chat_participants').insert([
+      { room_id: f.groupRoom.id, user_id: owner.userId },
+    ]))
+
     f.schedule = must('dues schedule', await db.from('dues_schedules').insert({
       family_code: code, label: `${code} dues`, amount_cents: 5000, active: true,
     }).select().single())

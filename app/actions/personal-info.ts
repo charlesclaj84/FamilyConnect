@@ -5,6 +5,32 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
 
+/**
+ * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
+ *
+ * ── THE EXTENSION IS DERIVED FROM THE TYPE, NEVER FROM THE FILENAME ─────────────────
+ * It used to be `file.name.split('.').pop()`, which is a string the caller chose. That is not
+ * the worst kind of untrusted input — the object path is `{auth.uid()}/avatar.{ext}` and since
+ * 20260820000002 storage refuses anything outside the caller's own folder, so it could not be
+ * aimed at somebody else's picture — but it decided two things it had no business deciding:
+ *
+ *   * WHICH FILE THE UPSERT REPLACES. Upload a JPEG, then a PNG, and the paths differ, so the
+ *     `upsert` replaces nothing and `avatar.jpg` is left behind forever — a public object the
+ *     product has forgotten about, still served by URL.
+ *   * WHETHER THE TYPE IS ONE WE ACCEPT AT ALL. The bucket has an `allowed_mime_types` list
+ *     (20260609000000), so a `.svg` was going to be refused by storage anyway — with
+ *     storage's own message, which reads as a bug rather than as "we take JPEG, PNG or WebP".
+ *
+ * Deriving it from `file.type` fixes both: one canonical path per type, and a refusal we can
+ * word. GIF is deliberately NOT here even though the bucket admits it — the `accept` attribute
+ * on the input has only ever offered three, and an animated avatar is a decision nobody made.
+ */
+const AVATAR_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+
 export async function uploadAvatar(
   formData: FormData
 ): Promise<{ success: boolean; url?: string; message?: string }> {
@@ -16,7 +42,15 @@ export async function uploadAvatar(
   if (!file || file.size === 0) return { success: false, message: 'No file provided' }
   if (file.size > 2 * 1024 * 1024) return { success: false, message: 'File must be under 2 MB' }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  // SERVER-SIDE, because `accept` on the input is a hint to a file picker and this action is a
+  // public HTTP endpoint like every other. `file.type` is still the browser's claim about the
+  // bytes rather than a fact about them — the bucket's `allowed_mime_types` is the layer that
+  // does not take our word for it, and it is why this list matches that one.
+  const ext = AVATAR_TYPES[file.type]
+  if (!ext) {
+    return { success: false, message: 'Choose a JPEG, PNG or WebP image' }
+  }
+
   const path = `${user.id}/avatar.${ext}`
 
   const { error: uploadError } = await supabase.storage
@@ -24,6 +58,24 @@ export async function uploadAvatar(
     .upload(path, file, { upsert: true, contentType: file.type })
 
   if (uploadError) return { success: false, message: uploadError.message }
+
+  // ── THE OTHER EXTENSIONS ARE REMOVED, AND FAILING TO IS NOT FATAL ─────────────────
+  // `upsert` replaces the object at THIS path. Somebody who had a JPEG and uploads a PNG leaves
+  // `avatar.jpg` behind — orphaned, and still served by URL from a public bucket, which is the
+  // half that matters: an old photograph a member believes they replaced is still fetchable by
+  // anybody who noted the address.
+  //
+  // Best-effort on purpose. The new picture is already uploaded and `avatar_url` is about to
+  // point at it, so a failed cleanup must not be reported as a failed upload — that would send
+  // the member back to try again over a photo that is already theirs. The error is logged
+  // because a bucket quietly accumulating orphans is exactly the thing nobody notices.
+  const stale = Object.values(AVATAR_TYPES)
+    .filter(other => other !== ext)
+    .map(other => `${user.id}/avatar.${other}`)
+  const { error: cleanupError } = await supabase.storage.from('avatars').remove(stale)
+  if (cleanupError) {
+    console.error(`[avatar] could not remove the previous file(s) for ${user.id}: ${cleanupError.message}`)
+  }
 
   const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
 

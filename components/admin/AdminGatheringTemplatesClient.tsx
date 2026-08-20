@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { useId, useState, useTransition } from 'react'
+import { ArrowDown, ArrowUp, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -296,6 +296,28 @@ function TemplateCard({
   const [stepError, setStepError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  /**
+   * ── THE CARD IS COLLAPSED UNTIL YOU OPEN IT ───────────────────────────────────────
+   * A template card is a two-field form, a description box, a Save button and a table of every
+   * step with four controls per row — 400px and up, each. A family with eight templates had a
+   * page nobody could scan: finding the one you came for meant scrolling past every step of
+   * every other, and the library is the screen whose whole job is "what have we got?".
+   *
+   * COLLAPSED BY DEFAULT, which is the decision rather than the default. Open-by-default would
+   * make the first visit identical to the page this replaces, so the change would buy nothing
+   * for the family it is for; and the header carries the two facts somebody scanning actually
+   * wants — the name and how many steps — so a shut card is not a blank one.
+   *
+   * `hidden` RATHER THAN UNMOUNTING, and it matters here more than usual: the body holds
+   * uncommitted edits (`name`, `description`, `scheduler` are all local state) and a step row
+   * mid-edit. Unmounting would throw those away every time somebody shut a card to look at
+   * another, which is exactly what they would do while comparing two templates. `hidden` also
+   * takes the subtree out of the accessibility tree and the tab order, which is what a
+   * `sr-only`-style hide would not.
+   */
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
+
   const dirty = name.trim() !== template.name
     || description.trim() !== (template.description ?? '')
     || scheduler !== template.whoMaySchedule
@@ -404,13 +426,49 @@ function TemplateCard({
       <div className="space-y-5">
         {/* ── The template itself ─────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-start justify-between gap-3">
+          {/* ── THE DISCLOSURE IS A BUTTON ON THE TITLE, NOT A HANDLER ON THE CARD ──────
+              A `<section>` with an onClick is unreachable by keyboard and invisible to a screen
+              reader, and this header already holds two real buttons — Archive and Delete — so a
+              click handler on the container would fire underneath both unless each one
+              remembered `stopPropagation`. The same reasoning `MemberDetailsDialog`'s trigger
+              records, and the reason this is not a native `<details>`/`<summary>` either:
+              nesting those buttons inside a `<summary>` is not something to rely on.
+
+              The button's text IS its accessible name, so it says the template's name and the
+              step count and needs no `aria-label`. `aria-expanded` and `aria-controls` are what
+              make it a disclosure rather than a link to nowhere. */}
           <div className="min-w-0">
-            <h2 className="text-lg">{template.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {template.steps.length === 1 ? '1 step' : `${template.steps.length} steps`}
-              {' · '}{usedCaption(template.usedByCount)}
-              {template.isArchived && ' · Archived, so nothing new can be started from it'}
-            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(o => !o)}
+              aria-expanded={open}
+              aria-controls={bodyId}
+              className="group flex items-start gap-2 text-left"
+            >
+              {/* `mt-1` to sit the chevron on the title's cap-height rather than its box, and
+                  `shrink-0` so a long template name wraps beside it instead of squashing it.
+                  The rotation is the open/shut state — no second glyph to keep in step. */}
+              <ChevronRight
+                className={cn(
+                  'mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
+                  open && 'rotate-90',
+                )}
+                aria-hidden="true"
+              />
+              <span className="min-w-0">
+                <span className="block text-lg group-hover:text-brand-accent">{template.name}</span>
+                <span className="block text-sm text-muted-foreground">
+                  {template.steps.length === 1 ? '1 step' : `${template.steps.length} steps`}
+                  {' · '}{usedCaption(template.usedByCount)}
+                  {template.isArchived && ' · Archived, so nothing new can be started from it'}
+                  {/* UNSAVED EDITS ARE ANNOUNCED ON THE SHUT CARD, because collapsing one is
+                      how they become invisible. `dirty` is already computed for the Save
+                      button; without this a reader shuts a card mid-edit and has no way to
+                      know which of eight templates is holding a change. */}
+                  {!open && dirty && ' · Unsaved changes'}
+                </span>
+              </span>
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {mayEdit && (
@@ -443,6 +501,10 @@ function TemplateCard({
           </div>
         </div>
 
+        {/* EVERYTHING BELOW THE HEADER IS THE COLLAPSIBLE BODY. `hidden` keeps the subtree
+            mounted — see the note on `open` — so uncommitted edits and a half-edited step row
+            survive a card being shut and reopened. */}
+        <div id={bodyId} hidden={!open} className="space-y-5">
         {mayEdit ? (
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -570,6 +632,7 @@ function TemplateCard({
               onAdded={step => onPatch({ steps: [...template.steps, step] })}
             />
           )}
+        </div>
         </div>
       </div>
     </section>

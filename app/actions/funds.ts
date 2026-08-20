@@ -24,8 +24,14 @@ export interface Fund {
    * Set when the application depends on this fund existing. 'donations' holds every
    * donation the family receives (20260807000003).
    *
-   * A fund with a system_key cannot be deleted or switched off, and takes no share of
-   * dues — so the UI hides its delete control and the routing screen omits it.
+   * A fund with a system_key cannot be deleted or switched off, so the UI hides its delete
+   * control. That is now the WHOLE of what the flag withholds.
+   *
+   * IT USED TO ALSO MEAN "takes no share of dues — the routing screen omits it", and that
+   * stopped being true on 2026-08-20: the Donations fund is in the routing table and in the
+   * waterfall like any other. What keeps that safe is its PRIORITY of 1000 rather than this
+   * flag — `effectiveAllocations` gives 100% to the first fund by priority when nothing is
+   * configured, so it sorts last and cannot become an unconfigured family's default.
    */
   system_key: string | null
 }
@@ -184,13 +190,22 @@ export async function getFunds(): Promise<FundWithStats[]> {
   const storedBps = new Map<string, number>(
     rows.map(f => [f.id, (f.fund_allocations as { basis_points: number }[] | null)?.[0]?.basis_points ?? 0]),
   )
-  // System funds are left OUT of the allocation maths, matching getFundAllocations and
-  // getActiveFundsForRouting. Including them would be worse than cosmetic:
-  // effectiveAllocations hands 100% to the first fund when nothing is configured, so an
-  // unconfigured family would see "100% of dues" on the Donations fund — a share it does
-  // not receive and cannot be given.
+  // SYSTEM FUNDS ARE IN THE ALLOCATION MATHS SINCE 2026-08-20, matching getFundAllocations
+  // and getActiveFundsForRouting — all three moved together, which is the property that
+  // matters: a share shown here that the waterfall does not honour, or one it honours that is
+  // shown nowhere, are both worse than either behaviour.
+  //
+  // The objection this replaces was real and is answered by the PRIORITY rather than by the
+  // filter: "effectiveAllocations hands 100% to the first fund when nothing is configured, so
+  // an unconfigured family would see 100% of dues on the Donations fund". It sorts LAST at
+  // priority 1000, so the first fund is never it — unless it is the family's only fund, in
+  // which case 100% is the truth and showing it is the point.
+  //
+  // `rows` IS ALREADY IN PRIORITY ORDER from the query above, which this depends on:
+  // `effectiveAllocations` takes "funds already ordered by priority (top first)" and picks
+  // `[0]`. Sorting here as well would be a second ordering to keep in step.
   const effective = effectiveAllocations(
-    rows.filter(f => !f.system_key).map(f => ({ id: f.id })),
+    rows.map(f => ({ id: f.id })),
     storedBps,
   )
   const sum = (embedded: unknown) =>
@@ -804,15 +819,22 @@ export async function recordDisbursement(input: {
 /**
  * The routing table: which share of a dues payment each fund receives.
  *
- * SYSTEM FUNDS ARE EXCLUDED, matching getActiveFundsForRouting in dues.ts. The Donations
- * fund does not take a share of dues — it takes donations, whole — so offering it a
- * percentage here would be offering a setting that nothing reads.
+ * SYSTEM FUNDS ARE INCLUDED SINCE 2026-08-20, and this said the opposite: "the Donations fund
+ * does not take a share of dues — it takes donations, whole — so offering it a percentage here
+ * would be offering a setting that nothing reads." The setting is read now.
+ * `getActiveFundsForRouting` in dues.ts dropped the same exclusion in the same commit, and the
+ * two must keep agreeing — a fund offered a share here that the waterfall does not consult is
+ * precisely the setting-nothing-reads this note used to be about, running the other way.
+ *
+ * The Donations fund's priority of 1000 is what makes it safe to list: `effectiveAllocations`
+ * gives 100% to the first fund by priority when nothing is configured, so it sorts last and
+ * cannot become an unconfigured family's default recipient.
  */
 export async function getFundAllocations(): Promise<FundAllocationRow[]> {
   const supabase = await createClient()
   const [fundsRes, allocRes] = await Promise.all([
     supabase.from('funds').select('id, name, priority, minimum_cents')
-      .eq('active', true).is('system_key', null).order('priority').order('name'),
+      .eq('active', true).order('priority').order('name'),
     supabase.from('fund_allocations').select('fund_id, basis_points'),
   ])
   const funds = fundsRes.data ?? []

@@ -29,6 +29,7 @@ import {
 } from '@/components/admin/resource-groups'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
 import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
+import { AdminBoardPositionsClient } from '@/components/admin/AdminBoardPositionsClient'
 import {
   MemberDetailsDialog, MemberDetailsTrigger, regionLabel,
   type MemberDetails,
@@ -37,7 +38,10 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import type { Applicant } from '@/app/actions/admin/approvals'
-import type { Region, Chapter, ScopeUsage } from '@/app/actions/admin/chapters'
+import type {
+  Region, Chapter, ScopeUsage,
+  BoardPosition, BoardPositionHolder, AssignableMember,
+} from '@/app/actions/admin/chapters'
 import type { FamilyInvitation } from '@/app/actions/invitations'
 
 /**
@@ -95,13 +99,46 @@ export interface ApprovalsData {
  * own it, so scope 'own' means nothing and `can()` would offer a button every action
  * then refuses.
  */
+/**
+ * The Organization pane's data — TWO HALVES UNDER TWO KEYS since 2026-08-20.
+ *
+ * The geography (regions and chapters, `admin/chapters`) and the offices (board positions,
+ * `admin/boardpositions`). They are two jobs a family delegates separately — somebody may
+ * curate the board roster without being trusted to redraw the regions — so the keys stayed
+ * separate when the screens merged, which is AGENTS.md's rule about a pane spanning two keys.
+ *
+ * `showGeography` / `showBoard` ARE SEPARATE FROM THE ARRAYS BEING EMPTY, and that is the
+ * whole reason they exist: an empty `positions` array means "this family has no board
+ * positions yet", which the pane says out loud and invites you to fix, while `showBoard: false`
+ * means "not yours to see", which it must not mention at all. Inferring one from the other
+ * would tell a caller without the grant that the family has nothing — a statement about
+ * somebody else's data, made by a screen that was told not to show it.
+ */
 export interface OrganizationData {
+  /** `admin/chapters` — the geography half. False renders no regions and no chapters. */
+  showGeography: boolean
   regions: Region[]
   chapters: Chapter[]
   usage: ScopeUsage
   mayCreate: boolean
   mayEdit: boolean
   mayDelete: boolean
+  /** `admin/boardpositions` — the offices half. False renders no board section at all. */
+  showBoard: boolean
+  positions: BoardPosition[]
+  holders: BoardPositionHolder[]
+  /**
+   * The roster for the assignment dialog, and the regions and chapters a scoped position can
+   * be assigned to. All three ride on `mayEditBoard` rather than on the view grant, because
+   * they exist only to fill that dialog — a view-only caller has no use for a roster and no
+   * business receiving one (§5).
+   */
+  boardMembers: AssignableMember[]
+  boardRegions: { id: string; name: string }[]
+  boardChapters: { id: string; name: string }[]
+  mayCreateBoard: boolean
+  mayEditBoard: boolean
+  mayDeleteBoard: boolean
 }
 
 interface Props {
@@ -251,13 +288,22 @@ export function AdminAccessClient({
           You can view what each template grants but not change it.
         </div>
       )}
-      {/* Organization's own version, and it is NOT a fourth copy of the sentence above —
-          `admin/chapters` has three separate write grants and a caller can hold any subset,
-          so "read-only" here means holding none of the three. Saying it once at the top is
-          the alternative to a disabled control on every row with no explanation beside it,
-          which is what the pane would otherwise be. */}
+      {/* Organization's own version, and it is NOT a fourth copy of the sentence above — this
+          pane has SIX separate write grants across its two keys and a caller can hold any
+          subset, so "read-only" here means holding none of the six. Saying it once at the top
+          is the alternative to a disabled control on every row with no explanation beside it,
+          which is what the pane would otherwise be.
+
+          SIX AND NOT THREE SINCE 2026-08-20, when Board Positions became the pane's second
+          half. Testing only the three geography grants would print "you can see how the family
+          is organized but not change it" over a board roster the caller can fully edit — which
+          is worse than no notice, because it is a false statement about what the controls in
+          front of them do. The grants a caller does not HOLD the view for are false anyway, so
+          a board-less caller is judged on the geography three and vice versa. */}
       {tab === 'organization' && organization
-        && !organization.mayCreate && !organization.mayEdit && !organization.mayDelete && (
+        && !organization.mayCreate && !organization.mayEdit && !organization.mayDelete
+        && !organization.mayCreateBoard && !organization.mayEditBoard
+        && !organization.mayDeleteBoard && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           You can see how the family is organized but not change it.
         </div>
@@ -328,43 +374,92 @@ export function AdminAccessClient({
           panes already follow: AdminApprovalsClient has no pane-level heading either, only
           `<h2>`s for its sections. */}
       {tab === 'organization' && organization && (
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              How the family divides itself up geographically. A chapter belongs to one
-              region, or it sits under National — which is where everything starts and
-              where a member with no chapter stays. Dues can be scoped to a region or a
-              chapter under <Link href="/admin/account?section=dues">Accounting</Link>.
-            </p>
-            {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same as
-                the Permission Templates icon's: a control where a reader can be confidently
-                wrong. National is that control — the absence of a region rather than a row,
-                what a member with no chapter is under, and since 20260817000008 what a
-                nationally scoped due bills.
+        <div className="space-y-8">
+          {/* ── THE GEOGRAPHY HALF ────────────────────────────────────────────
+              Rendered only under `admin/chapters`, which is what `showGeography` carries. A
+              caller who holds only the board roster gets the section below and nothing here —
+              not an empty Regions table, which would be a statement about a family's shape
+              made by a screen that was told not to show it. */}
+          {organization.showGeography && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  How the family divides itself up geographically. A chapter belongs to one
+                  region, or it sits under National — which is where everything starts and
+                  where a member with no chapter stays. Dues can be scoped to a region or a
+                  chapter under <Link href="/admin/account?section=dues">Accounting</Link>.
+                </p>
+                {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same
+                    as the Permission Templates icon's: a control where a reader can be
+                    confidently wrong. National is that control — the absence of a region
+                    rather than a row, what a member with no chapter is under, and since
+                    20260817000008 what a nationally scoped due bills.
 
-                It also patches a real gap the move opened. The top bar's question mark
-                resolves `usePathname()` against the chapter routes, so on `/admin/users` it
-                lands on the Members chapter whichever pane is open — and the chapter that
-                documents THIS pane still carries `route: '/admin/chapters'`, a route that is
-                now a redirect nobody navigates to. This link is the only thing on the screen
-                pointing at the chapter that describes it, which is why it is the `inline`
-                variant: there is no heading for an icon to sit beside, and a bare question
-                mark under a paragraph names nothing. */}
-            <HelpLink
-              slug="regions-and-chapters"
-              section="what-it-is"
-              label="Regions, chapters and National"
-              variant="inline"
-            />
-          </div>
-          <AdminRegionsChaptersClient
-            initialRegions={organization.regions}
-            initialChapters={organization.chapters}
-            usage={organization.usage}
-            mayCreate={organization.mayCreate}
-            mayEdit={organization.mayEdit}
-            mayDelete={organization.mayDelete}
-          />
+                    It also patches a real gap the move opened. The top bar's question mark
+                    resolves `usePathname()` against the chapter routes, so on `/admin/users`
+                    it lands on the Members chapter whichever pane is open — and the chapter
+                    that documents THIS half still carries `route: '/admin/chapters'`, a route
+                    that is now a redirect nobody navigates to. This link is the only thing on
+                    the screen pointing at the chapter that describes it, which is why it is
+                    the `inline` variant: there is no heading for an icon to sit beside, and a
+                    bare question mark under a paragraph names nothing. */}
+                <HelpLink
+                  slug="regions-and-chapters"
+                  section="what-it-is"
+                  label="Regions, chapters and National"
+                  variant="inline"
+                />
+              </div>
+              <AdminRegionsChaptersClient
+                initialRegions={organization.regions}
+                initialChapters={organization.chapters}
+                usage={organization.usage}
+                mayCreate={organization.mayCreate}
+                mayEdit={organization.mayEdit}
+                mayDelete={organization.mayDelete}
+              />
+            </div>
+          )}
+
+          {/* ── AND THE OFFICES ───────────────────────────────────────────────
+              `AdminBoardPositionsClient` is rendered UNCHANGED, exactly as
+              /admin/boardpositions rendered it — the same thing that made Regions & Chapters
+              a move rather than a rewrite. It takes its data and its three write grants as
+              props, keeps its own `useServerState` so a freshly added position survives the
+              refresh, and its actions still `requireScope` on the same key they always did.
+              Nothing about it knows it is a pane now.
+
+              THE `<h1>` FROM ITS OLD PAGE IS NOT RESTATED AS AN `<h2>` HERE, for the reason
+              the note on the geography half gives: that component renders its own headings
+              and this file cannot demote them, so a heading here would sit BESIDE the ones it
+              means to contain. What is restated is the one sentence its page carried that the
+              component does not — what a board position IS — because arriving at two tables
+              of offices with no statement of what the scope column means is the same gap the
+              geography half fills with its National paragraph.
+
+              A DIVIDER WHEN BOTH HALVES SHOW, and none when only this one does. Two sections
+              of a pane need something between them; a lone section with a rule above it reads
+              as the bottom of something that was cut off. */}
+          {organization.showBoard && (
+            <div className={cn('space-y-6', organization.showGeography && 'border-t pt-8')}>
+              <p className="text-sm text-muted-foreground">
+                The offices your family keeps, and who holds each one. A{' '}
+                <strong>Regional</strong> or <strong>Chapter</strong> position is held for one
+                region or one chapter — you choose which when you give it to somebody — and the
+                same title can exist once at each scope.
+              </p>
+              <AdminBoardPositionsClient
+                initialPositions={organization.positions}
+                initialHolders={organization.holders}
+                members={organization.boardMembers}
+                regions={organization.boardRegions}
+                chapters={organization.boardChapters}
+                mayCreate={organization.mayCreateBoard}
+                mayEdit={organization.mayEditBoard}
+                mayDelete={organization.mayDeleteBoard}
+              />
+            </div>
+          )}
         </div>
       )}
 

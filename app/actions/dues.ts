@@ -631,8 +631,32 @@ async function loadScheduleUsage(
  */
 async function getActiveFundsForRouting(admin: AdminClient, familyCode: string): Promise<RoutingFund[]> {
   const [fundsRes, allocRes, contribRes, disbRes, xferRes] = await Promise.all([
+    // ── THE DONATIONS FUND IS IN THE WATERFALL SINCE 2026-08-20 ─────────────────────
+    // This carried `.is('system_key', null)` and so excluded it, on the argument that the
+    // Donations fund "takes donations, whole" and had no business in a dues split. A family
+    // that wants some of its dues going to the general pot had nowhere to send it — and the
+    // pot they mean is exactly the one every donation already lands in.
+    //
+    // IT IS SAFE BECAUSE OF ITS PRIORITY, and that was decided in advance rather than
+    // discovered: `seed_family_system_funds()` creates it at priority 1000 with the comment
+    // "last in priority order … belt-and-braces in case it ever is not [excluded]". This is
+    // that case. `effectiveAllocations` hands 100% to the FIRST fund by priority when nothing
+    // is configured, so at 1000 the Donations fund can never become the default recipient
+    // while the family has any other fund — an unconfigured family's dues keep going exactly
+    // where they went yesterday. 20260820000001 restates that comment, because the version
+    // above was about to become false.
+    //
+    // THE ONE BEHAVIOUR THAT DOES CHANGE is a family with NO custom funds at all: this query
+    // used to answer `[]`, `routeContribution` returned nothing, and the dues payment landed
+    // in no fund whatsoever. It now lands in Donations. That is the better answer — money the
+    // family collected being in the pot rather than nowhere — and it is what makes the feature
+    // work out of the box rather than only for families that had already built a fund.
+    //
+    // DONATIONS THEMSELVES ARE UNTOUCHED: `kind === 'donation'` above still routes the whole
+    // payment to this fund by `system_key` and never consults the waterfall. What changed is
+    // that DUES may now be given a share of it.
     admin.from('funds').select('id, priority, minimum_cents, created_at')
-      .eq('family_code', familyCode).eq('active', true).is('system_key', null),
+      .eq('family_code', familyCode).eq('active', true),
     admin.from('fund_allocations').select('fund_id, basis_points').eq('family_code', familyCode),
     admin.from('fund_contributions').select('fund_id, amount_cents').eq('family_code', familyCode),
     admin.from('fund_disbursements').select('fund_id, amount_cents').eq('family_code', familyCode),
@@ -2014,9 +2038,33 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
     // rather than only when a scoped schedule exists: this query is the roster and cannot
     // be re-run cheaply, so deciding per request whether to include one column would buy
     // nothing and could get it wrong. Null means the member is under National.
+    //
+    // ── AND `sunset_date IS NULL`, SINCE 2026-08-20: A DEAD RELATIVE OWES NOTHING ────
+    // `sunset_date` is the column that records somebody has died, and until this line a
+    // deceased member stayed `membership_status = 'approved'` — correctly, nobody un-admits
+    // them — and so went on appearing in every projection as a person who owes this year's
+    // dues. An organizer's list of who to chase had the family's dead on it, and the figure
+    // the board was given was overstated by their share.
+    //
+    // THE PRECEDENT IS BIRTHDAYS, and it is the same column doing the same job:
+    // `getUpcomingBirthdays` in app/actions/announcements.ts is `.is('sunset_date', null)`
+    // for the reason `lib/birthdays.ts` states — "a dead relative has no next birthday". A
+    // dead relative has no next installment either.
+    //
+    // IT IS IN THE QUERY RATHER THAN IN `projectDues`, deliberately. That module is pure and
+    // takes a ROSTER; it has no opinion about who belongs on one, and the §5 reason is the
+    // decisive one — a member excluded here is not fetched, so no name and no birthday of
+    // theirs reaches the browser on a screen that has no business listing them.
+    //
+    // WHAT THIS DELIBERATELY DOES NOT DO is remove them from the Transactions picker, so a
+    // final payment from an estate can still be recorded against the person it was for. What
+    // is being withheld is the OBLIGATION, not the ledger — the same distinction the tier
+    // gates keep, and the reason a past payment of theirs still counts toward what the family
+    // collected.
     admin.from('people')
       .select('id, first_name, last_name, nick_name, date_of_birth, chapter_id, user_id, primary_email')
       .eq('family_code', familyCode).eq('membership_status', 'approved')
+      .is('sunset_date', null)
       .order('last_name').order('first_name'),
     admin.from('dues_payments')
       .select('person_id, schedule_id, amount_cents, status, payment_date')

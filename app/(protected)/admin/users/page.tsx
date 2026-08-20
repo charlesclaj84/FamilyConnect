@@ -7,7 +7,11 @@ import {
   type AccessRights,
 } from '@/app/actions/admin/permissions'
 import { getApplicants } from '@/app/actions/admin/approvals'
-import { getChapters, getRegions, getScopeUsage } from '@/app/actions/admin/chapters'
+import {
+  getChapters, getRegions, getScopeUsage,
+  getBoardPositions, getBoardPositionHolders, getAssignableMembers,
+  getBoardPositionScopeOptions,
+} from '@/app/actions/admin/chapters'
 import { getInvitations } from '@/app/actions/invitations'
 import {
   AdminAccessClient, type AccessTab, type ApprovalsData, type OrganizationData,
@@ -122,15 +126,25 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   // request — `getResources()` below asks the same question again for the grid's own
   // filter, and both resolve to one query.
   const [
-    canViewAccess, canViewApprovals, templatesGranted, canViewChapters,
-    templatesInPlan, chaptersInPlan,
+    canViewAccess, canViewApprovals, templatesGranted, canViewChapters, boardGranted,
+    templatesInPlan, chaptersInPlan, boardInPlan,
   ] = await Promise.all([
     can(user.id, 'admin/users', 'view'),
     can(user.id, 'admin/approvals', 'view'),
     can(user.id, 'admin/users/templates', 'view'),
     can(user.id, 'admin/chapters', 'view'),
+    // `canAny` AND NOT `can`, unlike the four above, and it is the one piece of the Board
+    // Positions move that is not a copy. Every read behind that half of the pane is
+    // `requireScope` — which resolves through `canAny` — and `family_roles`' composed policy
+    // tests `auth_permission(…) = 'any'` with an `own_expr` of the literal 'false'. So scope
+    // 'own' is not a way to hold this key at all, and `can()` here would render the pane over
+    // lists that answer `[]` for a reason nothing on screen could explain. The old
+    // `/admin/boardpositions` page made exactly this check on top of its `requireView`; it
+    // moved with the pane rather than being dropped.
+    canAny(user.id, 'admin/boardpositions', 'view'),
     tierAllows(user.id, 'admin/users/templates'),
     tierAllows(user.id, 'admin/chapters'),
+    tierAllows(user.id, 'admin/boardpositions'),
   ])
 
   // TWO OF THE FOUR PANES ARE ABOVE FREE NOW, and the second one arrived on 2026-08-19 with
@@ -152,7 +166,19 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   // a downgraded family MORE access than it paid for, which is the one direction a tier gate
   // must never fail in.
   const canViewTemplates = templatesGranted && templatesInPlan
-  const canViewOrganization = canViewChapters && chaptersInPlan
+
+  // ── ORGANIZATION IS TWO HALVES UNDER TWO KEYS, SINCE 2026-08-20 ───────────────────
+  // The geography (regions and chapters, `admin/chapters`) and the offices (board positions,
+  // `admin/boardpositions`) — two jobs a family delegates separately, so two keys, and the
+  // pane appears for EITHER. AGENTS.md's rule about a pane spanning two keys is the authority
+  // and Accounting's Dues & Donations item is the precedent: keep the keys separate, render
+  // only what the caller holds, and fetch only that.
+  //
+  // The tier travels with each key independently — both are `tier: 'plus'` today, so on a Free
+  // family the whole pane is absent, but nothing here assumes they agree.
+  const canViewGeography = canViewChapters && chaptersInPlan
+  const canViewBoard = boardGranted && boardInPlan
+  const canViewOrganization = canViewGeography || canViewBoard
 
   // No pane at all. The 404 requireView() would have given, and for the same reason — a
   // restricted page should not advertise that it exists — with the one exception the doc
@@ -165,6 +191,10 @@ export default async function AdminAccessPage({ searchParams }: Props) {
     // worse answer. A caller holding only one of the two gets that one either way.
     if (templatesGranted) redirect('/upgrade?from=%2Fadmin%2Fusers%2Ftemplates')
     if (canViewChapters) redirect('/upgrade?from=%2Fadmin%2Fchapters')
+    // The third of the same shape, added with the Board Positions move: somebody whose only
+    // grant is the board roster, on a family whose plan does not include it, is owed the
+    // upgrade screen their old route gave them rather than a 404 about a page that exists.
+    if (boardGranted) redirect('/upgrade?from=%2Fadmin%2Fboardpositions')
     notFound()
   }
 
@@ -251,17 +281,52 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   // `getScopeUsage()` is fetched rather than hidden because it is what lets the pane SAY
   // something — "14 members, 1 dues schedule" is the reason a Delete button is disabled,
   // and a disabled control with no reason beside it reads as a bug.
+  //
+  // TWO HALVES SINCE 2026-08-20, EACH GATED ON ITS OWN KEY. The geography reads only for a
+  // caller who holds `admin/chapters` and the board roster only for one who holds
+  // `admin/boardpositions` — so a caller with one of the two gets one half and is sent nothing
+  // at all about the other. That is §5 rather than tidiness: the board roster carries the
+  // family's ROSTER (`getAssignableMembers` returns names for the assignment dialog), which is
+  // PII, and props reach the browser whether a component renders them or not.
+  //
+  // THE ROSTER AND THE SCOPE OPTIONS RIDE ON `mayEditBoard`, not on the view grant, which is
+  // what the old `/admin/boardpositions` page did and is worth keeping: they exist ONLY to fill
+  // the assignment dialog, so a view-only caller has no use for them and no business receiving
+  // them.
   let organizationData: OrganizationData | null = null
   if (canViewOrganization && tab === 'organization') {
-    const [regions, chapters, usage, mayCreate, mayEdit, mayDelete] = await Promise.all([
-      getRegions(),
-      getChapters(),
-      getScopeUsage(),
-      canAny(user.id, 'admin/chapters', 'create'),
-      canAny(user.id, 'admin/chapters', 'edit'),
-      canAny(user.id, 'admin/chapters', 'delete'),
+    const [mayEditBoard] = await Promise.all([
+      canViewBoard ? canAny(user.id, 'admin/boardpositions', 'edit') : Promise.resolve(false),
     ])
-    organizationData = { regions, chapters, usage, mayCreate, mayEdit, mayDelete }
+    const [
+      regions, chapters, usage, mayCreate, mayEdit, mayDelete,
+      positions, holders, boardMembers, scopeOptions, mayCreateBoard, mayDeleteBoard,
+    ] = await Promise.all([
+      canViewGeography ? getRegions() : Promise.resolve([]),
+      canViewGeography ? getChapters() : Promise.resolve([]),
+      canViewGeography ? getScopeUsage() : Promise.resolve({ regions: {}, chapters: {} }),
+      canViewGeography ? canAny(user.id, 'admin/chapters', 'create') : Promise.resolve(false),
+      canViewGeography ? canAny(user.id, 'admin/chapters', 'edit') : Promise.resolve(false),
+      canViewGeography ? canAny(user.id, 'admin/chapters', 'delete') : Promise.resolve(false),
+      canViewBoard ? getBoardPositions() : Promise.resolve([]),
+      canViewBoard ? getBoardPositionHolders() : Promise.resolve([]),
+      mayEditBoard ? getAssignableMembers() : Promise.resolve([]),
+      mayEditBoard
+        ? getBoardPositionScopeOptions()
+        : Promise.resolve({ regions: [], chapters: [] }),
+      canViewBoard ? canAny(user.id, 'admin/boardpositions', 'create') : Promise.resolve(false),
+      canViewBoard ? canAny(user.id, 'admin/boardpositions', 'delete') : Promise.resolve(false),
+    ])
+    organizationData = {
+      showGeography: canViewGeography,
+      regions, chapters, usage, mayCreate, mayEdit, mayDelete,
+      showBoard: canViewBoard,
+      positions, holders,
+      boardMembers,
+      boardRegions: scopeOptions.regions,
+      boardChapters: scopeOptions.chapters,
+      mayCreateBoard, mayEditBoard, mayDeleteBoard,
+    }
   }
 
   return (

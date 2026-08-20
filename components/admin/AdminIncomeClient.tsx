@@ -13,7 +13,7 @@ import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { formatCurrency as formatDollars } from '@/lib/currency-utils'
-import { formatDate, todayLocal } from '@/lib/date-utils'
+import { formatDate, todayLocal, latestDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { APP_NAME } from '@/lib/brand'
 import { type ScheduleKind } from '@/lib/dues-utils'
@@ -382,7 +382,14 @@ function ScheduleFields({
           {/* `min` is the browser's local today, which is the honest boundary to show; the
               action and the trigger allow a day of timezone slack so an evening in Pacific
               time is not refused its own date. */}
-          <Input type="date" min={endDateMin} value={form.endDate}
+          {/* TWO FLOORS, WHICHEVER IS LATER. `endDateMin` stops an existing due being retired
+              behind payments already recorded against it; `form.startDate` stops a range that
+              ends before it begins — added 2026-08-20, and the reason it is a `min` rather than
+              a validation message is that a picker which does not OFFER an impossible day never
+              produces one. Gatherings have `gatherings_dates_ordered` in the database for the
+              same rule; a dues schedule has no such CHECK, so this control is the only thing
+              between a treasurer and a due that ends before it starts. */}
+          <Input type="date" min={latestDate(endDateMin, form.startDate)} value={form.endDate}
             onChange={e => onChange({ endDate: e.target.value })} />
         </div>
       </div>

@@ -68,6 +68,17 @@ jobs:
       - name: Service-role writes to `people` are reviewed
         run: npm run audit:people
 
+      # The generalisation of the step above, added 2026-08-20. §3's rule is that every query
+      # through the service role must re-apply by hand what a policy would have done, and it
+      # has been broken four times now — never by disagreement, always by a query in a file
+      # nobody was thinking of as part of the feature. `deleteRegion` and `deleteChapter` had
+      # `.eq('id', id)` as their whole predicate; `revokeRoleByAssignmentId` was the same hole
+      # a day later; `addGroupMember` gated on `created_by === user.id`, which authorizes the
+      # action and says nothing about which family's room it acts on. This fails until a new
+      # unscoped query has a stated verdict. Static; no database, no network.
+      - name: Service-role queries are family-scoped
+        run: npm run audit:family-scope
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

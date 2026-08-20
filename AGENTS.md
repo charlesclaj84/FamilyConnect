@@ -273,6 +273,56 @@ family reach another's records.
 Prefer the user's client (`createClient()`) where RLS can do the work; reach for the
 admin client only when the query genuinely needs to see past it, and say why.
 
+### `npm run audit:family-scope` is the gate for this, and it has already caught one
+
+`scripts/family-scope.mjs` sweeps `app/` and `lib/` for a query on a family-scoped table
+through `createAdminClient()` with no `family_code` anywhere in the chained statement, and
+fails until each one has a stated verdict — the same shape `audit:people` has for writes to
+one table, generalised. It is a step in `verify.yml`.
+
+The reason to generalise it is that this rule has been broken four times and never by
+disagreement — always by a query in a file nobody was thinking of as part of the feature.
+`deleteRegion` and `deleteChapter` had `.eq('id', id)` as their whole predicate;
+`revokeRoleByAssignmentId` was the same hole a day later; `createCustomRole` took
+`MAX(sort_order)` across every family in the product. The fourth is the one the script found
+on the day it was written: **`addGroupMember` read a chat room by id alone and gated on
+`created_by === user.id`**, which authorizes the ACTION and says nothing about which family's
+room it acts on — so a member of two families could create a group in ALPHA, switch to BRAVO,
+and add a BRAVO relative to the ALPHA room with every check in the function satisfied.
+
+Three verdicts are legitimate and all three are in the list: **TRANSITIVE** (the filter is an
+id that came out of a family-scoped read, or one already checked with `belongsToFamily`),
+**SELF** (the caller's own person or user id, which is narrower), and **STAFF**
+(`app/actions/staff/**` reads across families by design). Like `audit:people` it checks that a
+verdict EXISTS and never that it is TRUE.
+
+**It cannot see three things**, and they are named in its header rather than left to be
+discovered: a query built by interpolation or issued through `.rpc()`; a SECURITY DEFINER
+function that does its own reading; and a table nobody added to `SCOPED_TABLES`, which is
+hand-maintained and is the honest weak point.
+
+### And `audit_cross_family_refs.sql` is the DATA half, which no code sweep can answer
+
+`supabase/scripts/audit_cross_family_refs.sql`, hand-run against local or hosted. It walks
+`pg_constraint` for every foreign key where BOTH tables carry a `family_code` — 67 of them
+today — and reports rows where the two disagree. DERIVED rather than listed, so a table added
+next year is checked with no edit, which is the lesson `audit_global_lookups.sql` learned from
+`truncate_entire_database.sql`'s hand-written keep-list.
+
+It exists because fixing the code does not repair the rows the holes already wrote. Every one
+of them wrote a row whose OWN `family_code` was correct — that is the whole shape of §4 —
+carrying a foreign key into somebody else's family, and nothing in the product will ever
+surface it: the reading side scopes by family, so the reference resolves to nothing and the
+screen renders a blank where a name should be. **That is how this class of damage gets
+reported: "chapters from Test Family 1 are showing in Test Family 2."**
+
+It REPAIRS NOTHING, deliberately, and `NOTICE`s rather than `RAISE`s so it is safe to run
+against production at any time. There is no correct automatic repair: a `people.chapter_id`
+pointing across the boundary could be nulled (losing which chapter somebody said they were in)
+or repointed at a same-named chapter (inventing a fact), and a `user_roles` row could be
+deleted, removing an officer nobody decided to remove. Each is a judgement about one family's
+records.
+
 ### A service-role write to `people` answers three questions, and `npm run audit:people` demands it
 
 `people` is the one table where the service role can reach a column the browser cannot.
@@ -1296,6 +1346,40 @@ still with no family predicate - nothing writes to it or reads it, and anything 
 world-readable by URL. Dropping it is a storage operation rather than a migration and is owed;
 FutureFeature.md's storage warning carries it.
 
+# A STORAGE BUCKET IS NOT COVERED BY ANY OF THE ABOVE, AND ONE WAS WIDE OPEN
+
+`storage.objects` has its own policies and none of the machinery in §2c, §3 or
+`audit:family-scope` looks at them: those are about `public` tables and the service role.
+`20260609000000` created three buckets with write policies of one shape —
+
+    bucket_id = '<name>' AND auth.uid() IS NOT NULL
+
+— which is **any signed-in user, any path**. `avatars` is laid out per user
+(`{auth.uid()}/avatar.ext`) and nothing enforced it, so until 2026-08-20 one member could
+overwrite another's profile photo. The bucket is `public`, so that is not "replace a file": it
+is choose the picture the whole family sees under somebody else's name, in the Directory, on
+the tree and in the top bar. DELETE was equally open.
+
+`20260820000002` fixes `avatars` with the pattern the `photos` bucket has had since
+`20260610000001` — `(auth.uid())::text = (storage.foldername(name))[1]` — on INSERT, UPDATE
+**and** UPDATE's `WITH CHECK`, that last one because without it an owner could RENAME their
+object into somebody else's folder, which is the same hole by another route.
+
+Three things to carry forward:
+
+* **`documents` and `event-photos` still have the open policies.** Named in that migration
+  rather than fixed: `event-photos` is orphaned and owed a drop, and `documents` is behind
+  `status: 'future'` with no per-user layout yet to enforce — inventing a path convention in a
+  migration would be deciding that feature's storage layout somewhere nobody would find it.
+* **A public bucket's READ is a separate question and was deliberately not answered.** Narrowing
+  it is a product decision (every avatar would need a signed URL per render); the hole was
+  WRITE.
+* **Probing storage from a migration cannot clean up after itself.** A trigger refuses direct
+  `DELETE FROM storage.objects` ("Use the Storage API instead", 42501), so the verify block
+  inserts inside a plpgsql `BEGIN … EXCEPTION` — an implicit subtransaction — and raises a
+  sentinel to unwind it. Compare the sentinel by MESSAGE, or a policy that wrongly refused the
+  OWNER would be swallowed by the same handler and reported as a pass.
+
 Six tables — `gathering_templates`, `gathering_template_steps`, `gatherings`,
 `gathering_template_uses`, `gathering_tasks`, `gathering_task_submissions` — and six resource keys:
 `gatherings`, `gatherings/my-tasks`, `gatherings/budget`, `calendar`, `admin/gatherings`,
@@ -1332,10 +1416,11 @@ Three consequences a change here will get wrong:
   tier-checked (see the tier section below). The tier withholds the screen; the permission model
   is what stops the wrong person.
 
-## FOUR ROUTES ARE REDIRECTS, AND THEIR KEYS ARE WHY THEY EXIST
+## FIVE ROUTES ARE REDIRECTS, AND THEIR KEYS ARE WHY THEY EXIST
 
-`/gatherings/my-tasks`, `/admin/gathering-templates`, `/updates` and `/admin/chapters` render
-nothing and `redirect()` to a pane of another screen. Each is a `FEATURES` entry still, and each
+`/gatherings/my-tasks`, `/admin/gathering-templates`, `/updates`, `/admin/chapters` and — since
+2026-08-20 — `/admin/boardpositions` render nothing and `redirect()` to a pane of another
+screen. Each is a `FEATURES` entry still, and each
 must stay one: `viewableResources()` builds the rail by walking that registry, so a key is only ever
 in a caller's answer because there is an entry for its href — and a resource key IS the route
 without its leading slash (§1), so keeping the route is what keeps the key honest. Renaming one into
@@ -1731,8 +1816,26 @@ labels, because those labels are what the GRID prints and an administrator still
 switches.
 
 * **Members & Access** opens on ANY of `admin/users`, `admin/approvals`,
-  `admin/users/templates` and `admin/chapters`, each tab resolved one at a time. A caller
-  holding only Organization gets that one tab; a caller holding none gets `notFound()`.
+  `admin/users/templates`, `admin/chapters` and — since 2026-08-20 — `admin/boardpositions`,
+  each tab resolved one at a time. A caller holding only Organization gets that one tab; a
+  caller holding none gets `notFound()`.
+* **ORGANIZATION IS ONE PANE OVER TWO KEYS**, and it is the sharpest instance of this rule
+  because the two halves are visibly different things: `admin/chapters` is the family's
+  GEOGRAPHY (regions and chapters) and `admin/boardpositions` is its OFFICES. They are one
+  pane because they answer one question — what shape is this family in — and they stayed two
+  keys because a family may well let somebody curate the board roster without trusting them to
+  redraw its regions.
+
+  Three things follow that the Dues & Donations precedent does not cover. `showGeography` and
+  `showBoard` are separate props from the arrays being empty, because "no board positions yet"
+  is a fact the pane says out loud and invites you to fix while "not yours to see" must not be
+  mentioned at all — inferring one from the other tells a caller without the grant that the
+  family has nothing. The read-only notice tests SIX write grants rather than three, or it
+  would print "you can see how the family is organized but not change it" over a board roster
+  the caller can fully edit. And the board half resolves on `canAny` while the other four
+  panes use `can`, because every read behind it is `requireScope` and `family_roles`' composed
+  policy tests `= 'any'` with an `own_expr` of the literal `'false'` — scope `'own'` is not a
+  way to hold that key, and `can()` would render the pane over lists that answer `[]`.
 * **Accounting's Dues & Donations** is one rail item over `admin/account/dues` and
   `admin/account/donations` (2026-08-19). Merging them into one key was the obvious
   simplification and is forbidden: *"Separation of duties — per-feature permissions, so

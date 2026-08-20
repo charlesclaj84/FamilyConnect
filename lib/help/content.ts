@@ -283,6 +283,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Your photo',
             blocks: [
               p('The photo you upload on **General** is what appears beside your name in the top bar, on the dashboard greeting, and anywhere the family sees you. Without one you get your initials.'),
+              steps(
+                'Open **General**.',
+                'Press the camera on the circle at the top of the page.',
+                'Choose a picture and confirm.',
+              ),
+              p('A JPEG, PNG or WebP, up to 2 MB. Anything else is refused with a line saying why rather than failing silently, and a new photo replaces the one it follows.'),
+              note('Your photo is ONE photo, shared by every family you belong to — unlike the rest of this page, which is per family. Anybody who can see you in the [Directory](/members) can see it, so it is the one field here to treat as public within the family.'),
             ],
           },
         ],
@@ -1079,8 +1086,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Type a name under **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
                 'Choose **Who can schedule from this**.',
                 'Press **Add template**.',
-                'On the card that appears, add a **Description** and press **Save changes**, then give it a step for each thing somebody has to do.',
+                'The card that appears is shut. Press its name to open it, add a **Description**, press **Save changes**, and give it a step for each thing somebody has to do.',
               ),
+              p('**Every template card is shut until you open it.** A card holds the whole template — its name, who may schedule from it, its description and a row per step — which is a page of its own once a family has half a dozen. Shut, each one shows its name and how many steps it has, so the library reads as a list of what you have rather than as everything about everything. Press a name to open it; press again to shut it.'),
+              note('A card you have edited but not saved says **Unsaved changes** beside its name while it is shut, and shutting one never throws an edit away — reopening it finds what you typed.'),
               p('A name has to be unique within the family, so a second "Family Reunion" is refused rather than added quietly beside the first. The description is what an organiser reads before scheduling from it, and it is shown beside the template when they pick one.'),
               note('There was a **Usual location** field here until 2026-08-19 and there is not now. A template stating where its gatherings are usually held was an author guessing at a fact that belongs to one occasion, and the guess then had to be corrected on every segment it was copied onto. Ask for the venue instead: a step of kind **A place**, handed to a named relative with a due date.'),
             ],
@@ -1367,6 +1376,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('[Transactions](/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
               p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/transactions); changing what a due costs is under [Accounting](/admin/account).'),
+              p('**A relative who has died is not counted.** Setting a **Sunset Date** on somebody’s profile takes them off this screen entirely — they owe nothing, so neither the total the family is owed nor the list of who has still to pay includes them. Payments they made in the past still count toward what was collected.'),
             ],
           },
           {
@@ -1478,6 +1488,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Routing',
             blocks: [
               p('Routing decides how an incoming payment is split between funds — 70% to General, 30% to Scholarship, and so on. Set it once and every payment recorded afterwards follows it, instead of somebody dividing it up by hand each time.'),
+              p('**The built-in Donations fund can take a share too.** It is on the list like any other fund, so a family that wants part of its dues going to the general pot can say so. It sits last in priority, which matters when nothing has been set: the share goes to the fund at the top of the list, and Donations is never at the top unless it is the only fund your family has.'),
+              note('A donation is different and does not follow this table. A donation goes wholly into the Donations fund, which is what that fund is for; routing is about DUES.'),
             ],
           },
           {
@@ -1516,7 +1528,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               defs(
                 { term: 'Members', text: 'Everybody in the family, and which permission template each is on. Four columns — Name, Region, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
-                { term: 'Organization', text: 'The family\'s regions and chapters — how a spread-out family divides itself up. It sits second because it is what the Members table\'s Region and Chapter columns are read against. It has a chapter of its own: [Organization](/help/regions-and-chapters).' },
+                { term: 'Organization', text: 'What shape the family is: its regions and chapters, and the board positions it keeps. It sits second because the regions and chapters are what the Members table\'s Region and Chapter columns are read against. Two chapters cover it: [Organization](/help/regions-and-chapters) and [Board Positions](/help/board-positions).' },
                 { term: 'Pending Approval', text: 'The people asking to join, and the invitations you have sent.' },
                 { term: 'Permission Templates', text: 'The templates themselves, and what each one grants.' },
               ),
@@ -1580,6 +1592,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Two levels, and National',
             blocks: [
               p('**Organization** is the fourth tab of [Members](/admin/users?tab=organization), and it is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('The tab has two halves. This chapter is the upper one, the geography; the lower one is the family\'s offices and has its own chapter, [Board Positions](/help/board-positions). They are granted separately, so somebody may be given one half and not the other — a tab showing only one of them is not a fault.'),
               p('It used to be a screen of its own on the rail and is a tab now, because who is in the family and how the family is divided up are one job. A link or a bookmark pointing at the old address still lands here.'),
               p('**National** is the third thing on the screen and it is not a region you create. It is what everything belongs to until you file it somewhere else: a chapter with no region is under National, and so is any member who has not picked a chapter. It cannot be renamed, deleted or turned off, and every family has it.'),
               note('Members choose their own chapter, on [My Profile](/personal-info). Nobody is assigned one from here — this tab decides which chapters EXIST.'),
@@ -1633,7 +1646,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Your family\'s offices',
             blocks: [
-              p('[Board Positions](/admin/boardpositions) is the list of offices your family actually keeps — President, Treasurer, a Reunion Chair — and a record of who holds each one.'),
+              p('**Board Positions** is the list of offices your family actually keeps — President, Treasurer, a Reunion Chair — and a record of who holds each one. It is the lower half of the **Organization** tab of [Members](/admin/users?tab=organization), under the regions and chapters: one tab answers both halves of "what shape is this family in?".'),
               p('**The list starts empty, and that is deliberate.** No two families run the same way: one has five officers and a chair for the reunion, another has twenty committees. So nothing is set up for you and nothing is suggested — you add the offices you have, and the ones you do not have simply are not there.'),
               p('Every position belongs to your family alone. Another family naming its treasurer the same thing has no effect on yours, and neither family can see the other\'s list.'),
             ],
@@ -1643,7 +1656,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Adding a position',
             blocks: [
               steps(
-                'Press **Add Position**.',
+                'Press **Add Position**. A box opens over the page.',
                 'Type the name as you say it out loud — that is what appears beside somebody\'s name everywhere else.',
                 'Choose a **Category**: **Executive Officer** for an elected office, **Appointed Position** for one somebody is given.',
                 'Choose a **Scope** — see below — and press **Add Position**.',
@@ -1653,8 +1666,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Regional', text: 'One holder per region. You choose which region when you give it to somebody.' },
                 { term: 'Chapter', text: 'One holder per chapter, chosen the same way.' },
               ),
-              p('Regional and Chapter only mean something once your family has set up regions or chapters, under the **Organization** tab of [Members](/admin/users?tab=organization). Until then, use National.'),
-              note('A name can be used once in your family. If you try to add a second position with a name you already have, the screen says so rather than quietly making a duplicate.'),
+              p('Regional and Chapter only mean something once your family has set up regions or chapters, which is the upper half of this same tab. Until then, use National.'),
+              p('**The same title can exist once at each scope.** A national **President** and a regional **President** are two separate positions, and a family with four regions has one regional President that four people hold — one per region. So there is no need to name the second one "Regional President" to tell them apart; the Scope column does that.'),
+              note('What cannot be repeated is a title at the SAME scope. Add a second national President and the screen says so rather than quietly making a duplicate nobody could tell from the first.'),
             ],
           },
           {
@@ -1663,7 +1677,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('The pencil on a position\'s row turns its name into a box. **Enter** saves, **Escape** cancels, and the name changes everywhere it is printed — under people\'s names in the [Directory](/members), on their [Dashboard](/dashboard) and on their [My Profile](/personal-info).'),
               p('Only the name can be changed. **Category** and **Scope** cannot, because a position\'s scope is copied onto each holder\'s record when they are given it, along with the region or chapter it was for — so changing the scope afterwards would leave those records describing something the position no longer is. A family that has the scope wrong removes the position and adds it again, which also re-makes the assignments that were wrong.'),
-              note('Two positions in your family cannot share a name. If you rename one to a name you already use, the screen says so and nothing is saved.'),
+              note('Two positions at the SAME scope cannot share a name. Renaming a regional position to a name your national list already uses is fine; renaming it to the name of another regional position is refused, and nothing is saved.'),
             ],
           },
           {

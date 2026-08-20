@@ -330,10 +330,17 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
               />
             </div>
             <div className="space-y-1.5">
+              {/* `min` IS THE START DATE — added 2026-08-20 across every start/end pair in the
+                  app. `gatherings_dates_ordered` refuses `ends_on < starts_on` in the database
+                  and the action turns that 23514 into a sentence, which is the right boundary
+                  and the wrong first line of defence: a picker that greys out the impossible
+                  days never produces one, so nobody meets the refusal at all. The CHECK stays
+                  underneath for a caller that is not this form. */}
               <Label htmlFor="gathering-ends">Last day</Label>
               <Input
                 id="gathering-ends"
                 type="date"
+                min={startsOn || undefined}
                 value={endsOn}
                 onChange={e => { setEndsOn(e.target.value); setError('') }}
               />

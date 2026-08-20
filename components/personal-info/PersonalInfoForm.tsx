@@ -69,10 +69,30 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 
 // ── Avatar with upload ─────────────────────────────────────────────────────────
 
+/**
+ * The profile photo, and the one control that changes it.
+ *
+ * ── IT NOW SAYS WHEN IT FAILS, AND IT DID NOT ───────────────────────────────────────
+ * `uploadAvatar`'s result was read only to revert the preview: `if (!result.success)
+ * setPreview(existingUrl)`. So every refusal — over 2 MB, wrong type, storage down, the
+ * `people` update refused — looked identical from the member's side: the picture flickered to
+ * the new one and back, with nothing said. The photo they chose simply did not stick, twice,
+ * and then they gave up.
+ *
+ * That was survivable while the action's only refusals were size and transport. It stopped
+ * being survivable on 2026-08-20, when the type check moved server-side — "Choose a JPEG, PNG
+ * or WebP image" is a sentence a member can act on, and it was being thrown away.
+ *
+ * `FormError` and not `FieldError`: the file input is `hidden` and the camera button is the
+ * control, so there is no field for a quiet message to sit under, and what failed is the
+ * OPERATION rather than one input (AGENTS.md, "Telling somebody something went wrong is a
+ * component").
+ */
 function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl?: string | null }) {
   const confirm = useConfirm()
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
+  const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -86,12 +106,21 @@ function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl
       confirmLabel: existingUrl ? 'Replace photo' : 'Set photo',
     })
     if (!ok) { if (fileRef.current) fileRef.current.value = ''; return }
+    setError('')
     setPreview(URL.createObjectURL(file))
     const fd = new FormData()
     fd.append('file', file)
     startTransition(async () => {
       const result = await uploadAvatar(fd)
-      if (!result.success) setPreview(existingUrl ?? null)
+      if (!result.success) {
+        setPreview(existingUrl ?? null)
+        setError(result.message ?? 'Could not set that photo')
+      }
+      // THE INPUT IS CLEARED EITHER WAY. Without it, choosing the same file again after a
+      // refusal fires no `change` event at all — the value has not changed — so the member's
+      // second attempt does nothing and the message they are looking at stays put, which reads
+      // as the control being broken rather than as the file being wrong.
+      if (fileRef.current) fileRef.current.value = ''
     })
   }
 
@@ -124,6 +153,15 @@ function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl
         className="hidden"
         onChange={handleChange}
       />
+      {/* ABSOLUTELY POSITIONED, because this component is the `headerLeft` of a SectionCard and
+          sits in a flex row beside the member's name — a message in the normal flow would push
+          the heading sideways every time it appeared. `w-max` with a `max-w` so a long sentence
+          wraps into a block rather than stretching the row, and `z-10` to sit above the card
+          edge it overhangs. It renders nothing at all when there is no message, which is what
+          `FormError` guarantees and is why there is no `{error && …}` here. */}
+      <div className="absolute left-0 top-full z-10 w-max max-w-[16rem] pt-2">
+        <FormError message={error} />
+      </div>
     </div>
   )
 }

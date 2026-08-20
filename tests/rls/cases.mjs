@@ -466,6 +466,61 @@ export const CASES = [
     args: fx => [fx.alpha.fund.id],
   }),
 
+  // ── chat group membership: the hole `npm run audit:family-scope` found ─────
+  // `addGroupMember` and `removeGroupMember` read their room by `.eq('id', roomId)` on the
+  // SERVICE-ROLE client with no family conjunct until 2026-08-20, gated only on
+  // `created_by === user.id`. That test authorizes the ACTION and says nothing about which
+  // family's room it acts on, which is AGENTS.md §4 with the second id arriving from the
+  // caller's own membership rather than from a parameter.
+  //
+  // [not evidence for the family conjunct] Said out loud rather than left looking like proof,
+  // per §7, because it is the sharpest example of the labelling that section asks for.
+  //
+  // THE REAL HOLE NEEDS A USER IN TWO FAMILIES, and this fixture has none: every row in
+  // `USERS` belongs to exactly one. The sequence that exploited it was one person creating a
+  // group in ALPHA, switching to BRAVO, and adding a BRAVO relative to the ALPHA room — every
+  // check in the function satisfied, because `getMyFamilyCode` answered BRAVO while the room
+  // was ALPHA's. BRAVO's administrator cannot reproduce that: they are not the room's creator,
+  // so the `created_by` test refuses them whether the conjunct is there or not. Verified by
+  // removing the conjunct — the attack half still passes.
+  //
+  // These cases are kept anyway and are evidence for TWO things worth keeping evidence for:
+  // that the creator test is doing its job, and that neither action can be turned into a
+  // cross-family read by an id alone. The dual-membership gap is recorded here rather than
+  // papered over; closing it means adding a user to two families, which changes what
+  // `auth_family_code()` resolves for them and what every `getMyFamilies` count asserts, and
+  // is a fixture change to make deliberately rather than in passing.
+  {
+    kind: 'write',
+    id: 'chat.addGroupMember (a group room from another family)',
+    mod: 'app/actions/chat.ts', fn: 'addGroupMember',
+    args: fx => [fx.alpha.groupRoom.id, fx.users.bravoMember.userId],
+    // The participant list is the damage: a BRAVO member inside an ALPHA room can read every
+    // message in it, and `chat_participants` is what realtime evaluates its own policy against.
+    probe: (db, fx) => snapshot('chat_participants', 'room_id, user_id',
+      { room_id: fx.alpha.groupRoom.id })(db),
+    // The room's CREATOR, which is what both actions demand. `alphaAdmin` would be refused for
+    // a reason that has nothing to do with family isolation — see the note above.
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.groupRoom.id, fx.users.alphaOther.userId],
+  },
+  {
+    kind: 'write',
+    id: 'chat.removeGroupMember (a group room from another family)',
+    mod: 'app/actions/chat.ts', fn: 'removeGroupMember',
+    args: fx => [fx.alpha.groupRoom.id, fx.users.alphaOther.userId],
+    // `is_hidden` and `can_reply` are what a removal writes, so the projection has to carry
+    // them or a successful removal reads as a no-op — the second fixture failure mode §7 names.
+    probe: (db, fx) => snapshot('chat_participants', 'room_id, user_id, is_hidden, can_reply',
+      { room_id: fx.alpha.groupRoom.id })(db),
+    positiveActor: 'alphaMember',
+    // Its own row to consume: the control really does hide `alphaOther`, and the add case above
+    // is what puts them back. Ordering between the two is therefore load-bearing in one
+    // direction only — add runs first — and neither reads the other's result.
+    positiveArgs: fx => [fx.alpha.groupRoom.id, fx.users.alphaOther.userId],
+  },
+
+
   // ── money ─────────────────────────────────────────────────────────────────
   // These two ran their control as the ADMIN until 20260808000002, and not because the
   // policy wanted a grant: permission_table_map points dues_schedules at 'admin/account'
@@ -1194,20 +1249,29 @@ const resetBoardAssignments = async (db, fx) => {
       if (f.board[slot]) {
         // RESTORED BY ID, AND THE NAME IS THE POINT. `renameBoardPosition`'s control changes it,
         // so a helper that only created the row when absent would leave the renamed name in
-        // place — and the next `upsert` by (family_code, name) would then create a SECOND row
-        // rather than finding it. Restoring by id is what makes this helper idempotent under a
-        // rename as well as under a delete.
+        // place — and the next `upsert` by the name key would then create a SECOND row rather
+        // than finding it. Restoring by id is what makes this helper idempotent under a rename
+        // as well as under a delete.
         const { error } = await db.from('family_roles')
           .update({ name: `${f.familyCode} ${name}` }).eq('id', f.board[slot])
         if (error) throw new Error(`setup board ${slot} restore: ${error.message}`)
       } else {
-        // `onConflict` on the per-family unique index 20260819000004 created. A plain insert
-        // would work on the first call and 23505 on a re-run, and this helper runs many times.
+        // `onConflict` ON THE REAL INDEX, WHICH GAINED A COLUMN ON 2026-08-20. It was
+        // `family_code,name` — the index 20260819000004 created — and 20260820000001 replaced
+        // that with `(family_code, name, scope)` so a family may keep the same title at each
+        // scope. PostgREST resolves `onConflict` against an actual unique index, so the old
+        // list did not merely become imprecise: it answered 42P10 ("no unique or exclusion
+        // constraint matching the ON CONFLICT specification") and took four cases down as
+        // HARNESS errors. That is the RLS suite doing the job AGENTS.md §7 describes — the
+        // fixture is the half most likely to rot when the schema moves under it.
+        //
+        // A plain insert would work on the first call and 23505 on a re-run, and this helper
+        // runs many times.
         const { data, error } = await db.from('family_roles')
           .upsert({
             family_code: f.familyCode, name: `${f.familyCode} ${name}`,
             category: 'appointed_position', scope: 'national', sort_order: order,
-          }, { onConflict: 'family_code,name' })
+          }, { onConflict: 'family_code,name,scope' })
           .select('id').single()
         if (error) throw new Error(`setup board ${slot}: ${error.message}`)
         f.board[slot] = data.id

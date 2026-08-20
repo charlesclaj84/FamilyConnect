@@ -154,6 +154,24 @@ export function AdminBoardPositionsClient({
     return out
   }, [holders])
 
+  /**
+   * Shut the add dialog and clear both of its messages.
+   *
+   * ONE FUNCTION FOR THREE CALLERS — Cancel, the dialog's own dismiss, and a successful
+   * create — because the state it resets is what makes reopening it clean. The inline panel
+   * this replaced cleared the errors at two of its three exits and not the third, so
+   * reopening after a refused name showed the old refusal above an empty box.
+   *
+   * The FORM is deliberately not reset here. `handleCreate` clears it on success only, so a
+   * refused submission keeps what was typed and Cancel is what throws it away — which is the
+   * behaviour every other dialog in the tree has.
+   */
+  function closeAdd() {
+    setShowAdd(false)
+    setCreateError('')
+    setNameError('')
+  }
+
   async function handleCreate() {
     const name = form.name.trim()
     if (!name) { setNameError('A position needs a name'); return }
@@ -164,7 +182,7 @@ export function AdminBoardPositionsClient({
     setSaving(false)
     if (!result.success) { setCreateError(result.error ?? 'Could not add that position'); return }
     setForm({ name: '', category: 'executive_officer', scope: 'national' })
-    setShowAdd(false)
+    closeAdd()
     router.refresh()
   }
 
@@ -291,80 +309,18 @@ export function AdminBoardPositionsClient({
               )}
             </CardTitle>
             {mayCreate && (
-              <Button size="sm" onClick={() => { setShowAdd(s => !s); setCreateError(''); setNameError('') }}>
+              // A PLAIN OPEN, not a toggle. It was `setShowAdd(s => !s)` while the form was
+              // an inline panel, where toggling was the only way to shut it; a dialog has its
+              // own dismiss and a Cancel button, and leaving the toggle in meant the trigger
+              // behind an open dialog would close it — a control doing the opposite of what
+              // it says while covered by the thing it opened.
+              <Button size="sm" onClick={() => { setShowAdd(true); setCreateError(''); setNameError('') }}>
                 <Plus className="h-3.5 w-3.5" /> Add Position
               </Button>
             )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {showAdd && mayCreate && (
-            // A REAL `<form>`, so Enter in the name box submits. It was a `<div>` for an
-            // afternoon and pressing Enter did nothing at all — no submit, no message, no
-            // focus change — which is the drift the sibling `AdminRegionsChaptersClient`
-            // avoids by handling the key on its inputs. A form is the shorter way to the
-            // same thing and gives the browser's own validation a place to hang.
-            <form
-              onSubmit={e => { e.preventDefault(); void handleCreate() }}
-              className="rounded-lg border bg-muted/30 p-4 space-y-3"
-            >
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label required htmlFor="position-name">Position</Label>
-                  <Input
-                    id="position-name"
-                    placeholder="e.g. Reunion Treasurer"
-                    value={form.name}
-                    maxLength={POSITION_NAME_MAX}
-                    onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(''); setCreateError('') }}
-                  />
-                  <FieldError message={nameError} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="position-category">Category</Label>
-                  <Select
-                    id="position-category"
-                    value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value as PositionCategory }))}
-                  >
-                    {POSITION_CATEGORIES.map(c => (
-                      <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="position-scope">Scope</Label>
-                  <Select
-                    id="position-scope"
-                    value={form.scope}
-                    onChange={e => setForm(f => ({ ...f, scope: e.target.value as PositionScope }))}
-                  >
-                    {POSITION_SCOPES.map(s => (
-                      <option key={s} value={s}>{SCOPE_LABELS[s]}</option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                A <strong>Regional</strong> or <strong>Chapter</strong> position is held for one
-                region or one chapter, and you choose which when you give it to somebody.
-              </p>
-              <FormError message={createError} />
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Adding…' : 'Add Position'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => { setShowAdd(false); setCreateError(''); setNameError('') }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          )}
-
           <FormError message={listError} />
 
           {positions.length === 0 ? (
@@ -528,6 +484,101 @@ export function AdminBoardPositionsClient({
           )}
         </CardContent>
       </Card>
+
+      {/* ── ADDING A POSITION IS A DIALOG, NOT AN INLINE PANEL ──────────────────────
+          It was a bordered `<form>` that unfolded above the table until 2026-08-20, and the
+          move is worth arguing because the inline version was not obviously worse:
+
+          IT PUSHED THE TABLE DOWN. Three fields, a hint and two buttons is about 170px, so
+          opening the form scrolled every existing position out of view — on the screen whose
+          whole job is "what does this family already have?", which is the question somebody
+          adding a position is in the middle of answering. Below `sm` it was worse: the three
+          fields stack, and the table started off the bottom of the phone.
+
+          IT ALSO DISAGREED WITH ITS OWN NEIGHBOUR. Assigning somebody to a position has always
+          been a dialog on this screen, so the two create-shaped actions on one page opened two
+          different ways. Now both are dialogs and the page has one idiom.
+
+          The form ELEMENT survives inside it, for the reason the note it replaces gave: a real
+          `<form>` is what makes Enter in the name box submit, and it was a `<div>` for an
+          afternoon during which Enter did nothing at all. */}
+      <Dialog
+        open={showAdd && mayCreate}
+        onClose={closeAdd}
+        title="Add a board position"
+        description="An office your family keeps. You choose who holds it afterwards."
+        className="max-w-lg"
+      >
+        <form onSubmit={e => { e.preventDefault(); void handleCreate() }} className="mt-2 space-y-3">
+          <div className="space-y-1.5">
+            <Label required htmlFor="position-name">Position</Label>
+            <Input
+              id="position-name"
+              placeholder="e.g. Reunion Treasurer"
+              value={form.name}
+              maxLength={POSITION_NAME_MAX}
+              onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(''); setCreateError('') }}
+            />
+            <FieldError message={nameError} />
+          </div>
+
+          {/* SIDE BY SIDE FROM `sm`, STACKED BELOW IT. Two selects fit a dialog's measure at
+              every width the app supports; the three-across grid this replaced only ever had
+              room because it spanned the page. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="position-category">Category</Label>
+              <Select
+                id="position-category"
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value as PositionCategory }))}
+              >
+                {POSITION_CATEGORIES.map(c => (
+                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="position-scope">Scope</Label>
+              <Select
+                id="position-scope"
+                value={form.scope}
+                onChange={e => setForm(f => ({ ...f, scope: e.target.value as PositionScope }))}
+              >
+                {POSITION_SCOPES.map(s => (
+                  <option key={s} value={s}>{SCOPE_LABELS[s]}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          {/* THE SECOND SENTENCE IS NEW, and it is the whole of what 20260820000000 bought.
+              The uniqueness key is `(family_code, name, scope)` now rather than
+              `(family_code, name)`, so a family with a national President and a President in
+              each region no longer has to invent "Regional President" for one of them. Nobody
+              would guess that from a Scope select, and the refusal it replaces — "your family
+              already has a position called President" — was the product forcing a workaround
+              and then printing it on the screen. */}
+          <p className="text-xs text-muted-foreground">
+            A <strong>Regional</strong> or <strong>Chapter</strong> position is held for one
+            region or one chapter, and you choose which when you give it to somebody. The same
+            title can exist once at each scope — a national <strong>President</strong> and a
+            regional <strong>President</strong> are two positions.
+          </p>
+
+          <FormError message={createError} />
+
+          {/* THE BUTTONS ARE THE DIALOG'S LAST ROW and keep the page's affirm-then-outline
+              order. `justify-end` rather than the inline form's `flex gap-2`, which is the
+              convention every other dialog in the tree follows. */}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={closeAdd}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Adding…' : 'Add Position'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Dialog
         open={assignTo !== null}

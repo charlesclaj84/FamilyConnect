@@ -402,7 +402,7 @@ export function AdminFundsClient({
                               or absent button with no explanation reads as a bug. */}
                           {f.system_key && (
                             <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
-                              title="Created automatically. Holds every donation the family receives, and cannot be deleted or switched off.">
+                              title="Created automatically. Holds every donation the family receives, can be given a share of dues like any other fund, and cannot be deleted or switched off.">
                               Built in
                             </span>
                           )}
@@ -425,15 +425,16 @@ export function AdminFundsClient({
                               <MetaIf value={signedFmt(f.net_transfers_cents)} prefix="Transferred" />
                             </>
                           )}
-                          {!f.system_key && (
-                            <>
-                              <MetaDot />
-                              <MetaIf
-                                value={`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
-                                prefix="Share of dues"
-                              />
-                            </>
-                          )}
+                          {/* EVERY FUND SHOWS ITS SHARE SINCE 2026-08-20, the Donations fund
+                              included. It was skipped here on the ground that it took none —
+                              true until the routing table started listing it, and a fund that
+                              can hold a share while its own row declines to print one is the
+                              worst of the three states available. */}
+                          <MetaDot />
+                          <MetaIf
+                            value={`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
+                            prefix="Share of dues"
+                          />
                           {f.minimum_cents > 0 && (
                             <>
                               <MetaDot />
@@ -443,11 +444,12 @@ export function AdminFundsClient({
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                        {/* The Donations fund takes no share of dues — it takes donations,
-                            whole — so a percentage here would be a number nothing reads. */}
-                        {f.system_key
-                          ? '—'
-                          : `${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
+                        {/* NO LONGER AN EM-DASH FOR THE BUILT-IN FUND. It printed one while
+                            the Donations fund was excluded from dues routing; since 2026-08-20
+                            it can be given a share like any other, so it prints the share it
+                            has — which is 0% until somebody sets one, and 0% is a fact rather
+                            than an absence. */}
+                        {`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
                       </td>
                       <td className={cn('px-3 py-2.5 text-right font-medium whitespace-nowrap',
                         f.balance_cents >= 0 ? 'text-brand-affirm' : 'text-destructive')}>

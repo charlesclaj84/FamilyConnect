@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireMember, requireScope } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
 import {
-  POSITION_CATEGORIES, POSITION_SCOPES, POSITION_NAME_MAX,
+  POSITION_CATEGORIES, POSITION_SCOPES, POSITION_SCOPE_LABELS, POSITION_NAME_MAX,
   type PositionCategory, type PositionScope,
 } from '@/lib/board-positions'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -603,12 +603,21 @@ export async function createBoardPosition(input: {
     })
 
   if (error) {
-    // 23505 is now a per-family collision and nothing else, since
-    // `family_roles_family_code_name_key` replaced the global `UNIQUE (name)`. Before that
-    // migration this message would have been a lie: the row it collided with could have
-    // belonged to another family, or been one of the built-ins.
+    // 23505 IS NOW A COLLISION WITHIN ONE SCOPE, since 20260820000000 widened the key to
+    // `(family_code, name, scope)`. The message has to say so or it is actively misleading:
+    // it used to read "your family already has a position called President" to somebody adding
+    // a REGIONAL President beside a national one, which was true and made the refusal look
+    // like a rule about titles rather than about titles at one level.
+    //
+    // It was a per-family collision before that (20260819000004 replaced a global
+    // `UNIQUE (name)` that could collide with another family's row or with a built-in), and
+    // the message was honest for exactly as long as that key was the one enforcing.
     if (error.code === '23505') {
-      return { success: false, error: `Your family already has a position called "${name}"` }
+      return {
+        success: false,
+        error: `Your family already has a ${POSITION_SCOPE_LABELS[input.scope].toLowerCase()} `
+          + `position called "${name}". The same title can exist once at each scope.`,
+      }
     }
     return { success: false, error: error.message }
   }
@@ -660,8 +669,11 @@ export async function renameBoardPosition(
   }
 
   const admin = createAdminClient()
+  // `scope` IS SELECTED FOR THE REFUSAL MESSAGE, not for the update — a rename cannot change
+  // scope. The alternative was a second read inside the error branch, which is a query on the
+  // unhappy path to say a sentence, and this one is already being made.
   const { data: existing } = await admin.from('family_roles')
-    .select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
+    .select('name, scope').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
   if (!existing) return { success: false, error: 'Position not found' }
   // Nothing to do rather than a no-op UPDATE. Worth its own branch because the screen leaves
   // the field editable and Save is the obvious thing to press after changing one's mind.
@@ -673,11 +685,19 @@ export async function renameBoardPosition(
     .eq('family_code', g.familyCode)
 
   if (error) {
-    // The same per-family collision `createBoardPosition` reports, and the same reason the
-    // message can be honest about it: `family_roles_family_code_name_key` is scoped to one
-    // family, so the row it collided with is one the caller can see.
+    // The same within-scope collision `createBoardPosition` reports, and the same reason the
+    // message can be honest about it: the key is scoped to one family, so the row it collided
+    // with is one the caller can see.
+    //
+    // A RENAME CANNOT CHANGE SCOPE, so the scope in this message is the position's own — read
+    // back from the row rather than taken from an argument, because this action takes no scope
+    // and inventing one to interpolate would be the first step towards letting it move.
     if (error.code === '23505') {
-      return { success: false, error: `Your family already has a position called "${next}"` }
+      return {
+        success: false,
+        error: `Your family already has a ${POSITION_SCOPE_LABELS[existing.scope as PositionScope].toLowerCase()} `
+          + `position called "${next}". The same title can exist once at each scope.`,
+      }
     }
     return { success: false, error: error.message }
   }
@@ -709,8 +729,11 @@ export async function deleteBoardPosition(id: string): Promise<{ success: boolea
   // §3. Read the row inside the family before deciding anything about it: the service-role
   // client applies no RLS, so `.eq('id', id)` alone let one family delete another's
   // positions — `tests/rls/cases.mjs` carries that case.
+  // `scope` IS SELECTED FOR THE REFUSAL MESSAGE, not for the update — a rename cannot change
+  // scope. The alternative was a second read inside the error branch, which is a query on the
+  // unhappy path to say a sentence, and this one is already being made.
   const { data: existing } = await admin.from('family_roles')
-    .select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
+    .select('name, scope').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
   if (!existing) return { success: false, error: 'Position not found' }
 
   const { count, error: countError } = await admin.from('user_roles')

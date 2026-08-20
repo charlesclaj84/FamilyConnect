@@ -461,7 +461,11 @@ and they are struck rather than deleted so the reasoning survives.
    than tidy anything.
 7. **Trusted Vendors** — directory, marketplace, or discount list? No code exists. Its `soon`
    flag on `/features` is hand-set because it has no route to derive from.
-8. **Profile pictures are sold as Standard and ship free to everyone.** Sold as PLUS until
+8. **Profile pictures are sold as Standard and ship free to everyone.** *(And the bucket's
+   WRITE hole is closed as of 2026-08-20 — `20260820000002`. Any signed-in user could overwrite
+   or delete any other member's photo, which on a `public` bucket means choosing the picture the
+   whole family sees under somebody else's name. Writes are folder-scoped to the owner now. The
+   READ question below is unchanged and is still open.)* Sold as PLUS until
    2026-08-19, when the bullet moved down a rung with the Standard restructure — the mismatch is
    one tier narrower and is not closed. `AvatarUpload` is on `/personal-info`, which is live and
    Free, so the work is still *withdrawing* a capability. Three calls come with it — whether
@@ -1007,7 +1011,7 @@ and `20260610000001_photo_collections.sql` (3 policies, one bucket).
 
 | Bucket | `public` | Reachable today? | Effect |
 |---|---|---|---|
-| `avatars` | `true` | **Yes** — `/personal-info`, live and Free | World-readable by URL |
+| `avatars` | `true` | **Yes** — `/personal-info`, live and Free | World-readable by URL. **WRITES ARE FIXED as of 2026-08-20** (`20260820000002`): they were `auth.uid() IS NOT NULL` with no path test, so any signed-in user could overwrite or delete any member's photo — on a public bucket, choosing the picture the whole family sees under somebody else's name. Folder-scoped to the owner now. READ is unchanged and still the open question. |
 | `event-photos` | `true` | **No, since 2026-08-19** — orphaned. Its feature and its `event_photos` table are deleted; the bucket, its three policies and every object already in it survive, because `20260819000006` drops tables and `storage.*` is out of its scope. **Dropping the bucket is owed.** | Anything already uploaded is still world-readable by URL |
 | `photos` | `true` | No — `/photos` gated | World-readable by URL |
 | `documents` | `false` | No — `/documents` gated | Any signed-in user of **any** family can read, overwrite, delete and enumerate |
@@ -1262,7 +1266,11 @@ paragraph somebody will quote:
 * **The storage rework still has not happened**, and `avatars` is a live, world-readable bucket
   whose policies carry no family predicate. It used to be two live buckets; `event-photos` is
   orphaned rather than fixed — see the warning in §1, which is smaller than it was and not
-  closed.
+  closed. **What DID close on 2026-08-20 is the write half of `avatars`** (`20260820000002`):
+  any signed-in user could overwrite or delete any other member's photo, and writes are
+  folder-scoped to the owner now. READ is still open, and `documents` and `event-photos` still
+  carry the original any-path policies — both named in that migration rather than fixed, with
+  the reason each was left.
 
 **"THE WHOLE OF EVENTS" WAS IN THAT LIST AND IS NOT ANY MORE.** The Events product is deleted
 (2026-08-19): four routes, six action modules, thirteen tables. Gatherings answers *who is doing
