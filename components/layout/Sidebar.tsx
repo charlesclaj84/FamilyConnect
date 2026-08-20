@@ -30,6 +30,9 @@ import {
   ArrowRightLeft,
   Settings,
   LifeBuoy,
+  ClipboardCheck,
+  Gavel,
+  PieChart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -157,8 +160,12 @@ const adminItems: NavItem[] = [
   // pinning and deleting all live on Community > Announcements now, each control gated by
   // the `announcements` grant that governs it. An admin duplicate of a member page is a
   // second place to learn one job.
-  { href: '/admin/elections',      label: 'Election Management',  icon: Vote },
-  { href: '/admin/reports',        label: 'Reports',              icon: BarChart3 },
+  // NO Election Management ROW AND NO Reports ROW, since 2026-08-20. Both routes came off
+  // `status: 'future'` on that day and both are in the REVIEW section below instead — they
+  // are live but unwalked, and the whole point of that section is that the six such screens
+  // sit together under one heading rather than being scattered back into the sections they
+  // will belong to once somebody has been through them. Move each row here when its screen
+  // has been reviewed; that is the only thing left to do for either of them in this file.
   // SETTINGS IS LAST, and the permission grid agrees with it — 20260812000001 moved its
   // sort_order from 155 (top of the Administration block) to 260 (bottom) in the same
   // commit that shortened its label. The two lists used to disagree here on the argument
@@ -294,7 +301,12 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // that used to stand here argued for keeping it — "the request named two screens" — and
       // the note on Reporting said moving a third would be scope creep. It was asked for, so
       // it moved; the argument for where it belongs is now made in one place, down there.
-      { href: '/family-finances',  label: 'Family Finances', icon: BarChart3 },
+      //
+      // FAMILY FINANCES LEFT IT THE SAME DAY, for a different reason and to a different place.
+      // It is not a regrouping: the route came off `status: 'future'` in lib/features.ts, and
+      // every route that did is in the REVIEW section below until somebody has walked it. This
+      // is where it comes back to — it is the family's own money read family-wide, which is
+      // what this group is — so move the row here rather than inventing a place for it.
     ],
   })
 
@@ -331,10 +343,14 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // what a resource is ABOUT, and regrouping the grid would mean a migration moving a row out
   // of a category that describes it correctly.
   //
-  // `/admin/reports` STAYS OUT, and now for a better reason than "nobody asked": it is
-  // `status: 'future'`, so it is in no rail at all — `buildNavGroups` renders from
-  // `viewKeys` and a future route is never viewable. Placing it now would be placing a row
-  // nobody can see. The day it ships it belongs here, and the group is shaped for it.
+  // `/admin/reports` STILL STAYS OUT, and the reason changed on 2026-08-20 without changing
+  // the answer. It was `status: 'future'`, so it was in no rail at all — `buildNavGroups`
+  // renders from `viewKeys` and a future route is never viewable, which made placing it here
+  // placing a row nobody could see. It is LIVE now, and it is in the Review section below with
+  // the other five routes that flipped, because live is not the same as walked. This is still
+  // where it belongs the day somebody has been through it: membership over time and dues
+  // collected against what is outstanding are readings of the family's money, which is what
+  // this group is. The group is shaped for it.
   //
   // BarChart3 as the section icon, already imported for Family Finances and Reports. Both
   // of those are readings of the family's money too, so the glyph is doing the same job in
@@ -349,16 +365,65 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
     ],
   })
 
-  groups.push({
-    section: { label: 'Resources', icon: BookOpen },
-    items: [
-      { href: '/photos',    label: 'Photos',    icon: Camera },
-      { href: '/documents', label: 'Documents', icon: FileText },
-      { href: '/elections', label: 'Elections', icon: Vote },
-    ],
-  })
+  // ── THE RESOURCES SECTION IS GONE, 2026-08-20 ──────────────────────────────────────
+  // It held exactly three rows — Photos, Documents, Elections — and all three came off
+  // `status: 'future'` on the same day and moved into Review below. So this is not a
+  // deletion of a heading anybody chose to remove: the group emptied, and the filter at the
+  // bottom of this function would have dropped it on its own. It is written out rather than
+  // left as an empty `items: []` for the reason the Personal section was deleted rather than
+  // kept — a group held open for rows that are somewhere else is a comment arguing with the
+  // code beside it.
+  //
+  // The three rows come BACK here, under this heading and this icon, as each screen is
+  // reviewed. Whoever moves the last one out of Review re-creates this group; the shape it
+  // had is in the git history and in the Review block below.
 
   groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
+
+  // ── REVIEW: LIVE, BUT NOT YET WALKED ───────────────────────────────────────────────
+  // The six routes that came off `status: 'future'` in lib/features.ts on 2026-08-20. Every
+  // one of them was already built — a page gating itself with `requireView`, an action module
+  // behind it and a `permission_resources` row registered since 20260618000000 — and gated
+  // only because nobody had been through it end to end. They are reachable now so that
+  // somebody can be.
+  //
+  // WHY ONE SECTION RATHER THAN SIX ROWS PUT BACK WHERE THEY BELONG. Two of these are
+  // Accounting, three were Resources and two are Admin, and scattering them is exactly what
+  // makes a review impossible to finish: there would be no list of what is left, and the only
+  // way to tell a reviewed screen from an unreviewed one would be to remember. One heading is
+  // the worklist. It empties itself — each row leaves for its real section as its screen is
+  // walked, and the notes at Accounting, Reporting and Resources above each name the row they
+  // are waiting for — and when the last row goes, this whole block goes with it. A Review
+  // section that outlives the review is the thing to avoid.
+  //
+  // IT IS NOT A PERMISSION BOUNDARY AND CHANGES NOTHING ABOUT WHO SEES WHAT. Every row here
+  // is filtered by `viewable` like every other row in this file, and each page still resolves
+  // its own `requireView` — a member without the grant sees no row AND no page, exactly as
+  // before. All six are `tier: 'plus'`, so a Free or Standard family gets `/upgrade` rather
+  // than the screen. This heading is a place to stand, not a gate.
+  //
+  // NO `beta` BADGES, deliberately. That flag marks a route that is live and UNFINISHED, and
+  // that is a claim about the screen that nobody is yet in a position to make about any of
+  // these — the review is what will decide it. Set it per row if a walk finds one, which is
+  // the badge doing its actual job rather than being applied six times in advance.
+  //
+  // TWO ICONS ARE NEW, and only because this section puts pairs side by side that were never
+  // neighbours: Gavel for Election Management (Vote is the member's ballot, one row above it)
+  // and PieChart for Reports (BarChart3 is Family Finances, three rows above it). Two rows in
+  // one collapsed list wearing the same glyph is not a list of six things, it is a list of
+  // four. Each row keeps its original icon when it leaves for its real section, where its
+  // twin is somewhere else entirely.
+  groups.push({
+    section: { label: 'Review', icon: ClipboardCheck },
+    items: [
+      { href: '/family-finances', label: 'Family Finances',    icon: BarChart3 },
+      { href: '/photos',          label: 'Photos',             icon: Camera },
+      { href: '/documents',       label: 'Documents',          icon: FileText },
+      { href: '/elections',       label: 'Elections',          icon: Vote },
+      { href: '/admin/elections', label: 'Election Management', icon: Gavel },
+      { href: '/admin/reports',   label: 'Reports',            icon: PieChart },
+    ],
+  })
 
   // HELP IS LAST, and it is the one section whose position is not a judgement about
   // importance. It is where a reader's eye goes when everything above has failed them, and

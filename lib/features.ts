@@ -28,6 +28,12 @@
  * as well, or the page comes back working, permissioned and linked from nowhere. Check the
  * rail when you flip an admin route.
  *
+ * THE 2026-08-20 FLIP OF SIX ROUTES MEASURED THE REST OF THAT COST, and it is three things
+ * rather than one — the permission grid gains a switch per key, Home stops badging the route
+ * Coming Soon to strangers, and `npm run help:check` fails until the route has a chapter or a
+ * stated allowance. The long note above `/family-finances` sets out all three. None of them is
+ * a reason not to flip; they are the things to have decided before merging one.
+ *
  * Two rules keep this file safe to import from anywhere:
  *   1. Keep it pure — data and pure functions only. No React, no `server-only`,
  *      no environment access. `proxy.ts` is bundled separately from the render
@@ -555,7 +561,38 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'A real month grid with every gathering on the days it falls.',
   },
 
-  // ── On the roadmap: accounting ──────────────────────────────────────────────
+  // ── IN REVIEW: SIX ROUTES CAME OFF `status: 'future'` ON 2026-08-20 ─────────
+  // `/family-finances`, `/photos`, `/documents`, `/elections`, `/admin/elections` and
+  // `/admin/reports` were all Coming Soon until this commit. Every one of them was already
+  // BUILT — a page that gates itself with `requireView`, an action module behind it, and a
+  // `permission_resources` row registered since 20260618000000 — and gated only because
+  // nobody had walked them end to end. They are live now so that somebody can, and the rail
+  // gathers all six under one heading, **Review**, rather than returning each to the section
+  // it will eventually belong to. See `buildNavGroups` in components/layout/Sidebar.tsx.
+  //
+  // THREE THINGS THIS FLIP DID, and none of them is undone by moving a rail item:
+  //
+  //   * **The permission grid gained six rows.** `getResources()` drops any key whose path
+  //     resolves to a 'future' feature, so Members & Access now renders a switch for each of
+  //     these — which is the point, since a page nobody can be granted is a page nobody can
+  //     review. All six were already registered, so this needed no migration.
+  //   * **Home stopped saying Coming Soon about five of them.** `/features` and the landing
+  //     page derive that pill from `isFeatureFuture()` per route, so Elections, Photo
+  //     collections, Documents, Leadership reports and the Family Finances pillar now read as
+  //     SHIPPED to a stranger who has never signed in. That is the honest reading of this
+  //     registry and it is a PUBLIC claim — worth knowing before flipping a route for an
+  //     internal reason. It reverses itself: put the route back behind the gate and the pill
+  //     comes back with no other edit.
+  //   * **`npm run help:check` needed six allowances.** A live route with no chapter fails
+  //     that step, and writing six chapters now would have the manual describe screens
+  //     nobody has reviewed. The allowances in scripts/help-check.mjs name that reason and
+  //     print on every run, so the gap stays visible instead of blending into the green.
+  //
+  // WHAT DID NOT CHANGE: no tier moved. All six are still `plus`, which is where they were
+  // parked and what `/pricing` sells, so a Free or Standard family gets `/upgrade` rather
+  // than the screen — the review happens on a Plus family.
+  //
+  // ── In review: accounting ───────────────────────────────────────────────────
   // WHAT THE OLD `dues` RESOURCE GOVERNED, AND WHERE IT WENT — worth keeping now that
   // the key is back above under a different meaning. 20260808000001 retired "Dues
   // Records", and both halves of its job moved to the key of the screen that actually
@@ -578,30 +615,30 @@ export const FEATURES: readonly Feature[] = [
   {
     href: '/family-finances',
     label: 'Family Finances',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Fund balances, contributions, and a clean profit-and-loss ledger.',
   },
 
-  // ── On the roadmap: resources ───────────────────────────────────────────────
+  // ── In review: resources ────────────────────────────────────────────────────
   {
     href: '/photos',
     label: 'Photos',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'A shared gallery for every gathering — upload, caption, and relive it.',
   },
   {
     href: '/documents',
     label: 'Documents',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Bylaws, forms, meeting minutes, and family records in one shared place.',
   },
   {
     href: '/elections',
     label: 'Elections',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
   },
@@ -609,6 +646,14 @@ export const FEATURES: readonly Feature[] = [
   // ── Admin ───────────────────────────────────────────────────────────────────
   // The `/admin` entry covers every nested admin route by prefix; the specific
   // entries below exist so the Coming Soon screen can name the right tool.
+  //
+  // `/admin` IS STILL 'future' AND MUST STAY THAT WAY, which is not an oversight of the
+  // 2026-08-20 review flip above. It is NOT A PAGE — there is no app/(protected)/admin/page.tsx
+  // — it is the prefix that gates every nested admin route nobody has registered here. The two
+  // routes that flip named (`/admin/elections` and `/admin/reports`) each carry their own entry
+  // below and so win the longest-prefix match on their own account. Flipping this row would
+  // silently publish the NEXT admin route somebody adds without an entry of its own, which is
+  // the failure this catch-all exists to prevent.
   //
   // Members & Access is LIVE — it was rebuilt on the permission model, and gating it
   // would leave a family unable to administer itself. Who actually sees it is decided
@@ -795,10 +840,14 @@ export const FEATURES: readonly Feature[] = [
     tier: 'plus',
     blurb: 'Keep the offices your family holds, and record who holds each one.',
   },
+  // BOTH OF THE NEXT TWO CAME OFF THE GATE ON 2026-08-20 and are in the rail's Review
+  // section, not here in Admin — see the block above `/family-finances` for what the flip
+  // cost and what it published. Neither is documented in the manual yet; both are named in
+  // `UNDOCUMENTED_OK` in scripts/help-check.mjs with that as the stated reason.
   {
     href: '/admin/elections',
     label: 'Election Management',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Open nominations, launch the ballot, and publish the results.',
   },
@@ -816,7 +865,7 @@ export const FEATURES: readonly Feature[] = [
   {
     href: '/admin/reports',
     label: 'Reports',
-    status: 'future',
+    status: 'live',
     tier: 'plus',
     blurb: 'Membership over time, and dues collected against what is still outstanding.',
   },

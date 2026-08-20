@@ -141,11 +141,16 @@ export interface ResolvedTile {
 // ── Quick actions ────────────────────────────────────────────────────────────────────
 
 /**
- * The Golden Master draws six. Two of the ones it draws — Add Photos, Upload Document —
- * point at features still `status: 'future'` in `lib/features.ts`, so they are not here. That
- * is omission, not oversight: a control that leads to `/coming-soon` is a dead affordance, and
- * the sidebar already refuses to render one. Its "Create Event" is gone for a different
- * reason: the Events product is retired (2026-08-19) and there is no such screen to point at.
+ * The Golden Master draws six. Two of the ones it draws — Add Photos, Upload Document — are
+ * still not here, and the reason changed on 2026-08-20 without changing the answer. Both
+ * pointed at features that were `status: 'future'` in `lib/features.ts`, and a control leading
+ * to `/coming-soon` is a dead affordance the sidebar already refuses to render. `/photos` and
+ * `/documents` are LIVE now, in the rail's Review section, which is the opposite claim: live
+ * but not yet walked by anybody. A Quick Action is the most confident thing on the Dashboard —
+ * "this is the job to do next" — so it is the last place to point at a screen under review,
+ * not the first. Add either button when its screen leaves Review. Its "Create Event" is gone
+ * for a different reason again: the Events product is retired (2026-08-19) and there is no
+ * such screen to point at.
  *
  * `my-gathering-tasks` IS THE ONE ENTRY HERE THAT IS CONDITIONAL ON THE CALLER'S OWN WORK
  * rather than on a grant, and it is the only one of its kind on this row. Every other button

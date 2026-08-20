@@ -443,12 +443,27 @@ function checkRawFields() {
  * with no chapter.
  *
  * `future` entries are exempt by construction: a chapter about an unshipped screen is
- * allowed but not owed. The three live exemptions below each have a reason, stated here in
+ * allowed but not owed. The live exemptions below each have a reason, stated here in
  * the `positive: 'not-applicable'` + `why` shape AGENTS.md §7 endorses, and REPORTED as a
  * note rather than skipped silently — a gap has to stay visible or it blends into the green.
  *
  * Adding a route here is a decision, not a formality. The question to answer first is
  * whether the screen is genuinely documented somewhere a reader would find it.
+ *
+ * THERE ARE NOW TWO KINDS OF ENTRY ON THIS LIST, and the second arrived on 2026-08-20. The
+ * original kind is a route documented in ANOTHER chapter — a redirect, or a registry row that
+ * is not a route at all — where the manual is complete and a chapter of its own would claim a
+ * screen that does not exist. The second kind is a route that is documented NOWHERE, and it
+ * is a real gap held open on purpose: six screens came off `status: 'future'` in
+ * lib/features.ts that day, into the rail's Review section, precisely because nobody had been
+ * through them. Writing six chapters first would have the manual describe screens no person
+ * has walked, which is worse than a gap that says so on every run.
+ *
+ * THE SECOND KIND IS TEMPORARY AND OWES A CHAPTER. Each of the six is removed from this list
+ * by the commit that reviews its screen and writes it up — which is the same commit that
+ * moves its row out of Review in components/layout/Sidebar.tsx. Do not let one of them settle
+ * here: an allowance that stops being read as a debt is how a live screen goes undocumented
+ * for good, which is the one regression this whole check exists to catch.
  */
 const UNDOCUMENTED_OK = {
   '/help': 'the manual itself — there is no chapter about the chapters',
@@ -476,6 +491,29 @@ const UNDOCUMENTED_OK = {
   '/gatherings/budget':
     'not a route — a registry row carrying the Standard tier for the money band on a ' +
     'gathering, which is documented at gatherings#budget',
+
+  // ── THE SIX ROUTES IN THE RAIL'S REVIEW SECTION, 2026-08-20 ────────────────────────
+  // Each of these is a real screen with a real chapter owed. See the note above for why the
+  // chapter is not being written in advance of the review, and remove the entry in the same
+  // commit that writes it.
+  '/family-finances':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
+  '/photos':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
+  '/documents':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
+  '/elections':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
+  '/admin/elections':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
+  '/admin/reports':
+    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
+    'owed and is written by the commit that reviews the screen',
 }
 
 function checkUndocumented() {
@@ -504,7 +542,7 @@ function checkUndocumented() {
     else if (!FEATURES.some(f => f.href === href)) stale.push(`${href} — no longer a FEATURES href`)
   }
 
-  notes.push(`${allowed} live route(s) documented inside another chapter, by explicit allowance:`)
+  notes.push(`${allowed} live route(s) with no chapter of their own, by explicit allowance:`)
   for (const [href, why] of Object.entries(UNDOCUMENTED_OK)) {
     notes.push(`  ${href} — ${why}`)
   }
