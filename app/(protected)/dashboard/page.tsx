@@ -15,6 +15,8 @@ import { formatRoleTitle } from '@/lib/role-utils'
 import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
+import { ProfileReminderBanner } from '@/components/dashboard/ProfileReminderBanner'
+import { profileCompleteness } from '@/lib/profile-completeness'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { WelcomeHero } from '@/components/dashboard/WelcomeHero'
@@ -304,7 +306,10 @@ export default async function DashboardPage() {
     // portrait. Both are per-family (one `people` row PER family), so this is scoped to
     // the family being viewed and not to the account. No grant: it is their own row, on
     // their own client, and RLS says so.
-    supabase.from('people').select('chapter_id, avatar_url, chapters(name)').eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
+    // THE PROFILE FIELDS RIDE ALONG on the read that was already here, which is why this
+    // feature costs no extra round trip. §5 does not bite: it is the caller's OWN row, on
+    // their own client, and every column is one they can see on their own profile page.
+    supabase.from('people').select('chapter_id, avatar_url, chapters(name), primary_phone, city, state, country, date_of_birth').eq('user_id', user.id).eq('family_code', familyCode).maybeSingle(),
     getChapters(),
     // The queue depth for the Pending Approval tile. Gated INSIDE the action on
     // admin/approvals:view, so a member who cannot work the queue gets 0 and the tile
@@ -376,10 +381,29 @@ export default async function DashboardPage() {
     chapter_id: string | null
     avatar_url: string | null
     chapters?: { name: string } | null
+    primary_phone: string | null
+    city: string | null
+    state: string | null
+    country: string | null
+    date_of_birth: string | null
   } | null
   const myChapterId = myPersonData?.chapter_id ?? null
   const myChapterName = (myPersonData?.chapters as { name: string } | null)?.name ?? null
   const needsChapter = !myChapterId && chapters.length > 0
+
+  // ── THE PROFILE NUDGE ──────────────────────────────────────────────────────────────
+  // Derived here rather than in the banner so the PAGE decides whether to render it at all —
+  // the same shape every tile on this screen follows. `profileCompleteness` is pure and takes
+  // the row (AGENTS.md §7b), so the threshold and the field list are checkable under
+  // `npm test` with no dashboard involved; the banner re-checks `shouldPrompt` itself, because
+  // a banner that renders over a complete profile because a caller forgot the condition is
+  // worse than one that occasionally renders nothing.
+  //
+  // A NULL ROW IS NOT PROMPTED, and the function is what decides that: no `people` row in this
+  // family, or a read that failed, is not the same fact as an empty profile — greeting somebody
+  // with "there is not much there yet" over a query that did not answer is §8 in a friendly
+  // voice.
+  const completeness = profileCompleteness(myPersonData)
 
   // ── This page no longer reads the clock ─────────────────────────────────────────────
   // It did, for exactly this count, and both the clock read and the span test moved into
@@ -505,6 +529,11 @@ export default async function DashboardPage() {
         <LinkPersonBanner unlinkedPeople={linkBannerData.unlinkedPeople} />
       )}
 
+      {/* BOTH BANNERS CAN SHOW AT ONCE, and the profile one goes first: it is the broader
+          ask, and the chapter picker below it is one of the things a member would otherwise
+          go looking for on the profile page. Neither is dismissible in the same way — see
+          ProfileReminderBanner on why this one has no X. */}
+      <ProfileReminderBanner completeness={completeness} />
       {needsChapter && <ChapterReminderBanner chapters={chapters} />}
 
       {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather

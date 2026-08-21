@@ -349,6 +349,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'reminders',
+            heading: 'The reminders',
+            blocks: [
+              p('Up to two prompts sit under the greeting. Both are asks rather than warnings, and neither withholds anything.'),
+              defs(
+                { term: 'Finish your profile', text: 'Your relatives find you in the Directory, and yours is mostly empty. It names what is missing — a phone number, where you live, your birthday, a photo — and links straight to My Profile. It has no dismiss button because it goes away on its own: fill in half of what it asks for and it stops appearing.' },
+                { term: 'Select your chapter', text: 'Only in a family that has chapters, and only while you are in none. Setting it here is the same as setting it on your profile, and the relatives without accounts of their own move with you.' },
+              ),
+              note('Neither prompt is visible to anybody else, and nothing on any screen is locked behind either one. A member who wants to enter nothing is entitled to.'),
+            ],
+          },
+          {
             id: 'premier-gathering',
             heading: 'The premier gathering',
             blocks: [
