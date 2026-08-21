@@ -193,7 +193,10 @@ query in the app dies with "permission denied for function". The lockdown derive
 grants from `pg_policies` at migration time rather than hard-coding them, because the
 policies here are themselves composed at migration time and hosted has drifted from the
 chain before (`d9d91c0`). Realtime counts: it evaluates RLS as the subscribing role, so
-`auth_uid_is_room_participant()` is load-bearing for chat despite having no call site.
+`auth_uid_is_room_participant()` is load-bearing for chat despite having no call site — and
+that was an aspiration rather than a fact until 2026-08-21, when `chat_messages` finally
+joined the publication it was being narrowed for. See "REALTIME NEEDS THE TABLE IN A
+PUBLICATION" below.
 
 Trigger functions need no grant — EXECUTE is checked at `CREATE TRIGGER` time, not at
 fire time — and neither does a function called only from inside another SECURITY DEFINER
@@ -1464,6 +1467,68 @@ bucket, its three policies and every object already in it are still there, still
 still with no family predicate - nothing writes to it or reads it, and anything uploaded is still
 world-readable by URL. Dropping it is a storage operation rather than a migration and is owed;
 FutureFeature.md's storage warning carries it.
+
+# REALTIME NEEDS THE TABLE IN A PUBLICATION, AND NOTHING IN THIS REPO COULD SEE IT
+
+A `postgres_changes` subscription reads the WAL through the **`supabase_realtime` PUBLICATION**.
+A table that is not a member produces no events — and the subscription still connects, still
+reports `SUBSCRIBED`, and still returns a channel. There is no error anywhere, on either side.
+
+**That publication held ZERO tables until 2026-08-21**, measured rather than inferred:
+
+```sql
+SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';   -- (0 rows)
+```
+
+So all three subscriptions in the product had been fed nothing since the day each shipped —
+`NotificationBell`, `MessageThread` and `ChatShell`. `20260821000002` publishes `notifications`
+and `chat_messages`; **anything new that subscribes owes its own line in a migration.**
+
+Four things follow, and the first two are why this went unnoticed for months.
+
+* **Publication membership is DATABASE STATE, and the dashboard is how it is normally set.** It
+  is therefore invisible to `npm run db:check` (which compares migration versions) and to
+  `db:audit` (which reads policies), and a fresh `supabase db reset` publishes nothing at all.
+  Before this it was mentioned in the repo exactly once, as a COMMENTED-OUT line in
+  `20260603000000_chat.sql` telling a reader to run it in the SQL editor — the same shape as the
+  `USAGE: psql "$DATABASE_URL" -f …` headers that caused a production incident. **An
+  instruction in a migration, addressed to a person, is not a step; it is a defect with a note
+  attached.**
+* **A fallback hides it.** The bell survived because `getNotifications` is server-rendered by
+  `TopBar` on every page load, so it refreshed on navigation — the feature degraded to something
+  that looks *slow* rather than to something visibly broken. Chat had no fallback and simply did
+  not deliver until the reader navigated, and that was read as chat being quiet.
+* **RLS IS the boundary, and Realtime evaluates it as the SUBSCRIBING ROLE.** This is what makes
+  publishing a table a security decision rather than plumbing. Two consequences: every function
+  a published table's SELECT policy calls needs `EXECUTE` for `authenticated` (§2b rule 2), and
+  the realtime path is where a missing grant is INVISIBLE — a policy that *errors* is
+  indistinguishable from one that refuses, because either way no event arrives and there is no
+  HTTP response for anybody to see a failure on. A client-side `filter` is a bandwidth decision,
+  never the boundary; `ChatShell` subscribes unfiltered and relies entirely on
+  `auth_uid_is_room_participant()`.
+* **`REPLICA IDENTITY FULL` is the trap on the way out.** Realtime authorizes INSERT and UPDATE
+  against the SELECT policy, and **does not authorize DELETE** — a delete is broadcast to every
+  subscriber of that event, carrying whatever the replica identity says. `DEFAULT` means the
+  primary key alone; `FULL` means the whole deleted row, unauthorized. `20260821000002` asserts
+  neither published table carries `FULL`, so a future feature wanting `old_record` has to decide
+  what a delete may tell a stranger first.
+
+**`npm run realtime:check` is the only thing that can prove any of this works**
+(`scripts/realtime-check.mjs`). A migration can assert membership, the replica identity and the
+grants; it cannot open a websocket. That script signs in as a real member, writes as the service
+role, and asserts BOTH halves of each pair — the row that must arrive and the row that must be
+withheld, the second with an UNFILTERED subscription so the client filter cannot be what
+refused it. It reseeds `tests/rls`' fixture and needs the local stack, which is why it is
+hand-run like `email:check` and `art:check` rather than a step in `verify.yml`.
+
+**One harness fact worth carrying anywhere else this is tested:** `SUBSCRIBED` is the CLIENT's
+acknowledgement, not walrus's. Realtime registers a subscription as a row in
+`realtime.subscription` and the replication side picks it up from there, so a row written in
+that gap reaches nobody — which reads exactly like a policy refusing it. It produced that
+script's first false finding, and **a fixed settle delay is not the fix**: one second passed
+twice and failed on the third run, because the first channel on a fresh socket is the slow one.
+Wait for a throwaway row to come back instead, and report "never became live" as its own
+finding — a publication problem must never present as a withheld row.
 
 # A STORAGE BUCKET IS NOT COVERED BY ANY OF THE ABOVE, AND ONE WAS WIDE OPEN
 

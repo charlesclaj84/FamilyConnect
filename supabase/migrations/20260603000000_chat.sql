@@ -101,6 +101,23 @@ CREATE POLICY "senders can delete own messages"
   USING (sender_id = auth.uid());
 
 -- ── Enable Realtime ───────────────────────────────────────────────────────────
--- Run this line manually in the Supabase SQL editor after applying this migration:
+-- DONE BY `20260821000002`, AND THIS COMMENT IS THE REASON IT TOOK UNTIL THEN.
 --
---   ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+-- It used to read "Run this line manually in the Supabase SQL editor after applying this
+-- migration: ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;" — and nobody ever
+-- did, on any database. The publication held ZERO tables when it was measured on 2026-08-21,
+-- so `MessageThread` and `ChatShell` had been subscribing to a stream that carried nothing
+-- since this file shipped, and chat delivered a message only when the reader navigated.
+--
+-- The lesson is the one AGENTS.md already records about the `USAGE:` headers that told a
+-- reader to apply a migration by hand and caused a production incident (they are named in
+-- AGENTS.md, "What is deliberately *not* in here"; the command itself is deliberately not
+-- reproduced, because `npm run db:check` refuses a migration that spells one out — and it
+-- is right to, even in a quotation). An INSTRUCTION in a migration, addressed to a
+-- person, that nothing verifies is not a step — it is a defect with a note attached. Publication
+-- membership is now schema state a migration owns, guarded against 42710 for the databases
+-- where somebody DID toggle it by hand, and asserted.
+--
+-- (Rewriting a comment in an applied migration is the sanctioned exception AGENTS.md names —
+-- the file is never re-read, so this changes no database. It qualifies on the same narrow
+-- ground: the line was not a record of anything, it was a false instruction.)

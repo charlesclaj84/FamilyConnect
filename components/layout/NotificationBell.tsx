@@ -86,6 +86,22 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
   // Real-time subscription. Skipped entirely without a feed to subscribe to — see
   // `personId` above; a `recipient_id=eq.` filter with nothing after it would be a
   // subscription to somebody else's inserts or to none.
+  //
+  // ── IT ONLY STARTED RECEIVING ANYTHING ON 2026-08-21 ──────────────────────────────
+  // `postgres_changes` reads the WAL through the `supabase_realtime` PUBLICATION, and that
+  // publication held ZERO tables. So this subscribed successfully and was fed nothing, from
+  // the day it shipped. `20260821000002` is what publishes the table, and `npm run
+  // realtime:check` is what proves an event arrives — a migration can only assert membership.
+  //
+  // The reason nobody noticed is worth knowing before trusting this hook: `getNotifications`
+  // is server-rendered by `TopBar` on EVERY page load, so the bell refreshes on navigation
+  // whether or not this fires. The feature degraded to something that looks slow rather than
+  // to something visibly broken, which is what a fallback buys you and what it hides.
+  //
+  // THE `filter` IS NOT THE BOUNDARY. Realtime evaluates this table's SELECT policy as the
+  // subscribing role, and that is what keeps another member's notification off this socket —
+  // measured with an UNFILTERED subscription by the check script above. The filter is a
+  // bandwidth decision.
   useEffect(() => {
     if (!personId) return
     const supabase = createClient()

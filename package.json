@@ -21,6 +21,7 @@
     "email:push": "node scripts/auth-templates.mjs push",
     "email:pull": "node scripts/auth-templates.mjs pull",
     "art:check": "node scripts/kit-illustration.mjs check",
+    "realtime:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/realtime-check.mjs",
     "art:build": "node scripts/kit-illustration.mjs build"
   },
   "dependencies": {

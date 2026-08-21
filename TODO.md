@@ -197,6 +197,37 @@ Confirm afterwards with `npm run db:check -- --linked`.
 
 Recorded 2026-08-21.
 
+## Confirm the realtime publication on hosted after the merge
+
+**Action:** one query, once, after `20260821000002` has been applied by CI:
+
+```sql
+SELECT schemaname, tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
+-- expect exactly: public.chat_messages, public.notifications
+```
+
+**The defect this replaces is FIXED, and it was worse than the entry that used to sit here
+guessed.** The `supabase_realtime` publication held **zero tables** — measured on 2026-08-21 —
+so all three `postgres_changes` subscriptions in the product had been receiving nothing since
+the day each shipped: the notification bell, chat's per-room thread, and chat's unread tracker.
+`20260821000002` publishes both tables, guarded against 42710 for the databases where somebody
+may have toggled one by hand, and `npm run realtime:check` proves an event actually arrives and
+that RLS withholds one addressed to somebody else.
+
+**Why anything is left to do.** Publication membership is PER-DATABASE. The migration reaches
+hosted from CI on merge like everything else, so nothing needs doing by hand — but this is the
+one class of change where local being right says nothing about production, because the
+dashboard is the normal way it is done and the repo cannot see whether anybody did. One look
+closes it.
+
+**And it is worth looking rather than assuming, because hosted may have MORE than these two.**
+A table toggled on in the dashboard months ago is published on hosted and on no laptop, which
+is the divergence in the other direction — a feature that works in production and silently
+does nothing in development. If the query returns a third table, that is what has been found;
+add it to `20260821000002`'s list in a new migration rather than leaving it undeclared.
+
+Recorded 2026-08-21.
+
 ## Sorting is on two tables of sixteen
 
 **Action:** work through the list. The pattern is proven and each table is three lines.
@@ -535,8 +566,11 @@ to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ### Everything below came out of building `tests/rls`
 
-(see AGENTS.md §7). The suite is green, and neither item below is an isolation failure or
-blocks anything today.
+(see AGENTS.md §7). The suite is green, and the item below is neither an isolation failure nor
+a blocker. It said "neither item below" until 2026-08-21, when the second — `notifications`
+possibly not being in the realtime publication — was resolved: the publication held no tables
+at all, `20260821000002` fixed it, and what survives is a per-database confirmation that is not
+an authorization question and now has its own entry above.
 
 ### `saveChapterAndPropagate` never moves a member's children, and never has
 
@@ -572,24 +606,3 @@ six sites, not one, each needing a verdict against the three questions. And it n
 `tests/rls` case, which today would be the first assertion anywhere that the propagation
 happens at all.
 
-### `notifications` may not be in the realtime publication
-
-**Action:** run `SELECT * FROM pg_publication_tables WHERE pubname='supabase_realtime';`
-against hosted and record the answer.
-
-`NotificationBell` opens a `postgres_changes` subscription on `notifications`, and
-nothing in `supabase/migrations/` adds that table to the publication — the only mention
-of `supabase_realtime` in the repo is a commented-out line for `chat_messages` in
-`20260603000000_chat.sql`. Publication membership is database state edited by hand in
-the Dashboard, so it is invisible to `npm run db:check` and to `db:audit`, and a fresh
-`supabase db reset` publishes nothing at all.
-
-Two consequences worth knowing before relying on it. The subscription may never have
-fired for anyone, in which case the bell has always been updating on navigation alone
-(`getNotifications` is server-rendered by `TopBar` on every page load, so the feature
-works either way — which is why nobody noticed). And a realtime-based fix for anything
-else would work on hosted and silently do nothing locally, or the reverse.
-
-If it is added, guard it — a bare `ALTER PUBLICATION … ADD TABLE` raises 42710 if the
-table was ever added by hand, and under `migrate.yml` a failed job holds the Vercel
-alias so nothing deploys.
