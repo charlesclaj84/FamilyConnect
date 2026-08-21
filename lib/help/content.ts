@@ -788,14 +788,29 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'nominating',
             heading: 'Nominating somebody',
             blocks: [
-              p('While nominations are open, any member may nominate.'),
+              p('While nominations are open, the election lists every office on the ballot, and under each one the people who have been nominated for it. Any member may nominate.'),
               steps(
-                'Open the election.',
-                'To stand yourself, pick an office under **Put Yourself on the Ballot** and press **Nominate Myself**. You are on the ballot straight away — nobody has to accept their own nomination.',
-                'To put somebody else forward, pick the office, then find them in the **Nominee** box and press **Submit nomination**.',
+                'Find the office you want to nominate for and press **Nominate** beside it.',
+                'To stand yourself, press **Put myself forward**. You are on the ballot straight away — nobody has to accept their own nomination.',
+                'To put somebody else forward, find them in **Who are you nominating?** and press **Nominate**.',
               ),
-              p('The nominee box searches any part of any name, so typing "allen" finds Martha Allen. It lists only the people this election is for, which is why a chapter election offers fewer names than the family has.'),
-              p('One person can be nominated once per office, and can be nominated for several offices. **Current Candidates** below the form shows where each nomination stands.'),
+              p('The name box searches any part of any name, so typing "allen" finds Martha Allen. It lists only the people this election is for, which is why a chapter election offers fewer names than the family has.'),
+              p('**Several members can nominate the same person for the same office.** They appear once on the list, and it says how many people put them forward — "nominated by you and 2 others". A second nomination is not a duplicate; it is another member saying they want them.'),
+              p('One person can be nominated once per office by you, and can be nominated for as many offices as you like.'),
+            ],
+          },
+          {
+            id: 'withdrawing',
+            heading: 'Taking a nomination back',
+            blocks: [
+              p('A nomination you made shows **Take my name off** beside it, and one you made for yourself shows **Withdraw**. Either way you are only ever removing your own name.'),
+              p('**If other members nominated the same person, they stay on the ballot.** Only your name comes off, and the count beside them goes down by one. If you were the only person who nominated them, they come off the ballot altogether — the screen says which of the two is about to happen before you confirm.'),
+              p('Two things stop it, and both are about not changing a ballot under the people reading it:'),
+              defs(
+                { term: 'They have already accepted', text: 'An accepted nomination stays on the ballot. The way off it is for them to decline — see Accepting or declining below. The exception is your own: you can always withdraw yourself.' },
+                { term: 'Nominations have closed', text: 'Once the window is over, nothing comes off the ballot. Declining is the only way out from then on.' },
+              ),
+              note('You cannot take somebody else\u2019s nomination off, even if you are an administrator of the family. A nomination is a thing one member said, and only they can unsay it.'),
             ],
           },
           {

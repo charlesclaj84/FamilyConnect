@@ -38,7 +38,7 @@
  * response. `raw.mjs`'s header carries the full argument; here the shape is that a SELECT
  * probe hands back rows AND the error, so a case can tell the two apart.
  */
-import { rawSelect } from '../raw.mjs'
+import { rawDelete, rawSelect } from '../raw.mjs'
 
 /**
  * Every election the caller can read. The scope columns come back so a case can assert on the
@@ -69,4 +69,27 @@ export async function selectElectionNominations() {
  */
 export async function selectElectionVotes() {
   return rawSelect('election_votes', 'id, election_id, voter_id, nominee_id')
+}
+
+/**
+ * Try to take somebody ELSE's name off a nomination, straight through PostgREST.
+ *
+ * ── WHY THE ACTION CANNOT TEST THIS, WHICH IS THIS FILE'S WHOLE ARGUMENT AGAIN ──────
+ * `retractNomination` states `.eq('person_id', g.personId)` in its own statement — belt on
+ * the policy's brace, and deliberate: without it the DELETE asks to remove EVERY supporter of
+ * the nomination and is narrowed to one row only by `perm:family can retract a nomination`,
+ * so a future widening of that policy would silently turn the control into "remove
+ * everybody's nomination".
+ *
+ * The cost is that no action-shaped case can reach the policy's `person_id =
+ * auth_person_id()` conjunct: the action narrows to the caller first, so the attack half
+ * passes with that conjunct deleted. Measured, exactly as this file's header describes for
+ * the area rule — the conjunct removed, the suite still green.
+ *
+ * So the probe sends what the action refuses to send: a DELETE aimed at another member's
+ * supporter row, by both key columns, with nothing in the way but the policy.
+ */
+export async function deleteNominationSupport(nominationId, personId) {
+  return rawDelete('election_nomination_supporters',
+    { nomination_id: nominationId, person_id: personId })
 }

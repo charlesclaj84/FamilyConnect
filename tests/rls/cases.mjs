@@ -1218,6 +1218,29 @@ const snapshot = (table, cols, filter) => async (db) => {
 }
 
 /**
+ * Who is standing behind one or more candidacies.
+ *
+ * Its own probe rather than `snapshot()`, and for that helper's own stated reason:
+ * `election_nomination_supporters` is keyed (nomination_id, person_id) and has NO `id`
+ * column, so `snapshot`'s `.order('id')` would fail with 42703 before it ever looked at a
+ * row — and a probe that throws is a case that reports nothing rather than a case that
+ * passes, which is the better failure but is still not a test. `template_permissions` needed
+ * its own for exactly this.
+ *
+ * Ordered explicitly on both key columns, because `before === after` is the whole assertion
+ * and PostgREST makes no promise about row order without an ORDER BY.
+ */
+const probeSupporters = (nominationIds) => async (db, fx) => {
+  const { data, error } = await db.from('election_nomination_supporters')
+    .select('nomination_id, person_id')
+    .in('nomination_id', nominationIds(fx))
+    .order('nomination_id')
+    .order('person_id')
+  if (error) throw new Error(`probe election_nomination_supporters: ${error.message}`)
+  return JSON.stringify(data)
+}
+
+/**
  * One cell of ALPHA's General template.
  *
  * Its own probe rather than snapshot(), because template_permissions is keyed
@@ -2538,7 +2561,22 @@ export const MORE_CASES = [
     args: fx => [fx.alpha.nominationElection.id, fx.alpha.nominationPosition.id, fx.alpha.ownerPersonId],
     probe: (db, fx) => snapshot('election_nominations', 'id, nominee_id, nominated_by',
       { election_id: fx.alpha.nominationElection.id })(db),
-    positiveActor: 'alphaAdmin',
+    // ── THE CONTROL IS AN ORDINARY MEMBER NOW, AND THAT IS THE POINT ─────
+    // It was `alphaAdmin` — scope 'any' on every resource — so it asserted only that
+    // SOMEBODY in ALPHA could nominate. `alphaOther` is on the General template, and until
+    // 20260821000004 this line would have been RED: the INSERT policy's authority test is
+    //
+    //     nominee_id = auth_person_id() OR auth_permission(..., 'create') = 'any' OR ...
+    //
+    // and General granted `create` at 'none', so the self-expression was the only branch an
+    // ordinary member could satisfy — **they could nominate only themselves.** The action has
+    // never demanded a grant (`requireMember()`, per its own header), so nothing above the
+    // policy reported this and the attack half passed throughout.
+    //
+    // The nominee is `ownerPersonId`, which is NOT `alphaOther` — the whole assertion is that
+    // a member can put SOMEBODY ELSE forward. Mutation-checked by reverting the grant to
+    // 'none' for ALPHA's General template, which turns this one line red and nothing else.
+    positiveActor: 'alphaOther',
   },
   {
     kind: 'write',
@@ -2548,6 +2586,142 @@ export const MORE_CASES = [
     probe: (db, fx) => snapshot('election_nominations', 'id, accepted',
       { id: fx.alpha.nomination.id })(db),
     // The nominee is ALPHA's other member; they may legitimately answer.
+    positiveActor: 'alphaOther',
+  },
+  // ── RETRACTING A NOMINATION: FOUR CASES OVER ONE RULE ──────────────────
+  //
+  // *You may retract a nomination you made. Not one somebody else made, and not one the
+  // nominee has already accepted — unless the nominee is you.*
+  //
+  // The rule lives in `perm:family can retract a nomination` (20260821000004 §4c) and
+  // NOWHERE ELSE — `retractNomination` deliberately re-checks none of it, so these are the
+  // only thing standing between that policy and a control that quietly removes other
+  // people's nominations. Each has its OWN candidacy in the fixture, because a successful
+  // control deletes the last supporter and the candidacy goes with it: AGENTS.md §7's warning
+  // about a control that mutates a row a later case depends on.
+  //
+  // EVERY ONE PROBES `election_nomination_supporters`, not `election_nominations`. The
+  // supporter row is what the action writes; the candidacy disappearing is a TRIGGER's doing,
+  // and a probe on the parent would pass for a case where the supporter row survived and the
+  // parent was deleted by something else.
+  {
+    kind: 'write',
+    id: 'elections.retractNomination (a nomination in another family)',
+    mod: 'app/actions/elections.ts', fn: 'retractNomination',
+    args: fx => [fx.alpha.retractCross.nomination.id, fx.alpha.nominationElection.id],
+    probe: probeSupporters(fx => [fx.alpha.retractCross.nomination.id]),
+    // `alphaMember` is the nominator the fixture recorded, and the default control actor.
+  },
+  // ── [crux] IN THE FAMILY, IN THE AREA, FULL GRANTS — AND STILL REFUSED ─────
+  // The sharpest of these, and the one no cross-family assertion could ever reach.
+  // `alphaAdmin` holds `community/elections:delete` at scope 'any' in their OWN family, is
+  // approved, and is under National like this election — so every conjunct the other cases
+  // turn on is satisfied for them. What refuses them is `person_id = auth_person_id()`,
+  // which the DELETE policy carries as a CONJUNCT rather than as one of the alternatives, so
+  // no scope widens it and no grant buys it.
+  //
+  // That is the difference between this table and its parent: `election_nominations`' DELETE
+  // policy has `delete = 'any'` as an alternative, which is right (an organizer must be able
+  // to strike a nomination) and would be wrong here (nobody may take another member's name
+  // off a nomination that member made).
+  {
+    kind: 'write',
+    id: 'elections.retractNomination (a nomination they did not make)',
+    mod: 'app/actions/elections.ts', fn: 'retractNomination',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.retractOutsider.nomination.id, fx.alpha.nominationElection.id],
+    probe: probeSupporters(fx => [fx.alpha.retractOutsider.nomination.id]),
+    // AND THEY MUST BE TOLD. A DELETE that matches zero rows is `{ error: null }`, so without
+    // `confirmWrite` this action would report success over a nomination that still carries
+    // the caller's name — and on this control that is the worst version of the §8b lie: the
+    // ballot goes to a vote saying they asked for this candidate. The probe cannot see it.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+  },
+  // ── AN ACCEPTED NOMINATION IS NOT THE NOMINATOR'S TO WITHDRAW ──────────
+  // The attacker is the person who MADE this nomination — `alphaMember`, the fixture's
+  // nominator — so this is not an isolation case at all. It is the acceptance conjunct, and
+  // the pair is chosen so the two halves differ in exactly one thing: whether the caller is
+  // the nominee.
+  //
+  //   attack   alphaMember retracts their nomination of `other`, which `other` ACCEPTED
+  //   control  alphaMember withdraws their own accepted SELF-nomination, same office
+  //
+  // The control is the carve-out, and it is what "withdraw my own nomination" means: a
+  // self-nomination is auto-accepted by `submitNomination`, so without it the one person
+  // guaranteed to be able to stand could never stand down. Both candidacies are on the same
+  // position, so the probe covers both and neither half can pass by touching the other's row.
+  {
+    kind: 'write',
+    id: 'elections.retractNomination (one the nominee has accepted)',
+    mod: 'app/actions/elections.ts', fn: 'retractNomination',
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.retractAccepted.nomination.id, fx.alpha.nominationElection.id],
+    probe: probeSupporters(fx => [
+      fx.alpha.retractAccepted.nomination.id, fx.alpha.retractOwnSelf.id,
+    ]),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveArgs: fx => [fx.alpha.retractOwnSelf.id, fx.alpha.nominationElection.id],
+  },
+  // ── THE SECOND NOMINATOR, WHICH IS THE WHOLE REASON THE TABLE EXISTS ───
+  // `submitNomination` against a candidacy that already exists used to answer "they have
+  // already been nominated for that position" and stop. It turns the UNIQUE collision into a
+  // supporter row now, so two members can want the same person in the same office and
+  // neither one's retraction removes the other's.
+  //
+  // The probe is the SUPPORTER list rather than the nomination list, because the candidacy
+  // row does not change at all in this path — a probe on `election_nominations` would report
+  // "no-op — row untouched" for the control as well as the attack, and the case would pass
+  // while proving nothing.
+  //
+  // The nominee is `owner`, so `alphaOther` can second it without being the nominee
+  // themselves — which would be the self-expression branch and a different assertion.
+  // ── ONCE NOMINATIONS CLOSE, NOBODY RETRACTS ANYTHING ───────────────────
+  // FOUND BY A MUTATION, which is the only reason it is here. Removing
+  // `election_window_open(election_id, 'nominations')` from the DELETE policy left the whole
+  // suite green: every candidacy in the fixture is on `nominationElection`, whose window
+  // contains today, so no case could tell the conjunct was gone. `f.retractClosed` is on
+  // `f.election`, whose nominations closed ten days ago and whose poll is open now.
+  //
+  // IT IS ITS OWN ROW RATHER THAN `f.nomination`, and the first draft used that one and was
+  // wrong: `f.nomination` is ACCEPTED, so the ACCEPTANCE conjunct refused this call and the
+  // window was never consulted — the case passed under the very mutation it was written for.
+  // A case has to be refused by ONE thing to be evidence about that thing.
+  //
+  // THE ATTACKER IS THE PERSON WHO MADE IT. `alphaMember` is the nominator the fixture
+  // recorded, is approved, is under National, and holds the supporter row — so every other
+  // conjunct in the policy is satisfied for them and the clock is the only thing refusing.
+  // That is what makes this a test of the window rather than of anything else.
+  //
+  // WHY THE RULE. `election_votes.nominee_id` references `people`, not a nomination, so a
+  // candidacy deleted mid-poll would leave votes cast for somebody no longer standing with
+  // nothing in the schema to notice. The way off a ballot after nominations close is DECLINE,
+  // which preserves the record of having been asked.
+  {
+    kind: 'write',
+    id: 'elections.retractNomination (after nominations closed)',
+    mod: 'app/actions/elections.ts', fn: 'retractNomination',
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.retractClosed.id, fx.alpha.election.id],
+    probe: probeSupporters(fx => [fx.alpha.retractClosed.id]),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'the window is the thing being asserted, so there is no caller for whom this call is '
+      + 'legitimate today; that a retraction lands at all is the four cases above',
+  },
+  {
+    kind: 'write',
+    id: 'elections.submitNomination (seconding one somebody else made)',
+    mod: 'app/actions/elections.ts', fn: 'submitNomination',
+    args: fx => [
+      fx.alpha.nominationElection.id, fx.alpha.retractSecond.position.id, fx.alpha.ownerPersonId,
+    ],
+    probe: probeSupporters(fx => [fx.alpha.retractSecond.nomination.id]),
     positiveActor: 'alphaOther',
   },
   // ── [crux] NOMINATING SOMEBODY OUTSIDE THE ELECTION AREA ───────────────────
@@ -3204,6 +3378,23 @@ export const PENDING_CASES = [
       { election_id: fx.alpha.election.id })(db),
     positive: 'not-applicable',
     why: 'the approved owner has already voted; a second call is an upsert no-op, and their vote is asserted by the cross-family castVote case above',
+  },
+  // AND RETRACTION, which is a DIFFERENT gate from the one above and worth its own line.
+  // `castVote` is refused by `requireMember()`; so is this — but the row underneath it would
+  // be refused a second time anyway, because `perm:family can retract a nomination` carries
+  // `auth_membership_approved()` as a conjunct of its own. Two layers, and the case asserts
+  // the caller is told rather than watching a policy match nothing (AGENTS.md §2).
+  //
+  // The applicant has a `people` row in ALPHA and `auth_family_code()` resolves ALPHATEST for
+  // them permanently and deliberately, so every family conjunct in that policy is satisfied
+  // for them. What is not satisfied is that they have joined.
+  {
+    kind: 'write',
+    id: 'elections.retractNomination (pending member)',
+    mod: 'app/actions/elections.ts', fn: 'retractNomination',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.retractPending.nomination.id, fx.alpha.nominationElection.id],
+    probe: probeSupporters(fx => [fx.alpha.retractPending.nomination.id]),
   },
 
   // [crux] The same shape as castVote, and for the same reason: `editPersonRecord` is
@@ -7035,6 +7226,45 @@ function photoForm() {
  * about the same actor from the other direction.
  */
 const ELECTION_RAW_CASES = [
+  // [crux] TAKING SOMEBODY ELSE'S NAME OFF A NOMINATION, WITH NO ACTION IN THE WAY.
+  //
+  // The conjunct this asserts is `person_id = public.auth_person_id()` in
+  // `perm:family can retract a nomination`, and it is a CONJUNCT rather than one of the
+  // alternatives — so unlike every other write on these four tables, no scope widens it and
+  // no grant buys it. Nobody may take another member's name off a nomination that member made.
+  //
+  // IT HAS TO BE A RAW PROBE, and that is not a preference. `retractNomination` states
+  // `.eq('person_id', g.personId)` in its own statement — defence in depth, and deliberate —
+  // so an action-shaped case cannot send the offending request at all: it narrows to the
+  // caller before PostgREST sees it, and the attack half passes with the policy conjunct
+  // DELETED. Measured on the day this was written: conjunct removed, ten retraction
+  // assertions still green. This one goes red.
+  //
+  // THE ATTACKER HOLDS EVERY GRANT IN THEIR OWN FAMILY. `alphaAdmin` has
+  // `community/elections:delete` at scope 'any', is approved, and is under National like this
+  // election — so every other conjunct in the policy is satisfied for them. That is what makes
+  // this a test of the pin rather than of the family boundary.
+  //
+  // `count` IS THE ASSERTION, not `error`. RLS refusing a DELETE is zero rows and
+  // `{ error: null }` (AGENTS.md §8b), so the response's only moving part is the count — and
+  // the case's own probe reads the row back through the service role to say so independently.
+  {
+    kind: 'write',
+    id: 'raw:election_nomination_supporters DELETE (somebody else\'s nomination)',
+    mod: 'tests/rls/raw/elections.mjs', fn: 'deleteNominationSupport',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.retractRaw.nomination.id, fx.alpha.ownerPersonId],
+    probe: probeSupporters(fx => [fx.alpha.retractRaw.nomination.id]),
+    expectRefusal: v => v?.count === 0
+      ? { ok: true, detail: 'PostgREST deleted 0 rows' }
+      : { ok: false, detail: `expected count 0, got ${JSON.stringify(v)}` },
+    // The control is the NOMINATOR sending the same request for their OWN row — the same
+    // probe, the same two arguments' shape, one of them different. Without it this passes for
+    // a policy that refuses everybody, which is what the previous draft of the DELETE policy
+    // did when its EXISTS named the wrong column.
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.retractRaw.nomination.id, fx.alpha.ownerPersonId],
+  },
   // [crux] A CHAPTER'S ELECTION, TO THE REST OF ITS OWN FAMILY. The single assertion this
   // whole feature turns on, and the only one in the suite that exercises the policy.
   read('raw:elections SELECT (a chapter they are not in)',

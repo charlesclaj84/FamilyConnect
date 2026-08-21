@@ -713,6 +713,32 @@ depends on** (give it its own row — that is what `deletableChild` is for), and
 whose projection **omits the column the control changes**, so a successful write looks
 like a no-op.
 
+### An action that narrows a write by hand hides its own policy from the suite
+
+Added 2026-08-21. **Whenever an action states a filter that duplicates a conjunct of the
+policy underneath it, no action-shaped case can test that conjunct** — the action narrows
+the request before PostgREST ever sees it, so the attack half passes with the policy
+conjunct deleted. Measured twice, from opposite directions:
+
+* `retractNomination` states `.eq('person_id', g.personId)` beside a DELETE policy whose
+  first conjunct is `person_id = auth_person_id()`. That filter is worth keeping — without
+  it the statement asks to remove EVERY supporter of the nomination and is narrowed to one
+  row only by the policy, so a future widening would silently turn the control into "remove
+  everybody's nomination". With the conjunct dropped, **all ten action-shaped retraction
+  assertions stayed green.**
+* `tests/rls/raw/elections.mjs`' own header records the same shape with an APP-LAYER filter
+  rather than a hand-written one: `lib/election-area.ts` filters in TypeScript as well as in
+  SQL, so with `auth_may_see_election()` replaced by `true` the suite reported 649/649.
+
+The answer both times is a **raw probe** — `tests/rls/raw/*.mjs`, driven by `run.mjs` like
+any other module — which sends what the action refuses to send. `rawDelete` and
+`rawInsert` both take no `.select()`, for the reason `raw.mjs` states at length: PostgreSQL
+ANDs the SELECT policy into any statement carrying a RETURNING clause, so a probe with one
+reports a refusal that came from the wrong policy.
+
+So the test is not "does this action have a case" but **"if I delete this conjunct, does
+something go red"** — and where the answer is no, the case belongs in `raw/`.
+
 ## 7b. Arithmetic is tested with `npm test`, not with `tests/rls`
 
 `vitest` runs the pure modules under `lib/`, and its `include` is `lib/**/*.test.ts` as a
@@ -3403,7 +3429,14 @@ The rule is about the size of the list, not about this one component.
 
 ## Known gaps, so nobody reads the above as a description of the tree
 
-* ~~`components/elections/BallotForm.tsx`~~ — **fixed 2026-08-21.** It was a native `<select>`
+* ~~`components/elections/BallotForm.tsx`~~ — **fixed 2026-08-21, and the file was then
+  split.** The nominee picker lives in `components/elections/NominationBoard.tsx` now: that
+  same day the nominations pane was rebuilt around OFFICES, and the two position `<select>`s
+  went with the rebuild rather than being converted — which office you are nominating for is
+  which heading you pressed, so there is no position picker to disambiguate. What follows is
+  kept because it is the argument for the `PersonPicker` that survived the move.
+
+  It was a native `<select>`
   printing `{m.first_name} {m.last_name}`, which made two Martha Allens indistinguishable on a
   ballot — the worst screen in the product for it, which is why this entry led the list. It is
   `PersonPicker` now, and the list it is given is only the members the election's level admits

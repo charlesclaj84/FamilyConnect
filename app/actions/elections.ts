@@ -100,12 +100,45 @@ export interface ElectionPosition {
   sort_order: number
 }
 
+/**
+ * One CANDIDACY: a person standing for one office on one ballot.
+ *
+ * ── THE THREE FIELDS THAT ARRIVED WITH `election_nomination_supporters` ────────────
+ * `20260821000004` split "who is standing" from "who asked them to", because
+ * `election_nominations` could not say *"if more than myself nominated them they remain in
+ * the list"* — it is UNIQUE per (election, position, nominee) with one `nominated_by`, so
+ * retracting could only mean deleting the candidacy out from under everybody else.
+ *
+ * WHAT IS PUBLISHED IS A COUNT AND TWO BOOLEANS, NEVER THE LIST OF NOMINATORS (§5). The
+ * SELECT policy would allow the names — `nominated_by` has been readable by every member
+ * since 20260609000007 and the supporters table keeps that posture — but the screen needs
+ * "you and two others", not who the two are, and a family reading off who nominated whom is
+ * more than was asked for and more than the feature needs. Send the answer, not the rows.
+ */
 export interface ElectionNomination {
   id: string
   position_id: string
   nominee_id: string
   nominee_name: string
   accepted: boolean | null
+  /** How many members put this person forward. 1 for anything a member created. */
+  nominator_count: number
+  /** Whether the CALLER is one of them. */
+  i_nominated: boolean
+  /**
+   * Whether the caller may take their own name off this nomination RIGHT NOW.
+   *
+   * Resolved here and not in the component, for the reason `phase` is: it depends on the
+   * nominations window, which depends on the clock, and reading the clock during render
+   * makes a component's output depend on when it happened to render. It is also the same
+   * rule as `perm:family can retract a nomination` in SQL, and one copy of a rule is the
+   * whole argument — a second one in TSX drifts the first time either changes.
+   *
+   * The policy is still the boundary. A tab left open across the close of nominations shows
+   * a control whose write is refused, which is why `retractNomination` reports rather than
+   * assumes (§8b).
+   */
+  retractable: boolean
 }
 
 export interface ElectionVoteCount {
@@ -388,20 +421,31 @@ export async function getElectionDetail(id: string): Promise<{
   if (!user) return empty
   const familyCode = await getMyFamilyCode(user.id)
 
-  const [electionRes, positionsRes, nominationsRes, places, chapterId, myPerson] = await Promise.all([
-    supabase.from('elections').select(ELECTION_COLUMNS).eq('id', id).maybeSingle(),
-    supabase.from('election_positions').select('*').eq('election_id', id).order('sort_order'),
-    supabase
-      .from('election_nominations')
-      // people!…_nominee_id_fkey: the table also has nominated_by, and a bare
-      // `people(...)` is refused with PGRST201 — silently, since the error is
-      // dropped, leaving every nominee showing as "Unknown".
-      .select('id, position_id, nominee_id, accepted, people!election_nominations_nominee_id_fkey(first_name, last_name)')
-      .eq('election_id', id),
-    familyPlaces(familyCode),
-    myChapterId(user.id, familyCode),
-    getMyPersonId(user.id),
-  ])
+  const [electionRes, positionsRes, nominationsRes, supportersRes, places, chapterId, myPerson] =
+    await Promise.all([
+      supabase.from('elections').select(ELECTION_COLUMNS).eq('id', id).maybeSingle(),
+      supabase.from('election_positions').select('*').eq('election_id', id).order('sort_order'),
+      supabase
+        .from('election_nominations')
+        // people!…_nominee_id_fkey: the table also has nominated_by, and a bare
+        // `people(...)` is refused with PGRST201 — silently, since the error is
+        // dropped, leaving every nominee showing as "Unknown".
+        .select('id, position_id, nominee_id, accepted, people!election_nominations_nominee_id_fkey(first_name, last_name)')
+        .eq('election_id', id),
+      // WHO PUT EACH CANDIDATE FORWARD — read as a flat list on the ELECTION and grouped in
+      // TypeScript, not as an embed. `election_nomination_supporters` is a junction table
+      // with foreign keys to `election_nominations` AND `people`, which is precisely the
+      // shape AGENTS.md §8 warns about: it gives PostgREST a second, many-to-many path
+      // between that pair, so a bare `people(...)` embed anywhere on `election_nominations`
+      // would now answer PGRST201 — that is, `[]` — on a query nobody had edited. Reading
+      // this table on its own `election_id` sidesteps the question entirely, and the two
+      // columns wanted here are ids rather than names.
+      supabase.from('election_nomination_supporters')
+        .select('nomination_id, person_id').eq('election_id', id),
+      familyPlaces(familyCode),
+      myChapterId(user.id, familyCode),
+      getMyPersonId(user.id),
+    ])
 
   const row = electionRes.data as unknown as RawElection | null
   if (!row) return empty
@@ -428,16 +472,50 @@ export async function getElectionDetail(id: string): Promise<{
     for (const v of votes ?? []) myVotes[v.position_id] = v.nominee_id
   }
 
+  const election = mapElection(row, todayLocal(), places)
+
+  // §8: an empty supporter list and a refused read look identical and are very different
+  // facts. The first means nobody has been nominated; the second would silently strip every
+  // retract control off the screen and report "nominated by 0" beside people who are plainly
+  // standing, which reads as the feature being broken rather than as a read having failed.
+  if (supportersRes.error) {
+    console.error(`[elections] supporter read failed for election ${id}: `
+      + supportersRes.error.message
+      + ' — nomination counts and retract controls will be wrong until this is fixed.')
+  }
+
+  // nomination_id -> the people.id of everybody who put that candidate forward.
+  const supporters = new Map<string, Set<string>>()
+  for (const s of (supportersRes.data ?? []) as
+    { nomination_id: string; person_id: string }[]) {
+    const set = supporters.get(s.nomination_id) ?? new Set<string>()
+    set.add(s.person_id)
+    supporters.set(s.nomination_id, set)
+  }
+
+  const nominationsAreOpen = election.phase === 'nominations'
+
   return {
-    election: mapElection(row, todayLocal(), places),
+    election,
     positions: (positionsRes.data ?? []) as ElectionPosition[],
-    nominations: (nominationsRes.data ?? []).map(n => ({
-      id: n.id,
-      position_id: n.position_id,
-      nominee_id: n.nominee_id,
-      nominee_name: nameOf(embedOne<PersonNameRow>(n.people)),
-      accepted: n.accepted,
-    })),
+    nominations: (nominationsRes.data ?? []).map(n => {
+      const mine = Boolean(myPerson && supporters.get(n.id)?.has(myPerson))
+      return {
+        id: n.id,
+        position_id: n.position_id,
+        nominee_id: n.nominee_id,
+        nominee_name: nameOf(embedOne<PersonNameRow>(n.people)),
+        accepted: n.accepted,
+        nominator_count: supporters.get(n.id)?.size ?? 0,
+        i_nominated: mine,
+        // The same three conjuncts `perm:family can retract a nomination` carries, in the
+        // same order. The nominee carve-out is what "withdraw my own nomination" means: a
+        // self-nomination is auto-accepted, so without it the one person guaranteed to be
+        // able to stand could never stand down.
+        retractable: mine && nominationsAreOpen
+          && (n.accepted !== true || n.nominee_id === myPerson),
+      }
+    }),
     myVotes,
   }
 }
@@ -1136,14 +1214,173 @@ export async function submitNomination(
     // Self-nominations are accepted automatically; nominations of others await acceptance.
     accepted: g.personId === nomineeId ? true : null,
   })
+
+  // ── A COLLISION IS A SECOND NOMINATOR, NOT A FAILURE ─────────────────────────────
+  // 23505 is UNIQUE (election_id, position_id, nominee_id): somebody has already put this
+  // person forward for this office. Before `20260821000004` that was the end of the road and
+  // the caller was told "they have already been nominated" — which is true and is not what
+  // they asked for. They asked to nominate them, and a candidacy is one row with MANY
+  // nominators now, so the answer is to add their name to it.
+  //
+  // The candidacy is read by its natural key rather than returned by the failed insert,
+  // because the insert returned nothing: PostgREST answers a conflict with an error, not with
+  // the conflicting row, and `ON CONFLICT` is not reachable through supabase-js's `insert`.
+  //
+  // ADMIN CLIENT FOR THE READ, family-scoped through the election, because the caller may
+  // hold `view` at 'own' — in which case the composed SELECT policy shows them only
+  // candidacies they nominated, and the one they have just collided with would come back
+  // empty. §3 by hand: the election is already verified as this family's above.
+  if (error?.code === '23505') {
+    const { data: existing } = await admin.from('election_nominations')
+      .select('id')
+      .eq('election_id', electionId).eq('position_id', positionId).eq('nominee_id', nomineeId)
+      .maybeSingle()
+    if (!existing) {
+      // The row collided and then could not be found, which means it went away between the
+      // two statements — somebody retracted the last nomination of them. Reported rather
+      // than retried, because a retry loop against a moving row is how a button comes to do
+      // something twice.
+      return {
+        success: false,
+        message: 'That nomination was withdrawn while you were looking at it. Try again.',
+      }
+    }
+    return addNominationSupport(electionId, (existing as { id: string }).id, g.personId)
+  }
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath(`/community/elections/${electionId}`)
+  return { success: true }
+}
+
+/**
+ * Add the caller's name to a candidacy somebody else has already created.
+ *
+ * ── THE USER CLIENT, AND THE POLICY IS THE WHOLE BOUNDARY ──────────────────────────
+ * `perm:family can support a nomination` pins `person_id` to `auth_person_id()`, so a caller
+ * cannot put another member's name on a nomination whatever they send — which is why this
+ * takes no person parameter (§2b: never take an identity as a parameter). It also tests the
+ * nominations window, the caller's own area, and the same create-grant expression the
+ * candidacy's own INSERT policy tests, so there is nothing left for this function to check
+ * that the policy does not.
+ *
+ * NOT EXPORTED. It is reached only through `submitNomination`, which has already established
+ * that the election is this family's and that the caller may act in it. Exporting it would
+ * publish a second endpoint whose only argument is a nomination id — and a `'use server'`
+ * export is a public URL (AGENTS.md §2).
+ *
+ * `personId` IS PASSED IN, from the caller's own `requireMember()` guard, and is never a
+ * client parameter — this function has no URL, so there is nothing for one to arrive through.
+ * The policy pins the column to `auth_person_id()` regardless, so a wrong value here is a
+ * refused write rather than a nomination filed under somebody else's name.
+ */
+async function addNominationSupport(
+  electionId: string,
+  nominationId: string,
+  personId: string | null,
+): Promise<{ success: boolean; message?: string }> {
+  // `election_nomination_supporters.person_id` is NOT NULL, and `requireMember()` types
+  // `personId` as nullable because a caller can in principle hold a membership with no
+  // person row. Checked rather than asserted, the way `castVote` does it: the alternative is
+  // a 23502 for a message.
+  if (!personId) return { success: false, message: 'Profile not found' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('election_nomination_supporters').insert({
+    nomination_id: nominationId,
+    election_id: electionId,
+    person_id: personId,
+  })
   if (error) {
-    // 23505 is the UNIQUE (election_id, position_id, nominee_id) — an ordinary collision
-    // rather than a failure, and "duplicate key value violates..." is not a sentence.
+    // 23505 here is the supporters PRIMARY KEY (nomination_id, person_id) — the caller has
+    // already nominated this person for this office. An ordinary collision, and the one
+    // message in this function that is not about a refusal.
     if (error.code === '23505') {
-      return { success: false, message: 'They have already been nominated for that position.' }
+      return { success: false, message: 'You have already nominated them for that position.' }
+    }
+    // 42501 is the INSERT policy refusing. The most likely reasons, in order: nominations
+    // closed since the page rendered, or the caller is not in this election's part of the
+    // family. Neither is worth guessing at from an error code, so the sentence says what is
+    // certain and the phase banner on the screen says the rest.
+    if (error.code === '42501') {
+      return {
+        success: false,
+        message: 'That nomination was refused — nominations may have closed, or this election '
+          + 'may not be for your part of the family. Reload the page to see where it stands.',
+      }
     }
     return { success: false, message: error.message }
   }
+  revalidatePath(`/community/elections/${electionId}`)
+  return { success: true }
+}
+
+/**
+ * Take the caller's own name off a nomination.
+ *
+ * ── ONE RULE, AND THE POLICY IS WHERE IT LIVES ─────────────────────────────────────
+ * *You may retract a nomination you made. Not one somebody else made, and not one the nominee
+ * has already accepted — unless the nominee is you.* All three conjuncts are in
+ * `perm:family can retract a nomination` (`20260821000004` §4c), which is why this function
+ * checks none of them: it would be a second copy of a rule that is already enforced, and the
+ * copy is what drifts.
+ *
+ * WHAT IT DOES OWE IS §4 AND §8b. `nominationId` arrives from the client and
+ * `election_nomination_supporters` carries no `family_code` of its own, so the election is
+ * what scopes it — the same shape as `getElectionResults`' check on `election_votes`. And a
+ * DELETE that matches zero rows is `{ error: null }` (AGENTS.md §8b), which on this control is
+ * the worst possible lie: the member is told their name is off a nomination that still carries
+ * it, and the ballot goes to a vote saying they asked for this candidate. `confirmWrite` is
+ * exactly the mechanism for that — an UPDATE-or-DELETE relying on RLS to narrow.
+ *
+ * THE CANDIDACY MAY GO WITH IT, and that is a trigger rather than a second statement here.
+ * `election_nomination_supporters_drop_orphan` deletes the nomination when its last supporter
+ * leaves, so "if more than myself nominated them they remain in the list" and its converse are
+ * one invariant in the database instead of a branch in this function that two members
+ * retracting at once could race.
+ */
+export async function retractNomination(
+  nominationId: string,
+  electionId: string,
+): Promise<{ success: boolean; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+
+  if (!(await belongsToFamily('elections', electionId, g.familyCode))) {
+    return { success: false, message: 'Election not found' }
+  }
+
+  // The nomination has to be ON that election. Without this, `nominationId` is any id in the
+  // product and `electionId` is only a family the caller belongs to — so the pair would pass
+  // §4 while naming a nomination in somebody else's family. The policy would still refuse the
+  // delete (`person_id = auth_person_id()` cannot match a stranger's supporter row), so this
+  // is the message rather than the boundary — and it is also what stops a successful-looking
+  // no-op being reported as a refusal the caller cannot act on.
+  const { data: nomination } = await createAdminClient()
+    .from('election_nominations').select('id')
+    .eq('id', nominationId).eq('election_id', electionId).maybeSingle()
+  if (!nomination) return { success: false, message: 'That nomination is not on this ballot.' }
+
+  const supabase = await createClient()
+  const outcome = await confirmWrite(() => supabase
+    .from('election_nomination_supporters')
+    .delete()
+    .eq('nomination_id', nominationId)
+    // `person_id` is stated as well, though the DELETE policy pins it: without it the
+    // statement ASKS to delete every supporter of this nomination and is narrowed to one row
+    // only by the policy — so a future widening of that policy would silently turn this
+    // control into "remove everybody's nomination".
+    .eq('person_id', g.personId ?? '')
+    .select('nomination_id'))
+  if (!outcome.ok) {
+    return {
+      success: false,
+      message: 'That could not be withdrawn. Nominations may have closed, or the person may '
+        + 'have accepted since this page loaded — an accepted nomination stays on the ballot, '
+        + 'and the way off it is for them to decline.',
+    }
+  }
+
   revalidatePath(`/community/elections/${electionId}`)
   return { success: true }
 }

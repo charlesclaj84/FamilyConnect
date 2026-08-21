@@ -78,6 +78,32 @@ export async function rawInsert(table, row) {
   return { data: null, error: error ?? null, status }
 }
 
+/**
+ * DELETE by an arbitrary column filter, as the current actor.
+ *
+ * BY FILTER RATHER THAN BY ID, because the tables worth reaching this way do not all have
+ * one: `election_nomination_supporters` is keyed (nomination_id, person_id) and has no `id`
+ * column at all.
+ *
+ * NO `.select()`, for `rawInsert`'s stated reason applied to the other verb. PostgreSQL ANDs
+ * the SELECT policy into any statement carrying a RETURNING clause, and supabase-js's
+ * `.select()` is what adds one — so on a table whose SELECT policy is narrower than its
+ * DELETE policy, a probe with `.select()` reports a refusal that came from the wrong policy
+ * and the case is not evidence for the conjunct it names. The row's fate is judged by the
+ * case's `probe`, which reads through the SERVICE ROLE and sees past every policy.
+ *
+ * `count: 'exact'` is what makes a refusal distinguishable from a match of nothing: RLS
+ * refusing a DELETE is zero rows and `{ error: null }` (AGENTS.md §8b), so `count` is the
+ * only thing in the response that moves.
+ */
+export async function rawDelete(table, filter) {
+  const supabase = await createClient()
+  let q = supabase.from(table).delete({ count: 'exact' })
+  for (const [col, val] of Object.entries(filter)) q = q.eq(col, val)
+  const { error, count, status } = await q
+  return { error: error ?? null, count: count ?? 0, status }
+}
+
 /** UPDATE by id, as the current actor. Used to reach a guard TRIGGER rather than a policy. */
 export async function rawUpdate(table, id, patch) {
   const supabase = await createClient()

@@ -1133,6 +1133,80 @@ export async function seed() {
       election_id: f.nominationElection.id, title: 'Secretary', max_winners: 1,
     }).select().single())
 
+    // ── FIVE MORE OFFICES ON THAT ELECTION, ONE PER RETRACTION CASE ────────────────
+    // `retractNomination`'s positive control DELETES a supporter row, and the last supporter
+    // leaving takes the candidacy with it (`election_nomination_supporters_drop_orphan`,
+    // 20260821000004 §3b). So the retraction cases cannot share one row: that is AGENTS.md
+    // §7's warning about "a case whose positive control mutates a row a later case depends
+    // on", and `deletableChild` is the precedent for giving each its own.
+    //
+    // THEY ARE SEPARATE OFFICES RATHER THAN SEPARATE NOMINATIONS, because
+    // UNIQUE (election_id, position_id, nominee_id) is exactly the thing that forbids three
+    // nominations of one person for one office — which is the constraint the supporters table
+    // exists to work around, so the fixture cannot pretend otherwise.
+    //
+    // NO SUPPORTER ROWS ARE INSERTED HERE. `election_nominations_seed_supporter` writes one
+    // from `nominated_by` on every insert, service role included, so the fixture states the
+    // nominator once and the supporter row follows. A fixture that wrote both by hand would
+    // pass with that trigger deleted, which is the whole thing the migration's §9 is about.
+    const nominateOn = async (title, nomineeId, accepted) => {
+      const position = must(`position ${title}`, await db.from('election_positions').insert({
+        election_id: f.nominationElection.id, title, max_winners: 1,
+      }).select().single())
+      const nomination = must(`nomination for ${title}`,
+        await db.from('election_nominations').insert({
+          election_id: f.nominationElection.id, position_id: position.id,
+          nominee_id: nomineeId, nominated_by: owner.personId, accepted,
+        }).select().single())
+      return { position, nomination }
+    }
+
+    // Three interchangeable candidacies, `owner` the nominator and `other` the nominee, each
+    // consumed by one retraction case's control.
+    f.retractCross   = await nominateOn('Treasurer', other.personId, null)
+    f.retractOutsider = await nominateOn('Historian', other.personId, null)
+    f.retractPending = await nominateOn('Parliamentarian', other.personId, null)
+
+    // ACCEPTED, which is what blocks the nominator from retracting it — and, on the SAME
+    // office, `owner`'s own accepted self-nomination, which the carve-out says they may still
+    // withdraw. Two nominees on one position, so the unique constraint is satisfied and the
+    // attack and the control differ in exactly one thing: whether the caller is the nominee.
+    f.retractAccepted = await nominateOn('Chaplain', other.personId, true)
+    f.retractOwnSelf = must('self nomination', await db.from('election_nominations').insert({
+      election_id: f.nominationElection.id, position_id: f.retractAccepted.position.id,
+      nominee_id: owner.personId, nominated_by: owner.personId, accepted: true,
+    }).select().single())
+
+    // A candidacy for the SECOND-NOMINATOR path: `submitNomination` turns the UNIQUE
+    // collision into a supporter row rather than reporting "already nominated". Nominee is
+    // `owner` so that `other` can second it without being the nominee themselves.
+    f.retractSecond = await nominateOn('Sergeant at Arms', owner.personId, null)
+
+    // And one for the RAW probe, which attacks the DELETE policy's `person_id` pin directly.
+    // Its own row for the same reason as the four above: the raw case's positive control
+    // deletes the supporter row and the candidacy goes with it.
+    f.retractRaw = await nominateOn('Recording Secretary', other.personId, null)
+
+    // ── AND ONE ON THE ELECTION WHOSE NOMINATIONS HAVE CLOSED ─────────────────────
+    // `f.election`'s nominations closed ten days ago and its poll is open now, so this is the
+    // only row in the fixture the DELETE policy's window conjunct can be tested against.
+    //
+    // IT IS DELIBERATELY *NOT ACCEPTED*, and that is the whole point of it existing beside
+    // `f.nomination`, which is. Found by a mutation: aiming the case at `f.nomination` passed
+    // with the window conjunct deleted, because that row is accepted and nominated by
+    // somebody who is not the nominee — so the ACCEPTANCE conjunct was refusing it and the
+    // window was never consulted. A case has to be refused by ONE thing to be evidence about
+    // that thing.
+    const closedPosition = must('closed-window position',
+      await db.from('election_positions').insert({
+        election_id: f.election.id, title: 'Assistant Treasurer', max_winners: 1,
+      }).select().single())
+    f.retractClosed = must('closed-window nomination',
+      await db.from('election_nominations').insert({
+        election_id: f.election.id, position_id: closedPosition.id,
+        nominee_id: other.personId, nominated_by: owner.personId, accepted: null,
+      }).select().single())
+
     // ── AND ONE SCOPED TO A CHAPTER, WHICH IS WHAT MAKES THE AREA RULE TESTABLE ────
     // The area boundary is a rule INSIDE one family, and this suite's attack is normally
     // cross-family — so it needs an attacker and a control who are both in ALPHA and differ

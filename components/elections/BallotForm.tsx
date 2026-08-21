@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
+import { Vote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
-import { PersonPicker } from '@/components/ui/person-picker'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
+import { NominationBoard } from '@/components/elections/NominationBoard'
 import {
-  castVote, submitNomination, respondToNomination,
+  castVote, respondToNomination,
   type Election, type ElectionPosition, type ElectionNomination, type ElectionNominee,
 } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
@@ -29,16 +28,23 @@ import { nominationsOpen, votingOpen } from '@/lib/election-phase'
  * `election_window_open()` in SQL is the boundary: a stale screen can offer a control, and the
  * write behind it is refused all the same.
  *
- * ── THE NOMINEE PICKER IS `PersonPicker` NOW ───────────────────────────────────────
- * It was a native `<select>` printing `{first_name} {last_name}`, and AGENTS.md listed this
- * file by name under "Known gaps" for it: two Martha Allens were indistinguishable on a
- * ballot, which is the worst screen in the product for that. `PersonPicker` searches any part
- * of any name, accent- and punctuation-insensitively, and disambiguates against the whole
- * list — and the list itself is now only the people who may actually be nominated in this
- * election, resolved server-side by `getElectionNomineeOptions`.
+ * ── WHAT THIS FILE IS, AFTER THE 2026-08-21 REBUILD ────────────────────────────────
+ * It is the SHELL: the three things a nominee or a voter is told, and the two panes they act
+ * in. The nominations pane moved out to `NominationBoard`, which is organised by office; what
+ * stays here is voting, the pending-nomination answers, and the phase banners.
  *
- * The POSITION pickers stay native `<select>`s, deliberately: an election has a handful of
- * offices, they are not people, and a search box over four options is furniture.
+ * Splitting it was not tidying. The nominations half used to be three controls in a column —
+ * a self-nomination form with its own position `<select>`, a nominate-somebody-else form with
+ * a second one, and a read-only candidate list under both — so choosing an office happened
+ * twice and the list of people standing could not be acted on at all. That is now one pane
+ * with the office as the heading, and it needs a dialog, its own two error slots and a
+ * per-row rule about who may retract what. In one file with the voting pane it read as two
+ * screens sharing a `useState`.
+ *
+ * The NOMINEE PICKER went with it. It is `PersonPicker` — AGENTS.md listed this file by name
+ * under "Known gaps" when it was a native `<select>` printing `{first_name} {last_name}`,
+ * because two Martha Allens were indistinguishable on a ballot. There is no POSITION picker
+ * anywhere any more: which office you are nominating for is which heading you pressed.
  */
 
 interface Props {
@@ -57,9 +63,6 @@ export function BallotForm({
 }: Props) {
   const confirm = useConfirm()
   const [votes, setVotes] = useState<Record<string, string>>(myVotes)
-  const [nomineeId, setNomineeId] = useState('')
-  const [nominatingPositionId, setNominatingPositionId] = useState('')
-  const [selfPositionId, setSelfPositionId] = useState('')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -95,26 +98,6 @@ export function BallotForm({
     })
   }
 
-  function handleNominate() {
-    if (!nomineeId || !nominatingPositionId) { setError('Select a position and a nominee.'); return }
-    setError('')
-    startTransition(async () => {
-      const result = await submitNomination(election.id, nominatingPositionId, nomineeId)
-      if (!result.success) setError(result.message ?? 'Could not submit that nomination.')
-      else { setNomineeId(''); setNominatingPositionId('') }
-    })
-  }
-
-  function handleSelfNominate() {
-    if (!myPersonId || !selfPositionId) { setError('Select a position.'); return }
-    setError('')
-    startTransition(async () => {
-      const result = await submitNomination(election.id, selfPositionId, myPersonId)
-      if (!result.success) setError(result.message ?? 'Could not submit that nomination.')
-      else setSelfPositionId('')
-    })
-  }
-
   async function handleRespond(nominationId: string, accepted: boolean) {
     const nomination = myNominations.find(n => n.id === nominationId)
     const position = positions.find(p => p.id === nomination?.position_id)
@@ -132,8 +115,6 @@ export function BallotForm({
   }
 
   const pendingMyNominations = myNominations.filter(n => n.accepted === null)
-  const myNominatedPositionIds = new Set(myNominations.map(n => n.position_id))
-  const unNominatedPositions = positions.filter(p => !myNominatedPositionIds.has(p.id))
 
   return (
     <div className="space-y-8">
@@ -157,94 +138,19 @@ export function BallotForm({
       )}
 
       {/* ── Nominations ───────────────────────────────────────────────────── */}
+      {/* ONE PANE, ORGANISED BY OFFICE. What was here — a self-nomination form, a
+          nominate-somebody form and a read-only candidate list, each with its own position
+          `<select>` — is `NominationBoard`, and the replacement is not a re-skin: the list is
+          now the thing you act on, and taking your own name off a nomination is a control on
+          the row rather than something no screen offered at all. */}
       {canNominate && (
-        <div className="space-y-6">
-          {/* Self-nominate */}
-          {myPersonId && unNominatedPositions.length > 0 && (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-primary" />
-                <p className="text-sm font-semibold">Put Yourself on the Ballot</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Select
-                  value={selfPositionId}
-                  onChange={e => setSelfPositionId(e.target.value)}
-                  aria-label="Position to nominate yourself for"
-                  className="flex-1"
-                >
-                  <option value="">— Select position —</option>
-                  {unNominatedPositions.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </Select>
-                <Button size="sm" onClick={handleSelfNominate} disabled={isPending || !selfPositionId}>
-                  Nominate Myself
-                </Button>
-              </div>
-              {myNominations.length > 0 && (
-                <p className="text-xs text-primary">
-                  Already nominated for: {myNominations.map(n => positions.find(p => p.id === n.position_id)?.title).filter(Boolean).join(', ')}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Nominate someone else */}
-          <div className="space-y-3">
-            <h2 className="font-semibold text-sm">Nominate Someone Else</h2>
-            <Select
-              value={nominatingPositionId}
-              onChange={e => setNominatingPositionId(e.target.value)}
-              aria-label="Position to nominate somebody for"
-            >
-              <option value="">— Select position —</option>
-              {positions.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </Select>
-            <PersonPicker
-              people={nominees}
-              value={nomineeId}
-              onChange={setNomineeId}
-              label="Nominee"
-              hint={election.scope === 'national'
-                ? 'Anybody in the family may be nominated.'
-                : `Only ${election.scope_label} may be nominated in this election.`}
-              emptyMessage={`Nobody in ${election.scope_label} can be nominated yet.`}
-            />
-            <Button size="sm" onClick={handleNominate}
-              disabled={isPending || !nomineeId || !nominatingPositionId}>
-              Submit nomination
-            </Button>
-          </div>
-
-          <FormError message={error} />
-
-          {/* Current candidates per position (accepted + pending acceptance) */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground">Current Candidates</h3>
-            {positions.map(pos => {
-              const posNoms = nominations.filter(n => n.position_id === pos.id && n.accepted !== false)
-              return (
-                <div key={pos.id} className="space-y-1.5">
-                  <p className="text-sm font-medium">{pos.title}</p>
-                  {posNoms.length === 0 ? (
-                    <p className="text-xs text-muted-foreground pl-2">No nominations yet.</p>
-                  ) : (
-                    <ul className="space-y-1 pl-2">
-                      {posNoms.map(n => (
-                        <li key={n.id} className="text-sm text-muted-foreground flex items-center gap-1.5">
-                          {n.accepted === true
-                            ? <CheckCircle className="h-3.5 w-3.5 text-brand-affirm shrink-0" />
-                            : <Clock className="h-3.5 w-3.5 text-brand-accent shrink-0" />}
-                          {n.nominee_name}
-                          {n.accepted === null && <span className="text-xs text-brand-accent">(pending acceptance)</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <NominationBoard
+          election={election}
+          positions={positions}
+          nominations={nominations}
+          nominees={nominees}
+          myPersonId={myPersonId}
+        />
       )}
 
       {/* ── Voting ────────────────────────────────────────────────────────── */}
