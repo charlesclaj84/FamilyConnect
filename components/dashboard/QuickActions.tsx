@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
-import { ACCENT_CHIP, QUICK_ACTION_META, type QuickActionId } from '@/components/dashboard/tiles'
+import {
+  ACCENT_CHIP, QUICK_ACTION_META, type ResolvedQuickAction,
+} from '@/components/dashboard/tiles'
 
 /**
  * The Golden Master's Quick Actions strip — round accent chips over a caption.
@@ -41,7 +43,18 @@ import { ACCENT_CHIP, QUICK_ACTION_META, type QuickActionId } from '@/components
  * thing this differs from the My Families row in, and it differs because there is only
  * one family in view here.
  */
-export function QuickActions({ actions }: { actions: QuickActionId[] }) {
+/**
+ * ── `actions` CARRIES OVERRIDES NOW, since 2026-08-21 ──────────────────────────────
+ * It was `QuickActionId[]`. The election entry has neither a fixed caption nor a fixed
+ * destination — it says "Nominate" or "Vote" depending on which window is open, and it points
+ * at one particular ballot — so the page resolves both and passes them through. Every other
+ * entry is `{ id }` and falls through to `QUICK_ACTION_META` exactly as before.
+ *
+ * The overrides are read with `??`, so a missing one degrades to the table's value rather than
+ * to `undefined`. An `undefined` href on a `<Link>` is a runtime error, and the Dashboard has
+ * already been taken down once by exactly that (see `ROUTE_OVERRIDE` in tiles.ts).
+ */
+export function QuickActions({ actions }: { actions: ResolvedQuickAction[] }) {
   if (actions.length === 0) return null
 
   return (
@@ -51,9 +64,11 @@ export function QuickActions({ actions }: { actions: QuickActionId[] }) {
           buttons is between one and three today and will grow to six as features ship,
           and this reflows for any of those without a breakpoint per case. */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
-        {actions.map(id => {
+        {actions.map(({ id, label, href }) => {
           const meta = QUICK_ACTION_META[id]
           const Icon = meta.icon
+          const caption = label ?? meta.label
+          const destination = href ?? meta.href
           // ONE SET OF TILE MARKUP for both shapes. The anchor and the button differ in
           // the element and in nothing else, so the face of the tile is built once —
           // otherwise the day somebody restyles the chip, half the row changes.
@@ -62,7 +77,7 @@ export function QuickActions({ actions }: { actions: QuickActionId[] }) {
               <span className={`flex h-11 w-11 items-center justify-center rounded-full ${ACCENT_CHIP[meta.accent]}`}>
                 <Icon className="h-5 w-5" />
               </span>
-              {meta.label}
+              {caption}
             </>
           )
           const tile =
@@ -83,7 +98,7 @@ export function QuickActions({ actions }: { actions: QuickActionId[] }) {
           }
 
           return (
-            <Link key={id} href={meta.href} className={tile}>
+            <Link key={id} href={destination} className={tile}>
               {face}
             </Link>
           )

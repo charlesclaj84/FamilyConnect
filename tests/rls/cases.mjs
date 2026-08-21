@@ -952,6 +952,31 @@ export const CASES = [
       expectPositive: (r, fx) => Array.isArray(r)
         && r.some(e => e.id === fx.alpha.chapterElection.id),
     }),
+  // ── THE DASHBOARD'S ELECTION CHIP ─────────────────────────────────────────
+  // `getMyActionableElection` reuses `getElectionsForMember`, so the area rule and the draft
+  // exclusion are the same code — and that is exactly why it needs its own case rather than
+  // resting on the ones above. What it adds is a NARROWING (only the two phases a member can
+  // act in) and a CHOICE (the one closing soonest), and a bug in either would publish the
+  // title and id of a ballot on a screen that gates nothing about elections.
+  //
+  // THE ATTACK IS THE ORDINARY CROSS-FAMILY ONE. BRAVO's administrator gets their own family's
+  // answer, which is legitimate, so the assertion is on ALPHA's specific ids — the shape every
+  // read case here uses.
+  //
+  // THE CONTROL IS WHAT MAKES IT EVIDENCE, and it is not trivially satisfied: the fixture's
+  // `nominationElection` is the only one of ALPHA's four whose NOMINATIONS window contains
+  // today, and `f.election` is in its voting window — so a caller entitled to both must get
+  // one of the two and never a third. Without the control this would pass for a function that
+  // answers null to everybody, which is what a wrong phase filter would produce.
+  read('elections.getMyActionableElection',
+    'app/actions/elections.ts', 'getMyActionableElection', {
+      expectPositive: (r, fx) =>
+        r != null && (r.id === fx.alpha.nominationElection.id || r.id === fx.alpha.election.id)
+        // AND the phase is one of the two a member can act in, which is the narrowing this
+        // case exists for. A function that returned a `scheduled` election would satisfy the
+        // id assertion above and be wrong.
+        && (r.phase === 'nominations' || r.phase === 'voting'),
+    }),
   read('elections.getElectionDetail (a chapter election they are not in)',
     'app/actions/elections.ts', 'getElectionDetail', {
       args: fx => [fx.alpha.chapterElection.id],

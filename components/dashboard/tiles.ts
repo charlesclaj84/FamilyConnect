@@ -1,5 +1,5 @@
 import {
-  UsersRound, HandCoins, UserPlus, MessageCircle, ClipboardCheck, CalendarDays,
+  UsersRound, HandCoins, UserPlus, MessageCircle, ClipboardCheck, CalendarDays, Vote,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -165,7 +165,23 @@ export interface ResolvedTile {
  * card already refuses to draw for a missing grant.
  */
 export type QuickActionId =
-  | 'add-member' | 'record-payment' | 'send-message' | 'my-gathering-tasks'
+  | 'add-member' | 'record-payment' | 'send-message' | 'my-gathering-tasks' | 'election'
+
+/**
+ * A quick action with whatever about it could not be stated in the table below.
+ *
+ * THE SHAPE `ResolvedTile` ALREADY HAS, for the same reason: a tile's VALUE is a number the
+ * page had to fetch, and an election's caption and destination are two things the page had to
+ * resolve. Everything else still comes from `QUICK_ACTION_META`, so this is an override and
+ * not a second table — an entry with neither field is exactly what the other four are.
+ */
+export interface ResolvedQuickAction {
+  id: QuickActionId
+  /** Overrides `QUICK_ACTION_META[id].label`. */
+  label?: string
+  /** Overrides `QUICK_ACTION_META[id].href`. */
+  href?: string
+}
 
 export interface QuickActionMeta {
   label: string
@@ -186,6 +202,35 @@ export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
   // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
   // that goes through a redirect is a Back button that walks through one.
   'my-gathering-tasks': { label: 'My Tasks', href: '/gatherings?pane=my-tasks', accent: 'legacy', icon: ClipboardCheck },
+  // ── THE ONLY ENTRY WHOSE LABEL AND HREF ARE BOTH PLACEHOLDERS ──────────────────────
+  // Added 2026-08-21. The page overrides both through `ResolvedQuickAction`, because an
+  // election's caption is what there is to DO in it — "Nominate" or "Vote" — and its
+  // destination is one particular ballot. What is written here is the fallback and the
+  // ACCENT, which is not dynamic.
+  //
+  // The values are not arbitrary even so: they are what the button would say if the override
+  // were ever dropped, so the failure mode is a correct link with a vaguer caption rather
+  // than a broken one. That is the `ROUTE_OVERRIDE` lesson — an entry resolving to
+  // `undefined` took the whole Dashboard down once.
+  'election': { label: 'Elections', href: '/community/elections', accent: 'primary', icon: Vote },
+}
+
+/**
+ * What an election open for business asks the reader to do.
+ *
+ * Captions live in this file rather than in the action that resolves the phase, for the reason
+ * `TILE_META`'s header gives: a caption comes from the SCREEN, and this table is where the
+ * Dashboard's captions are decided. The phase itself is derived server-side by
+ * `lib/election-phase.ts` and is never recomputed in a component.
+ *
+ * THE TWO PHASES NOT LISTED ARE THE POINT. `scheduled` and `between` are elections a member
+ * can SEE and cannot ACT in, and Quick Actions is "what should I do now" rather than a
+ * destination list — the same argument `my-gathering-tasks` is written on. A chip reading
+ * "Vote" eleven days before the poll opens is a button that does nothing.
+ */
+export const ELECTION_ACTION_LABEL: Record<'nominations' | 'voting', string> = {
+  nominations: 'Nominate',
+  voting: 'Vote',
 }
 
 /**
@@ -215,6 +260,15 @@ export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; actio
   // hide the button from every member the tasks are actually for. The real question is whether
   // this member may reach the screen at all, which is exactly what `view` on that key answers.
   'my-gathering-tasks': { resource: 'gatherings/my-tasks',     action: 'view' },
+  // `view`, and the same argument as `send-message` verbatim: nominating and voting are
+  // self-service — every member of the election's area may do both by definition — and
+  // `create` defaults to scope 'none' (AGENTS.md §2), so demanding one would hide the button
+  // from the whole family. The real question is whether this member may reach the screen.
+  //
+  // WHAT BOUNDS IT IS NOT A GRANT. The election's LEVEL decides who may take part, and
+  // `getMyActionableElection` resolves that through `getElectionsForMember` — so a member of
+  // no chapter is never offered a chapter's ballot, whatever this key says.
+  'election':        { resource: 'community/elections',        action: 'view' },
 }
 
 /**

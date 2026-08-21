@@ -1207,6 +1207,30 @@ export async function seed() {
         nominee_id: other.personId, nominated_by: owner.personId, accepted: null,
       }).select().single())
 
+    // ── A NATIONAL ELECTION THAT HAS NOT OPENED YET, CLOSING SOONER THAN EITHER ────
+    // For `getMyActionableElection`, which narrows to the two phases a member can ACT in and
+    // then picks the one closing soonest. Its case was insensitive to the phase filter without
+    // this row: ALPHA's only other in-area elections are both actionable, so dropping the
+    // filter changed nothing and the mutation check reported a pass over a function that would
+    // have offered a "Vote" button eleven days before the poll opened.
+    //
+    // The dates are chosen so this sorts FIRST — nominations close in four days, against ten
+    // and twenty-five for the two actionable ones — which is what makes the assertion bite: a
+    // function that forgets the phase filter returns THIS row, and `phase` is 'scheduled'.
+    //
+    // NATIONAL, so `alphaMember` (in no chapter) is in its area. A scoped one would be
+    // filtered out for the actor the case uses and prove nothing.
+    f.unopenedElection = must('unopened election', await db.from('elections').insert({
+      family_code: code, title: `${code} unopened election`, status: 'published',
+      nominations_open_on: inDays(2), nominations_close_on: inDays(4),
+      voting_open_on: inDays(6), voting_close_on: inDays(8),
+      created_by: owner.personId,
+    }).select().single())
+
+    must('unopened election position', await db.from('election_positions').insert({
+      election_id: f.unopenedElection.id, title: 'Assistant Secretary', max_winners: 1,
+    }).select().single())
+
     // ── AND ONE SCOPED TO A CHAPTER, WHICH IS WHAT MAKES THE AREA RULE TESTABLE ────
     // The area boundary is a rule INSIDE one family, and this suite's attack is normally
     // cross-family — so it needs an attacker and a control who are both in ALPHA and differ

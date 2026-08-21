@@ -375,7 +375,12 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Quick Actions',
             blocks: [
               p('Shortcuts to the things people do most — add a member, record a payment, send a message. A button appears only if you may do the thing it names, so an empty Quick Actions panel is not a fault.'),
-              p('**My Tasks** is the exception and is the only button here that is not about a permission. It appears when a gathering task is actually waiting on you, leads straight to it, and goes away when there is nothing left — see [My Gathering Tasks](/help/gathering-tasks#what-it-is). Everything else on the row is a job you MAY do; this is one you have been asked to.'),
+              p('**Two of the buttons are not about a permission at all.** They appear when there is something waiting on you and go away when there is not — everything else on the row is a job you MAY do, and these are ones you have been asked to.'),
+              defs(
+                { term: 'My Tasks', text: 'A gathering task is waiting on your answer. Leads straight to it. See My Gathering Tasks.' },
+                { term: 'Nominate / Vote', text: 'An election you can take part in is open right now, and the caption says which of the two it wants. It leads to that ballot rather than to the list, and if two are open at once it offers the one closing soonest.' },
+              ),
+              p('An election appears here only while its nominations or its voting window is open. One that has not opened yet, or one waiting between the two windows, is on [Elections](/community/elections) and is not a job — so it is not offered as one. See [Elections](/help/elections#the-dates).'),
             ],
           },
           {

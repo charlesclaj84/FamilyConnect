@@ -325,6 +325,76 @@ export async function getElectionsForMember(): Promise<Election[]> {
 }
 
 /**
+ * The one election on the Dashboard's Quick Actions strip, or null.
+ *
+ * ── IT IS A PROMPT, SO IT ONLY EXISTS WHEN THERE IS SOMETHING TO DO ────────────────
+ * Phase `nominations` or `voting`, and nothing else. An election that has not opened and one
+ * sitting between its two windows are both visible on `/community/elections` and neither is a
+ * job — Quick Actions is "what should I do now", which is the argument
+ * `my-gathering-tasks` is written on and the reason a chip reading "Vote" eleven days before
+ * the poll opens would be a control that does nothing.
+ *
+ * ── THE MOST URGENT ONE, WHICH IS THE ONE CLOSING SOONEST ──────────────────────────
+ * A family can legitimately be running several at once — a national ballot and a chapter's —
+ * and the strip has room for one. Ordering by the CURRENT window's closing date rather than by
+ * phase is what makes that choice defensible: it is the one the member runs out of time on
+ * first, whichever kind of thing it is asking for. Ties break on the title so the answer is
+ * stable across renders rather than depending on row order.
+ *
+ * ── IT REUSES `getElectionsForMember`, DELIBERATELY ────────────────────────────────
+ * That function is where the area rule, the draft exclusion and the phase derivation all live,
+ * and re-deriving any of them here would be a second answer to "which elections are this
+ * member's" — the failure `lib/election-area.ts` exists to prevent. The cost is reading the
+ * whole list to return one row, which for a family running single digits of elections is not a
+ * cost.
+ *
+ * ── AND IT CHECKS THE GRANT ITSELF ────────────────────────────────────────────────
+ * `getElectionsForMember` does not — it is called by a page that has already resolved
+ * `requireView`, and RLS narrows what it returns. This one is called by the DASHBOARD, which
+ * gates nothing about elections, so the check belongs here (AGENTS.md §2: an action that
+ * trusts the page protecting it is unprotected). The Dashboard ALSO resolves the same grant
+ * before calling, which is §5 rather than duplication — the point there is not to run the
+ * query at all.
+ */
+export interface ActionableElection {
+  id: string
+  title: string
+  scope_label: string
+  /** Only ever the two phases a member can act in. Narrower than `ElectionPhase` on purpose. */
+  phase: 'nominations' | 'voting'
+  /** The last day to act, which is what the caption underneath can say. */
+  closes_on: string | null
+}
+
+export async function getMyActionableElection(): Promise<ActionableElection | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  if (!(await can(user.id, 'community/elections', 'view'))) return null
+
+  const open = (await getElectionsForMember())
+    .filter((e): e is Election & { phase: 'nominations' | 'voting' } =>
+      e.phase === 'nominations' || e.phase === 'voting')
+    .map(e => ({
+      id: e.id,
+      title: e.title,
+      scope_label: e.scope_label,
+      phase: e.phase,
+      closes_on: e.phase === 'nominations' ? e.nominations_close_on : e.voting_close_on,
+    }))
+
+  if (!open.length) return null
+
+  // A null closing date sorts LAST rather than first. It should not be reachable — a published
+  // election has all four dates (`elections_published_has_windows`) and an unpublished one is
+  // not in this list at all — but `''` sorts before every real date, so getting it backwards
+  // would put an impossible row ahead of a real deadline.
+  return open.sort((a, b) =>
+    (a.closes_on ?? '9999-12-31').localeCompare(b.closes_on ?? '9999-12-31')
+    || a.title.localeCompare(b.title))[0]
+}
+
+/**
  * One election as the organizer's screen needs it: its ballot, and what has happened on it.
  *
  * ── THE TWO COUNTS ARE NOT DECORATION ──────────────────────────────────────────────

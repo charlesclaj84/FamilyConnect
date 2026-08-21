@@ -27,12 +27,14 @@ import { getFamilyTreeSummary } from '@/app/actions/family-tree'
 import {
   getPremierGathering, getUpcomingGatheringCount, getMyGatheringTaskCount,
 } from '@/app/actions/gatherings'
+import { getMyActionableElection } from '@/app/actions/elections'
 import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
   TILE_RESOURCE, QUICK_ACTION_GRANT, routeForGrant, DUES_COLLECTED_RESOURCE,
-  type ResolvedTile, type QuickActionId,
+  ELECTION_ACTION_LABEL,
+  type ResolvedTile, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
 
@@ -153,7 +155,7 @@ export default async function DashboardPage() {
   const [
     canViewMembers, canAddMember, canRecordPayment, canSendMessage, canViewTree,
     canViewDonations, canViewGatherings, canViewCalendar, mayViewUpdates,
-    canViewMyTasks, canViewDuesCollected,
+    canViewMyTasks, canViewDuesCollected, canViewElections,
   ] = await Promise.all([
     isFeatureLive(routeForGrant(TILE_RESOURCE.members[0]))
       ? can(user.id, TILE_RESOURCE.members[0], 'view')
@@ -231,6 +233,18 @@ export default async function DashboardPage() {
       DUES_COLLECTED_RESOURCE.map(key =>
         isFeatureLive(routeForGrant(key)) ? can(user.id, key, 'view') : false),
     ).then(answers => answers.some(Boolean)),
+    // THE ELECTION QUICK ACTION. `view` on the member's own key — nominating and voting are
+    // self-service, so `create` would hide the button from the whole family (see the note on
+    // QUICK_ACTION_GRANT). `can`, not `canAny`: there is no own version of a ballot, and the
+    // area rule rather than a scope is what decides whose election it is.
+    //
+    // §5: this is what stops the read below happening at all for a family that has switched
+    // elections off. `/community/elections` is `tier: 'plus'`, so `isFeatureLive` is not the
+    // whole roadmap gate here — the TIER is checked by the read, which resolves the caller's
+    // elections through RLS and the area rule and answers null for anybody with none.
+    isFeatureLive(routeForGrant(QUICK_ACTION_GRANT.election.resource))
+      ? can(user.id, QUICK_ACTION_GRANT.election.resource, QUICK_ACTION_GRANT.election.action)
+      : false,
   ])
 
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
@@ -238,7 +252,7 @@ export default async function DashboardPage() {
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
-    premierGathering, upcomingGatheringCount, myTaskCount,
+    premierGathering, upcomingGatheringCount, myTaskCount, actionableElection,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -350,6 +364,11 @@ export default async function DashboardPage() {
     // on a view grant (answering a task you were handed is self-service), so the grant above
     // is what decides whether the button may exist and this decides whether it should.
     canViewMyTasks ? getMyGatheringTaskCount() : Promise.resolve(0),
+    // THE ELECTION QUICK ACTION's own read, and §5 is the whole reason it is conditional: the
+    // answer names a ballot the caller may act in, and a title and an id reach the browser in
+    // the RSC payload whether the chip renders or not. The action checks the same grant itself
+    // (it is a public endpoint), so this line is about not asking rather than about safety.
+    canViewElections ? getMyActionableElection() : Promise.resolve(null),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -392,16 +411,38 @@ export default async function DashboardPage() {
     ...(upcomingGatherings > 0 ? [{ id: 'gatherings' as const, value: String(upcomingGatherings) }] : []),
   ]
 
-  const quickActions: QuickActionId[] = [
-    // FIRST, and only when something is waiting. It leads the row because it is the one entry
-    // here that exists BECAUSE somebody is owed something by this member — every other button
-    // is a job they may do, and this is one they have been asked to. See the note on
-    // `QuickActionId`: it is deliberately conditional on the workload, unlike the rail item,
-    // which is unconditional so a task handed out this morning can be found this morning.
-    ...(canViewMyTasks && myTaskCount > 0 ? ['my-gathering-tasks' as const] : []),
-    ...(canAddMember ? ['add-member' as const] : []),
-    ...(canRecordPayment ? ['record-payment' as const] : []),
-    ...(canSendMessage ? ['send-message' as const] : []),
+  const quickActions: ResolvedQuickAction[] = [
+    // ── AN ELECTION OPEN FOR BUSINESS GOES FIRST ─────────────────────────────────────
+    // Ahead of My Tasks, and the two are ordered by DEADLINE rather than by importance: a
+    // gathering task can be answered late and an organizer will chase it, while a ballot
+    // closes on its date and nothing reopens it. `getMyActionableElection` has already
+    // narrowed this to the phases a member can act in and to the one closing soonest, so its
+    // being non-null IS the reason to show it.
+    //
+    // The caption is what there is to do — "Nominate" or "Vote" — and the destination is that
+    // one ballot rather than the list. Both are overrides on `QUICK_ACTION_META`, which is
+    // what `ResolvedQuickAction` exists for.
+    ...(actionableElection
+      ? [{
+        id: 'election' as const,
+        label: ELECTION_ACTION_LABEL[actionableElection.phase],
+        href: `/community/elections/${actionableElection.id}`,
+      }]
+      : []),
+    // AHEAD OF THE THREE STANDING BUTTONS, and only when something is waiting. It comes
+    // before them because it exists BECAUSE somebody is owed something by this member —
+    // every one of those three is a job they MAY do, and this is one they have been asked to.
+    // See the note on `QuickActionId`: it is deliberately conditional on the workload, unlike
+    // the rail item, which is unconditional so a task handed out this morning can be found
+    // this morning.
+    //
+    // IT WAS FIRST UNTIL 2026-08-21, and the election chip above it is the only thing that
+    // outranks it: a task can be answered late and an organizer will chase it; a ballot
+    // closes on its date and nothing reopens it.
+    ...(canViewMyTasks && myTaskCount > 0 ? [{ id: 'my-gathering-tasks' as const }] : []),
+    ...(canAddMember ? [{ id: 'add-member' as const }] : []),
+    ...(canRecordPayment ? [{ id: 'record-payment' as const }] : []),
+    ...(canSendMessage ? [{ id: 'send-message' as const }] : []),
   ]
 
   return (
