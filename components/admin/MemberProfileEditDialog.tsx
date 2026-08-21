@@ -14,7 +14,7 @@ import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import {
-  getMemberProfileForEdit, sendMemberPasswordReset, updateUserProfile,
+  getMemberProfileForEdit, sendMemberPasswordReset, setMemberChapter, updateUserProfile,
   type MemberProfileForEdit,
 } from '@/app/actions/admin/users'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
@@ -133,6 +133,17 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
   const confirm = useConfirm()
   const [profile, setProfile] = useState<MemberProfileForEdit | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
+  // ── THE CHAPTER IS ITS OWN FIELD AND ITS OWN WRITE ────────────────────────────────
+  // It is NOT in `form`, and that is not tidiness: `chapter_id` is deliberately absent from
+  // `WRITABLE_PROFILE_COLUMNS`, so `updateUserProfile` would silently drop it — the allow-list
+  // discards unknown keys rather than erroring, which is right for version skew and would here
+  // mean a picker that saves nothing and says it saved. `lib/profile-columns.ts` argues the
+  // exclusion at length: every other column on that list is the same value in every family the
+  // user belongs to, and a chapter belongs to exactly one.
+  //
+  // So it has its own state, its own action (`setMemberChapter`) and its own place in
+  // `handleSave` below.
+  const [chapterId, setChapterId] = useState('')
   // `true` from the first render rather than set in the effect below. Same screen, and it
   // avoids one render of an empty panel before the fetch has been asked for.
   const [loading, setLoading] = useState(true)
@@ -172,6 +183,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       }
       setProfile(result.profile)
       setForm({ ...EMPTY, ...result.profile.fields } as FormState)
+      setChapterId(result.profile.chapterId)
     })
     return () => { live = false }
   }, [peopleId])
@@ -210,11 +222,38 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // this component to decide what "unchanged" means for a field the member had never
     // filled in — where '' and null are the same fact and would flip back and forth.
     const result = await updateUserProfile(profile.peopleId, form)
-    setSaving(false)
     if (!result.success) {
+      setSaving(false)
       setError(result.error ?? 'Those changes could not be saved.')
       return
     }
+
+    // ── THE CHAPTER, SECOND, AND ONLY IF IT MOVED ─────────────────────────────────────
+    // TWO WRITES ON ONE BUTTON, because they are two actions — see the note on `chapterId`
+    // above for why the column cannot ride along in the profile patch.
+    //
+    // ORDER MATTERS AND SO DOES THE GUARD. The profile goes first because it is what the
+    // dialog is mostly for and its failure should not be preceded by a chapter move nobody
+    // asked about. The `!==` guard means an administrator who edited a phone number does not
+    // touch `person_relationships` at all — `setMemberChapter` propagates to account-less
+    // children, so calling it unconditionally would rewrite their chapter on every save,
+    // including one that changed nothing.
+    //
+    // A FAILURE HERE IS A PARTIAL SAVE AND IS SAID SO. The profile is already written, so this
+    // is not "those changes could not be saved" — and reporting it as an outright failure would
+    // send somebody back to re-enter edits that had landed.
+    if (chapterId !== profile.chapterId) {
+      const chapterResult = await setMemberChapter(profile.peopleId, chapterId || null)
+      setSaving(false)
+      if (!chapterResult.success) {
+        setError(`The profile was saved, but the chapter was not: `
+          + `${chapterResult.error ?? 'that chapter could not be set.'}`)
+        return
+      }
+    } else {
+      setSaving(false)
+    }
+
     onSaved()
     onClose()
   }
@@ -315,6 +354,35 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 {GENDERS.map(g => <option key={g} value={g}>{GENDER_LABELS[g]}</option>)}
               </Select>
             </Cell>
+            {/* ── THE CHAPTER, WHICH IS THE ONE FIELD HERE THAT IS PER-FAMILY ──────
+                Rendered only when the family HAS chapters. A picker whose only option is
+                "None" is a control that cannot do anything, and it would read as the
+                member having been left unassigned rather than as there being nowhere to
+                assign them — which is the same argument the election form's level picker
+                makes about a family with no regions.
+
+                "National" and not "— None —", because the absence of a chapter is a real
+                place in this product rather than a blank: a member in no chapter is under
+                National for dues scope, for elections and in the Directory, and every one
+                of those screens prints that word. */}
+            {profile.chapters.length > 0 && (
+              <Cell
+                label="Chapter"
+                htmlFor="mp-chapter"
+                hint="Relatives without accounts of their own move with them."
+              >
+                <Select
+                  id="mp-chapter"
+                  value={chapterId}
+                  onChange={e => setChapterId(e.target.value)}
+                >
+                  <option value="">National — no chapter</option>
+                  {profile.chapters.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
+              </Cell>
+            )}
           </Band>
 
           <Band title="Address">

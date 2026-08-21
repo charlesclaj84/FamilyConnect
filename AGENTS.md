@@ -985,13 +985,35 @@ downgrade issued by a migration whose purpose is to widen.
 success to correct, and the bell re-reads its list on every navigation — the optimistic
 marker is right there. Do not widen this rule into "every write returns a count".
 
-**And one instance of this class is a genuine bug rather than a report problem, still open:**
-`saveChapterAndPropagate`'s child propagation. It updates other people's rows on the USER
-client, and the `people` UPDATE policy admits only the caller's own row — so for any member
-without `community/directory:edit` at `'any'` it matches nothing, every time. The member's own
-chapter saves and their account-less children silently do not follow. Reporting a failure
-there would be wrong (their own save worked); the repair is the admin client with §3 scoping,
-the way `editPersonRecord` does it. TODO.md carries it.
+**One instance of this class was a genuine bug rather than a report problem, and it is FIXED
+as of 2026-08-21.** `saveChapterAndPropagate`'s child propagation updated other people's rows
+on the USER client, and the `people` UPDATE policy admits only the caller's own row — so for
+any member without `community/directory:edit` at `'any'` it matched nothing, every time. The
+member's own chapter saved and their account-less children silently did not follow. The repair
+is `lib/chapter-propagation.ts`: the admin client with §3 scoping by hand, the way
+`editPersonRecord` does it.
+
+Three things about how it was fixed are the reusable part:
+
+* **`confirmWrite` was the wrong tool and that is why it sat open.** The caller's own save DID
+  work, so reporting a failure would have been worse than the silence. What the repair adds
+  instead is a PARTIAL-success message — the propagation reports `moved` and an optional
+  `error`, and both callers say so rather than returning a bare `{ success: true }`.
+* **It is a MODULE, not a second copy.** `setMemberChapter` (the administrator's version, new
+  the same day) calls the same function. Writing the propagation into the new surface would
+  have left a correct implementation beside a broken one, which is how two answers to one rule
+  start. It lives in `lib/` rather than beside either caller because `npm run audit:people`
+  decides the client by whether the FILE imports `createAdminClient` — putting it in
+  `app/actions/personal-info.ts` would have put all six of that file's `people` writes on the
+  review list.
+* **THE FIXTURE WAS RESTING ON THE BUG, which is the part worth remembering.** `tests/rls`
+  seeded `f.child` — the member's account-less son — as the sole occupant of
+  `f.occupiedChapter`, and `admin/chapters.getScopeUsage (pending member)` asserted that
+  chapter held exactly one member. The moment the propagation started working,
+  `saveChapterAndPropagate`'s own control moved that child out and the later case went red;
+  in isolation it passed. **A fix can break a test by making something happen that the test
+  was built on not happening**, and the tell is a failure that only appears in sequence. The
+  occupant is `f.ancestor` now — a FATHER, whom the Son/Daughter walk cannot reach.
 
 ## Running the database locally
 

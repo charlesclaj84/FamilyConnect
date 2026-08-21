@@ -70,6 +70,48 @@ const SCAN = ['app', 'lib', 'components']
  * for the new site, and if the answer to any of them is "no", say why that is safe.
  */
 const REVIEWED = {
+  'app/actions/admin/users.ts::setMemberChapter': {
+    op: 'update',
+    writes: "chapter_id, on one member of the caller's own family",
+    verdict:
+      "THE THREE QUESTIONS. (1) Family-scoped: `.eq('family_code', familyCode)` beside "
+      + "`.eq('id', peopleId)`, with the code from the caller's own membership — and the write "
+      + "ends in `.select('id')`, so a `peopleId` outside this family is reported rather than "
+      + 'answered as a success. There is no RLS under this at all, so that conjunct is the whole '
+      + 'boundary. (2) Columns allow-listed: ONE column, written as a literal, from a normalised '
+      + 'parameter — `chapter_id` is deliberately NOT on WRITABLE_PROFILE_COLUMNS, which is why '
+      + 'this action exists separately from updateUserProfile. There is no caller-supplied object '
+      + 'to filter. (3) Referenced ids verified: `chapterId` is checked with '
+      + "belongsToFamily('chapters', …) before the write — §4 exactly, since "
+      + '`people.chapter_id` REFERENCES chapters(id), which constrains existence and not '
+      + 'ownership. An empty string is normalised to null first so the check is never asked '
+      + 'about it, which is a legitimate value meaning National. '
+      + 'GATED on `admin/members:edit` at canAny — canAny and not can, because the row is '
+      + "somebody ELSE's and scope 'own' on `people` means the caller's own row, which is "
+      + "saveChapterAndPropagate's job. "
+      + 'THE CHILDREN are moved by lib/chapter-propagation.ts, reviewed on its own entry.',
+  },
+  'lib/chapter-propagation.ts::propagateChapterToChildren': {
+    op: 'update',
+    writes: 'chapter_id, on the account-less children of one member',
+    verdict:
+      'THE THREE QUESTIONS, in order. (1) Family-scoped: `.eq(\'family_code\', familyCode)` on '
+      + 'the write AND on the `person_relationships` read that produces the id list — the '
+      + 'second matters as much as the first, because without it a `personId` from another '
+      + 'family would return that family\'s children and their ids would go straight into the '
+      + '`.in()`. (2) Columns allow-listed: ONE column, `chapter_id`, written as a literal. '
+      + 'There is no caller-supplied object to filter. (3) Referenced ids verified: the only '
+      + 'id written is `chapterId`, and both callers check it with belongsToFamily BEFORE '
+      + 'calling — stated as a precondition in the module header rather than re-checked here, '
+      + 'because a helper that re-read it would hide which layer refused. '
+      + 'WHY THE SERVICE ROLE AT ALL: the rows are people with no `user_id`, and the `people` '
+      + 'UPDATE policy admits only the caller\'s own row — so the user client matched ZERO ROWS '
+      + 'for any member without `community/directory:edit` at scope \'any\', silently, which is '
+      + 'the defect this module was extracted to fix (AGENTS.md \u00a78b, and TODO.md carried it '
+      + 'as open). Same shape and same reasoning as `editPersonRecord`. '
+      + 'AND IT NARROWS ON `user_id IS NULL`, which is the rule rather than an optimisation: a '
+      + 'relative who has claimed an account sets their own chapter.',
+  },
   'app/actions/register.ts::registerUser': {
     op: 'insert',
     writes: 'the whole new person row',

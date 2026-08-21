@@ -1,7 +1,9 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
+import { propagateChapterToChildren } from '@/lib/chapter-propagation'
 import { canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pickProfileColumns } from '@/lib/profile-columns'
@@ -212,6 +214,24 @@ export interface MemberProfileForEdit {
   email: string | null
   /** Every column on WRITABLE_PROFILE_COLUMNS except primary_email, as form values. */
   fields: PersonalInfoData
+  /**
+   * The member's chapter in THIS family, or '' for none.
+   *
+   * ── NOT PART OF `fields`, AND THAT IS THE WHOLE OF WHY IT HAS ITS OWN ACTION ──────
+   * `chapter_id` is deliberately absent from `WRITABLE_PROFILE_COLUMNS`
+   * (`lib/profile-columns.ts` argues it at length): every other column there is the SAME VALUE
+   * in every family the user belongs to and is propagated by the sync trigger, while a chapter
+   * belongs to exactly one family and is excluded from both directions of that trigger. Folding
+   * it back into the profile patch would re-open two write paths that no longer need the §4
+   * reference check, to save one round trip.
+   *
+   * So the dialog reads it here and writes it with `setMemberChapter`, which is the
+   * administrator's counterpart to `saveChapterAndPropagate` — and, like it, carries the
+   * member's account-less children across.
+   */
+  chapterId: string
+  /** Every chapter in the family, for the picker. Empty for a family with none. */
+  chapters: { id: string; name: string }[]
 }
 
 export async function getMemberProfileForEdit(
@@ -235,21 +255,41 @@ export async function getMemberProfileForEdit(
   // that has restricted its Directory would otherwise break its own Members & Access — the
   // same coupling `belongsToFamily` uses the service role to avoid.
   const admin = createAdminClient()
-  const { data, error } = await admin
+  // THE CHAPTER LIST COMES BACK WITH THE PROFILE, in one round trip, because a picker with no
+  // options and a member with no chapter are different things the dialog has to tell apart.
+  //
+  // It reads on the ADMIN client with the family conjunct by hand, for the reason
+  // `getDuesScopeOptions`, `familyPlaces` and `readChapters` all settled first: the composed
+  // SELECT policy on `chapters` demands `admin/members/organization:view = 'any'`, so through
+  // the user client an administrator who may edit members and not redraw regions reads NO
+  // chapter at all — and PostgREST answers that with `[]` rather than an error. NAMES OF
+  // CHAPTERS ARE FAMILY STRUCTURE RATHER THAN PII; what that key protects is EDITING the
+  // family's shape.
+  const [{ data, error }, chaptersRes] = await Promise.all([
+    admin
     .from('people')
     // ONE STRING LITERAL, not a concatenation. supabase-js derives the row type from the
     // literal it is handed, so `'a, b' + 'c'` types every column as GenericStringError and
     // the whole projection stops compiling — which is the useful direction of that inference
     // and the reason this line is long rather than wrapped.
-    .select('id, user_id, first_name, last_name, nick_name, prefix, middle_name, suffix, primary_email, primary_phone, email_is_placeholder, street_address, apartment, city, state, zip_code, country, date_of_birth, sunset_date, gender, tshirt_category, tshirt_size, time_zone')
+    .select('id, user_id, first_name, last_name, nick_name, prefix, middle_name, suffix, primary_email, primary_phone, email_is_placeholder, street_address, apartment, city, state, zip_code, country, date_of_birth, sunset_date, gender, tshirt_category, tshirt_size, time_zone, chapter_id')
     .eq('id', peopleId)
     .eq('family_code', familyCode)
-    .maybeSingle()
+    .maybeSingle(),
+    admin.from('chapters').select('id, name').eq('family_code', familyCode).order('name'),
+  ])
 
   // §8 — the error is READ rather than discarded, or a refused query is indistinguishable
   // from a member who is not in this family, and the dialog would report the wrong thing.
   if (error) return { success: false, error: error.message }
   if (!data) return { success: false, error: 'Member not found' }
+
+  // §8 on the chapter list too, and the failure mode is worth naming: an empty picker and a
+  // refused read look identical, and the second would let an administrator save "no chapter"
+  // over a member who has one, believing the family had none.
+  if (chaptersRes.error) {
+    return { success: false, error: `Could not read this family’s chapters: ${chaptersRes.error.message}` }
+  }
 
   const t = (v: unknown) => (typeof v === 'string' ? v : '')
   return {
@@ -272,8 +312,102 @@ export async function getMemberProfileForEdit(
         tshirt_category: t(data.tshirt_category), tshirt_size: t(data.tshirt_size),
         time_zone: t(data.time_zone),
       },
+      chapterId: t(data.chapter_id),
+      chapters: (chaptersRes.data ?? []) as { id: string; name: string }[],
     },
   }
+}
+
+/**
+ * Set a member's chapter, from Members & Access.
+ *
+ * ── THE ADMINISTRATOR'S COUNTERPART TO `saveChapterAndPropagate` ───────────────────
+ * Added 2026-08-21. Before it, the only way a chapter could be set was by the member
+ * themselves on My Profile — so an administrator filing a relative who had never signed in,
+ * or correcting somebody who had put themselves in the wrong one, had no route at all.
+ *
+ * IT IS A SEPARATE ACTION AND NOT A COLUMN ON THE PROFILE PATCH, for the reason
+ * `MemberProfileForEdit.chapterId` gives: `chapter_id` is per-family where every other
+ * writable profile column floats across families, and `lib/profile-columns.ts` took it off the
+ * allow-list deliberately. Putting it back would re-open two write paths that no longer need
+ * the §4 reference check.
+ *
+ * ── THE SAME GATE AS THE REST OF THE DIALOG ────────────────────────────────────────
+ * `admin/members:edit` at `canAny`. `canAny` and not `can`, for `updateUserProfile`'s reason:
+ * the row is somebody ELSE's, and scope 'own' on `people` means the caller's own row, which is
+ * `saveChapterAndPropagate`'s job.
+ *
+ * ── §3 AND §4, BOTH BY HAND ────────────────────────────────────────────────────────
+ * The service-role client sees past RLS entirely, so `.eq('family_code', …)` is on the write,
+ * and `chapterId` — a client parameter written onto a row whose own `family_code` satisfies
+ * every policy — is verified with `belongsToFamily` first. `people.chapter_id` is
+ * `REFERENCES chapters(id)`, which constrains EXISTENCE and not ownership, so nothing else
+ * here would notice a chapter from another family.
+ *
+ * ── AND THE CHILDREN FOLLOW, THROUGH THE SHARED HELPER ─────────────────────────────
+ * `propagateChapterToChildren`, the same function My Profile now calls. Two implementations of
+ * one rule is what this avoids — and the member-facing one was BROKEN when this was written,
+ * so a fresh copy here would have been a correct one beside a silent failure.
+ */
+export async function setMemberChapter(
+  peopleId: string,
+  chapterId: string | null,
+): Promise<{ success: boolean; error?: string; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+  if (!(await canAny(user.id, 'admin/members', 'edit'))) {
+    return { success: false, error: 'Not authorized' }
+  }
+
+  const familyCode = await getMyFamilyCode(user.id)
+  if (!familyCode) return { success: false, error: 'No family associated with account' }
+
+  // '' from a `<select>` with nothing chosen is "no chapter", which is a legitimate value and
+  // not a missing one. Normalised before the reference check so the check is not asked about
+  // the empty string.
+  const target = chapterId && chapterId.trim() ? chapterId.trim() : null
+  if (target && !(await belongsToFamily('chapters', target, familyCode))) {
+    return { success: false, error: 'Chapter not found' }
+  }
+
+  const admin = createAdminClient()
+  // `.select('id')` so a write that matched nothing is distinguishable from one that landed.
+  // There is no RLS under this — the service role ignores it — so the only thing that can
+  // match zero rows is a `peopleId` outside this family, and reporting THAT as a success is
+  // how an administrator comes to believe they have filed somebody they have not.
+  const { data: updated, error } = await admin
+    .from('people')
+    .update({ chapter_id: target })
+    .eq('id', peopleId)
+    .eq('family_code', familyCode)
+    .select('id')
+  if (error) return { success: false, error: error.message }
+  if (!(updated ?? []).length) return { success: false, error: 'Member not found' }
+
+  const propagation = await propagateChapterToChildren(peopleId, familyCode, target)
+
+  revalidatePath('/admin/members')
+  revalidatePath('/community/directory')
+
+  // A PARTIAL SUCCESS, said out loud — the member's own row is written, so this is not a
+  // failed save, and silence about the half that did not happen is the defect this whole
+  // helper exists to close.
+  if (propagation.error) {
+    return {
+      success: true,
+      message: 'Chapter saved, but the relatives without accounts of their own could not be '
+        + 'moved with them. Try again, or set their chapter individually.',
+    }
+  }
+  if (propagation.moved > 0) {
+    return {
+      success: true,
+      message: `Chapter saved. ${propagation.moved} relative`
+        + `${propagation.moved === 1 ? '' : 's'} without an account moved with them.`,
+    }
+  }
+  return { success: true }
 }
 
 /**

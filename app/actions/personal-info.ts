@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { propagateChapterToChildren } from '@/lib/chapter-propagation'
 import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
@@ -323,41 +324,39 @@ export async function saveChapterAndPropagate(
 
   if (myError) return { success: false, message: myError.message }
 
-  // Propagate to minor children (person_relationships where I'm the parent)
-  if (myRecord?.id) {
-    const { data: childRelTypes } = await supabase
-      .from('relationship_types')
-      .select('id')
-      .in('name', ['Son', 'Daughter'])
-
-    if (childRelTypes?.length) {
-      const { data: childRels } = await supabase
-        .from('person_relationships')
-        .select('related_person_id')
-        .eq('person_id', myRecord.id)
-        .in('relationship_type_id', childRelTypes.map(t => t.id))
-
-      if (childRels?.length) {
-        // WHO FOLLOWS THE PARENT: children with NO ACCOUNT, not children flagged as
-        // minors. This was `.eq('is_minor', true)` until 20260813000006 dropped that
-        // column, and the swap is a correction rather than a translation.
-        //
-        // The rule was always meant to be "somebody who cannot set their own chapter",
-        // and age was a poor proxy for it in both directions: a 20-year-old with no
-        // account was left behind while a 16-year-old who had claimed one had their
-        // chapter overwritten by a parent. `user_id IS NULL` is the fact that actually
-        // decides it, and it is the same test every other surface now uses to mean
-        // "a record rather than a member".
-        await supabase
-          .from('people')
-          .update({ chapter_id: chapterId ?? null })
-          .in('id', childRels.map(r => r.related_person_id))
-          .is('user_id', null)
-      }
-    }
-  }
+  // ── THE CHILDREN FOLLOW, AND UNTIL 2026-08-21 THEY DID NOT ────────────────────────
+  // This was fifteen lines of reads and one UPDATE, all on the USER client — and `people`
+  // maps to `community/directory` with `user_id = (SELECT auth.uid())` as both its own- and
+  // self-expression, so the write matched ZERO ROWS for any member without
+  // `community/directory:edit` at 'any'. The result was discarded, so nothing noticed: a
+  // parent changed their chapter, was correctly told it saved, and their account-less children
+  // stayed where they were. AGENTS.md §8b and TODO.md both carried it as an open defect.
+  //
+  // `lib/chapter-propagation.ts` is the repair and it runs on the ADMIN client with §3 scoping
+  // by hand, which is what `editPersonRecord` does and for the same reason: the rows are ones
+  // nobody owns, so no policy can admit them. It is a MODULE rather than inline here so that
+  // `npm run audit:people` sees one service-role write needing one verdict, instead of putting
+  // all six of this file's `people` writes on the review list — the cost AGENTS.md names when
+  // it describes this repair.
+  //
+  // IT IS ALSO WHY THE ADMINISTRATOR'S VERSION IS NOT A SECOND COPY. `setMemberChapter` in
+  // app/actions/admin/users.ts calls the same function.
+  const propagation = myRecord?.id
+    ? await propagateChapterToChildren(myRecord.id, familyCode, chapterId ?? null)
+    : { moved: 0 }
 
   revalidatePath('/personal-info')
   revalidatePath('/dashboard')
+
+  // A PARTIAL SUCCESS IS SAID OUT LOUD. The caller's own row is already written, so this is
+  // not a failed save and must not read as one — but it is not the whole of what the member
+  // asked for either, and silence is precisely what hid this for months.
+  if (propagation.error) {
+    return {
+      success: true,
+      message: 'Your chapter was saved, but the relatives without accounts of their own could '
+        + 'not be moved with you. Ask an administrator to set their chapter on Members & Access.',
+    }
+  }
   return { success: true }
 }

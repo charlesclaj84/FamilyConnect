@@ -830,7 +830,12 @@ export const CASES = [
       && r.byRegion.reduce((n, s) => n + s.count, 0) === r.total,
     expectPositive: (r) =>
       r !== null
-      && r.total === 11
+      // 13, NOT 11: `movableForPerson` and `movableForChapter` were added to ALPHA on
+      // 2026-08-21 for `setMemberChapter`'s two positive controls, which each MOVE somebody
+      // and so cannot share a row (AGENTS.md §7 on a control that mutates a row a later case
+      // reads). Both are account-less records with no invitation, so they land in
+      // `pending-invite` and nowhere else.
+      && r.total === 13
       // ALPHA's own geography resolves for a caller reading it through the admin client —
       // the same property `members.getMembers`'s control asserts about `chapterPlaces`, and
       // the one that fails silently as "everybody is National" if an embed is refused (§8).
@@ -847,7 +852,7 @@ export const CASES = [
       // an open invitation, uninvitedRecord has neither.
       && (r.byInvitation.find(s => s.key === 'active')?.count ?? -1) === 5
       && (r.byInvitation.find(s => s.key === 'invited')?.count ?? -1) === 1
-      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 5
+      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 7
       && r.byInvitation.reduce((n, s) => n + s.count, 0) === r.total
       && r.byAge.reduce((n, s) => n + s.count, 0) === r.total,
   }),
@@ -1576,6 +1581,59 @@ const resetBoardAssignments = async (db, fx) => {
 }
 
 export const MORE_CASES = [
+  // ── SETTING SOMEBODY ELSE'S CHAPTER ────────────────────────────────────────
+  // `setMemberChapter` runs on the SERVICE-ROLE client, so no policy is underneath it at all
+  // and the `.eq('family_code', …)` in the action is the entire boundary — `deleteRegion`'s
+  // shape (AGENTS.md §3). Two ids arrive from the client and both need their own case, because
+  // they fail in different directions and one of them is §4 rather than §3.
+  //
+  // FIRST: THE PERSON. BRAVO's administrator names one of ALPHA's members and their own
+  // family's chapter. Nothing about the chapter is wrong; what must refuse them is the family
+  // conjunct on the write.
+  {
+    kind: 'write',
+    id: "admin/users.setMemberChapter (another family's member)",
+    mod: 'app/actions/admin/users.ts', fn: 'setMemberChapter',
+    args: fx => [fx.alpha.movableForPerson.id, fx.bravo.chapter.id],
+    probe: (db, fx) => snapshot('people', 'id, chapter_id',
+      { id: fx.alpha.movableForPerson.id })(db),
+    // AND THEY MUST BE TOLD. The write ends in `.select('id')` precisely so a `peopleId`
+    // outside the family is a reported refusal rather than a success over nothing — which on
+    // this control would leave an administrator believing they had filed somebody they had not.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.movableForPerson.id, fx.alpha.chapter.id],
+  },
+  // ── [crux] SECOND: THE CHAPTER, WHICH IS §4 AND NOT §3 ─────────────────────
+  // ALPHA's OWN administrator, naming their OWN family's member and BRAVO's chapter. Every
+  // family conjunct on the row is satisfied — the row genuinely is theirs — while the id being
+  // written onto it points into another family. That is AGENTS.md §4 exactly, and nothing in
+  // the database objects: `people.chapter_id` is `REFERENCES chapters(id)`, which constrains
+  // EXISTENCE and not ownership, and there is no RLS under a service-role write to consult.
+  //
+  // `belongsToFamily('chapters', …)` in the action is the only thing that refuses it. Removing
+  // that call turns this line red and nothing else — which is what makes it evidence for the
+  // check rather than for the family conjunct the case above tests.
+  //
+  // THE ATTACKER IS `alphaAdmin`, deliberately, and this is therefore not a cross-family
+  // isolation case in the usual shape. The harm is inflicted on BRAVO by a caller who is
+  // entirely legitimate in ALPHA, which is the whole reason §4 exists as a separate rule.
+  {
+    kind: 'write',
+    id: "admin/users.setMemberChapter (another family's chapter)",
+    mod: 'app/actions/admin/users.ts', fn: 'setMemberChapter',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.movableForChapter.id, fx.bravo.chapter.id],
+    probe: (db, fx) => snapshot('people', 'id, chapter_id',
+      { id: fx.alpha.movableForChapter.id })(db),
+    expectRefusal: v => v?.success === false && /chapter/i.test(v?.error ?? '')
+      ? { ok: true, detail: 'refused the cross-family chapter' }
+      : { ok: false, detail: `expected a chapter refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.movableForChapter.id, fx.alpha.chapter.id],
+  },
   // ── reads taking an ALPHA id ──────────────────────────────────────────────
   // -- REGIONS & CHAPTERS ----------------------------------------------------
   //
@@ -3060,6 +3118,67 @@ export const MORE_CASES = [
       return JSON.stringify(data)
     },
   })),
+
+  // ── [crux] THE CHILDREN ACTUALLY FOLLOW ────────────────────────────────────
+  //
+  // THE FIRST ASSERTION ANYWHERE THAT THIS HAPPENS AT ALL, which AGENTS.md §8b asked for by
+  // name when it recorded the defect: `saveChapterAndPropagate` ran its child UPDATE on the
+  // USER client, `people` maps to `community/directory` with `user_id = (SELECT auth.uid())`
+  // as its own- and self-expression, so the statement matched ZERO ROWS for any member without
+  // `community/directory:edit` at 'any' — and the result was discarded. A parent changed their
+  // chapter, was told it saved, and their account-less children stayed where they were, which
+  // is the whole feature the function is named after. `lib/chapter-propagation.ts` is the
+  // repair, on the admin client with §3 scoping by hand.
+  //
+  // ── BOTH HALVES ASSERT SOMETHING, AND NEITHER IS ABOUT ANOTHER FAMILY ──────
+  // This is not an isolation case and should not be read as one: the action takes a chapter id
+  // and no person, so there is no cross-family version of it to write. What the pair asserts
+  // instead is the RULE — Son and Daughter, and nobody else.
+  //
+  //   attack   `saveChapterAndPropagate(null)` with everything already null. Nothing may move.
+  //            This is what catches an OVER-BROAD propagation: `f.ancestor` is the member's
+  //            FATHER and sits in `f.occupiedChapter`, so a version that walked every
+  //            relationship would null him and the probe would change.
+  //   control  the same call with a real chapter. `f.child` — account-less, and the member's
+  //            son — must end up in it, which is what makes the probe change at all.
+  //
+  // `expectPositive` IS NOT USED, deliberately: `runWrite` never consults it (only `runRead`
+  // does), and a case that supplied one would look like it asserted more than it does. The
+  // probe is the whole assertion on both halves, so it is built to carry both facts.
+  //
+  // THE MEMBER'S OWN ROW IS NOT IN THE PROBE. It would change on the control regardless of
+  // whether anything propagated, and a probe that changes for a reason unrelated to what the
+  // case is about is a probe that cannot fail. Their own save is asserted by the
+  // `chapter_id from another family` pair above.
+  {
+    kind: 'write',
+    id: 'personal-info.saveChapterAndPropagate (the children follow)',
+    mod: 'app/actions/personal-info.ts', fn: 'saveChapterAndPropagate',
+    // The same caller on both halves — `alphaMember` is the parent in the fixture's
+    // relationships and is also the default control actor. The difference is the ARGUMENT.
+    attacker: 'alphaMember',
+    args: () => [null],
+    positiveArgs: fx => [fx.alpha.chapter.id],
+    // Cleared before each half so the control has somewhere to move from, and so the attack's
+    // "nothing moved" is a real state rather than the residue of whatever ran before it. The
+    // father is restated rather than assumed, for the same reason.
+    setup: async (db, fx) => {
+      const { error } = await db.from('people').update({ chapter_id: null })
+        .in('id', [fx.users.alphaMember.personId, fx.alpha.child.id])
+      if (error) throw new Error(`setup: ${error.message}`)
+      const { error: e2 } = await db.from('people')
+        .update({ chapter_id: fx.alpha.occupiedChapter.id }).eq('id', fx.alpha.ancestor.id)
+      if (e2) throw new Error(`setup father: ${e2.message}`)
+    },
+    // Read through the SERVICE ROLE, which sees past every policy: the question is what is in
+    // the database, not what the caller can see of it.
+    probe: async (db, fx) => {
+      const { data, error } = await db.from('people').select('id, chapter_id')
+        .in('id', [fx.alpha.child.id, fx.alpha.ancestor.id]).order('id')
+      if (error) throw new Error(`probe: ${error.message}`)
+      return JSON.stringify(data)
+    },
+  },
 
   // THE TWO ALLOW-LIST CASES. These assert something stronger and narrower than the
   // pair above: that `chapter_id` cannot reach a `people` row through these endpoints

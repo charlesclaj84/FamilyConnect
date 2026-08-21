@@ -1321,11 +1321,23 @@ export async function seed() {
     f.child = must('child', await db.from('people').insert({
       family_code: code, first_name: `${code}Child`, last_name: code,
       date_of_birth: '2015-04-04', created_by: familyAdmin.userId,
-      // IN THE OCCUPIED CHAPTER, which is what makes that chapter undeletable — the state
-      // `admin/chapters.deleteChapter (a chapter somebody is in)` asserts. Set here rather
-      // than by an UPDATE afterwards because `people.chapter_id` has no trigger overriding
-      // it, unlike `membership_status`.
-      chapter_id: f.occupiedChapter.id,
+      // NO CHAPTER, since 2026-08-21. This row USED to occupy `f.occupiedChapter`, which is
+      // what makes that chapter undeletable — and it stopped being a safe place to park that
+      // fact the moment `saveChapterAndPropagate` started working.
+      //
+      // THE STORY IS WORTH KEEPING, because it is a fixture coupling that only appeared when a
+      // bug was FIXED. This person is `owner`'s Son (see the relationships below), and that
+      // action propagates a member's chapter to their account-less children — except that its
+      // child UPDATE ran on the user client against a policy admitting only the caller's own
+      // row, so it matched zero rows and silently did nothing (AGENTS.md §8b). The fixture was
+      // built on top of that silence. With `lib/chapter-propagation.ts` in place the
+      // propagation lands, so `personal-info.saveChapterAndPropagate`'s own positive control
+      // now moves this row out of the occupied chapter — and
+      // `admin/chapters.getScopeUsage (pending member)`, which runs later and asserts that
+      // chapter holds exactly one member, went red. In isolation it passed.
+      //
+      // So the occupant moved to `f.ancestor` below, who is `owner`'s FATHER and therefore
+      // somewhere the propagation cannot reach: it walks Son and Daughter only.
     }).select().single())
 
     // A SECOND ONE, so a destructive positive control has its own row to ruin. Without it
@@ -1340,7 +1352,43 @@ export async function seed() {
     f.ancestor = must('ancestor', await db.from('people').insert({
       family_code: code, first_name: `${code}Father`, last_name: code,
       date_of_birth: '1950-02-02',
+      // THE OCCUPIED CHAPTER'S OCCUPANT, since 2026-08-21 — see the long note on `f.child`,
+      // which held it until a chapter propagation started actually propagating.
+      //
+      // A FATHER IS UNREACHABLE BY THAT RULE, which walks Son and Daughter, so this row's
+      // chapter is stable for the life of the run whatever any case does to `owner`. Nothing
+      // else writes it either: `editPersonRecord`'s control edits this person, and
+      // `pickProfileColumns` does not admit `chapter_id` at all — which is the same exclusion
+      // that gave `setMemberChapter` a reason to exist.
+      chapter_id: f.occupiedChapter.id,
     }).select().single())
+
+    // ── TWO PEOPLE WHOSE CHAPTER NOTHING ELSE DEPENDS ON ──────────────────────────
+    // `setMemberChapter` has two cases — one for the PERSON id (§3) and one for the CHAPTER id
+    // (§4) — and each has a positive control that MOVES somebody. So they need a row each, and
+    // neither may be a row another case reads: `deletableChild`'s reason, and the first draft
+    // aimed both at `other`, who is already in `f.chapter` (so the control changed nothing and
+    // reported "owner's own write did nothing") and whose chapter is the positive control for
+    // every elections AREA case.
+    //
+    // BOTH START IN NO CHAPTER, so a control that files them into `f.chapter` is a real change
+    // the probe can see. They carry no `user_id`, which is incidental here — the action does not
+    // care, and an account-less relative being filed by an administrator is the likeliest real
+    // use of that screen.
+    //
+    // ALPHA ONLY, because only ALPHA's ids are ever passed. That halves what they disturb:
+    // every count `reports.getMembershipReport` asserts EXACTLY — and it asserts them exactly
+    // on purpose, since the roster total is the only thing in that case that can see an
+    // unscoped `people` read — moves by two per family a row is added to. BRAVO's numbers are
+    // the attack half's, so leaving that side alone leaves them alone.
+    if (side === 'alpha') {
+      f.movableForPerson = must('movable person A', await db.from('people').insert({
+        family_code: code, first_name: `${code}Movable`, last_name: 'One',
+      }).select().single())
+      f.movableForChapter = must('movable person B', await db.from('people').insert({
+        family_code: code, first_name: `${code}Movable`, last_name: 'Two',
+      }).select().single())
+    }
 
     // ── two more records, for the three states on Dues Projections ───────────
     // That screen counts EVERY approved person, account or not, and reports each as Active,

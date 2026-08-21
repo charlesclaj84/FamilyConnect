@@ -564,45 +564,18 @@ to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ## Authorization
 
-### Everything below came out of building `tests/rls`
+**Nothing open.** This section held the findings that came out of building `tests/rls`
+(see AGENTS.md §7), and both of them are closed as of 2026-08-21:
 
-(see AGENTS.md §7). The suite is green, and the item below is neither an isolation failure nor
-a blocker. It said "neither item below" until 2026-08-21, when the second — `notifications`
-possibly not being in the realtime publication — was resolved: the publication held no tables
-at all, `20260821000002` fixed it, and what survives is a per-database confirmation that is not
-an authorization question and now has its own entry above.
+* `notifications` possibly not being in the realtime publication. The publication held no
+  tables at all; `20260821000002` fixed it, and the per-database confirmation that survives
+  is not an authorization question and has its own entry above.
+* `saveChapterAndPropagate` never moving a member's account-less children — a write on the
+  user client against a policy that admitted only the caller's own row, so it matched nothing
+  and said nothing. `lib/chapter-propagation.ts` is the repair, shared with the administrator's
+  new `setMemberChapter`, and `personal-info.saveChapterAndPropagate (the children follow)` is
+  the first assertion anywhere that the propagation happens at all. AGENTS.md §8b carries what
+  the fix cost, including a fixture that turned out to be resting on the bug.
 
-### `saveChapterAndPropagate` never moves a member's children, and never has
-
-**Action:** move the child propagation to the admin client with §3 scoping, the way
-`editPersonRecord` does, or delete it and say the chapter does not cascade.
-
-Found 2026-08-20 while closing the silent-no-op writes that became AGENTS.md §8b, and it is
-the same defect class with the opposite remedy. The action updates the caller's own `people`
-row — fine, and honestly
-reported, because the upsert's `.single()` errors if it is refused — and then does this:
-
-```ts
-await supabase.from('people').update({ chapter_id: chapterId ?? null })
-  .in('id', childRels.map(r => r.related_person_id)).is('user_id', null)
-```
-
-on the USER client. `people` maps to `community/directory` with `user_id = (SELECT auth.uid())`
-as both its own- and self-expression, so **a member without `community/directory:edit` at
-`'any'` matches zero rows, every time.** The result is discarded, so nothing notices. A parent
-changes their chapter, is correctly told it saved, and their account-less children stay where
-they were — which is the whole feature the function is named after.
-
-**`confirmWrite` is the wrong tool here**, and that is why this is an entry rather than a fix:
-the caller's own save DID work, so reporting a failure would be worse than the silence. The
-repair is the admin client, which is exactly the argument AGENTS.md §4b makes for
-`editPersonRecord` — "the `people` UPDATE policy admits only a member's own row, so the user
-client cannot touch a record belonging to nobody".
-
-Two things it costs beyond the four lines. `npm run audit:people` decides the client by
-whether the FILE imports `createAdminClient` at all, so adding one to
-`app/actions/personal-info.ts` puts **every** `people` write in that file on the review list —
-six sites, not one, each needing a verdict against the three questions. And it needs a
-`tests/rls` case, which today would be the first assertion anywhere that the propagation
-happens at all.
+The heading stays because the next finding of this shape belongs under it.
 
