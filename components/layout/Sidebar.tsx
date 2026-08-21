@@ -276,6 +276,17 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
         },
         { href: '/community/directory',       label: 'Directory',        icon: UsersRound },
         { href: '/community/family-tree',   label: 'Family Tree',      icon: GitBranch },
+        // ELECTIONS ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-21 (20260821000003), and it
+        // is LAST for the reason the comment above this group gives about its own order: Chat
+        // and Announcements are conversation, Directory and Family Tree are the roster, and
+        // this is the family acting as an organization — which is a third thing and reads as
+        // one only at the end.
+        //
+        // It keeps the `Vote` glyph it carried under Review. The organizer's row wears the
+        // same one under Admin, and that is now fine rather than confusing: the note in the
+        // Review block argued the two must not sit side by side in one collapsed list wearing
+        // one glyph, and they are a whole section apart.
+        { href: '/community/elections',     label: 'Elections',        icon: Vote },
       ],
     },
   ]
@@ -404,19 +415,39 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // kept — a group held open for rows that are somewhere else is a comment arguing with the
   // code beside it.
   //
-  // The three rows come BACK here, under this heading and this icon, as each screen is
+  // The rows come BACK here, under this heading and this icon, as each screen is
   // reviewed. Whoever moves the last one out of Review re-creates this group; the shape it
   // had is in the git history and in the Review block below.
+  //
+  // ONE OF THE THREE DID NOT COME BACK, AND THAT IS THE POINT OF REVIEWING. Elections went to
+  // COMMUNITY on 2026-08-21, not to Resources — a ballot is the family acting as an
+  // organization, not a shared file like a photograph or a document — and the key moved with
+  // the route (`20260821000003`), because a resource key IS the route without its leading
+  // slash. So this paragraph is now a prediction with a counter-example: a reviewed screen
+  // lands where the review says it belongs, which is not necessarily where it started. If
+  // Photos and Documents both do the same, this group never comes back and the comment goes.
 
   groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
 
   // ── REVIEW: LIVE, BUT NOT YET WALKED ───────────────────────────────────────────────
   // What is left of the six routes that came off `status: 'future'` in lib/features.ts on
-  // 2026-08-20. TWO HAVE ALREADY LEFT, which is the section working rather than the section
-  // shrinking: `/reporting/pl-summary` was reviewed, renamed P&L Summary and moved to Reporting
-  // above, and `/admin/reports` was reviewed and DELETED outright — a screen that sold four
-  // things and delivered a mixture of five, replaced by the Membership Report. Deleting is a
-  // legitimate outcome of a review and is the one this heading exists to make possible.
+  // 2026-08-20. FOUR HAVE ALREADY LEFT, which is the section working rather than the section
+  // shrinking, and no two of them left the same way:
+  //
+  //   `/reporting/pl-summary`   reviewed, renamed P&L Summary, moved to Reporting above
+  //   `/admin/reports`          reviewed and DELETED outright — a screen that sold four things
+  //                             and delivered a mixture of five, replaced by the Membership
+  //                             Report. Deleting is a legitimate outcome of a review and is
+  //                             the one this heading exists to make possible.
+  //   `/admin/elections`        reviewed, renamed Elections, moved to Admin (20260821000000)
+  //   `/community/elections`    reviewed, moved to COMMUNITY (20260821000003) — the member's
+  //                             own ballot, which is not a Resource and never was
+  //
+  // The last two are the same screen pair walked on the same day, and they went to different
+  // sections, which is the outcome this worklist exists to make possible: the walk decides
+  // where a screen belongs, and "back where it came from" is only one of the answers.
+  //
+  // TWO ROWS LEFT: Photos and Documents.
   //
   // Every route still here was already built — a page gating itself with `requireView`, an action module
   // behind it and a `permission_resources` row registered since 20260618000000 — and gated
@@ -435,27 +466,27 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // IT IS NOT A PERMISSION BOUNDARY AND CHANGES NOTHING ABOUT WHO SEES WHAT. Every row here
   // is filtered by `viewable` like every other row in this file, and each page still resolves
   // its own `requireView` — a member without the grant sees no row AND no page, exactly as
-  // before. All six are `tier: 'plus'`, so a Free or Standard family gets `/upgrade` rather
-  // than the screen. This heading is a place to stand, not a gate.
+  // before. Both rows still here are `tier: 'plus'`, so a Free or Standard family gets
+  // `/upgrade` rather than the screen. This heading is a place to stand, not a gate.
   //
   // NO `beta` BADGES, deliberately. That flag marks a route that is live and UNFINISHED, and
   // that is a claim about the screen that nobody is yet in a position to make about any of
   // these — the review is what will decide it. Set it per row if a walk finds one, which is
   // the badge doing its actual job rather than being applied six times in advance.
   //
-  // THE Gavel IS GONE WITH ELECTION MANAGEMENT, and the reason it existed is worth keeping
-  // for the next row that lands here: this section put side by side two rows that were never
-  // neighbours — the organizer's election screen and the member's own ballot — and two rows
-  // in one collapsed list wearing the same glyph is not a list of four things, it is a list
-  // of three. That row left for Admin on 2026-08-21 and took the `Vote` glyph with it, which
-  // is the one that actually means elections; the member's row keeps it here too, because the
-  // two are now a whole section apart.
+  // BOTH ELECTION ROWS ARE GONE FROM HERE, and the reason the first one's glyph mattered is
+  // worth keeping for the next row that lands in this section: it put side by side two rows
+  // that were never neighbours — the organizer's election screen and the member's own ballot
+  // — and two rows in one collapsed list wearing the same glyph is not a list of four things,
+  // it is a list of three. The organizer's row left for Admin on 2026-08-21 (`Gavel` went
+  // with it, replaced there by `Vote`, which is the one that actually means elections) and
+  // the member's row left for Community the same day. Both now wear `Vote`, a whole section
+  // apart, which is the arrangement the old conflict was an argument for.
   groups.push({
     section: { label: 'Review', icon: ClipboardCheck },
     items: [
       { href: '/review/photos',          label: 'Photos',              icon: Camera },
       { href: '/review/documents',       label: 'Documents',           icon: FileText },
-      { href: '/review/elections',       label: 'Elections',           icon: Vote },
     ],
   })
 

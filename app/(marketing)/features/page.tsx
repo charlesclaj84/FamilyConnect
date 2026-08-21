@@ -121,7 +121,7 @@ const ALSO: readonly {
     // "family-wide" WENT ON 2026-08-21, and it is a correction rather than a trim: an election
   // now belongs to the whole family, one region or one chapter, so the old blurb was false
   // for two of the three. The window sentence is the other half of what changed.
-  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote — inside the nomination and voting windows your family set, with results tallied when the poll closes.' },
+  { icon: Vote, route: '/community/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote — inside the nomination and voting windows your family set, with results tallied when the poll closes.' },
   { icon: Images, route: '/review/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
   { icon: FileText, route: '/review/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
   // TRIMMED 2026-08-21 for the same reason: board positions have their own card now, and this

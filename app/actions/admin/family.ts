@@ -230,7 +230,7 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
  * There is no billing. Any of the three tiers can be picked and nothing is charged, which
  * is why the panel that calls this says so in as many words rather than reading as a
  * checkout. What it buys today is the ability to SEE the tier gates work — put a family on
- * Free and `/reporting/pl-summary`, `/review/photos`, `/review/documents` and `/review/elections` become the upgrade
+ * Free and `/reporting/pl-summary`, `/review/photos`, `/review/documents` and `/community/elections` become the upgrade
  * screen; put them back on Plus and they return, with every row they ever entered intact,
  * because no policy consults `families.tier` and none may start to (20260813000003).
  *

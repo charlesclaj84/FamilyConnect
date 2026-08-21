@@ -407,6 +407,29 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'A multi-generation tree of parents, grandparents, children, and spouses.',
   },
 
+  // ELECTIONS IS A COMMUNITY SCREEN, SINCE 2026-08-21, and it arrived here from the Review
+  // section rather than from nowhere. `20260821000003` moved the key with the route
+  // (`review/elections` -> `community/elections`), which is §1's rule and not a preference:
+  // the resource key IS the route without its leading slash, so a rail item that changes
+  // section changes its key and that is a migration.
+  //
+  // WHY COMMUNITY AND NOT ITS OWN SECTION. This is the family taking part in its own
+  // governance — the same register as the notice board, the roster and the tree, and the
+  // opposite end of the same feature from Admin > Elections, which is the console that RUNS
+  // one. The two keys stay two keys for 20260821000000's reason: running an election is not
+  // voting in one.
+  //
+  // STILL `tier: 'plus'`, deliberately unchanged. Moving a rail item is a navigation
+  // decision; re-pricing a feature is a billing one, and 20260819000009's restructure is
+  // what that looks like when it is actually intended.
+  {
+    href: '/community/elections',
+    label: 'Elections',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
+  },
+
   // MY CHILDREN IS NOT ON THE ROADMAP — IT WAS RETIRED, 2026-08-13. `/direct-lineage`
   // was the second way a person could exist: a child record a parent owned, carrying
   // `people.is_minor`, "converted to adult" once they had an email address. There is one
@@ -565,13 +588,19 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── IN REVIEW: SIX ROUTES CAME OFF `status: 'future'` ON 2026-08-20 ─────────
-  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/review/elections`, the
-  // then-`/review/election-management` and `/admin/reports` were all Coming Soon until that commit. Every one of them was already
+  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/admin/reports`, and the
+  // two elections screens — then spelled `/review/elections` and
+  // `/review/election-management`, now `/community/elections` and `/admin/elections` — were
+  // all Coming Soon until that commit. Every one of them was already
   // BUILT — a page that gates itself with `requireView`, an action module behind it, and a
   // `permission_resources` row registered since 20260618000000 — and gated only because
   // nobody had walked them end to end. They are live now so that somebody can, and the rail
-  // gathers all six under one heading, **Review**, rather than returning each to the section
+  // gathered all six under one heading, **Review**, rather than returning each to the section
   // it will eventually belong to. See `buildNavGroups` in components/layout/Sidebar.tsx.
+  //
+  // FOUR OF THE SIX HAVE NOW BEEN WALKED AND LEFT, and the four went four different ways —
+  // renamed and regrouped, deleted outright, moved to Admin, moved to Community. The Sidebar
+  // block carries the list. Photos and Documents are what is left.
   //
   // THREE THINGS THIS FLIP DID, and none of them is undone by moving a rail item:
   //
@@ -688,14 +717,6 @@ export const FEATURES: readonly Feature[] = [
     tier: 'plus',
     blurb: 'Bylaws, forms, meeting minutes, and family records in one shared place.',
   },
-  {
-    href: '/review/elections',
-    label: 'Elections',
-    status: 'live',
-    tier: 'plus',
-    blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
-  },
-
   // ── Admin ───────────────────────────────────────────────────────────────────
   // The `/admin` entry covers every nested admin route by prefix; the specific
   // entries below exist so the Coming Soon screen can name the right tool.
@@ -905,10 +926,14 @@ export const FEATURES: readonly Feature[] = [
   // work the rail heading already does — the same argument that shortened "Family Settings"
   // to "Settings" (20260812000001) and "Membership Report" to "Membership" (20260820000003).
   //
-  // TWO RAIL ITEMS NOW READ "Elections", this one and `/review/elections` above, which is the
+  // TWO RAIL ITEMS NOW READ "Elections", this one under Admin and `/community/elections`
+  // under Community, which is the
   // arrangement AGENTS.md sanctions for "Dues" appearing under both Accounting and
   // Transactions: each caption is right under its own section heading, and the two are two
   // KEYS because they are two jobs — running an election is not voting in one.
+  //
+  // BOTH HALVES HAVE NOW LEFT REVIEW, in opposite directions and on the same day. This one
+  // came here on 20260821000000; the member's ballot went to Community on 20260821000003.
   //
   // THE KEY IS `admin/elections` AGAIN, WITH CATEGORY `admin`, and that pair is load-bearing
   // rather than cosmetic: 20260817000004 makes an `admin/…` key resolve `view` to 'none'

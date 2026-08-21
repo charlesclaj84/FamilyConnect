@@ -30,7 +30,7 @@ import {
  *   2. **An election belongs to a level** — national, regional or chapter — and the levels do
  *      not cross-pollinate: a chapter election fills chapter-scoped offices and admits only
  *      that chapter's members.
- *   3. **The organizer's key is `admin/elections` again.** `review/elections` is the member's
+ *   3. **The organizer's key is `admin/elections` again.** `community/elections` is the member's
  *      own ballot and is what the four TABLES are mapped to; `admin/elections` is the screen
  *      that runs one, and it fails closed for a family that has not granted it.
  *
@@ -461,7 +461,7 @@ export async function getElectionDetail(id: string): Promise<{
 export async function getElectionNomineeOptions(electionId: string): Promise<ElectionNominee[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'review/elections', 'view'))) return []
+  if (!(await can(g.userId, 'community/elections', 'view'))) return []
   if (!(await belongsToFamily('elections', electionId, g.familyCode))) return []
 
   const admin = createAdminClient()
@@ -514,7 +514,7 @@ export async function getElectionResults(id: string): Promise<ElectionVoteCount[
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!(await belongsToFamily('elections', id, familyCode))) return []
-  if (!(await can(user.id, 'review/elections', 'view'))) return []
+  if (!(await can(user.id, 'community/elections', 'view'))) return []
 
   const admin = createAdminClient()
   const [electionRes, places, chapterId] = await Promise.all([
@@ -881,7 +881,7 @@ export async function updateElection(
   }
 
   revalidatePath('/admin/elections')
-  revalidatePath(`/review/elections/${id}`)
+  revalidatePath(`/community/elections/${id}`)
   return { success: true }
 }
 
@@ -937,7 +937,7 @@ export async function publishElection(
   if (opts?.announce) await announceElection(g, existing)
 
   revalidatePath('/admin/elections')
-  revalidatePath('/review/elections')
+  revalidatePath('/community/elections')
   return { success: true }
 }
 
@@ -1038,7 +1038,7 @@ export async function unpublishElection(
   if (!outcome.ok) return { success: false, message: outcome.message }
 
   revalidatePath('/admin/elections')
-  revalidatePath('/review/elections')
+  revalidatePath('/community/elections')
   return { success: true }
 }
 
@@ -1053,7 +1053,7 @@ export async function deleteElection(id: string): Promise<{ success: boolean; me
     .from('elections').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/elections')
-  revalidatePath('/review/elections')
+  revalidatePath('/community/elections')
   return { success: true }
 }
 
@@ -1144,7 +1144,7 @@ export async function submitNomination(
     }
     return { success: false, message: error.message }
   }
-  revalidatePath(`/review/elections/${electionId}`)
+  revalidatePath(`/community/elections/${electionId}`)
   return { success: true }
 }
 
@@ -1168,7 +1168,7 @@ export async function respondToNomination(
 
   // `election_nominations`' composed policy carries `nominee_id = auth_person_id()` as its
   // `self_expr`, so a nominee always reaches their own row — and anybody ELSE matches zero
-  // rows unless the family granted them `review/elections:edit`. Zero rows is not an error
+  // rows unless the family granted them `community/elections:edit`. Zero rows is not an error
   // (lib/confirmed-write.ts), so this used to tell somebody their answer was recorded when
   // no row had changed, which on a nomination is the worst place for it: the election goes
   // ahead reading an `accepted` the nominee believes they set.
@@ -1186,7 +1186,7 @@ export async function respondToNomination(
       .select('id'))
   if (!outcome.ok) return { success: false, message: outcome.message }
 
-  revalidatePath(`/review/elections/${electionId}`)
+  revalidatePath(`/community/elections/${electionId}`)
   return { success: true }
 }
 
@@ -1259,6 +1259,6 @@ export async function castVote(
     { onConflict: 'election_id,position_id,voter_id' },
   )
   if (error) return { success: false, message: error.message }
-  revalidatePath(`/review/elections/${electionId}`)
+  revalidatePath(`/community/elections/${electionId}`)
   return { success: true }
 }

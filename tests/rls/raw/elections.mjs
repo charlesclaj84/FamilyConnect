@@ -24,7 +24,7 @@
  *      chapter and `alphaMember` is in none, so the pair differ in nothing else — same
  *      family, same template, same approval.
  *   2. **The secret ballot.** Until 20260821000001 `election_votes`' cross-member SELECT
- *      policy was satisfied by `review/elections:view = 'any'`, which every member holds by
+ *      policy was satisfied by `community/elections:view = 'any'`, which every member holds by
  *      default, so any signed-in member could read every vote in the family off PostgREST —
  *      who voted and for whom. It demands `admin/elections:view` now. No action exposes that
  *      read at all (`getElectionResults` tallies on the service role), so a probe is the ONLY

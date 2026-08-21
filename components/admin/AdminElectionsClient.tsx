@@ -479,7 +479,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                       <Undo2 className="h-3 w-3 mr-1" /> Return to draft
                     </Button>
                   )}
-                  <Link href={`/review/elections/${e.id}`}
+                  <Link href={`/community/elections/${e.id}`}
                     aria-label={`Open ${e.title}`}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                       <ChevronRight className="h-3.5 w-3.5" />

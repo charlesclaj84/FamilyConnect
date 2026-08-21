@@ -7011,7 +7011,7 @@ function photoForm() {
  * and `npm run db reset` puts it back. Observed:
  *
  *   the area conjunct -> true       `raw:elections SELECT (a chapter they are not in)` FAILS
- *   admin/elections -> review/elections
+ *   admin/elections -> community/elections
  *     in the votes policy           `raw:election_votes SELECT (another member's ballot)` FAILS
  *
  * ── THE ATTACKER IS IN THE FAMILY, WHICH IS THE POINT ──────────────────────────────
@@ -7072,7 +7072,7 @@ const ELECTION_RAW_CASES = [
     }),
   // [crux] THE SECRET BALLOT, AND IT WAS NOT SECRET UNTIL 2026-08-21.
   //
-  // `perm:admins can view all votes` was satisfied by `review/elections:view = 'any'`, which
+  // `perm:admins can view all votes` was satisfied by `community/elections:view = 'any'`, which
   // every member holds by default because a non-admin resource with no `resource_visibility`
   // row defaults to 'everyone'. So the policy named for administrators admitted the whole
   // family, and any signed-in member could read every vote — who voted, and for whom — off

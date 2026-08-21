@@ -41,7 +41,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'review/elections')
+  await requireView(user.id, 'community/elections')
 
   // The caller's people.id in the family they are currently viewing. A user_id
   // lookup would match one row per membership and fail for multi-family members.
@@ -62,7 +62,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
   return (
     <PageShell width="reading" className="space-y-8">
       <div>
-        <Link href="/review/elections" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
+        <Link href="/community/elections" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
           <ChevronLeft className="h-3.5 w-3.5" /> Back to Elections
         </Link>
         <div className="flex items-start justify-between gap-4">

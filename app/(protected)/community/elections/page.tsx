@@ -15,6 +15,13 @@ export const metadata = { title: 'Elections' }
 /**
  * The member's own list.
  *
+ * ── THIS IS A COMMUNITY SCREEN, AND THE KEY SAYS SO ────────────────────────────────
+ * It was `/review/elections` for one day. The route and the key moved together on
+ * 2026-08-21 (`20260821000003`), because a resource key IS the route without its leading
+ * slash (AGENTS.md §1) — so a rail item changing section is a migration, not a rename. The
+ * organizer's half went the other way, to `/admin/elections`; running an election and voting
+ * in one are two jobs a family delegates separately and they stay two keys.
+ *
  * ── TWO THINGS CHANGED HERE ON 2026-08-21 ──────────────────────────────────────────
  * The list is `getElectionsForMember()` rather than `getAllElections()`, which is two
  * narrowings in one: it drops elections addressed to a different part of the family, and it
@@ -32,7 +39,7 @@ export default async function ElectionsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'review/elections')
+  await requireView(user.id, 'community/elections')
 
   const elections = await getElectionsForMember()
   const active = elections.filter(e => electionIsCurrent(e.phase))
@@ -63,7 +70,7 @@ export default async function ElectionsPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Active</h2>
               <div className="space-y-3">
                 {active.map(e => (
-                  <Link key={e.id} href={`/review/elections/${e.id}`}>
+                  <Link key={e.id} href={`/community/elections/${e.id}`}>
                     <div className="flex items-center gap-4 rounded-xl border bg-card px-4 py-4 hover:shadow-sm transition-shadow cursor-pointer">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{e.title}</p>
@@ -95,7 +102,7 @@ export default async function ElectionsPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Past</h2>
               <div className="space-y-3">
                 {past.map(e => (
-                  <Link key={e.id} href={`/review/elections/${e.id}`}>
+                  <Link key={e.id} href={`/community/elections/${e.id}`}>
                     <div className="flex items-center gap-4 rounded-xl border bg-card px-4 py-3 hover:shadow-sm transition-shadow cursor-pointer opacity-70">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{e.title}</p>

@@ -1,7 +1,7 @@
 import type { ElectionPhase } from '@/lib/election-phase'
 
 /**
- * The election phase badge. Consumed by the member list (`app/(protected)/review/elections`),
+ * The election phase badge. Consumed by the member list (`app/(protected)/community/elections`),
  * the detail page and the organizer's screen (`components/admin/AdminElectionsClient.tsx`),
  * which print the same badge for the same phase and until this table existed held two
  * byte-identical copies of it.

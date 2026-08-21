@@ -745,7 +745,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'elections',
         title: 'Elections',
         summary: 'How an election runs on its own dates, who is entitled to take part, and how to nominate, accept and vote.',
-        route: '/review/elections',
+        route: '/community/elections',
         sections: [
           {
             id: 'what-it-is',
