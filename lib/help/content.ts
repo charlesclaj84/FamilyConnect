@@ -741,6 +741,91 @@ export const HELP_PARTS: readonly HelpPart[] = [
           },
         ],
       },
+      {
+        slug: 'elections',
+        title: 'Elections',
+        summary: 'How an election runs on its own dates, who is entitled to take part, and how to nominate, accept and vote.',
+        route: '/review/elections',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What this screen is',
+            blocks: [
+              p('Every election your part of the family is holding. **Active** is anything not yet finished — one that has not opened, one taking nominations, one waiting for its ballot to open, and one being voted in. **Past** is the ones that have closed.'),
+              p('Elections that have not been published yet are not listed. An organizer writes an election as a draft first, and a draft is not a ballot.'),
+              p('Open one to see its positions, its two date windows, and whatever you can do in it today.'),
+            ],
+          },
+          {
+            id: 'the-dates',
+            heading: 'The dates run it',
+            blocks: [
+              p('An election has two windows, and nobody presses anything to move it between them.'),
+              defs(
+                { term: 'Nominations', text: 'From the day they open to the day they close. Put yourself forward, or put somebody else forward.' },
+                { term: 'Voting', text: 'From the day it opens to the day it closes. Cast a vote, or change one.' },
+              ),
+              p('**Both ends count.** An election whose nominations read "January 1st – January 5th" is open on the 5th, right up to the end of the day. The same is true of voting.'),
+              p('Voting always opens after nominations close, so the list of candidates you are voting on cannot change under you. There is usually a gap; the screen says what it is waiting for.'),
+              note('Nothing here happens at a time of day, and no timezone is involved. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
+            ],
+          },
+          {
+            id: 'who-votes',
+            heading: 'Who an election is for',
+            blocks: [
+              p('An election belongs to one level of the family, and the screen names it under the title.'),
+              defs(
+                { term: 'National', text: 'The whole family. Everybody can see it, be nominated, and vote.' },
+                { term: 'A region', text: 'Only members whose chapter is in that region.' },
+                { term: 'A chapter', text: 'Only members of that chapter.' },
+              ),
+              p('The levels do not mix. A chapter election is invisible to the rest of the family — it is not listed, and its link does not open — and it can only fill offices the family records at chapter level. See [Regions & chapters](/help/regions-and-chapters) for how the family is divided up, and [Board positions](/help/board-positions) for the offices themselves.'),
+              p('**If you are not in a chapter, you are under National.** You see national elections and take part in them, and regional and chapter elections are not yours. Your chapter is on [My Profile](/personal-info) — an administrator can also set it for you.'),
+            ],
+          },
+          {
+            id: 'nominating',
+            heading: 'Nominating somebody',
+            blocks: [
+              p('While nominations are open, any member may nominate.'),
+              steps(
+                'Open the election.',
+                'To stand yourself, pick an office under **Put Yourself on the Ballot** and press **Nominate Myself**. You are on the ballot straight away — nobody has to accept their own nomination.',
+                'To put somebody else forward, pick the office, then find them in the **Nominee** box and press **Submit nomination**.',
+              ),
+              p('The nominee box searches any part of any name, so typing "allen" finds Martha Allen. It lists only the people this election is for, which is why a chapter election offers fewer names than the family has.'),
+              p('One person can be nominated once per office, and can be nominated for several offices. **Current Candidates** below the form shows where each nomination stands.'),
+            ],
+          },
+          {
+            id: 'accepting',
+            heading: 'Accepting or declining',
+            blocks: [
+              p('If somebody nominates you, the election opens with **You have been nominated!** at the top, one row per office. **Accept** puts you on the ballot; **Decline** takes you off it.'),
+              p('It cannot be changed afterwards, so the screen asks you to confirm. Only nominations you have accepted appear as candidates when voting opens — a nomination nobody answered is not on the ballot.'),
+              note('You can still answer after nominations close. The window governs who may be nominated, not how long you have to reply.'),
+            ],
+          },
+          {
+            id: 'voting',
+            heading: 'Voting',
+            blocks: [
+              p('While voting is open, each office lists the candidates who accepted. Press one, confirm, and your vote is recorded.'),
+              p('You may change your vote as often as you like until the window closes — pressing another candidate replaces your earlier vote rather than adding to it. One vote per office.'),
+              p('**Your ballot is yours.** You can see your own votes and nobody else can, and nothing anywhere shows another member who they voted for.'),
+            ],
+          },
+          {
+            id: 'results',
+            heading: 'Results',
+            blocks: [
+              p('Once the voting window has closed, **Results** appears at the foot of the election with the vote count for each candidate, ordered by count, as many rows deep as the office has winners.'),
+              p('Nothing is published while voting is still open, and nothing has to be pressed to publish it — the day after voting closes, the results are there.'),
+            ],
+          },
+        ],
+      },
     ],
   },
 
@@ -1020,7 +1105,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'money',
             heading: 'The fund, the budget, and the red line',
             blocks: [
-              p('A budget is always drawn on a fund, and the two are saved together — clearing the fund clears the budget with it, and the amount box will not take a figure until a fund is chosen. Funds are set up under [Accounting](/admin/account?section=funds); see [Accounting](/help/accounting#funds).'),
+              p('A budget is always drawn on a fund, and the two are saved together — clearing the fund clears the budget with it, and the amount box will not take a figure until a fund is chosen. Funds are set up under [Accounting](/admin/accounting?section=funds); see [Accounting](/help/accounting#funds).'),
               p('Several gatherings may draw on one fund, so a balance is not one gathering\'s to spend. The band on each gathering says what else is claiming it.'),
               p('A budget larger than the fund is allowed and is not an error. The figures say so with a red line instead of refusing the number, because a family plans a reunion before it has raised the money for one — refusing it would mean the plan could not be written down at all.'),
               p('Each task can carry its own **Budget line ($)**, set in that task\'s dialog: what the one job is expected to cost, with empty meaning it costs the family nothing. The lines together are what the band compares to the budget, and a template step\'s suggested budget is only the figure a line starts at. When the lines outrun the budget the band says so in a quieter, deliberately different treatment — nothing has been spent, and it is settled by raising the budget or trimming a line.'),
@@ -1715,7 +1800,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Two levels, and National',
             blocks: [
-              p('**Organization** is the fourth tab of [Members](/admin/users?tab=organization), and it is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
+              p('**Organization** is the fourth tab of [Members](/admin/members?tab=organization), and it is how a family that is spread out organises itself. A **chapter** is where a member actually belongs — Houston, Atlanta — and a **region** is a group of chapters, like Texas or Eastern. A family can run on chapters alone, on both, or on neither.'),
               p('The tab has two halves. This chapter is the upper one, the geography; the lower one is the family\'s offices and has its own chapter, [Board Positions](/help/board-positions). They are granted separately, so somebody may be given one half and not the other — a tab showing only one of them is not a fault.'),
               p('It used to be a screen of its own on the rail and is a tab now, because who is in the family and how the family is divided up are one job. A link or a bookmark pointing at the old address still lands here.'),
               p('**National** is the third thing on the screen and it is not a region you create. It is what everything belongs to until you file it somewhere else: a chapter with no region is under National, and so is any member who has not picked a chapter. It cannot be renamed, deleted or turned off, and every family has it.'),
@@ -1741,14 +1826,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('Deleting a region moves its chapters to National. Nobody\'s membership changes and no record is touched; the confirmation says how many chapters will move.'),
               p('A chapter or region cannot be deleted while something still points at it. The row\'s Delete button is unavailable and says what is in the way — members in the chapter, a dues schedule scoped to it, an announcement addressed to it, or a board position held there.'),
               p('That is a refusal rather than a tidy-up on your behalf, and deliberately so: somebody\'s chapter decides what they owe and who leads them, so moving fourteen people as a side effect of a delete is not a decision to make by accident. Move the members, re-scope the dues, then delete.'),
-              note('Nothing here is a dead end. Re-scope a due to the whole family under [Accounting](/admin/account?section=dues) and the region deletes.'),
+              note('Nothing here is a dead end. Re-scope a due to the whole family under [Accounting](/admin/accounting?section=dues) and the region deletes.'),
             ],
           },
           {
             id: 'dues',
             heading: 'What a chapter decides about money',
             blocks: [
-              p('A dues schedule is owed by the whole family, by one region, or by one chapter — set with **Owed by** on the dues form under [Accounting](/admin/account?section=dues). See [Accounting](/help/accounting#dues).'),
+              p('A dues schedule is owed by the whole family, by one region, or by one chapter — set with **Owed by** on the dues form under [Accounting](/admin/accounting?section=dues). See [Accounting](/help/accounting#dues).'),
               defs(
                 { term: 'National', text: 'Every member owes it. The default, and the only option until you have created a region or a chapter.' },
                 { term: 'A region', text: 'Only members whose CHAPTER is in that region owe it.' },
@@ -1770,7 +1855,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Your family\'s offices',
             blocks: [
-              p('**Board Positions** is the list of offices your family actually keeps — President, Treasurer, a Reunion Chair — and a record of who holds each one. It is the lower half of the **Organization** tab of [Members](/admin/users?tab=organization), under the regions and chapters: one tab answers both halves of "what shape is this family in?".'),
+              p('**Board Positions** is the list of offices your family actually keeps — President, Treasurer, a Reunion Chair — and a record of who holds each one. It is the lower half of the **Organization** tab of [Members](/admin/members?tab=organization), under the regions and chapters: one tab answers both halves of "what shape is this family in?".'),
               p('**The list starts empty, and that is deliberate.** No two families run the same way: one has five officers and a chair for the reunion, another has twenty committees. So nothing is set up for you and nothing is suggested — you add the offices you have, and the ones you do not have simply are not there.'),
               p('Every position belongs to your family alone. Another family naming its treasurer the same thing has no effect on yours, and neither family can see the other\'s list.'),
             ],
@@ -1840,7 +1925,85 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'and on their [Dashboard](/dashboard) when they sign in.',
               ),
               p('A regional or chapter position is written out in full — "Houston Chapter President", "Texas Regional Secretary" — so two people holding the same office in different places read as two different titles.'),
-              p('The positions on this list are also what an election can be held for, once Elections ships.'),
+              p('These positions are what an election is held for. An election at one level can only fill offices recorded at that level, so a chapter election offers the chapter positions and nothing else — see [Running an election](/help/running-an-election).'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'running-an-election',
+        title: 'Running an election',
+        summary: 'Setting the two date windows, choosing which part of the family votes, putting offices on the ballot, and publishing it.',
+        route: '/admin/elections',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What this screen is',
+            blocks: [
+              p('Every election the family has, at every level, drafts included. Each row shows where the election is today, which part of the family it is for, its two date windows, and how many positions, nominations and votes it has.'),
+              p('An election is either a **draft** — yours, invisible to the family — or **published**, which puts it on the family\' calendar. There is nothing else to set: once it is published the dates run it.'),
+            ],
+          },
+          {
+            id: 'the-windows',
+            heading: 'The two date windows',
+            blocks: [
+              p('**Nominations** and **Voting**, each with an opening date and a closing date. They are what makes the election happen; nobody has to come back and press anything.'),
+              bullets(
+                'Nominations run from the day they open to the end of the day they close. Both days count.',
+                'Voting runs the same way, and must open after nominations close — so a ballot is never voted on while the list of candidates can still change.',
+                'Each window has to be at least a day long. A closing date on or before its opening date is refused as you type it.',
+              ),
+              p('The day after voting closes, the election is over and its results appear for everybody who could vote in it. Nothing publishes them and nothing closes the poll.'),
+              note('All four dates are needed to publish. A draft may have none of them, or some — that is what a draft is for.'),
+            ],
+          },
+          {
+            id: 'the-level',
+            heading: 'Choosing who votes',
+            blocks: [
+              p('**Who votes** picks the level: the whole family, one region, or one chapter. It decides three things at once, and they are not separable.'),
+              bullets(
+                'Who can SEE the election. A chapter election is not listed for the rest of the family and its link does not open for them.',
+                'Who can be NOMINATED. The nominee list on the ballot holds only the people the election is for.',
+                'Which OFFICES it can fill — only those recorded at the same level under [Board positions](/help/board-positions).',
+              ),
+              p('Changing the level after you have chosen positions clears any that no longer belong to it, and says which. That is not the form losing your work; it is the rule that an election cannot fill an office from another level.'),
+              p('A family with no regions and no chapters gets National and nothing else, because there is nothing to point at. Regions and chapters are set up under [Regions & chapters](/help/regions-and-chapters).'),
+              note('Members who are not in a chapter are under National. They take part in national elections and in no scoped one, so an election narrowed to a chapter is narrower than it may look — check who is actually filed there before publishing one.'),
+            ],
+          },
+          {
+            id: 'positions',
+            heading: 'What is on the ballot',
+            blocks: [
+              p('**Positions** is the list of offices this election fills. Each one is chosen from the family\' board roster at the matching level, and **Winners** is how many people the office seats — usually one.'),
+              p('An office you expected and cannot find is either recorded at a different level or not recorded at all. Add or re-scope it under [Board positions](/help/board-positions) first.'),
+              p('An election needs at least one position before it can be published.'),
+            ],
+          },
+          {
+            id: 'publishing',
+            heading: 'Publishing it',
+            blocks: [
+              steps(
+                'Fill the form in and press **Create draft**. Nothing is visible to the family yet.',
+                'Read the row back — the level, both windows, and the number of positions.',
+                'Leave **Announce** ticked if you want the family told, then press **Publish** and confirm.',
+              ),
+              p('The announcement is addressed the way the election is: a chapter election is announced to that chapter. A regional one goes to the whole family and names the region, because an announcement can be addressed to a chapter and not to a region.'),
+              p('After that there is nothing to do. Nominations open on their date, close on theirs, voting opens and closes on its own, and the results appear.'),
+            ],
+          },
+          {
+            id: 'changing-it',
+            heading: 'Changing or withdrawing one',
+            blocks: [
+              p('**A draft can be edited freely** — its title, its dates, its level, its positions.'),
+              p('**A published election cannot be edited.** Its dates are what the family was told, and moving them would change what a ballot was rather than correct a typo.'),
+              p('**Return to draft** takes a published election back, and is offered only while nobody has been nominated and nothing has been voted on. Once somebody has acted, the election is a record of something the family did: let it run, or delete it.'),
+              p('**Delete** removes the election with every nomination and vote on it, and cannot be undone. The confirmation says how many of each there are.'),
+              note('Deleting a region or a chapter an election is scoped to is refused while the election exists — re-scope the election to the whole family first, or delete it. Nothing about the family\' shape can quietly change who was entitled to vote.'),
             ],
           },
         ],

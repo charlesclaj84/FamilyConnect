@@ -508,12 +508,13 @@ const UNDOCUMENTED_OK = {
   '/review/documents':
     'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
     'owed and is written by the commit that reviews the screen',
-  '/review/elections':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
-  '/review/election-management':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
+  // BOTH ELECTION ROUTES CAME OFF THIS LIST ON 2026-08-21, which is what the note above says
+  // is supposed to happen: the screens were reviewed (the windows became dates that actually
+  // run the ballot, and an election gained a level), and the commit that reviewed them wrote
+  // `elections` and `running-an-election`. `/review/election-management` is not a FEATURES
+  // href any more either — the organizer's screen is `/admin/elections` — so leaving its
+  // allowance behind would have failed the mirror check below, which is exactly what that
+  // check is for.
 }
 
 function checkUndocumented() {

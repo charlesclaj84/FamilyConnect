@@ -64,7 +64,8 @@ interface Props {
 
 /** What a row has attached, when nothing has been fetched for it. */
 const NOTHING: ScopeAttached = {
-  any: false, members: 0, schedules: 0, announcements: 0, positions: 0, chaptersMoving: 0,
+  any: false, members: 0, schedules: 0, announcements: 0, positions: 0, elections: 0,
+  chaptersMoving: 0,
 }
 
 /**
@@ -81,6 +82,7 @@ function attachedCaption(a: ScopeAttached): string | null {
   if (a.schedules) parts.push(plural(a.schedules, 'due', 'dues'))
   if (a.announcements) parts.push(plural(a.announcements, 'announcement', 'announcements'))
   if (a.positions) parts.push(plural(a.positions, 'position', 'positions'))
+  if (a.elections) parts.push(plural(a.elections, 'election', 'elections'))
   return parts.length ? parts.join(' · ') : null
 }
 
@@ -397,7 +399,7 @@ export function AdminRegionsChaptersClient({
                           </span>
                           <MetaDot />
                           <MetaIf value={`${attached.members} ${attached.members === 1 ? 'member' : 'members'}`} />
-                          {(attached.schedules || attached.announcements || attached.positions) ? <MetaDot /> : null}
+                          {(attached.schedules || attached.announcements || attached.positions || attached.elections) ? <MetaDot /> : null}
                           <MetaIf value={attachedCaption({ ...attached, members: 0 })} />
                         </RowMeta>
                       </td>

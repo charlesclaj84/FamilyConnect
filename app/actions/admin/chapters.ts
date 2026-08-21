@@ -633,7 +633,7 @@ export async function createBoardPosition(input: {
     return { success: false, error: error.message }
   }
   revalidatePath('/admin/members/board-positions')
-  revalidatePath('/review/election-management')
+  revalidatePath('/admin/elections')
   return { success: true }
 }
 
@@ -713,7 +713,7 @@ export async function renameBoardPosition(
     return { success: false, error: error.message }
   }
   revalidatePath('/admin/members/board-positions')
-  revalidatePath('/review/election-management')
+  revalidatePath('/admin/elections')
   // The name is printed under members' names in the Directory, on the dashboard and on My
   // Profile — through `formatRoleTitle`, which reads it live rather than storing a copy — so
   // those screens are stale until their next render.
@@ -764,7 +764,7 @@ export async function deleteBoardPosition(id: string): Promise<{ success: boolea
     .eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/members/board-positions')
-  revalidatePath('/review/election-management')
+  revalidatePath('/admin/elections')
   return { success: true }
 }
 

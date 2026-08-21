@@ -3,19 +3,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { canAny } from '@/lib/auth/permissions'
-import { requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { emailOrigin } from '@/lib/email/send'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
-
-export interface FamilyRole {
-  id: string
-  name: string
-  category: 'executive_officer' | 'appointed_position'
-  scope: 'national' | 'regional' | 'chapter'
-  sort_order: number
-}
 
 export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
 
@@ -29,41 +20,26 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  * `admin/events:view`, a key `20260819000006` deletes, so leaving it would also have left a
  * function resolving a resource that no longer exists.
  *
- * `AssignedRole` and `MemberWithRoles` went with it, having no other reader. `FamilyRole`
- * above stays — the Elections position picker below returns it.
- */
-
-/**
- * The board positions this family has, for the Elections screen's position dropdown.
+ * `AssignedRole` and `MemberWithRoles` went with it, having no other reader.
  *
- * TWO THINGS CHANGED ON 2026-08-19. It demanded nothing but a session — a live endpoint
- * publishing the family's catalogue to anybody signed in, and `/review/election-management` being
- * `status: 'future'` withholds the page and never the action (AGENTS.md, "Coming Soon
- * withholds a page. It does not withhold an action"). And it read the 25 built-in positions
- * plus the family's own, minus a `family_role_exclusions` filter; `20260819000004` retired
- * all three of those things, so this is now one family-scoped read.
+ * ── `getAllRoles()` AND `FamilyRole` WENT THE SAME WAY ON 2026-08-21, FOR THE SAME REASON
+ * AND WITH THE SAME TWIST. It read the family's board positions for the Elections position
+ * picker, and it was gated on `requireRead('review/election-management')` — a key
+ * 20260821000000 DELETES, because the organizer's screen is `admin/elections` again. Left
+ * behind it would have been the exact failure that paragraph describes, and worse in one way
+ * that is worth writing down:
  *
- * It is NOT `getBoardPositions()` from app/actions/admin/chapters.ts, which gates on
- * `admin/boardpositions`: an elections organiser may hold this screen and not that one, so
- * the two keys are two jobs. The reads are deliberately similar and deliberately separate.
+ *   `resolveScope` falls back to `resource_visibility` for an unregistered key, and 'everyone'
+ *   is the default for anything not shaped `admin/…`. `review/election-management` is not, so
+ *   the gate would not merely have stopped working — it would have RESOLVED TO 'any' FOR EVERY
+ *   SIGNED-IN MEMBER, publishing the family's board roster to anybody with the anon key and a
+ *   session. A key that fails closed when it disappears is `admin/`-shaped; this one was not.
+ *
+ * What replaced it is `getElectionScopeOptions()` in app/actions/elections.ts, which returns
+ * the regions, the chapters AND the offices in one read, gated on `admin/elections:view`. The
+ * offices come back with their `scope`, because the level match is what stops a chapter
+ * election filling a national office — see `rolesForScope` in lib/election-area.ts.
  */
-export async function getAllRoles(): Promise<FamilyRole[]> {
-  const g = await requireRead('review/election-management')
-  if (!g.ok) return []
-
-  const { data, error } = await createAdminClient()
-    .from('family_roles')
-    .select('id, name, category, scope, sort_order')
-    .eq('family_code', g.familyCode)
-    .order('sort_order')
-
-  // §8. A refused read renders "No positions defined yet" over a family that has twelve.
-  if (error) {
-    console.error(`[users] board positions read failed for ${g.familyCode}: ${error.message}`)
-    return []
-  }
-  return (data ?? []) as FamilyRole[]
-}
 
 export async function getMyRoles(): Promise<MyRoleSummary[]> {
   const supabase = await createClient()

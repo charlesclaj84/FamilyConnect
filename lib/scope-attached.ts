@@ -78,6 +78,16 @@ export interface ScopeAttached {
   /** Board positions held at this region or chapter. */
   positions: number
   /**
+   * Elections scoped to this region or chapter (20260821000001).
+   *
+   * The strongest case in the list after `members`. `elections.region_id` and
+   * `elections.chapter_id` are NO ACTION, so the database already refuses — and what a
+   * successful delete would have meant is worse than what it means for a due: an election is
+   * the RECORD of who the family chose, and a row pointing at a region that no longer exists
+   * is a result nobody can say the constituency of.
+   */
+  elections: number
+  /**
    * Chapters that would MOVE TO NATIONAL if this region were deleted.
    *
    * Never counted in `any`: this is the documented behaviour of deleting a region, not an
@@ -91,7 +101,8 @@ export interface ScopeAttached {
 export type ScopeBearing = 'region' | 'chapter'
 
 export const NO_SCOPE_ATTACHMENTS: ScopeAttached = {
-  any: false, members: 0, schedules: 0, announcements: 0, positions: 0, chaptersMoving: 0,
+  any: false, members: 0, schedules: 0, announcements: 0, positions: 0, elections: 0,
+  chaptersMoving: 0,
 }
 
 type Countable = Exclude<keyof ScopeAttached, 'any'>
@@ -111,23 +122,27 @@ const REFERENCES: Record<ScopeBearing, readonly { table: string; column: string;
     { table: 'dues_schedules', column: 'chapter_id', field: 'schedules' },
     { table: 'announcements', column: 'chapter_id', field: 'announcements' },
     { table: 'user_roles', column: 'chapter_id', field: 'positions' },
+    { table: 'elections', column: 'chapter_id', field: 'elections' },
   ],
   region: [
     { table: 'dues_schedules', column: 'region_id', field: 'schedules' },
     { table: 'user_roles', column: 'region_id', field: 'positions' },
+    { table: 'elections', column: 'region_id', field: 'elections' },
     { table: 'chapters', column: 'region_id', field: 'chaptersMoving' },
   ],
 }
 
 /** The fields that refuse a delete. `chaptersMoving` is the one that does not — see above. */
-const BLOCKING: readonly Countable[] = ['members', 'schedules', 'announcements', 'positions']
+const BLOCKING: readonly Countable[] = [
+  'members', 'schedules', 'announcements', 'positions', 'elections',
+]
 
 function summarize(counts: Record<Countable, number>): ScopeAttached {
   return { ...counts, any: BLOCKING.reduce((n, f) => n + counts[f], 0) > 0 }
 }
 
 const zero = (): Record<Countable, number> =>
-  ({ members: 0, schedules: 0, announcements: 0, positions: 0, chaptersMoving: 0 })
+  ({ members: 0, schedules: 0, announcements: 0, positions: 0, elections: 0, chaptersMoving: 0 })
 
 /**
  * THE DECIDING READ: count-only queries, one per referencing table, `head: true` so no rows
@@ -244,13 +259,14 @@ export function scopeAttachedMessage(noun: string, attached: ScopeAttached): str
   if (attached.schedules) parts.push(plural(attached.schedules, 'dues schedule', 'dues schedules'))
   if (attached.announcements) parts.push(plural(attached.announcements, 'announcement', 'announcements'))
   if (attached.positions) parts.push(plural(attached.positions, 'board position', 'board positions'))
+  if (attached.elections) parts.push(plural(attached.elections, 'election', 'elections'))
 
   const what = parts.length > 1
     ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
     : parts[0] ?? 'something'
 
   return `${noun} still has ${what} attached, so it cannot be deleted. Move the members to `
-    + 'another chapter, re-scope any dues to the whole family, and clear anything else '
-    + 'pointing at it first — deleting it now would change what people owe and who was told '
-    + 'what.'
+    + 'another chapter, re-scope any dues or elections to the whole family, and clear anything '
+    + 'else pointing at it first — deleting it now would change what people owe, who was told '
+    + 'what, and who was entitled to vote.'
 }

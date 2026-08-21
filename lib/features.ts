@@ -565,8 +565,8 @@ export const FEATURES: readonly Feature[] = [
   },
 
   // ── IN REVIEW: SIX ROUTES CAME OFF `status: 'future'` ON 2026-08-20 ─────────
-  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/review/elections`, `/review/election-management` and
-  // `/admin/reports` were all Coming Soon until this commit. Every one of them was already
+  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/review/elections`, the
+  // then-`/review/election-management` and `/admin/reports` were all Coming Soon until that commit. Every one of them was already
   // BUILT — a page that gates itself with `requireView`, an action module behind it, and a
   // `permission_resources` row registered since 20260618000000 — and gated only because
   // nobody had walked them end to end. They are live now so that somebody can, and the rail
@@ -594,6 +594,13 @@ export const FEATURES: readonly Feature[] = [
   // WHAT DID NOT CHANGE: no tier moved. All six are still `plus`, which is where they were
   // parked and what `/pricing` sells, so a Free or Standard family gets `/upgrade` rather
   // than the screen — the review happens on a Plus family.
+  //
+  // THREE OF THE SIX HAVE LEFT, and each left differently, which is the section doing its
+  // job: `/reporting/pl-summary` was reviewed, renamed and moved to Reporting; `/admin/reports`
+  // was reviewed and DELETED outright; and the organizer's election screen was reviewed,
+  // renamed **Elections** and moved to Admin as `/admin/elections` (2026-08-21) — see its own
+  // entry in the Admin block below for what that cost. Three remain, and when the last one
+  // goes the Review heading in `buildNavGroups` goes with it.
   //
   // ── In review: accounting ───────────────────────────────────────────────────
   // WHAT THE OLD `dues` RESOURCE GOVERNED, AND WHERE IT WENT — worth keeping now that
@@ -696,7 +703,7 @@ export const FEATURES: readonly Feature[] = [
   // `/admin` IS STILL 'future' AND MUST STAY THAT WAY, which is not an oversight of the
   // 2026-08-20 review flip above. It is NOT A PAGE — there is no app/(protected)/admin/page.tsx
   // — it is the prefix that gates every nested admin route nobody has registered here.
-  // `/review/election-management`, the one route from that flip still under this prefix, carries its own
+  // `/admin/elections` — which came back under this prefix on 2026-08-21 — carries its own
   // entry below and so wins the longest-prefix match on its own account. Flipping this row would
   // silently publish the NEXT admin route somebody adds without an entry of its own, which is
   // the failure this catch-all exists to prevent.
@@ -886,16 +893,34 @@ export const FEATURES: readonly Feature[] = [
     tier: 'plus',
     blurb: 'Keep the offices your family holds, and record who holds each one.',
   },
-  // ELECTION MANAGEMENT CAME OFF THE GATE ON 2026-08-20 and is in the rail's Review section,
-  // not here in Admin — see the block above `/reporting/pl-summary` for what that flip cost and
-  // what it published. It is not documented in the manual yet and is named in
-  // `UNDOCUMENTED_OK` in scripts/help-check.mjs with that as the stated reason.
+  // ELECTIONS IS THE ORGANIZER'S SCREEN, AND IT CAME BACK HERE ON 2026-08-21. It spent one
+  // day at `/review/election-management` in the rail's Review section — the worklist of six
+  // routes that came off `status: 'future'` on 2026-08-20 — and this is that section working
+  // rather than shrinking: the screen was walked, and what the walk found is 20260821000001.
+  // The route, the folder and the key all moved together, which AGENTS.md's route rule leaves
+  // no choice about: a screen lives at `/<rail section>/<rail caption>` and its key is that
+  // path without the leading slash. So Admin > Elections is `/admin/elections`.
+  //
+  // CAPTIONED "Elections", not "Election Management". The word "Management" was doing the
+  // work the rail heading already does — the same argument that shortened "Family Settings"
+  // to "Settings" (20260812000001) and "Membership Report" to "Membership" (20260820000003).
+  //
+  // TWO RAIL ITEMS NOW READ "Elections", this one and `/review/elections` above, which is the
+  // arrangement AGENTS.md sanctions for "Dues" appearing under both Accounting and
+  // Transactions: each caption is right under its own section heading, and the two are two
+  // KEYS because they are two jobs — running an election is not voting in one.
+  //
+  // THE KEY IS `admin/elections` AGAIN, WITH CATEGORY `admin`, and that pair is load-bearing
+  // rather than cosmetic: 20260817000004 makes an `admin/…` key resolve `view` to 'none'
+  // where a family has no visibility row, so the move is what puts this screen back to
+  // FAILING CLOSED. 20260821000000 is the migration, and 20260820000004's own header
+  // predicted it word for word.
   {
-    href: '/review/election-management',
-    label: 'Election Management',
+    href: '/admin/elections',
+    label: 'Elections',
     status: 'live',
     tier: 'plus',
-    blurb: 'Open nominations, launch the ballot, and publish the results.',
+    blurb: 'Set the nomination and voting windows, choose the level, and publish the ballot.',
   },
   // THERE IS NO `/admin/announcements` ENTRY, and its absence is deliberate rather than an
   // oversight. The route is deleted — page, client and permission resource
@@ -995,7 +1020,7 @@ function covers(pathname: string, href: string): boolean {
 
 /**
  * Resolve the feature owning `pathname`, preferring the most specific match so
- * `/review/election-management` reports Election Management rather than the catch-all Admin Tools entry.
+ * `/admin/elections` reports Elections rather than the catch-all Admin Tools entry.
  */
 export function getFeature(pathname: string): Feature | undefined {
   let match: Feature | undefined

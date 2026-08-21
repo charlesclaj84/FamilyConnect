@@ -3,25 +3,58 @@
 import { useState, useTransition } from 'react'
 import { CheckCircle, Vote, UserPlus, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
+import { PersonPicker } from '@/components/ui/person-picker'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
-import { castVote, submitNomination, respondToNomination, type Election, type ElectionPosition, type ElectionNomination } from '@/app/actions/elections'
-import type { MemberRecord } from '@/app/actions/members'
+import {
+  castVote, submitNomination, respondToNomination,
+  type Election, type ElectionPosition, type ElectionNomination, type ElectionNominee,
+} from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
+import { nominationsOpen, votingOpen } from '@/lib/election-phase'
+
+/**
+ * The member's ballot.
+ *
+ * ── IT BRANCHES ON THE DERIVED PHASE, NOT ON A STORED STATUS ────────────────────────
+ * `election.phase` is computed on the SERVER from the four window dates
+ * (`lib/election-phase.ts`) and passed down. It is not recomputed here, and must not be:
+ * reading the clock during render makes a component's output depend on when it happened to
+ * render, which `react-hooks/purity` is right to flag and which `lib/date-utils.ts` argues
+ * about at length.
+ *
+ * The cost is a tab left open across a window boundary, which shows the phase it loaded with
+ * until it revalidates. That is why the phase is a RENDERING decision and
+ * `election_window_open()` in SQL is the boundary: a stale screen can offer a control, and the
+ * write behind it is refused all the same.
+ *
+ * ── THE NOMINEE PICKER IS `PersonPicker` NOW ───────────────────────────────────────
+ * It was a native `<select>` printing `{first_name} {last_name}`, and AGENTS.md listed this
+ * file by name under "Known gaps" for it: two Martha Allens were indistinguishable on a
+ * ballot, which is the worst screen in the product for that. `PersonPicker` searches any part
+ * of any name, accent- and punctuation-insensitively, and disambiguates against the whole
+ * list — and the list itself is now only the people who may actually be nominated in this
+ * election, resolved server-side by `getElectionNomineeOptions`.
+ *
+ * The POSITION pickers stay native `<select>`s, deliberately: an election has a handful of
+ * offices, they are not people, and a search box over four options is furniture.
+ */
 
 interface Props {
   election: Election
   positions: ElectionPosition[]
   nominations: ElectionNomination[]
   myVotes: Record<string, string>
-  members: MemberRecord[]
+  /** Only the members who may stand in THIS election. See the note above. */
+  nominees: ElectionNominee[]
   myPersonId: string | null
   myNominations: ElectionNomination[]
 }
 
-const fmtDate = (s: string) => formatDate(s) ?? ''
-
-export function BallotForm({ election, positions, nominations, myVotes, members, myPersonId, myNominations }: Props) {
+export function BallotForm({
+  election, positions, nominations, myVotes, nominees, myPersonId, myNominations,
+}: Props) {
   const confirm = useConfirm()
   const [votes, setVotes] = useState<Record<string, string>>(myVotes)
   const [nomineeId, setNomineeId] = useState('')
@@ -30,8 +63,11 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
+  const canNominate = nominationsOpen(election.phase)
+  const canVote = votingOpen(election.phase)
+
   async function handleVote(positionId: string, nomineePersonId: string) {
-    if (election.status !== 'voting') return
+    if (!canVote) return
     const position = positions.find(p => p.id === positionId)
     const nominee = nominations.find(n => n.position_id === positionId && n.nominee_id === nomineePersonId)
     const alreadyVoted = !!votes[positionId]
@@ -44,26 +80,37 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
     setVotes(prev => ({ ...prev, [positionId]: nomineePersonId }))
     startTransition(async () => {
       const result = await castVote(election.id, positionId, nomineePersonId)
-      if (!result.success) setError(result.message ?? 'Vote failed')
+      if (!result.success) {
+        setError(result.message ?? 'Vote failed')
+        // The optimistic marker is rolled back, because the refusal here is not always
+        // transient: the window may have closed since this page was rendered, and leaving the
+        // radio filled in would tell a member their vote stands when the database refused it.
+        setVotes(prev => {
+          const next = { ...prev }
+          if (myVotes[positionId]) next[positionId] = myVotes[positionId]
+          else delete next[positionId]
+          return next
+        })
+      }
     })
   }
 
   function handleNominate() {
-    if (!nomineeId || !nominatingPositionId) { setError('Select a position and nominee'); return }
+    if (!nomineeId || !nominatingPositionId) { setError('Select a position and a nominee.'); return }
     setError('')
     startTransition(async () => {
       const result = await submitNomination(election.id, nominatingPositionId, nomineeId)
-      if (!result.success) setError(result.message ?? 'Failed')
+      if (!result.success) setError(result.message ?? 'Could not submit that nomination.')
       else { setNomineeId(''); setNominatingPositionId('') }
     })
   }
 
   function handleSelfNominate() {
-    if (!myPersonId || !selfPositionId) { setError('Select a position'); return }
+    if (!myPersonId || !selfPositionId) { setError('Select a position.'); return }
     setError('')
     startTransition(async () => {
       const result = await submitNomination(election.id, selfPositionId, myPersonId)
-      if (!result.success) setError(result.message ?? 'Failed')
+      if (!result.success) setError(result.message ?? 'Could not submit that nomination.')
       else setSelfPositionId('')
     })
   }
@@ -79,7 +126,8 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
     })
     if (!ok) return
     startTransition(async () => {
-      await respondToNomination(nominationId, accepted, election.id)
+      const result = await respondToNomination(nominationId, accepted, election.id)
+      if (!result.success) setError(result.message ?? 'Could not record your answer.')
     })
   }
 
@@ -89,7 +137,9 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
 
   return (
     <div className="space-y-8">
-      {/* Pending nomination responses */}
+      {/* Pending nomination responses. Shown in every phase: a nominee who was asked while
+          nominations were open still has an answer to give after they close, and the policy's
+          self-expression is what keeps their own row reachable. */}
       {pendingMyNominations.length > 0 && (
         <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft p-4 space-y-3">
           <p className="text-sm font-medium text-brand-on-soft">You have been nominated!</p>
@@ -106,8 +156,8 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
         </div>
       )}
 
-      {/* Nominations phase */}
-      {election.status === 'nominations' && (
+      {/* ── Nominations ───────────────────────────────────────────────────── */}
+      {canNominate && (
         <div className="space-y-6">
           {/* Self-nominate */}
           {myPersonId && unNominatedPositions.length > 0 && (
@@ -117,14 +167,15 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
                 <p className="text-sm font-semibold">Put Yourself on the Ballot</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <select
+                <Select
                   value={selfPositionId}
                   onChange={e => setSelfPositionId(e.target.value)}
-                  className="h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-sm flex-1"
+                  aria-label="Position to nominate yourself for"
+                  className="flex-1"
                 >
                   <option value="">— Select position —</option>
                   {unNominatedPositions.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </select>
+                </Select>
                 <Button size="sm" onClick={handleSelfNominate} disabled={isPending || !selfPositionId}>
                   Nominate Myself
                 </Button>
@@ -140,25 +191,28 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
           {/* Nominate someone else */}
           <div className="space-y-3">
             <h2 className="font-semibold text-sm">Nominate Someone Else</h2>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <select
-                value={nominatingPositionId}
-                onChange={e => setNominatingPositionId(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-sm flex-1"
-              >
-                <option value="">— Select position —</option>
-                {positions.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-              <select
-                value={nomineeId}
-                onChange={e => setNomineeId(e.target.value)}
-                className="h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-sm flex-1"
-              >
-                <option value="">— Select nominee —</option>
-                {members.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
-              </select>
-              <Button size="sm" onClick={handleNominate} disabled={isPending}>Submit</Button>
-            </div>
+            <Select
+              value={nominatingPositionId}
+              onChange={e => setNominatingPositionId(e.target.value)}
+              aria-label="Position to nominate somebody for"
+            >
+              <option value="">— Select position —</option>
+              {positions.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </Select>
+            <PersonPicker
+              people={nominees}
+              value={nomineeId}
+              onChange={setNomineeId}
+              label="Nominee"
+              hint={election.scope === 'national'
+                ? 'Anybody in the family may be nominated.'
+                : `Only ${election.scope_label} may be nominated in this election.`}
+              emptyMessage={`Nobody in ${election.scope_label} can be nominated yet.`}
+            />
+            <Button size="sm" onClick={handleNominate}
+              disabled={isPending || !nomineeId || !nominatingPositionId}>
+              Submit nomination
+            </Button>
           </div>
 
           <FormError message={error} />
@@ -182,7 +236,6 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
                             : <Clock className="h-3.5 w-3.5 text-brand-accent shrink-0" />}
                           {n.nominee_name}
                           {n.accepted === null && <span className="text-xs text-brand-accent">(pending acceptance)</span>}
-                          {n.accepted === false && <span className="text-xs text-muted-foreground">(declined)</span>}
                         </li>
                       ))}
                     </ul>
@@ -194,8 +247,8 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
         </div>
       )}
 
-      {/* Voting phase */}
-      {election.status === 'voting' && (
+      {/* ── Voting ────────────────────────────────────────────────────────── */}
+      {canVote && (
         <div className="space-y-6">
           <h2 className="font-semibold flex items-center gap-2">
             <Vote className="h-5 w-5 text-primary" /> Cast Your Vote
@@ -232,20 +285,40 @@ export function BallotForm({ election, positions, nominations, myVotes, members,
         </div>
       )}
 
-      {election.status === 'closed' && (
+      {/* ── The four phases with nothing to do ────────────────────────────── */}
+      {/* Each says what the calendar says, rather than "not available". A member who arrives
+          early wants the date, and one who arrives late wants to know they did. */}
+      {election.phase === 'scheduled' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
-          <p className="text-sm text-muted-foreground">This election is closed. Results are shown below.</p>
+          <p className="text-sm text-muted-foreground">Nominations have not opened yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            They open {formatDate(election.nominations_open_on)}.
+          </p>
         </div>
       )}
 
-      {election.status === 'draft' && (
+      {election.phase === 'between' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
-          <p className="text-sm text-muted-foreground">This election has not opened for nominations yet.</p>
-          {election.nominations_open_at && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Nominations open {fmtDate(election.nominations_open_at)}.
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Nominations closed on {formatDate(election.nominations_close_on)}.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Voting opens {formatDate(election.voting_open_on)}.
+          </p>
+        </div>
+      )}
+
+      {election.phase === 'closed' && (
+        <div className="rounded-xl border bg-muted/30 p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            Voting closed on {formatDate(election.voting_close_on)}.
+          </p>
+        </div>
+      )}
+
+      {election.phase === 'draft' && (
+        <div className="rounded-xl border bg-muted/30 p-4 text-center">
+          <p className="text-sm text-muted-foreground">This election has not been published yet.</p>
         </div>
       )}
     </div>

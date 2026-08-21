@@ -1077,8 +1077,30 @@ export async function seed() {
       created_by: owner.personId, active: true,
     }).select().single())
 
+    // ── ELECTIONS RUN ON DATES NOW, SO THE FIXTURE HAS TO STATE THEM ──────────────
+    // 20260821000001 replaced the four-state `status` machine with `draft | published` plus
+    // four DATE windows, and the two INSERT policies test `election_window_open()` — which
+    // reads CURRENT_DATE — rather than a stored word. So `status: 'voting'` is not a state
+    // any more, it is a window that has to contain today.
+    //
+    // COMPUTED FROM `inDays`, NOT LITERALS, and that is forced rather than tidy: a fixed
+    // date would put this suite's whole nominations half outside its window on some future
+    // afternoon, and the failure would be every write case going green over an action that
+    // refuses everybody. `inDays` already exists here for the dues schedules.
+    //
+    // The constraint chain is `nominations_close_on > nominations_open_on`,
+    // `voting_open_on > nominations_close_on`, `voting_close_on > voting_open_on`, so the
+    // two elections below are laid out to satisfy it with today inside the intended window.
+
+    // NATIONAL, and currently VOTING. National on purpose: most cases here use `alphaMember`
+    // as the positive control and that actor is in NO CHAPTER (see the note above `other`'s
+    // chapter placement), so a scoped election would fail every control for an area reason
+    // rather than an isolation one. `f.chapterElection` below is where the area rule is
+    // tested deliberately.
     f.election = must('election', await db.from('elections').insert({
-      family_code: code, title: `${code} election`, status: 'voting',
+      family_code: code, title: `${code} election`, status: 'published',
+      nominations_open_on: inDays(-20), nominations_close_on: inDays(-10),
+      voting_open_on: inDays(-5), voting_close_on: inDays(25),
       created_by: owner.personId,
     }).select().single())
 
@@ -1096,17 +1118,69 @@ export async function seed() {
       voter_id: owner.personId, nominee_id: other.personId,
     }).select().single())
 
-    // A second election still taking nominations. The INSERT policy on
-    // election_nominations requires elections.status = 'nominations', so
-    // submitNomination cannot be exercised against the voting election above —
-    // it would be refused for a reason unrelated to family isolation.
+    // A second election whose NOMINATIONS window contains today. The INSERT policy on
+    // election_nominations requires `election_window_open(election_id, 'nominations')`, so
+    // submitNomination cannot be exercised against the voting election above — it would be
+    // refused for a reason unrelated to family isolation.
     f.nominationElection = must('nomination election', await db.from('elections').insert({
-      family_code: code, title: `${code} nomination election`, status: 'nominations',
+      family_code: code, title: `${code} nomination election`, status: 'published',
+      nominations_open_on: inDays(-2), nominations_close_on: inDays(10),
+      voting_open_on: inDays(15), voting_close_on: inDays(25),
       created_by: owner.personId,
     }).select().single())
 
     f.nominationPosition = must('nomination position', await db.from('election_positions').insert({
       election_id: f.nominationElection.id, title: 'Secretary', max_winners: 1,
+    }).select().single())
+
+    // ── AND ONE SCOPED TO A CHAPTER, WHICH IS WHAT MAKES THE AREA RULE TESTABLE ────
+    // The area boundary is a rule INSIDE one family, and this suite's attack is normally
+    // cross-family — so it needs an attacker and a control who are both in ALPHA and differ
+    // only in where they are filed. The fixture already provides exactly that pair:
+    //
+    //   `other`  (alphaOther)  is in `f.chapter`     -> the positive control
+    //   `owner`  (alphaMember) is in NO chapter      -> under National, and so the attacker
+    //
+    // `bravoAdmin` still cannot reach it either, and the cross-family cases cover that; what
+    // these rows add is the assertion that a chapter election is invisible to the rest of its
+    // OWN family. Nominations are open on it, so a nominee list can be asserted too.
+    f.chapterElection = must('chapter election', await db.from('elections').insert({
+      family_code: code, title: `${code} chapter election`, status: 'published',
+      scope: 'chapter', chapter_id: f.chapter.id,
+      nominations_open_on: inDays(-2), nominations_close_on: inDays(10),
+      voting_open_on: inDays(15), voting_close_on: inDays(25),
+      created_by: owner.personId,
+    }).select().single())
+
+    f.chapterPosition = must('chapter election position', await db.from('election_positions').insert({
+      election_id: f.chapterElection.id, title: 'Chapter Chair', max_winners: 1,
+    }).select().single())
+
+    // A DRAFT, so `publishElection` and `updateElection` have something to be exercised on.
+    // All four windows are set and ordered, because `elections_published_has_windows` refuses
+    // to publish without them and a publish case that failed on a missing date would be
+    // asserting the constraint rather than the family boundary.
+    f.draftElection = must('draft election', await db.from('elections').insert({
+      family_code: code, title: `${code} draft election`, status: 'draft',
+      nominations_open_on: inDays(5), nominations_close_on: inDays(15),
+      voting_open_on: inDays(20), voting_close_on: inDays(30),
+      created_by: owner.personId,
+    }).select().single())
+
+    f.draftPosition = must('draft election position', await db.from('election_positions').insert({
+      election_id: f.draftElection.id, title: 'Treasurer', max_winners: 1,
+    }).select().single())
+
+    // A SECOND DRAFT, for `updateElection`, and it has to be its own row — `publishElection`'s
+    // positive control runs first and publishes the one above, after which `updateElection`
+    // refuses it and its control fails with "owner's own write did nothing". Same shape, and
+    // the same reason, as `deletableChild` and `deletableFund`: a control that mutates a row a
+    // later case depends on turns that case's attack assertion into decoration.
+    f.editableElection = must('editable election', await db.from('elections').insert({
+      family_code: code, title: `${code} editable election`, status: 'draft',
+      nominations_open_on: inDays(5), nominations_close_on: inDays(15),
+      voting_open_on: inDays(20), voting_close_on: inDays(30),
+      created_by: owner.personId,
     }).select().single())
 
     // Two notifications: one for the owner, one for the other member. The second

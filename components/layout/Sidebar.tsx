@@ -30,7 +30,6 @@ import {
   Settings,
   LifeBuoy,
   ClipboardCheck,
-  Gavel,
   PieChart,
   Scale,
 } from 'lucide-react'
@@ -160,12 +159,22 @@ const adminItems: NavItem[] = [
   // pinning and deleting all live on Community > Announcements now, each control gated by
   // the `announcements` grant that governs it. An admin duplicate of a member page is a
   // second place to learn one job.
-  // NO Election Management ROW AND NO Reports ROW, since 2026-08-20. Both routes came off
-  // `status: 'future'` on that day and both are in the REVIEW section below instead — they
-  // are live but unwalked, and the whole point of that section is that the six such screens
-  // sit together under one heading rather than being scattered back into the sections they
-  // will belong to once somebody has been through them. Move each row here when its screen
-  // has been reviewed; that is the only thing left to do for either of them in this file.
+  // NO Reports ROW. That route came off `status: 'future'` on 2026-08-20, was reviewed, and
+  // was DELETED — a screen that sold four things and delivered a mixture of five. What
+  // replaced it is `/reporting/membership`, in the Reporting group above. Deleting is a
+  // legitimate outcome of a review and this is what it looks like in this file.
+  //
+  // ELECTIONS ARRIVED HERE ON 2026-08-21, from Review, which is the other legitimate outcome.
+  // The row is the ORGANIZER's screen — set the windows, choose the level, publish the ballot
+  // — and it is captioned with the same word as Review > Elections one section down, which is
+  // the member's own ballot. Two rail items reading alike under two headings is the
+  // arrangement AGENTS.md already sanctions for "Dues"; the heading is what tells them apart.
+  //
+  // THE ICON IS `Vote`, NOT THE `Gavel` IT WORE IN REVIEW. Gavel existed only because that
+  // section put the organizer's row and the member's row side by side in one collapsed list,
+  // where two rows wearing one glyph is not a list of four things. Here its twin is a whole
+  // section away, so the row takes the glyph that actually means elections.
+  { href: '/admin/elections',        label: 'Elections',            icon: Vote },
   // SETTINGS IS LAST, and the permission grid agrees with it — 20260812000001 moved its
   // sort_order from 155 (top of the Administration block) to 260 (bottom) in the same
   // commit that shortened its label. The two lists used to disagree here on the argument
@@ -434,18 +443,19 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // these — the review is what will decide it. Set it per row if a walk finds one, which is
   // the badge doing its actual job rather than being applied six times in advance.
   //
-  // ONE ICON IS NEW, and only because this section puts side by side two rows that were never
-  // neighbours: Gavel for Election Management, where Vote is the member's own ballot one row
-  // above it. Two rows in one collapsed list wearing the same glyph is not a list of four
-  // things, it is a list of three. The row keeps its original icon when it leaves for Admin,
-  // where its twin is somewhere else entirely.
+  // THE Gavel IS GONE WITH ELECTION MANAGEMENT, and the reason it existed is worth keeping
+  // for the next row that lands here: this section put side by side two rows that were never
+  // neighbours — the organizer's election screen and the member's own ballot — and two rows
+  // in one collapsed list wearing the same glyph is not a list of four things, it is a list
+  // of three. That row left for Admin on 2026-08-21 and took the `Vote` glyph with it, which
+  // is the one that actually means elections; the member's row keeps it here too, because the
+  // two are now a whole section apart.
   groups.push({
     section: { label: 'Review', icon: ClipboardCheck },
     items: [
       { href: '/review/photos',          label: 'Photos',              icon: Camera },
       { href: '/review/documents',       label: 'Documents',           icon: FileText },
       { href: '/review/elections',       label: 'Elections',           icon: Vote },
-      { href: '/review/election-management', label: 'Election Management', icon: Gavel },
     ],
   })
 

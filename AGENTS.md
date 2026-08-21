@@ -3338,9 +3338,15 @@ The rule is about the size of the list, not about this one component.
 
 ## Known gaps, so nobody reads the above as a description of the tree
 
-* `components/elections/BallotForm.tsx` — a native `<select>` over members that prints
-  `{m.first_name} {m.last_name}` directly. Two Martha Allens are indistinguishable on a
-  ballot, which is the worst screen for it.
+* ~~`components/elections/BallotForm.tsx`~~ — **fixed 2026-08-21.** It was a native `<select>`
+  printing `{m.first_name} {m.last_name}`, which made two Martha Allens indistinguishable on a
+  ballot — the worst screen in the product for it, which is why this entry led the list. It is
+  `PersonPicker` now, and the list it is given is only the members the election's level admits
+  (`getElectionNomineeOptions`), so the picker also stopped offering nominations the policy
+  would refuse. The POSITION pickers on that screen stay native selects, deliberately: an
+  election has a handful of offices, they are not people, and a search box over four options
+  is furniture. Kept here struck through rather than deleted, because the two remaining rows
+  are the same defect and this is what fixing one costs.
 * `components/transactions/TransactionsClient.tsx` — three native member selects. They
   do disambiguate; they have no search beyond the browser's.
 * `components/photos/PhotoCollectionGallery.tsx` — its own `tagSearch`, a plain

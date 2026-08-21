@@ -118,7 +118,10 @@ const ALSO: readonly {
   // MEMBER's half — being nominated, accepting, voting — and the sentence about positions
   // pulling from the board roster moved with the administrator's half, where the person
   // reading it is the one who would act on it.
-  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote family-wide — with results tallying live.' },
+    // "family-wide" WENT ON 2026-08-21, and it is a correction rather than a trim: an election
+  // now belongs to the whole family, one region or one chapter, so the old blurb was false
+  // for two of the three. The window sentence is the other half of what changed.
+  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote — inside the nomination and voting windows your family set, with results tallied when the poll closes.' },
   { icon: Images, route: '/review/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
   { icon: FileText, route: '/review/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
   // TRIMMED 2026-08-21 for the same reason: board positions have their own card now, and this
@@ -167,7 +170,10 @@ const ALSO: readonly {
   // cards saying the same sentence is how a catalogue stops being readable, and the sentence
   // belongs with whichever card's reader would act on it.
   { icon: Award, route: '/admin/members/board-positions', title: 'The offices your family keeps', blurb: 'Define the positions your family actually has — national, regional or per chapter — and record who holds each one. It starts empty on purpose: no two families keep the same board.' },
-  { icon: ClipboardList, route: '/review/election-management', title: 'Running the election', blurb: 'Open an election over several positions at once, set when nominations open and close, and take it through to a result. Positions pull from your board roster.' },
+  // Rewritten 2026-08-21 with the feature. The old blurb sold "take it through to a result",
+  // which was a description of the three buttons an organizer had to press; the dates run it
+  // now. The LEVEL is the other half and is new — see lib/features.ts.
+  { icon: ClipboardList, route: '/admin/elections', title: 'Running the election', blurb: 'Set when nominations and voting open and close, and they run themselves. Choose whether the whole family votes or just one region or chapter. Positions pull from your board roster at the matching level.' },
 ]
 
 /**

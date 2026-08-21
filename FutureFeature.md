@@ -128,8 +128,8 @@ rather than quotes.
 | Route | Tier | Why it is still gated |
 |---|---|---|
 | `/family-finances` | Plus | One-word flip plus a `resource_visibility` backfill. Sharpest inconsistency in the registry: `/admin/account` is live, so funds are configurable and their balances are not. |
-| `/elections` | Plus | Flip plus `BallotForm`'s member picker. **Its board-position dependency became a hard one on 2026-08-19** — see the delivery order. |
-| `/admin/elections` | Plus | With the above. |
+| ~~`/elections`~~ | Plus | **Live, 2026-08-20** as `/review/elections`, and **reviewed 2026-08-21.** Both obligations in this row were discharged in that commit: `BallotForm`'s member picker is `PersonPicker` now, and the empty board-position state is stated on the organizer's form. |
+| ~~`/admin/elections`~~ | Plus | **Live and reviewed with the above.** It spent one day at `/review/election-management` and came back here — `20260821000000` moved the key, `20260821000001` made the date windows govern the ballot and gave an election a national/regional/chapter level. |
 | `/photos` | Plus | Storage rework, plus a live `PGRST201`, plus `deletePhoto` trusting a client path, plus no resizing anywhere. |
 | `/documents` | Plus | Storage rework, and `getPublicUrl` against a private bucket. |
 | `/admin/reports` | Plus | Halved by `/dues-projections`, then halved again: of the four figures it promised, RSVP turnout has **no source at all** now that `event_rsvp_attendees` is dropped, and t-shirt counts moved to `people` (where the sizes always lived). Membership and dues collected are what is left, and both are buildable today. |
@@ -295,7 +295,7 @@ Four things this file still has to carry, because no mechanism does:
 |---|---|---|
 | 0 | **Storage rework** | Unchanged since 2026-08-12 and now a week older: 4 buckets, 15 policies, no family predicate anywhere. **It got smaller on 2026-08-19 without anybody working on it** — `event-photos` was one of the two buckets behind a LIVE feature, and that feature is deleted, so the only live one left is `avatars`. Still the long pole, and still the long pole for three things rather than one. **Read the warning under this table.** |
 | 1 | `/family-finances` | Cheapest real flip in the repo. Needs the restricted `resource_visibility` backfill in the same migration. |
-| 2 | `/elections` + `/admin/elections` | **Its dependency became hard on 2026-08-19.** `AdminElectionsPage` builds its position picker from `getAllRoles()`, i.e. the family's `family_roles` rows — and `20260819000004` retired the 25 built-in board positions, so **that list is empty for every family until somebody configures it.** Before that migration every family had 25 positions by default and an election could always be created. Now the empty state is the default state, and the screen has to say "set up your board positions first" and link to `/admin/boardpositions` rather than offering an empty select. `BallotForm` still needs `disambiguatedName` and search (AGENTS.md names it). |
+| ~~2~~ | ~~`/elections` + `/admin/elections`~~ | **DONE, 2026-08-21.** Both obligations this row acquired were met: the position picker states the empty board-position case per level ("No chapter offices recorded yet. Add them under Members › Organization first.") and `BallotForm` uses `PersonPicker`, which searches any part of any name and disambiguates. What was NOT on this row and turned out to matter more: the four date columns governed nothing, an election had no level, and `election_votes`' cross-member SELECT policy was satisfied by `review/elections:view`, which every member holds — so the secret ballot was not secret. All three are `20260821000001`. |
 | 3 | `/documents` | Gated on the storage rework, and it is the worst bucket. Also `documents.ts` returns `getPublicUrl` for a **private** bucket, so downloads cannot work at all. |
 | 4 | `/photos` | Same storage rework, plus three defects of its own — see the register. |
 | 5 | `/admin/reports` | Flip **last**, and it is now a smaller screen than the one that was promised. Its dues column shipped separately on 2026-08-17 as `/dues-projections`; membership it can answer today; **t-shirt counts it can also answer**, off `people.tshirt_size` where the sizes always lived, which is where `getOrgStats` reads them since 2026-08-19. **RSVP turnout has no source at all** — `event_rsvp_attendees` is dropped and nothing in this product records who is coming to anything — so the blurb and `PLANS[]` both had to stop promising it. Not blocked on work: blocked on deciding whether a two-figure Reports screen is worth a route. |
@@ -343,6 +343,10 @@ the card ranks by which absence hurts a family most, this table ranks by what un
 - **Elections moved UP,** from item 3 to item 2, because its structural blocker
   (`/admin/boardpositions`) shipped. It also acquired an empty-state obligation in the same
   movement, which is the sort of thing a dependency being *satisfied* is not supposed to do.
+  **Both are done as of 2026-08-21**, and the review found three things this list never
+  named — dead date columns, no level on an election, and a readable ballot. Which is the
+  argument for the Review section in the rail rather than for a longer list here: a walk
+  through a screen finds what a register of known defects cannot.
 
 ### Premium — the reach half can start, the website half cannot
 
@@ -581,8 +585,8 @@ rather than merged into **Already true**, because a tick would hide the obligati
 | Family finances — fund balances, P&L | `/family-finances` | Plus | 12 | Admin counterpart live. **The dues half ships today** (`/transactions`, `/account-summary`, `/dues`, `/donations`, `/payment-history`, schedules under `/admin/account`) — only balances and the P&L are gated, so do not attribute the whole "dues and fund accounting" claim here. |
 | Photos — galleries, captions, tagging | `/photos` | Plus | 11 | Storage rework + a **live `PGRST201`** that makes every gallery render empty + `deletePhoto` trusting a client-supplied path + the hand-rolled tag search that `/features` explicitly sells + **no resizing anywhere in the upload or render path** |
 | Documents — bylaws, forms, minutes | `/documents` | Plus | 7 | Worst bucket; `getPublicUrl` against a private bucket. Also half of Plus bullet 6, whose other half is live. |
-| Elections — nominate, accept/decline, vote | `/elections` | Plus | 6 | `BallotForm` member-picker defect must land with it, **and the empty board-position state now must too** — see the delivery order. |
-| Election management | `/admin/elections` | Plus | 3 | With the above rather than after it. |
+| ~~Elections — nominate, accept/decline, vote~~ | `/review/elections` | Plus | 6 | **Live 2026-08-20, reviewed 2026-08-21.** Both named defects fixed, plus a level on every election so a chapter's ballot is invisible to the rest of the family. |
+| ~~Election management~~ | `/admin/elections` | Plus | 3 | **Live and reviewed with the above.** Captioned **Elections** under Admin now; the three "advance the state" buttons are gone and the dates run the ballot. |
 | ~~Regions & chapters~~ | `/admin/chapters` | Plus | 5 | **Live, 2026-08-18.** Became the Organization pane in Members & Access; the route survives as a redirect and must not be deleted (its own file gives three reasons). Its relight is one of the two afternoons that produced AGENTS.md's "Coming Soon withholds a page, not an action" section. |
 | ~~Board positions~~ | `/admin/boardpositions` | Plus | 4 | **Live, 2026-08-19**, and per-family: `20260819000004` retired the 25 built-ins, made `(family_code, name)` unique, dropped `is_global` and `family_role_exclusions`, and gave `family_roles` the family conjunct its SELECT policy never had. A family now starts from none. |
 | Leadership reports | `/admin/reports` | Plus | **2** | **Halved on 2026-08-17** by `/dues-projections`, and halved again on 2026-08-19: **RSVP turnout lost its source entirely** with `event_rsvp_attendees`, and t-shirt counts moved onto `people` where the sizes always lived. Membership and dues-collected are what remains, and the blurb and `PLANS[]` were both trimmed to say so. |
