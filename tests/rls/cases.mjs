@@ -1633,6 +1633,117 @@ const resetBoardAssignments = async (db, fx) => {
 }
 
 export const MORE_CASES = [
+  // ══════════════════════════════════════════════════════════════════════════
+  // THE JOURNAL (20260821000005)
+  //
+  // Four policies on `position_journal_entries`, and NOT ONE of them evaluates
+  // `auth_permission`. What they test is `auth_holds_family_role(role_id)` — do you hold this
+  // office — so the interesting refusals are all INSIDE one family and no cross-family case
+  // could reach any of them. That is why these are written against three ALPHA actors who
+  // differ in exactly one thing each:
+  //
+  //   `alphaMember`  holds the office AND wrote the entries   -> every positive control
+  //   `alphaOther`   holds the office, wrote none of them     -> the edit/delete attack
+  //   `alphaAdmin`   holds every GRANT, and not the office    -> the read/write attack
+  //
+  // `alphaAdmin` is the sharpest of the three and is the whole point of the design: they hold
+  // `journal:view` at scope 'any' in their own family, and it buys them nothing. A family that
+  // could read every officer's notebook would get officers who keep their notebook somewhere
+  // else, which the migration's header argues at length.
+  //
+  // THE ACTIONS NARROW NOTHING BY HAND, so these reach the policies through the actions and
+  // need no raw probe — the lesson `retractNomination` cost us the same day.
+  read('journal.getMyOffices', 'app/actions/journal.ts', 'getMyOffices', {
+    // BRAVO's administrator legitimately holds offices in BRAVO, so a non-empty answer is not
+    // itself a failure — the assertion is on ALPHA's specific id, which is the shape every
+    // read case here uses.
+    expectAttack: (r, fx) => Array.isArray(r)
+      && !r.some(o => o.role_id === fx.alpha.journalRole.id),
+    expectPositive: (r, fx) => Array.isArray(r)
+      && r.some(o => o.role_id === fx.alpha.journalRole.id),
+  }),
+  // ── [crux] AN OFFICE THEY DO NOT HOLD, IN THEIR OWN FAMILY ────────────────
+  // The single assertion this whole feature turns on. `alphaAdmin` is approved, is in ALPHA,
+  // and holds `journal:view` at 'any'; the ONLY thing refusing them is
+  // `auth_holds_family_role` in the SELECT policy. Delete that conjunct and this line goes red
+  // and nothing else does.
+  read('journal.getJournalEntries (an office they do not hold)',
+    'app/actions/journal.ts', 'getJournalEntries', {
+      attacker: 'alphaAdmin',
+      args: fx => [fx.alpha.journalRole.id],
+      expectAttack: (r) => Array.isArray(r) && r.length === 0,
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(e => e.id === fx.alpha.journalEntry.id),
+    }),
+  // And the ordinary cross-family one, which the case above cannot stand in for: it asserts
+  // the `family_code` conjunct rather than the office conjunct, and a policy could lose either
+  // one without the other noticing.
+  read('journal.getJournalEntries (another family\'s office)',
+    'app/actions/journal.ts', 'getJournalEntries', {
+      args: fx => [fx.alpha.journalRole.id],
+      expectAttack: (r) => Array.isArray(r) && r.length === 0,
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => Array.isArray(r)
+        && r.some(e => e.id === fx.alpha.journalEntry.id),
+    }),
+  // ── WRITING IN AN OFFICE THEY DO NOT HOLD ─────────────────────────────────
+  // `alphaAdmin` again, and the INSERT policy is the only thing in the way. An INSERT refused
+  // by RLS raises 42501 rather than reporting zero rows, so the action is already honest and
+  // the `told` assertion is asserting the MESSAGE is a sentence rather than a raw code.
+  {
+    kind: 'write',
+    id: 'journal.addJournalEntry (an office they do not hold)',
+    mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.journalRole.id, 'Attacker note', 'should not land'],
+    probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
+      { role_id: fx.alpha.journalRole.id })(db),
+    expectRefusal: v => v?.success === false && /holds the office/.test(v?.message ?? '')
+      ? { ok: true, detail: 'refused with a sentence' }
+      : { ok: false, detail: `expected the office refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalRole.id, 'A control note', 'written by a holder'],
+  },
+  // ── [crux] A SUCCESSOR MAY READ EVERYTHING AND REWRITE NOTHING ────────────
+  // `alphaOther` HOLDS this office — so the read policy admits them and the previous cases
+  // would all pass for them — and did not write this entry. What refuses them is
+  // `author_id = auth_person_id()` in the UPDATE policy, which is the half of the design that
+  // makes the notebook a record rather than something each successor can quietly edit.
+  //
+  // AND THEY MUST BE TOLD. An UPDATE refused by a policy is zero rows and `{ error: null }`
+  // (§8b), so without `confirmWrite` this action would report success over a correction that
+  // never happened — on a handover note, which the next officer then reads in its original
+  // form believing it was amended.
+  {
+    kind: 'write',
+    id: 'journal.updateJournalEntry (an entry somebody else wrote)',
+    mod: 'app/actions/journal.ts', fn: 'updateJournalEntry',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.journalEntry.id, 'Rewritten by a successor', 'should not land'],
+    probe: (db, fx) => snapshot('position_journal_entries', 'id, title, body',
+      { id: fx.alpha.journalEntry.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalEntry.id, 'Amended by its author', 'the control'],
+  },
+  // The same rule on DELETE, and its own row: the control destroys what it acts on, which is
+  // AGENTS.md §7's warning about a positive control mutating a row a later case depends on.
+  {
+    kind: 'write',
+    id: 'journal.deleteJournalEntry (an entry somebody else wrote)',
+    mod: 'app/actions/journal.ts', fn: 'deleteJournalEntry',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.journalDeletable.id],
+    probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
+      { id: fx.alpha.journalDeletable.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+  },
   // ── SETTING SOMEBODY ELSE'S CHAPTER ────────────────────────────────────────
   // `setMemberChapter` runs on the SERVICE-ROLE client, so no policy is underneath it at all
   // and the `.eq('family_code', …)` in the action is the entire boundary — `deleteRegion`'s

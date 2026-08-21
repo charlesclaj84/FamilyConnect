@@ -430,6 +430,29 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
   },
 
+  // ── Journal: an office's notebook ───────────────────────────────────────────
+  // A rail SECTION of one item, which is the "a section whose own index page IS the section
+  // does not double up" exception (AGENTS.md, "The route tree IS the nav rail") — the route is
+  // `/journal`, not `/journal/journal`, exactly as Gatherings' own index is `/gatherings`.
+  //
+  // `tier: 'plus'`, matching Board Positions and Organization. That is not a pricing
+  // judgement so much as an arithmetic one: the Journal hangs off `family_roles`, and a family
+  // that cannot record an office would have a screen that can never have content. Moving it
+  // down a tier means moving those with it.
+  //
+  // THE ROW IS UNCONDITIONAL and appears for anybody holding the grant, whether or not they
+  // hold an office. The page has a real empty state and says why; the alternative — hiding it
+  // until somebody is appointed — is the `hasAssignments` prop the Sidebar deleted, and it
+  // would not work here anyway, because the shell is built once and `ShellWatcher`'s
+  // fingerprint does not include `user_roles`. The page's own header argues it.
+  {
+    href: '/journal',
+    label: 'Journal',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'A notebook for each office your family keeps — it stays with the role, not the person.',
+  },
+
   // MY CHILDREN IS NOT ON THE ROADMAP — IT WAS RETIRED, 2026-08-13. `/direct-lineage`
   // was the second way a person could exist: a child record a parent owned, carrying
   // `people.is_minor`, "converted to adult" once they had an email address. There is one

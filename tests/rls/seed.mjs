@@ -422,6 +422,11 @@ async function teardown(db) {
     'fund_transfers',
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
+    // BEFORE `user_roles` AND `family_roles` — `position_journal_entries.role_id` cascades
+    // from `family_roles`, so listing it after would have it swept away as a side effect and
+    // the teardown would silently stop being the thing that removes it. That is the rule the
+    // deleted `event_*` block records: order by which parent cascades what, never by habit.
+    'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
     // they recorded is worth keeping as a rule for anything added below: the ORDER is not
@@ -913,6 +918,49 @@ export async function seed() {
     f.userRole = must('user role', await db.from('user_roles').insert({
       family_code: code, user_id: familyAdmin.userId, role_id: presidentRole.id,
     }).select().single())
+
+    // ── AN OFFICE FOR THE JOURNAL, HELD BY TWO PEOPLE ────────────────────────────
+    // `20260821000005` gates `position_journal_entries` on `auth_holds_family_role`, and the
+    // interesting refusals are all INSIDE one family — so the fixture needs two members who
+    // differ only in whether they hold this office, and two who hold it and differ only in
+    // who wrote an entry. That is:
+    //
+    //   `owner` (alphaMember)  holds it, and AUTHORS the entries -> the edit/delete control
+    //   `other` (alphaOther)   holds it, and wrote none of them  -> the edit/delete ATTACK
+    //   `familyAdmin`          holds it NOT, with every grant    -> the read attack
+    //
+    // ITS OWN OFFICE RATHER THAN `presidentRole`, for two reasons that both bite. That row is
+    // `familyAdmin`'s and `members.getMembers`' control asserts their `primary_role_title`
+    // resolves to it — a second holder would not change that, but a second OFFICE on the same
+    // person could. And `sort_order` 200 puts this behind the President at 100, so nobody's
+    // primary title moves whichever way `lib/role-utils.ts` breaks a tie.
+    //
+    // NATIONAL SCOPE, so `admin/chapters.getScopeUsage`'s per-region and per-chapter position
+    // counts are untouched — that case asserts an exact number.
+    const journalRole = must('journal office', await db.from('family_roles').insert({
+      family_code: code, name: `${code} Journal Officer`, category: 'appointed_position',
+      scope: 'national', sort_order: 200,
+    }).select().single())
+    f.journalRole = journalRole
+
+    must('journal office holders', await db.from('user_roles').insert([
+      { family_code: code, user_id: owner.userId, role_id: journalRole.id },
+      { family_code: code, user_id: other.userId, role_id: journalRole.id },
+    ]))
+
+    // TWO ENTRIES, BOTH AUTHORED BY `owner`. The second is `deletableChild`'s rule applied
+    // here: the delete case's positive control destroys the row it acts on, so it cannot share
+    // one with the edit case that runs before or after it.
+    f.journalEntry = must('journal entry', await db.from('position_journal_entries').insert({
+      family_code: code, role_id: journalRole.id, author_id: owner.personId,
+      title: `${code} handover`, body: `secret journal ${code}`,
+    }).select().single())
+
+    f.journalDeletable = must('deletable journal entry',
+      await db.from('position_journal_entries').insert({
+        family_code: code, role_id: journalRole.id, author_id: owner.personId,
+        title: `${code} disposable note`, body: `secret journal spare ${code}`,
+      }).select().single())
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
       family_code: code, name: `${code} album`, created_by: owner.personId,

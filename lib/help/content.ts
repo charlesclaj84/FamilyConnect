@@ -452,6 +452,56 @@ export const HELP_PARTS: readonly HelpPart[] = [
     blurb: 'Talking to the family, and keeping track of who everybody is.',
     chapters: [
       {
+        slug: 'journal',
+        title: 'Journal',
+        summary: 'A notebook for each office your family keeps, and why it stays with the office rather than with you.',
+        route: '/journal',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What this screen is',
+            blocks: [
+              p('Every office the family records — treasurer, secretary, events chair — has a notebook. It holds whatever the person doing the job needs written down: how the bank reconciliation actually works, which hall answers the phone, what went wrong last year.'),
+              p('**The notes belong to the office, not to you.** That is the whole of it. When you hand the job on, everything you wrote is still there for whoever takes it, and everything the person before you wrote was there for you.'),
+              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — the Journal is for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
+            ],
+          },
+          {
+            id: 'who-can-read-it',
+            heading: 'Who can read it',
+            blocks: [
+              p('**Whoever holds the office today, and nobody else.** Not other officers, not the family\'s administrators, not the person who held it last year.'),
+              p('That is unusual in this product and it is deliberate. These are working notes rather than a record the family keeps, and a notebook everybody could read is one people would keep somewhere else instead.'),
+              p('If you hold more than one office, each has its own notebook and a strip along the top switches between them. Nothing from one appears in another.'),
+              note('A family can switch the Journal off altogether under [Who can do what](/help/who-can-do-what), the same way as any other screen. What it cannot do is open one office\'s notebook to somebody who does not hold it.'),
+            ],
+          },
+          {
+            id: 'writing',
+            heading: 'Writing an entry',
+            blocks: [
+              steps(
+                'Press **New entry**.',
+                'Give it a title — that is what the list shows.',
+                'Write as much or as little as you like. Line breaks are kept, so a list stays a list.',
+                'Press **Add entry**.',
+              ),
+              p('Entries are listed newest first, with who wrote each one and when. An entry that has been changed since it was written says so.'),
+            ],
+          },
+          {
+            id: 'editing',
+            heading: 'Changing or removing one',
+            blocks: [
+              p('**Only the person who wrote an entry can change or delete it**, and only while they still hold the office. Everybody who holds it can read all of them.'),
+              p('So a note left by the person before you is yours to read and not to rewrite. If it is wrong or out of date, add an entry saying so — that keeps both the original and the correction, which is what makes the notebook worth reading years later.'),
+              p('Deleting is permanent and takes the entry away from everybody who holds the office, now and later. The screen asks you to confirm.'),
+              note('If an office is retired from the family\'s board positions, its notebook goes with it. There is no office left for the notes to follow.'),
+            ],
+          },
+        ],
+      },
+      {
         slug: 'chat',
         title: 'Chat',
         summary: 'The family room, private messages, and group threads you create yourself.',

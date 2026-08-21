@@ -32,6 +32,7 @@ import {
   ClipboardCheck,
   PieChart,
   Scale,
+  BookText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isFeatureFuture } from '@/lib/features'
@@ -292,6 +293,32 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   ]
 
   groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
+
+  // ── JOURNAL: A SECTION OF ONE, AND IT STAYS ONE ────────────────────────────────────
+  // `NavSection` renders a single-item group as a static divider rather than a slider, which
+  // is the right shape — there is nothing to collapse. A second item here would make it a
+  // slider automatically and need no change.
+  //
+  // THE ROW IS UNCONDITIONAL, filtered by the `journal` grant like every other row in this
+  // file and by nothing else. It is deliberately NOT conditional on the caller holding an
+  // office, which is the `hasAssignments` decision recorded above the Gatherings block: a row
+  // that is sometimes there is worse than a row that is sometimes empty, and `/journal` has a
+  // real empty state that says what the screen is for.
+  //
+  // It would not work anyway. The shell is built ONCE and does not re-render on a client-side
+  // navigation; `ShellWatcher` notices a changed permission grid, and holding an office is a
+  // `user_roles` row its fingerprint does not include — so a row conditional on office would
+  // appear for a newly appointed officer only after a full reload.
+  //
+  // AFTER GATHERINGS AND BEFORE ACCOUNTING: it is the officer's own working surface, which
+  // sits between what the family does together and what it does with money.
+  groups.push({
+    section: { label: 'Journal', icon: BookText },
+    items: [
+      { href: '/journal', label: 'Journal', icon: BookText },
+    ],
+  })
+
 
   // SUMMARY FIRST, THEN TWO OF THE THREE SCREENS IT SUMMARISES — the third, Payment History,
   // is in Reporting below — and then the forward reading of the same money. Dues, Donations

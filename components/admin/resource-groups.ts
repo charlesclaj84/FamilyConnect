@@ -52,7 +52,16 @@ export const SCOPE_STYLE: Record<PermissionScope, string> = {
 // destination, and a new template starts as a complete grid of denials. The two entries
 // stay so the order is stated once and holds if a general-category resource ever
 // appears; they are not a gap to fill with those five.
-export const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'accounting', 'resources', 'admin']
+// `journal` ADDED 2026-08-21 with `20260821000005`, and it is its own category rather than
+// a `community` key so the grid's heading matches the rail's — "an administrator matching a
+// switch to the thing it switches off should not have to translate". A new NON-admin
+// category changes no resolution anywhere: the only load `permission_resources.category`
+// bears in SQL is `auth_permission()`'s `category = 'admin'` test, and that migration
+// re-asserts 20260817000004's invariant in both directions.
+//
+// It sits after `community` because that is where the rail puts it — participation in the
+// family, one step past the roster and the notice board.
+export const CATEGORY_ORDER = ['general', 'personal', 'community', 'journal', 'events', 'accounting', 'resources', 'admin']
 
 // `events` PRINTS "Gatherings", since 2026-08-19, and the KEY is deliberately left alone.
 //
@@ -66,7 +75,8 @@ export const CATEGORY_ORDER = ['general', 'personal', 'community', 'events', 'ac
 // fails closed (`category = 'admin'`), so it is load-bearing in SQL and not merely a grouping.
 // A caption is one line here; a category is a column three resolvers agree about.
 export const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', events: 'Gatherings',
+  general: 'General', personal: 'Personal', community: 'Community', journal: 'Journal',
+  events: 'Gatherings',
   accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
 }
 
