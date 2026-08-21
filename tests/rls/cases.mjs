@@ -1004,6 +1004,58 @@ export const CASES = [
       expectPositive: (r, fx) => Array.isArray(r)
         && r.some(e => e.id === fx.alpha.chapterElection.id),
     }),
+  // ── THE ORGANIZER'S SUMMARY, WHICH READS EVERY VOTE IN THE FAMILY ─────────
+  //
+  // `getElectionSummary` runs entirely on the SERVICE-ROLE client — four reads, one of them
+  // `election_votes` unfiltered — so no policy is underneath any of it and the
+  // `.eq('family_code', …)` on the election lookup is the whole boundary. That makes it the
+  // `getElectionResults` shape with more surface: this one also reads the family's ROSTER, so
+  // a missing conjunct leaks a headcount as well as a tally.
+  //
+  // THE ATTACK IS THE ORDINARY CROSS-FAMILY ONE, and it is refused before any of the four
+  // reads happen: `requireScope('admin/elections', 'view')` resolves in BRAVO, and the
+  // election lookup then finds nothing for ALPHA's id under BRAVO's family code. Both halves
+  // matter and neither is redundant — the guard alone would let BRAVO's administrator read
+  // ALPHA's election, and the conjunct alone would let a member with no organizer grant read
+  // their own family's tallies.
+  //
+  // THE CONTROL ASSERTS THE FIGURES ARE REAL, not merely present. A summary of zeros is what
+  // this returns for a refused read (§8 — every one of the four is checked and the function
+  // answers null rather than reporting nothing as zero), and it is also what a correctly
+  // scoped call to an EMPTY election returns. The fixture's `f.election` has a vote in it, so
+  // asserting a non-zero tally is what tells those two apart.
+  read('elections.getElectionSummary', 'app/actions/elections.ts', 'getElectionSummary', {
+    args: fx => [fx.alpha.election.id],
+    expectAttack: (r) => r === null,
+    positiveActor: 'alphaAdmin',
+    expectPositive: (r, fx) =>
+      r != null
+      && r.election.id === fx.alpha.election.id
+      // The electorate is accounts-only and area-scoped, and ALPHA seeds several members with
+      // accounts under National — so this is a real count rather than a default.
+      && r.electorate.eligible > 0
+      // The seeded vote is counted, which is the assertion that separates a working read from
+      // a refused one.
+      && r.electorate.voted >= 1
+      && r.positions.some(p => p.votes_cast >= 1
+        && p.candidates.some(c => c.vote_count >= 1 && c.nominee_name !== 'Unknown')),
+  }),
+  // ── AND A MEMBER WITHOUT THE ORGANIZER GRANT IS REFUSED IN THEIR OWN FAMILY ─
+  // The half the cross-family case cannot reach. `alphaOther` is approved, in the election's
+  // area, and holds `community/elections:view` like everybody — what they do not hold is
+  // `admin/elections:view`, and that key is the only thing between an ordinary member and
+  // every vote in their family, since this function reads on the service role.
+  //
+  // NO POSITIVE CONTROL: the entitled caller is the case directly above, and repeating it
+  // here would assert the same call twice rather than adding evidence.
+  read('elections.getElectionSummary (a member with no organizer grant)',
+    'app/actions/elections.ts', 'getElectionSummary', {
+      attacker: 'alphaOther',
+      args: fx => [fx.alpha.election.id],
+      expectAttack: (r) => r === null,
+      positive: 'not-applicable',
+      why: 'the entitled caller is the case above; this half is about the grant, not the family',
+    }),
   // ── THE DASHBOARD'S ELECTION CHIP ─────────────────────────────────────────
   // `getMyActionableElection` reuses `getElectionsForMember`, so the area rule and the draft
   // exclusion are the same code — and that is exactly why it needs its own case rather than

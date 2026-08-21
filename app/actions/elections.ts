@@ -701,6 +701,205 @@ export async function getElectionResults(id: string): Promise<ElectionVoteCount[
 }
 
 /**
+ * Everything an organizer needs to watch a published election run.
+ *
+ * ── WHAT IT ANSWERS, AND WHY EACH FIGURE IS HERE ───────────────────────────────────
+ * Four questions, and none of them is answerable from the list screen:
+ *
+ *   how many nominations, and how many accepted   whether there is a ballot at all
+ *   how many members may vote                     the denominator for everything below
+ *   how many have                                 whether to chase anybody, and how hard
+ *   who is ahead, per office                      the thing an organizer is actually asked
+ *
+ * ── THE LIVE TALLY IS NOT A NEW DISCLOSURE, WHICH IS WHY IT IS ALLOWED ─────────────
+ * A running count while the poll is open looks like a change to the secret ballot and is not.
+ * `20260821000001` put `election_votes`' cross-member SELECT behind `admin/elections:view`
+ * precisely so an organizer can see the votes — before it, `perm:admins can view all votes`
+ * was satisfied by the member view grant and every relative in the family could read who voted
+ * for whom. So the holder of this key can already read every row off PostgREST; this screen
+ * shows them the aggregate instead of making them do it by hand.
+ *
+ * WHAT IS STILL NOT PUBLISHED, and must not become so: WHICH WAY ANY NAMED PERSON VOTED.
+ * `notVoted` is a COUNT and not a list, and that is deliberate — a roster of who has not voted
+ * yet is the beginning of a roster of who voted for whom, and an organizer who wants to chase
+ * people has the Directory. The tallies are per CANDIDATE, never per voter.
+ *
+ * ── THE ELECTORATE IS ACCOUNTS ONLY ────────────────────────────────────────────────
+ * `castVote` resolves the voter from `requireMember()`, so voting needs an approved membership
+ * AND an account to sign in with. A recorded grandmother can be NOMINATED and cannot vote
+ * (AGENTS.md §4b: a picker is accounts-only, a projection is not — and a denominator for
+ * turnout is a picker's question, since counting people who cannot vote would report a family
+ * as half-hearted when it is not).
+ *
+ * ── ADMIN CLIENT, FAMILY-SCOPED BY HAND (§3) ───────────────────────────────────────
+ * Four reads, every one carrying the family or an id that came out of a family-scoped read.
+ * The user client is wrong here for the reason `getElectionsForOrganizer` states: this screen
+ * shows an organizer every level, and `elections` is narrowed by AREA for anybody the override
+ * does not cover — so a chapter election would answer `[]` for an organizer in another chapter
+ * and the screen would render "not found" over a ballot they are running.
+ */
+export interface ElectionNominationTotals {
+  total: number
+  accepted: number
+  /** Asked, and has not answered. These are not on the ballot yet. */
+  pending: number
+  declined: number
+}
+
+export interface ElectionElectorate {
+  /** Approved members of the election's area WITH an account. See above. */
+  eligible: number
+  voted: number
+  /** `eligible - voted`, floored at zero. A count, never a list. */
+  notVoted: number
+}
+
+export interface ElectionCandidateTally {
+  nominee_id: string
+  nominee_name: string
+  accepted: boolean | null
+  vote_count: number
+}
+
+export interface ElectionPositionTally {
+  position_id: string
+  title: string
+  max_winners: number
+  /** Accepted candidates first, then by votes, then by name. See the note on the sort. */
+  candidates: ElectionCandidateTally[]
+  /** Votes cast FOR THIS OFFICE. Not every voter votes in every one. */
+  votes_cast: number
+}
+
+export interface ElectionSummary {
+  election: Election
+  nominations: ElectionNominationTotals
+  electorate: ElectionElectorate
+  positions: ElectionPositionTally[]
+}
+
+export async function getElectionSummary(id: string): Promise<ElectionSummary | null> {
+  const g = await requireScope('admin/elections', 'view')
+  if (!g.ok) return null
+
+  const admin = createAdminClient()
+  const { data: row } = await admin.from('elections')
+    .select(ELECTION_COLUMNS).eq('id', id).eq('family_code', g.familyCode).maybeSingle()
+  const raw = row as unknown as RawElection | null
+  if (!raw) return null
+
+  const [places, positionsRes, nominationsRes, votesRes, peopleRes] = await Promise.all([
+    familyPlaces(g.familyCode),
+    admin.from('election_positions').select('id, title, max_winners, sort_order')
+      .eq('election_id', id).order('sort_order'),
+    // Disambiguated to the nominee: `election_nominations` also has `nominated_by`, and a bare
+    // `people(...)` is PGRST201 — which is `[]` with the error discarded (§8), leaving every
+    // candidate showing as "Unknown".
+    admin.from('election_nominations')
+      .select('position_id, nominee_id, accepted, people!election_nominations_nominee_id_fkey(first_name, last_name)')
+      .eq('election_id', id),
+    admin.from('election_votes').select('position_id, voter_id, nominee_id').eq('election_id', id),
+    // The electorate. `user_id` comes back rather than being filtered in SQL because the count
+    // of ACCOUNTS is one of the answers — filtering it away in the query would leave the
+    // eligible figure indistinguishable from "everybody, including people who cannot sign in".
+    admin.from('people').select('id, user_id, chapter_id')
+      .eq('family_code', g.familyCode).eq('membership_status', 'approved'),
+  ])
+
+  // §8 on all four. Every one of these is a NUMBER on a screen an organizer makes decisions
+  // from, and a refused read reports as zero — "nobody has voted" over a poll that is running
+  // is the worst wrong answer this screen can give.
+  if (positionsRes.error || nominationsRes.error || votesRes.error || peopleRes.error) {
+    console.error(`[elections] summary reads failed for ${id}: `
+      + (positionsRes.error?.message ?? nominationsRes.error?.message
+        ?? votesRes.error?.message ?? peopleRes.error?.message))
+    return null
+  }
+
+  const election = mapElection(raw, todayLocal(), places)
+
+  // ── The electorate ───────────────────────────────────────────────────────────────
+  const eligibleIds = new Set(
+    ((peopleRes.data ?? []) as { id: string; user_id: string | null; chapter_id: string | null }[])
+      .filter(p => p.user_id != null)
+      .filter(p => electionAreaMatch({
+        election: raw, memberChapterId: p.chapter_id, chapterRegions: places.chapterRegions,
+      }) === 'in')
+      .map(p => p.id),
+  )
+
+  const votes = (votesRes.data ?? []) as
+    { position_id: string; voter_id: string; nominee_id: string }[]
+
+  // VOTERS ARE NARROWED TO THE ELIGIBLE SET, which is not paranoia about the ballot box. A
+  // member who voted and has since MOVED CHAPTER is no longer in the area, so counting their
+  // vote in `voted` while they are absent from `eligible` would report a turnout above 100%.
+  // Their vote still stands and still counts in the tallies below — what it stops being is
+  // part of the denominator's numerator.
+  const voted = new Set(votes.map(v => v.voter_id).filter(vid => eligibleIds.has(vid)))
+
+  const electorate: ElectionElectorate = {
+    eligible: eligibleIds.size,
+    voted: voted.size,
+    notVoted: Math.max(0, eligibleIds.size - voted.size),
+  }
+
+  // ── Nominations ──────────────────────────────────────────────────────────────────
+  interface NomRow {
+    position_id: string
+    nominee_id: string
+    accepted: boolean | null
+    people: unknown
+  }
+  const noms = (nominationsRes.data ?? []) as unknown as NomRow[]
+  const nominations: ElectionNominationTotals = {
+    total: noms.length,
+    accepted: noms.filter(n => n.accepted === true).length,
+    pending: noms.filter(n => n.accepted === null).length,
+    declined: noms.filter(n => n.accepted === false).length,
+  }
+
+  // ── Per office ───────────────────────────────────────────────────────────────────
+  const tally = new Map<string, number>()
+  for (const v of votes) tally.set(`${v.position_id}::${v.nominee_id}`,
+    (tally.get(`${v.position_id}::${v.nominee_id}`) ?? 0) + 1)
+
+  const positions = ((positionsRes.data ?? []) as
+    { id: string; title: string; max_winners: number; sort_order: number }[])
+    .map(pos => {
+      const candidates = noms
+        // A DECLINED NOMINATION IS NOT A CANDIDATE and is dropped, matching the member's own
+        // ballot. Its count is still in `nominations.declined` above, which is where an
+        // organizer looks to see that somebody was asked and said no.
+        .filter(n => n.position_id === pos.id && n.accepted !== false)
+        .map(n => ({
+          nominee_id: n.nominee_id,
+          nominee_name: nameOf(embedOne<PersonNameRow>(n.people)),
+          accepted: n.accepted,
+          vote_count: tally.get(`${pos.id}::${n.nominee_id}`) ?? 0,
+        }))
+        // ACCEPTED FIRST, then votes, then name. Votes alone would put a candidate who has
+        // not answered above one who has and is losing — and only accepted candidates can be
+        // voted for at all (`castVote` refuses the rest), so a pending nominee with zero votes
+        // is not "last", they are not yet running.
+        .sort((a, b) =>
+          Number(b.accepted === true) - Number(a.accepted === true)
+          || b.vote_count - a.vote_count
+          || a.nominee_name.localeCompare(b.nominee_name))
+
+      return {
+        position_id: pos.id,
+        title: pos.title,
+        max_winners: pos.max_winners,
+        candidates,
+        votes_cast: votes.filter(v => v.position_id === pos.id).length,
+      }
+    })
+
+  return { election, nominations, electorate, positions }
+}
+
+/**
  * The regions and chapters an election can be scoped to, and the offices at each level.
  *
  * Gated on the section that renders it and on nothing else — `admin/elections:view` — for the

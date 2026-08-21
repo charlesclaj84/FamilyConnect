@@ -533,7 +533,18 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                       <Undo2 className="h-3 w-3 mr-1" /> Return to draft
                     </Button>
                   )}
-                  <Link href={`/community/elections/${e.id}`}
+                  {/* ── THE ORGANIZER'S SCREEN, NOT THE MEMBER'S BALLOT ─────────
+                      This pointed at `/community/elections/{id}` — the member's own ballot —
+                      which for an organizer checking on a poll is the wrong screen twice
+                      over: it shows them what THEY may do in the election rather than what
+                      the election is doing, and it withholds results until voting has
+                      closed. `/admin/elections/{id}` answers the question the row is asking:
+                      how many can vote, how many have, and who is ahead per office.
+
+                      A DRAFT LINKS THERE TOO, and its summary is all zeros with the phase
+                      pill saying Draft. That is a truthful answer; refusing the link would
+                      make half the rows on this list dead. */}
+                  <Link href={`/admin/elections/${e.id}`}
                     aria-label={`Open ${e.title}`}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                       <ChevronRight className="h-3.5 w-3.5" />

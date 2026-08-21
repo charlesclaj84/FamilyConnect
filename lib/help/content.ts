@@ -2036,6 +2036,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'watching-it',
+            heading: 'Watching one run',
+            blocks: [
+              p('The arrow at the end of any row opens that election\'s own screen — the organizer\'s view of it, not the ballot. Four figures across the top:'),
+              defs(
+                { term: 'Can vote', text: 'Approved members of this election\'s part of the family who have an account. Somebody recorded on the family tree with no account of their own can be nominated and cannot vote, so they are not counted here.' },
+                { term: 'Have voted', text: 'How many of them have, and the turnout that works out to.' },
+                { term: 'Have not', text: 'The difference. It is a number and never a list — nobody is named, here or anywhere.' },
+                { term: 'On the ballot', text: 'Accepted nominations against total nominations. A nomination nobody has answered is not on the ballot, and only accepted candidates can be voted for.' },
+              ),
+              p('Below them, every office with the people standing for it, their vote counts and their share. The leaders carry a trophy, as many as the office seats.'),
+              p('**While voting is open these are a snapshot, and the screen says so.** Nothing here declares a winner until the window closes; it is there so you can see whether an election is going to work — whether anybody accepted, whether anybody is voting — while there is still time to do something about it.'),
+              note('This screen never shows which way a named person voted, and nothing anywhere does. See [Elections](/help/elections#voting) for the member\'s side of that.'),
+            ],
+          },
+          {
             id: 'changing-it',
             heading: 'Changing or withdrawing one',
             blocks: [
