@@ -126,6 +126,27 @@ export function formatDate(date: string | null | undefined): string | null {
   return `${MONTHS[m - 1]} ${d}${ordinal(d)}, ${y}`
 }
 
+/**
+ * Format a date as "Feb 14th" — the month and the day, with NO YEAR.
+ *
+ * For a date whose year the reader already knows or does not need. The Birthdays pane is the
+ * case it was written for: every row is inside a 60-day horizon, so the year is either this
+ * one or the next and printing it added four characters of noise to every line while quietly
+ * inviting a misreading — the year shown is the year of the NEXT occurrence, not the year the
+ * person was born, and those are the two numbers a reader is most likely to confuse on a
+ * birthday list.
+ *
+ * Same parsing as `formatDate` above and for the same reason: split the `YYYY-MM-DD` string
+ * and never construct a `Date`. `new Date('2026-08-01')` is UTC midnight and renders as
+ * 31 July in any negative offset, which on a birthday list puts the party on the wrong day.
+ */
+export function formatMonthDay(date: string | null | undefined): string | null {
+  if (!date) return null
+  const [, m, d] = date.slice(0, 10).split('-').map(Number)
+  if (!m || !d) return null
+  return `${MONTHS[m - 1]} ${d}${ordinal(d)}`
+}
+
 /** Format a date as MM/DD/YYYY — used on reports. */
 export function formatDateNumeric(date: string | null | undefined): string | null {
   if (!date) return null

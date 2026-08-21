@@ -211,19 +211,20 @@ export const FEATURES: readonly Feature[] = [
   //
   // `/accounting/summary` above moved for the same reason and is the case worth checking first
   // when this looks wrong: it is a digest of these three, so it cannot be a rung below them.
+  // ── ONE ITEM SINCE 2026-08-20, WHERE THERE WERE TWO ─────────────────────────────
+  // `/accounting/dues` and `/accounting/donations` were separate rail items with separate
+  // keys, and `20260820000009` merged both routes and both keys into this one. They are one
+  // question in two directions — what the family asks of me, and what it invites me to give —
+  // and a member checking one was checking both.
+  //
+  // The two `blurb`s did not fit in one entry and are not lost: they are the per-pane ledes in
+  // `lib/money-panes.ts`, printed under the rail. What is here is the sentence about the SCREEN.
   {
-    href: '/accounting/dues',
-    label: 'Dues',
+    href: '/accounting/dues-and-donations',
+    label: 'Dues & Donations',
     status: 'live',
     tier: 'standard',
-    blurb: 'Every schedule you are on, what each installment costs, and when the next one falls due.',
-  },
-  {
-    href: '/accounting/donations',
-    label: 'Donations',
-    status: 'live',
-    tier: 'standard',
-    blurb: 'The drives your family is running, how far each has got, and what you have given.',
+    blurb: 'What you owe on every schedule you are on, and every drive your family is running.',
   },
   {
     href: '/reporting/payment-history',

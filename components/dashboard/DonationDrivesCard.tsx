@@ -84,7 +84,7 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
       )}
 
       <Link
-        href="/accounting/donations"
+        href="/accounting/dues-and-donations?pane=donations"
         className={cn(
           buttonVariants({ size: 'sm', variant: 'outline' }),
           'mt-4 w-full justify-center',

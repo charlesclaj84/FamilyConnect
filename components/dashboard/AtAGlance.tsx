@@ -33,6 +33,10 @@ import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboar
  * THE TILE GRID IS STILL FIRST. A figure is scanned and a card is read, and a member looking
  * for "how big is my family" should not have to pass their own balance to get to it.
  *
+ * THE TILES ARE DELIBERATELY SHORT. The chip sits beside the figure rather than above it —
+ * see the note at the grid — so each tile is three bands and not four. If a fifth thing ever
+ * needs to go on a tile, it belongs in the label or nowhere: the panel's job is to be scanned.
+ *
  * EVERY TILE IS A LINK AND EVERY LINK SETS ITS OWN TEXT COLOUR. `globals.css` carries an
  * unscoped `a { color: var(--brand-accent) }`, so an anchor that says nothing comes out
  * terracotta in light mode and gold in dark. `text-card-foreground` on the tile is what
@@ -77,15 +81,35 @@ export function AtAGlance({
             <Link
               key={id}
               href={meta.href}
-              className="group flex flex-col gap-3 rounded-2xl border bg-background p-4 text-card-foreground transition-shadow hover:shadow-[var(--shadow-card)]"
+              className="group flex flex-col gap-2.5 rounded-2xl border bg-background p-3.5 text-card-foreground transition-shadow hover:shadow-[var(--shadow-card)]"
             >
-              <span className={`flex h-11 w-11 items-center justify-center rounded-full ${ACCENT_CHIP[meta.accent]}`}>
-                <Icon className="h-5 w-5" />
+              {/* ── SLIMMER SINCE 2026-08-20: THE CHIP AND THE FIGURE SHARE A ROW ──────
+                  The tile was four stacked bands — chip, figure, label, button — which made
+                  it about 40% taller than it needed to be and pushed everything under the
+                  panel below the fold on a laptop. The chip and the figure are now one row,
+                  which removes a whole band without removing anything from the tile.
+
+                  IT ALSO READS BETTER, which is the reason to prefer this to shrinking the
+                  type. A glyph on its own line is decoration the eye passes over; beside the
+                  number it labels the number, so the row says "12 members" as one gesture
+                  instead of three. `justify-between` pushes them apart so the figure lands on
+                  the same left edge as the caption under it and the chip anchors the corner.
+
+                  The chip is 2.5rem rather than 2.75, and the icon 1rem rather than 1.25 — as
+                  small as it goes while still reading as a filled accent circle rather than a
+                  dot. Padding and gap came down one step each. `text-2xl` on the figure is
+                  UNCHANGED and deliberately so: it is the thing the tile exists to show, and
+                  a slimmer card that made its one number harder to read would have traded the
+                  wrong way. */}
+              <span className="flex items-center justify-between gap-2">
+                {/* `tabular-nums` so a count that ticks up does not shift the caption
+                    under it, and `text-2xl` rather than an h-tag: this is a figure, not a
+                    heading, and the panel's h2 above already names the region. */}
+                <span className="text-2xl font-semibold leading-none tabular-nums">{value}</span>
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${ACCENT_CHIP[meta.accent]}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
               </span>
-              {/* `tabular-nums` so a count that ticks up does not shift the caption
-                  under it, and `text-2xl` rather than an h-tag: this is a figure, not a
-                  heading, and the panel's h2 above already names the region. */}
-              <span className="text-2xl font-semibold leading-none tabular-nums">{value}</span>
               <span className="text-sm text-muted-foreground">{meta.label}</span>
               {/* THE WAY THROUGH IS A BUTTON, NOT A LINE OF TEXT — the same outline
                   button DuesBalanceKpi ends with ("View Account"), so the four cards a

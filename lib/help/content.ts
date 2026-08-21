@@ -390,14 +390,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'balance',
             heading: 'Remaining Balance',
             blocks: [
-              p('Inside **At a Glance**, under the figures: what you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/accounting/summary) leads with, and **View Dues** takes you to the schedule-by-schedule detail on [Dues](/accounting/dues).'),
+              p('Inside **At a Glance**, under the figures: what you personally still owe this year, across every dues schedule you are on. It is the same figure [Summary](/accounting/summary) leads with, and **View Dues** takes you to the schedule-by-schedule detail on [Dues](/accounting/dues-and-donations).'),
             ],
           },
           {
             id: 'donation-drives',
             heading: 'Donation Drives',
             blocks: [
-              p('Also inside **At a Glance**, under the balance: every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Donations](/accounting/donations).'),
+              p('Also inside **At a Glance**, under the balance: every drive the family currently has open, with how far it has got toward its goal and how much of that came from you. Drives that have closed are not here — the bar cannot move any more — but they are still on [Donations](/accounting/dues-and-donations?pane=donations).'),
               p('The soonest to close comes first, and the panel names the count if there are more than three. It does not appear at all when no drive is open, which is most families most of the time.'),
             ],
           },
@@ -626,10 +626,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'columns',
             heading: 'What the list shows',
             blocks: [
-              p('Four columns: **Name**, **Region**, **Chapter**, and the **Group** the person is on — which is the permission template deciding what they can do. A member in no chapter reads **National**, which is not a region anybody created but what everyone is under until they pick one; see [regions and chapters](/help/regions-and-chapters#what-it-is).'),
+              p('Four columns: **Name**, **Position**, **Chapter**, and the **Group** the person is on — which is the permission template deciding what they can do. **Position** is the board office they hold, written out in full — "National Treasurer", "Austin Chapter Chair" — and an em-dash for the most of the family who hold none. Which chapter somebody is in is on the row; which REGION that chapter belongs to is on their detail dialog, because the region follows from the chapter rather than being a separate answer.'),
               p('Everything else about a person is behind their name. **Pressing a name opens their record** — phone, email, city and state, their chapter and region, their preferred name, their group, and whether they have an account yet. The name is a real button, so tabbing to it and pressing Enter opens the same panel a click does.'),
               p('Phone, email and city each had a column of their own until 2026-08-19 and are in that panel now. Nothing was dropped and nothing new is shown: the same facts, one press away instead of five columns wide, which is what makes the list readable on a phone.'),
-              p('On a narrow screen Region, Chapter and Group fold underneath the name rather than sliding off the side, so nothing is ever parked out of view.'),
+              p('On a narrow screen Position, Chapter and Group fold underneath the name rather than sliding off the side, so nothing is ever parked out of view.'),
               p('People recorded on the family tree without an email address appear here too. A recorded great-uncle is a member of the family; he simply has no account, and his record says so.'),
             ],
           },
@@ -1083,13 +1083,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Adding a template',
             blocks: [
               steps(
-                'Type a name under **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
-                'Choose **Who can schedule from this**.',
+                'Press **Add template** at the top of the pane.',
+                'Give it a **Template name** — name it for the occasion, "Family Reunion", "Memorial Service", "Scholarship Banquet".',
+                'Write a **Description** if you want one, and choose **Who can schedule from this**.',
                 'Press **Add template**.',
-                'The card that appears is shut. Press its name to open it, add a **Description**, press **Save changes**, and give it a step for each thing somebody has to do.',
+                'The card that appears is shut. Press its name to open it, then give it a step for each thing somebody has to do.',
               ),
-              p('**Every template card is shut until you open it.** A card holds the whole template — its name, who may schedule from it, its description and a row per step — which is a page of its own once a family has half a dozen. Shut, each one shows its name and how many steps it has, so the library reads as a list of what you have rather than as everything about everything. Press a name to open it; press again to shut it.'),
-              note('A card you have edited but not saved says **Unsaved changes** beside its name while it is shut, and shutting one never throws an edit away — reopening it finds what you typed.'),
+              p('**Every template card is shut until you open it.** Open, a card shows the description, who may schedule from it, and a row per step — which is a page of its own once a family has half a dozen. Shut, each one shows its name and how many steps it has, so the library reads as a list of what you have rather than as everything about everything. Press a name to open it; press again to shut it.'),
+              p('**Nothing on a card is typed into directly.** The card states what the template is; **Edit** beside its name opens a box holding the name, the description and who may schedule, and every step has its own **Edit** button. That is what keeps the library readable — a screen of a hundred live boxes cannot be scanned, and scanning is what this page is for.'),
+              note('An open box either saves or is dismissed, so there is no such thing as a half-saved template. Press **Cancel** or **Escape** and nothing changed.'),
               p('A name has to be unique within the family, so a second "Family Reunion" is refused rather than added quietly beside the first. The description is what an organiser reads before scheduling from it, and it is shown beside the template when they pick one.'),
               note('There was a **Usual location** field here until 2026-08-19 and there is not now. A template stating where its gatherings are usually held was an author guessing at a fact that belongs to one occasion, and the guess then had to be corrected on every segment it was copied onto. Ask for the venue instead: a step of kind **A place**, handed to a named relative with a due date.'),
             ],
@@ -1099,7 +1101,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'The steps',
             blocks: [
               steps(
-                'Type the label under **Add a step** — "Book the hall", "Head count", "Catering".',
+                'Press **Add step** beside the Steps heading.',
+                'Type the label under **Step** — "Book the hall", "Head count", "Catering".',
                 'Choose **What it asks for**. The line under the picker says what the person holding the task will be given to fill in.',
                 'Put anything they need to know in **Help text** — who to call, what counts as done. They read it under the task itself.',
                 'Tick **Required** if the gathering is not finished until this one is answered and approved.',
@@ -1118,7 +1121,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'An amount of money', text: 'An amount in dollars, recorded to the cent.' },
               ),
               p('The ninth is the odd one out and is the next section.'),
-              p('The arrows on a row move a step earlier or later, and that order is the order the tasks are handed out in. **Save** appears on a row once something on it has changed, so nothing is written per keystroke. Deleting a step leaves every task already made from it exactly where it is.'),
+              p('Each row states what the step is: its label, its help text under it, what it asks for, whether it is required and what it suggests spending. To change any of that, press the pencil on the row and the same box opens with the step in it.'),
+              p('The arrows on a row move a step earlier or later, and that order is the order the tasks are handed out in. Deleting a step leaves every task already made from it exactly where it is.'),
               p('A suggested budget is only a starting figure copied onto the task. It can be changed on the gathering, and what counts against the fund is the gathering\'s own budget — see [Gathering Management](/help/gathering-management#money).'),
             ],
           },
@@ -1129,12 +1133,12 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('The ninth kind is **Another template**, and nobody answers it. Pick a template and every step of THAT template becomes a task of its own, at that point in the list, whenever a gathering is built from this one.'),
               p('It is for the checklist your family runs inside several different occasions. Write the five steps of "Catering" once, then give "Family Reunion", "Memorial Service" and "Scholarship Banquet" a step of Catering each — and correcting the catering list next year corrects all three.'),
               steps(
-                'Under **Add a step**, type a label — it heads nothing on its own, so name it for what the reader of this template should see, "The catering checklist".',
+                'Press **Add step**, and type a label — it heads nothing on its own, so name it for what the reader of this template should see, "The catering checklist".',
                 'Choose **Another template** under **What it asks for**.',
                 'Pick the one to include under **Template to include**.',
                 'Press **Add step**.',
               ),
-              p('**Required** and **Suggested budget** are not offered for this kind and that is deliberate: nobody is going to answer it, so there is nothing to require and no single job to price. The steps it brings in carry their own.'),
+              p('**Help text**, **Required** and **Suggested budget** are not offered for this kind and that is deliberate: nobody is going to answer it, so there is nobody to advise, nothing to require and no single job to price. The steps it brings in carry their own.'),
               p('A template cannot include itself, and it cannot include anything that leads back to it — A inside B inside A is refused with a sentence saying so. Only the family\'s other templates are offered, and an archived one may still be included: archiving means "do not start anything NEW from this", which is about scheduling a gathering rather than about composing a checklist.'),
               note('Editing the included template changes what the NEXT gathering gets and never a gathering already running — the same rule every other step follows, for the same reason. So this is safe to keep tidying, and correcting a shared checklist genuinely reaches every template that includes it.'),
             ],
@@ -1182,9 +1186,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('[Summary](/accounting/summary) shows the headline of each of the four things below it and names where the rest is. Nothing lives only here — every figure has a screen behind it, reached from the link beside its heading or from the **Accounting** section of the rail.'),
               defs(
-                { term: 'Account Standing / Next Installments', text: 'What you owe and what the next payment comes to. In full on [Dues](/accounting/dues).' },
+                { term: 'Account Standing / Next Installments', text: 'What you owe and what the next payment comes to. In full on [Dues](/accounting/dues-and-donations).' },
                 { term: 'Paid This Year', text: 'Your total for the year, broken down by schedule. In full on [Payment History](/reporting/payment-history).' },
-                { term: 'Open donation drives', text: 'The drives still running. Closed ones are counted here and listed on [Donations](/accounting/donations).' },
+                { term: 'Open donation drives', text: 'The drives still running. Closed ones are counted here and listed on [Donations](/accounting/dues-and-donations?pane=donations).' },
                 { term: 'Family Funds', text: 'Every fund the family keeps and what each holds. There is no separate screen for this one.' },
               ),
             ],
@@ -1201,16 +1205,24 @@ export const HELP_PARTS: readonly HelpPart[] = [
       },
       {
         slug: 'my-dues',
-        title: 'Your dues',
-        summary: 'Every schedule you are on, what the next payment has to be, and how to change how often you pay.',
-        route: '/accounting/dues',
+        title: 'Dues & Donations',
+        summary: 'Every schedule you are on and what the next payment has to be, and every drive your family is running.',
+        route: '/accounting/dues-and-donations',
         sections: [
           {
             id: 'what-it-is',
+            heading: 'Two panes, one screen',
+            blocks: [
+              p('[Dues & Donations](/accounting/dues-and-donations) answers one question in two directions: what your family asks of you, and what it invites you to give to. **Dues** is every schedule you are on; **Donations** is every drive the family is running. Press either on the rail across the top.'),
+              p('They were two separate screens until 2026-08-20. A link or a bookmark to either still finds the family\'s money — start from [Summary](/accounting/summary), which leads with both.'),
+              p('Neither pane ever shows anybody else\'s dues or anybody else\'s giving, whatever you have been granted. Every figure on the screen is either a family total or your own. What the family as a whole has paid is a different question, asked on [Transactions](/reporting/transactions).'),
+            ],
+          },
+          {
+            id: 'schedules',
             heading: 'Your schedules',
             blocks: [
-              p('[Dues](/accounting/dues) lists every schedule you are on: what it costs a year, what one installment comes to, when the next one falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
-              p('It never shows anybody else\'s dues, whatever you have been granted. What the family as a whole has paid is a different question, asked on [Transactions](/reporting/transactions).'),
+              p('The **Dues** pane lists every schedule you are on: what it costs a year, what one installment comes to, when the next one falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
             ],
           },
           {
@@ -1266,19 +1278,17 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('Opting out is not the same as having paid. It removes the schedule from your balance going forward; it does not erase what was already owed.'),
             ],
           },
-        ],
-      },
-      {
-        slug: 'donations',
-        title: 'Donations',
-        summary: 'The drives your family is running, how far each has got, and what you have given.',
-        route: '/accounting/donations',
-        sections: [
+          // ── THE DONATIONS PANE ────────────────────────────────────────────────────
+          // These three were a chapter of their own, `donations`, while `/accounting/donations`
+          // was a screen of its own. `20260820000009` merged that route into this one, and
+          // `help:check` refuses two chapters claiming one route — correctly, because a reader
+          // arriving from a screen has to land somewhere definite. So they are sections here.
+
           {
             id: 'drives',
             heading: 'What a drive shows',
             blocks: [
-              p('[Donations](/accounting/donations) lists every drive the family has run, each with a bar showing how far it has got. Under the bar: what has been raised, what the goal was, and — only if you have given to it — how much of that was yours.'),
+              p('The **Donations** pane of [Dues & Donations](/accounting/dues-and-donations?pane=donations) lists every drive the family has run, each with a bar showing how far it has got. Under the bar: what has been raised, what the goal was, and — only if you have given to it — how much of that was yours.'),
               p('A drive that has passed its goal keeps going rather than stopping at 100%: the bar rescales and the excess is shown as its own segment, because a drive that doubled its target should not look like one that scraped in.'),
               p('A drive with no goal set has no bar to draw, so it shows the running total instead.'),
             ],
@@ -1397,7 +1407,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Which year',
             blocks: [
               p('Each schedule\'s own. A due anchored on 1 April and a levy anchored on 1 January genuinely have two years in progress, so every row states the period it was measured over and the family total is the sum of them.'),
-              note('This is why the totals here agree with what each member sees on their own [Dues](/accounting/dues) screen. A single calendar year would have been tidier and would have disagreed with every member\'s balance.'),
+              note('This is why the totals here agree with what each member sees on their own [Dues](/accounting/dues-and-donations) screen. A single calendar year would have been tidier and would have disagreed with every member\'s balance.'),
             ],
           },
           {
@@ -1407,7 +1417,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('Everybody the family has approved — the same list the [Member Directory](/community/directory) shows. Somebody recorded on the [family tree](/community/family-tree) who has never signed in owes their dues exactly as much as anybody else does, so they are counted. Leaving them out never made the debt smaller; it made this screen report a smaller one.'),
               p('The **Status** column answers a different question from the money: whether there is anybody to send an invoice to.'),
               defs(
-                { term: 'Active', text: 'They have an account, and the due shows on their own [Dues](/accounting/dues) screen.' },
+                { term: 'Active', text: 'They have an account, and the due shows on their own [Dues](/accounting/dues-and-donations) screen.' },
                 { term: 'Invited', text: 'No account yet, and an invitation is still open. The family has asked, and the ball is with them.' },
                 { term: 'Pending Invite', text: 'Recorded in the family and never asked to join. This is the one of the three you can act on — invite them from the [family tree](/community/family-tree).' },
               ),
@@ -1547,7 +1557,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Setup, not the day\'s work',
             blocks: [
               p('[Accounting](/admin/accounting) is where the money is *configured*. Recording an actual payment happens on [Transactions](/reporting/transactions), under **Reporting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
-              p('The rail across the top of the page holds **Dues & Donations**, **Funds**, **Routing**, **Milestones**, **Processing** and **Bank Information**. Dues and donations share one pane: where you can see both, the two lists sit one under the other, headed **Dues** and **Donations**, with a **New Dues** and a **New Donation** button beside the rail.'),
+              p('The rail across the top of the page holds **Dues**, **Donations**, **Funds**, **Routing**, **Milestones**, **Processing** and **Bank Information**. Each is granted separately, so you see the ones you have been given and no others — a rail with three items on it is not a fault. The **New Dues** and **New Donation** buttons sit beside the rail on their own pages, and appear only where you may add to that list.'),
               p('**They are still two separate permissions, and sharing a pane changed nothing about that.** A family that lets somebody keep the dues schedule but not run the donation drives grants one and not the other, and that person sees one list, one button, and a rail item named for the half they hold. It is one screen because the two are read together, not because they are one job — see [Who can do what](/help/who-can-do-what#one-template).'),
             ],
           },
@@ -1624,7 +1634,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Four tabs, four jobs',
             blocks: [
               defs(
-                { term: 'Members', text: 'Everybody in the family, and which permission template each is on. Four columns — Name, Region, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
+                { term: 'Members', text: 'Everybody in the family, which permission template each is on, and which board position each holds. Four columns — Name, Position, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
                 { term: 'Organization', text: 'What shape the family is: its regions and chapters, and the board positions it keeps. It sits second because the regions and chapters are what the Members table\'s Region and Chapter columns are read against. Two chapters cover it: [Organization](/help/regions-and-chapters) and [Board Positions](/help/board-positions).' },
                 { term: 'Pending Approval', text: 'The people asking to join, and the invitations you have sent.' },
                 { term: 'Permission Templates', text: 'The templates themselves, and what each one grants.' },
@@ -1741,7 +1751,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'A region', text: 'Only members whose CHAPTER is in that region owe it.' },
                 { term: 'A chapter', text: 'Only members in that chapter owe it.' },
               ),
-              p('**A member with no chapter is under National**, so a regional or chapter due does not apply to them at all — it does not appear on their [Dues](/accounting/dues) screen and they are never billed for it. That is the state every family starts in, and it is the commonest reason a new chapter due collects nothing: [Dues Projections](/reporting/dues-projections) says so on the schedule\'s row when nobody in the family is in the part it is for.'),
+              p('**A member with no chapter is under National**, so a regional or chapter due does not apply to them at all — it does not appear on their [Dues](/accounting/dues-and-donations) screen and they are never billed for it. That is the state every family starts in, and it is the commonest reason a new chapter due collects nothing: [Dues Projections](/reporting/dues-projections) says so on the schedule\'s row when nobody in the family is in the part it is for.'),
               note('A member\'s region is worked out through their chapter every time it is asked. There is no separate region to set on a person, and moving a chapter into another region moves everybody in it with no further step.'),
             ],
           },
@@ -1795,13 +1805,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'assigning',
             heading: 'Giving somebody a position',
             blocks: [
+              p('**Not from this pane.** Setting up which offices your family keeps happens here; deciding who holds one happens on the **Members** tab, from that person\'s own row.'),
               steps(
-                'Press **Assign** on the position\'s row.',
-                'Find the person — the search box matches any part of any name, ignoring accents and punctuation.',
-                'For a regional or chapter position, choose which region or chapter it is for.',
-                'Press **Assign**.',
+                'Open the **Members** tab and find the person.',
+                'Open the menu at the end of their row and choose **Give a board position** under **Position**.',
+                'Pick the position. For a regional or chapter one, choose which region or chapter it is for.',
+                'Press **Give position**.',
               ),
-              p('More than one person can hold the same position, which is what a regional or chapter office needs. The **Held by** column lists everybody, with the region or chapter beside each name.'),
+              p('It moved there on 2026-08-20, and the reason is what you have in mind when you do it. Which offices exist is a decision about the FAMILY, made once and revisited yearly, and it belongs beside the regions and chapters. Making Ada the Treasurer is a decision about ADA — and everything else you decide about Ada is on her row already: her permission template, whether her access is switched on, her profile. Assigning from the position\'s row meant finding the office in order to find the person.'),
+              p('More than one person can hold the same position, which is what a regional or chapter office needs, and one person can hold more than one. Their **Position** column lists what they hold, and so does the box that opens from their row.'),
               note('Only relatives who have finished registering can hold a position. Somebody recorded on the family tree without an account cannot, because the record of who holds an office is attached to their account — invite them first, from [Family Tree](/community/family-tree).'),
             ],
           },
@@ -1809,7 +1821,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'removing',
             heading: 'Taking one away, and removing a position',
             blocks: [
-              p('The **×** beside a name takes that position away from that person. They stay a member of the family and nothing else about them changes.'),
+              p('The bin beside a title, in the box that opens from a member\'s row on the **Members** tab, takes that position away from that person. They stay a member of the family and nothing else about them changes.'),
               p('**A position that somebody holds cannot be removed.** Its remove button is unavailable and says how many people hold it; take it away from each of them and it becomes available.'),
               p('That is a refusal rather than a tidy-up on your behalf, and for the same reason deleting a chapter is: somebody\'s office is on their profile and in the Directory, and removing four officers as a side effect of deleting one row is not a decision to make by accident.'),
             ],

@@ -60,9 +60,15 @@ export default async function AccountSummaryPage() {
   await requireView(user.id, 'accounting/summary')
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
-    can(user.id, 'accounting/dues', 'view'),
+    can(user.id, 'accounting/dues-and-donations', 'view'),
     can(user.id, 'reporting/payment-history', 'view'),
-    can(user.id, 'accounting/donations', 'view'),
+    // THE SAME KEY TWICE, and it stays two `can()` calls rather than one. `20260820000009`
+    // merged `accounting/dues` and `accounting/donations` into one resource, so both halves of
+    // this digest are now governed by one grant — but they are still two SECTIONS with two
+    // links, and collapsing them into one boolean would mean the next thing that splits them
+    // (a tier, a second key) has to re-derive which sections it applies to. `can()` is
+    // `cache()`d, so this is one query either way.
+    can(user.id, 'accounting/dues-and-donations', 'view'),
     can(user.id, 'accounting/summary/funds', 'view'),
   ])
 
@@ -128,19 +134,19 @@ export default async function AccountSummaryPage() {
 
       {(canDues || canHistory) && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          {canDues && <Link href="/accounting/dues">See all your dues</Link>}
+          {canDues && <Link href="/accounting/dues-and-donations">See all your dues</Link>}
           {canHistory && <Link href="/reporting/payment-history">See your full payment history</Link>}
         </div>
       )}
 
       {canDonations && openDrives.length > 0 && (
         <section className="space-y-3">
-          <SectionHeading title="Open donation drives" href="/accounting/donations" linkLabel="All drives" />
+          <SectionHeading title="Open donation drives" href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
           <DonationsSection donations={openDrives} />
           {closedCount > 0 && (
             <p className="text-xs text-muted-foreground">
               {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
-              {' '}<Link href="/accounting/donations">see Donations</Link> for the full record.
+              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
             </p>
           )}
         </section>

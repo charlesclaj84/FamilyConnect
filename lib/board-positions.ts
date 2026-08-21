@@ -49,3 +49,40 @@ export const POSITION_SCOPE_LABELS: Record<PositionScope, string> = {
   regional: 'Regional',
   chapter:  'Chapter',
 }
+
+/**
+ * A held position as one phrase — "National President", "Austin Chapter Treasurer".
+ *
+ * ── WHY IT LIVES HERE AND NOT AT EITHER CALL SITE ──────────────────────────────────
+ * Three surfaces print this string and they read from two different shapes. The Member
+ * Directory gets it precomputed on the server (`MemberRecord.primary_role_title`, built from
+ * a `user_roles` row); Members & Access builds it in the browser from a
+ * `BoardPositionHolder`; and `getMyRoles` feeds the Dashboard from a third. Before this,
+ * `formatRoleTitle` in `lib/role-utils.ts` was the only copy and the other two either
+ * borrowed its shape or invented their own — which is how "Eastern Region President" and
+ * "Regional President" both came to be things this product says.
+ *
+ * `formatRoleTitle` now delegates here, so there is one sentence and one place to change it.
+ *
+ * ── THE SCOPE DECIDES WHICH PLACE IS NAMED, AND ONLY ONE OF THEM IS EVER SET ────────
+ * A `user_roles` row carries `chapter_id` OR `region_id` according to its scope, never both,
+ * so the two are separate parameters rather than one "place". Passing the wrong one is then a
+ * missing name rather than a wrong one — "Chapter Treasurer" instead of "Austin Region
+ * Treasurer", which is vague where the other is false.
+ *
+ * A NATIONAL POSITION SAYS "National" rather than nothing, for `whereOf`'s reason and the
+ * same reason a nationally scoped due does: National is somewhere, not nowhere.
+ */
+export function formatBoardTitle(input: {
+  positionName: string
+  scope: PositionScope | string
+  chapterName?: string | null
+  regionName?: string | null
+}): string {
+  const { positionName, scope, chapterName, regionName } = input
+  if (scope === 'chapter') return `${chapterName ?? 'Chapter'} Chapter ${positionName}`
+  if (scope === 'regional') {
+    return regionName ? `${regionName} Region ${positionName}` : `Regional ${positionName}`
+  }
+  return `National ${positionName}`
+}

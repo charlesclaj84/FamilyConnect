@@ -5,10 +5,12 @@ import { Cake, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
-import { formatDate } from '@/lib/date-utils'
+import { formatMonthDay } from '@/lib/date-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
 import {
-  BIRTHDAY_HORIZON_DAYS, birthdayWeekday, type UpcomingBirthday,
+  BIRTHDAY_HORIZON_DAYS, birthdayWeekday, birthdayAge,
+  DISCREET_AGE_EMOJI, DISCREET_AGE_LABEL, DISCREET_AGE_MIN, DISCREET_AGE_MAX,
+  type UpcomingBirthday,
 } from '@/lib/birthdays'
 
 /**
@@ -96,10 +98,16 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
     query,
   ))
 
-  // Whether the sentence under the table is worth printing at all — see it below. Measured
-  // over the WHOLE list rather than the filtered one, so the explanation for an em-dash does
-  // not vanish the moment a search hides the row that needed it.
-  const someAgeWithheld = birthdays.some(b => b.turning === null)
+  // Whether either half of the sentence under the table is worth printing — see it below.
+  // Measured over the WHOLE list rather than the filtered one, so the explanation for an
+  // em-dash does not vanish the moment a search hides the row that needed it.
+  //
+  // TWO COUNTS, NOT ONE, because there are now two reasons an age is missing and they are not
+  // the same statement: an untrustworthy year is a profile to fix, and a withheld middle age is
+  // a decision this pane made on the person's behalf. One combined "an age is left out" would
+  // send somebody to correct a date of birth that is perfectly correct.
+  const someAgeUntrusted = birthdays.some(b => birthdayAge(b.turning).kind === 'unknown')
+  const someAgeDiscreet = birthdays.some(b => birthdayAge(b.turning).kind === 'discreet')
 
   if (birthdays.length === 0) {
     // A SENTENCE, NEVER AN EMPTY TABLE. A heading row over nothing reads as a screen that
@@ -158,6 +166,7 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
             <tbody>
               {filtered.map(b => {
                 const weekday = birthdayWeekday(b.onDate)
+                const age = birthdayAge(b.turning)
                 return (
                   <tr key={b.id} className="border-b align-top last:border-0 sm:align-middle">
                     <td className="px-3 py-2.5">
@@ -165,17 +174,31 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                       {/* What the two folded columns say once they are gone. "Turning" keeps
                           its label because the heading was doing the work — a bare "41" under
                           a date is not self-evident — while "Saturday" needs none. */}
+                      {/* The SAME `birthdayAge` answer as the column below, which is the
+                          whole reason that decision is a function in `lib/birthdays.ts`: two
+                          layouts render this and a copied `>= 30` in either is a pane that
+                          shows a number on a laptop and an emoji on a phone. */}
                       <RowMeta className="gap-x-2">
                         <span>{weekday}</span>
-                        {b.turning !== null && (
+                        {age.kind === 'age' && (
                           <>
                             <MetaDot />
-                            <span>Turning {b.turning}</span>
+                            <span>Turning {age.value}</span>
+                          </>
+                        )}
+                        {age.kind === 'discreet' && (
+                          <>
+                            <MetaDot />
+                            <span role="img" aria-label={DISCREET_AGE_LABEL}>{DISCREET_AGE_EMOJI}</span>
                           </>
                         )}
                       </RowMeta>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{formatDate(b.onDate)}</td>
+                    {/* NO YEAR. Every row is inside a 60-day horizon, so the year is this
+                        one or the next — four characters that add nothing and invite the one
+                        misreading a birthday list is most prone to: the year printed is the
+                        year of the next occurrence, not the year of birth. */}
+                    <td className="px-3 py-2.5 text-muted-foreground">{formatMonthDay(b.onDate)}</td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                       {weekday}
                     </td>
@@ -199,13 +222,30 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                       )}
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                      {/* An em-dash rather than a guess. `turning` is null when the stored
-                          year is one the arithmetic will not trust — a 2062 typed for 1962, or
-                          a date of birth in the future — and the module's decision is to
-                          withhold the AGE while still printing the day and the month, because
-                          a four-digit typo is a typo in the year. Never print a nonsense age,
-                          and never drop the row. */}
-                      {b.turning ?? '—'}
+                      {/* THREE OUTCOMES, and `birthdayAge` decides which — never a `??` chain
+                          here, because two of the three are withholdings for different reasons
+                          and they must not collapse into one glyph.
+
+                          An EM-DASH when the stored year is one the arithmetic will not trust —
+                          a 2062 typed for 1962, or a date of birth in the future. The module
+                          withholds the age and still prints the day and the month, because a
+                          four-digit typo is a typo in the year. Never print a nonsense age, and
+                          never drop the row.
+
+                          A SMILING FACE for 30 to 60 inclusive. The age is known and is
+                          deliberately not printed: a birthday list is a prompt to say something
+                          nice, and in the middle of a life a published number stops being a
+                          celebration. Both ends keep their number — a family wants to know a
+                          cousin is turning 8 and a grandmother 80.
+
+                          `role="img"` with a real `aria-label`, because a bare emoji is
+                          announced as "slightly smiling face" — a decoration where the
+                          neighbouring rows have a number, and no hint as to why. */}
+                      {age.kind === 'age' && age.value}
+                      {age.kind === 'unknown' && '—'}
+                      {age.kind === 'discreet' && (
+                        <span role="img" aria-label={DISCREET_AGE_LABEL}>{DISCREET_AGE_EMOJI}</span>
+                      )}
                     </td>
                   </tr>
                 )
@@ -223,7 +263,14 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
         {query
           ? `${filtered.length} of ${birthdays.length} shown`
           : `${birthdays.length} birthday${birthdays.length === 1 ? '' : 's'} in the next ${BIRTHDAY_HORIZON_DAYS} days`}
-        {someAgeWithheld && ' · an age is left out where the year on file cannot be trusted'}
+        {/* TWO SENTENCES FOR TWO REASONS, each printed only when that reason actually
+            occurred in the list. The untrusted one asks somebody to fix a profile; the
+            discreet one explains a deliberate choice and must not read as a fault. The bounds
+            are interpolated rather than typed, for `BIRTHDAY_HORIZON_DAYS`' reason — a
+            hand-written "30 and 60" here is a sentence that outlives the rule it describes. */}
+        {someAgeUntrusted && ' · an age is left out where the year on file cannot be trusted'}
+        {someAgeDiscreet
+          && ` · ${DISCREET_AGE_EMOJI} stands in for an age between ${DISCREET_AGE_MIN} and ${DISCREET_AGE_MAX}`}
       </p>
     </div>
   )

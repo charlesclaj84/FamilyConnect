@@ -27,12 +27,14 @@ import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/Memb
 import {
   ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
+import { formatBoardTitle } from '@/lib/board-positions'
 import { MemberProfileEditDialog } from '@/components/admin/MemberProfileEditDialog'
+import { MemberPositionDialog } from '@/components/admin/MemberPositionDialog'
 import { AdminApprovalsClient } from '@/components/admin/AdminApprovalsClient'
 import { AdminRegionsChaptersClient } from '@/components/admin/AdminRegionsChaptersClient'
 import { AdminBoardPositionsClient } from '@/components/admin/AdminBoardPositionsClient'
 import {
-  MemberDetailsDialog, MemberDetailsTrigger, regionLabel,
+  MemberDetailsDialog, MemberDetailsTrigger,
   type MemberDetails,
 } from '@/components/members/MemberDetailsDialog'
 import { HelpLink } from '@/components/help/HelpLink'
@@ -142,6 +144,34 @@ export interface OrganizationData {
   mayDeleteBoard: boolean
 }
 
+/**
+ * The board-position data the MEMBERS pane needs, and ONLY when that tab is open.
+ *
+ * ── WHY THE ROSTER CARRIES THIS AT ALL, SINCE 2026-08-20 ───────────────────────────
+ * Assigning a position moved off the Organization pane and onto the member's own row, so the
+ * roster needs two things it never did: each member's current offices (a column, and the
+ * dialog's list) and the family's catalogue of positions (the dialog's picker).
+ *
+ * ── EVERY FIELD IS GATED, AND NOT ALL BY THE SAME GRANT ────────────────────────────
+ * `positions` and `holders` ride on `admin/members/board-positions:view` — without it there is
+ * no Position column at all, which is the correct answer for a caller who may see the roster
+ * and not the family's offices. `regions` and `chapters` ride on `:edit`, because they exist
+ * only to fill the assignment picker; a view-only caller has no use for them (§5).
+ *
+ * `null` means the whole thing was never fetched — no grant, or the tier does not include it.
+ */
+export interface MemberBoardData {
+  /** Every office the family keeps, for the dialog's picker. */
+  positions: BoardPosition[]
+  /** Every assignment in the family. Each row filters it on its own `person_id`. */
+  holders: BoardPositionHolder[]
+  /** Empty unless `mayAssign` — see above. */
+  regions: { id: string; name: string }[]
+  chapters: { id: string; name: string }[]
+  /** `admin/members/board-positions:edit`. False makes the dialog a read-only list. */
+  mayAssign: boolean
+}
+
 interface Props {
   templates: TemplateSummary[]
   resources: ResourceSummary[]
@@ -168,6 +198,12 @@ interface Props {
    * family's whole geography to the browser for somebody who never opened it (§5).
    */
   organization: OrganizationData | null
+  /**
+   * Board positions for the MEMBERS pane, and only when that tab is open — same split as
+   * `approvals` and `organization`, for the same two reasons. `null` where the caller holds no
+   * board grant, which renders no Position column and no Position item in the row menu.
+   */
+  board: MemberBoardData | null
   /** Whether the caller may view `admin/approvals` — drives the tab. */
   canViewApprovals: boolean
   /**
@@ -202,7 +238,7 @@ interface Props {
 
 export function AdminAccessClient({
   templates, resources, tab, selectedTemplateId, policy, memberRights, templateRights,
-  legacy, approvals, organization, canViewApprovals, canViewAccess, canViewTemplates,
+  legacy, approvals, organization, board, canViewApprovals, canViewAccess, canViewTemplates,
   canViewOrganization, canInvite,
 }: Props) {
   const router = useRouter()
@@ -351,7 +387,7 @@ export function AdminAccessClient({
       )}
 
       {tab === 'members' && (
-        <MembersTab templates={templates} rights={memberRights} onError={setError} />
+        <MembersTab templates={templates} rights={memberRights} board={board} onError={setError} />
       )}
 
       {/* ── Organization ──
@@ -444,17 +480,14 @@ export function AdminAccessClient({
           {organization.showBoard && (
             <div className={cn('space-y-6', organization.showGeography && 'border-t pt-8')}>
               <p className="text-sm text-muted-foreground">
-                The offices your family keeps, and who holds each one. A{' '}
-                <strong>Regional</strong> or <strong>Chapter</strong> position is held for one
-                region or one chapter — you choose which when you give it to somebody — and the
-                same title can exist once at each scope.
+                The offices your family keeps. A <strong>Regional</strong> or{' '}
+                <strong>Chapter</strong> position is held for one region or one chapter — which
+                one is chosen when it is given to somebody — and the same title can exist once
+                at each scope. <strong>Who holds what is set on the Members tab</strong>, from
+                the member’s own row.
               </p>
               <AdminBoardPositionsClient
                 initialPositions={organization.positions}
-                initialHolders={organization.holders}
-                members={organization.boardMembers}
-                regions={organization.boardRegions}
-                chapters={organization.boardChapters}
                 mayCreate={organization.mayCreateBoard}
                 mayEdit={organization.mayEditBoard}
                 mayDelete={organization.mayDeleteBoard}
@@ -507,9 +540,11 @@ const STATUS_WORDS: Record<string, string> = {
   rejected: 'Declined',
 }
 
-function MembersTab({ templates, rights, onError }: {
+function MembersTab({ templates, rights, board, onError }: {
   templates: TemplateSummary[]
   rights: Rights
+  /** Board positions, or null where the caller holds no board grant — see `MemberBoardData`. */
+  board: MemberBoardData | null
   onError: (m: string) => void
 }) {
   const router = useRouter()
@@ -539,6 +574,13 @@ function MembersTab({ templates, rights, onError }: {
   // the panel mid-transition.
   const [editingId, setEditingId] = useState<string | null>(null)
 
+  // WHICH MEMBER'S POSITIONS ARE OPEN. Held as a row rather than an id, unlike `editingId`
+  // above, and the difference is which way the staleness cuts: the position dialog needs the
+  // member's NAME for its title and its confirmations, and every write in it ends in
+  // `router.refresh()` rather than `reload()` — so the row it was opened with is still the
+  // right row, while a lookup would go undefined for a frame as the refreshed page arrives.
+  const [positionFor, setPositionFor] = useState<MemberSummary | null>(null)
+
   async function run(
     options: ConfirmOptions,
     action: () => Promise<{ success: boolean; message?: string }>,
@@ -562,8 +604,9 @@ function MembersTab({ templates, rights, onError }: {
           {query ? 'No members match that filter.' : 'No members with accounts in this family yet.'}
         </p>
       ) : (
-        <MemberTable rows={data.rows} templates={templates} rights={rights}
-          busy={isPending} run={run} onView={setViewingId} />
+        <MemberTable rows={data.rows} templates={templates} rights={rights} board={board}
+          busy={isPending} run={run} onView={setViewingId}
+          onPosition={setPositionFor} />
       )}
 
       <Pager page={page} total={data.total} onPage={setPage} />
@@ -602,6 +645,27 @@ function MembersTab({ templates, rights, onError }: {
           mechanism AGENTS.md uses at `<main key={familyCode}>`, and the reason that dialog
           needs no reset logic of its own. Without it, a second member opened after a first
           would render the first one's form under the second one's name. */}
+      {/* MOUNTED ONLY WHILE OPEN AND KEYED ON THE MEMBER, for `MemberProfileEditDialog`'s
+          reason: the key is what discards the previous member's picker state when a second
+          row's Position is opened. Rendered only where the caller has a board grant at all —
+          `board` is null otherwise, and the row menu offers no Position item either. */}
+      {positionFor && board && (
+        <MemberPositionDialog
+          key={positionFor.personId}
+          personName={positionFor.name}
+          personId={positionFor.personId}
+          positions={board.positions}
+          // THIS MEMBER'S holdings, filtered here rather than in the dialog: one place decides
+          // whose assignments are shown, and the same `person_id` match feeds the Position
+          // column on the row.
+          holders={board.holders.filter(h => h.person_id === positionFor.personId)}
+          regions={board.regions}
+          chapters={board.chapters}
+          mayAssign={board.mayAssign}
+          onClose={() => setPositionFor(null)}
+        />
+      )}
+
       {editingId && (
       <MemberProfileEditDialog
         key={editingId}
@@ -679,13 +743,15 @@ function accessDetails(member: MemberSummary): MemberDetails {
  * Member Directory renders the same four and folds the same three, so the two lists still
  * match column for column at every width.
  */
-function MemberTable({ rows, templates, rights, busy, run, onView }: {
+function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosition }: {
   rows: MemberSummary[]
   templates: TemplateSummary[]
   rights: Rights
+  board: MemberBoardData | null
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
   onView: (personId: string) => void
+  onPosition: (member: MemberSummary) => void
 }) {
   // `overflow-visible`, not the `overflow-x-auto` that was here: an ancestor with
   // `overflow-x: auto` computes its `overflow-y` to `auto` as well, which is what forced
@@ -698,7 +764,23 @@ function MemberTable({ rows, templates, rights, busy, run, onView }: {
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Region</th>
+            {/* ── POSITION REPLACED REGION ON 2026-08-20 ──────────────────────────────
+                Region was DERIVED from the member's chapter (`people.chapter_id ->
+                chapters.region_id`), so the two columns beside each other answered one
+                question twice: a member in the Austin chapter is in the Texas region by
+                construction, and nobody ever compared the two down the list. The region is
+                still on the row's detail dialog, where a single record is read in full.
+
+                What replaced it is the fact that had nowhere to live. Board positions are
+                assigned from this table now, and a column is what makes "who are our officers"
+                a question you can answer by scanning rather than by opening twelve dialogs.
+
+                ABSENT ENTIRELY without the board grant — not blank. `board === null` means the
+                caller may see the roster and not the family's offices, and a headed column of
+                em-dashes would tell them the family has no officers. */}
+            {board && (
+              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Position</th>
+            )}
             <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Chapter</th>
             <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
             {/* The menu column has no heading to give. An empty <th> would be announced
@@ -709,7 +791,8 @@ function MemberTable({ rows, templates, rights, busy, run, onView }: {
         <tbody>
           {rows.map(member => (
             <MemberRow key={member.personId} member={member} templates={templates}
-              rights={rights} busy={busy} run={run} onView={onView} />
+              rights={rights} board={board} busy={busy} run={run} onView={onView}
+              onPosition={onPosition} />
           ))}
         </tbody>
       </table>
@@ -717,16 +800,31 @@ function MemberTable({ rows, templates, rights, busy, run, onView }: {
   )
 }
 
-function MemberRow({ member, templates, rights, busy, run, onView }: {
+function MemberRow({ member, templates, rights, board, busy, run, onView, onPosition }: {
   member: MemberSummary
   templates: TemplateSummary[]
   rights: Rights
+  board: MemberBoardData | null
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
   onView: (personId: string) => void
+  onPosition: (member: MemberSummary) => void
 }) {
   const badge = STATUS_BADGE[member.status]
   const disabled = member.status === 'disabled'
+
+  // EVERY office this member holds, as the phrases the dialog prints — from the same
+  // `formatBoardTitle`, so the column and the dialog cannot word one assignment two ways.
+  // `person_id` is null on an assignment whose account is no longer in this family, and null
+  // never matches a real `personId`, which is what keeps such a row off everybody's line.
+  const titles = (board?.holders ?? [])
+    .filter(h => h.person_id === member.personId)
+    .map(h => formatBoardTitle({
+      positionName: h.position_name,
+      scope: h.scope,
+      chapterName: h.chapter_name,
+      regionName: h.region_name,
+    }))
 
   return (
     <tr className="border-b last:border-0 align-top sm:align-middle">
@@ -759,19 +857,34 @@ function MemberRow({ member, templates, rights, busy, run, onView }: {
             The template is always shown too: it is what this page is FOR, so unlike a
             missing chapter it is never dropped, and "No template" is a real answer. */}
         <RowMeta className="flex-col items-start gap-y-0.5">
-          <MetaIf value={regionLabel(member.regionName)} prefix="Region" />
+          {/* POSITION WHERE REGION USED TO BE — see the table head. Every title on its own
+              line rather than joined: an officer holding two is two facts, and "National
+              Treasurer, Austin Chapter Chair" on one folded line is a string nobody can
+              parse at 390px. Omitted entirely for a member with none, because a folded
+              "Position —" is a line that says nothing. */}
+          {titles.map(t => <MetaIf key={t} value={t} prefix="Position" />)}
           <MetaIf value={member.chapterName} prefix="Chapter" />
           <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
             {member.templateName ?? 'No template'}
           </span>
         </RowMeta>
       </td>
-      {/* NEVER AN EM-DASH FOR REGION: National is the absence of a region rather than a
-          missing value (20260817000008), so there is nothing here we do not know. Chapter
-          genuinely can be absent and takes the em-dash. */}
-      <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-        {regionLabel(member.regionName)}
-      </td>
+      {/* AN EM-DASH IS RIGHT HERE, unlike the Region column this replaced: Region was never
+          absent (a member under no region is National, which is somewhere — 20260817000008),
+          whereas most of a family holds no office at all and "no position" is the ordinary
+          answer rather than a gap in the record.
+
+          Two titles stack rather than joining with a comma, for the folded line's reason: a
+          member can hold a national office and chair a chapter, and those are two facts. */}
+      {board && (
+        <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
+          {titles.length === 0 ? '—' : (
+            <span className="flex flex-col gap-0.5">
+              {titles.map(t => <span key={t}>{t}</span>)}
+            </span>
+          )}
+        </td>
+      )}
       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
         {member.chapterName ?? '—'}
       </td>
@@ -784,8 +897,20 @@ function MemberRow({ member, templates, rights, busy, run, onView }: {
       <RowMenu label={`Actions for ${member.name}`} disabled={!rights.edit || busy}>
         {close => (
           <>
+            {/* ── TWO LABELLED SECTIONS SINCE 2026-08-20: PERMISSIONS, THEN POSITION ────
+                The menu was one unheaded list of templates with the enable/disable under a
+                rule, and it grew a second job when board assignment moved onto this row. Two
+                headings rather than one, because "put Ada on Administrators" and "make Ada
+                the Treasurer" are answers to different questions and the second is not a
+                permission — a position grants nothing at all, which is exactly the confusion
+                an unheaded list of both would invite.
+
+                A `<p>` and not a `role="group"`: `RowMenu` deliberately refuses `role="menu"`
+                (see its header), so claiming group semantics inside a plain disclosure would
+                promise the same keyboard behaviour by a side door. A heading that is read out
+                in order is what is actually here. */}
             <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Apply permissions template
+              Permissions
             </p>
             {templates.length === 0 && (
               <p className="px-3 pb-2 text-xs text-muted-foreground">No templates yet.</p>
@@ -813,6 +938,31 @@ function MemberRow({ member, templates, rights, busy, run, onView }: {
                 </button>
               )
             })}
+
+            {/* ── Position ───────────────────────────────────────────────────────────
+                Absent for a caller with no board grant — `board` is null then, and the whole
+                section including its heading goes with it rather than leaving a heading over
+                nothing. The item is offered under VIEW rather than edit, because the dialog is
+                a useful read on its own ("what does Ada hold?") and says so; it renders its own
+                controls only under `mayAssign`. */}
+            {board && (
+              <>
+                <div className="my-1 border-t" />
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Position
+                </p>
+                <button type="button"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                  onClick={() => { close(); onPosition(member) }}>
+                  <Network className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {titles.length === 0
+                      ? 'Give a board position'
+                      : titles.length === 1 ? 'Change board position' : 'Board positions'}
+                  </span>
+                </button>
+              </>
+            )}
 
             <div className="my-1 border-t" />
 

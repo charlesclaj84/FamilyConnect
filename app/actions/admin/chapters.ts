@@ -101,15 +101,26 @@ export interface BoardPositionHolder {
   position_name: string
   person_name: string
   /**
-   * NO `user_id` AND NO `person_id`, and their absence is §5 rather than an oversight.
+   * `people.id`, ADDED 2026-08-20 — and still NO `user_id`, which is the half that mattered.
    *
-   * `user_roles` keys its holder on an `auth.users.id` (see the section header), which is the
-   * one identifier in this schema that is IDENTICAL across every family the account belongs
-   * to — the whole reason `assignBoardPosition` takes a `people.id` instead. The screen needs
-   * a name to print and an `assignment_id` to revoke, so shipping either id would put a set
-   * of cross-family auth uuids into the RSC payload of a page that never renders them. Add
-   * one back only with a caller that needs it.
+   * This field said "NO `user_id` AND NO `person_id`, and their absence is §5 rather than an
+   * oversight", and invited exactly this: "add one back only with a caller that needs it."
+   * The caller is Members & Access, whose roster now prints each member's position in a column
+   * and offers a dialog to change it — both of which have to match a holder to a row, and the
+   * row is keyed on `people.id`.
+   *
+   * THE DISTINCTION THE OLD NOTE DREW IS THE REASON THIS IS SAFE. `user_roles` keys its holder
+   * on an `auth.users.id`, which is the one identifier in this schema that is IDENTICAL across
+   * every family the account belongs to — the whole reason `assignBoardPosition` takes a
+   * `people.id` instead. A `people.id` belongs to exactly one family, so publishing it tells a
+   * reader nothing they do not already have: every row of the roster they are looking at is
+   * keyed on it.
+   *
+   * NULL for an assignment whose `user_id` matches nobody in this family — a row
+   * `20260819000004` should have repointed. The screen prints "Somebody no longer in this
+   * family" for those, and a null id is what keeps such a row from matching a real member.
    */
+  person_id: string | null
   scope: PositionScope
   chapter_name: string | null
   region_name: string | null
@@ -366,7 +377,7 @@ export async function setChapterRegion(
   if (error) return { success: false, error: error.message }
   revalidateOrganization()
   // Who owes a regional due has just changed, so every screen that prices one is stale.
-  revalidatePath('/accounting/dues')
+  revalidatePath('/accounting/dues-and-donations')
   revalidatePath('/accounting/summary')
   revalidatePath('/reporting/dues-projections')
   return { success: true }
@@ -805,6 +816,10 @@ export async function getBoardPositionHolders(): Promise<BoardPositionHolder[]> 
         person_name:   p
           ? (`${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Unnamed member')
           : 'Somebody no longer in this family',
+        // Already in hand — `person` is keyed by `user_id` and holds the whole row — so this
+        // costs no query. Null when the assignment's account is not in this family's `people`,
+        // which is the same condition `person_name` reports in words.
+        person_id:     p?.id ?? null,
         scope:         a.scope as PositionScope,
         chapter_name:  a.chapter_id ? (chapterName.get(a.chapter_id) ?? null) : null,
         region_name:   a.region_id ? (regionName.get(a.region_id) ?? null) : null,

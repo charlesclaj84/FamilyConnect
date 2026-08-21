@@ -15,6 +15,7 @@ import {
 import { getInvitations } from '@/app/actions/invitations'
 import {
   AdminAccessClient, type AccessTab, type ApprovalsData, type OrganizationData,
+  type MemberBoardData,
 } from '@/components/admin/AdminAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
 
@@ -329,6 +330,43 @@ export default async function AdminAccessPage({ searchParams }: Props) {
     }
   }
 
+  // ── Board positions, for the MEMBERS pane ──────────────────────────────────────
+  //
+  // Assigning a position moved off the Organization pane and onto the member's own row on
+  // 2026-08-20, so the roster needs the family's offices and every assignment in it. Same
+  // shape as the two panes above — fetched only for a caller who may see it AND is looking at
+  // the tab that shows it, so a board roster is not published to somebody reading Templates.
+  //
+  // THE TWO HALVES ARE GATED DIFFERENTLY, and it matters. `positions` and `holders` ride on
+  // `admin/members/board-positions:view`; the regions and chapters ride on `:edit`, because
+  // they exist only to fill the assignment picker and a view-only caller has no use for them
+  // (§5). `canViewBoard` already ands the grant with the tier, which is what keeps a Free
+  // family from getting a Position column for a Plus feature.
+  //
+  // `getBoardPositionScopeOptions()` rather than `getRegions()`/`getChapters()`, deliberately:
+  // it is the narrow projection that exists for this picker (id and name only), and it is
+  // gated on the board key rather than on `admin/chapters` — so a caller who may assign
+  // positions but may not redraw the family's geography still gets the list they need to pick
+  // from. Using the geography reads here would tie one grant to the other.
+  let boardData: MemberBoardData | null = null
+  if (canViewBoard && tab === 'members') {
+    const mayAssign = await canAny(user.id, 'admin/members/board-positions', 'edit')
+    const [positions, holders, scopeOptions] = await Promise.all([
+      getBoardPositions(),
+      getBoardPositionHolders(),
+      mayAssign
+        ? getBoardPositionScopeOptions()
+        : Promise.resolve({ regions: [], chapters: [] }),
+    ])
+    boardData = {
+      positions,
+      holders,
+      regions: scopeOptions.regions,
+      chapters: scopeOptions.chapters,
+      mayAssign,
+    }
+  }
+
   return (
     <PageShell>
       <div className="mb-8">
@@ -354,6 +392,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
         legacy={effective.legacy}
         approvals={approvalsData}
         organization={organizationData}
+        board={boardData}
         canViewApprovals={canViewApprovals}
         canViewAccess={canViewAccess}
         canViewTemplates={canViewTemplates}

@@ -115,8 +115,10 @@ export async function getMyRoles(): Promise<MyRoleSummary[]> {
 //
 // None of the four had a caller: there has never been a UI in this product that gives
 // somebody a board position. So they were live HTTP endpoints with holes in them, kept warm
-// for a screen that did not exist — the shape TODO.md flags for `getMyGatheringTaskCount`,
-// with the difference that these were exploitable.
+// for a screen that did not exist. `getMyGatheringTaskCount` was the same shape and had its
+// own TODO entry until the Dashboard grew a My Tasks quick action and gave it a caller; the
+// difference is that these four were exploitable, and that is why they were deleted rather
+// than waiting for a screen.
 //
 // `assignBoardPosition` and `revokeBoardPosition` in app/actions/admin/chapters.ts replace
 // the two that matter, beside the catalogue they operate on, and `/admin/members/board-positions` is

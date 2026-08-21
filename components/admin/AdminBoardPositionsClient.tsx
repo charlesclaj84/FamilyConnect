@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,13 +12,11 @@ import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
-import { PersonPicker } from '@/components/ui/person-picker'
 import { useServerState } from '@/lib/use-server-state'
 import { cn } from '@/lib/utils'
 import {
   createBoardPosition, renameBoardPosition, deleteBoardPosition,
-  assignBoardPosition, revokeBoardPosition,
-  type BoardPosition, type BoardPositionHolder, type AssignableMember,
+  type BoardPosition,
 } from '@/app/actions/admin/chapters'
 import {
   POSITION_CATEGORIES, POSITION_SCOPES, POSITION_NAME_MAX,
@@ -28,7 +26,26 @@ import {
 } from '@/lib/board-positions'
 
 /**
- * Board Positions — the family's list of offices, and who holds each.
+ * Board Positions — the family's list of offices. WHO HOLDS THEM IS NOT DECIDED HERE.
+ *
+ * ── ONE JOB SINCE 2026-08-20: WHICH OFFICES EXIST ──────────────────────────────────
+ * This pane used to do both — a "Held by" column listing every officer, an **Assign** button
+ * per row opening a person picker, and an × beside each name to take a position away. All of
+ * it moved to the Members table, where each member's row has a **Position** column and its
+ * row menu opens a dialog to set one.
+ *
+ * The split is by WHO THE READER IS THINKING ABOUT. Setting up the offices a family keeps is a
+ * decision about the family — done once, revisited yearly — and it belongs beside the regions
+ * and chapters it sits next to. Giving Ada the Treasurer's job is a decision about ADA, and
+ * every other decision about Ada is on her row: her permission template, whether her access is
+ * on, her profile. Assigning from here meant finding the office and then finding the person
+ * inside it; assigning from there means finding the person, which is what an administrator
+ * actually has in mind.
+ *
+ * WHAT STAYED, AND WHY IT LOOKS LIKE A LEFTOVER: `BoardPosition.holders`, the count. It is not
+ * an assignment control — it is the reason the delete button is disabled, and the sentence
+ * beside it ("2 people hold this — take it away from them first") is what stops a greyed bin
+ * reading as a bug. The count comes from `getBoardPositions`, which this pane already needed.
  *
  * ── WHAT THIS REPLACED, AND WHY IT IS A REWRITE ─────────────────────────────────────
  * `AdminUserRolesClient` was two cards over a hybrid table: "Standard Board Positions",
@@ -72,34 +89,16 @@ import {
  * ── WRITE RIGHTS ARRIVE AS PROPS ────────────────────────────────────────────────────
  * `mayCreate`/`mayEdit`/`mayDelete`, resolved on the page with `canAny` — the same helper
  * every action behind them uses, so a control that renders is a control that can succeed.
- * `members`, `regions` and `chapters` are empty for a caller who cannot assign, because they
- * exist only to fill the dialog and a roster is PII in the RSC payload (§5).
- */
-
-/**
- * Where a scoped assignment sits, as one phrase.
  *
- * A national position reads "National" rather than an em-dash, because it is somewhere rather
- * than nowhere — the same word `MemberRecord.region_name`'s absence prints and the same word a
- * nationally scoped due uses. The fall-backs ('Chapter', 'Regional') are for a name the read
- * could not resolve, which `getBoardPositionHolders` can only produce for a chapter or region
- * deleted between its five queries.
+ * `members`, `regions` and `chapters` USED TO ARRIVE HERE TOO and no longer do: they existed
+ * only to fill the assignment dialog, and a roster is PII in the RSC payload (§5). They are
+ * sent to the Members pane now, under the same grant, and only to a caller who may assign.
  */
-function whereOf(h: BoardPositionHolder): string {
-  if (h.scope === 'chapter') return h.chapter_name ? `${h.chapter_name} Chapter` : 'Chapter'
-  if (h.scope === 'regional') return h.region_name ? `${h.region_name} Region` : 'Regional'
-  return 'National'
-}
 
 export function AdminBoardPositionsClient({
-  initialPositions, initialHolders, members, regions, chapters,
-  mayCreate, mayEdit, mayDelete,
+  initialPositions, mayCreate, mayEdit, mayDelete,
 }: {
   initialPositions: BoardPosition[]
-  initialHolders: BoardPositionHolder[]
-  members: AssignableMember[]
-  regions: { id: string; name: string }[]
-  chapters: { id: string; name: string }[]
   mayCreate: boolean
   mayEdit: boolean
   mayDelete: boolean
@@ -112,7 +111,6 @@ export function AdminBoardPositionsClient({
   // family remounts the whole page through the layout key, so neither list can be stale for
   // the family the caller just left.
   const [positions] = useServerState(initialPositions)
-  const [holders]   = useServerState(initialHolders)
 
   const [showAdd, setShowAdd]       = useState(false)
   const [form, setForm]             = useState<{ name: string; category: PositionCategory; scope: PositionScope }>({
@@ -137,22 +135,6 @@ export function AdminBoardPositionsClient({
   // assignment no longer exists", both over a table where the row is correctly gone. The
   // sibling `AdminRegionsChaptersClient` guards all four of its writes the same way.
   const [busyId, setBusyId] = useState<string | null>(null)
-
-  const [assignTo, setAssignTo]     = useState<BoardPosition | null>(null)
-  const [assignPerson, setAssignPerson] = useState('')
-  const [assignWhere, setAssignWhere]   = useState('')
-  const [assignError, setAssignError]   = useState('')
-  const [assigning, setAssigning]   = useState(false)
-
-  const holdersByPosition = useMemo(() => {
-    const out = new Map<string, BoardPositionHolder[]>()
-    for (const h of holders) {
-      const list = out.get(h.position_id)
-      if (list) list.push(h)
-      else out.set(h.position_id, [h])
-    }
-    return out
-  }, [holders])
 
   /**
    * Shut the add dialog and clear both of its messages.
@@ -250,51 +232,6 @@ export function AdminBoardPositionsClient({
     router.refresh()
   }
 
-  function openAssign(position: BoardPosition) {
-    setAssignTo(position)
-    setAssignPerson('')
-    setAssignWhere('')
-    setAssignError('')
-  }
-
-  async function handleAssign() {
-    if (!assignTo) return
-    if (!assignPerson) { setAssignError('Choose who holds it'); return }
-    setAssigning(true)
-    setAssignError('')
-    const result = await assignBoardPosition({
-      positionId: assignTo.id,
-      personId:   assignPerson,
-      chapterId:  assignTo.scope === 'chapter'  ? assignWhere || null : null,
-      regionId:   assignTo.scope === 'regional' ? assignWhere || null : null,
-    })
-    setAssigning(false)
-    if (!result.success) { setAssignError(result.error ?? 'Could not assign that position'); return }
-    setAssignTo(null)
-    router.refresh()
-  }
-
-  async function handleRevoke(holder: BoardPositionHolder) {
-    if (busyId) return
-    setListError('')
-    const ok = await confirm({
-      title: 'Take away position',
-      description: `Take "${holder.position_name}" away from ${holder.person_name}? `
-        + 'They stay a member of the family.',
-      confirmLabel: 'Take it away',
-      destructive: true,
-    })
-    if (!ok) return
-    setBusyId(holder.assignment_id)
-    const result = await revokeBoardPosition(holder.assignment_id)
-    setBusyId(null)
-    if (!result.success) { setListError(result.error ?? 'Could not take that position away'); return }
-    router.refresh()
-  }
-
-  const scopeNeedsPlace = assignTo?.scope === 'chapter' || assignTo?.scope === 'regional'
-  const placeOptions    = assignTo?.scope === 'chapter' ? chapters : regions
-
   return (
     <div className="space-y-8">
       <Card>
@@ -337,7 +274,6 @@ export function AdminBoardPositionsClient({
                     <th scope="col" className="px-3 py-2">Position</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Category</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Scope</th>
-                    <th scope="col" className="px-3 py-2">Held by</th>
                     {(mayEdit || mayDelete) && (
                       <th scope="col" className="px-3 py-2 text-right"><span className="sr-only">Actions</span></th>
                     )}
@@ -345,7 +281,6 @@ export function AdminBoardPositionsClient({
                 </thead>
                 <tbody className="divide-y">
                   {positions.map(p => {
-                    const held = holdersByPosition.get(p.id) ?? []
                     const editing = editingId === p.id
                     return (
                       <tr key={p.id} className="align-top sm:align-middle">
@@ -385,35 +320,6 @@ export function AdminBoardPositionsClient({
                         <td className={cn('px-3 py-2 text-muted-foreground', COLLAPSING_CELL)}>
                           {SCOPE_LABELS[p.scope]}
                         </td>
-                        <td className="px-3 py-2">
-                          {held.length === 0
-                            ? <span className="text-muted-foreground">Nobody yet</span>
-                            : (
-                              <ul className="space-y-0.5">
-                                {held.map(h => (
-                                  <li key={h.assignment_id} className="flex items-center gap-1.5">
-                                    <span>{h.person_name}</span>
-                                    <span className="text-xs text-muted-foreground">{whereOf(h)}</span>
-                                    {mayEdit && (
-                                      // `p-1` and not a bare glyph. A 14px hit target on a
-                                      // destructive control is the mis-tap AGENTS.md makes the
-                                      // argument about for `PersonMultiSelect`'s chips, and
-                                      // these sit one line apart in a list of officers.
-                                      <button
-                                        type="button"
-                                        disabled={busyId !== null}
-                                        onClick={() => handleRevoke(h)}
-                                        aria-label={`Take ${h.position_name} away from ${h.person_name}`}
-                                        className="-my-1 p-1 text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
-                                      >
-                                        <X className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                        </td>
                         {(mayEdit || mayDelete) && (
                           <td className="px-3 py-2">
                             {/* ONE ROW, ONE MODE. While a row is being renamed its actions are
@@ -441,11 +347,6 @@ export function AdminBoardPositionsClient({
                                     >
                                       <Pencil className="h-3.5 w-3.5" />
                                     </button>
-                                  )}
-                                  {mayEdit && (
-                                    <Button size="sm" variant="outline" onClick={() => openAssign(p)}>
-                                      <UserPlus className="h-3.5 w-3.5" /> Assign
-                                    </Button>
                                   )}
                                   {mayDelete && (
                                     // THE REASON IS ON THE ROW, not in a message above a table
@@ -580,77 +481,6 @@ export function AdminBoardPositionsClient({
         </form>
       </Dialog>
 
-      <Dialog
-        open={assignTo !== null}
-        onClose={() => setAssignTo(null)}
-        title={assignTo ? `Assign ${assignTo.name}` : 'Assign position'}
-        description={assignTo
-          ? `A ${SCOPE_LABELS[assignTo.scope].toLowerCase()} ${CATEGORY_LABELS[assignTo.category].toLowerCase()}.`
-          : undefined}
-      >
-        <div className="mt-2 space-y-4">
-          {/* ACCOUNTS ONLY, and the copy says so rather than letting somebody hunt for a
-              relative who cannot appear: `user_roles` keys its holder on an auth account, so
-              a recorded grandmother has nothing to attach a position to. */}
-          <PersonPicker
-            people={members}
-            value={assignPerson}
-            onChange={next => { setAssignPerson(next); setAssignError('') }}
-            label="Who holds it"
-            hint="Only relatives who have finished registering can hold a position."
-            emptyMessage="Nobody in this family has an account yet."
-          />
-
-          {scopeNeedsPlace && (
-            <div className="space-y-1.5">
-              {/* THE LABEL ONLY EXISTS WHEN ITS CONTROL DOES. `<Label required htmlFor>` was
-                  rendered unconditionally, so a family with no chapters got a dead click
-                  target and an `sr-only` "(required)" for a `<Select>` that is not in the
-                  document. */}
-              {placeOptions.length > 0 && (
-                <Label required htmlFor="assign-where">
-                  {assignTo?.scope === 'chapter' ? 'Chapter' : 'Region'}
-                </Label>
-              )}
-              {placeOptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Your family has no {assignTo?.scope === 'chapter' ? 'chapters' : 'regions'} yet, so
-                  this position cannot be given to anybody until it does. Set them up under
-                  Members &amp; Access → Organization.
-                </p>
-              ) : (
-                <Select
-                  id="assign-where"
-                  value={assignWhere}
-                  onChange={e => { setAssignWhere(e.target.value); setAssignError('') }}
-                >
-                  <option value="">Choose one…</option>
-                  {placeOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </Select>
-              )}
-            </div>
-          )}
-
-          {/* The message sits with the button rather than with the field it is about, which
-              is the rule in AGENTS.md and is what this dialog's own layout enforces: the body
-              scrolls, so a message beside the picker can be off-screen at the moment somebody
-              presses Assign again. */}
-          <FormError message={assignError} />
-          <div className="flex gap-2 pt-1">
-            {/* Disabled when the position needs a place and the family has none, rather than
-                round-tripping to the server to be told to choose from an empty list — under a
-                paragraph that has just explained there is nothing to choose. */}
-            <Button
-              className="flex-1"
-              disabled={assigning || (scopeNeedsPlace && placeOptions.length === 0)}
-              onClick={handleAssign}
-            >
-              {assigning ? 'Assigning…' : 'Assign'}
-            </Button>
-            <Button variant="outline" onClick={() => setAssignTo(null)}>Cancel</Button>
-          </div>
-        </div>
-      </Dialog>
     </div>
   )
 }

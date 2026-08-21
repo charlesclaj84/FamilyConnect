@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import type { MemberRecord } from '@/app/actions/members'
 import {
-  MemberDetailsDialog, MemberDetailsTrigger, regionLabel,
+  MemberDetailsDialog, MemberDetailsTrigger,
   type MemberDetails,
 } from '@/components/members/MemberDetailsDialog'
 
@@ -128,7 +128,23 @@ export function MemberDirectoryClient({ members }: Props) {
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Region</th>
+                {/* ── POSITION REPLACED REGION ON 2026-08-20, AND IT HAD TO ────────────────
+                    Members & Access made that swap because board positions are assigned from
+                    its rows now, and "A table is a table" leaves this screen no choice:
+                    "a column added to one of those two screens is a column owed to the other,
+                    or an administrator and a member end up comparing two different answers to
+                    one question."
+
+                    It costs this screen nothing and arguably improves it. Region was DERIVED
+                    from the chapter beside it (`people.chapter_id -> chapters.region_id`), so
+                    the two columns answered one question twice; and the position was already
+                    on the row as a subtitle under the name, where it could not be compared
+                    down the list. Both facts are still on the row's detail dialog.
+
+                    THE SUBTITLE UNDER THE NAME IS GONE with it — the same string in a column
+                    and under the name is one fact printed twice, and the column is the version
+                    that can be scanned. */}
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Position</th>
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Chapter</th>
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
               </tr>
@@ -142,9 +158,17 @@ export function MemberDirectoryClient({ members }: Props) {
                 const initials = [member.first_name[0], member.last_name[0]].filter(Boolean).join('').toUpperCase()
                 return (
                   <tr key={member.id} className="border-b last:border-0 align-top sm:align-middle">
-                    {/* The avatar, the Minor badge and the role stay ON the name: each
-                        qualifies who this person is, and none of them is a column of its
-                        own — a Role column would be empty for almost every family. */}
+                    {/* The avatar and the Minor badge stay ON the name: each qualifies who
+                        this person is rather than answering a question about them.
+
+                        THE ROLE LEFT ON 2026-08-20 and became the Position column. This note
+                        used to argue against exactly that — "a Role column would be empty for
+                        almost every family" — and the argument was sound about a column ADDED
+                        beside the others and wrong about the one that replaced Region: a
+                        mostly-empty column costs a family with three officers nothing, while
+                        a title only findable under a name cannot answer "who are our
+                        officers" at all. Members & Access made the same swap, and "A table is
+                        a table" means neither screen makes it alone. */}
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <Avatar url={member.avatar_url} initials={initials} size="sm" />
@@ -170,9 +194,6 @@ export function MemberDirectoryClient({ members }: Props) {
                               cards, so the two screens that list the same people print
                               them the same way. */}
                           <NickName nickName={member.nick_name} />
-                          {member.primary_role_title && (
-                            <p className="text-xs font-semibold text-primary">{member.primary_role_title}</p>
-                          )}
                           {/* Was a tick or a cross with a title attribute — invisible to
                               anyone not hovering, and a bare icon in a table column reads
                               as decoration. Said in words, and only when it is true. */}
@@ -186,11 +207,11 @@ export function MemberDirectoryClient({ members }: Props) {
                               the case AGENTS.md means by "label a folded value when its
                               heading was doing the work", and it is the same call
                               AdminRegionsChaptersClient makes about a bare "National"
-                              under a chapter name. Region is never omitted, because every
-                              member is under one; Chapter is, because plenty are not in a
-                              chapter and a "Chapter —" line is a fact about nothing. */}
+                              under a chapter name. Both are omitted when absent: most of a
+                              family holds no office, and plenty of members are in no chapter,
+                              and a "Position —" line is a fact about nothing. */}
                           <RowMeta className="flex-col items-start gap-y-0.5">
-                            <MetaIf value={regionLabel(member.region_name)} prefix="Region" />
+                            <MetaIf value={member.primary_role_title} prefix="Position" />
                             <MetaIf value={member.chapter_name} prefix="Chapter" />
                             {member.group_name && (
                               <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
@@ -206,8 +227,12 @@ export function MemberDirectoryClient({ members }: Props) {
                         absence of a region rather than a missing value (20260817000008) —
                         so there is nothing here we do not know. Chapter genuinely can be
                         absent and takes the em-dash. */}
+                    {/* AN EM-DASH IS RIGHT HERE, unlike the Region column this replaced:
+                        Region was never absent (a member under no region is National, which
+                        is somewhere — 20260817000008), whereas most of a family holds no
+                        office and "no position" is the ordinary answer rather than a gap. */}
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                      {regionLabel(member.region_name)}
+                      {member.primary_role_title ?? '—'}
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                       {member.chapter_name ?? '—'}

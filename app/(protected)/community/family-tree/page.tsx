@@ -41,18 +41,26 @@ export const metadata = { title: 'Family Tree' }
  * ── NO BETA BADGE, since 2026-08-13 ─────────────────────────────────────────────────
  * It came off with this pass. `lib/features.ts` never derived it — `status` has two values
  * and "live but unfinished" is a property of one of them — so it was hand-set here and on
- * the rail item, and both are gone. What TODO.md still lists for a second pass (step
- * relationships, several marriages drawn separately, dates on the connectors) is now an
- * ordinary backlog against a finished feature rather than a caveat on a half-built one.
+ * the rail item, and both are gone. What TODO.md still lists against this feature — the dead
+ * `is_step` column, and dates on the connectors — is an ordinary backlog against a finished
+ * thing rather than a caveat on a half-built one. Step relationships and several marriages
+ * drawn separately were on that list and are built.
  *
- * ── THE PERMISSION KEY ──────────────────────────────────────────────────────────────
- * `family-tree`, which 20260806000006 deliberately left unregistered — a member's own
- * things are not something a family administers — so it resolves to viewable for every
- * approved member and cannot be switched off. That was the right call while the key meant
- * "my own line". This page makes it a family-wide roster, which is a change in what the
- * key governs rather than a change in the key, and it is recorded in TODO.md as a decision
- * to make rather than quietly made here. The §1 preamble is still owed and still present:
- * it is what stops this page being the exception that teaches the next one to skip it.
+ * ── THE PERMISSION KEY, AND WHY IT IS ONE AT ALL ────────────────────────────────────
+ * `community/family-tree` is a registered resource with a switch on Members & Access, and it
+ * was not always. `20260806000006` deliberately left `family-tree` UNREGISTERED — a member's
+ * own things are not something a family administers — so it resolved to viewable for every
+ * approved member and no family could switch it off.
+ *
+ * That was right while the key meant "my own line", and it stopped being right when this page
+ * turned into a family-wide roster: the same key now governs every `people` row in the family
+ * and every relationship between them. `20260819000008` registered it, which is a change to
+ * what the key GOVERNS being followed by a change to the key, in that order and deliberately —
+ * the decision was recorded and argued before it was taken rather than smuggled in with the
+ * feature that made it necessary.
+ *
+ * The §1 preamble below is the ordinary one now rather than an exception: `requireView` on a
+ * real key, and `canAny` for the edit toggle.
  */
 export default async function FamilyTreePage() {
   const supabase = await createClient()
@@ -72,10 +80,9 @@ export default async function FamilyTreePage() {
   // for precisely the people whose edits would in fact succeed. A pending applicant reads
   // the tree and is refused every write, and now sees no edit affordance to be refused at.
   //
-  // IT IS RESOLVED HERE RATHER THAN IN THE COMPONENT so that registering `family-tree` as
-  // a permission resource — the open decision in TODO.md, which this feature is the second
-  // half of — is a change to THIS LINE and nothing else. The canvas already asks a
-  // question it does not answer.
+  // IT IS RESOLVED HERE RATHER THAN IN THE COMPONENT, which is what made registering
+  // `family-tree` as a permission resource a change to THIS LINE and nothing else. The
+  // canvas asks a question it does not answer, which is why the answer can move.
   //
   // NOT A GATE. It decides what is offered, not what is permitted: every action re-checks
   // for itself, because this boolean travels in the RSC payload and a caller who edits it

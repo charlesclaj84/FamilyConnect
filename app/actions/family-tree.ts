@@ -40,7 +40,8 @@ import {
  * Reads gate on `family-tree`, which 20260806000006 deliberately left unregistered — so it
  * resolves to viewable for every approved member and a family cannot switch it off. That
  * is a known and recorded gap rather than an oversight here: it was right while
- * `family-tree` meant "my own line", and this page makes it a family-wide roster. TODO.md
+ * `family-tree` meant "my own line", and this page makes it a family-wide roster. That is
+ * what `20260819000008` registered the key for; TODO.md
  * carries the decision, and retiring the lineage view has narrowed it to one page rather
  * than settled it.
  *
@@ -152,7 +153,11 @@ export interface FamilyTree {
    *
    * Null when the founder has left or never had a people row here, and the canvas then
    * hides the toggle rather than guessing — see `bloodlineIds`, which returns null for
-   * the same reason. TODO.md carries the case this gets wrong: a founder who married in.
+   * the same reason. The case that forced `families.bloodline_anchor_id` (20260813000008)
+   * was not the predicted one — not a founder who married IN, but a founder who is a SON:
+   * anchored on him the walk goes up through his mother, so his father's former wife comes
+   * back as blood while the current wife correctly does not. The column is nullable and falls
+   * back to the founder, so a family that never sets it is unaffected.
    */
   bloodlineAnchorId: string | null
 }

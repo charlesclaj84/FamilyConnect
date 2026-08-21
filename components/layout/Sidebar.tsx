@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   UsersRound,
   CalendarClock,
-  HeartHandshake,
   History,
   Menu,
   X,
@@ -296,8 +295,13 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
     section: { label: 'Accounting', icon: Wallet },
     items: [
       { href: '/accounting/summary',  label: 'Summary',         icon: Wallet },
-      { href: '/accounting/dues',             label: 'Dues',            icon: CalendarClock },
-      { href: '/accounting/donations',        label: 'Donations',       icon: HeartHandshake },
+      // ── ONE ROW SINCE 2026-08-20, WHERE THERE WERE TWO ──────────────────────────────
+      // `/accounting/dues` and `/accounting/donations` merged into one screen with two panes,
+      // and their two keys into one (`20260820000009`). CalendarClock is kept of the two icons
+      // the halves carried: the rail row is the SCREEN, and what a member comes to it for
+      // first is when the next payment falls. HeartHandshake did not disappear — it is the
+      // Donations pane's own glyph on the rail inside the page.
+      { href: '/accounting/dues-and-donations', label: 'Dues & Donations', icon: CalendarClock },
       // DUES PROJECTIONS LEFT THIS GROUP ON 2026-08-20 and is in Reporting below. The note
       // that used to stand here argued for keeping it — "the request named two screens" — and
       // the note on Reporting said moving a third would be scope creep. It was asked for, so

@@ -410,8 +410,9 @@ const SCHEDULE_RESOURCE: Record<ScheduleKind, string> = {
  */
 function revalidateMemberMoney() {
   revalidatePath('/accounting/summary')
-  revalidatePath('/accounting/dues')
-  revalidatePath('/accounting/donations')
+  // ONE PATH SINCE 2026-08-20, where there were two: the two screens merged into
+  // `/accounting/dues-and-donations` and both panes are rendered by that one route.
+  revalidatePath('/accounting/dues-and-donations')
   revalidatePath('/reporting/payment-history')
 }
 
@@ -2400,7 +2401,7 @@ export async function recordPayment(input: {
   // processor attests instead of the member.
   //
   // The branch this replaces was also a live privilege escalation:
-  //     if (!(await can(user.id, 'accounting/dues', 'edit')) && input.person_id !== myPerson.id)
+  //     if (!(await can(user.id, 'accounting/dues-and-donations', 'edit')) && input.person_id !== myPerson.id)
   // can() is TRUE for scope 'own', so an own-scoped grant made the first operand false,
   // short-circuited the && , and authorised recording a payment for ANYONE.
   // (That `dues` key no longer exists at all — 20260808000001 retired it.)

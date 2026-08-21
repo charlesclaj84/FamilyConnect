@@ -138,6 +138,58 @@ export interface UpcomingBirthday {
  */
 export const BIRTHDAY_HORIZON_DAYS = 60
 
+/**
+ * The age range whose NUMBER is not printed. Inclusive at both ends: 30 and 60 are both in it.
+ *
+ * ── WHY A RANGE AND NOT A CUTOFF ────────────────────────────────────────────────────
+ * A birthday list is a prompt to say something nice, and for most of a life the age is part of
+ * that — a family wants to know a cousin is turning 8, and it wants to know a grandmother is
+ * turning 80. The middle is where a published number stops being a celebration and starts
+ * being a fact about somebody that they did not choose to put on a noticeboard. So the two
+ * ends stay and the middle is replaced.
+ *
+ * THE ROW IS NEVER DROPPED AND THE DATE IS NEVER HIDDEN. What is withheld is one number; who
+ * and when are the whole point of the pane. That is the same shape as the `turning === null`
+ * case below, which withholds the age of somebody whose stored year cannot be trusted and
+ * still prints their day and month.
+ *
+ * The bounds are here rather than in the component for the reason `BIRTHDAY_HORIZON_DAYS` is:
+ * two call sites render the age (the table cell and the folded `RowMeta` beside the name), and
+ * a copy in either is a pane that shows a number in one layout and an emoji in the other.
+ */
+export const DISCREET_AGE_MIN = 30
+export const DISCREET_AGE_MAX = 60
+
+/**
+ * What stands in for a withheld age.
+ *
+ * A SMILING FACE, and it carries a real accessible name — see `DISCREET_AGE_LABEL`. A bare
+ * emoji in a table cell is announced as "slightly smiling face", which tells a screen-reader
+ * user that there is a decoration where their neighbours have a number and nothing about why.
+ */
+export const DISCREET_AGE_EMOJI = '\u{1F642}'
+export const DISCREET_AGE_LABEL = 'Age not shown'
+
+/** What the Turning column prints for one row. */
+export type BirthdayAge =
+  | { kind: 'age'; value: number }
+  | { kind: 'discreet' }
+  | { kind: 'unknown' }
+
+/**
+ * Decide how one person's age is rendered. Pure, total, and the only place that decides it.
+ *
+ * Three outcomes and they are genuinely three, which is why this returns a tagged union rather
+ * than a string: the component styles them differently (a number, an emoji with a label, an
+ * em-dash) and the footnote under the table has to say which of the two withholdings actually
+ * happened. Collapsing them into one "not shown" would make that sentence a guess.
+ */
+export function birthdayAge(turning: number | null): BirthdayAge {
+  if (turning === null) return { kind: 'unknown' }
+  if (turning >= DISCREET_AGE_MIN && turning <= DISCREET_AGE_MAX) return { kind: 'discreet' }
+  return { kind: 'age', value: turning }
+}
+
 /** A calendar date as integers, which is the only form any arithmetic here happens in. */
 interface CalendarDate {
   year: number

@@ -11,6 +11,8 @@ import {
   CreditCard,
   Banknote,
   CirclePlus,
+  CalendarClock,
+  HeartHandshake,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -42,42 +44,45 @@ type IconComponent = React.ComponentType<{ className?: string }>
  */
 
 /**
- * One item on the second-level rail: the sections its pane renders, its glyph, and — for
- * the one item that needs it — a hand-set caption.
+ * One item on the second-level rail: the sections its pane renders, and its glyph.
  *
- * ── WHY `sections` IS A LIST, AND WHY EXACTLY ONE ITEM USES MORE THAN ONE ───────────
- * Dues and Donations were two rail items until 2026-08-19 and are one now, captioned
- * "Dues & Donations", because they are one screen in every way a reader can see: the same
- * table, the same CRUD, the same edit dialog, split only by `kind` and worded by
- * `KIND_COPY` (AdminIncomeClient says so in its own comment). Two rail items over one list
- * made a treasurer click twice to answer one question — what does the family charge, and
- * what can it be given to.
+ * ── WHY `sections` IS A LIST WHEN EVERY ITEM TODAY HOLDS EXACTLY ONE ───────────────
+ * Dues and Donations were one item spanning two sections between 2026-08-19 and 2026-08-20,
+ * on the argument that they are one screen in every way a reader can see: the same table, the
+ * same CRUD, the same edit dialog, split only by `kind` and worded by `KIND_COPY`
+ * (AdminIncomeClient says so in its own comment).
  *
- * ── BOTH PERMISSION KEYS SURVIVE, AND THAT IS THE POINT ────────────────────────────
- * `admin/account/dues` and `admin/account/donations` are unchanged, both rows in
- * `permission_resources` are unchanged, and the grid still prints and switches them
- * separately. MERGING THEM WOULD DESTROY SOMETHING THE PRODUCT SELLS: "Separation of
- * duties — per-feature permissions, so recording dues is not the same as paying money out"
- * is a Free plan bullet in `lib/plans.ts`. A family that lets somebody run the dues
- * schedule but not the donation drives has to keep being able to say so.
+ * They are two items again, because the thing that argument left out is the GRANT. Two keys
+ * behind one caption made an administrator translate two grid rows into one rail word, and a
+ * treasurer who held only one of them was shown a caption naming the other. Sameness of table
+ * is a weaker fact than difference of permission.
  *
- * So this is a STATED EXCEPTION to AGENTS.md's "One rail item, one permission resource",
- * and it takes the shape Members & Access already established: the item appears if EITHER
- * key is held, and the pane renders only the blocks the caller holds — with each block's
- * data not fetched at all otherwise (§5, and the page above does that gating). A caller
- * holding neither gets no rail item, because `visibleGroups` narrows `sections` itself.
+ * The list stays because it costs nothing and it is what makes `visibleGroups` able to narrow
+ * an item to the caller's half — see the file header.
  *
- * ── THE CAPTION IS HAND-SET HERE, WHICH NORMALLY IT MUST NOT BE ────────────────────
+ * ── ONE RAIL ITEM, ONE PERMISSION RESOURCE — no exceptions on this rail ───────────
+ * Dues and Donations were briefly one item captioned "Dues & Donations", spanning
+ * `admin/accounting/dues` and `admin/accounting/donations`. They are two items again as of
+ * 2026-08-20, and every item on this rail now maps to exactly one key.
+ *
+ * The two keys were never the question — they have always been separate rows in
+ * `permission_resources`, separate switches on the grid, and they have to stay that way:
+ * "Separation of duties — per-feature permissions, so recording dues is not the same as
+ * paying money out" is a Free plan bullet in `lib/plans.ts`. What changed is that the RAIL
+ * stopped disagreeing with them. A family that lets somebody run the dues schedule but not
+ * the donation drives now sees exactly one item, and it is the one they were granted.
+ *
+ * ── SO EVERY CAPTION COMES FROM ITS RESOURCE, WHICH IS THE ORDINARY RULE ──────────
  * "Captions come from the screen": a rail caption is its resource's `label`, so an
  * administrator matching a switch to the thing it switches off does not have to translate.
- * One item spanning two rows of the grid cannot obey that rule — there are two labels,
- * "Dues" and "Donations", and the migration deliberately leaves both alone since both are
- * still switched separately. The caption is therefore the two labels joined, so the
- * translation is still one step and reads as one: an administrator looking for "Donations"
- * on the grid finds the word in the rail caption. `SECTION_LABELS` still supplies every
- * other item's caption, and a NEW single-key item must take its label from there — see
- * `captionOf`, which also drops this label again when the caller's grants leave the item
- * spanning one section after all.
+ * The merged item could not obey that — two labels, one caption — and carried a hand-set
+ * string plus a `captionOf` that had to decide when to use it. Both are gone;
+ * `SECTION_LABELS` is the only source of a caption here, and there is no way to type one in.
+ *
+ * The machinery for a multi-section item is deliberately KEPT (`sections` is still a list,
+ * `visibleGroups` still narrows it, `shows()` still asks). It cost nothing to leave, it is
+ * what makes a caller holding one grant of a pair see only their half, and this rail has
+ * already merged and split one item once.
  */
 interface SectionItem {
   /**
@@ -88,8 +93,6 @@ interface SectionItem {
    */
   sections: readonly AccountSection[]
   icon: IconComponent
-  /** Hand-set caption. Omit it and the item takes `SECTION_LABELS[sections[0]]`. */
-  label?: string
 }
 
 const SECTION_GROUPS: {
@@ -103,12 +106,24 @@ const SECTION_GROUPS: {
     label: 'Income',
     icon: Receipt,
     items: [
-      // RECEIPT TWICE — the group's glyph and its one item's — for the reason Milestones
-      // below already does it: the group and the item now name the same thing, and the two
-      // glyphs the halves used to carry (CalendarClock for schedules, HeartHandshake for
-      // giving) each described a half. Picking one of them would have made the item read as
-      // the dues page with donations tacked on.
-      { sections: ['dues', 'donations'], icon: Receipt, label: 'Dues & Donations' },
+      // ── TWO ITEMS AGAIN SINCE 2026-08-20, and the split is the plainer arrangement ──
+      // They were one item captioned "Dues & Donations" for a day. Two keys behind one rail
+      // caption is a stated exception to "One rail item, one permission resource", and the
+      // exception bought nothing here: `admin/accounting/dues` and
+      // `admin/accounting/donations` were always separate switches on the grid, so the merged
+      // caption's whole job was to translate two grid rows into one rail word — which is a
+      // translation an administrator should not have to do at all.
+      //
+      // Splitting also un-hides a real asymmetry. A dues schedule is a standing OBLIGATION
+      // the family assigns; a donation drive is an INVITATION with a goal and a bar. They
+      // share a table and nothing else, and stacking them under one heading made the second
+      // read as an appendix to the first.
+      //
+      // EACH GLYPH DESCRIBES ITS OWN HALF, which is what the merged item could not do: it
+      // wore the group's own Receipt because either specific icon would have made the item
+      // read as one page with the other tacked on.
+      { sections: ['dues'], icon: CalendarClock },
+      { sections: ['donations'], icon: HeartHandshake },
     ],
   },
   {
@@ -137,16 +152,15 @@ const SECTION_GROUPS: {
 ]
 
 /**
- * The caption on an item's rail link.
+ * The caption on an item's rail link — always its first visible section's own label.
  *
- * A hand-set label only earns its place while the item really does span more than one
- * section. Narrowed to one by what the caller may view — a family that grants Donations and
- * not Dues — "Dues & Donations" would name a list beside the one it shows, so the surviving
- * section names itself out of `SECTION_LABELS` and the rail reads exactly as it did before
- * the two were merged. Every single-section item takes that path always.
+ * ONE SOURCE, AND NO WAY TO TYPE ONE IN. This took a hand-set `label` off the item while Dues
+ * & Donations spanned two sections, and had to decide when to prefer it: narrowed to one
+ * section by what the caller may view, "Dues & Donations" would have named a list beside the
+ * one on screen. With the item split there is nothing to prefer, so the branch and the field
+ * are both gone and "Captions come from the screen" holds here without an exception.
  */
 function captionOf(item: SectionItem): string {
-  if (item.sections.length > 1 && item.label) return item.label
   return SECTION_LABELS[item.sections[0]]
 }
 
@@ -173,14 +187,14 @@ const NOT_AN_INCOME_SECTION: AccountSection = 'funds'
  * one the funds panel keeps — so a just-created fund would leave the button dead.
  * The panel, which does know, explains it inside the dialog instead.
  *
- * THE SLOT HOLDS ONE TRIGGER PER SECTION THE ITEM SHOWS, which for Dues & Donations is up
- * to two. It cannot be one: "New Dues" is `admin/account/dues:create` and "New Donation" is
- * `admin/account/donations:create`, two grants that a family is entitled to hold apart (see
- * SectionItem above), so a single trigger would have to guess which of them the press meant
- * and would appear for a caller holding only the other. Each button is rendered under its
- * own `create` grant and sets `creating` to its own section, which is the value
- * AdminIncomeClient already reads to decide whether the dialog it opens says dues or
- * donation. Zero, one or two of them appear.
+ * THE SLOT HOLDS ONE TRIGGER PER SECTION THE ITEM SHOWS — one per item on today's rail,
+ * since Dues and Donations split back apart on 2026-08-20 and nothing else spans two.
+ *
+ * It is still written as a LIST rather than a single button, and that is not leftover: each
+ * trigger is rendered under its OWN `create` grant and sets `creating` to its own section, so
+ * a caller who may view a section and not create in it gets the pane and no button. Collapsing
+ * it to one would put that decision back in the shell, which is the thing that made "New Dues"
+ * appear for somebody who could only add a donation.
  */
 const CREATE_ACTIONS: Partial<Record<AccountSection, string>> = {
   dues: 'New Dues',
@@ -226,10 +240,11 @@ interface Props {
  * the clock. Unmounting a panel on every nav click would quietly discard all of it, so
  * the nav deliberately does not remount them.
  *
- * THERE ARE THREE OF THEM, NOT TWO, since Dues and Donations became one pane: two
- * AdminIncomeClient instances, one per kind, because that component renders exactly one
- * kind. `incomeSectionFor` is how each is told whether to draw, and it keeps the
- * mounted-at-all-times rule rather than working around it.
+ * THERE ARE THREE OF THEM, NOT TWO, and that survived the rail split: two AdminIncomeClient
+ * instances, one per kind, because that component renders exactly one kind and the shell keeps
+ * both mounted whichever pane is showing. `incomeSectionFor` is how each is told whether to
+ * draw, and it keeps the mounted-at-all-times rule rather than working around it — which is
+ * what stops a half-typed dues form being discarded by a click on Donations.
  *
  * For the same reason navigation here is `setState` + `history.replaceState` rather
  * than a router push: a real navigation refetches the RSC payload and remounts every
@@ -325,13 +340,9 @@ export function AdminAccountShell({
   const incomeSectionFor = (own: IncomeSection): AccountSection =>
     shows(own) ? own : isIncomeSection(section) ? NOT_AN_INCOME_SECTION : section
 
-  // Both blocks in one pane need saying which is which; one block does not, and must not —
-  // the rail caption already names it and a heading would be the third copy of the word,
-  // which is why this pane has never had one (see the note by the pane below).
-  const labelBlocks = shows('dues') && shows('donations')
-
-  // One trigger per section this pane shows that HAS a create action and the grant for it.
-  // For every item but Dues & Donations that is the same single button it always was.
+  // One trigger per section this pane shows that HAS a create action and the grant for it —
+  // one button per item on today's rail, and zero for a caller who may view a section without
+  // creating in it. See CREATE_ACTIONS for why this stays a list.
   const createTargets = (activeItem?.sections ?? [])
     .filter(s => CREATE_ACTIONS[s] && rights[s].create)
 
@@ -406,10 +417,10 @@ export function AdminAccountShell({
             // the default button is exactly what the ACTIVE link looks like, so a
             // solid burgundy trigger read as a further page that was selected.
             //
-            // `flex-wrap gap-2` because Dues & Donations can put TWO here: below xl they sit
-            // side by side at the right of the rail row and wrap if the window is narrow,
-            // and at xl they stack down the column, each full width, so neither reads as the
-            // primary of the pair.
+            // `flex-wrap gap-2` is kept although every item now puts at most ONE button here:
+            // it was written when Dues & Donations put two side by side, and the layout it
+            // produces for one button is identical. Re-simplifying it would have to be undone
+            // by the next item that spans two sections, and the wrap costs nothing.
             <div className="ml-auto flex flex-wrap justify-end gap-2 xl:ml-0 xl:mt-3 xl:w-full xl:flex-col xl:border-t xl:pt-3">
               {createTargets.map(target => (
                 /* CirclePlus, not a bare Plus: the glyph carries weight against the
@@ -428,15 +439,15 @@ export function AdminAccountShell({
           )}
         </div>
 
-        {/* NO PANE HEADING ON A ONE-BLOCK PANE: the group pill above and the highlighted
+        {/* NO PANE HEADING, ANYWHERE ON THIS RAIL: the group pill above and the highlighted
             rail link already name the page, and a third copy of the same word was the first
             line of every section.
 
-            DUES & DONATIONS IS THE EXCEPTION, and it is the same rule rather than a break
-            from it: two lists in one pane are two things, and "Dues" over the first and
-            "Donations" over the second is the first time either word has been said about
-            THAT list. `labelBlocks` is false whenever only one of them renders, so a caller
-            holding one grant sees exactly what they saw before. */}
+            Dues & Donations was the one exception while it was a single item showing two
+            lists — two lists in one pane are two things, so each got an `<h2>`. With the item
+            split there is one list per pane again and `labelBlocks` went with it. Do not
+            reintroduce a heading here for a single-section pane; if a future item genuinely
+            shows two lists, it owes them their headings back. */}
         <div className="min-w-0 space-y-4">
           {/* TWO INSTANCES OF ONE PANEL, one per kind — see `incomeSectionFor` for why that
               is what showing both lists at once costs, and why both stay mounted.
@@ -454,7 +465,6 @@ export function AdminAccountShell({
               tree once and never remounts anything. */}
           {rights.dues.view && (
             <div className="space-y-4">
-              {labelBlocks && shows('dues') && <h2 className="text-lg">{SECTION_LABELS.dues}</h2>}
               <AdminIncomeClient
                 section={incomeSectionFor('dues')}
                 creating={creating === 'dues' ? 'dues' : null}
@@ -470,9 +480,6 @@ export function AdminAccountShell({
           )}
           {rights.donations.view && (
             <div className="space-y-4">
-              {labelBlocks && shows('donations') && (
-                <h2 className="text-lg">{SECTION_LABELS.donations}</h2>
-              )}
               <AdminIncomeClient
                 section={incomeSectionFor('donations')}
                 creating={creating === 'donations' ? 'donations' : null}

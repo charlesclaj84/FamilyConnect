@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
-  BarChart3, Store, ShieldCheck, Users, Network,
+  BarChart3, ShieldCheck, Users, Network,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -86,30 +86,29 @@ export const metadata: Metadata = {
  * has been derived from the same registry since it was written, for exactly this reason; the
  * tier was the half that was not.
  *
- * `tier` IS THEREFORE ONLY SETTABLE ON A ROUTE-LESS ITEM, which is the rule `soon` already
- * states, and `null` means NOT YET ASSIGNED and renders no tag. Trusted Vendors is the only
- * one, because it was not in the tier breakdown — do not guess it into a tier to make the grid
- * look tidy.
+ * `tier` WAS THEREFORE ONLY SETTABLE ON A ROUTE-LESS ITEM, and as of 2026-08-20 there are
+ * none: Trusted Vendors was the last one and has been removed from the roadmap. Both hand-set
+ * escape hatches went with it, so **every badge on this grid is now derived** and there is no
+ * way to type a tier or a Coming Soon pill into this file at all.
+ *
+ * That is the stronger state and it is worth keeping. If a future capability genuinely has no
+ * route — no page, no registry entry, nothing to derive from — it needs the hatch back, and
+ * whoever adds it should read the paragraph above first: a hand-typed tier beside a real route
+ * is exactly the drift that put a stale `'Free' | 'Plus'` tag on this grid for months.
  */
 const ALSO: readonly {
   icon: LucideIcon
   title: string
   blurb: string
   /**
-   * Hand-set, and ONLY for a capability with no route to derive from — see above. An item with
-   * a `route` must not set this: the registry is the answer, and a string that disagrees with
-   * it is precisely the drift the derivation exists to prevent.
+   * Route in `lib/features.ts` whose status AND tier decide both badges. Never linked.
+   *
+   * REQUIRED, since 2026-08-20. It was optional while one item had no route to derive from,
+   * and both hand-set fields beside it (`tier`, `soon`) existed only for that item. All three
+   * went together — see the header: the point is that this grid can no longer disagree with
+   * the registry, because there is nothing here to disagree WITH.
    */
-  tier?: 'Free' | null
-  /** Route in `lib/features.ts` whose status AND tier decide both badges. Never linked. */
-  route?: string
-  /**
-   * Hand-set, and ONLY for a capability with no route to derive from. Trusted Vendors is
-   * the only one — there is no code for it at all, which is also why it has no tier. An
-   * item with a `route` must not set this: the registry is the answer, and a boolean that
-   * disagrees with it is the drift the derived badge exists to prevent.
-   */
-  soon?: boolean
+  route: string
 }[] = [
   { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
   { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
@@ -125,26 +124,30 @@ const ALSO: readonly {
   // "membership over time", and nothing in this product has ever recorded a membership
   // figure over time.
   { icon: BarChart3, route: '/reporting/membership', title: 'Leadership reports', blurb: 'Members by region and chapter, how many have finished joining, and adults against minors.' },
-  { icon: Store, tier: null, soon: true, title: 'Trusted vendors', blurb: 'Family-owned businesses offering members-only products and services.' },
 ]
 
-/** One answer for both shapes: derived from the registry where there is a route to derive from. */
-function isComingSoon(item: { route?: string; soon?: boolean }) {
-  return item.soon === true || (item.route ? isFeatureFuture(item.route) : false)
+/**
+ * Derived from the registry, and only from the registry.
+ *
+ * It took `soon?: boolean` as well until 2026-08-20, for the one item that had no route. With
+ * that item gone there is one shape and one source, which is what makes the pill on this grid
+ * trustworthy rather than merely present.
+ */
+function isComingSoon(item: { route: string }) {
+  return isFeatureFuture(item.route)
 }
 
 /**
- * The tier tag's text — the registry's answer for anything with a route, the hand-set value
- * otherwise, and `null` for an item with neither.
+ * The tier tag's text, read from the registry. There is no other source since 2026-08-20 —
+ * the hand-set branch went with the one route-less item on this grid.
  *
  * `getFeature()` longest-prefix-matches, so a typo in a `route` above degrades to whatever the
  * nearest registered parent says rather than to no tag at all. That is the same behaviour the
  * `status` badge has always had here, and it is why the routes in this list are exact hrefs
  * from `lib/features.ts` rather than approximations of them.
  */
-function tierTag(item: { route?: string; tier?: 'Free' | null }): string | null {
-  if (item.route) return TIER_LABEL[getFeature(item.route)?.tier ?? DEFAULT_TIER]
-  return item.tier ?? null
+function tierTag(item: { route: string }): string {
+  return TIER_LABEL[getFeature(item.route)?.tier ?? DEFAULT_TIER]
 }
 
 /**

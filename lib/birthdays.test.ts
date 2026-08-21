@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   BIRTHDAY_HORIZON_DAYS,
+  DISCREET_AGE_MAX,
+  DISCREET_AGE_MIN,
+  birthdayAge,
   birthdayWeekday,
   upcomingBirthdays,
   type BirthdayPerson,
@@ -602,5 +605,51 @@ describe('under a negative UTC offset', () => {
     process.env.TZ = 'America/Los_Angeles'
     expect(birthdayWeekday('2026-08-25')).toBe('Tuesday')
     expect(birthdayWeekday('2026-08-01')).toBe('Saturday')
+  })
+})
+
+/**
+ * Which ages are printed, and which are stood in for.
+ *
+ * WHY THESE EXIST: the rule is three lines and two of its three outcomes are withholdings, so
+ * a wrong bound does not fail — it silently prints a number the pane meant to keep back, or
+ * hides one a family wanted. Neither would be reported: a reader has no way to know which
+ * outcome was intended for any given row.
+ *
+ * THE BOUNDARIES ARE THE WHOLE TEST. An exclusive comparison at either end is the mistake this
+ * catches, and it is exactly one character in the source.
+ */
+describe('birthdayAge', () => {
+  it('prints an age below the range', () => {
+    expect(birthdayAge(8)).toEqual({ kind: 'age', value: 8 })
+    expect(birthdayAge(DISCREET_AGE_MIN - 1)).toEqual({ kind: 'age', value: DISCREET_AGE_MIN - 1 })
+  })
+
+  it('prints an age above the range', () => {
+    expect(birthdayAge(80)).toEqual({ kind: 'age', value: 80 })
+    expect(birthdayAge(DISCREET_AGE_MAX + 1)).toEqual({ kind: 'age', value: DISCREET_AGE_MAX + 1 })
+  })
+
+  it('withholds BOTH bounds — the range is inclusive', () => {
+    expect(birthdayAge(DISCREET_AGE_MIN)).toEqual({ kind: 'discreet' })
+    expect(birthdayAge(DISCREET_AGE_MAX)).toEqual({ kind: 'discreet' })
+  })
+
+  it('withholds the middle', () => {
+    expect(birthdayAge(45)).toEqual({ kind: 'discreet' })
+  })
+
+  it('distinguishes an untrusted year from a withheld age', () => {
+    // Two withholdings, and the pane says something different about each: one asks somebody to
+    // fix a profile, the other explains a choice. Collapsing them would send a family chasing a
+    // date of birth that is perfectly correct.
+    expect(birthdayAge(null)).toEqual({ kind: 'unknown' })
+    expect(birthdayAge(45)).not.toEqual(birthdayAge(null))
+  })
+
+  it('prints a newborn rather than treating 0 as absent', () => {
+    // `turning` is a number and 0 is falsy. A `??`/`||` slip here reports a baby's first
+    // birthday as an untrusted year.
+    expect(birthdayAge(0)).toEqual({ kind: 'age', value: 0 })
   })
 })

@@ -2131,21 +2131,42 @@ switches.
   panes use `can`, because every read behind it is `requireScope` and `family_roles`' composed
   policy tests `= 'any'` with an `own_expr` of the literal `'false'` — scope `'own'` is not a
   way to hold that key, and `can()` would render the pane over lists that answer `[]`.
-* **Accounting's Dues & Donations** is one rail item over `admin/account/dues` and
-  `admin/account/donations` (2026-08-19). Merging them into one key was the obvious
-  simplification and is forbidden: *"Separation of duties — per-feature permissions, so
-  recording dues is not the same as paying money out"* is a **Free plan bullet in
-  `lib/plans.ts`**, i.e. a separation the product SELLS. `AdminAccountShell` narrows the item's
-  `sections` by `rights[s].view`, so the surviving list is both what makes the tab appear and
-  what the pane draws — one filter, and §5 falls out of it rather than being remembered.
+* **Accounting's Dues & Donations WAS the third example and is not any more** — it is worth
+  keeping as the case that got REVERSED, because the reversal is the sharper lesson. It was one
+  rail item over `admin/accounting/dues` and `admin/accounting/donations` for one day
+  (2026-08-19 to 2026-08-20), on the argument that the two are one screen in every way a reader
+  can see: same table, same CRUD, same edit dialog, split only by `kind`.
 
-Two consequences worth knowing before doing this to a third rail. **The caption is hand-set on
-the ITEM and must not be expressed in a migration** — no `permission_resources` row says "Dues
-& Donations", because no row is about both; `captionOf()` degrades back to the single section's
-own label when a caller's grants leave the item spanning one, so a donations-only treasurer is
-not shown a tab named for a list they cannot see. And **one create trigger per key**, never one
-that guesses: "New Dues" and "New Donation" are two grants, so the rail's action slot holds
-zero, one or two buttons.
+  **What that argument left out is the GRANT.** Two keys behind one caption made an
+  administrator translate two grid rows into one rail word, and a treasurer holding only one of
+  them was shown a caption naming the other. Sameness of TABLE is a weaker fact than difference
+  of PERMISSION, and the keys were always separate for a reason the product sells: *"Separation
+  of duties — per-feature permissions, so recording dues is not the same as paying money out"*
+  is a Free plan bullet in `lib/plans.ts`. So the rail split back into two items, each mapping
+  to exactly one key, and `AdminAccountShell` now has no hand-set caption at all.
+
+  **The two-key machinery was KEPT.** `sections` is still a list, `visibleGroups` still narrows
+  it, `shows()` still asks — it costs nothing, it is what makes a caller holding one grant of a
+  pair see only their half, and this rail has merged and split once already.
+
+**AND THE MEMBER-FACING HALF WENT THE OTHER WAY ON THE SAME DAY, which is not a contradiction.**
+`/accounting/dues` and `/accounting/donations` became one screen AND one key
+(`accounting/dues-and-donations`, `20260820000009`) — two panes, no per-pane grant, one
+`requireView`. The test AGENTS.md sets is the one that separates the two decisions: *could a
+family sensibly hold one and not the other?* On the admin side yes, and it is sold. On the
+member side no — both are `view`-only, both are the reader's OWN standing, both are `standard`,
+and neither has a `permission_table_map` row, so neither gates a table. They were one job.
+
+The general rule that falls out: **merge two ROUTES freely, and merge two KEYS only when no
+family could sensibly split them.** A shared route is a layout decision and reversible in an
+afternoon; a merged key is a migration that copies every family's grid and cannot be un-merged
+without inventing which half each family meant.
+
+One consequence still worth knowing before doing this to a third rail: **one create trigger per
+key**, never one that guesses. "New Dues" and "New Donation" are two grants, so the rail's
+action slot is written as a LIST even now that every item on it holds at most one — collapsing
+it would put the decision back in the shell, which is what made "New Dues" appear for somebody
+who could only add a donation.
 
 **A PAGE THAT RESOLVES PANES BY HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND TOO**, and
 this is the trap the third rail will hit. §1's preamble is one call because `requireView` folds
@@ -3044,11 +3065,29 @@ while Members next door did not.
 # A table is a table
 
 Members & Access and Member Directory list the same people and answer the same question,
-so they render the same columns in the same order. Since 2026-08-19 that is four —
-**Name · Region · Chapter · Group**, and (where it applies) a row menu. The rule is the
+so they render the same columns in the same order. Today that is four —
+**Name · Position · Chapter · Group**, and (where it applies) a row menu. The rule is the
 agreement, not the number: a column added to one of those two screens is a column owed to the
 other, or an administrator and a member end up comparing two different answers to one
 question.
+
+**THE RULE HAS NOW BEEN EXERCISED, and it is worth reading as a worked example.** Region was
+the second column until 2026-08-20, when board assignment moved onto the Members row and
+Members & Access needed somewhere to put a Position column. It was told, by this section, that
+it could not have one alone — so the Directory made the same swap in the same commit, and the
+two screens still match.
+
+Two things made Region the one to give up rather than Chapter or Group. It was **derived** from
+the chapter beside it (`people.chapter_id → chapters.region_id`), so the pair answered one
+question twice — a member in the Austin chapter is in the Texas region by construction. And a
+region was never ABSENT: a member under none is National, which is somewhere. Position is the
+opposite on both counts — it is a stored fact about the person, and most of a family holds no
+office, so it takes an em-dash where Region never could.
+
+**On Members & Access the Position column is absent, not blank, for a caller without
+`admin/members/board-positions:view`** — a headed column of em-dashes would tell them the
+family has no officers. The Directory's column is unconditional, because
+`MemberRecord.primary_role_title` has always been on that projection.
 
 **Phone, Email and City/State moved into a dialog**, `components/members/MemberDetailsDialog.tsx`,
 which both tables import so one panel states one person's record whichever screen it was opened

@@ -171,152 +171,18 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
-## The family-wide tree publishes the roster under a key nobody can restrict
-
-**Action:** decide whether `/family-tree` gets a permission resource of its own. It is a
-product call — the mechanism is three lines and a migration.
-
-`/family-tree` became a real tree on 2026-08-13: it fetches every `people` row in the
-family and every relationship between them, and it writes new ones. It gates on
-`family-tree`, which `20260806000006` deliberately left **unregistered** — a member's own
-things are not something a family administers — so `auth_permission()` falls through to
-the default and resolves `view` to `'any'` for every approved member. **A family cannot
-switch this page off.**
-
-That was right when the key meant "my own line". It is a different claim now, and
-FutureFeature.md predicted exactly this: *"`/direct-lineage` and `/family-tree` have no
-permission row by design, so shipping them ships them to everyone with no switch … It
-will matter when the real tree lands."* It has landed.
-
-**What is and is not exposed**, so this is not read as bigger than it is. The tree shows
-names, avatars, gender, birthdays and whether somebody has an account — the same columns
-the Member Directory shows, plus the relationships. It shows no contact details, no
-addresses and no money. The exposure is that a family which has restricted `members` (its
-Directory) has not thereby restricted this.
-
-It grew slightly on 2026-08-13: `editPersonRecord` lets any approved member WRITE those
-columns for anybody with no account, not merely read them. That is a deliberate choice
-(a tree is built collaboratively) and it is bounded — never a row with a `user_id`, never
-`primary_email`, never a column outside `lib/profile-columns.ts` — but it means the
-missing permission row now withholds an edit as well as a read.
-
-**THE CHOICE NARROWED TO TWO on 2026-08-13**, later the same day, when the per-member
-lineage view was deleted. There is now exactly one page on the `family-tree` key, so the
-option this list called "probably right" — splitting the key so the two pages could answer
-differently — has nothing left to split. What remains:
-
-1. **Register `family-tree` as a resource again.** One migration: a `permission_resources`
-   row, a per-family `resource_visibility` backfill, and a place in
-   `components/admin/resource-groups.ts`, exactly as AGENTS.md §6 describes. The objection
-   this option used to carry — that restricting the tree would also restrict the lineage
-   view sharing its key — is gone with that view. This is now the straightforward answer
-   and needs only the product call.
-2. **Decide the tree is Directory-equivalent** and gate it on `members`. Cheapest, and it
-   still carries the trap option 1 avoids: `belongsToFamily` uses the service role
-   precisely so that a family restricting its Directory does not break its own family
-   tree (AGENTS.md §4), and this would reintroduce that coupling at the page instead.
-
-Whichever is chosen, one more surface reads this key now: the Dashboard's Family Tree card
-resolves `can(user.id, 'family-tree', 'view')` before fetching, so registering the resource
-starts narrowing the card without anybody having to remember it exists.
-
-**HALF OF OPTION 1 IS NOW BUILT, and it is deliberately the half with no migration in it.**
-The canvas has a View/Edit mode, and it takes a `canEdit` boolean resolved on the page —
-today `isApprovedMember(user.id)`, which is exactly what every write action behind it
-already demands. So the toggle is offered to precisely the people whose edits would
-succeed, and the question "who may edit this tree" now has ONE place that answers it.
-
-What is left is the product call and the migration, and swapping the answer is one line:
-
-```ts
-const canEdit = await can(user.id, 'family-tree', 'edit')   // instead of isApprovedMember
-```
-
-**Do not do that without the backfill**, and this is the trap worth writing down. Since
-`20260807000000` a template's grid is materialized, and `create`/`edit` default to
-`'none'` — so registering the resource and gating on it, with no `resource_visibility` and
-no per-template backfill in the same migration, makes the tree **read-only for the entire
-family including its founder**, with no error anywhere. AGENTS.md §6 says this; the tree is
-the case where it costs most, because the page keeps working and only the writing stops.
-The backfill has to cover existing templates AND whatever `families_seed_permission_templates`
-gives a family created afterwards.
-
-Recorded 2026-08-13, when the tree stopped being a placeholder; narrowed the same day; the
-UI half built later the same day.
-
 ## The family tree's second pass
 
-**Action:** none blocking. This is an ordinary backlog against a finished feature, which
-is the change from what this section used to be — it was "the list the beta badge is
-standing in for", and the badge came off on 2026-08-13. Nothing below is a caveat a member
-needs warning about; each is a thing the tree does not do yet.
+**Action:** none blocking. An ordinary backlog against a finished feature — the beta badge
+came off on 2026-08-13 and nothing here is a caveat a member needs warning about.
 
-Shipped in the first pass: an ancestry-style focus canvas (grandparents, parents, focus
-with spouses, children, siblings beside), three ways to add a relative (link an existing
-member, invite by email, record without one), detaching a connection without removing
-anybody from the family, a list of people connected to nobody, and the Dashboard card that
-counts generations, members and those unconnected people.
-
-**The lineage view is gone**, and that answers FutureFeature.md decision 5 — it asked
-whether the per-member view retires when the real tree lands or stays as the Directory's
-drill-down. `/members/family-tree`, `FamilyTreeClient`, `app/actions/ancestors.ts` and
-`app/actions/spouse.ts` were all deleted. It cost nothing in data: both surfaces were
-readers of `person_relationships`, so every row it wrote is on the canvas already, and
-re-focusing on whoever you click is the same drill-down without a second page.
-
-What is deliberately absent, and what each would take:
-
-* **Step relationships.** `person_relationships.is_step` exists and the builder writes
-  `false`. **The column arrived on 2026-08-13** — `person_relationships.link_kind`
-  (`20260813000007`), which supersedes `is_step` and drives the Bloodline toggle, and is
-  set both when adding a relative and afterwards through the manage dialog. What is left
-  is the half this entry always said was the hard one: what a step-parent LOOKS like on a
-  canvas that has one row for parents. A step-relative is an ordinary card that does not
-  carry the bloodline droplet, and it vanishes in the Bloodline view.
-
-  **The second marriage it implies is now drawn** (2026-08-14, see the entry below), and
-  the manage dialog offers the kind for EVERY connection a person has rather than only the
-  one their card was reached by — which is what made a step-grandmother expressible at all.
-  Before that, a grandparent had no edge to the focus person, so their card carried no
-  control and there was nowhere in the product to record it.
-
-  **One follow-up this created.** `is_step` is now dead weight on the table and should be
-  dropped in its own migration (see 20260813000006 for how much care a column drop wants).
-
-  **The anchor got its setting** (`20260813000008`), and the case that forced it was not
-  the one predicted here. It was not a founder who married in — it was a founder who is a
-  SON. Anchored on him the walk goes up through his mother, so his father's former wife
-  comes back as a blood relative of the line while the current wife correctly does not,
-  from the same rule. `families.bloodline_anchor_id` is nullable and falls back to the
-  founder, so nothing changed for a family that does not set it.
-* ~~**More than one marriage.**~~ **DONE 2026-08-14.** Once the focus person has more than
-  one spouse the children stop being one row and become one panel per marriage
-  (`MarriageGroup` in [FamilyTreeBuilder](components/family-tree/FamilyTreeBuilder.tsx)),
-  plus a panel for children whose other parent is not a recorded spouse. Each spouse card
-  now carries the word for the marriage — Wife, Ex-wife — so three cards in a row read as a
-  person and two marriages rather than as three people. The split is derived from the
-  `parent` edges the children already carry, and a child the tree cannot attribute falls
-  into the residual panel rather than being assigned to a marriage nobody stated. The
-  per-marriage "+ Son" carries that spouse as the co-parent, so adding a child to a
-  marriage records it.
-
-  This was called "the hardest of the three and the one most likely to force a layout
-  change"; it did force one, and the surviving cost is horizontal — three marriages of
-  three children each is wider than the canvas, which is what the one sanctioned
-  `overflow-x-auto` is for.
+* **`person_relationships.is_step` is dead weight and should be dropped.** `link_kind`
+  (`20260813000007`) superseded it — four values, `blood | step | adopted | foster`, set when
+  a relative is added and afterwards through the manage dialog, and it is what the Bloodline
+  toggle walks. `is_step` is written by nothing and read by nothing, and two columns
+  describing one fact is how they come to disagree (AGENTS.md §4c says so). Its own
+  migration, and see `20260813000006` for how much care a column drop wants.
 * **Dates on the connectors**, and a person card that says more than a name and a status.
-
-**RESOLVED 2026-08-13 — and the answer was to delete the question.** This entry used to
-read "`is_minor` is not asked for anywhere in the add flow … fixing it is a checkbox and a
-column; deciding whether the tree should be the place a child is created at all is the
-actual question, since `/direct-lineage` exists for that". The tree is that place, the
-checkbox was never added, and the column is gone (`20260813000006`).
-
-A child is a person nobody has claimed yet, which `user_id IS NULL` already said, and a
-birthday answers "how old are they" on the day it is asked — which a stored boolean never
-could. `/direct-lineage`, `app/actions/children.ts` and `lib/family-constants.ts` were
-deleted with it; `editPersonRecord` and `invitePersonRecord` on the tree replaced the
-parent-edits-child and convert-to-adult halves.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
@@ -377,18 +243,22 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## Six functions have a mutable `search_path`, and one of them is SECURITY DEFINER
+## Five functions have a mutable `search_path`, and one of them is SECURITY DEFINER
 
 **Action:** set `search_path = ''` on `auth_uid_is_room_participant` first — it is the only
 one of the six where this is a privilege question rather than tidiness. Carefully: see the
 trap below.
 
-**SEVEN UNTIL 2026-08-18, and it is six now:** `fund_balance_cents` has gained its
-`search_path` somewhere along the way, so the list below is one longer than the advisors
-report. Re-measured on that date against the local stack —
-`npx supabase db advisors --local --type security --level warn` — and the survivors are
-`auth_uid_is_room_participant`, `_perm_predicate`,
-`set_updated_at`, `update_funds_updated_at` and `update_photo_collections_updated_at`.
+**SEVEN, THEN SIX, AND FIVE SINCE 2026-08-20.** Re-measured that day against the local
+stack — `npx supabase db advisors --local --type security --level warn` — and the survivors
+are exactly `_perm_predicate`, `set_updated_at`, `update_funds_updated_at`,
+`update_photo_collections_updated_at` and `auth_uid_is_room_participant`.
+
+The count has only ever gone down by attrition rather than by anybody working this entry:
+`cancel_overdue_event_assignments` went when `20260819000006` dropped it, and
+`fund_balance_cents` gained its `search_path` somewhere along the way. The heading said "six"
+while the prose listed five, which is what a hand-maintained count does — ask the advisors
+rather than trusting either.
 
 Worth stating because it is the thing a reader would want to know: **every function added
 since is clean.** `seed_global_lookups`, `is_genorra_staff` (both arities),
@@ -405,7 +275,7 @@ findings, all WARN, so they do **not** fail the gate (`--fail-on error`). AGENTS
 |---|---|---|
 | `auth_uid_is_room_participant` | **yes** | Runs as its owner with RLS off, and is evaluated by **Realtime** as the subscribing role (AGENTS.md §2b). The escalation shape. |
 | `_perm_predicate` | no | Central to the composed policies, but SECURITY INVOKER — runs as the caller, so shadowing it buys the caller nothing they did not have. |
-| `fund_balance_cents`, `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. `cancel_overdue_event_assignments` was on this row and is **dropped** (`20260819000006` §C) — it had no caller anywhere in the tree and its body read two tables that no longer exist. |
+| `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. Two names have left this row: `cancel_overdue_event_assignments`, **dropped** by `20260819000006` §C, and `fund_balance_cents`, which now sets its own `search_path`. |
 
 **The exposure is real but currently narrow**, and worth stating precisely rather than as a
 severity label. With a mutable `search_path`, a caller who can CREATE objects in a schema
@@ -430,15 +300,8 @@ worst way to find out. Exercise it directly in the verify block.
 ## Function grants: what the 2026-08-06 lockdown left behind
 
 `20260806000015` and `20260806000016` closed the anon-callable-function hole and the
-reasoning is now AGENTS.md §2b. Three loose ends survived it:
+reasoning is now AGENTS.md §2b. Two loose ends survive it:
 
-* ~~`cancel_overdue_event_assignments()` keeps its `authenticated` grant although all
-  three call sites use the admin client.~~ **CLOSED BY DELETION**, `20260819000006` §C. The
-  resolution is worth a line because the reasoning here was sound and still lost: the grant was
-  kept because "removing a grant nothing is *proven* to need was the worse trade", and what
-  eventually settled it was discovering the function had **no caller at all** — the three the
-  note names had gone with the screens. A publicly-executable function whose callers have been
-  deleted is not a narrow exposure kept deliberately; it is one nobody re-read.
 * `get_my_family_code()` is granted on hosted only if a hosted policy references it,
   because the lockdown derives policy-helper grants from `pg_policies` per database.
   Confirm nothing depends on it, then drop it from both.
@@ -519,34 +382,6 @@ action, and one `tests/rls` case per refused scope.
 
 Found 2026-08-19 by review, while flipping `/admin/boardpositions` live.
 
-## ~~`getMyGatheringTaskCount` is a live endpoint with no product caller~~ — CLOSED
-
-**Closed 2026-08-19.** The Dashboard calls it: a **My Tasks** Quick Action appears when the count
-is above zero and is absent when it is not, which is the one entry on that row conditional on the
-caller's own workload rather than on a grant. `components/dashboard/tiles.ts` argues why that is
-right there and wrong in the rail (where the Gatherings row is unconditional, so a task handed out
-this morning can be found this morning).
-
-The action itself was unchanged — it already counted `open` and `denied` only, which is exactly
-"what is waiting on you" and is why a count that never goes down was never a risk.
-
-`GATHERINGS_SPEC.md` §4.1 names the signature, so it was written to contract rather than
-speculatively, and that is why it was not simply removed on 2026-08-19: the spec is binding.
-Nothing in `app/` or `components/` imports it. `Sidebar.tsx` renders no count beside any nav item,
-and `MyTasksClient` counts the two statuses itself from rows it already holds, which is right.
-
-**It is safe as it stands, and that is the reason this is an entry rather than a finding.**
-`requireMember()` plus `.eq('assignee_id', personId)` means the most it can tell an attacker is how
-many of their OWN tasks are waiting. But a `'use server'` export is a public HTTP endpoint whether
-or not a screen calls it (AGENTS.md §2), so it is reviewed and re-reviewed forever for a feature
-that does not exist.
-
-Its two `tests/rls` cases are what stop a silent deletion: `loadAction` THROWS `has no exported
-function` rather than skipping, so removing the export turns the suite red at load — on two cases,
-for a reason with nothing to do with isolation. That is the whole of what has to move with it.
-
-Recorded 2026-08-19.
-
 ## `tests/rls` has no actor holding scope `'own'`, so no `own_expr` in the schema is tested
 
 **Action:** add a fifth ALPHA actor on a THIRD permission template — one whose grid holds `view` at
@@ -562,26 +397,25 @@ disjunct** and the `'own'` and `self` branches of every composed policy decide n
 a mutation: neutering three membership gates at once leaked through `auth_permission()` resolving
 `'any'` from the applicant's own template, never through `self_expr`.
 
-**ONE RESOURCE NARROWER SINCE 2026-08-20, and it arrived as a side effect rather than as work
-on this entry.** `20260820000007` gave the General template `review/photos:delete` at scope
-`'own'`, so `alphaMember` and `alphaOther` now genuinely hold an `'own'` grant —  and
+This is not specific to Gatherings, and it is worth stating plainly what the green suite does
+and does not mean: **625 assertions are evidence about CROSS-FAMILY ISOLATION**, which is what
+the suite was built for and what `20260618000001`'s composed policies most needed checking.
+They are almost no evidence about SCOPE RESOLUTION. Those are different questions, and the
+second one has no runner — `lib/auth/permissions.ts`'s `resolveScope` is pure enough to test
+under vitest, which may be the cheaper half of this.
+
+**"ALMOST" SINCE 2026-08-20, and the exception arrived as a side effect rather than as work on
+this entry.** `20260820000007` gave the General template `review/photos:delete` at scope
+`'own'`, so `alphaMember` and `alphaOther` genuinely hold an `'own'` grant now — and
 `photos.deletePhoto (a photo they did not upload)` is the first case in the file whose refusal
 comes from an `own_expr` (`uploader_id = auth_person_id()`) rather than from a missing grant.
 Mutation-checked by neutering that conjunct in the composed policy, which turns it red.
 
-That is one resource out of six, on one action. Everything above still stands for the rest,
-and the shape of the fix is unchanged — except that the fifth actor this asks for is now
-partly there: what is missing is an `'own'` grant on a resource with a *read* to narrow, since
-this one only exercises a DELETE.
+That is one resource, on one action, and a DELETE. What is still missing — and what the fifth
+actor is really for — is an `'own'` grant on a resource with a **read** to narrow, which is
+where a wrong `own_expr` would quietly hand over rows instead of quietly refusing them.
 
-This is not specific to Gatherings, and it is worth stating plainly what the green suite does and
-does not mean: 520 assertions are evidence about CROSS-FAMILY ISOLATION, which is what the suite was
-built for and what `20260618000001`'s composed policies most needed checking. They are no evidence
-at all about SCOPE RESOLUTION. Those are different questions and the second one currently has no
-runner — `lib/auth/permissions.ts`'s `resolveScope` is pure enough to test under vitest, which may
-be the cheaper half of this.
-
-Recorded 2026-08-19.
+Recorded 2026-08-19; narrowed 2026-08-20.
 
 ## The Dashboard now draws TWO swoops, and the kit's acceptance criteria ask for one
 
@@ -654,16 +488,17 @@ to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ### Everything below came out of building `tests/rls`
 
-(see AGENTS.md §7). The suite is green, and neither item below is an isolation failure
-or blocks anything today.
+(see AGENTS.md §7). The suite is green, and neither item below is an isolation failure or
+blocks anything today.
 
 ### `saveChapterAndPropagate` never moves a member's children, and never has
 
 **Action:** move the child propagation to the admin client with §3 scoping, the way
 `editPersonRecord` does, or delete it and say the chapter does not cascade.
 
-Found 2026-08-20 while closing the entry above, and it is the same defect class with the
-opposite remedy. The action updates the caller's own `people` row — fine, and honestly
+Found 2026-08-20 while closing the silent-no-op writes that became AGENTS.md §8b, and it is
+the same defect class with the opposite remedy. The action updates the caller's own `people`
+row — fine, and honestly
 reported, because the upsert's `.single()` errors if it is refused — and then does this:
 
 ```ts

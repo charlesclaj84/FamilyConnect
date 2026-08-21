@@ -187,7 +187,9 @@ export default async function DashboardPage() {
     // The key is `donations` since 20260815000000, which promoted My Summary's three
     // panes to screens; it was `account-summary/donations`, and the migration copied
     // every family's grant across, so nothing about who sees this card changed.
-    isFeatureLive('/accounting/donations') ? can(user.id, 'accounting/donations', 'view') : false,
+    isFeatureLive('/accounting/dues-and-donations')
+      ? can(user.id, 'accounting/dues-and-donations', 'view')
+      : false,
     // The premier gathering band. `gatherings` is the key `/gatherings` and every one of its
     // reads gate on, and the band's whole content is one row of that table — a title, a
     // location, dates and a task count — so it borrows that grant rather than getting a
