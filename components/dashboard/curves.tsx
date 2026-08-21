@@ -244,24 +244,76 @@ const HERO_PHOTO_CLIP = 'gn-hero-photo-clip'
 const HERO_SWOOP_CLIP = 'gn-hero-swoop-clip'
 const HERO_MASK_CLIP = 'gn-hero-mask-clip'
 
+/**
+ * WHERE THE CROP STARTS, as a percentage of the hero's width — the one number this geometry
+ * has, and four things read it.
+ *
+ * The kit puts it at 344 of 790, i.e. 43.5%, so the photograph takes the right-hand 56.5% of
+ * its hero. That is right for the kit's box, which is 790x515 and nearly square; a dashboard
+ * band is far wider and no taller, so the same fraction gives the crop an aspect near 4:1 and
+ * it reads as a wide slab rather than a photograph. At 62% it takes the right-hand 38%, which
+ * on a typical desktop is nearer 2.8:1 — still wider than the kit's 1.5:1, because our hero is,
+ * but recognisably a picture.
+ *
+ * FOUR CONSUMERS, and they must not drift:
+ *   1. `PHOTO_MASK_SQUEEZE` below, which is how the drawn shape gets there.
+ *   2. The `<img>` wrapper's `left`, so the photograph is scaled to the frame it is visible in.
+ *   3. `SWOOP_UNIT` and `MASK_UNIT`, which are normalised to that same box.
+ *   4. `WelcomeHero`'s `sm:pr-[42%]`, which keeps the member's name clear of it.
+ * Changing this means regenerating 1 and 3 — the derivations are stated beside each.
+ */
+const CROP_LEFT_PCT = 62
+
+/**
+ * The horizontal squeeze that moves the kit's mask from x=344 to x=489.8, anchored on the
+ * right edge so the shape keeps bleeding off it.
+ *
+ *     scale = (790 - 489.8) / (790 - 344) = 0.67309
+ *     translate = 790 - 0.67309 x 790     = 258.2556
+ *
+ * A TRANSFORM RATHER THAN AN EDITED PATH, deliberately. `08_QA/NO_OVERSIMPLIFICATION.md` says
+ * to consume the kit's asset or reproduce its exact path data, and rewriting 24 coordinates
+ * would leave nothing to compare against the kit. The path below is still character for
+ * character the kit's; this says what is being done to it, in numbers anyone can check.
+ *
+ * IT IS APPLIED TO THE MASK ONLY, never to the swoop. The swoop is shared with the band's own
+ * `HeroCurveCrest` and has to keep the band's x mapping or the crop's lower boundary stops
+ * being the line the gold hairline is drawn along — which is the whole composition.
+ */
+const PHOTO_MASK_SQUEEZE = 'translate(258.2556 0) scale(0.67309 1)'
+
 /** `eventHero`'s top edge, closed up to THIS viewBox's top — see `HeroCurveCrest`. */
 const SWOOP_ABOVE = 'M0 278 C75 216 174 228 297 267 C420 307 561 320 790 231 L790 27 L0 27 Z'
-/** `eventPhotoMask`, verbatim. */
+/** `eventPhotoMask`, verbatim. Squeezed by `PHOTO_MASK_SQUEEZE` at the point of use. */
 const PHOTO_MASK =
   'M344 292 C358 153 449 55 608 27 C688 13 754 38 790 82 L790 231 C666 284 522 324 344 292 Z'
 /** The gold line the kit strokes along the swoop's right half. */
 const SWOOP_HAIRLINE =
   'm 372.00111,286.76119 c 167.34627,29.06854 302.72754,-7.26714 419.30584,-55.41191'
 
-/** `SWOOP_ABOVE`, as `x/790` and `(y - 27)/303`. */
-const SWOOP_ABOVE_UNIT =
-  'M0 0.82838C0.09494 0.62376 0.22025 0.66337 0.37595 0.79208' +
-  'C0.53165 0.92409 0.71013 0.967 1 0.67327L1 0L0 0Z'
-/** `PHOTO_MASK`, likewise. The one negative y is a control point above the box, which is legal. */
-const PHOTO_MASK_UNIT =
-  'M0.43544 0.87459C0.45316 0.41584 0.56835 0.09241 0.76962 0' +
-  'C0.87089 -0.0462 0.95443 0.0363 1 0.18152L1 0.67327' +
-  'C0.84304 0.84818 0.66076 0.9802 0.43544 0.87459Z'
+/**
+ * The two clips again, in the unit box — for the `<img>`, which is CSS rather than SVG.
+ *
+ * Normalised to the CROP'S OWN BOX and not to the element's: x over [489.8, 790] and y over
+ * [27, 303.42]. That second bound is MEASURED rather than read off the path — the mask's lower
+ * bezier bulges past its own control point, so its real extent is y 23.11..303.42 where the
+ * coordinates suggest 27..324. The bottom is what decides the frame's height (91.228% of the
+ * element), and being wrong about it by 20 units would leave the photograph's box hanging below
+ * the shape that clips it.
+ *
+ * The mask's numbers are the kit's normalised over [344, 790] — the squeeze cancels out, because
+ * an affine transform normalised over its own transformed extent is the identity. So these are
+ * NOT a second copy of the squeeze; they are the same shape in the box it ends up in, and they
+ * do not change if `CROP_LEFT_PCT` does. `SWOOP_UNIT` does, which is why its derivation is
+ * spelled out: negative x is the part of the swoop left of the crop, which a clip ignores.
+ */
+const MASK_UNIT =
+  'M0 0.95868C0.03139 0.45582 0.23543 0.10129 0.59193 0' +
+  'C0.7713 -0.05065 0.91928 0.03979 1 0.19897L1 0.738' +
+  'C0.72197 0.92974 0.3991 1.07444 0 0.95868Z'
+const SWOOP_UNIT =
+  'M-1.63158 0.90803C-1.38175 0.68374 -1.05197 0.72715 -0.64224 0.86824' +
+  'C-0.23251 1.01294 0.23718 1.05997 1 0.738L1 0L-1.63158 0Z'
 
 export function EventPhoto({
   photoUrl,
@@ -276,25 +328,45 @@ export function EventPhoto({
       {photoUrl ? (
         <>
           {/* The unit-box clips, in a zero-size SVG. `absolute` and `h-0 w-0` rather than
-              `hidden`: a `display: none` subtree is not rendered, and a `clipPath` inside one
-              is still referenceable — but browsers have been inconsistent about that for long
-              enough that a collapsed-but-present element is the safer shape. */}
+              `hidden`: a `display: none` subtree is not rendered, and browsers have been
+              inconsistent enough about whether a `clipPath` inside one is still referenceable
+              that a collapsed-but-present element is the safer shape. */}
           <svg aria-hidden="true" focusable="false" className="absolute h-0 w-0">
             <defs>
               <clipPath id={HERO_SWOOP_CLIP} clipPathUnits="objectBoundingBox">
-                <path d={SWOOP_ABOVE_UNIT} />
+                <path d={SWOOP_UNIT} />
               </clipPath>
               <clipPath id={HERO_MASK_CLIP} clipPathUnits="objectBoundingBox">
-                <path d={PHOTO_MASK_UNIT} />
+                <path d={MASK_UNIT} />
               </clipPath>
             </defs>
           </svg>
 
-          <div className="absolute inset-0" style={{ clipPath: `url(#${HERO_SWOOP_CLIP})` }}>
-            {/* `next/image` is not used here for the reason `components/ui/Avatar.tsx` does not
+          {/* THE FRAME, AND IT IS THE CROP'S BOX RATHER THAN THE HERO'S — which is the whole
+              of "fit the image to the frame". This wrapper used to be `inset-0`, so the
+              `<img>` covered the entire hero and the clip then revealed the right-hand third
+              of it: a photograph scaled to a 1650x224 box, of which you saw a slice whose
+              content depended on the window width rather than on the picture. Sized to the
+              crop instead, `object-cover` scales the photograph to the shape it is actually
+              seen through and centres it there.
+
+              `bottom-[8.772%]` is `(330 - 303.42) / 303` — the element's viewBox runs to y=330
+              and the mask's measured bottom is 303.42, so the frame stops where the shape does
+              rather than 20 units below it. */}
+          <div
+            className="absolute right-0 top-0 bottom-[8.772%]"
+            style={{ left: `${CROP_LEFT_PCT}%`, clipPath: `url(#${HERO_SWOOP_CLIP})` }}
+          >
+            {/* `object-cover` and not `contain`: the frame is an organic crop, so letterboxing
+                would show the page through gaps inside the shape and read as a rendering
+                fault. Cover fills it and crops the overflow, which is what a masked photograph
+                does — and it is UNIFORM, so no window width distorts a face. That is the one
+                property the SVG route could not give: everything inside a
+                `preserveAspectRatio="none"` viewport is stretched with it.
+
+                `next/image` is not used here for the reason `components/ui/Avatar.tsx` does not
                 either: this is a Supabase Storage URL and no `images.remotePatterns` is
-                configured, so the loader would refuse it at runtime. Same precedent, same
-                lint exemption. */}
+                configured, so the loader would refuse it at runtime. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photoUrl}
@@ -329,21 +401,31 @@ export function EventPhoto({
           </defs>
 
           <g clipPath={`url(#${HERO_PHOTO_CLIP})`}>
-            <path d={PHOTO_MASK} fill="currentColor" />
-            {/* The kit's own artwork doing the kit's own job. Faint for the reason
-                `./tree-watermark-path` states at length: the path is a bitmap auto-trace whose
-                edges are a one-unit staircase, invisible only while large and faint.
+            {/* Squeezed, so the placeholder occupies exactly the frame a photograph would —
+                see `PHOTO_MASK_SQUEEZE`. The transform wraps the PATH alone. */}
+            <g transform={PHOTO_MASK_SQUEEZE}>
+              <path d={PHOTO_MASK} fill="currentColor" />
+            </g>
+
+            {/* OUTSIDE the squeeze, and placed in the squeezed shape's own coordinates
+                (x 489.8-790) rather than the kit's. Inside it, the horizontal-only scale would
+                narrow the tree by a third — a distorted tree in a shape whose whole purpose is
+                to hold an undistorted picture.
+
+                Faint for the reason `./tree-watermark-path` states at length: the path is a
+                bitmap auto-trace whose edges are a one-unit staircase, invisible only while it
+                is large and faint.
 
                 `var(--brand-on-soft)` AND NOT `currentColor`, which is the one place this
                 departs from its siblings. They each paint ONE shape, so `currentColor` lets the
                 parent decide and no token is named in a component. This paints TWO, the second
                 inside the first — so `currentColor` would put the tree at 16% of the exact
                 colour behind it, i.e. nothing at all. That was the first version and it
-                rendered a flat blob. `--brand-on-soft` is the correct second colour rather than
-                a convenient one: it is the measured AA partner of `--brand-soft`, which is what
-                the parent sets, in both themes. Naming a token in a component is allowed where a
-                LITERAL is not — see "Colours live in one place". */}
-            <svg x="470" y="70" width="240" height="200" viewBox={TREE_WATERMARK_VIEWBOX}>
+                rendered a flat blob. `--brand-on-soft` is the measured AA partner of
+                `--brand-soft`, which is what the parent sets, in both themes. Naming a token in
+                a component is allowed where a LITERAL is not — see "Colours live in one
+                place". */}
+            <svg x="560" y="70" width="170" height="200" viewBox={TREE_WATERMARK_VIEWBOX}>
               <path d={TREE_WATERMARK_PATH} fill="var(--brand-on-soft)" opacity="0.16" />
             </svg>
           </g>
@@ -351,11 +433,13 @@ export function EventPhoto({
       )}
 
       {/* THE GOLD LINE, over whichever of the two is above — so it reads as the boundary
-          between the crop and the burgundy rather than as a line under a shape. Always the
-          stretched SVG copy, photograph or not: it is a decorative stroke along an edge that
-          IS stretched, so distorting it is correct where distorting a face is not. The band
-          draws this same path at the same scale underneath, and the two coincide exactly; drawn
-          here as well, the line runs unbroken where the crop covers the band's own. */}
+          between the crop and the burgundy rather than as a line under a shape. Full width and
+          untransformed, because it belongs to the SWOOP and not to the crop: the swoop runs the
+          whole band whether or not a picture sits on part of it. Always the stretched SVG copy,
+          photograph or not — it is a decorative stroke along an edge that IS stretched, so
+          distorting it is correct where distorting a face is not. The band draws this same path
+          at the same scale underneath, and the two coincide exactly; drawn here as well, the
+          line runs unbroken where the crop covers the band's own. */}
       <svg
         aria-hidden="true"
         viewBox="0 27 790 303"

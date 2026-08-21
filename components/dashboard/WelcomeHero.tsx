@@ -74,8 +74,16 @@ interface Props {
  * `--brand-on-hero` is sand: correct on Heritage, invisible on cream. `--brand-ink` is the
  * inverse — burgundy on a cream page, sand on a dark one, which is exactly the role "strong
  * brand text" and why the `'page'` heading sets NO colour at all and lets the base layer paint
- * it. The one token that is right on both is `--brand-legacy` as a SURFACE with
- * `--brand-on-legacy` on it, which is why the role chips are untouched between the two.
+ * it.
+ *
+ * SO THE STRUCTURE IS SHARED AND ONLY THE TOKENS BRANCH. Every element of the greeting is
+ * written once and rendered on both grounds; what differs is a `text-*` and, for the avatar
+ * ring, gold-on-Heritage versus the soft well on cream (gold on cream is 2.30 and reads as a
+ * smudge). This paragraph used to end by naming `--brand-legacy` as "the one token that is
+ * right on both … which is why the role chips are untouched" — that was true while positions
+ * were gold pills, and they are lines now, so the chips are gone and with them the only piece
+ * of this greeting that did NOT branch. Nothing is worse for it: a filled gold surface was the
+ * one element that had to look identical on two grounds precisely because it could not adapt.
  *
  * THE CURVE IS THE PAGE, NOT A COLOUR. `HeroCurve` fills with `currentColor` and the band
  * sets `text-background`, so the swoop is literally the page ground cutting up into it. That
@@ -139,57 +147,57 @@ export function WelcomeHero({
           {firstName}!
         </h1>
 
-        {/* ── POSITION, THEN CHAPTER, AND THE ORDER IS THE POINT ─────────────────────
+        {/* ── POSITION, THEN CHAPTER — ONE TREATMENT, BOTH GROUNDS ──────────────────
             A board position outranks a chapter: it is what the member DOES for the family,
-            where the chapter is where they are. So it reads first, and the chapter sits under
-            it as the qualifier — which is also the order `formatBoardTitle` already puts them
-            in inside a single title ("Austin Chapter Treasurer").
+            where the chapter is where they are. So it reads first and the chapter sits under it
+            as the qualifier — which is also the order `formatBoardTitle` puts them in inside a
+            single title ("Austin Chapter Treasurer").
 
-            ON CREAM THEY ARE TWO LINES OF ONE PAIR, NOT CHIPS. The band variant keeps the gold
-            chips it shipped with, because on Heritage a chip is the only thing that separates a
-            title from the greeting above it. On cream they would be two saturated gold pills
-            immediately under a 60px burgundy name — three competing accents in a composition
-            whose whole restraint is the point — and, worse, they would not read as belonging
-            with the chapter line beneath them. As matching icon+text lines the two are visibly
-            one block of standing: what you are, then where.
+            THE BAND USED TO PUT THE POSITION IN GOLD CHIPS and the chapter on a line, and the
+            two did not read as belonging together — a saturated pill above a quiet line looks
+            like a badge and a footnote rather than one block of standing. Worse, once the cream
+            variant existed the same member saw their position two different ways depending on
+            whether the family happened to have a premier gathering flagged, which is the
+            drift "A table is a table" is about one screen over: two surfaces answering one
+            question owe the same answer.
+
+            So both grounds render the same pair of icon+text lines and differ only in the
+            tokens, which is the one thing that MUST differ — `--brand-on-hero` is sand and
+            unreadable on cream, `--brand-ink` is burgundy and invisible on Heritage. The
+            position takes the stronger of the two colours on each ground and the chapter the
+            quieter one, so the hierarchy survives the theme as well as the ground.
 
             `Award` for the position and `MapPin` for the chapter, so the pair is distinguishable
-            without reading — and neither icon is announced (`aria-hidden` via `lucide`'s
-            default), because the text beside each already says what it is.
+            without reading — and neither is announced, because the text beside each already says
+            what it is.
 
             Positions are a LIST: a member may hold more than one (`getMyRoles` returns every
-            `user_roles` row), and there is no primary. Each gets its own line rather than being
-            joined with commas, so a member holding "National President" and "Austin Chapter
+            `user_roles` row) and there is no primary. Each gets its own line rather than being
+            joined with commas, so somebody holding "National President" and "Austin Chapter
             Treasurer" reads two facts instead of one run-on phrase. */}
         {roles.length > 0 && (
-          onBand ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {roles.map(role => (
-                <span
-                  key={role}
-                  className="inline-flex items-center rounded-full bg-brand-legacy px-3 py-1 text-xs font-semibold text-brand-on-legacy"
-                >
-                  {role}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3 space-y-1">
-              {roles.map(role => (
-                <p key={role} className="flex items-center gap-1.5 text-sm font-medium text-brand-ink">
-                  <Award className="h-3.5 w-3.5 shrink-0" />
-                  {role}
-                </p>
-              ))}
-            </div>
-          )
+          <div className="mt-3 space-y-1">
+            {roles.map(role => (
+              <p
+                key={role}
+                className={
+                  onBand
+                    ? 'flex items-center gap-1.5 text-sm font-medium text-brand-on-hero'
+                    : 'flex items-center gap-1.5 text-sm font-medium text-brand-ink'
+                }
+              >
+                <Award className="h-3.5 w-3.5 shrink-0" />
+                {role}
+              </p>
+            ))}
+          </div>
         )}
 
         {chapterName && (
           <p
             className={
               onBand
-                ? 'mt-2 flex items-center gap-1 text-sm text-brand-on-hero/80'
+                ? 'mt-1 flex items-center gap-1.5 text-sm text-brand-on-hero/80'
                 : 'mt-1 flex items-center gap-1.5 text-sm text-muted-foreground'
             }
           >
@@ -238,16 +246,18 @@ export function WelcomeHero({
             hairline, so the seam is complete without this. */}
         <EventPhoto photoUrl={photoUrl} className="pointer-events-none absolute inset-x-0 -bottom-24 hidden h-56 w-full text-brand-soft sm:block" />
 
-        {/* `sm:pr-[58%]` keeps the name clear of the crop, whose leftmost point is x=344 of 790
-            — 43.5% across. The kit's own greeting stops at about 39%, so this is its proportion
-            rather than a guess.
+        {/* `sm:pr-[42%]` keeps the name clear of the crop. It tracks `CROP_LEFT_PCT` in
+            `curves.tsx` — 62%, so the crop takes the right-hand 38% — plus four points, because
+            the shape's widest point is partway down and a name stopping exactly at its edge
+            reads as a collision. It was 58% while the crop sat at the kit's own 43.5%; the crop
+            is slimmer now and the name has the room back.
 
             `min-h-32` is 128px, which is exactly the crop's 224px less the 96px that hangs
             below — so the crop starts at the top of the greeting the way the kit's photograph
             does. Taller than this and the crop begins partway down; shorter and it starts above
             the section. It also matters most for the member who holds no board position and no
             chapter, where the greeting is two lines. */}
-        <div className="relative flex min-h-32 flex-wrap items-center gap-5 py-2 sm:pr-[58%]">
+        <div className="relative flex min-h-32 flex-wrap items-center gap-5 py-2 sm:pr-[42%]">
           {greeting}
         </div>
       </section>
