@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import {
@@ -17,7 +18,9 @@ import {
 import { formatDate, formatDateRange } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
 import { ELECTION_PHASE_PILL, ELECTION_WINDOW } from '@/components/elections/status'
-import { ELECTION_PHASE_LABEL, windowProblem } from '@/lib/election-phase'
+import {
+  ELECTION_PHASE_LABEL, electionWindowBounds, windowProblem,
+} from '@/lib/election-phase'
 import { rolesForScope, type ElectionScope } from '@/lib/election-area'
 
 /**
@@ -36,6 +39,28 @@ import { rolesForScope, type ElectionScope } from '@/lib/election-area'
  * told; `unpublishElection` refuses one anybody has acted on. Both refusals are stated in the
  * row — the counts are on `OrganizerElection` precisely so the controls can be absent instead
  * of failing when pressed.
+ *
+ * ── THE FORM IS A DIALOG, SINCE 2026-08-21 ─────────────────────────────────────────
+ * It was an inline panel that REPLACED the "New Election" button, so opening it hid the list
+ * of elections it was about — an organizer adding this year's ballot could not see last
+ * year's, and after saving, the new row appeared where the form had been. Editing a draft had
+ * the same problem one step worse: the row being edited scrolled out of view.
+ *
+ * Both go through the same dialog, deliberately. It is one form with one submit path
+ * (`editing === ''` creates, an id edits), and giving the create half a popup while the edit
+ * half stayed inline would be two treatments of one thing — which is the argument `MainRail`
+ * makes about there being no second main-rail style in the codebase.
+ *
+ * ── THE DATE FIELDS GREY OUT WHAT THE ACTION WOULD REFUSE ──────────────────────────
+ * `electionWindowBounds` turns `windowProblem`'s chain into a `min`/`max` per field, so the
+ * picker cannot offer a date that fails validation. It lives in `lib/election-phase.ts` beside
+ * the rule it is derived from rather than being restated here as four comparisons — that file's
+ * header has the argument about one rule and its expressions.
+ *
+ * `windowProblem` STAYS, and is not made redundant by this. Native `min`/`max` is a hint: a
+ * keyboard-typed date still arrives, `<input type="date">` degrades to a text box in engines
+ * that do not implement it, and the action is a public endpoint the form is not in the request
+ * path of (§2). Greying out is the courtesy; the check is the rule.
  *
  * ── THE LEVEL DRIVES THE POSITION PICKER ───────────────────────────────────────────
  * `rolesForScope` is the same function `createElection` validates with, imported rather than
@@ -86,7 +111,12 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(BLANK)
   const [scopeNote, setScopeNote] = useState('')
-  const [error, setError] = useState('')
+  // TWO ERROR SLOTS, since the form became a dialog. A save refusal has to be read inside the
+  // dialog, beside the button that caused it; a publish or delete refusal has to be read on
+  // the list, where the row is. One slot would put a save message behind the scrim and then
+  // leave it standing on the list after the dialog closed.
+  const [formError, setFormError] = useState('')
+  const [listError, setListError] = useState('')
   const [announce, setAnnounce] = useState<Record<string, boolean>>({})
   const [isPending, startTransition] = useTransition()
 
@@ -97,15 +127,20 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
 
   // Checked as the organizer types, with the SAME function the action uses. `requireAll` is
   // false here because this form saves a draft; `publishElection` is what demands all four.
-  const dateProblem = windowProblem({
+  const windows = {
     nominations_open_on: form.nomOpen,
     nominations_close_on: form.nomClose,
     voting_open_on: form.voteOpen,
     voting_close_on: form.voteClose,
-  }, { requireAll: false })
+  }
+  const dateProblem = windowProblem(windows, { requireAll: false })
+
+  // What each date picker may offer, derived from the other three. See the header: this greys
+  // out what `dateProblem` would refuse, and does not replace it.
+  const bounds = electionWindowBounds(windows)
 
   function openCreate() {
-    setForm(BLANK); setEditing(''); setError(''); setScopeNote('')
+    setForm(BLANK); setEditing(''); setFormError(''); setScopeNote('')
   }
 
   function openEdit(e: OrganizerElection) {
@@ -121,11 +156,11 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       voteClose: e.voting_close_on ?? '',
       positions: e.positions.length ? e.positions.map(p => ({ ...p })) : [{ title: '', max_winners: 1 }],
     })
-    setEditing(e.id); setError(''); setScopeNote('')
+    setEditing(e.id); setFormError(''); setScopeNote('')
   }
 
   function closeForm() {
-    setEditing(null); setError(''); setScopeNote('')
+    setEditing(null); setFormError(''); setScopeNote('')
   }
 
   /**
@@ -157,11 +192,11 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
   }
 
   function handleSave() {
-    if (!form.title.trim()) { setError('Give the election a title.'); return }
-    if (dateProblem) { setError(dateProblem); return }
-    if (form.scope === 'regional' && !form.regionId) { setError('Choose which region.'); return }
-    if (form.scope === 'chapter' && !form.chapterId) { setError('Choose which chapter.'); return }
-    setError('')
+    if (!form.title.trim()) { setFormError('Give the election a title.'); return }
+    if (dateProblem) { setFormError(dateProblem); return }
+    if (form.scope === 'regional' && !form.regionId) { setFormError('Choose which region.'); return }
+    if (form.scope === 'chapter' && !form.chapterId) { setFormError('Choose which chapter.'); return }
+    setFormError('')
 
     const payload = {
       title: form.title,
@@ -180,7 +215,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       const result = editing
         ? await updateElection(editing, payload)
         : await createElection(payload)
-      if (!result.success) { setError(result.message ?? 'Could not save the election.'); return }
+      if (!result.success) { setFormError(result.message ?? 'Could not save the election.'); return }
       // No optimistic row. `revalidatePath` in the action re-renders the server component and
       // `useServerState` picks the new list up — which is what keeps the scope LABEL and the
       // derived phase honest, since both are resolved on the server and cannot be guessed here.
@@ -195,9 +230,9 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       voting_open_on: e.voting_open_on ?? '',
       voting_close_on: e.voting_close_on ?? '',
     }, { requireAll: true })
-    if (problem) { setError(problem); return }
+    if (problem) { setListError(problem); return }
     if (!e.positions.length) {
-      setError('Add at least one position before publishing — a ballot with no offices on it has nothing to vote for.')
+      setListError('Add at least one position before publishing — a ballot with no offices on it has nothing to vote for.')
       return
     }
     const willAnnounce = announce[e.id] ?? true
@@ -210,10 +245,10 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       confirmLabel: 'Publish',
     })
     if (!ok) return
-    setError('')
+    setListError('')
     startTransition(async () => {
       const result = await publishElection(e.id, { announce: willAnnounce })
-      if (!result.success) setError(result.message ?? 'Could not publish.')
+      if (!result.success) setListError(result.message ?? 'Could not publish.')
     })
   }
 
@@ -225,10 +260,10 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       confirmLabel: 'Return to draft',
     })
     if (!ok) return
-    setError('')
+    setListError('')
     startTransition(async () => {
       const result = await unpublishElection(e.id)
-      if (!result.success) setError(result.message ?? 'Could not return it to draft.')
+      if (!result.success) setListError(result.message ?? 'Could not return it to draft.')
     })
   }
 
@@ -245,23 +280,36 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
     if (!ok) return
     startTransition(async () => {
       const result = await deleteElection(e.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete.'); return }
+      if (!result.success) { setListError(result.message ?? 'Could not delete.'); return }
       setElections(prev => prev.filter(x => x.id !== e.id))
     })
   }
 
   return (
     <div className="space-y-6">
-      {editing === null ? (
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-1" /> New Election
-        </Button>
-      ) : (
-        <div className="rounded-xl border bg-card p-5 space-y-5 max-w-xl">
-          <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
-            {editing ? 'Edit draft' : 'New election'}
-          </h2>
+      {/* THE TRIGGER IS ALWAYS HERE NOW. It used to be replaced by the form, so opening the
+          form removed the only way back to the list. */}
+      <Button size="sm" onClick={openCreate}>
+        <Plus className="h-4 w-4 mr-1" /> New Election
+      </Button>
 
+      <FormError message={listError} />
+
+      {/* ── The form, for creating and for editing a draft ─────────────────── */}
+      {/* `sm:max-w-xl` keeps the measure the inline panel had — this is a two-column date
+          grid and a positions table, not a confirmation. The Dialog caps its own height at
+          the DYNAMIC viewport and scrolls only its body, so the title and Save stay put on a
+          phone; that is why no `max-h` is passed here (see components/ui/dialog.tsx). */}
+      <Dialog
+        open={editing !== null}
+        onClose={closeForm}
+        title={editing ? 'Edit draft' : 'New election'}
+        description={editing
+          ? 'Only a draft can be edited. Once it is published, its dates are what the family was told.'
+          : 'Saved as a draft — nobody sees it until you publish it.'}
+        className="sm:max-w-xl"
+      >
+        <div className="space-y-5">
           <div className="space-y-1.5">
             <Label required>Title</Label>
             <Input
@@ -341,16 +389,20 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               <div className="space-y-1">
                 <Label className="text-xs">Opens</Label>
                 <Input type="date" value={form.nomOpen}
+                  max={bounds.nominations_open_on.max}
                   onChange={ev => setForm(f => ({ ...f, nomOpen: ev.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Closes after</Label>
                 <Input type="date" value={form.nomClose}
+                  min={bounds.nominations_close_on.min}
+                  max={bounds.nominations_close_on.max}
                   onChange={ev => setForm(f => ({ ...f, nomClose: ev.target.value }))} />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Both days count — nominations are open from the first through the last.
+              Both days count — nominations are open from the first through the last. The
+              closing date cannot be earlier than the day after they open.
             </p>
           </div>
 
@@ -363,11 +415,14 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               <div className="space-y-1">
                 <Label className="text-xs">Opens</Label>
                 <Input type="date" value={form.voteOpen}
+                  min={bounds.voting_open_on.min}
+                  max={bounds.voting_open_on.max}
                   onChange={ev => setForm(f => ({ ...f, voteOpen: ev.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Closes after</Label>
                 <Input type="date" value={form.voteClose}
+                  min={bounds.voting_close_on.min}
                   onChange={ev => setForm(f => ({ ...f, voteClose: ev.target.value }))} />
               </div>
             </div>
@@ -417,20 +472,19 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               }))}>+ Add Position</Button>
           </div>
 
-          <FormError message={error} />
+          {/* THE REFUSAL SITS WITH THE BUTTONS, not with the field it is about. The dialog's
+              body scrolls and its footer does not, so a message rendered beside an input can
+              be off-screen at the moment somebody presses Save again — AGENTS.md's rule about
+              a message inside a scrolling panel. */}
+          <FormError message={formError} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave} disabled={isPending}>
               {isPending ? 'Saving…' : editing ? 'Save draft' : 'Create draft'}
             </Button>
             <Button size="sm" variant="ghost" onClick={closeForm}>Cancel</Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Saved as a draft. Nobody sees it until you publish it.
-          </p>
         </div>
-      )}
-
-      {editing === null && <FormError message={error} />}
+      </Dialog>
 
       {elections.length === 0 ? (
         <p className="text-sm text-muted-foreground">No elections yet.</p>

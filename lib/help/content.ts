@@ -1956,6 +1956,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'What this screen is',
             blocks: [
               p('Every election the family has, at every level, drafts included. Each row shows where the election is today, which part of the family it is for, its two date windows, and how many positions, nominations and votes it has.'),
+              p('**New Election** opens the form in a panel over the list, and so does the edit control on a draft. The list stays behind it, which is the point — you can see what the family already holds while you write the next one.'),
               p('An election is either a **draft** — yours, invisible to the family — or **published**, which puts it on the family\' calendar. There is nothing else to set: once it is published the dates run it.'),
             ],
           },
@@ -1968,6 +1969,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Nominations run from the day they open to the end of the day they close. Both days count.',
                 'Voting runs the same way, and must open after nominations close — so a ballot is never voted on while the list of candidates can still change.',
                 'Each window has to be at least a day long. A closing date on or before its opening date is refused as you type it.',
+                'The date pickers grey out the days that would break the chain — once nominations open on the 1st, the closing picker will not offer the 1st or anything before it, and the voting pickers move with it.',
               ),
               p('The day after voting closes, the election is over and its results appear for everybody who could vote in it. Nothing publishes them and nothing closes the poll.'),
               note('All four dates are needed to publish. A draft may have none of them, or some — that is what a draft is for.'),

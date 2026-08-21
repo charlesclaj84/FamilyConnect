@@ -3,6 +3,7 @@ import {
   electionPhase,
   electionIsClosed,
   electionIsCurrent,
+  electionWindowBounds,
   nominationsOpen,
   votingOpen,
   windowProblem,
@@ -28,6 +29,14 @@ import {
  *       trips "a one-day nominations window is refused"
  *   the voting-after-nominations clause deleted
  *       trips "voting may not open on the day nominations close"
+ *   `dayAfter` -> the neighbour's own date (i.e. `shiftDays(iso, 0)`)
+ *       trips "every bound is a day away from its neighbour" — the mutation that matters
+ *       most, because it greys out one day too few and leaves the picker offering exactly
+ *       the date `windowProblem` then refuses
+ *   `dayBefore` -> `dayAfter`
+ *       trips the same test from the other side
+ *   `shiftDays`'s regex loosened to accept a blank
+ *       trips "an unset neighbour is no bound at all"
  *
  * The dates are deliberately spelled out rather than computed from an offset: this module
  * compares `YYYY-MM-DD` strings and never constructs a `Date`, so a test that built its
@@ -207,5 +216,115 @@ describe('windowProblem', () => {
       voting_open_on: '2026-12-01',
       voting_close_on: '2026-11-01',
     }, { requireAll: true })).toMatch(/Nominations must close after they open/)
+  })
+})
+
+/**
+ * The picker bounds, which are `windowProblem`'s chain read forwards.
+ *
+ * ── WHY THESE ARE WORTH TESTING SEPARATELY FROM `windowProblem` ─────────────────────
+ * They are the same rule, and that is exactly the risk: the two can agree in prose and
+ * disagree by a day. `windowProblem` refuses `nomClose <= nomOpen`, so the earliest legal
+ * close is the day AFTER — and a bounds function that returned `nomOpen` itself would grey
+ * out one day too few, leave the picker offering a date the action refuses, and be invisible
+ * to every test of `windowProblem`. The last assertion in this block is the two functions
+ * checked against each other rather than each against a literal.
+ */
+describe('electionWindowBounds', () => {
+  const EMPTY = {
+    nominations_open_on: '', nominations_close_on: '', voting_open_on: '', voting_close_on: '',
+  }
+
+  it('offers no bounds at all on an empty form', () => {
+    expect(electionWindowBounds(EMPTY)).toEqual({
+      nominations_open_on: { max: undefined },
+      nominations_close_on: { min: undefined, max: undefined },
+      voting_open_on: { min: undefined, max: undefined },
+      voting_close_on: { min: undefined },
+    })
+  })
+
+  it('every bound is a day away from its neighbour', () => {
+    const b = electionWindowBounds({
+      nominations_open_on: '2027-03-01',
+      nominations_close_on: '2027-03-10',
+      voting_open_on: '2027-03-20',
+      voting_close_on: '2027-03-31',
+    })
+    expect(b.nominations_open_on.max).toBe('2027-03-09')
+    expect(b.nominations_close_on.min).toBe('2027-03-02')
+    expect(b.nominations_close_on.max).toBe('2027-03-19')
+    expect(b.voting_open_on.min).toBe('2027-03-11')
+    expect(b.voting_open_on.max).toBe('2027-03-30')
+    expect(b.voting_close_on.min).toBe('2027-03-21')
+  })
+
+  it('an unset neighbour is no bound at all, and never an empty string', () => {
+    // `min=""` on a date input is not "no minimum" in every engine, and React renders an
+    // empty string where it drops an `undefined`. So the absent case has to be absent.
+    const b = electionWindowBounds({ ...EMPTY, nominations_close_on: '2027-05-05' })
+    expect(b.nominations_close_on.min).toBeUndefined()
+    expect(b.nominations_close_on.max).toBeUndefined()
+    expect(b.nominations_open_on.max).toBe('2027-05-04')
+    expect(b.voting_open_on.min).toBe('2027-05-06')
+  })
+
+  it('crosses a month end, a year end and a leap day', () => {
+    // `Date.UTC` with a day of 0 or 32 resolves into the neighbouring month, which is what
+    // makes day arithmetic safe here where `setUTCMonth` would overflow.
+    expect(electionWindowBounds({ ...EMPTY, nominations_open_on: '2027-01-31' })
+      .nominations_close_on.min).toBe('2027-02-01')
+    expect(electionWindowBounds({ ...EMPTY, nominations_open_on: '2027-12-31' })
+      .nominations_close_on.min).toBe('2028-01-01')
+    expect(electionWindowBounds({ ...EMPTY, nominations_close_on: '2028-03-01' })
+      .nominations_open_on.max).toBe('2028-02-29')
+    expect(electionWindowBounds({ ...EMPTY, nominations_close_on: '2027-03-01' })
+      .nominations_open_on.max).toBe('2027-02-28')
+  })
+
+  it('ignores a malformed date rather than inventing a bound', () => {
+    expect(electionWindowBounds({ ...EMPTY, nominations_open_on: '2027-3-1' })
+      .nominations_close_on.min).toBeUndefined()
+    expect(electionWindowBounds({ ...EMPTY, nominations_open_on: 'tomorrow' })
+      .nominations_close_on.min).toBeUndefined()
+  })
+
+  it('looks at the immediate neighbour only, never further down the chain', () => {
+    // A partly-filled form is the normal state of this one. Flooring `voting_close_on` on
+    // `nominations_open_on + 3` would grey out days that become legal the moment the
+    // organizer fills the gap, in an order they did not choose to type in.
+    const b = electionWindowBounds({ ...EMPTY, nominations_open_on: '2027-06-01' })
+    expect(b.nominations_close_on.min).toBe('2027-06-02')
+    expect(b.voting_open_on.min).toBeUndefined()
+    expect(b.voting_close_on.min).toBeUndefined()
+  })
+
+  it('agrees with windowProblem about the tightest legal arrangement', () => {
+    // THE TWO FUNCTIONS CHECKED AGAINST EACH OTHER, which is the assertion neither can make
+    // alone: every date the bounds permit at the floor is one windowProblem accepts, and the
+    // day below each floor is one it refuses.
+    let dates = {
+      nominations_open_on: '2027-01-01', nominations_close_on: '', voting_open_on: '',
+      voting_close_on: '',
+    }
+    dates = { ...dates, nominations_close_on: electionWindowBounds(dates).nominations_close_on.min! }
+    dates = { ...dates, voting_open_on: electionWindowBounds(dates).voting_open_on.min! }
+    dates = { ...dates, voting_close_on: electionWindowBounds(dates).voting_close_on.min! }
+
+    expect(dates).toEqual({
+      nominations_open_on: '2027-01-01',
+      nominations_close_on: '2027-01-02',
+      voting_open_on: '2027-01-03',
+      voting_close_on: '2027-01-04',
+    })
+    expect(windowProblem(dates, { requireAll: true })).toBeNull()
+
+    // And one day earlier at each step is refused, so the floor is exactly the floor.
+    expect(windowProblem({ ...dates, nominations_close_on: '2027-01-01' }, { requireAll: true }))
+      .not.toBeNull()
+    expect(windowProblem({ ...dates, voting_open_on: '2027-01-02' }, { requireAll: true }))
+      .not.toBeNull()
+    expect(windowProblem({ ...dates, voting_close_on: '2027-01-03' }, { requireAll: true }))
+      .not.toBeNull()
   })
 })

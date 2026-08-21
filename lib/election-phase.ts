@@ -197,3 +197,93 @@ export function windowProblem(
   }
   return null
 }
+
+/**
+ * The `min` and `max` a date picker should offer for each of the four window fields.
+ *
+ * ── SAME RULE AS `windowProblem`, TURNED THE OTHER WAY ROUND ────────────────────────
+ * That function answers "is this set of dates sayable" AFTER the fact; this one answers
+ * "which days may I pick" BEFORE it. Both are the chain
+ *
+ *     nominations open  <  nominations close  <  voting open  <  voting close
+ *
+ * and they live in one module for the reason this file's header gives about its SQL twin: two
+ * expressions of one rule is normally forbidden here, and the exception is a boundary no
+ * single definition can cross. An `<input type="date">`'s `min`/`max` is not that boundary —
+ * it is the same TypeScript — so it is derived here rather than restated in the form.
+ *
+ * ── STRICT INEQUALITIES, SO EVERY BOUND IS A DAY AWAY ───────────────────────────────
+ * `windowProblem` refuses `nomClose <= nomOpen`, not `<`, because "leave them open at least a
+ * day" is the rule a family was given. So `nomClose`'s floor is the day AFTER `nomOpen`, and
+ * `nomOpen`'s ceiling is the day BEFORE `nomClose`. Returning the neighbour's own date would
+ * grey out one day too few and leave the picker offering a date the action then refuses,
+ * which is the whole thing these bounds exist to prevent.
+ *
+ * ── IT IS PURELY RELATIVE. NO FLOOR OF "TODAY" ──────────────────────────────────────
+ * Deliberate, and two reasons. A draft may legitimately carry a past date — an organizer
+ * writing up an election that has already begun, or one editing a draft they started last
+ * month — and a picker that refuses it would make the draft unsaveable without the organizer
+ * being told why. And a `min` of today would mean reading the clock to render a form, which
+ * is what this file's `today`-as-a-parameter rule exists to keep out of components.
+ *
+ * ── AN UNSET NEIGHBOUR IS `undefined`, NOT `''` ─────────────────────────────────────
+ * React drops an `undefined` attribute and renders `min=""` for an empty string — and an
+ * empty `min` on a date input is not "no minimum" in every engine. The absent case has to be
+ * absent.
+ */
+export interface ElectionDateBounds {
+  min?: string
+  max?: string
+}
+
+export interface ElectionWindowBounds {
+  nominations_open_on: ElectionDateBounds
+  nominations_close_on: ElectionDateBounds
+  voting_open_on: ElectionDateBounds
+  voting_close_on: ElectionDateBounds
+}
+
+export function electionWindowBounds(input: WindowInput): ElectionWindowBounds {
+  const nomOpen = input.nominations_open_on || ''
+  const nomClose = input.nominations_close_on || ''
+  const voteOpen = input.voting_open_on || ''
+  const voteClose = input.voting_close_on || ''
+
+  // EACH BOUND LOOKS AT ITS IMMEDIATE NEIGHBOUR ONLY, and never further down the chain. The
+  // alternative — flooring `voting_close_on` on `nominations_open_on + 3` when the two
+  // middle dates are blank — would grey out days that become legal the moment the organizer
+  // fills the gap, in an order they did not choose to type in. A partly-filled form is the
+  // normal state of this one, and `windowProblem` is what catches a chain that never closes.
+  return {
+    nominations_open_on: { max: dayBefore(nomClose) },
+    nominations_close_on: { min: dayAfter(nomOpen), max: dayBefore(voteOpen) },
+    voting_open_on: { min: dayAfter(nomClose), max: dayBefore(voteClose) },
+    voting_close_on: { min: dayAfter(voteOpen) },
+  }
+}
+
+/**
+ * `YYYY-MM-DD` plus or minus whole days.
+ *
+ * `Date.UTC` with integer parts and `getUTC*` reads, which is `lib/calendar.ts`'s rule and is
+ * safe for DAYS specifically: day 0 is the last day of the previous month and day 32 rolls
+ * into the next, so month and year ends need no special case. It is `setUTCMonth` that
+ * overflows (31 January + 1 month = 3 March), and nothing here shifts a month.
+ *
+ * A blank or malformed input answers `undefined` rather than throwing or inventing a date: the
+ * caller is a half-filled form, and "no neighbour yet" means "no bound yet".
+ */
+function shiftDays(iso: string, delta: number): string | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return undefined
+  const [, y, mo, d] = m
+  const shifted = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d) + delta))
+  return [
+    shifted.getUTCFullYear(),
+    String(shifted.getUTCMonth() + 1).padStart(2, '0'),
+    String(shifted.getUTCDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+const dayAfter = (iso: string) => shiftDays(iso, 1)
+const dayBefore = (iso: string) => shiftDays(iso, -1)
