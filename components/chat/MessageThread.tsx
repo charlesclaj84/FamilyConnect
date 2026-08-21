@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, Send, UserPlus, UserMinus, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { MessageBubble } from './MessageBubble'
 import { useConfirm } from '@/components/ui/confirm'
 import { FieldError } from '@/components/ui/form-message'
@@ -263,19 +264,28 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
         <div className="border-t px-4 py-3 shrink-0 bg-background">
           <FieldError message={sendError} className="mb-1" />
           <div className="flex gap-2 items-end">
-            <textarea
+            {/* THE SHARED `Textarea`, WHICH THIS WAS A SECOND COPY OF. It was a raw
+                `<textarea>` carrying its own auto-grow — reset the height, then
+                `Math.min(scrollHeight, 128)` — plus `min-h-[38px] max-h-32` and a hand-written
+                focus ring. All three exist in `components/ui/textarea.tsx`, and the two
+                implementations had already drifted: the shared one derives its cap from the
+                element's resolved line-height so a phone (`text-base`) and a laptop
+                (`text-sm`) both show `maxRows` ROWS, while this one hard-coded 128px and so
+                showed a different number of rows at each size.
+
+                `maxRows={5}` is that 128px expressed as what it was for — about five lines of
+                `text-sm` — and `rows={1}` keeps the composer one line tall when empty, which is
+                what a message box should be. `autoGrow` is not passed because it is the default
+                now; that is the whole reason this could collapse into the shared component. */}
+            <Textarea
               value={body}
               onChange={e => setBody(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
               maxLength={4000}
               rows={1}
-              className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 min-h-[38px] max-h-32 overflow-y-auto"
-              onInput={e => {
-                const el = e.currentTarget
-                el.style.height = 'auto'
-                el.style.height = `${Math.min(el.scrollHeight, 128)}px`
-              }}
+              maxRows={5}
+              className="flex-1 text-sm"
             />
             <Button size="icon" disabled={!body.trim() || sending} onClick={handleSend} aria-label="Send">
               <Send className="h-4 w-4" />

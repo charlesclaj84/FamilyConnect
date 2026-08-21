@@ -21,7 +21,17 @@ import { IS_INDEXABLE_DEPLOYMENT, SITE_URL } from '@/lib/site'
  *     and redirects an anonymous caller to /login (AGENTS.md §1). A crawler gets
  *     a 307 to a page already in the sitemap and indexes nothing.
  *   * **Crawl budget is not a real constraint here.** It starts to matter in the
- *     hundreds of thousands of URLs. The public surface is three pages.
+ *     hundreds of thousands of URLs. `sitemap.ts` emits EIGHT: the landing page,
+ *     the five in `MARKETING_ROUTES`, `/login` and `/register`.
+ *
+ *     That said "three pages" until 2026-08-21, which was true when it was
+ *     written and had quietly become wrong — `/why-us` and `/about` were added
+ *     to the nav afterwards, and the sitemap picks up anything in
+ *     `MARKETING_ROUTES` without this file hearing about it. The CONCLUSION was
+ *     never sensitive to the number, which is exactly why nobody noticed: an
+ *     argument whose premise can drift by 160% without changing the answer is
+ *     one nothing will ever check for you. Count from `sitemap.ts`, not from
+ *     memory.
  *
  * And it costs something: `/robots.txt` is world-readable and is the first
  * thing anyone probing a site fetches. Listing `/reporting/pl-summary`,

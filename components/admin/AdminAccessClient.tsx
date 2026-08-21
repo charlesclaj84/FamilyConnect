@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
 import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
@@ -753,6 +754,32 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
   onView: (personId: string) => void
   onPosition: (member: MemberSummary) => void
 }) {
+  // ── THE SAME FOUR SORTABLE COLUMNS THE DIRECTORY HAS ─────────────────────────────
+  // AGENTS.md, "A table is a table": these two screens list the same people and answer the same
+  // question, so a column added to one is owed to the other — and that now covers SORTING as
+  // well as which columns exist. Same keys, same extractors, same fallbacks.
+  //
+  // Name sorts on LAST name rather than on the rendered "Marcus Allen", which would order the
+  // family by first name. Position, Chapter and Group are em-dashes for most of a family, and
+  // `lib/sort-rows.ts` puts blanks last in BOTH directions — so sorting descending by Position
+  // shows the officers, not the ninety people who hold none.
+  //
+  // POSITION SORTS THROUGH THE SAME LOOKUP THE CELL RENDERS FROM, which is `board.holders`
+  // filtered on the person — not a field on the row, because there is not one: `MemberSummary`
+  // carries no title and this screen composes it in the browser from a `BoardPositionHolder`
+  // (AGENTS.md says so where it explains why `formatBoardTitle` had to be extracted). Sorting
+  // on anything else would order the column by something other than what it shows.
+  //
+  // A member holding two offices sorts on the FIRST, which is the one the cell shows first.
+  // `?? null` and not `?? ''` so `lib/sort-rows.ts` sees an absence rather than a value —
+  // `isBlank` treats both alike, and null is the honest one.
+  const { rows: sorted, sortProps } = useTableSort(rows, {
+    name: m => m.name,
+    position: m => board?.holders.find(h => h.person_id === m.personId)?.position_name ?? null,
+    chapter: m => m.chapterName,
+    group: m => m.templateName,
+  }, 'name')
+
   // `overflow-visible`, not the `overflow-x-auto` that was here: an ancestor with
   // `overflow-x: auto` computes its `overflow-y` to `auto` as well, which is what forced
   // RowMenu to portal its panel to the body in the first place. With the scroll gone
@@ -763,7 +790,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <th scope="col" className="px-3 py-2 font-semibold">Name</th>
+            <SortTh label="Name" {...sortProps('name')} className="px-3 py-2 font-semibold" />
             {/* ── POSITION REPLACED REGION ON 2026-08-20 ──────────────────────────────
                 Region was DERIVED from the member's chapter (`people.chapter_id ->
                 chapters.region_id`), so the two columns beside each other answered one
@@ -779,17 +806,17 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
                 caller may see the roster and not the family's offices, and a headed column of
                 em-dashes would tell them the family has no officers. */}
             {board && (
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Position</th>
+              <SortTh label="Position" {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
             )}
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Chapter</th>
-            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
+            <SortTh label="Chapter" {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+            <SortTh label="Group" {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
             {/* The menu column has no heading to give. An empty <th> would be announced
                 as a blank column header, so the label is present and hidden. */}
             <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(member => (
+          {sorted.map(member => (
             <MemberRow key={member.personId} member={member} templates={templates}
               rights={rights} board={board} busy={busy} run={run} onView={onView}
               onPosition={onPosition} />

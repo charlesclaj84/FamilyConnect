@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/Avatar'
 import { NickName } from '@/components/ui/person-name'
 import { cn } from '@/lib/utils'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import type { MemberRecord } from '@/app/actions/members'
 import {
@@ -70,6 +71,29 @@ export function MemberDirectoryClient({ members }: Props) {
     return matchesQuery && matchesChapter
   })
 
+  // ── SORTING, THE SAME FOUR COLUMNS MEMBERS & ACCESS SORTS ────────────────────────
+  // Applied to `filtered` rather than to `members`, so the filter narrows and the sort orders
+  // what survived — the other way round would sort rows the reader cannot see and re-sort on
+  // every keystroke.
+  //
+  // NAME SORTS ON WHAT THE CELL PRINTS, and that is a decision about the PAIR rather than
+  // about this table. Sorting a directory by surname is the more useful order and this row has
+  // `last_name` to do it with — but `MemberSummary` on Members & Access does not, it carries a
+  // pre-joined `name`, so surname order there would mean a server change. Until that exists the
+  // two screens sort the same way or they do not match, and "a table is a table" is about them
+  // agreeing. Both order by the displayed name; if `lastName` is ever added to `MemberSummary`,
+  // both move together.
+  //
+  // Position, Chapter and Group are em-dashes for most of a family, and `lib/sort-rows.ts` puts
+  // blanks last in BOTH directions — which is the whole reason that rule is in a tested module
+  // rather than in each table.
+  const { rows, sortProps } = useTableSort(filtered, {
+    name: m => `${m.first_name} ${m.last_name}`,
+    position: m => m.primary_role_title,
+    chapter: m => m.chapter_name,
+    group: m => m.group_name,
+  }, 'name')
+
   const viewed = members.find(m => m.id === viewingId) ?? null
 
   return (
@@ -97,7 +121,7 @@ export function MemberDirectoryClient({ members }: Props) {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="mx-auto h-10 w-10 mb-3 opacity-30" />
           <p className="text-sm">No members match your search.</p>
@@ -127,7 +151,7 @@ export function MemberDirectoryClient({ members }: Props) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">Name</th>
+                <SortTh label="Name" {...sortProps('name')} className="px-3 py-2 font-semibold" />
                 {/* ── POSITION REPLACED REGION ON 2026-08-20, AND IT HAD TO ────────────────
                     Members & Access made that swap because board positions are assigned from
                     its rows now, and "A table is a table" leaves this screen no choice:
@@ -144,13 +168,13 @@ export function MemberDirectoryClient({ members }: Props) {
                     THE SUBTITLE UNDER THE NAME IS GONE with it — the same string in a column
                     and under the name is one fact printed twice, and the column is the version
                     that can be scanned. */}
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Position</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Chapter</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Group</th>
+                <SortTh label="Position" {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label="Chapter" {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label="Group" {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               </tr>
             </thead>
             <tbody>
-              {filtered.map(member => {
+              {rows.map(member => {
                 // `first_name last_name`, NOT formatPersonName — that appends "(Nick)",
                 // and the nickname is printed on its own line below by <NickName>.
                 const displayName = [member.prefix, member.first_name, member.last_name]
@@ -255,7 +279,7 @@ export function MemberDirectoryClient({ members }: Props) {
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        {filtered.length} of {members.length} member{members.length !== 1 ? 's' : ''}
+        {rows.length} of {members.length} member{members.length !== 1 ? 's' : ''}
       </p>
 
       {/* ── One member, in full ──

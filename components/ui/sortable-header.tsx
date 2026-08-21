@@ -1,9 +1,11 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { sortRows, type SortDirection, type SortValue } from '@/lib/sort-rows'
 
-export type SortDir = 'asc' | 'desc'
+export type SortDir = SortDirection
 
 /**
  * A sortable column heading.
@@ -13,6 +15,11 @@ export type SortDir = 'asc' | 'desc'
  * because both tables sort and one of them would otherwise have got a second copy.
  * Which is the whole failure mode AGENTS.md keeps returning to: styling repeated by
  * hand is invisible until you put two screens side by side.
+ *
+ * MOVED FROM `components/account/` TO `components/ui/` ON 2026-08-21, when sorting stopped
+ * being two account tables' feature and became every table's. It was already the shared
+ * thing; it was filed as though it belonged to one screen, which is the state that makes the
+ * third caller write its own.
  *
  * A real `<th>` with the button inside it, not a `<th>` made clickable. The heading has
  * to stay a heading — AGENTS.md's "a table is a table" rests on a cell being announced
@@ -46,4 +53,80 @@ export function SortTh({
       </button>
     </th>
   )
+}
+
+/**
+ * The state and the ordering behind one sortable table.
+ *
+ * ── WHY A HOOK AND NOT A COMPARATOR PER TABLE ──────────────────────────────────────
+ * `SortTh` has always handled the HEADING. The sorting itself was left to each table, and the
+ * two that did it wrote `a.payment_date.localeCompare(b.payment_date)` and
+ * `a.amount_cents - b.amount_cents` inline — correct, and neither of them getting the blanks
+ * rule right, because neither had a blank to get wrong. Rolling sorting out to twenty tables
+ * on that pattern would have been twenty comparators and twenty chances at the bug
+ * `lib/sort-rows.ts` exists to state once.
+ *
+ * So the caller declares WHAT each column is worth and nothing about how to order it:
+ *
+ *     const { rows, sortProps } = useTableSort(members, {
+ *       name:    m => m.last_name,
+ *       chapter: m => m.chapter_name,
+ *       due:     m => m.balance_cents,
+ *     }, 'name')
+ *     …
+ *     <SortTh label="Name" {...sortProps('name')} />
+ *     <SortTh label="Balance" align="right" {...sortProps('due')} />
+ *
+ * ── THREE THINGS IT DECIDES, SO TWENTY TABLES DO NOT DECIDE THEM DIFFERENTLY ───────
+ *
+ *   * **The first press on a new column sorts ASCENDING**, and pressing the active column
+ *     again reverses it. Not "remember each column's last direction" — that makes the same
+ *     press do different things depending on history, which is the one thing a sort control
+ *     must not do.
+ *   * **The extractor returns a `SortValue`, not a rendered string.** A money column sorts on
+ *     `amount_cents` and prints `$1,234.00`; a date sorts on `YYYY-MM-DD` and prints
+ *     "June 12th, 2026". Sorting the rendered text is how "$9.00" ends up after "$10.00" and
+ *     how a date column orders by month name.
+ *   * **`useMemo` on the rows**, keyed on the incoming array and the sort. A table that
+ *     re-sorts on every keystroke of its own filter box is the reason these lists have filter
+ *     boxes at all (AGENTS.md, "Build every member list for a hundred-member family").
+ */
+export function useTableSort<
+  T,
+  // THE KEYS COME FROM `columns` AND NOT FROM `initialKey`. Written as
+  // `<T, K extends string>(…, columns: Record<K, …>, initialKey: K)`, TypeScript infers `K`
+  // from BOTH parameters and takes the narrower — so `initialKey: 'name'` pinned `K` to
+  // `'name'` and every other column in the object became an excess property. Inferring the
+  // whole record and deriving the key from it is what makes the call site read naturally.
+  C extends Record<string, (row: T) => SortValue>,
+>(
+  rows: readonly T[],
+  columns: C,
+  initialKey: keyof C & string,
+  initialDir: SortDir = 'asc',
+) {
+  type K = keyof C & string
+  const [key, setKey] = useState<K>(initialKey)
+  const [dir, setDir] = useState<SortDir>(initialDir)
+
+  const sorted = useMemo(
+    () => sortRows(rows, columns[key], dir),
+    // `columns` is an object literal at the call site and so is a new identity every render —
+    // depending on it would defeat the memo entirely. The KEY is what selects the extractor,
+    // and a table does not change what a column means while it is on screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, key, dir],
+  )
+
+  function toggle(next: K) {
+    if (next === key) setDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setKey(next); setDir('asc') }
+  }
+
+  /** Spread onto a `SortTh`. Keeps the heading and the ordering from disagreeing about state. */
+  function sortProps(col: K) {
+    return { active: key === col, dir, onClick: () => toggle(col) }
+  }
+
+  return { rows: sorted, sortKey: key, sortDir: dir, toggle, sortProps }
 }

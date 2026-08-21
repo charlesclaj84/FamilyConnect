@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { canAny } from '@/lib/auth/permissions'
+import { requireScope } from '@/lib/auth/guard'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
@@ -623,28 +624,45 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
 // Milestone CRUD (admin only)
 // -------------------------------------------------------
 
-/** Returns the inserted row so the admin page can list it without a refetch. */
+/**
+ * Returns the inserted row so the admin page can list it without a refetch.
+ *
+ * ── THE PREAMBLE IS `requireScope` NOW, AND THAT IS THE FIX FOR A REAL REPORT ──────
+ * All three milestone actions hand-rolled the §2 preamble — `createClient()`, `getUser()`,
+ * `if (!user) return 'Not authenticated'`, then `canAny`, then `getMyFamilyCode` — which is
+ * exactly the shape AGENTS.md says to stop writing, because "it cannot be half-written" is the
+ * whole argument for the guard existing. This one was half-written in the way that matters:
+ * its `getUser()` DISCARDED the error, so a GoTrue timeout or an access token that could not
+ * be refreshed came back to an administrator as "Not authenticated" while they were plainly
+ * signed in, with nothing logged anywhere. That was the reported bug — adding a milestone
+ * answering "Not authenticated" — and `lib/auth/guard.ts`'s `caller()` now separates "could
+ * not verify" from "signed out" and logs the first, so every action behind the guard reports
+ * it honestly. These three were not behind the guard, which is why they had to move.
+ *
+ * `requireScope` is the right one rather than `requireOwn`: it is `canAny` underneath, which is
+ * what these already used and what §2 requires for family-wide configuration. A milestone is
+ * what an award is worth — there is no member's own copy of it. Two things come free with the
+ * move and are the reason it is not merely tidier: `requireFamilyActive` and `requireTier`,
+ * neither of which any of the three was applying.
+ */
 export async function createMilestone(
   fundId: string,
   input: { name: string; description: string; amount_cents: number; sort_order?: number }
 ): Promise<{ success: boolean; milestone?: FundMilestone; message?: string }> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-
-  const familyCode = await getMyFamilyCode(user.id)
   // What an award is worth — its own section, its own grant.
-  if (!(await canAny(user.id, 'admin/accounting/milestones', 'create'))) return { success: false, message: 'Not authorized' }
+  const g = await requireScope('admin/accounting/milestones', 'create')
+  if (!g.ok) return { success: false, message: g.message }
 
-  // The fund must be this family's — the insert below bypasses RLS.
+  const admin = createAdminClient()
+
+  // §4. The fund must be this family's — the insert below bypasses RLS.
   const { data: fund } = await admin
-    .from('funds').select('id').eq('id', fundId).eq('family_code', familyCode).maybeSingle()
+    .from('funds').select('id').eq('id', fundId).eq('family_code', g.familyCode).maybeSingle()
   if (!fund) return { success: false, message: 'Fund not found' }
 
   const { data, error } = await admin.from('fund_milestones').insert({
     fund_id: fundId,
-    family_code: familyCode,
+    family_code: g.familyCode,
     name: input.name.trim(),
     description: input.description.trim() || null,
     amount_cents: input.amount_cents,
@@ -656,30 +674,28 @@ export async function createMilestone(
   return { success: true, milestone: data }
 }
 
+/** See `createMilestone` on why the preamble is the guard. */
 export async function updateMilestone(
   id: string,
   input: { name?: string; description?: string; amount_cents?: number; sort_order?: number }
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
-  const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/accounting/milestones', 'edit'))) return { success: false, message: 'Not authorized' }
-  const familyCode = await getMyFamilyCode(user.id)
+  const g = await requireScope('admin/accounting/milestones', 'edit')
+  if (!g.ok) return { success: false, message: g.message }
 
-  const { error } = await admin.from('fund_milestones').update(input).eq('id', id).eq('family_code', familyCode)
+  const admin = createAdminClient()
+  const { error } = await admin.from('fund_milestones').update(input).eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/accounting')
   return { success: true }
 }
 
+/** See `createMilestone` on why the preamble is the guard. */
 export async function deleteMilestone(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
+  const g = await requireScope('admin/accounting/milestones', 'delete')
+  if (!g.ok) return { success: false, message: g.message }
+
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/accounting/milestones', 'delete'))) return { success: false, message: 'Not authorized' }
-  const familyCode = await getMyFamilyCode(user.id)
+  const familyCode = g.familyCode
 
   // A milestone is what a disbursement was FOR, and `fund_disbursements.milestone_id` is
   // ON DELETE SET NULL — so deleting one that has been paid against leaves the payout in

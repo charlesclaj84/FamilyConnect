@@ -20,7 +20,7 @@ import { setMyDuesPlan, setMyDuesOptOut, type DuesSummary } from '@/app/actions/
 import { HelpLink } from '@/components/help/HelpLink'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
-import { SortTh, type SortDir } from '@/components/account/sortable-header'
+import { SortTh, type SortDir } from '@/components/ui/sortable-header'
 
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 

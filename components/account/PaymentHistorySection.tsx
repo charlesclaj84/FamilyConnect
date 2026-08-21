@@ -12,7 +12,7 @@ import { PAYMENT_STATUS_LABELS } from '@/lib/dues-utils'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import type { DuesPayment } from '@/app/actions/dues'
 import { PaidThisYearCard } from '@/components/account/PaidThisYearCard'
-import { SortTh, type SortDir } from '@/components/account/sortable-header'
+import { SortTh, type SortDir } from '@/components/ui/sortable-header'
 
 type HistCol = 'schedule' | 'date' | 'amount'
 

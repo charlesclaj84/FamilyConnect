@@ -171,6 +171,74 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+## `20260820000010` has not reached hosted, and the code already asks for its column
+
+**Action:** merge to `master` so `migrate.yml` applies it. Nothing else, and no code change —
+in particular do not make the select tolerate a missing column.
+
+`gatherings.photo_path` was added on 2026-08-21 for the Dashboard band's photograph, and the
+same commit widened two selects to ask for it — `GATHERING_SELECT` in
+[app/actions/gatherings.ts](app/actions/gatherings.ts) and the admin one in
+[app/actions/admin/gatherings.ts](app/actions/admin/gatherings.ts). Migrations reach hosted
+from CI on merge and by no other route (AGENTS.md, "How migrations reach the hosted project"),
+so a dev server pointed at hosted is running code ahead of the schema **right now**: PostgREST
+answers 42703 and kills the WHOLE query rather than that one column, so `getPremierGathering`
+returns null and the premier band silently disappears. Six reads are affected —
+`getGatherings`, `getGathering`, `getPremierGathering`, `getUpcomingGatheringCount` and both
+admin list and detail reads.
+
+This is Phase 3's incident in miniature and it is self-clearing: the ordering CI enforces for
+production (old code serves while the migration applies, new code is aliased afterwards) is
+exactly what a laptop pointed at hosted opts out of. Recorded because the symptom — a band that
+vanished — looks nothing like the cause, and because the fix is to land the migration rather
+than to soften the read.
+
+Confirm afterwards with `npm run db:check -- --linked`.
+
+Recorded 2026-08-21.
+
+## Sorting is on two tables of sixteen
+
+**Action:** work through the list. The pattern is proven and each table is three lines.
+
+`lib/sort-rows.ts` (pure, 18 tests, eight mutations measured) plus `useTableSort` and `SortTh`
+in [components/ui/sortable-header.tsx](components/ui/sortable-header.tsx) are the mechanism, and
+they are done. What is left is applying them.
+
+**Has sorting:** `MemberDirectoryClient` and `AdminAccessClient` — the pair AGENTS.md requires
+to stay in lockstep, four matching columns each — plus `DuesPlanSection` and
+`PaymentHistorySection`, which sorted before any of this existed and now share the module.
+
+**Still to do**, and it is mechanical:
+
+| | |
+|---|---|
+| Accounting | `AdminFundsClient`, `AdminIncomeClient`, `DuesProjectionsClient` |
+| Admin | `AdminRegionsChaptersClient`, `AdminBoardPositionsClient` |
+| Gatherings | `AdminGatheringsClient`, `AdminGatheringTemplatesClient`, `AdminGatheringDetailClient`, `GatheringDetailClient` |
+| Money | `TransactionsClient` |
+| Community | `BirthdaysPane` |
+| Staff | `StaffFamiliesClient`, `StaffAccountsClient`, `StaffAccessClient` |
+
+**Out of scope and not oversights:** `DonutChart` and `MonthCalendar` use `<th>` for a chart
+axis and a weekday header, and `components/ui/table-collapse.tsx` is the shared primitive
+rather than a table. None of the three has rows to order.
+
+**Two things to carry into each one**, both learned on the first two rather than guessed. Sort
+the value the cell is BUILT from, never the string it prints — a money column sorts on
+`amount_cents` or "$9.00" lands after "$10.00", and a date sorts on `YYYY-MM-DD` or the column
+orders by month name. And where a column is composed in the browser rather than carried on the
+row, sort through the SAME lookup the cell renders from: Members & Access's Position reads
+`board.holders`, because `MemberSummary` has no title on it.
+
+**One asymmetry is deliberately unresolved.** Both member tables sort Name on the DISPLAYED name
+rather than on surname, which is the less useful order — `MemberRecord` has `last_name` and
+`MemberSummary` carries a pre-joined `name`, so surname order on both needs `lastName` added to
+`MemberSummary` server-side. Until then the two agree, which is what "a table is a table" is
+about. Both call sites say so; if that field is ever added, move both.
+
+Recorded 2026-08-21.
+
 ## The family tree's second pass
 
 **Action:** none blocking. An ordinary backlog against a finished feature — the beta badge
@@ -416,27 +484,6 @@ actor is really for — is an `'own'` grant on a resource with a **read** to nar
 where a wrong `own_expr` would quietly hand over rows instead of quietly refusing them.
 
 Recorded 2026-08-19; narrowed 2026-08-20.
-
-## The Dashboard now draws TWO swoops, and the kit's acceptance criteria ask for one
-
-**Action:** decide between them, with the kit's `08_QA/VISUAL_ACCEPTANCE.md` in front of you, and
-either drop `PremierGatheringHero`'s curve or record the departure in that file's terms so the next
-kit review does not reopen it.
-
-`design/dashboard/v1_0/00_START_HERE/CLAUDE_START_HERE.md` forbids a second swoop and
-`VISUAL_ACCEPTANCE.md` requires "ONE visual swoop". `WelcomeHero` has carried the kit's `eventHero`
-curve at its foot since it shipped, and `PremierGatheringHero` (2026-08-19) carries the same curve at
-its own foot — so a member with a premier gathering sees two.
-
-**Neither half is obviously the one to remove**, which is why this is an entry and not a fix. The
-kit's own composition is ONE 790×515 box holding the greeting on cream ABOVE the featured event on
-burgundy with a single swoop between them; this repo diverged from that before Gatherings existed, by
-making the whole greeting band burgundy and reusing the kit's top curve at its foot as the page
-ground cutting upward. Given that divergence, the premier band is a second burgundy band rather than
-the lower half of one composition — and the gold hairline, which is the one unbuilt kit element that
-could finally be honoured, only registers against that curve in that viewBox.
-
-Recorded 2026-08-19.
 
 ## Photo thumbnails download at full size
 

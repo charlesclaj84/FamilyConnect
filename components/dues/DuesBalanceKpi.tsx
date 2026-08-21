@@ -160,8 +160,26 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
         </>
       )}
 
+      {/* ── `secondary` AND NOT `outline`, ON ALL FIVE DASHBOARD CARDS ────────────────
+          Reported as "View Dues doesn't look like a button", and it was true of every card
+          on the screen rather than this one: `outline` is
+          `border-brand-primary/35 bg-transparent`, so on a white card it is text inside a
+          barely-there rectangle. A member reads that as a link, and a link that is styled
+          as a not-quite-button is worse than either.
+
+          The fix is a FILLED variant rather than a heavier `outline`, and that choice is the
+          interesting part. Strengthening `outline` in `components/ui/button.tsx` would have
+          fixed all five here and moved every outline button in the app, and no single surface
+          token can do it: `--card` is white and `--background` is cream, so whichever one the
+          variant fills with is invisible on the other. A filled `secondary` is sand — distinct
+          from both grounds — and its pair is measured (`--brand-on-soft` at 7.31 on
+          `--brand-soft`), which `text-brand-ink` over an unknown ground was not.
+
+          Not `default` and not gold: those are the page's primary action and the kit's hero
+          pill respectively, and five card footers all shouting is how a screen stops having a
+          primary action at all. */}
       {showViewLink && (
-        <Link href="/accounting/dues-and-donations" className={buttonVariants({ size: 'sm', variant: 'outline' }) + ' w-full justify-center'}>
+        <Link href="/accounting/dues-and-donations" className={buttonVariants({ size: 'sm', variant: 'secondary' }) + ' w-full justify-center'}>
           View Dues
         </Link>
       )}

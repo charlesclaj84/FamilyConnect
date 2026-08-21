@@ -26,6 +26,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # FULL HISTORY, for one step: `sitemap:check` compares the sitemap's hand-typed
+          # `lastModified` against the newest commit touching the public pages, and the default
+          # `fetch-depth: 1` gives one commit and no history to compare against. The script
+          # SKIPS loudly rather than failing on a shallow clone, so without this line the step
+          # goes green having checked nothing — which is the failure mode that made the stamp
+          # nine days stale in the first place.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -57,6 +65,16 @@ jobs:
       # reviewer's attention so the unmechanical half gets it.
       - name: Help manual checks
         run: npm run help:check
+
+      # The sitemap's date, which is the one part of it that can rot. Route COVERAGE is derived
+      # from `MARKETING_ROUTES` and cannot drift; `lastModified` is a literal, deliberately (a
+      # `new Date()` there would stamp build time and a date that moves every deploy is one
+      # crawlers learn to ignore). It read 2026-08-12 until 2026-08-21, across the Events
+      # retirement and the Standard tier — so the reminder is a step rather than a comment.
+      #
+      # Depends on `fetch-depth: 0` above. Needs no database and no network.
+      - name: Sitemap freshness
+        run: npm run sitemap:check
 
       # Phase 3's third leftover, turned from a rule into a gate. The two `people` guards
       # bound the ROLE the browser speaks as, not the column — deliberately, because

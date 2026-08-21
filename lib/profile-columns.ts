@@ -63,6 +63,38 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
 const ALLOWED = new Set<string>(WRITABLE_PROFILE_COLUMNS)
 
 /**
+ * The columns on this list that are NOT text, and therefore cannot accept `''`.
+ *
+ * ── WHY THIS EXISTS: CLEARING A DATE WAS AN ERROR, NOT A SAVE ──────────────────────
+ * An `<input type="date">` with nothing in it submits an EMPTY STRING, not null — the
+ * platform has no other way to say "blank". Postgres refuses that for a `date` column with
+ * `invalid input syntax for type date: ""` (22007), so a member or an administrator who had
+ * never set a birthdate could not save the form at all: the field they had not filled in was
+ * the field that broke the write. Every other field on the panel was lost with it, because the
+ * whole UPDATE is one statement.
+ *
+ * It presented as an editing bug and it is a TYPE bug, which is why the fix belongs here
+ * rather than in a form. Three surfaces write these columns — `saveProfileSection`,
+ * `editPersonRecord` and `updateUserProfile` — and all three go through
+ * `pickProfileColumns`, so this is the one place that covers them. Fixed in a form it would
+ * have been fixed in one of the three.
+ *
+ * ── WHY ONLY THESE TWO, AND WHAT TO DO WHEN A THIRD ARRIVES ───────────────────────
+ * Every other writable profile column is `text`, which accepts `''` happily. So this is not
+ * "coerce empty strings everywhere" — that would be a different and larger decision about
+ * whether a cleared middle name is `''` or NULL, which the directory has never needed to
+ * answer and which no error is forcing. It is specifically: a column whose TYPE rejects the
+ * only value a blank input can send.
+ *
+ * A `date`, `numeric`, `integer`, `uuid` or `boolean` column added to
+ * `WRITABLE_PROFILE_COLUMNS` needs its name here in the same commit. The failure mode if it is
+ * forgotten is loud (a 22007-shaped error the moment somebody clears the field) rather than
+ * silent, which is the right way round — but it is loud in production and quiet in review, so
+ * the two lists are worth reading together.
+ */
+const BLANK_IS_NULL = new Set<string>(['date_of_birth', 'sunset_date'])
+
+/**
  * Drop every key that is not a writable profile column, and NORMALISE the ones that have a
  * canonical form.
  *
@@ -106,7 +138,12 @@ export function pickProfileColumns<T extends Record<string, unknown>>(
     // are public endpoints — and handing a number to a string normaliser would coerce it
     // into the row as text. Leave a non-string exactly as it arrived and let the column's
     // own type or CHECK constraint refuse it, which is the layer that can.
-    if (typeof value === 'string' && NAME_COLUMNS.has(key)) {
+    // BEFORE the normalisers, because a blank is not a value either of them should see and
+    // `''` is what an emptied `<input type="date">` sends. `.trim()` first: a field the browser
+    // has autofilled and the member has cleared can come back as whitespace.
+    if (typeof value === 'string' && BLANK_IS_NULL.has(key) && value.trim() === '') {
+      out[key] = null
+    } else if (typeof value === 'string' && NAME_COLUMNS.has(key)) {
       out[key] = toNameCase(value)
     } else if (typeof value === 'string' && PHONE_SET.has(key)) {
       out[key] = normalizePhone(value)

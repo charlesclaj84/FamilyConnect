@@ -34,7 +34,27 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // content changed when only the build did, and a lastModified that always
   // moves is one crawlers learn to ignore. Bump this when the copy actually
   // changes.
-  const lastModified = new Date('2026-08-12')
+  //
+  // ── WHAT TO WATCH, BECAUSE THIS HAS ALREADY GONE STALE ONCE ────────────────
+  // It read 2026-08-12 until 2026-08-21, by which point thirteen files behind
+  // these URLs had changed and four of the five marketing pages had been
+  // rewritten — Events was retired on 2026-08-19, taking the RSVP, hotel-block
+  // and check-in copy off `/pricing`, `/features`, `/how-it-works` and
+  // `/why-us`; the Standard tier was inserted the same day, making four plan
+  // cards out of three and withdrawing the annual-discount sentence; and
+  // `/features` began deriving its tier tags on 2026-08-20. So the stamp
+  // understated a substantial rewrite by nine days.
+  //
+  // The one-line check, which is what nobody ran:
+  //
+  //   git log -1 --date=short --format=%ad -- 'app/(marketing)' app/page.tsx   //     components/marketing lib/plans.ts
+  //
+  // ONE DATE FOR EVERY URL, and it is a deliberate simplification rather than
+  // an oversight: `/about` has not changed since before the old stamp, so this
+  // overstates its freshness by a few days. `lastModified` is a hint crawlers
+  // weigh, not a claim they audit, and six per-route dates in
+  // `lib/marketing-nav.ts` would be six things to forget instead of one.
+  const lastModified = new Date('2026-08-21')
 
   return [
     {

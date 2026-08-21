@@ -7,10 +7,26 @@ interface TextareaProps extends React.ComponentProps<"textarea"> {
   /**
    * Grow to fit the text as it wraps, instead of scrolling inside a fixed box.
    *
-   * WHY IT IS A PROP AND NOT THE DEFAULT. A textarea in a grid of fields is often
-   * sized deliberately — `rows={2}` next to two single-line inputs is a layout
-   * decision — and a box that silently changes height as somebody types would move
-   * every control below it. Opting in keeps the choice at the call site.
+   * ── IT IS THE DEFAULT NOW, AND THE OLD ARGUMENT AGAINST IT WAS SOLVABLE ──────────
+   * This defaulted to `false` and said: "A textarea in a grid of fields is often sized
+   * deliberately — `rows={2}` next to two single-line inputs is a layout decision — and
+   * a box that silently changes height as somebody types would move every control below
+   * it. Opting in keeps the choice at the call site."
+   *
+   * Half of that was right and it pointed at the wrong remedy. The layout decision worth
+   * protecting is the box's MINIMUM height, which is what `rows` was always saying — and
+   * `fitToContent` now floors on it, so a `rows={4}` description box opens at four rows
+   * whether it is empty or not. What the old default protected was the box's MAXIMUM, and
+   * nobody wanted that: a member typing a paragraph into a two-row window scrolls inside
+   * a 40px viewport while a screen full of empty space sits underneath.
+   *
+   * "Controls below it move" is true and is the point. They move DOWN, once, as the text
+   * needs the room — which is what every messaging app on the member's phone does. The
+   * failure it was guarding against is a box that grows without limit and pushes a Save
+   * button off-screen, and that is `maxRows`' job, not the default's.
+   *
+   * Pass `autoGrow={false}` for a box that genuinely must not change size. Nothing in the
+   * tree does today.
    */
   autoGrow?: boolean
   /**
@@ -35,7 +51,7 @@ interface TextareaProps extends React.ComponentProps<"textarea"> {
  * a laptop. `line-height: normal` resolves to the string rather than a length in some
  * engines, hence the fallback.
  */
-function fitToContent(el: HTMLTextAreaElement, maxRows: number) {
+function fitToContent(el: HTMLTextAreaElement, maxRows: number, minRows: number) {
   el.style.height = 'auto'
   const styles = window.getComputedStyle(el)
   const lineHeight = parseFloat(styles.lineHeight) || parseFloat(styles.fontSize) * 1.5 || 20
@@ -43,17 +59,32 @@ function fitToContent(el: HTMLTextAreaElement, maxRows: number) {
     parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom) +
     parseFloat(styles.borderTopWidth) + parseFloat(styles.borderBottomWidth)
   const cap = lineHeight * maxRows + frame
-  el.style.height = `${Math.min(el.scrollHeight, cap)}px`
+  // THE FLOOR IS WHAT MADE THE DEFAULT SAFE TO FLIP. `scrollHeight` on an empty box is one
+  // row, so without this every `rows={4}` field in the app would have opened one line tall
+  // and grown from there — which is not "auto-grow", it is throwing away the layout the call
+  // site asked for. Computed from the same line-height as the cap, so a field is the same
+  // number of VISIBLE rows on a phone (`text-base`) as on a laptop (`text-sm`).
+  const floor = lineHeight * minRows + frame
+  el.style.height = `${Math.min(Math.max(el.scrollHeight, floor), cap)}px`
   // Only scroll once it has stopped growing. A permanent `overflow-y: auto` reserves a
   // scrollbar gutter in some engines, which makes the wrap point disagree with the
   // measurement above by the width of the gutter.
   el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden'
+  // Nothing sets `overflowY` back to a stylesheet value, and it must not: the element is
+  // `resize-none`, so this property is entirely ours to own.
 }
 
 function Textarea({
-  className, autoGrow = false, maxRows = 8, ref, onInput, ...props
+  className, autoGrow = true, maxRows = 8, ref, onInput, ...props
 }: TextareaProps) {
   const inner = React.useRef<HTMLTextAreaElement | null>(null)
+
+  // `rows` IS the minimum, which is what it already meant at every call site — a
+  // deliberately short box says `rows={2}` and a description box says `rows={4}`. Two when
+  // it is unset, because one row reads as a single-line input and invites the wrong answer.
+  // `Number(...)` because `rows` is typed `number` but arrives from JSX, where a string is
+  // a valid thing for a caller to have written.
+  const minRows = Math.max(1, Number(props.rows) || 2)
 
   const attachRef = React.useCallback((node: HTMLTextAreaElement | null) => {
     inner.current = node
@@ -67,8 +98,8 @@ function Textarea({
   // when its parent changes the text — a reset after submit, or an optimistic edit —
   // which no `onInput` handler would ever hear about.
   React.useLayoutEffect(() => {
-    if (autoGrow && inner.current) fitToContent(inner.current, maxRows)
-  }, [autoGrow, maxRows, props.value])
+    if (autoGrow && inner.current) fitToContent(inner.current, maxRows, minRows)
+  }, [autoGrow, maxRows, minRows, props.value])
 
   return (
     <textarea
@@ -78,7 +109,7 @@ function Textarea({
       // immediately. A controlled one is covered twice over, which is harmless — the
       // measurement is idempotent.
       onInput={e => {
-        if (autoGrow) fitToContent(e.currentTarget, maxRows)
+        if (autoGrow) fitToContent(e.currentTarget, maxRows, minRows)
         onInput?.(e)
       }}
       className={cn(

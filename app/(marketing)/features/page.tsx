@@ -4,6 +4,7 @@ import Image from 'next/image'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
   BarChart3, ShieldCheck, Users, Network,
+  Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -113,10 +114,18 @@ const ALSO: readonly {
   { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
   { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
   { icon: Network, route: '/community/family-tree', title: 'The family tree', blurb: 'Four generations around whoever you click, with blood and marriage told apart.' },
-  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate, accept or decline, then vote family-wide. Positions pull from your board roster and results tally live.' },
+  // TRIMMED 2026-08-21, when Election Management became its own card below. This one is the
+  // MEMBER's half — being nominated, accepting, voting — and the sentence about positions
+  // pulling from the board roster moved with the administrator's half, where the person
+  // reading it is the one who would act on it.
+  { icon: Vote, route: '/review/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote family-wide — with results tallying live.' },
   { icon: Images, route: '/review/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
   { icon: FileText, route: '/review/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
-  { icon: MapPinned, route: '/admin/members/organization', title: 'Regions and chapters', blurb: 'Split a large family into chapters with their own leadership and board positions.' },
+  // TRIMMED 2026-08-21 for the same reason: board positions have their own card now, and this
+  // one is about the family's GEOGRAPHY. The two share a screen (Organization is one pane over
+  // two grants — see AGENTS.md) and they are two different jobs, which is exactly why they are
+  // two keys and now two cards.
+  { icon: MapPinned, route: '/admin/members/organization', title: 'Regions and chapters', blurb: 'Split a large family into regions and chapters, each with its own membership and its own leadership.' },
   // REPOINTED 2026-08-20: `/admin/reports` is deleted, and a `route` naming a path this
   // registry no longer has does not fail — `getFeature()` longest-prefix-matches, so it
   // would have resolved to the `/admin` catch-all and printed a Coming Soon pill and a Free
@@ -124,6 +133,41 @@ const ALSO: readonly {
   // "membership over time", and nothing in this product has ever recorded a membership
   // figure over time.
   { icon: BarChart3, route: '/reporting/membership', title: 'Leadership reports', blurb: 'Members by region and chapter, how many have finished joining, and adults against minors.' },
+  // ── FOUR ADDED 2026-08-21, after checking this grid against the registry rather than
+  // against memory. `lib/features.ts` carries 34 live features; the three pillars and the seven
+  // cards above named every one of them EXCEPT these four, and none of the four is a detail of
+  // something already sold — each is a screen with its own rail item and its own grant:
+  //
+  //   Updates                the archive, which is not the announcement composer above it
+  //   Payment history        what a MEMBER sees about themselves, not the family's ledger
+  //   Dues projections       what is OWED, which the treasury pillar's bullets never mention
+  //   Fund transfers         money moving BETWEEN funds — the pillar sells contributions and
+  //                          disbursements and stops there, and this is a separate Plus grant
+  //
+  // Tier and Coming Soon are derived for all four, like every other row here. The check is one
+  // script away from being mechanical and is not written; the header above says why a hand-typed
+  // tier is the thing that rots, and the same is true of a hand-remembered inventory.
+  { icon: Bell, route: '/community/updates', title: 'The updates archive', blurb: 'Everything the family has ever announced, and everything sent to you, searchable long after it scrolled off the dashboard.' },
+  { icon: ReceiptText, route: '/reporting/payment-history', title: 'Your own payment history', blurb: 'Every payment recorded against you, with its date, amount, method and status — so nobody has to take the treasurer’s word for it.' },
+  { icon: TrendingUp, route: '/reporting/dues-projections', title: 'Dues projections', blurb: 'What the family should collect this year, what has come in, and who still owes — counting relatives who never finished registering.' },
+  { icon: ArrowLeftRight, route: '/reporting/transactions/fund-transfers', title: 'Transfers between funds', blurb: 'Move money from one fund to another and keep both sides of it on the record.' },
+  // MOVED HERE 2026-08-21 from the privacy card below, which had sold it untagged under a
+  // heading about family isolation. Isolation is universal and enforced by the database on
+  // every query; this is Standard. Conflating the two promised a Free family a screen they
+  // cannot open — and putting it here is what makes the promise carry its price, because this
+  // grid derives every tag from `lib/features.ts` and cannot disagree with it.
+  { icon: ShieldCheck, route: '/admin/members/templates', title: 'Who may do what', blurb: 'A grid of per-feature permissions, so recording dues is not the same as paying money out — and administrators decide who sees the treasury.' },
+  // ── BROKEN OUT 2026-08-21 ────────────────────────────────────────────────────────
+  // Both were sold obliquely, inside a neighbouring card's blurb, and both are a screen with
+  // their own rail item and their own grant at the same tier as the card that was carrying
+  // them — so nothing was MISPRICED, it was just unfindable. Somebody scanning this grid for
+  // "can it keep our officer roster" or "can it run our election" found neither.
+  //
+  // Each of the two host blurbs was trimmed in the same edit rather than left to overlap: two
+  // cards saying the same sentence is how a catalogue stops being readable, and the sentence
+  // belongs with whichever card's reader would act on it.
+  { icon: Award, route: '/admin/members/board-positions', title: 'The offices your family keeps', blurb: 'Define the positions your family actually has — national, regional or per chapter — and record who holds each one. It starts empty on purpose: no two families keep the same board.' },
+  { icon: ClipboardList, route: '/review/election-management', title: 'Running the election', blurb: 'Open an election over several positions at once, set when nominations open and close, and take it through to a result. Positions pull from your board roster.' },
 ]
 
 /**
@@ -369,12 +413,17 @@ export default function FeaturesPage() {
                     Family separation is not a setting — it is enforced by the database on
                     every single query, and every action that reads or writes family data
                     has a test that tries to break in from another family and must fail.
-                    Inside your family, administrators decide who can see the treasury, who
-                    can record a payment and who can approve a new member.
                   </p>
                   <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     {[
-                      'Per-feature permissions, not one blunt admin switch',
+                      // PER-FEATURE PERMISSIONS LEFT THIS LIST ON 2026-08-21, and it is now a
+                      // card in the grid above pointing at `/admin/members/templates`. The
+                      // three that remain are true on EVERY plan, which is what this card is
+                      // for; permissions are Standard (`lib/plans.ts` puts "Separation of
+                      // duties" there, and the registry agrees), so selling them in an untagged
+                      // card headed "One family cannot see another. Ever." told a Free family
+                      // they had something they do not. The grid derives its tier tags, so the
+                      // claim now carries its own price wherever it is read.
                       'New members reviewed before they see anything',
                       'Email-verified accounts',
                       'Never shared, never sold, no advertising',

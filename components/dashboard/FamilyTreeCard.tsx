@@ -126,7 +126,7 @@ export function FamilyTreeCard({ summary }: { summary: TreeSummary }) {
       <Link
         href="/community/family-tree"
         className={cn(
-          buttonVariants({ size: 'sm', variant: 'outline' }),
+          buttonVariants({ size: 'sm', variant: 'secondary' }),
           'mt-4 w-full justify-center',
         )}
       >

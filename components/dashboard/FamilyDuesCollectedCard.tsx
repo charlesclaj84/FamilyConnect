@@ -59,7 +59,7 @@ export function FamilyDuesCollectedCard({ collectedCents }: { collectedCents: nu
           than its own `hover:` for the same reason — the target is the card. */}
       <span
         className={cn(
-          buttonVariants({ size: 'sm', variant: 'outline' }),
+          buttonVariants({ size: 'sm', variant: 'secondary' }),
           'mt-auto w-full justify-center group-hover:bg-brand-soft/60',
         )}
       >

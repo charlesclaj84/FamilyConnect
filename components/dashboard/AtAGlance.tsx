@@ -131,7 +131,7 @@ export function AtAGlance({
                   sit at three different heights. */}
               <span
                 className={cn(
-                  buttonVariants({ size: 'sm', variant: 'outline' }),
+                  buttonVariants({ size: 'sm', variant: 'secondary' }),
                   'mt-auto w-full justify-center group-hover:bg-brand-soft/60',
                 )}
               >

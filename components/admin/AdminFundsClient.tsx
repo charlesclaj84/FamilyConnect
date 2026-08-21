@@ -115,6 +115,27 @@ export function AdminFundsClient({
   const totalPct = alloc.reduce((s, a) => s + (parseFloat(a.percent || '0') || 0), 0)
   const pctValid = Math.abs(totalPct - 100) < 0.001 || totalPct === 0
 
+  // ── SAY WHAT IS LEFT, NOT WHAT THE RULE IS ──────────────────────────────────────
+  // The footer used to read "Allocations must total 100% (or 0% to disable routing)" beside a
+  // "Total: 65.00%" chip, which states the rule and leaves the treasurer to do the subtraction
+  // — on a screen whose entire job is arithmetic. Worse, it is the same sentence at 65% and at
+  // 165%, so it does not even say which direction they are out by.
+  //
+  // `routingGap` is the signed distance to 100, rounded to the two decimals the inputs accept.
+  // Rounded BEFORE it is compared to zero, not after: `100 - 33.33 - 33.33 - 33.34` is
+  // -1.4e-14 in floating point, and an unrounded gap would print "0.00% more to go" while
+  // `pctValid` — which uses its own 0.001 tolerance — correctly says the form is fine. The two
+  // have to agree about what "adds up" means or the screen contradicts itself.
+  const routingGap = Math.round((100 - totalPct) * 100) / 100
+  const routingHint =
+    totalPct === 0
+      ? 'Routing is off. Contributions stay in the fund they were given to until these add up to 100%.'
+      : routingGap > 0
+        ? `${routingGap.toFixed(2)}% more to go — add it to any fund below, or spread it across several.`
+        : routingGap < 0
+          ? `That is ${Math.abs(routingGap).toFixed(2)}% over. Take it off one of the funds below.`
+          : null
+
   function startEditRouting() { setRoutingSnapshot(alloc); setEditingRouting(true); setRoutingMsg(''); setError('') }
   function cancelEditRouting() { setAlloc(routingSnapshot); setEditingRouting(false) }
 
@@ -735,7 +756,15 @@ export function AdminFundsClient({
                   }`}>
                     Total: {totalPct.toFixed(2)}%
                   </span>
-                  {!pctValid && <span className="text-xs text-muted-foreground">Allocations must total 100% (or 0% to disable routing).</span>}
+                  {/* `--brand-withheld` rather than `--destructive`: being part-way through
+                      entering percentages is not an error, and reporting a failure is
+                      `form-message.tsx`'s job. The 0% case is quieter still — routing off is a
+                      legitimate configuration, not a half-finished one. */}
+                  {routingHint && (
+                    <span className={`text-xs ${totalPct === 0 ? 'text-muted-foreground' : 'text-brand-withheld'}`}>
+                      {routingHint}
+                    </span>
+                  )}
                   <Button size="sm" onClick={handleSaveAllocations} disabled={isPending || !pctValid}>
                     {isPending ? 'Saving…' : 'Save Routing'}
                   </Button>

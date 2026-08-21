@@ -49,10 +49,47 @@ async function resolve(userId: string): Promise<GuardOk> {
   return { ok: true, userId, familyCode, personId }
 }
 
+/**
+ * Resolve the caller, and DISTINGUISH "signed out" from "could not tell".
+ *
+ * ── WHY THE ERROR IS READ AND NOT DISCARDED ────────────────────────────────────────
+ * This was `const { data: { user } } = await supabase.auth.getUser()` with no error branch,
+ * which is AGENTS.md §8's failure in the one place it is least legible. `getUser()` is a
+ * NETWORK CALL to GoTrue, and supabase-js RETURNS its failures rather than throwing — so a
+ * timeout, a 5xx, an expired token that could not be refreshed and a genuinely signed-out
+ * visitor all arrived here as `user === null` and all came back to the member as the same
+ * four words: "Not authenticated".
+ *
+ * That is wrong in two directions at once. Somebody who IS signed in, whose session simply
+ * could not be checked, is told they are not signed in — so the obvious remedy (sign in
+ * again) is the one that will not help, and the real remedy (reload) is not suggested. And
+ * nothing is logged, so the failure leaves no trace anywhere: it cannot be counted, correlated
+ * with a GoTrue incident, or told apart from a member fumbling a session.
+ *
+ * The two messages are deliberately different sentences rather than one hedged one. A member
+ * reading "Your session could not be verified" knows to retry; a member reading "You are
+ * signed out" knows to sign in. One message covering both teaches them to ignore it.
+ *
+ * WHAT THIS DOES NOT DO is retry. A failed `getUser()` may be transient, and `confirmWrite`
+ * retries for exactly that reason — but this runs BEFORE any write, so the caller can retry
+ * the whole action safely and a retry buried in a guard would double every auth round trip on
+ * the unhappy path to save one press on a rare one.
+ */
 async function caller(): Promise<{ userId: string } | GuardFail> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, message: 'Not authenticated' }
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  if (error) {
+    // Logged, not swallowed: this is the branch that used to be indistinguishable from a
+    // signed-out caller, and the whole point of separating it is that it leaves a record.
+    console.error(`[guard] could not verify the session: ${error.message}`)
+    return {
+      ok: false,
+      message: 'Your session could not be verified. Reload the page and try again.',
+    }
+  }
+
+  if (!user) return { ok: false, message: 'You are signed out. Sign in and try again.' }
   return { userId: user.id }
 }
 
