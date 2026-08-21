@@ -406,29 +406,56 @@ export default async function DashboardPage() {
 
   return (
     <PageShell className="space-y-6">
-      <WelcomeHero
-        firstName={firstName}
-        initials={initials}
-        avatarUrl={myPersonData?.avatar_url}
-        roles={myRoles.map(formatRoleTitle)}
-        chapterName={myChapterName}
-      />
+      {/* THE GREETING AND THE PREMIER BAND ARE ONE COMPOSITION, OR THE GREETING IS THE BAND.
+          The Golden Master draws a single hero: the greeting on CREAM top-left, the family
+          photograph cropped top-right, then the burgundy event band beneath with one swoop
+          between them and a gold hairline along it. The repo could not have that while the
+          event band was hypothetical — a cream greeting with nothing under it is three lines
+          floating on the page, and the Heritage band is the screen's whole identity — so the
+          greeting WAS the band.
 
-      {/* THE BAND THE KIT RESERVED UNDER THE GREETING. A second Heritage band rather than
-          a card in the grid, and outside the 2:1 split on purpose: the whole point of
-          `is_premier` is that the family has said this one thing matters more than the rest
-          of the screen, and a column of the grid would put it beside the metrics instead of
-          above them.
+          Now that there is a real band to sit above, the composition follows whether it is
+          there. `ground="page"` puts the greeting on cream with the kit's crop beside it and
+          the band's crest as the boundary; `ground="band"` is the standalone Heritage band
+          every other member sees. `WelcomeHero`'s header carries the table.
 
-          ABOVE the banner slot, deliberately. The banners below are each a thing this
-          member has to DO about their own account, and they must not be pushed under an
-          announcement about the family — a linked-person prompt buried below a reunion is
-          how it gets missed, which is the same argument the banners' own comment makes
-          about burying them under the metric tiles.
+          THE WRAPPER IS LOAD-BEARING AND IT IS NOT A LAYOUT DIV. `PageShell` is
+          `space-y-6`, so as two siblings the greeting and the band would be 24px apart and the
+          crest would read as a wave under an unrelated block of text rather than as the edge
+          between them. Wrapped, they are ONE flow child and the boundary is the swoop, which
+          is what the kit draws. Do not add a gap class here.
 
-          Renders for nobody most of the time: `premierGathering` is null both when the
-          caller may not view gatherings and when no upcoming one is flagged. */}
-      {premierGathering && <PremierGatheringHero gathering={premierGathering} />}
+          ABOVE THE BANNER SLOT, deliberately. The banners below are each a thing this member
+          has to DO about their own account, and they must not be pushed under an announcement
+          about the family — a linked-person prompt buried below a reunion is how it gets
+          missed, which is the same argument the banners' own comment makes about burying them
+          under the metric tiles.
+
+          The band renders for nobody most of the time: `premierGathering` is null both when
+          the caller may not view gatherings and when no upcoming one is flagged — and in that
+          case the greeting is the band, with no wrapper at all. */}
+      {premierGathering ? (
+        <div>
+          <WelcomeHero
+            firstName={firstName}
+            initials={initials}
+            avatarUrl={myPersonData?.avatar_url}
+            roles={myRoles.map(formatRoleTitle)}
+            chapterName={myChapterName}
+            photoUrl={premierGathering.photoUrl}
+            ground="page"
+          />
+          <PremierGatheringHero gathering={premierGathering} />
+        </div>
+      ) : (
+        <WelcomeHero
+          firstName={firstName}
+          initials={initials}
+          avatarUrl={myPersonData?.avatar_url}
+          roles={myRoles.map(formatRoleTitle)}
+          chapterName={myChapterName}
+        />
+      )}
 
       {/* Banners sit between the hero and the grid: each one is a thing this member has
           to do, and burying an action item under four metric tiles is how it gets

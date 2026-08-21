@@ -244,6 +244,16 @@ export interface PremierGathering {
   startsOn: string
   endsOn: string | null
   taskCounts: TaskProgress
+  /**
+   * The band's photograph, already resolved to a URL — `null` when the family has not set one,
+   * in which case the band draws the kit's traced-tree placeholder instead.
+   *
+   * A URL and not a path, because the ONE thing the component may not do is know which bucket
+   * this lives in. `photo_path` is the storage truth (`20260820000010` argues why a path rather
+   * than a URL is stored); turning it into something fetchable is this layer's job, so a future
+   * decision to sign these instead of serving them publicly is a change here and nowhere else.
+   */
+  photoUrl: string | null
 }
 
 // ── The selects, hoisted ─────────────────────────────────────────────────────────────
@@ -262,7 +272,7 @@ export interface PremierGathering {
 // fetched them (§5). They are also not this client's to read at all — see the note above
 // `TASK_COLUMNS`, which is the same rule on the other table.
 
-const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, status, is_premier'
+const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, status, is_premier, photo_path'
 
 interface GatheringRow {
   id: string
@@ -273,6 +283,7 @@ interface GatheringRow {
   ends_on: string | null
   status: string
   is_premier: boolean
+  photo_path: string | null
 }
 
 /**
@@ -1102,6 +1113,22 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
   if (!data) return null
 
   const row = data as unknown as GatheringListRow
+
+  // ── THE PHOTOGRAPH, RESOLVED HERE AND NOWHERE ELSE ─────────────────────────────
+  // `getPublicUrl` is a pure string build in supabase-js — no network, no await, and it
+  // cannot fail — so there is no error branch to get wrong and no reason to gate it behind
+  // anything. The `photos` bucket is `public: true` (asserted by `20260820000010`, because a
+  // bucket that stopped being public would turn every one of these into a silent 404).
+  //
+  // NOT GATED ON A SEPARATE GRANT, deliberately. The photograph is on the same row as the
+  // title and under the same `gatherings:view` policy, so a caller who reached this row is
+  // already entitled to it — a second check here would be a control nothing else consults.
+  // That is the opposite of the money band, which has its own key because a family may
+  // sensibly withhold figures from people it shows the reunion to.
+  const photoUrl = row.photo_path
+    ? supabase.storage.from('photos').getPublicUrl(row.photo_path).data.publicUrl
+    : null
+
   return {
     id:         row.id,
     title:      row.title,
@@ -1110,6 +1137,7 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
     taskCounts: taskProgress(asTaskStatuses(row.gathering_tasks ?? [])),
+    photoUrl,
   }
 }
 

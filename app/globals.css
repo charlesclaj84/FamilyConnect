@@ -152,6 +152,45 @@
   --brand-bar: var(--genorra-nurturing);         /* header bars */
   --brand-hero: var(--genorra-heritage-deep);    /* the banner band */
   --brand-on-hero: var(--genorra-nurturing);     /* 9.80 on hero */
+  /* The Heritage band's diagonal fill — the Golden Master draws its burgundy hero with a
+     gradient, not a flat colour (`burgGrad`, corner to corner, three stops at 0/.55/1).
+     Consumed through `.gn-hero-gradient` below; `--brand-hero` stays the flat token and the
+     surface under it.
+
+     DERIVED FROM `--brand-hero`, NOT COPIED FROM THE KIT. The kit's own stops are
+     #761E2A / #681723 / #4B1018, and none of them may appear here: its mid tone is LIGHTER
+     than this palette's whole hero (its darkest stop is about where `--genorra-heritage-deep`
+     already sits), because the brand ramp was retuned after that kit shipped. Pasting its
+     hexes would put a second, brighter burgundy in the file that no token governs. So what is
+     honoured is the STRUCTURE — direction, stop count, midpoint — with the tones mixed off
+     this palette's own Heritage at one end and its darkest warm ground at the other.
+
+     ONE DECLARATION SERVES BOTH THEMES, and that is the whole point of writing it against
+     `--brand-hero`: custom properties substitute at the point of USE, so inside `.dark` the
+     mixes resolve against `--genorra-hero-dark` instead. Same reason the hero curves need no
+     colour of their own. Do not add a copy of this to the `.dark` block — a second copy is how
+     the two would come to disagree.
+
+     `to bottom right` rather than a fixed angle, because the kit's gradient is an
+     objectBoundingBox one (x1,y1 0,0 -> x2,y2 1,1) and so tracks the box: this band is wide on
+     a desktop and nearly square on a phone, and a hard `135deg` would run off the corner it is
+     supposed to start in.
+
+     MEASURED, as every pairing in this file is. `--brand-on-hero` against the two extreme
+     stops, which is the worst case a flat token never has:
+        light   #562732 8.71 -> #46232c 9.80 -> #361c23 11.17   (spread 2.09x)
+        dark    #451e27 13.37 -> #2a1319 16.30 -> #251318 16.61  (spread 2.57x)
+     AA is 4.5, so the whole ramp clears it with room in both themes — the flat 9.80/16.30
+     figures above stay true of the midpoint. The kit's own spread is 2.56x, which dark matches
+     and light cannot: this palette's hero is already near the floor, so the depth it has to
+     give is upward. `--brand-legacy` still reads on the lightest stop as a non-text stroke
+     (5.28 light, 6.21 dark) — that is the hairline along the premier band's crest. */
+  --brand-hero-gradient: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--brand-hero) 58%, var(--genorra-heritage)) 0%,
+    var(--brand-hero) 55%,
+    color-mix(in srgb, var(--brand-hero) 60%, var(--genorra-ground-dark)) 100%
+  );
   /* links, h3–h6, unread markers — and, since the 2026-08-12 sweep, ATTENTION TEXT:
      "remaining", "past due", "pending", the amounts beside them. Gold cannot do that job
      on a pale ground (2.30), so attention splits by shape rather than by hue — a PILL is
@@ -458,6 +497,23 @@
   a {
     color: var(--brand-accent);
   }
+}
+
+/* The Heritage band's diagonal fill. A class rather than a Tailwind utility because
+   `@theme inline` maps `--color-*` to COLOUR utilities and this is an image, and a class is
+   greppable in a way `bg-[image:var(--brand-hero-gradient)]` in a className is not.
+
+   ALWAYS OVER `bg-brand-hero`, never instead of it: this sets `background-image` only, so the
+   flat token stays as the surface beneath. That is what keeps the band Heritage if the gradient
+   is ever dropped by a forced-colors mode or a print stylesheet, rather than transparent.
+
+   DELIBERATELY NOT ON EVERY `bg-brand-hero`. The kit specifies this for the dashboard hero, and
+   that is where it is used — the marketing bands, the sidebar, the auth header and
+   `ShellDecor`'s burgundy are all still flat, and several of them compute their own composited
+   ratios against a flat ground (see the note above `fill-brand-hero` in ShellDecor). Widening
+   it is one class per surface and a re-measure per surface, not a token change. */
+.gn-hero-gradient {
+  background-image: var(--brand-hero-gradient);
 }
 
 /* The wordmark, set rather than placed as artwork. The brand board draws

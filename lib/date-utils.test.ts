@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { latestDate } from '@/lib/date-utils'
+import { formatDateRange, latestDate } from '@/lib/date-utils'
 
 /**
  * `latestDate`, under `npm test` — which is a `verify.yml` step, so this gates a pull request.
@@ -80,5 +80,56 @@ describe('latestDate', () => {
     // Two is what the dues schedule form passes (the start date, and the floor that stops an
     // existing due being retired behind its payments). Nothing depends on it being two.
     expect(latestDate('2026-01-01', '2026-06-01', '2026-03-01')).toBe('2026-06-01')
+  })
+})
+
+/**
+ * `formatDateRange`, under the same runner and for the same reason.
+ *
+ * WHY IT IS TESTED: it is what the Dashboard's premier band, the Gatherings list, the
+ * gathering detail page and both admin gathering screens print for a span, and the failure
+ * mode it was written to fix is not a crash — it is a correct string that reads wrong. A
+ * range printing its month and year twice still names the right two days, so nothing anywhere
+ * reports it and it only ever surfaces by somebody putting the screen beside the design.
+ *
+ * The same-year branch is the one with the interesting boundaries, so it has three cases: two
+ * days in one month, two months in one year, and a span that crosses a year and must therefore
+ * NOT collapse. December 30th → January 2nd is the case a naive "just drop the first year"
+ * would render as "December 30th – January 2nd, 2027", which dates the start to the wrong year.
+ *
+ * CHECKED BY MUTATION, per AGENTS.md §7b — measured 2026-08-21:
+ *
+ *   * `sameYear` forced to `true` (always collapse)               1 failed — the crossing case
+ *   * `sameYear` forced to `false` (never collapse)               2 failed
+ *   * `formatMonthDay(start)` → `formatDate(start)`               2 failed
+ *   * the `e === s` early return dropped                          1 failed — the one-day case
+ *   * `slice(0, 4)` → `slice(0, 7)` (compare year AND month)      1 failed — the two-month case
+ *
+ * The last one is worth keeping on the list rather than deleting: it is the version of this
+ * function that collapses only within a single month, and the test that catches it is what
+ * records that repeating the month across a month boundary is a decision.
+ */
+describe('formatDateRange', () => {
+  it('states the year once for a span inside one year', () => {
+    expect(formatDateRange('2026-06-12', '2026-06-14')).toBe('June 12th – June 14th, 2026')
+  })
+
+  it('repeats the month across a month boundary, and still states the year once', () => {
+    expect(formatDateRange('2026-06-28', '2026-07-03')).toBe('June 28th – July 3rd, 2026')
+  })
+
+  it('keeps both years in full when the span crosses one', () => {
+    expect(formatDateRange('2026-12-30', '2027-01-02'))
+      .toBe('December 30th, 2026 – January 2nd, 2027')
+  })
+
+  it('prints one date for a one-day span, whether the end repeats it or is absent', () => {
+    expect(formatDateRange('2026-06-12', '2026-06-12')).toBe('June 12th, 2026')
+    expect(formatDateRange('2026-06-12', null)).toBe('June 12th, 2026')
+  })
+
+  it('answers null when there is no start to anchor the range', () => {
+    expect(formatDateRange(null, '2026-06-14')).toBeNull()
+    expect(formatDateRange('', '2026-06-14')).toBeNull()
   })
 })

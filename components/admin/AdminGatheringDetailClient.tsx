@@ -30,6 +30,7 @@ import {
 } from '@/lib/gatherings'
 import {
   updateGathering, deleteGathering, setGatheringPremier, setGatheringBudget,
+  setGatheringPhoto, clearGatheringPhoto,
   addGatheringTemplate, removeGatheringTemplate, setGatheringSegment,
   assignGatheringTask, setGatheringTaskBudget, reviewGatheringTask, reopenGatheringTask,
   type AdminGatheringDetail, type AdminGatheringTaskRow, type GatheringBudgetView,
@@ -183,6 +184,7 @@ export function AdminGatheringDetailClient({
 
   const [detailsError, setDetailsError] = useState('')
   const [premierError, setPremierError] = useState('')
+  const [photoError, setPhotoError] = useState('')
   const [templateError, setTemplateError] = useState('')
   const [taskError, setTaskError] = useState('')
   const [addingTemplateId, setAddingTemplateId] = useState('')
@@ -255,6 +257,44 @@ export function AdminGatheringDetailClient({
         setPremierError(result.message ?? 'Could not change that')
         setIsPremier(!next)
       }
+    })
+  }
+
+  // ── THE BAND'S PHOTOGRAPH ────────────────────────────────────────────────────────
+  // `photoUrl` is server state and `useServerState` is how this file holds the rest of it, but
+  // this one is deliberately plain `useState` seeded from the prop: the value only ever changes
+  // through the two handlers below, both of which set it, and both of which are followed by the
+  // action's own `revalidatePath`. Family-switch staleness is not a risk here either — this is
+  // an `[id]` route, so switching family unmounts the page (AGENTS.md, "Switching family
+  // remounts the page": a page on an `[id]` route `notFound()`s when the entity is not in the
+  // caller's family).
+  function handlePhoto(file: File) {
+    setPhotoError('')
+    const formData = new FormData()
+    formData.set('gatheringId', gathering.id)
+    formData.set('file', file)
+    startTransition(async () => {
+      const result = await setGatheringPhoto(formData)
+      if (!result.success) {
+        setPhotoError(result.message ?? 'Could not upload that photo')
+        return
+      }
+      // Re-read rather than guessing the URL: the path is composed server-side from the MIME
+      // type, so the client cannot know the extension it landed on. `router.refresh()` is what
+      // the action's revalidate needs to actually reach this component.
+      router.refresh()
+    })
+  }
+
+  function handleClearPhoto() {
+    setPhotoError('')
+    startTransition(async () => {
+      const result = await clearGatheringPhoto({ gatheringId: gathering.id })
+      if (!result.success) {
+        setPhotoError(result.message ?? 'Could not remove that photo')
+        return
+      }
+      router.refresh()
     })
   }
 
@@ -534,6 +574,66 @@ export function AdminGatheringDetailClient({
             appears there when no flagged gathering is still upcoming.
           </p>
           <FormError message={premierError} />
+
+          {/* ── THE PHOTOGRAPH ──────────────────────────────────────────────────────────
+              In the same panel as the flag, and under it, because it is the same decision:
+              this is what the Dashboard band shows. Offering it anywhere else would make an
+              organizer set a picture for a band they have not turned on.
+
+              It is offered whether or not the flag is on, deliberately. Choosing the picture
+              before announcing the gathering is the natural order, and gating the upload on the
+              checkbox would mean unflagging a gathering hid a control that still had a file
+              behind it. */}
+          <div className="space-y-2 border-t pt-4">
+            <h3 className="text-sm font-medium">Band photo</h3>
+            <p className="text-sm text-muted-foreground">
+              One photograph, cropped to the band’s shape. Without one the band draws the
+              GENORRA tree instead. Anyone with the link can view an uploaded photo, the same as
+              a family photo — so it is published to whoever it is shared with.
+            </p>
+
+            {gathering.photoUrl && (
+              <div className="flex items-center gap-3">
+                {/* Not `next/image`, for `Avatar`'s reason: a Supabase Storage URL with no
+                    `images.remotePatterns` configured would be refused by the loader. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={gathering.photoUrl}
+                  alt="The photo currently on the Dashboard band"
+                  className="h-16 w-24 rounded-md border object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={handleClearPhoto}
+                >
+                  Remove photo
+                </Button>
+              </div>
+            )}
+
+            {/* A bare `<input type="file">` rather than a styled trigger: it is the one control
+                whose native appearance carries the filename back to the person who chose it,
+                and there is no upload button because choosing the file IS the action — a second
+                press to confirm is a step that only ever gets forgotten.
+
+                `value=""` is not set and the input is not reset: re-choosing the SAME file after
+                a failure has to fire `onChange` again, and an uncontrolled file input that still
+                holds the old selection would not. */}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={isPending}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) handlePhoto(file)
+              }}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+            />
+            <FormError message={photoError} />
+          </div>
         </section>
       )}
 

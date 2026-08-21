@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { CalendarDays, MapPin } from 'lucide-react'
-import { HeroCurve, HeroCurveHairline, TreeWatermark } from '@/components/dashboard/curves'
+import { HeroCurveCrest, HeroCurveFoot, HeroCurveHairline, TreeWatermark } from '@/components/dashboard/curves'
 import { formatDateRange } from '@/lib/date-utils'
 import type { PremierGathering } from '@/app/actions/gatherings'
 
@@ -42,7 +42,7 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  *    is `bg-brand-legacy text-brand-on-legacy`, which is the kit's gold pill honoured
  *    through the brand's signature measured pairing (6.14) rather than the mock's white on
  *    gold (1.65, forbidden). And as a NON-TEXT STROKE — `HeroCurveHairline`, along the
- *    swoop at the foot.
+ *    swoop at the band's head, which is where the kit draws it.
  *
  * 4. THE WATERMARK KEEPS THE REPO'S TREATMENT, NOT THE KIT'S. The kit places it 135x125 at
  *    34% opacity inside the band. `tree-watermark-path.ts` records that the path is a
@@ -50,36 +50,70 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  *    faint, and says "Do not promote it." At the kit's own size and opacity the staircase is
  *    closer to visible, so this uses `WelcomeHero`'s setting: a large bleed at ~7%.
  *
- * 5. THE SWOOP IS AT THE FOOT, AND THE PAGE THEREFORE CARRIES TWO. The kit's
- *    `CLAUDE_START_HERE.md` asks for "ONE visual swoop", and that instruction was written
- *    about its single hero composition — one curve inside one 790x515 box, between the
- *    greeting and the event. Once the event is a SECOND band, either it has an edge of its
- *    own or it is a flat rectangle in a design whose whole language is that edge. Both
- *    bands therefore use the SAME curve in the SAME direction, so they read as a stacked
- *    pair speaking one curve language rather than as two competing waves — which is exactly
- *    what a curve at this band's TOP would have produced, two arcs facing each other across
- *    the page's `space-y-6` gap.
+ * 5. THE BAND HAS BOTH OF THE KIT'S EDGES, WHICH IS A REVERSAL — see below.
  *
- * ── WHY THE HAIRLINE REGISTERS WITH THE SWOOP ──────────────────────────────────────
- * `HeroCurve` and `HeroCurveHairline` are BOTH in `components/dashboard/curves.tsx`, and that is
- * not filing — they only line up because they share a coordinate space, a viewBox and an aspect
- * handling, all of which `curves.tsx` states beside them. What this file owes them is the third
- * thing: the SAME box. They are given identical `className`s below, and changing one without the
- * other is what would slide the gold line off the edge it is drawn along.
+ * ── THE TWO CURVES, AND WHY THIS BAND STOPPED BORROWING THE GREETING'S ────────────
+ * THIS SECTION ARGUED THE OPPOSITE UNTIL 2026-08-21, and it is kept because the half of it
+ * that was right is still load-bearing. It said the swoop belonged at the FOOT and that both
+ * bands should use the SAME curve in the SAME direction, "so they read as a stacked pair
+ * speaking one curve language rather than as two competing waves". The premise was that the
+ * kit draws ONE curve. It draws two:
+ *
+ *     eventHero = M0 278 C75 216 174 228 297 267 C420 307 561 320 790 231   <- top swoop
+ *                 L790 505
+ *                 C665 468 528 456 390 482 C249 509 105 512 0 471 Z          <- bottom edge
+ *
+ * `HeroCurve` carries that whole `d` and windows `0 200 790 130`, so the bottom edge — y
+ * 456–512 — was in the bundle and on no screen. `08_QA/VISUAL_ACCEPTANCE.md` lists "Burgundy
+ * hero has both top and bottom asymmetrical curves" as a must-match item, and
+ * `08_QA/NO_OVERSIMPLIFICATION.md` says an asset the kit supplies must be consumed.
+ *
+ * So the band draws BOTH now, each where the kit puts it: `HeroCurveCrest` at the head with
+ * the gold hairline along it, `HeroCurveFoot` at the foot. Three things follow:
+ *
+ *   * **The two bands no longer share a silhouette**, which was the visible cost of the old
+ *     arrangement rather than a fidelity nicety. `WelcomeHero` keeps `HeroCurve` at its foot;
+ *     this one has a crest and a different foot. A member with a premier gathering was
+ *     previously shown two Heritage bands cut identically — so the one thing the family has
+ *     said matters more than the rest of the screen read as a second page header.
+ *   * **"Two competing waves" does not arise**, because the crest and `WelcomeHero`'s foot are
+ *     the SAME edge in the SAME direction — the old rule, kept. What meets across the page's
+ *     `space-y-6` gap is one curve profile twice, not a mirror pair.
+ *   * **The hairline moved WITH the crest, not away from it.** In the kit it is drawn along the
+ *     swoop's right half, under the photograph — it belongs to the TOP edge, and was at the
+ *     foot only because the swoop was. Nothing about it is retuned.
+ *
+ * ── WHY THE HAIRLINE REGISTERS WITH THE CREST ────────────────────────────────
+ * `HeroCurveCrest` and `HeroCurveHairline` are BOTH in `components/dashboard/curves.tsx`, and
+ * that is not filing — they only line up because they share a coordinate space, a viewBox and
+ * an aspect handling, all of which `curves.tsx` states beside them. What this file owes them is
+ * the third thing: the SAME box. They are given identical `className`s below, and changing one
+ * without the other is what would slide the gold line off the edge it is drawn along.
  */
 export function PremierGatheringHero({ gathering }: { gathering: PremierGathering }) {
   const dates = formatDateRange(gathering.startsOn, gathering.endsOn)
   const { total, approved } = gathering.taskCounts
 
   return (
-    <section className="relative isolate overflow-hidden rounded-3xl bg-brand-hero text-brand-on-hero">
+    <section className="gn-hero-gradient relative isolate overflow-hidden rounded-3xl bg-brand-hero text-brand-on-hero">
       {/* Behind everything, bleeding off the right edge the way the kit's does, and at the
           opacity `tree-watermark-path.ts` requires rather than the kit's 34%. */}
       <TreeWatermark className="pointer-events-none absolute -right-8 -top-6 h-[125%] w-auto opacity-[0.07]" />
 
-      {/* `pb-20` is clearance for the `h-16` curve at the foot, exactly as in WelcomeHero:
-          reduce one without the other and the pill sits in the swoop. */}
-      <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-6 px-6 pb-20 pt-8 sm:px-10 sm:pt-10">
+      {/* `pt-28` and `pb-20` are clearance for the two curves, not padding taste — the crest
+          cuts `h-24` into the top of the band and the foot `h-16` into the bottom. Shorten
+          either without shortening its curve and the eyebrow sits in the swoop or the pill
+          sits in the dip.
+
+          THE CREST IS `h-24` AND THE FOOT IS `h-16`, WHICH IS NOT AN INCONSISTENCY. The crest
+          is the seam the photo crop is clipped by, and `EventPhotoPlaceholder` sizes itself as
+          303/130 of whatever the crest is — so the crest's height is what decides how much
+          room the crop has above the swoop. At `h-16` the crop came out 149px tall and could
+          not reach the top of the greeting; at `h-24` it is 224px, which is the Golden Master's
+          proportion (its swoop window is about a quarter of the hero's height). Change this and
+          `WelcomeHero`'s `-bottom-24 h-56` has to change with it — the two are one ratio
+          written in two places, and there is no third. */}
+      <div className="relative flex flex-wrap items-end justify-between gap-x-8 gap-y-6 px-6 pb-20 pt-28 sm:px-10">
         <div className="min-w-0">
           {/* The eyebrow. Uppercase and letterspaced because that is what it has instead of
               the kit's gold — see (2) above. */}
@@ -145,15 +179,22 @@ export function PremierGatheringHero({ gathering }: { gathering: PremierGatherin
         </Link>
       </div>
 
-      {/* THE SWOOP, and the gold hairline along it. Both are `pointer-events-none`: they
-          are painted after the content row, so without it the invisible corners of these
-          two full-width boxes would sit over the band and swallow a click aimed at the
-          pill. Identical `className` on the pair is what makes them register — see the
-          header on why all three of the box, the viewBox and the aspect handling have to
-          match. The curve is filled `text-background`, so the shape is literally the page
-          ground cutting up into the band and is correct in dark mode for free. */}
-      <HeroCurve className="pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full text-background" />
-      <HeroCurveHairline className="pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full text-brand-legacy" />
+      {/* THE CREST AND ITS GOLD HAIRLINE. Identical `className` on the pair is what makes
+          them register — see the header on why all three of the box, the viewBox and the
+          aspect handling have to match. */}
+      <HeroCurveCrest className="pointer-events-none absolute inset-x-0 top-0 h-24 w-full text-background" />
+      <HeroCurveHairline className="pointer-events-none absolute inset-x-0 top-0 h-24 w-full text-brand-legacy" />
+
+      {/* THE KIT'S OWN BOTTOM EDGE, which shipped cropped out of every render until
+          2026-08-21 — see the header. No hairline here: the kit draws exactly one gold line
+          and it is the crest's.
+
+          All three curves are `pointer-events-none`: they are painted after the content row,
+          so without it the invisible corners of these full-width boxes would sit over the
+          band and swallow a click aimed at the pill. Each is filled `text-background`, so
+          what they paint is literally the page ground cutting into the band — which is why
+          they are correct in dark mode with no token of their own. */}
+      <HeroCurveFoot className="pointer-events-none absolute inset-x-0 bottom-0 h-16 w-full text-background" />
     </section>
   )
 }

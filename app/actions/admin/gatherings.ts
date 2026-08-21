@@ -2,6 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+// The USER client, for the ONE storage write in this module — so the `photos` bucket's own
+// family-folder policy is actually evaluated rather than bypassed by the service role.
+import { createClient } from '@/lib/supabase/server'
 import { requireDelete, requireEdit, requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
@@ -98,6 +101,13 @@ export interface AdminGatheringRow {
   endsOn: string | null
   status: GatheringStatus
   isPremier: boolean
+  /**
+   * The band's photograph as a URL, or `null` when none is set — resolved here so the console
+   * shows the organizer exactly what the Dashboard will draw. Same reasoning as
+   * `PremierGathering.photoUrl` in `app/actions/gatherings.ts`: the bucket is this layer's
+   * business and no component's.
+   */
+  photoUrl: string | null
   createdBy: { id: string; name: string } | null
   taskCounts: TaskProgress
   /**
@@ -229,7 +239,7 @@ type AdminClient = ReturnType<typeof createAdminClient>
 const CREATOR_EMBED = 'creator:people!gatherings_created_by_fkey(first_name, last_name)'
 
 const GATHERING_COLUMNS =
-  'id, title, summary, location, starts_on, ends_on, status, is_premier, created_by'
+  'id, title, summary, location, starts_on, ends_on, status, is_premier, photo_path, created_by'
 
 /**
  * Two select strings, and the difference between them is §5.
@@ -251,6 +261,7 @@ interface GatheringDbRow {
   ends_on: string | null
   status: string
   is_premier: boolean
+  photo_path: string | null
   created_by: string | null
   budget_cents?: number | null
   fund_id?: string | null
@@ -630,6 +641,11 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
     endsOn:     row.ends_on,
     status:     row.status as GatheringStatus,
     isPremier:  row.is_premier,
+    // Built rather than stored — see the interface. `getPublicUrl` is a pure string build
+    // with no network and no failure mode, so there is nothing here to branch on.
+    photoUrl:   row.photo_path
+      ? admin.storage.from('photos').getPublicUrl(row.photo_path).data.publicUrl
+      : null,
     createdBy:  personRef(row.created_by, row.creator),
     taskCounts: taskProgress(asTaskStatuses(taskRows.filter(t => t.gathering_id === row.id))),
     templates:  useRows
@@ -748,6 +764,11 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     endsOn:     row.ends_on,
     status:     row.status as GatheringStatus,
     isPremier:  row.is_premier,
+    // Built rather than stored — see the interface. `getPublicUrl` is a pure string build
+    // with no network and no failure mode, so there is nothing here to branch on.
+    photoUrl:   row.photo_path
+      ? admin.storage.from('photos').getPublicUrl(row.photo_path).data.publicUrl
+      : null,
     createdBy:  personRef(row.created_by, row.creator),
     taskCounts: taskProgress(asTaskStatuses(taskRows)),
     templates:  useRows.map(u => ({
@@ -1483,6 +1504,180 @@ export async function setGatheringPremier(input: {
     return { success: false, message: error.message }
   }
   revalidateGathering(input.gatheringId)
+  return { success: true }
+}
+
+/**
+ * The image types a gathering photograph may be, and the extension each is stored as.
+ *
+ * SERVER-SIDE, because `accept` on a file input is a hint to a file picker and this module is a
+ * set of public HTTP endpoints like every other. `file.type` is still the BROWSER's claim about
+ * the bytes rather than a fact about them — the `photos` bucket's own `allowed_mime_types` is
+ * the layer that does not take our word for it, and it is why this list matches that one
+ * exactly (`20260610000001`; `20260820000010` asserts it still does).
+ *
+ * The extension comes from the MAP and never from `file.name`. A filename is caller-controlled
+ * text that ends up in a path, and `uploadPhoto` taking `file.name.split('.').pop()` is the
+ * shape to avoid here: it lets a caller choose the stored extension, and an extension is what
+ * a CDN and a browser sniff a content type from.
+ */
+const GATHERING_PHOTO_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png':  'png',
+  'image/webp': 'webp',
+  'image/gif':  'gif',
+}
+
+/** Matches the `photos` bucket's own `file_size_limit`, so the refusal is ours and legible. */
+const GATHERING_PHOTO_MAX_BYTES = 10 * 1024 * 1024
+
+/** Every extension the path could be carrying, for replacing and for clearing. */
+function gatheringPhotoPaths(familyCode: string, gatheringId: string): string[] {
+  return Object.values(GATHERING_PHOTO_TYPES).map(
+    ext => `${familyCode}/gatherings/${gatheringId}.${ext}`,
+  )
+}
+
+/**
+ * Put a photograph on a gathering — the picture the Dashboard band crops through the kit's mask.
+ *
+ * ── THE PATH IS COMPOSED HERE AND NEVER PASSED IN ───────────────────────────────────
+ * `{family_code}/gatherings/{gathering_id}.{ext}`, where the family code is the GUARD's answer,
+ * the id has been through `belongsToFamily`, and the extension comes from a map keyed on the
+ * declared MIME type. Nothing a caller typed reaches the path. That matters more here than in a
+ * table write, because a storage path is what the bucket's own policy is evaluated against: the
+ * `photos` write policies test `(storage.foldername(name))[1] = auth_family_code()`, so a path
+ * assembled from a parameter would be asking the caller to nominate the folder their write is
+ * checked against. §2b's "never take an identity as a parameter", one layer down.
+ *
+ * The upload goes through the USER client on purpose, so the bucket policy is actually
+ * evaluated — belt as well as braces, since the guard above has already decided. The table
+ * write goes through the ADMIN client, because `gatherings` has no UPDATE policy at all (§2c).
+ *
+ * ── ONE OBJECT PER GATHERING, WHICH IS WHY THE PATH IS DETERMINISTIC ────────────────
+ * `upsert: true` on a path derived from the gathering id, rather than a fresh uuid per upload.
+ * A uuid would accumulate every photograph a family ever chose and never displayed, in a public
+ * bucket, with nothing able to enumerate them — `uploadAvatar` made the same choice for the
+ * same reason. The cost is that changing FORMAT (a JPEG replaced by a PNG) leaves the old
+ * extension behind, so the other three are removed best-effort exactly as `uploadAvatar` does
+ * it: the new file is already up and the column is about to point at it, so a failed cleanup
+ * must not be reported as a failed upload — but it is logged, because a public bucket quietly
+ * accumulating orphans is the thing nobody notices.
+ *
+ * ── ORDER: FILE FIRST, THEN THE COLUMN ─────────────────────────────────────────────
+ * If the column write fails the object is removed again, so the row never points at nothing and
+ * the bucket never keeps a file no row claims. The reverse order would leave a `photo_path`
+ * resolving to a 404 that renders as a broken image on the family's dashboard, which is worse
+ * than no image and much harder to explain.
+ */
+export async function setGatheringPhoto(formData: FormData): Promise<ActionResult> {
+  const g = await requireEdit('admin/gatherings')
+  if (!g.ok) return { success: false, message: g.message }
+
+  const gatheringId = (formData.get('gatheringId') as string | null) ?? ''
+  if (!gatheringId) return { success: false, message: 'Gathering not found' }
+
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { success: false, message: 'Choose a photo to upload' }
+  if (file.size > GATHERING_PHOTO_MAX_BYTES) {
+    return { success: false, message: 'That photo must be under 10 MB' }
+  }
+
+  const ext = GATHERING_PHOTO_TYPES[file.type]
+  if (!ext) return { success: false, message: 'Choose a JPEG, PNG, WebP or GIF image' }
+
+  // §4. The id arrives from the client and is about to decide which family's folder this file
+  // lands in, so it is verified against the family BEFORE it is interpolated into anything.
+  if (!(await belongsToFamily('gatherings', gatheringId, g.familyCode))) {
+    return { success: false, message: 'Gathering not found' }
+  }
+
+  const filePath = `${g.familyCode}/gatherings/${gatheringId}.${ext}`
+
+  const supabase = await createClient()
+  const { error: uploadError } = await supabase.storage
+    .from('photos')
+    .upload(filePath, file, { contentType: file.type, upsert: true })
+
+  if (uploadError) {
+    console.error(`[admin/gatherings] photo upload failed for ${gatheringId} in ${g.familyCode}: ${uploadError.message}`)
+    return { success: false, message: uploadError.message }
+  }
+
+  const admin = createAdminClient()
+  const { error: dbError } = await admin
+    .from('gatherings')
+    .update({ photo_path: filePath })
+    .eq('id', gatheringId)
+    .eq('family_code', g.familyCode)
+
+  if (dbError) {
+    await supabase.storage.from('photos').remove([filePath])
+    console.error(`[admin/gatherings] photo path write failed for ${gatheringId} in ${g.familyCode}: ${dbError.message}`)
+    return { success: false, message: dbError.message }
+  }
+
+  // The OTHER extensions, best-effort — see the header.
+  const stale = gatheringPhotoPaths(g.familyCode, gatheringId).filter(pth => pth !== filePath)
+  const { error: cleanupError } = await supabase.storage.from('photos').remove(stale)
+  if (cleanupError) {
+    console.error(`[admin/gatherings] could not remove the previous photo(s) for ${gatheringId}: ${cleanupError.message}`)
+  }
+
+  revalidateGathering(gatheringId)
+  // The Dashboard band reads this, and it is not under the gathering's own path.
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+/**
+ * Take the photograph off a gathering, so the band draws the kit's placeholder again.
+ *
+ * ── THE COLUMN IS CLEARED FIRST HERE, WHICH IS THE OPPOSITE OF THE UPLOAD ──────────
+ * And deliberately. On the way in, a row pointing at a missing file is the bad state; on the
+ * way out, a file no row claims is the bad state, and it is the cheaper one — it is invisible
+ * rather than a broken image on the dashboard. So the row stops pointing at the object before
+ * the object goes, and a failure between the two leaves an orphan rather than a 404.
+ *
+ * EVERY EXTENSION IS REMOVED, not just the one the column names. The column can only ever hold
+ * one, but a failed cleanup on a previous upload may have left another — and this is the one
+ * moment the family has said they want no photograph at all, which is exactly when a leftover
+ * in a PUBLIC bucket is worth sweeping. `remove()` on a path that does not exist is not an
+ * error, so the extra three cost one call and no branches.
+ */
+export async function clearGatheringPhoto(input: {
+  gatheringId: string
+}): Promise<ActionResult> {
+  const g = await requireEdit('admin/gatherings')
+  if (!g.ok) return { success: false, message: g.message }
+  if (!input?.gatheringId) return { success: false, message: 'Gathering not found' }
+
+  if (!(await belongsToFamily('gatherings', input.gatheringId, g.familyCode))) {
+    return { success: false, message: 'Gathering not found' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('gatherings')
+    .update({ photo_path: null })
+    .eq('id', input.gatheringId)
+    .eq('family_code', g.familyCode)
+
+  if (error) {
+    console.error(`[admin/gatherings] photo clear failed for ${input.gatheringId} in ${g.familyCode}: ${error.message}`)
+    return { success: false, message: error.message }
+  }
+
+  const supabase = await createClient()
+  const { error: removeError } = await supabase.storage
+    .from('photos')
+    .remove(gatheringPhotoPaths(g.familyCode, input.gatheringId))
+  if (removeError) {
+    console.error(`[admin/gatherings] could not remove the photo file(s) for ${input.gatheringId}: ${removeError.message}`)
+  }
+
+  revalidateGathering(input.gatheringId)
+  revalidatePath('/dashboard')
   return { success: true }
 }
 

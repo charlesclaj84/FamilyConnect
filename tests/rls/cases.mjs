@@ -4848,6 +4848,11 @@ const resetSpareGatherings = async (db, fx) => {
       // this row — `funds.deleteFund`'s control would otherwise start failing with a message
       // about a gathering, which reads as a bug in the money guard rather than a collision.
       fund_id: null, budget_cents: null,
+      // NULL explicitly, although the column defaults to it: an upsert only updates the
+      // columns it names, so a case that had set a photograph would leave one behind for
+      // every case after it — and `setGatheringPhoto`'s own control asserts a null-to-set
+      // transition, which a leftover would make vacuous.
+      photo_path: null,
       created_by: f.ownerPersonId,
     }))
   }
@@ -5488,6 +5493,75 @@ export const GATHERING_CASES = [
     args: fx => [{ gatheringId: fx.alpha.deletableGathering.id, isPremier: true }],
     setup: resetSpareGatherings,
     probe: (db, fx) => snapshot('gatherings', 'id, is_premier',
+      { id: fx.alpha.deletableGathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.setGatheringPhoto (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'setGatheringPhoto',
+    // THE ID TRAVELS INSIDE THE FormData, which is the only reason this case looks different
+    // from every other §4 one: the action is a form endpoint, so `gatheringId` is a form field
+    // rather than an argument. It is the same attack — a client-supplied id about to decide
+    // which family's STORAGE FOLDER a file lands in, which is worse than a table write, because
+    // the `photos` bucket's own policy is evaluated against the path the action composes.
+    //
+    // THE SPARE, not `f.gathering`, for `setGatheringPremier`'s reason one entry up: the
+    // positive control WRITES here, and `getPremierGathering`'s own case asserts a shape for
+    // the premier gathering. A control that put a photograph on it would change that read's
+    // answer and turn a case red on a fixture nobody had edited.
+    //
+    // ── MUTATION-CHECKED, AND THE RESULT IS WEAKER THAN IT LOOKS ────────────────────
+    // Measured 2026-08-21. These two cases are evidence for the PAIR of guards on each
+    // action and for NEITHER of them alone, because each layer is sufficient on its own:
+    //
+    //   setGatheringPhoto, `belongsToFamily` removed         633 passed — survived
+    //   setGatheringPhoto, `.eq('family_code')` removed      633 passed — survived
+    //   setGatheringPhoto, BOTH removed                      the attack half goes red
+    //   clearGatheringPhoto, `.eq('family_code')` removed    633 passed — survived
+    //   clearGatheringPhoto, BOTH removed                    the attack half goes red
+    //
+    // WHY, and it is worth knowing before "simplifying" either action. `familyCode` comes
+    // from the GUARD, never from the caller, so with `belongsToFamily` gone the update still
+    // reads `.eq('id', <alpha id>).eq('family_code', 'BRAVOTEST')` and matches zero rows; and
+    // with the conjunct gone instead, `belongsToFamily` refuses before the update runs. The
+    // storage path is the same story — it is composed from the guard's family code, so even an
+    // unchecked id can only ever put a file in the CALLER's own folder.
+    //
+    // Recorded rather than left implied, exactly as `PENDING_CASES` records the three of its
+    // ten that are not evidence for their conjunct. The cases are still worth having: the
+    // realistic regression here is somebody deleting one guard as redundant and then the other
+    // as redundant, which is the state these do catch.
+    args: fx => [gatheringPhotoForm(fx.alpha.deletableGathering.id)],
+    setup: resetSpareGatherings,
+    probe: (db, fx) => snapshot('gatherings', 'id, photo_path',
+      { id: fx.alpha.deletableGathering.id })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/gatherings.clearGatheringPhoto (cross-family)',
+    mod: 'app/actions/admin/gatherings.ts', fn: 'clearGatheringPhoto',
+    args: fx => [{ gatheringId: fx.alpha.deletableGathering.id }],
+    // THE SETUP PUTS A PATH THERE FIRST, and without it this case would be decoration. Clearing
+    // a column that is already NULL is a no-op, so the attack half would pass over an action
+    // that had happily cleared another family's row and the CONTROL would show no change
+    // either — the exact "probe whose projection omits the column the control changes" failure
+    // AGENTS.md §7 warns about, arriving through the fixture instead of the projection.
+    //
+    // Written on the SERVICE ROLE and to both sides, so the attacker's own family has one too:
+    // an action that cleared by id alone would wipe BRAVO's, and a case that only seeded ALPHA
+    // could not tell that apart from a refusal.
+    setup: async (db, fx) => {
+      await resetSpareGatherings(db, fx)
+      for (const side of ['alpha', 'bravo']) {
+        const f = fx[side]
+        must(await db.from('gatherings')
+          .update({ photo_path: `${f.familyCode}/gatherings/${f.deletableGathering.id}.jpg` })
+          .eq('id', f.deletableGathering.id))
+      }
+    },
+    probe: (db, fx) => snapshot('gatherings', 'id, photo_path',
       { id: fx.alpha.deletableGathering.id })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -6705,6 +6779,12 @@ function documentForm() {
   fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'd.pdf', { type: 'application/pdf' }))
   fd.append('name', 'RLS probe document')
   fd.append('category', 'other')
+  return fd
+}
+function gatheringPhotoForm(gatheringId) {
+  const fd = new FormData()
+  fd.append('gatheringId', gatheringId)
+  fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'g.jpg', { type: 'image/jpeg' }))
   return fd
 }
 function photoForm() {

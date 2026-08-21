@@ -353,6 +353,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'The premier gathering',
             blocks: [
               p('Directly under the greeting, a band for the gathering the family has said matters most — its title, its dates, where it is, how much of its work has been approved, and **View details** straight through to it. It is there for nobody most of the time: it appears only while a gathering is flagged and still ahead. See [Gatherings](/help/gatherings#browsing).'),
+              p('While it is showing, the greeting above it changes with it: your name sits on the page rather than in a coloured band, with the gathering\'s photograph beside it. Whoever organises the gathering chooses that photograph, and the GENORRA tree stands in until they do — see [The Dashboard band](/help/gathering-management#premier).'),
             ],
           },
           {
@@ -1011,6 +1012,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('**Show this across the top of the Dashboard** is on the **Dashboard band** panel of a gathering\'s own page. A flagged gathering gets the band under the greeting on [the dashboard](/dashboard) — its title, its dates, where it is, how many of its tasks are approved, and a way straight in.'),
               p('Several gatherings may be flagged at once, deliberately. The dashboard shows the soonest one that has not finished, so last year\'s reunion never blocks this year\'s, and nothing appears there at all when no flagged gathering is still ahead.'),
+              p('**Band photo**, on the same panel, sets the picture the band is built around — one photograph per gathering, cropped to the band\'s shape. Choosing a file uploads it straight away; **Remove photo** takes it off again. Without one the band draws the GENORRA tree instead, so it looks finished either way.'),
+              p('An uploaded band photo can be viewed by anyone who has its address, exactly like a photo in [Photos](/review/photos). Putting one here publishes it to whoever the link reaches, so choose a picture the family would be happy to share.'),
             ],
           },
           {

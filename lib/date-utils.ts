@@ -164,7 +164,37 @@ export function formatTime(time: string | null | undefined): string | null {
   return `${hour}:${min.toString().padStart(2, '0')} ${period}`
 }
 
-/** Format a date range, e.g. "Jun 15 – Jun 18, 2026" or just "Jun 15, 2026" */
+/**
+ * Format a date range — "June 12th – June 14th, 2026", or just "June 12th, 2026".
+ *
+ * ── THE YEAR IS STATED ONCE, AND THAT IS THE WHOLE OF THIS FUNCTION ────────────────
+ * This used to be `${formatDate(start)} – ${formatDate(end)}`, which for the ordinary
+ * case — a weekend, a long weekend, a reunion — prints the month AND the year twice:
+ *
+ *     June 12th, 2026 – June 14th, 2026
+ *
+ * Thirty-three characters where the Golden Master sets twenty-two, on the one band a
+ * family has flagged as mattering more than the rest of the screen
+ * (`design/dashboard/v1_0/01_REFERENCE/Dashboard_Golden_Master_OFFICIAL.png` draws it
+ * "June 12 – June 14, 2026"). The repetition is not merely long: it reads as two dates
+ * rather than as one span, which is the opposite of what a range is for. The doc comment
+ * on this function had claimed the collapsed form — "Jun 15 – Jun 18, 2026" — since it
+ * was written, so this is the implementation catching up to its own stated contract.
+ *
+ * ── WHAT IS DELIBERATELY NOT COLLAPSED ────────────────────────────────────────────
+ *   * **The month repeats**, even within one month: "June 12th – June 14th, 2026", not
+ *     "June 12th – 14th". That is what the kit draws, and a bare second number reads as
+ *     a quantity rather than as a date at the size this renders at.
+ *   * **The ordinal stays.** `formatDate` is the app's one date voice and prints "12th"
+ *     everywhere; dropping it here would make a range and a single date two different
+ *     conventions on the same screen — `AdminGatheringsClient` shows both, in one table.
+ *   * **A range crossing a year keeps both years in full**, because that is precisely
+ *     the case where the reader needs to be told the span crosses one.
+ *
+ * Comparison is on the raw `YYYY-MM-DD` prefix rather than on anything parsed: these are
+ * bare DATEs with no time and no zone (AGENTS.md, "DATES ARE `DATE`"), and constructing a
+ * `Date` to read a year back off it is the trap the rest of this module exists to avoid.
+ */
 export function formatDateRange(
   start: string | null | undefined,
   end: string | null | undefined
@@ -173,7 +203,10 @@ export function formatDateRange(
   if (!s) return null
   const e = formatDate(end)
   if (!e || e === s) return s
-  return `${s} – ${e}`
+
+  // Both parsed, so both are real strings — `formatDate` answers null for anything else.
+  const sameYear = String(start).slice(0, 4) === String(end).slice(0, 4)
+  return sameYear ? `${formatMonthDay(start)} – ${e}` : `${s} – ${e}`
 }
 
 export const TIMEZONES = [
