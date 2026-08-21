@@ -47,13 +47,46 @@ export interface Announcement {
   author_id: string | null
   chapter_id: string | null
   chapter_name: string | null
-}
-
-/** An announcement as Recent Updates sees it — the family's pin, narrowed by the reader's. */
-export interface FeedAnnouncement extends Announcement {
-  /** Pinned by the family, still in date, and not dismissed by THIS reader. */
+  /**
+   * Pinned by the family AND still in date — the family's answer, independent of any reader.
+   *
+   * ── PUBLISHED RATHER THAN RECOMPUTED, SINCE 2026-08-21 ────────────────────────────
+   * `components/dashboard/updates.ts` carried its own `isFamilyPinned` — a byte-for-byte
+   * second copy of `isPinActive` below — because `pinnedForMe` is a conjunction and cannot be
+   * inverted to recover this half. Two expressions of one expiry rule is how they come to
+   * disagree, and the fix is to send the half that was missing rather than to derive it twice.
+   *
+   * IT IS ALSO WHAT THE BOARD'S PER-READER CONTROL IS GATED ON: there is nothing to dismiss
+   * or restore on an announcement the family has not pinned, and a client cannot answer
+   * "still in date" without reading the clock during render.
+   */
+  pin_active: boolean
+  /**
+   * Pinned by the family, still in date, and not dismissed by THIS reader.
+   *
+   * ── IT IS ON THE BASE SHAPE SINCE 2026-08-21, AND THAT IS THE BUG FIX ─────────────
+   * It used to live on a `FeedAnnouncement` that only Recent Updates was given, so the two
+   * surfaces showing the same rows disagreed about which pin they meant. The board sorted and
+   * highlighted on `pinned` — the FAMILY's — while the Dashboard banded on `pinnedForMe`. A
+   * member who dismissed a notice saw it drop out of the band on one screen and stay at the
+   * top with a pin on the other, and the only control the board offered was the
+   * administrator's "for everyone", which is a different act.
+   *
+   * One field on one interface is what makes "they should be the same" structural rather than
+   * a thing two call sites have to remember.
+   */
   pinnedForMe: boolean
 }
+
+/**
+ * Kept as an alias so no caller had to change when `pinnedForMe` moved onto the base shape.
+ * `Announcement` is the type to use; this is here because "the announcement Recent Updates
+ * sees" is no longer a different thing from "the announcement the board sees", which is the
+ * whole point of the change.
+ *
+ * @deprecated Use `Announcement`.
+ */
+export type FeedAnnouncement = Announcement
 
 export interface AnnouncementInput {
   title: string
@@ -69,6 +102,42 @@ function isPinActive(a: { pinned: boolean; pinned_until?: string | null }): bool
   if (!a.pinned) return false
   if (!a.pinned_until) return true
   return new Date(a.pinned_until) > new Date()
+}
+
+/**
+ * The announcements THIS reader has dismissed from the top of their own list.
+ *
+ * ── READ ON THE USER CLIENT, AND THAT IS WHY IT NEEDS NO FILTER ────────────────────
+ * The policy on `announcement_unpins` releases only rows whose `person_id` is
+ * `auth_person_id()`, so "the dismissals I can see" and "my dismissals" are the same set by
+ * construction (AGENTS.md §3: prefer the user client where RLS can do the work).
+ *
+ * A REFUSED QUERY AND AN EMPTY ONE ARE NOT DISTINGUISHED, and that is a deliberate choice
+ * rather than the §8 mistake. The failure mode of losing this set is that a dismissed
+ * announcement reappears at the top once; failing the whole board or the whole feed to avoid
+ * that would be the worse trade, and both callers say so.
+ *
+ * EXTRACTED 2026-08-21, when the board started needing the same answer. It was inline in
+ * `getAnnouncementFeed`, which is exactly how the two screens came to disagree.
+ */
+async function myDismissals(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<ReadonlySet<string>> {
+  const { data } = await supabase.from('announcement_unpins').select('announcement_id')
+  return new Set(((data ?? []) as { announcement_id: string }[]).map(r => r.announcement_id))
+}
+
+/**
+ * The reader's own answer for one row: pinned by the family, in date, and not dismissed.
+ *
+ * ONE EXPRESSION, TWO CALLERS. It was written out at one call site and absent from the other,
+ * which is the whole of the bug this function closes.
+ */
+function pinnedFor(
+  a: { id: string; pinned: boolean; pinned_until?: string | null },
+  dismissed: ReadonlySet<string>,
+): boolean {
+  return isPinActive(a) && !dismissed.has(a.id)
 }
 
 export interface Chapter {
@@ -228,6 +297,13 @@ function mapAnnouncement(
     scope: a.scope,
     pinned: a.pinned,
     pinned_until: a.pinned_until ?? null,
+    // THE FAMILY'S HALF IS ANSWERABLE HERE — it is a fact about the row.
+    pin_active: isPinActive(a),
+    // THE READER'S HALF IS NOT, and is overwritten by whichever caller knows the reader. This
+    // mapper sees a row and not a person, and the field has to exist on the value it returns
+    // or `Announcement` is a lie about it. False is the safe default: a notice that fails to
+    // ride at the top is a smaller wrong than one that rides there after being dismissed.
+    pinnedForMe: false,
     published_at: a.published_at,
     author_id: a.author_id ?? null,
     chapter_id: a.chapter_id,
@@ -251,9 +327,20 @@ function mapAnnouncement(
  */
 
 /** Family pin first, then newest first. The order both the board and the feed use. */
+/**
+ * Pinned first, then newest.
+ *
+ * ── IT SORTS ON `pinnedForMe`, NOT ON THE FAMILY PIN, SINCE 2026-08-21 ─────────────
+ * That is the bug. It read `isPinActive`, so the board held a dismissed announcement at the
+ * top while the Dashboard — which bands on `pinnedForMe` in `components/dashboard/updates.ts`
+ * — had already dropped it into date order. Same rows, same reader, two answers.
+ *
+ * Dismissing still does not HIDE anything: the row falls back into `published_at` order, which
+ * is the whole difference between this and the localStorage banner it replaced.
+ */
 function byPinThenDate(a: Announcement, b: Announcement): number {
-  const aPin = isPinActive(a) ? 1 : 0
-  const bPin = isPinActive(b) ? 1 : 0
+  const aPin = a.pinnedForMe ? 1 : 0
+  const bPin = b.pinnedForMe ? 1 : 0
   if (aPin !== bPin) return bPin - aPin
   return new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
 }
@@ -271,11 +358,17 @@ export async function getAnnouncements(): Promise<Announcement[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data, error } = await supabase
-    .from('announcements')
-    .select(SELECT_COLUMNS)
-    .order('published_at', { ascending: false })
-    .limit(50)
+  // THE DISMISSALS ARE READ HERE TOO, since 2026-08-21. Without them this screen could only
+  // ever show the FAMILY's pin, which is how it came to disagree with Recent Updates about a
+  // notice the reader had dismissed. See `pinnedFor`.
+  const [{ data, error }, dismissed] = await Promise.all([
+    supabase
+      .from('announcements')
+      .select(SELECT_COLUMNS)
+      .order('published_at', { ascending: false })
+      .limit(50),
+    myDismissals(supabase),
+  ])
 
   // §8, and on THE select whose PGRST201 incident this file's own header records at length.
   // The error used to be discarded, which made a refusal and an empty family the same thing on
@@ -291,7 +384,10 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 
   const rows = (data ?? []) as unknown as RawAnnouncement[]
   const chapterNames = await chapterNamesFor(await getMyFamilyCode(user.id), rows)
-  return rows.map(a => mapAnnouncement(a, chapterNames)).sort(byPinThenDate)
+  return rows
+    .map(a => mapAnnouncement(a, chapterNames))
+    .map(a => ({ ...a, pinnedForMe: pinnedFor(a, dismissed) }))
+    .sort(byPinThenDate)
 }
 
 /** Only what this member is addressed by — national/regional, plus their own chapter. */
@@ -340,13 +436,13 @@ export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[
 
   const chapter = await readMyChapterId()
 
-  const [{ data, error }, { data: unpins }] = await Promise.all([
+  const [{ data, error }, dismissed] = await Promise.all([
     supabase
       .from('announcements')
       .select(SELECT_COLUMNS)
       .order('published_at', { ascending: false })
       .limit(limit + 20),
-    supabase.from('announcement_unpins').select('announcement_id'),
+    myDismissals(supabase),
   ])
 
   // §8 on the announcements half, and NOT on the unpins half — the paragraph above argues
@@ -358,15 +454,11 @@ export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[
     return []
   }
 
-  const dismissed = new Set(
-    ((unpins ?? []) as { announcement_id: string }[]).map(r => r.announcement_id),
-  )
-
   const rows = ((data ?? []) as unknown as RawAnnouncement[]).filter(addressedTo(chapter))
   const chapterNames = await chapterNamesFor(await getMyFamilyCode(user.id), rows)
   return rows
     .map(a => mapAnnouncement(a, chapterNames))
-    .map(a => ({ ...a, pinnedForMe: isPinActive(a) && !dismissed.has(a.id) }))
+    .map(a => ({ ...a, pinnedForMe: pinnedFor(a, dismissed) }))
     .sort(byPinThenDate)
     .slice(0, limit)
 }
@@ -505,7 +597,12 @@ export async function unpinAnnouncementForMe(
     )
 
   if (error) return { success: false, message: 'Could not dismiss that announcement.' }
+  // BOTH SURFACES, and the second line is the fix. This revalidated `/dashboard` alone, so a
+  // dismissal made on either screen left the OTHER one showing the announcement still pinned
+  // until something else happened to revalidate it. Recent Updates and the board render the
+  // same rows and now read the same answer, so they have to be invalidated together.
   revalidatePath('/dashboard')
+  revalidatePath('/community/announcements')
   return { success: true }
 }
 
@@ -529,7 +626,9 @@ export async function repinAnnouncementForMe(
     .eq('person_id', g.personId)
 
   if (error) return { success: false, message: 'Could not pin that announcement.' }
+  // Both, for `unpinAnnouncementForMe`'s reason.
   revalidatePath('/dashboard')
+  revalidatePath('/community/announcements')
   return { success: true }
 }
 

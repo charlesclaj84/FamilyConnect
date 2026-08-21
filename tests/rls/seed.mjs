@@ -850,9 +850,22 @@ export async function seed() {
       scope: 'national', sort_order: 900,
     }).select().single())
 
+    // PINNED, and published two days ago. The date is explicit for the case below rather
+    // than for this row's own sake: `byPinThenDate` puts pinned rows first and falls back to
+    // `published_at`, so a dismissed pin can only be shown to have LEFT the top if there is a
+    // newer row for it to fall behind.
     f.announcement = must('announcement', await db.from('announcements').insert({
       family_code: code, title: `${code} announcement`, body: `secret body ${code}`,
       author_id: owner.personId, pinned: true,
+      published_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+    }).select().single())
+
+    // UNPINNED AND NEWER, which is the row a dismissed pin falls behind. Without it
+    // `announcements.getAnnouncements (a pin this reader has dismissed)` can assert the FIELD
+    // and not the ORDER — and the order is the visible half of the bug that case is about.
+    f.plainAnnouncement = must('plain announcement', await db.from('announcements').insert({
+      family_code: code, title: `${code} later announcement`, body: `secret later ${code}`,
+      author_id: owner.personId, pinned: false,
     }).select().single())
 
     f.document = must('document', await db.from('documents').insert({

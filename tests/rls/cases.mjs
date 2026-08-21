@@ -333,6 +333,53 @@ export const CASES = [
   // right — the old action no longer exists, and a case naming it would fail to load.
   read('announcements.getAnnouncementFeed', 'app/actions/announcements.ts', 'getAnnouncementFeed'),
 
+  // ── [crux] THE BOARD AND RECENT UPDATES AGREE ABOUT ONE READER'S PIN ───────
+  //
+  // NOT AN ISOLATION CASE, and it is here because nothing else in the tree could hold it. The
+  // two screens render the same rows and were reported as out of sync, and they were: the
+  // board sorted and highlighted on `announcements.pinned` — the FAMILY's flag — while Recent
+  // Updates banded on `pinnedForMe`, the family's flag narrowed by this reader's dismissal. A
+  // member who dismissed a notice saw it drop out of the band on one screen and stay at the
+  // top with a pin on the other.
+  //
+  // THE SETUP IS THE WHOLE CASE. It writes a dismissal for the CONTROL ACTOR as the service
+  // role — so the fixture's pinned announcement is one `alphaMember` has dismissed and
+  // `bravoAdmin` has not — and then asserts that `getAnnouncements` says so. Before the fix
+  // the returned rows carried no `pinnedForMe` field at all, so the control assertion is
+  // `=== false` rather than falsy: `undefined` is what the bug looked like and it must not
+  // pass.
+  //
+  // IT IS IDEMPOTENT, because `setup` runs twice — once before the attack and once before the
+  // control (see `runWrite`/`runRead` in run.mjs). An INSERT would collide on the second pass;
+  // the upsert is what makes the case re-runnable.
+  //
+  // THE ATTACK HALF IS THE ORDINARY ONE and is not wasted: it asserts BRAVO's administrator
+  // still sees none of ALPHA's announcements, which is the assertion `getAnnouncements`
+  // already made — kept here so the row this case dismisses cannot become a hole.
+  read('announcements.getAnnouncements (a pin this reader has dismissed)',
+    'app/actions/announcements.ts', 'getAnnouncements', {
+      setup: async (db, fx) => {
+        await db.from('announcement_unpins').upsert({
+          announcement_id: fx.alpha.announcement.id,
+          person_id: fx.alpha.ownerPersonId,
+          family_code: fx.alpha.familyCode,
+        }, { onConflict: 'announcement_id,person_id' })
+      },
+      expectPositive: (rows, fx) => {
+        const row = rows.find(a => a.id === fx.alpha.announcement.id)
+        return row != null
+          // The family still has it pinned — that half is untouched by a dismissal, and if
+          // this were false the assertion below would pass for the wrong reason.
+          && row.pinned === true && row.pin_active === true
+          // And this reader does not, which is the field the board was missing.
+          && row.pinnedForMe === false
+          // AND it is not first. The sort is the visible half of the bug: `byPinThenDate`
+          // read `isPinActive`, so a dismissed notice held the top of the board while Recent
+          // Updates had already dropped it into date order.
+          && rows.length > 1 && rows[0].id !== fx.alpha.announcement.id
+      },
+    }),
+
   // ── the Birthdays pane on /announcements (20260819000002) ──────────────────
   //
   // THREE CASES, AND EACH ASSERTS SOMETHING THE OTHER TWO CANNOT. `getUpcomingBirthdays`

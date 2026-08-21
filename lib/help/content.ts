@@ -522,15 +522,21 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'pinning',
             heading: 'Pinning',
             blocks: [
-              p('Pinning puts a post at the top of every member\'s dashboard. That is a family-wide act rather than a personal one, so it is a separate permission from posting — a family can let everybody post and let one person pin.'),
-              p('A pin can be given an expiry, which is the right way to pin "the reunion is in three weeks": it takes itself down.'),
+              p('**There are two pins, and they are two different things.** Both are pin buttons in the corner of a post, and the wording tells them apart.'),
+              defs(
+                { term: 'Pin for everyone', text: 'Puts the post at the top of every member\'s updates. A family-wide act, and a separate permission from posting — a family can let everybody post and let one person pin. It can be given an expiry, which is the right way to pin "the reunion is in three weeks": it takes itself down.' },
+                { term: 'Pin this back to the top — for me', text: 'Your own copy, and every member has it. It appears only on a post the family has pinned, because there is nothing personal to change about one nobody pinned.' },
+              ),
+              note('If you can do both, be careful which you press: unpinning for everyone takes the post off the top of the whole family\'s updates, while unpinning for yourself changes nothing anybody else sees.'),
             ],
           },
           {
             id: 'dismissing',
             heading: 'Dismissing a pinned post',
             blocks: [
-              p('Dismissing removes it from *your* dashboard only. It stays pinned for everybody else, and it stays on this board — the board is the record, the dashboard is the reminder.'),
+              p('Dismissing removes it from the top of *your* updates only. It stays pinned for everybody else, and it stays on this board — the board is the record, the dashboard is the reminder.'),
+              p('It does not hide the post. It drops out of the pinned block and back into the list in date order, so you can always find it again — and the post says so underneath: **Pinned for the family — you have dismissed it from the top of your updates.**'),
+              p('**Both screens agree.** Dismiss it here or on the dashboard and the other one follows, because both read the same answer — the family\'s pin narrowed by your own dismissal. That was not true before 2026-08-21: this board showed the family\'s pin and the dashboard showed yours, so a post you had dismissed stayed at the top of one and not the other.'),
             ],
           },
           {

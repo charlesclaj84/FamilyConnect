@@ -14,11 +14,11 @@ function formatRelative(iso: string): string {
 
 export function AnnouncementCard({ announcement }: { announcement: Announcement }) {
   return (
-    <Card className={announcement.pinned ? 'border-primary/40 bg-primary/5' : ''}>
+    <Card className={announcement.pinnedForMe ? 'border-primary/40 bg-primary/5' : ''}>
       <CardHeader className="pb-2 pt-4 px-5">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold text-sm leading-tight">{announcement.title}</h3>
-          {announcement.pinned && <Pin className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />}
+          {announcement.pinnedForMe && <Pin className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {announcement.author_name && <span>{announcement.author_name}</span>}

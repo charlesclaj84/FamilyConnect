@@ -79,24 +79,22 @@ export function announcementToUpdateItem(a: FeedAnnouncement): UpdateItem {
     link: '/community/announcements',
     at: a.published_at,
     author: a.author_name,
-    familyPinned: isFamilyPinned(a),
+    familyPinned: a.pin_active,
     pinnedForMe: a.pinnedForMe,
   }
 }
 
-/**
- * Whether the FAMILY still has it pinned, independently of this reader.
+/*
+ * `isFamilyPinned` LIVED HERE AND IS GONE, 2026-08-21.
  *
- * `pinnedForMe` is already the conjunction of that and the reader's dismissal, so it
- * cannot be inverted to recover this half — hence the second look at `pinned` and
- * `pinned_until`. It is what decides whether a dismissed row is offered "Pin again": a
- * row the administrator has since unpinned family-wide has nothing to put back.
+ * It was a byte-for-byte copy of `isPinActive` in app/actions/announcements.ts, written
+ * because `pinnedForMe` is a conjunction and cannot be inverted to recover the family's half.
+ * That was the right observation and the wrong remedy: the answer is now `pin_active` on the
+ * row, resolved once by the action that reads it, so the expiry rule has one expression again.
+ *
+ * What it decided is unchanged — whether a dismissed row is offered "Pin again", since a row
+ * the administrator has unpinned family-wide has nothing to put back.
  */
-function isFamilyPinned(a: FeedAnnouncement): boolean {
-  if (!a.pinned) return false
-  if (!a.pinned_until) return true
-  return new Date(a.pinned_until) > new Date()
-}
 
 /**
  * Merge the two sources into the order the card renders.
