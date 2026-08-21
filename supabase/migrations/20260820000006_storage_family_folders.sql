@@ -241,12 +241,35 @@ BEGIN
     RAISE EXCEPTION 'ROLLBACK: % of the any-path policies survived', v_count;
   END IF;
 
-  -- `event-photos` keeps exactly its read policy and nothing else.
+  -- `event-photos` keeps NO WRITE POLICY. That is the whole of what this file is
+  -- responsible for there, and it is the only thing asserted.
+  --
+  -- THIS SAID `<> 1` AND ABORTED THE MIGRATION. Two faults, and the second is the one
+  -- that matters:
+  --
+  --   1. Operator precedence. `A AND B AND qual LIKE x OR with_check LIKE x` parses as
+  --      `(A AND B AND qual LIKE x) OR (with_check LIKE x)` — so the second branch was
+  --      unqualified by schema OR table and counted policies anywhere in the database.
+  --      Parenthesised now, and `coalesce`d, since one of the two is always NULL.
+  --
+  --   2. IT ASSERTED AN ORDER, NOT A FACT. The read policy this expected to find is
+  --      `event_photos_public_read` from `20260609000000`, and `20260820000008` DROPS it
+  --      along with the bucket. So the assertion holds only on a chain where this file
+  --      runs before that one — true of a fresh `db reset` and NOT true of any database
+  --      that reached 0008 first, where this aborts with "found 0" over a bucket that is
+  --      correctly gone. A migration must assert what it did, never what its neighbours
+  --      have not done yet.
+  --
+  -- Read is therefore 0 or 1 and both are right: 1 while the bucket exists (the objects
+  -- are already public and the URLs are already out — see the header), 0 once 0008 has
+  -- removed the bucket entirely.
   SELECT count(*) INTO v_count FROM pg_policies
    WHERE schemaname = 'storage' AND tablename = 'objects'
-     AND qual LIKE '%event-photos%' OR with_check LIKE '%event-photos%';
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'ROLLBACK: expected exactly 1 surviving event-photos policy (read), found %', v_count;
+     AND cmd <> 'SELECT'
+     AND (coalesce(qual, '') LIKE '%event-photos%'
+       OR coalesce(with_check, '') LIKE '%event-photos%');
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'ROLLBACK: % event-photos write policy/policies survived', v_count;
   END IF;
 
   -- The avatar policies are NOT touched by this file and are asserted anyway. They are the
