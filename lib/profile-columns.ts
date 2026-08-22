@@ -49,10 +49,12 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   // (20260617000001).
   //
   // It has its own action for that reason — saveChapterAndPropagate, which also carries
-  // the member's ACCOUNT-LESS children across with them (it was "minor children" until
-  // 20260813000006 dropped that column — the rule always meant "somebody who cannot set
-  // their own chapter", and `user_id IS NULL` is what actually decides that), something a
-  // profile save has no business doing. The profile form used to send the column BOTH ways on one submit,
+  // the member's children UNDER EIGHTEEN who have no account of their own across with them,
+  // something a profile save has no business doing. Both halves of that rule have moved:
+  // 20260813000006 dropped the stored `is_minor` column, leaving `user_id IS NULL` alone for
+  // a while, and 2026-08-22 put the age back as a DERIVATION (`lib/age-utils.ts`) because
+  // account-less is necessary and not sufficient — an adult cousin recorded on the tree has
+  // no account either, and this product has no household for them to belong to. The profile form used to send the column BOTH ways on one submit,
   // and that redundancy was the only thing keeping it on this list.
   //
   // Taking it off closes two of the four write paths that needed the §4 reference check

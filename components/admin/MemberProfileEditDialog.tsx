@@ -235,9 +235,9 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // ORDER MATTERS AND SO DOES THE GUARD. The profile goes first because it is what the
     // dialog is mostly for and its failure should not be preceded by a chapter move nobody
     // asked about. The `!==` guard means an administrator who edited a phone number does not
-    // touch `person_relationships` at all — `setMemberChapter` propagates to account-less
-    // children, so calling it unconditionally would rewrite their chapter on every save,
-    // including one that changed nothing.
+    // touch `person_relationships` at all — `setMemberChapter` propagates to the member's
+    // under-18 children who have no account of their own, so calling it unconditionally would
+    // rewrite their chapter on every save, including one that changed nothing.
     //
     // A FAILURE HERE IS A PARTIAL SAVE AND IS SAID SO. The profile is already written, so this
     // is not "those changes could not be saved" — and reporting it as an outright failure would

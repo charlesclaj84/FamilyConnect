@@ -380,8 +380,8 @@ export function upcomingBirthdays(
   // A TOTAL ORDER, so two renders of the same roster cannot disagree — which matters for
   // React keys and for two relatives comparing the same screen. Soonest first is the point
   // of the pane; after that, surname then given name, which is the order `getMembers` reads
-  // the Directory in and which groups a household's shared birthday together instead of
-  // scattering it. The id is the last resort, for two rows a family has genuinely entered
+  // the Directory in and which groups relatives who share a surname together instead of
+  // scattering them. The id is the last resort, for two rows a family has genuinely entered
   // twice.
   //
   // ── THE COLLATOR IS PINNED, AND THAT IS WHAT MAKES THE CLAIM ABOVE TRUE ───────────

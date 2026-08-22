@@ -294,7 +294,8 @@ export async function upsertPersonalInfo(
   return { success: true }
 }
 
-// Saves chapter_id on the user's own record AND propagates to their minor children.
+// Saves chapter_id on the user's own record AND propagates to their under-18 children who
+// have no account of their own. Nothing else moves: every other member is their own person.
 export async function saveChapterAndPropagate(
   chapterId: string | null
 ): Promise<{ success: boolean; message?: string }> {
@@ -310,7 +311,8 @@ export async function saveChapterAndPropagate(
   // The comment above already knew chapters belong to a single family; it scoped the
   // people ROW to this family and never checked the CHAPTER. That is exactly §4 — the
   // row is the caller's, so RLS is satisfied, while the id it carries is not theirs.
-  // This one also propagates to every minor child below, so an unchecked id spread.
+  // This one also propagates to the caller's under-18 children below, so an unchecked id
+  // would have spread rather than sitting on one row.
   if (!(await chapterIsOurs(chapterId, familyCode))) {
     return { success: false, message: 'Chapter not found' }
   }
@@ -324,7 +326,7 @@ export async function saveChapterAndPropagate(
 
   if (myError) return { success: false, message: myError.message }
 
-  // ── THE CHILDREN FOLLOW, AND UNTIL 2026-08-21 THEY DID NOT ────────────────────────
+  // ── THE UNDER-18 CHILDREN FOLLOW, AND UNTIL 2026-08-21 THEY DID NOT ──────────
   // This was fifteen lines of reads and one UPDATE, all on the USER client — and `people`
   // maps to `community/directory` with `user_id = (SELECT auth.uid())` as both its own- and
   // self-expression, so the write matched ZERO ROWS for any member without
@@ -354,8 +356,9 @@ export async function saveChapterAndPropagate(
   if (propagation.error) {
     return {
       success: true,
-      message: 'Your chapter was saved, but the relatives without accounts of their own could '
-        + 'not be moved with you. Ask an administrator to set their chapter on Members & Access.',
+      message: 'Your chapter was saved, but your children under 18 with no account of their '
+        + 'own could not be moved with you. Ask an administrator to set their chapter on '
+        + 'Members & Access.',
     }
   }
   return { success: true }

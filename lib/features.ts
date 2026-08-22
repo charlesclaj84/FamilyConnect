@@ -430,10 +430,15 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
   },
 
-  // ── Journal: an office's notebook ───────────────────────────────────────────
+  // ── Journals: an office's notebook ──────────────────────────────────────────
   // A rail SECTION of one item, which is the "a section whose own index page IS the section
   // does not double up" exception (AGENTS.md, "The route tree IS the nav rail") — the route is
-  // `/journal`, not `/journal/journal`, exactly as Gatherings' own index is `/gatherings`.
+  // `/journals`, not `/journals/journals`, exactly as Gatherings' own index is `/gatherings`.
+  //
+  // IT WAS `/journal` FOR ONE DAY. The caption is Journals now, and that rule leaves nothing
+  // to decide: the route is the caption and the key is the route, so `20260822000000` moved
+  // the key to match rather than leaving a `/journal` under a rail item saying Journals. That
+  // is the archaeology 20260820000004 spent 42 keys undoing.
   //
   // `tier: 'plus'`, matching Board Positions and Organization. That is not a pricing
   // judgement so much as an arithmetic one: the Journal hangs off `family_roles`, and a family
@@ -446,8 +451,8 @@ export const FEATURES: readonly Feature[] = [
   // would not work here anyway, because the shell is built once and `ShellWatcher`'s
   // fingerprint does not include `user_roles`. The page's own header argues it.
   {
-    href: '/journal',
-    label: 'Journal',
+    href: '/journals',
+    label: 'Journals',
     status: 'live',
     tier: 'plus',
     blurb: 'A notebook for each office your family keeps — it stays with the role, not the person.',

@@ -59,6 +59,11 @@ export const SCOPE_STYLE: Record<PermissionScope, string> = {
 // bears in SQL is `auth_permission()`'s `category = 'admin'` test, and that migration
 // re-asserts 20260817000004's invariant in both directions.
 //
+// THE CATEGORY VALUE IS STILL `journal` WHILE THE SCREEN IS CALLED **Journals**, and that is
+// the `events` decision below applied a second time rather than an oversight: the KEY moved
+// to `journals` in `20260822000000` because AGENTS.md forces it to follow the route, and a
+// category is not a key. Only the caption below changed.
+//
 // It sits after `community` because that is where the rail puts it — participation in the
 // family, one step past the roster and the notice board.
 export const CATEGORY_ORDER = ['general', 'personal', 'community', 'journal', 'events', 'accounting', 'resources', 'admin']
@@ -75,7 +80,7 @@ export const CATEGORY_ORDER = ['general', 'personal', 'community', 'journal', 'e
 // fails closed (`category = 'admin'`), so it is load-bearing in SQL and not merely a grouping.
 // A caption is one line here; a category is a column three resolvers agree about.
 export const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', journal: 'Journal',
+  general: 'General', personal: 'Personal', community: 'Community', journal: 'Journals',
   events: 'Gatherings',
   accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
 }

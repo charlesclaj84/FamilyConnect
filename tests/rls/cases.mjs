@@ -77,6 +77,21 @@ export function alphaMarkers(fx) {
     // every case ordered after it. The President is held by a `user_roles` row and nothing
     // touches it.
     'ALPHATEST President',
+    // ── THE JOURNALS, ADDED 2026-08-22 WITH THE THREAD AND THE MEETINGS ─────────────────
+    //
+    // An officeholder's notebook is the sharpest personal data in the product and none of it
+    // was findable by this scan until now — every journal assertion was explicit, which meant
+    // a journal row leaking out of some OTHER action's response was caught by nothing. Ids
+    // only, and the office's id too: `family_roles` names are ALPHA-only data (see the
+    // President above) and the office's id is what `getMyOffices` publishes.
+    //
+    // THREE ROWS ARE DELIBERATELY NOT HERE. `journalDeletable` and `journalNoteSpare` are
+    // destroyed by their own delete controls, and a marker whose row a case deletes stops
+    // being findable for every case ordered after it — the reason `f.customRole` is excluded
+    // above. `journalMeetingSpare` is not deleted but IS rewritten, and marking a row two
+    // controls churn buys nothing the stable ones do not.
+    a.journalRole.id, a.journalEntry.id, a.journalMeeting.id,
+    a.journalNote.id, a.journalNoteOther.id,
     a.announcement.id, a.document.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
@@ -1359,6 +1374,15 @@ const snapshot = (table, cols, filter) => async (db) => {
  * Ordered explicitly on both key columns, because `before === after` is the whole assertion
  * and PostgREST makes no promise about row order without an ORDER BY.
  */
+const probeAttendees = (entryId) => async (db, fx) => {
+  const { data, error } = await db.from('position_journal_attendees')
+    .select('entry_id, person_id')
+    .eq('entry_id', entryId(fx))
+    .order('person_id')
+  if (error) throw new Error(`probe position_journal_attendees: ${error.message}`)
+  return JSON.stringify(data)
+}
+
 const probeSupporters = (nominationIds) => async (db, fx) => {
   const { data, error } = await db.from('election_nomination_supporters')
     .select('nomination_id, person_id')
@@ -1634,26 +1658,41 @@ const resetBoardAssignments = async (db, fx) => {
 
 export const MORE_CASES = [
   // ══════════════════════════════════════════════════════════════════════════
-  // THE JOURNAL (20260821000005)
+  // JOURNALS (20260821000005, 20260822000001)
   //
-  // Four policies on `position_journal_entries`, and NOT ONE of them evaluates
-  // `auth_permission`. What they test is `auth_holds_family_role(role_id)` — do you hold this
-  // office — so the interesting refusals are all INSIDE one family and no cross-family case
-  // could reach any of them. That is why these are written against three ALPHA actors who
-  // differ in exactly one thing each:
+  // Eleven policies across three tables — `position_journal_entries`, its notes and a
+  // meeting's attendee list — and NOT ONE of them evaluates `auth_permission`. What they test
+  // is whether the caller holds the office, so the interesting refusals are all INSIDE one
+  // family and no cross-family case could reach any of them. That is why these are written
+  // against three ALPHA actors who differ in exactly one thing each:
   //
-  //   `alphaMember`  holds the office AND wrote the entries   -> every positive control
-  //   `alphaOther`   holds the office, wrote none of them     -> the edit/delete attack
+  //   `alphaMember`  holds the office AND recorded everything -> every positive control
+  //   `alphaOther`   holds the office, recorded none of it    -> the edit/delete attack
   //   `alphaAdmin`   holds every GRANT, and not the office    -> the read/write attack
   //
   // `alphaAdmin` is the sharpest of the three and is the whole point of the design: they hold
-  // `journal:view` at scope 'any' in their own family, and it buys them nothing. A family that
-  // could read every officer's notebook would get officers who keep their notebook somewhere
-  // else, which the migration's header argues at length.
+  // `journals:view` at scope 'any' in their own family, and it buys them nothing. A family
+  // that could read every officer's notebook would get officers who keep their notebook
+  // somewhere else, which the migration's header argues at length.
+  //
+  // ── THREE RULES, AND EVERY CASE BELOW IS PINNED TO EXACTLY ONE OF THEM ────
+  // 20260822000001 split the entry's words onto notes of their own, and the write rules split
+  // with it. What makes the fixture's two office-holders worth having is that they now differ
+  // in three separate directions rather than one:
+  //
+  //   a NOTE          any holder may add one; only its author may edit or delete it
+  //   the TOPIC       title and meeting day belong to whoever started it
+  //   the ATTENDEES   belong to whoever recorded the meeting, and to no other holder
+  //
+  // The second and third look like one rule and are enforced by two different helpers, on
+  // purpose — see `auth_authored_journal_entry`. A case is marked [crux] where deleting one
+  // conjunct turns that line red and nothing else.
   //
   // THE ACTIONS NARROW NOTHING BY HAND, so these reach the policies through the actions and
-  // need no raw probe — the lesson `retractNomination` cost us the same day.
-  read('journal.getMyOffices', 'app/actions/journal.ts', 'getMyOffices', {
+  // need no raw probe — the lesson `retractNomination` cost us the same day. The one filter
+  // any of them states is `.eq('entry_id', …)` on a list the policy scopes anyway, which
+  // narrows to a row the caller was already the only person able to reach.
+  read('journals.getMyOffices', 'app/actions/journal.ts', 'getMyOffices', {
     // BRAVO's administrator legitimately holds offices in BRAVO, so a non-empty answer is not
     // itself a failure — the assertion is on ALPHA's specific id, which is the shape every
     // read case here uses.
@@ -1664,28 +1703,90 @@ export const MORE_CASES = [
   }),
   // ── [crux] AN OFFICE THEY DO NOT HOLD, IN THEIR OWN FAMILY ────────────────
   // The single assertion this whole feature turns on. `alphaAdmin` is approved, is in ALPHA,
-  // and holds `journal:view` at 'any'; the ONLY thing refusing them is
+  // and holds `journals:view` at 'any'; the ONLY thing refusing them is
   // `auth_holds_family_role` in the SELECT policy. Delete that conjunct and this line goes red
   // and nothing else does.
-  read('journal.getJournalEntries (an office they do not hold)',
+  //
+  // THE CONTROL ASSERTS THE WHOLE SHAPE, NOT JUST THE TITLE, and that is the lesson of
+  // `getPhotoCollections`: an embed PostgREST refuses takes the whole query with it and the
+  // error is discarded, so a control that only checked the entry id would go green over a
+  // screen rendering every topic as empty. `position_journal_attendees` joins entries to
+  // people, which makes a bare `people(...)` embed on either journal table PGRST201 — so the
+  // three things this checks are the three separate reads `getJournalEntries` makes, and one
+  // of them is the nested-embed trap the junction table created.
+  read('journals.getJournalEntries (an office they do not hold)',
     'app/actions/journal.ts', 'getJournalEntries', {
       attacker: 'alphaAdmin',
       args: fx => [fx.alpha.journalRole.id],
       expectAttack: (r) => Array.isArray(r) && r.length === 0,
       positiveActor: 'alphaMember',
       expectPositive: (r, fx) => Array.isArray(r)
-        && r.some(e => e.id === fx.alpha.journalEntry.id),
+        // the topic
+        && r.some(e => e.id === fx.alpha.journalEntry.id)
+        // its thread, INCLUDING a note the caller did not write — which is the read policy
+        // testing the office rather than the byline
+        && r.some(e => e.notes?.some(n => n.id === fx.alpha.journalNote.id)
+          && e.notes.some(n => n.id === fx.alpha.journalNoteOther.id && n.mine === false))
+        // and the meeting, with somebody in the room
+        && r.some(e => e.id === fx.alpha.journalMeeting.id
+          && e.kind === 'meeting' && e.met_on && e.attendees?.length > 0),
     }),
   // And the ordinary cross-family one, which the case above cannot stand in for: it asserts
   // the `family_code` conjunct rather than the office conjunct, and a policy could lose either
   // one without the other noticing.
-  read('journal.getJournalEntries (another family\'s office)',
+  read('journals.getJournalEntries (another family\'s office)',
     'app/actions/journal.ts', 'getJournalEntries', {
       args: fx => [fx.alpha.journalRole.id],
       expectAttack: (r) => Array.isArray(r) && r.length === 0,
       positiveActor: 'alphaMember',
       expectPositive: (r, fx) => Array.isArray(r)
-        && r.some(e => e.id === fx.alpha.journalEntry.id),
+        && r.some(e => e.id === fx.alpha.journalEntry.id)
+        && r.some(e => e.notes?.some(n => n.id === fx.alpha.journalNote.id)),
+    }),
+  // ── THE ATTENDEE ROSTER, WHICH IS THE WHOLE FAMILY'S NAMES ────────────────
+  // `getJournalAttendeeOptions` reads `people` on the ADMIN client — because the SELECT policy
+  // on that table is keyed on `community/directory`, so an officer in a family that restricted
+  // its Directory would otherwise be offered nobody — and §3 is then discharged by one
+  // hand-written `.eq('family_code', …)`. That conjunct is the entire boundary and this is
+  // what tests it: `f.ancestor.id` is an `alphaMarkers()` entry, so the default scan catches a
+  // BRAVO caller receiving ALPHA's roster.
+  //
+  // THE CONTROL ASSERTS AN ACCOUNT-LESS PERSON IS OFFERED. `f.ancestor` has no `user_id`, and
+  // a recorded grandmother can sit in a meeting — so this is deliberately NOT the
+  // "accounts only" list a payment picker wants, and the assertion says which of the two this
+  // is rather than leaving it to a reader of the query.
+  read('journals.getJournalAttendeeOptions',
+    'app/actions/journal.ts', 'getJournalAttendeeOptions', {
+      expectPositive: (r, fx) => Array.isArray(r) && r.some(p => p.id === fx.alpha.ancestor.id),
+    }),
+  // ── AND AN APPLICANT NOBODY HAS ADMITTED GETS NO ROSTER ───────────────────
+  // `alphaPending` joined ALPHA by family code and has not been approved, so they are INSIDE
+  // the family boundary by every test the cross-family cases apply — `auth_family_code()`
+  // resolves ALPHATEST for them deliberately. What refuses them is `requireMember()`, which
+  // demands an approved membership, and this action reads on the ADMIN client where no policy
+  // would refuse them afterwards. That combination is the one worth a case of its own.
+  //
+  // ── A STATED GAP: THE `getMyOffices().length` GUARD IS NOT TESTED HERE ────
+  // That guard is the §5 half — the roster is PII that reaches the browser in the RSC payload
+  // whether a picker renders it or not, so somebody who could never open a meeting composer
+  // must not have it fetched at all. NO ACTOR IN THIS FIXTURE CAN ASSERT IT: every approved
+  // ALPHA actor holds an office, by construction. `alphaMember` and `alphaOther` hold the
+  // journal office, and `alphaAdmin` holds `ALPHATEST President` — which is not a flaw in the
+  // fixture, it is what makes the read cases above sharp, because `alphaAdmin` is refused for
+  // holding the WRONG office rather than none.
+  //
+  // Written down rather than left looking asserted, per §7. What would test it is an approved
+  // ALPHA member with no `user_roles` row at all, and adding one is not free: the roster,
+  // the Directory's `primary_role_title` control and `admin/chapters.getScopeUsage`'s exact
+  // counts all read that table. The next person to need it should add the actor rather than
+  // wipe `alphaAdmin`'s assignment in a `setup`, which is the shape that made a chapter
+  // occupancy case fail only when run in sequence.
+  read('journals.getJournalAttendeeOptions (an unadmitted applicant)',
+    'app/actions/journal.ts', 'getJournalAttendeeOptions', {
+      attacker: 'alphaPending',
+      expectAttack: (r) => Array.isArray(r) && r.length === 0,
+      positiveActor: 'alphaMember',
+      expectPositive: (r) => Array.isArray(r) && r.length > 0,
     }),
   // ── WRITING IN AN OFFICE THEY DO NOT HOLD ─────────────────────────────────
   // `alphaAdmin` again, and the INSERT policy is the only thing in the way. An INSERT refused
@@ -1693,47 +1794,148 @@ export const MORE_CASES = [
   // the `told` assertion is asserting the MESSAGE is a sentence rather than a raw code.
   {
     kind: 'write',
-    id: 'journal.addJournalEntry (an office they do not hold)',
+    id: 'journals.addJournalEntry (an office they do not hold)',
     mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
     attacker: 'alphaAdmin',
-    args: fx => [fx.alpha.journalRole.id, 'Attacker note', 'should not land'],
+    args: fx => [fx.alpha.journalRole.id,
+      { title: 'Attacker note', kind: 'note', firstNote: 'should not land' }],
     probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
       { role_id: fx.alpha.journalRole.id })(db),
     expectRefusal: v => v?.success === false && /holds the office/.test(v?.message ?? '')
       ? { ok: true, detail: 'refused with a sentence' }
       : { ok: false, detail: `expected the office refusal, got ${JSON.stringify(v)}` },
     positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalRole.id, 'A control note', 'written by a holder'],
+    positiveArgs: fx => [fx.alpha.journalRole.id,
+      { title: 'A control note', kind: 'note', firstNote: 'written by a holder' }],
   },
-  // ── [crux] A SUCCESSOR MAY READ EVERYTHING AND REWRITE NOTHING ────────────
-  // `alphaOther` HOLDS this office — so the read policy admits them and the previous cases
-  // would all pass for them — and did not write this entry. What refuses them is
-  // `author_id = auth_person_id()` in the UPDATE policy, which is the half of the design that
-  // makes the notebook a record rather than something each successor can quietly edit.
+  // ── [crux] §4: A MEETING NAMING SOMEBODY FROM ANOTHER FAMILY ──────────────
+  // The attacker here is ALPHA'S OWN MEMBER, entitled to everything they are doing except the
+  // one id they passed — which is the whole of §4. The row being written carries THEIR
+  // `family_code`, so every policy on it is satisfied; what the attendee id points at is a
+  // question nothing in the database asks except `tg_journal_attendee_same_family`, and what
+  // asks it first is `belongsToFamily` in the action.
   //
-  // AND THEY MUST BE TOLD. An UPDATE refused by a policy is zero rows and `{ error: null }`
-  // (§8b), so without `confirmWrite` this action would report success over a correction that
-  // never happened — on a handover note, which the next officer then reads in its original
-  // form believing it was amended.
+  // THE PROBE IS THE ENTRY TABLE, DELIBERATELY. `addJournalEntry` verifies every attendee id
+  // BEFORE it inserts the topic, so a refused attendee means no entry at all — and asserting
+  // that is stronger than asserting no attendee row, because it also pins the order. Remove
+  // the `belongsToFamily` loop and the trigger still refuses the attendee, but a titled entry
+  // with no attendees lands and this line goes red.
   {
     kind: 'write',
-    id: 'journal.updateJournalEntry (an entry somebody else wrote)',
-    mod: 'app/actions/journal.ts', fn: 'updateJournalEntry',
+    id: 'journals.addJournalEntry (a meeting naming another family\'s member)',
+    mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.journalRole.id, {
+      title: 'Meeting with an outsider', kind: 'meeting', metOn: '2026-08-22',
+      firstNote: 'should not land', attendeeIds: [fx.bravo.otherPersonId],
+    }],
+    probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
+      { role_id: fx.alpha.journalRole.id })(db),
+    expectRefusal: v => v?.success === false && /not in this family/.test(v?.message ?? '')
+      ? { ok: true, detail: 'refused before the entry was created' }
+      : { ok: false, detail: `expected the family refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalRole.id, {
+      title: 'Meeting with a relative', kind: 'meeting', metOn: '2026-08-22',
+      firstNote: 'the control', attendeeIds: [fx.alpha.otherPersonId],
+    }],
+  },
+  // ── [crux] ANY HOLDER MAY ADD A NOTE TO ANY TOPIC ─────────────────────────
+  // The control is `alphaOther`, who holds the office and wrote NEITHER the topic nor a word
+  // of it — so this asserts the one place in this feature where the office test and the author
+  // test deliberately come apart. It is what makes an entry a conversation rather than a
+  // filing cabinet, and it is a POSITIVE claim, so the attack half is the ordinary
+  // cross-family one.
+  {
+    kind: 'write',
+    id: 'journals.addJournalNote (another family\'s entry)',
+    mod: 'app/actions/journal.ts', fn: 'addJournalNote',
+    args: fx => [fx.alpha.journalEntry.id, 'BRAVO writing in ALPHA'],
+    probe: (db, fx) => snapshot('position_journal_notes', 'id, body',
+      { entry_id: fx.alpha.journalEntry.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaOther',
+    positiveArgs: fx => [fx.alpha.journalEntry.id, 'A successor answering underneath'],
+  },
+  // The same table, refused for the other reason: in ALPHA, with every grant, holding no
+  // office. One of these two could pass with the other red — the policy carries both conjuncts
+  // and could lose either.
+  {
+    kind: 'write',
+    id: 'journals.addJournalNote (an office they do not hold)',
+    mod: 'app/actions/journal.ts', fn: 'addJournalNote',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.journalEntry.id, 'should not land'],
+    probe: (db, fx) => snapshot('position_journal_notes', 'id, body',
+      { entry_id: fx.alpha.journalEntry.id })(db),
+    expectRefusal: v => v?.success === false && /holds the office/.test(v?.message ?? '')
+      ? { ok: true, detail: 'refused with a sentence' }
+      : { ok: false, detail: `expected the office refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalEntry.id, 'the control'],
+  },
+  // ── [crux] A NOTE BELONGS TO WHOEVER WROTE IT ─────────────────────────────
+  // `alphaOther` HOLDS this office and may read every word of this thread and add to it — so
+  // every case above passes for them. What refuses them here is `author_id = auth_person_id()`
+  // on the notes UPDATE policy, which is the half of the design that makes the notebook a
+  // record rather than something each successor can quietly edit.
+  //
+  // AND THEY MUST BE TOLD. An UPDATE refused by a policy is zero rows and `{ error: null }`
+  // (§8b), so without `confirmWrite` this would report success over a correction that never
+  // happened — on a handover note, which the next officer then reads in its original form
+  // believing it was amended.
+  {
+    kind: 'write',
+    id: 'journals.updateJournalNote (a note somebody else wrote)',
+    mod: 'app/actions/journal.ts', fn: 'updateJournalNote',
     attacker: 'alphaOther',
-    args: fx => [fx.alpha.journalEntry.id, 'Rewritten by a successor', 'should not land'],
-    probe: (db, fx) => snapshot('position_journal_entries', 'id, title, body',
-      { id: fx.alpha.journalEntry.id })(db),
+    args: fx => [fx.alpha.journalNote.id, 'Rewritten by a successor'],
+    probe: (db, fx) => snapshot('position_journal_notes', 'id, body',
+      { id: fx.alpha.journalNote.id })(db),
     expectRefusal: v => v?.success === false
       ? { ok: true, detail: 'reported the refusal' }
       : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
     positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalEntry.id, 'Amended by its author', 'the control'],
+    positiveArgs: fx => [fx.alpha.journalNote.id, 'Amended by its author'],
   },
   // The same rule on DELETE, and its own row: the control destroys what it acts on, which is
   // AGENTS.md §7's warning about a positive control mutating a row a later case depends on.
   {
     kind: 'write',
-    id: 'journal.deleteJournalEntry (an entry somebody else wrote)',
+    id: 'journals.deleteJournalNote (a note somebody else wrote)',
+    mod: 'app/actions/journal.ts', fn: 'deleteJournalNote',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.journalNoteSpare.id],
+    probe: (db, fx) => snapshot('position_journal_notes', 'id, body',
+      { id: fx.alpha.journalNoteSpare.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+  },
+  // ── THE TOPIC ITSELF IS THE RECORDER'S ───────────────────────────────────
+  // Unchanged in substance from the day the Journal shipped, and now narrower in scope: what
+  // `updateJournalEntry` writes is the title and a meeting's day, because the words moved onto
+  // the notes above. `alphaOther` holds the office and did not start this topic.
+  {
+    kind: 'write',
+    id: 'journals.updateJournalEntry (an entry somebody else wrote)',
+    mod: 'app/actions/journal.ts', fn: 'updateJournalEntry',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.journalEntry.id, 'Rewritten by a successor'],
+    probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
+      { id: fx.alpha.journalEntry.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalEntry.id, 'Amended by its author'],
+  },
+  {
+    kind: 'write',
+    id: 'journals.deleteJournalEntry (an entry somebody else wrote)',
     mod: 'app/actions/journal.ts', fn: 'deleteJournalEntry',
     attacker: 'alphaOther',
     args: fx => [fx.alpha.journalDeletable.id],
@@ -1743,6 +1945,66 @@ export const MORE_CASES = [
       ? { ok: true, detail: 'reported the refusal' }
       : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
     positiveActor: 'alphaMember',
+  },
+  // ── WHO ATTENDED IS THE RECORDER'S TOO, AND FOR A DIFFERENT REASON ───────
+  // Note that the attacker is `alphaOther` — a holder of this office, who may add a note to
+  // this very meeting. `auth_authored_journal_entry` is what refuses them, and it is a
+  // SEPARATE helper from the one the notes use precisely so this can be true: an attendee list
+  // has no byline, so two officers editing it would be overwriting each other with no trace of
+  // who said what.
+  //
+  // ITS OWN PROBE. `snapshot()` orders by `id` and this table has none — both columns are the
+  // primary key — so it would fail 42703 before looking at a row, which is a case that reports
+  // nothing rather than a case that passes. Same reason `probeSupporters` exists.
+  {
+    kind: 'write',
+    id: 'journals.setMeetingAttendees (a meeting somebody else recorded)',
+    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.journalMeeting.id, [fx.alpha.otherPersonId, fx.alpha.ownerPersonId]],
+    probe: probeAttendees(fx => fx.alpha.journalMeeting.id),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalMeeting.id, [fx.alpha.ownerPersonId]],
+  },
+  // Cross-family: BRAVO's administrator rewriting the attendee list of ALPHA's meeting. The
+  // family conjunct rather than the author one, and a policy could lose either alone.
+  {
+    kind: 'write',
+    id: 'journals.setMeetingAttendees (another family\'s meeting)',
+    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
+    args: fx => [fx.alpha.journalMeetingSpare.id, [fx.bravo.otherPersonId]],
+    probe: probeAttendees(fx => fx.alpha.journalMeetingSpare.id),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalMeetingSpare.id,
+      [fx.alpha.ownerPersonId, fx.alpha.otherPersonId]],
+  },
+  // ── [crux] §4 ON THE LIST-SETTER, AND THE CONTROL CLEARS THE LIST ────────
+  // The attacker is ALPHA's own member again — entitled to rewrite this list, naming one
+  // person they may not. `belongsToFamily` is what refuses it; the guard trigger would too,
+  // with a constraint name instead of a sentence.
+  //
+  // THE CONTROL PASSES AN EMPTY LIST, which is not tidiness: clearing is the ONE path through
+  // that action with no INSERT to raise 42501, so it is the only one whose refusal has to be
+  // recovered from a zero-row DELETE. It reads the list first and `confirmWrite`s the delete
+  // for that reason, and this is the line that exercises it.
+  {
+    kind: 'write',
+    id: 'journals.setMeetingAttendees (naming another family\'s member)',
+    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.journalMeetingSpare.id, [fx.bravo.otherPersonId]],
+    probe: probeAttendees(fx => fx.alpha.journalMeetingSpare.id),
+    expectRefusal: v => v?.success === false && /not in this family/.test(v?.message ?? '')
+      ? { ok: true, detail: 'refused with a sentence' }
+      : { ok: false, detail: `expected the family refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.journalMeetingSpare.id, []],
   },
   // ── SETTING SOMEBODY ELSE'S CHAPTER ────────────────────────────────────────
   // `setMemberChapter` runs on the SERVICE-ROLE client, so no policy is underneath it at all
@@ -3912,7 +4174,8 @@ export const PENDING_CASES = [
  * What went red, measured rather than read off the policies:
  *
  *   under M1   permission_templates · template_permissions · resource_visibility
- *              person_relationships · notifications INSERT
+ *              person_relationships · notifications INSERT   (that policy is GONE as of
+ *              20260822000011 — see the case below; the M1 result is history, not repeatable)
  *   under M2   + event_rsvp · event_assignments
  *   never      chat_participants · user_roles
  *
@@ -3969,6 +4232,28 @@ export const SWEEP_CASES = [
   // applicant writing a title and a LINK into another member's bell. `kind: 'write'`, so
   // the probe is what judges it — a refusal and a landed row are the two outcomes and the
   // error alone could not tell them apart.
+  //
+  // ── WHAT THIS ASSERTS CHANGED ON 2026-08-22, AND IT GOT STRONGER ────────────────
+  // It was evidence for `20260806000011` §6's approval conjunct: the policy read
+  // `family AND true AND auth_membership_approved()` and nothing else, so an applicant was
+  // refused BY that conjunct and by nothing else. `20260822000011` DROPPED the INSERT policy
+  // outright, and the reason is that the conjunct was never the whole problem — what the
+  // policy allowed an APPROVED member to do was write a notification, with any title and any
+  // link, into any bell in their family. Nothing needs it: every notification in the product
+  // is written by `lib/notifications.ts` on the service role, a plain module with no URL, and
+  // §2c makes a table with no policy for a command deny that command outright.
+  //
+  // So this line now asserts the ABSENCE of a write path rather than a conjunct inside one,
+  // which is strictly stronger and is the same move `STORAGE_CASES` made when the
+  // `event-photos` bucket was dropped: the old assertion would have gone green again the
+  // moment somebody re-added a policy, and this one cannot.
+  //
+  // THE CONTROL IS THEREFORE GONE RATHER THAN FAILING, and per §7 it says so instead of
+  // being deleted: there is no caller in the product for whom this write should succeed, so
+  // there is nobody to run it as. What stops the case rotting into decoration is the
+  // ASSERTION BELOW IT — `raw:notifications SELECT`'s own control still proves the fixture
+  // seeds reachable notifications, so a probe that had stopped working would be visible
+  // there.
   {
     kind: 'write',
     id: 'raw:notifications INSERT (applicant reaching every bell)',
@@ -3983,16 +4268,11 @@ export const SWEEP_CASES = [
     // by the probe and by nothing else.
     probe: (db) => snapshot('notifications', 'id, title, recipient_id',
       { title: SWEEP_NOTIFICATION_TITLE })(db),
-    // And a member of the family genuinely MAY notify another member — that is what the
-    // policy says, and what `lib/notifications.ts` relies on. Without this half, a policy
-    // that refused everybody would pass the attack assertion and the case would be
-    // decoration.
-    positiveActor: 'alphaMember',
-    // Each half of a write case re-snapshots, so the row the control lands has to be gone
-    // before the next half reads the table. The attack leaves nothing behind by
-    // construction; the control does, so it is cleared here — the same job `resetAlphaName`
-    // does further up, and necessary because `notifications` has no append-only guard to
-    // make the leftover row someone else's problem.
+    positive: 'not-applicable',
+    why: 'there is no INSERT policy on notifications any more, so no caller may do this — '
+      + 'the write belongs to lib/notifications.ts on the service role',
+    // Kept although the control is gone: if a future policy makes the ATTACK land, the row
+    // must not survive into the next case's snapshot.
     setup: async (db) => {
       await db.from('notifications').delete().eq('title', SWEEP_NOTIFICATION_TITLE)
     },
@@ -7609,9 +7889,6 @@ const ELECTION_RAW_CASES = [
     attacker: 'alphaAdmin',
     args: fx => [fx.alpha.retractRaw.nomination.id, fx.alpha.ownerPersonId],
     probe: probeSupporters(fx => [fx.alpha.retractRaw.nomination.id]),
-    expectRefusal: v => v?.count === 0
-      ? { ok: true, detail: 'PostgREST deleted 0 rows' }
-      : { ok: false, detail: `expected count 0, got ${JSON.stringify(v)}` },
     // The control is the NOMINATOR sending the same request for their OWN row — the same
     // probe, the same two arguments' shape, one of them different. Without it this passes for
     // a policy that refuses everybody, which is what the previous draft of the DELETE policy
@@ -7692,7 +7969,123 @@ const ELECTION_RAW_CASES = [
     }),
 ]
 
+// ══════════════════════════════════════════════════════════════════════════════
+// THE JOURNAL CHILD TABLES, REACHED WITH NO ACTION IN THE WAY (20260822000001)
+//
+// ── THESE EXIST BECAUSE THE ACTION-SHAPED CASES WERE NOT EVIDENCE ────────────
+// `journals.getJournalEntries (an office they do not hold)` passes with the notes SELECT
+// policy's office conjunct DELETED. Measured: 43/43 green. `getJournalEntries` reads the
+// ENTRIES first — whose policy does test the office — and then asks for notes with
+// `.in('entry_id', <the ids it just got>)`, so a caller who holds no office has an empty list
+// and the function returns before it ever mentions a note. The entries policy answers for both
+// tables.
+//
+// That is the right query and the wrong test. AGENTS.md states the rule as "if I delete this
+// conjunct, does something go red — and where the answer is no, the case belongs in raw/".
+// These are that case. A member who knows an entry id can ask PostgREST for its notes
+// directly, and the policy is the only thing between them and an officer's working prose.
+//
+// The INSERT probes are the same argument from the other side: `addJournalNote` reads the
+// byline from the caller's own guard (§2b, never take an identity as a parameter), so it
+// CANNOT send a wrong `author_id` — which makes the policy's `author_id = auth_person_id()`
+// conjunct satisfied by construction and invisible to every action-shaped case.
+const JOURNAL_RAW_CASES = [
+  // [crux] AN OFFICE THEY DO NOT HOLD, ONE TABLE DOWN. `alphaAdmin` is approved, is in ALPHA,
+  // holds `journals:view` at 'any' and holds a DIFFERENT office (ALPHATEST President), so
+  // every conjunct on the notes SELECT policy except the office one is true for them.
+  read('raw:position_journal_notes SELECT (an office they do not hold)',
+    'tests/rls/raw/journals.mjs', 'selectJournalNotes', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => !r.rows.some(n => n.entry_id === fx.alpha.journalEntry.id),
+      // BOTH NOTES, and that is the assertion rather than a count: the two office-holders have
+      // written one each, so a policy that tested the BYLINE instead of the office would let
+      // each of them read only their own — a different bug from a leak, and one a
+      // count-shaped assertion would pass.
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(n => n.id === fx.alpha.journalNote.id)
+        && r.rows.some(n => n.id === fx.alpha.journalNoteOther.id),
+    }),
+  // The family conjunct on the same policy, which the case above cannot stand in for.
+  read('raw:position_journal_notes SELECT (another family\'s notes)',
+    'tests/rls/raw/journals.mjs', 'selectJournalNotes', {
+      expectAttack: (r, fx) => !r.rows.some(n => n.family_code === fx.alpha.familyCode),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(n => n.id === fx.alpha.journalNote.id),
+    }),
+  // [crux] WHO WAS IN THE ROOM. Two layers of app-side narrowing sit over this policy — the
+  // `.in('entry_id', …)` and the "only ask if a meeting came back" test — so nothing the
+  // action does can reach it either.
+  read('raw:position_journal_attendees SELECT (an office they do not hold)',
+    'tests/rls/raw/journals.mjs', 'selectMeetingAttendees', {
+      attacker: 'alphaAdmin',
+      expectAttack: (r, fx) => !r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
+    }),
+  read('raw:position_journal_attendees SELECT (another family\'s meeting)',
+    'tests/rls/raw/journals.mjs', 'selectMeetingAttendees', {
+      expectAttack: (r, fx) => !r.rows.some(a => a.family_code === fx.alpha.familyCode),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
+    }),
+  // [crux] A NOTE UNDER SOMEBODY ELSE'S BYLINE, which no action can attempt.
+  //
+  // `alphaOther` holds the office and may legitimately add notes to this very topic — so the
+  // office conjunct is TRUE for them and the only thing refusing this row is
+  // `author_id = auth_person_id()`. What it stops is an officer filing prose under a
+  // colleague's name in a record whose whole value is that each paragraph is signed.
+  //
+  // AN INSERT REFUSED BY RLS RAISES 42501, so unlike the UPDATE cases there is nothing silent
+  // to close here — the assertion is the code, and the probe below is what says the row did
+  // not land regardless.
+  {
+    kind: 'write',
+    id: 'raw:position_journal_notes INSERT (under somebody else\'s byline)',
+    mod: 'tests/rls/raw/journals.mjs', fn: 'insertJournalNote',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.familyCode, fx.alpha.journalEntry.id, fx.alpha.ownerPersonId,
+      'filed under the wrong name'],
+    probe: (db, fx) => snapshot('position_journal_notes', 'id, author_id, body',
+      { entry_id: fx.alpha.journalEntry.id })(db),
+    expectRefusal: v => v?.error?.code === '42501'
+      ? { ok: true, detail: 'refused 42501' }
+      : { ok: false, detail: `expected 42501, got ${JSON.stringify(v?.error ?? v)}` },
+    // The control writes under their OWN byline, which is what the action would have sent —
+    // so this half also asserts the policy admits the ordinary case rather than refusing
+    // everybody, which is the failure mode `raw:` probes are most prone to.
+    positiveActor: 'alphaOther',
+    positiveArgs: fx => [fx.alpha.familyCode, fx.alpha.journalEntry.id, fx.alpha.otherPersonId,
+      'filed under their own name'],
+  },
+  // [crux] §4 IN THE DATABASE: a `family_code` the caller chose, on an entry in another
+  // family. The action always writes the caller's own family code, so this is the only route
+  // to `tg_journal_attendee_same_family` — and the trigger is what stands under the SERVICE
+  // ROLE, where no policy applies at all.
+  //
+  // BRAVO's administrator, naming BRAVO's own member, on ALPHA's meeting, stamped BRAVO. Every
+  // conjunct that mentions the CALLER is true; what is false is that the entry belongs to the
+  // family on the row. Two things refuse it — the policy, because
+  // `auth_authored_journal_entry` resolves nothing for them, and the trigger — which is the
+  // layering the migration's §6 argues for.
+  {
+    kind: 'write',
+    id: 'raw:position_journal_attendees INSERT (another family\'s meeting)',
+    mod: 'tests/rls/raw/journals.mjs', fn: 'insertMeetingAttendee',
+    args: fx => [fx.bravo.familyCode, fx.alpha.journalMeeting.id, fx.bravo.otherPersonId],
+    probe: probeAttendees(fx => fx.alpha.journalMeeting.id),
+    expectRefusal: v => v?.error != null
+      ? { ok: true, detail: `refused ${v.error.code ?? 'with an error'}` }
+      : { ok: false, detail: 'the insert was accepted' },
+    // ALPHA's own recorder, adding a name to their own meeting. `f.ancestor` is account-less,
+    // which is the row a picker-shaped fixture would never reach — and it is deliberately not
+    // one of the two people the action-shaped attendee cases churn.
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.familyCode, fx.alpha.journalMeeting.id, fx.alpha.ancestor.id],
+  },
+]
+
 CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASES,
+  ...JOURNAL_RAW_CASES,
   ...REMOVAL_CASES, ...APPROVAL_CASES,
   ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES, ...PROFILE_EDIT_CASES,
   ...STORAGE_CASES, ...STAFF_CASES)
@@ -7889,3 +8282,103 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASE
  * of them when a migration gave it two foreign ids.
  */
 export const UNCOVERED = []
+
+/**
+ * ── THE PHOTO WRITE POLICIES, AND THE THING THAT IS ACTUALLY GUARDING THEM ──────────
+ *
+ * `20260822000013` put a `family_code` conjunct back into five policies that had lost one to
+ * `X OR true`. These five cases were written to catch that, and they DO NOT — they are green
+ * either way. What they caught instead is why, and it is worth more than the conjunct.
+ *
+ * **PostgreSQL applies the SELECT policies to an UPDATE or DELETE whose WHERE clause references
+ * the table's columns.** PostgREST cannot express an unfiltered UPDATE or DELETE. So the SELECT
+ * policy is the FLOOR of every write a browser caller can make, and the five write policies —
+ * which as written matched every photograph in the product — were held shut by the read policy
+ * beside them. Measured as BRAVO's administrator with a real JWT: `auth_permission` resolved
+ * 'any', the DELETE returned 204, the row survived; widen `photos` SELECT to `true` and nothing
+ * else, and the same request destroys ALPHA's photograph. `tests/rls/raw/photos.mjs` carries the
+ * full transcript.
+ *
+ * [not evidence for the family conjunct in the write policies] Said out loud rather than left
+ * looking like proof, exactly as four of the `SWEEP_CASES` are. No client-side probe can be
+ * evidence for it, because no client can send the statement that would isolate it; the conjunct
+ * is asserted in SQL, in the migration's verify block, which also refuses any policy in the
+ * schema containing `OR true`.
+ *
+ * [evidence for the SELECT-policy floor on three tables] Which nothing in this suite tested
+ * before, and which is now the only thing between another family's administrator and those five
+ * write policies if anybody ever widens a photo read — a shared album, a public gallery. That is
+ * a real assertion about a real protection, and it is the one these five make.
+ *
+ * ── WHY `photos.deletePhoto` HIGHER UP THIS FILE COULD NEVER HAVE SHOWN ANY OF THIS ──
+ * It runs the same attack and passes for a THIRD reason: `confirmWrite` ends the statement in
+ * `.select('id, file_path')`, so the SELECT policy is ANDed in explicitly as well. Three layers,
+ * one observable outcome. Worth carrying forward as a rule — **an action that reads its own
+ * write back cannot test its write policy** — and worth pairing with the rule above, because
+ * together they mean a write policy in this schema is very hard to test from outside the
+ * database at all. All five `confirmWrite` call sites are in that position by construction.
+ *
+ * ── ORDER IS LOAD-BEARING WITHIN THIS GROUP ─────────────────────────────────────────
+ * The two DELETE cases' positive controls really delete, and deleting a collection cascades its
+ * photographs — so the caption and tag cases run first, the photograph is deleted next, and the
+ * album last. Same hazard the `photos.deletePhoto` pair records, one group down.
+ *
+ * The attacker is the default `bravoAdmin`: scope 'any' on every resource their own family can
+ * confer, so `review/photos` edit and delete both resolve to 'any' for them — checked through
+ * `auth_permission` directly, not assumed — and every conjunct of each policy EXCEPT the family
+ * one is satisfied. The control is `alphaMember`, the fixture's `owner`: uploader of
+ * `f.rawPhoto`, creator of `f.rawCollection`, tagger of `f.rawPhotoTag`, holding all three at
+ * scope 'own' on the General template. So the pair reads: the owner may, another family's
+ * administrator may not.
+ */
+export const PHOTO_RAW_CASES = [
+  {
+    kind: 'write',
+    id: 'raw:photos UPDATE (another family\'s caption)',
+    mod: 'tests/rls/raw/photos.mjs', fn: 'updatePhotoCaption',
+    args: fx => [fx.alpha.rawPhoto.id, 'rewritten by BRAVO'],
+    positiveArgs: fx => [fx.alpha.rawPhoto.id, 'ALPHATEST caption, edited by its uploader'],
+    probe: (db, fx) => snapshot('photos', 'id, caption', { id: fx.alpha.rawPhoto.id })(db),
+  },
+  {
+    kind: 'write',
+    id: 'raw:photo_collections UPDATE (another family\'s album)',
+    mod: 'tests/rls/raw/photos.mjs', fn: 'updateCollectionName',
+    args: fx => [fx.alpha.rawCollection.id, 'renamed by BRAVO'],
+    positiveArgs: fx => [fx.alpha.rawCollection.id, 'ALPHATEST raw probe album, renamed'],
+    probe: (db, fx) => snapshot('photo_collections', 'id, name', { id: fx.alpha.rawCollection.id })(db),
+  },
+  // `photo_tags` has no `family_code` of its own, so its repaired policy scopes through the
+  // photograph. That makes it the one of the five where the fix could have been written against
+  // the wrong column and still read correctly — the same mistake `20260820000006` found in the
+  // `photos` storage DELETE policy, which aimed the right pattern at the wrong layout and
+  // therefore matched nothing for anybody. What catches THAT here is the positive control: a
+  // predicate written against the wrong column refuses the tagger too.
+  {
+    kind: 'write',
+    id: 'raw:photo_tags DELETE (another family\'s tag)',
+    mod: 'tests/rls/raw/photos.mjs', fn: 'deletePhotoTag',
+    args: fx => [fx.alpha.rawPhotoTag.id],
+    probe: (db, fx) => snapshot('photo_tags', 'id', { id: fx.alpha.rawPhotoTag.id })(db),
+  },
+  // [crux] The sharpest of the five: a family's photograph, destroyed by an administrator of
+  // another family, over the wire, with no action involved. It is refused — and per the header,
+  // by the SELECT policy rather than by the DELETE policy's own family conjunct.
+  {
+    kind: 'write',
+    id: 'raw:photos DELETE (another family\'s photograph)',
+    mod: 'tests/rls/raw/photos.mjs', fn: 'deletePhotoRow',
+    args: fx => [fx.alpha.rawPhoto.id],
+    probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.rawPhoto.id })(db),
+  },
+  // And the album, which cascades every photograph in it. LAST in this group for that reason.
+  {
+    kind: 'write',
+    id: 'raw:photo_collections DELETE (another family\'s album)',
+    mod: 'tests/rls/raw/photos.mjs', fn: 'deleteCollectionRow',
+    args: fx => [fx.alpha.rawCollection.id],
+    probe: (db, fx) => snapshot('photo_collections', 'id', { id: fx.alpha.rawCollection.id })(db),
+  },
+]
+
+CASES.push(...PHOTO_RAW_CASES)

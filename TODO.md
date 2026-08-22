@@ -342,59 +342,84 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## Five functions have a mutable `search_path`, and one of them is SECURITY DEFINER
+## RESOLVED 2026-08-22: five functions had a mutable `search_path`
 
-**Action:** set `search_path = ''` on `auth_uid_is_room_participant` first — it is the only
-one of the six where this is a privilege question rather than tidiness. Carefully: see the
-trap below.
+`20260822000010` sets `search_path = ''` on all five — `_perm_predicate`, `set_updated_at`,
+`update_funds_updated_at`, `update_photo_collections_updated_at` and, the one that mattered,
+`auth_uid_is_room_participant`, which is SECURITY DEFINER and is evaluated by **Realtime** as
+the subscribing role.
 
-**SEVEN, THEN SIX, AND FIVE SINCE 2026-08-20.** Re-measured that day against the local
-stack — `npx supabase db advisors --local --type security --level warn` — and the survivors
-are exactly `_perm_predicate`, `set_updated_at`, `update_funds_updated_at`,
-`update_photo_collections_updated_at` and `auth_uid_is_room_participant`.
+Two things from the old entry are worth keeping because they are what made this a migration
+rather than a five-line edit, and the next function that needs pinning will need both.
 
-The count has only ever gone down by attrition rather than by anybody working this entry:
-`cancel_overdue_event_assignments` went when `20260819000006` dropped it, and
-`fund_balance_cents` gained its `search_path` somewhere along the way. The heading said "six"
-while the prose listed five, which is what a hand-maintained count does — ask the advisors
-rather than trusting either.
+**The trap.** `SET search_path = ''` means every reference in the body must be
+schema-qualified, and plpgsql does not resolve names until the body RUNS — so a broken version
+is created without complaint and throws for its first caller. `20260806000012` shipped exactly
+that (`public.gen_random_bytes` where pgcrypto lives in `extensions`) and applied cleanly. The
+migration therefore CALLS both callable bodies in its verify block rather than asserting the
+catalogue, and `auth_uid_is_room_participant` is exercised first precisely because it has no
+call site in the tree: a broken version surfaces as chat silently delivering nothing.
 
-Worth stating because it is the thing a reader would want to know: **every function added
-since is clean.** `seed_global_lookups`, `is_genorra_staff` (both arities),
-`staff_set_family_status`, `families_guard_removal`, `consume_family_removal_challenge` and
-`auth_permission`'s rewrite all set `search_path = ''`, and none of them appears in the
-advisors output. The six are the residue of older files, not a habit.
+**The exposure was real and narrow, and it is worth knowing which.** With a mutable path, a
+caller who can create objects in a schema that resolves earlier shadows a table the body
+references, and a DEFINER body runs the shadow as its owner. What held it shut was that
+nothing grants `CREATE ON SCHEMA public` to `anon` or `authenticated` — one missing grant away
+from mattering. The other four were INVOKER, so tidiness rather than exposure.
 
-Found 2026-08-12 by `npx supabase db advisors --local --type security --level warn`, which
-`migrate.yml` now runs against hosted on every merge. Seven `function_search_path_mutable`
-findings, all WARN, so they do **not** fail the gate (`--fail-on error`). AGENTS.md claimed
-"every function here sets `search_path = ''`"; that line is now corrected.
+The verify block asserts **no function in `public` has a mutable path**, so a new one arrives
+pinned or the migration chain refuses to apply. Every function added since 2026-08-12 was
+already clean; that assertion is what keeps it true.
 
-| Function | SECURITY DEFINER | Why it matters |
-|---|---|---|
-| `auth_uid_is_room_participant` | **yes** | Runs as its owner with RLS off, and is evaluated by **Realtime** as the subscribing role (AGENTS.md §2b). The escalation shape. |
-| `_perm_predicate` | no | Central to the composed policies, but SECURITY INVOKER — runs as the caller, so shadowing it buys the caller nothing they did not have. |
-| `set_updated_at`, `update_funds_updated_at`, `update_photo_collections_updated_at` | no | Same: INVOKER, so tidiness rather than exposure. Two names have left this row: `cancel_overdue_event_assignments`, **dropped** by `20260819000006` §C, and `fund_balance_cents`, which now sets its own `search_path`. |
+## The advisors: what is left, and why each one is a decision rather than a fix
 
-**The exposure is real but currently narrow**, and worth stating precisely rather than as a
-severity label. With a mutable `search_path`, a caller who can CREATE objects in a schema
-that resolves earlier than the intended one can shadow a table or function the body
-references, and a DEFINER body then runs that shadow as the owner. What stops it today is
-that nothing grants `CREATE ON SCHEMA public` to `anon` or `authenticated` —
-`supabase/seed.sql` grants USAGE and table/sequence DML, not CREATE. So this is one missing
-grant away from mattering, which is exactly the kind of thing that should not depend on a
-grant nobody is watching.
+**Action:** enable leaked-password protection in the dashboard (below). Nothing else here is
+work; the rest of this entry exists so nobody re-litigates findings that are by design.
 
-**The trap, which is why this is not a two-line fix.** `SET search_path = ''` means every
-reference in the body must be schema-qualified, and `20260806000012` is the worked example of
-getting that wrong: it used `public.gen_random_bytes(...)` where pgcrypto lives in
-`extensions`, the migration applied cleanly, and the function threw for its first caller.
-plpgsql does not resolve names until the body runs. So: qualify every reference, and call the
-function in the migration's verify block rather than trusting that it applied.
+Measured 2026-08-22 against hosted (`npx supabase db advisors --linked --type all --level
+info`) and against a fresh local `db reset`, and the two were DIFFED — which is the part worth
+copying, because eight of that day's findings existed only on hosted and no repo-side check can
+see them. `20260822000011` reconciles that drift and says how it was found.
 
-`auth_uid_is_room_participant` has no call site in the tree — Realtime evaluates it through
-RLS — so a broken version would surface as chat silently delivering nothing, which is the
-worst way to find out. Exercise it directly in the verify block.
+What five migrations closed: `function_search_path_mutable` (5), `multiple_permissive_policies`
+(11), `auth_rls_initplan` (10, plus five the lint did not report), `duplicate_index` (4) and
+`unindexed_foreign_keys` (69). What remains:
+
+* **`auth_leaked_password_protection`, one WARN, and the only one that needs a person.**
+  GoTrue can refuse a password that appears in a HaveIBeenPwned breach. There is no
+  `config.toml` key for it — the Management API field is `password_hibp_enabled` and the route
+  is Authentication → Sign In / Providers → Password. It is NOT pushed from the repo because
+  `supabase config push` would carry `site_url` with it. The reasoning is beside
+  `password_requirements` in `config.toml`. Note while you are there that
+  `minimum_password_length` is 6, which is the CLI default and not a considered number.
+
+* **`authenticated_security_definer_function_executable`, 27 WARN, and every one is
+  deliberate.** This is AGENTS.md §2b as a report: a SECURITY DEFINER function that
+  `authenticated` may execute is a public HTTP endpoint, and in this product that is the
+  DESIGN — grants are the primary control and the bodies re-derive the caller. Audited
+  function by function on 2026-08-22 and all 27 are correctly granted: the `auth_*` and
+  `election_*` helpers are named in RLS policies, so the grant is load-bearing (revoke
+  `auth_family_code()` and every authenticated query in the app dies with "permission denied
+  for function"); the other 13 are called with the USER client — `createClient()`, checked at
+  each call site — because they need `auth.uid()` from the request's JWT. There is nothing to
+  revoke and nothing to fix. **`anon_security_definer_function_executable` (1) is
+  `peek_family_invitation`, granted to `anon` on purpose:** somebody following an invitation
+  link has no session yet.
+
+* **`rls_enabled_no_policy`, the two INFO.** `genorra_staff` has RLS enabled and ZERO policies
+  because that is the whole mechanism — staffness is resolved on the server through the
+  service role and there is no client-side check to spoof (AGENTS.md, "Three words"). Same for
+  `family_removal_challenges`: the challenge is minted in TypeScript and consumed by
+  `consume_family_removal_challenge`, and the browser must never read a hash it could compare
+  against. Both are the §2c pattern working as intended, and both would be a finding if they
+  ever gained a policy.
+
+* **`unused_index`, and it got LOUDER on purpose — 15 findings locally became 88.**
+  `20260822000014` created 73 foreign-key indexes, and an index on a database with no traffic
+  has by definition never been scanned. This is not a regression and must not be "fixed" by
+  dropping them: index-usage counters on a product no family is using yet measure nothing, and
+  Postgres does not index the referencing side of a foreign key, so without them one parent
+  delete seq-scans the child table once per row. **The review this deserves is after there are
+  families**, against `pg_stat_user_indexes` on hosted, and it is a review rather than a fix.
 
 ## Function grants: what the 2026-08-06 lockdown left behind
 

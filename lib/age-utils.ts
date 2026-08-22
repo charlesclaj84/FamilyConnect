@@ -60,8 +60,36 @@ export function computeIsMinor(dob: string | null | undefined): boolean {
  */
 export function isMinorOn(dob: string | null | undefined, today: string): boolean {
   if (!dob || !today) return false
-  // The cutoff is `today` with the year moved back eighteen. Both sides are `YYYY-MM-DD`,
-  // so a lexical comparison IS a chronological one.
-  const cutoff = `${Number(today.slice(0, 4)) - 18}${today.slice(4)}`
-  return dob.slice(0, 10) > cutoff
+  return dob.slice(0, 10) > minorCutoff(today)
+}
+
+/**
+ * The birthday on which somebody turns eighteen, given today — `today` with the year moved
+ * back eighteen. Anybody born LATER than this is a minor.
+ *
+ * ── WHY THIS IS EXPORTED, WHICH IS THE WHOLE REASON IT IS A FUNCTION ────────────────
+ * `isMinorOn` answers the question one row at a time, and that is the wrong shape for a
+ * QUERY. `lib/chapter-propagation.ts` has to ask the database for a member's children under
+ * eighteen, which is `.gt('date_of_birth', minorCutoff(todayLocal()))` — one filter rather
+ * than reading every child's birthday back and sieving them in TypeScript.
+ *
+ * Both callers are then two EXPRESSIONS of ONE rule instead of two rules that agree today.
+ * That distinction is the `is_minor` lesson in AGENTS.md §4b restated: what went wrong there
+ * was a stored boolean beside a derivation, and what would go wrong here is a hand-written
+ * date cutoff beside this comparison — drifting the first time somebody decided a leap-day
+ * birthday resolved on 28 February.
+ *
+ * ── AND THE NULL BEHAVIOUR CARRIES ACROSS, WHICH TAKES NO CODE ──────────────────────
+ * `isMinorOn` is FALSE for an unrecorded birthday. A `>` comparison in SQL is likewise never
+ * true for a NULL `date_of_birth`, so a person with no birthday on file is excluded by both
+ * without either having to say so — which is the answer AGENTS.md argues for at length: "the
+ * alternative — treating 'not recorded' as 'a child' — would put a Minor badge on half the
+ * Directory and mark the family's elders as children".
+ */
+export function minorCutoff(today: string): string {
+  // Both sides are `YYYY-MM-DD`, so a lexical comparison IS a chronological one. The year is
+  // spliced rather than computed through a Date, which is what keeps a 29 February birthday
+  // out of `setUTCMonth`'s overflow (the trap `addCadenceSteps` in lib/dues-utils.ts is
+  // written around) and out of any timezone at all.
+  return `${Number(today.slice(0, 4)) - 18}${today.slice(4)}`
 }

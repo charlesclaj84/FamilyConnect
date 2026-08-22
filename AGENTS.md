@@ -426,6 +426,34 @@ written only by `addChild`, and `computeIsMinor(date_of_birth)` used at read tim
 wrong the moment it is written, because the row does not change when the person has a
 birthday. `lib/age-utils.ts` is now the single definition and it derives.
 
+**AND THERE IS NO HOUSEHOLD EITHER.** Stated 2026-08-22, because the code said otherwise in
+four places. `people` has one kind of row and nothing is filed under anybody else — so no
+action may move a second person's row as a side effect of somebody editing their own, with
+exactly one exception, and the exception is as narrow as it is because a child too young to
+have an account cannot file themselves:
+
+> `propagateChapterToChildren` (`lib/chapter-propagation.ts`) moves a member's **sons and
+> daughters, under eighteen, with no account of their own** into the chapter they just picked.
+> Nothing else follows anybody, anywhere in the product.
+
+Three conjuncts, and each answers a different question — a `Son`/`Daughter` edge somebody
+RECORDED (never derived; §4c), `user_id IS NULL` because they cannot set their own chapter, and
+under eighteen because an account-less adult cousin on the tree is still their own person. The
+middle one was the whole rule until 2026-08-22 and it is necessary rather than sufficient.
+
+**The age is DERIVED and an unrecorded birthday does not move.** `minorCutoff` in
+`lib/age-utils.ts` is the one definition, consumed twice — as a comparison by `isMinorOn` and as
+a `.gt('date_of_birth', …)` filter by the propagation — so the two are expressions of one rule
+rather than two rules that agree today. `NULL > anything` is never true, exactly as
+`computeIsMinor(null)` is false: "under 18" is something a family has recorded about a person,
+not something to assume about a blank field. A stored `is_minor` is what this section already
+forbids.
+
+**The copy on every surface says which people move**, in those words. It said "everyone in your
+household moves with you" on My Profile, on the dashboard's chapter banner and in the manual
+until 2026-08-22 — a concept this product does not have, over-promising what the function did in
+the same breath.
+
 **The two questions the old flow answered still need answering, and here is where they
 went.** Both are in `app/actions/family-tree.ts`:
 
@@ -739,6 +767,83 @@ reports a refusal that came from the wrong policy.
 So the test is not "does this action have a case" but **"if I delete this conjunct, does
 something go red"** — and where the answer is no, the case belongs in `raw/`.
 
+#### And for UPDATE and DELETE, the SELECT policy is the FLOOR. A raw probe cannot get under it
+
+Added 2026-08-22, and it is the limit of everything above. **PostgreSQL applies the SELECT
+policies to an UPDATE or DELETE whose WHERE clause references the table's columns** — finding
+the rows requires SELECT rights on them. PostgREST cannot express an unfiltered UPDATE or
+DELETE. So for every caller that comes through the API, a write policy can never be wider *in
+practice* than the read policy on the same table, and a raw probe cannot isolate a write
+policy's own conjuncts at all.
+
+Measured rather than reasoned, which is the only reason this is written down. `20260822000013`
+repairs five photo write policies that said `((owner) OR true) AND <permission>` — `X OR true`
+is `true`, so as written all five matched every photograph in the PRODUCT for anybody holding
+`review/photos` at scope `'any'`. Five raw probes were written to catch it and **stayed green
+with the broken policy restored.** As BRAVO's administrator, with a real JWT, against the local
+stack:
+
+| | |
+|---|---|
+| `auth_permission('review/photos','delete')` | `'any'` — so the DELETE policy admitted them |
+| `DELETE /rest/v1/photos?id=eq.<an ALPHA photo>` | `204`, and the row **survives** |
+| the same request, `photos` SELECT widened to `USING (true)` | `204`, and the photograph is **gone** |
+
+The third line is the control: nothing changed but the READ policy, and the write landed.
+
+Four things follow, and the second is the one that will bite:
+
+* **A missing conjunct on a write policy is latent, not live**, as long as the SELECT policy on
+  that table is correctly scoped. That is why the photo repair is defence-in-depth rather than
+  an incident.
+* **Widening a SELECT policy is therefore a WRITE decision too.** A "share an album by link"
+  feature on `photos` would have turned all five of those policies live in one edit, in a diff
+  that mentions only reading.
+* **The conjunct can only be asserted in SQL**, so it is — in the migration's verify block,
+  which reads the policy back out of `pg_policies` and additionally refuses **any** policy in
+  the schema containing `OR true`. A test that cannot see a thing must not be labelled as
+  evidence for it: `PHOTO_RAW_CASES` says at the top what it is and is not evidence for, the
+  way four of `SWEEP_CASES` do.
+* **`OR true` is worth grepping for on sight.** It is never intentional. All five instances were
+  `<owner> OR is_admin(…)` before `20260618000003` replaced the admin half with the literal
+  `true` on its way to `auth_permission` — everywhere else that produced a harmless `false OR`
+  in the self_expr slot, and on these five it landed on the side of an OR that was carrying the
+  family scoping.
+
+**A THIRD REASON AN ACTION-SHAPED CASE CANNOT SEE ANY OF THIS:** `confirmWrite` ends its
+statement in `.select(...)`, which ANDs the SELECT policy in explicitly as well. So **an action
+that reads its own write back cannot test its write policy** — true of all five `confirmWrite`
+call sites by construction, and worth remembering before writing a case that looks like it
+covers one.
+
+#### The same blind spot has a READ form, and it arrives whenever a child table is added
+
+Added 2026-08-22. The two cases above are writes narrowed by a hand-written filter. **A READ of
+a child table is narrowed by its parent for free, and that hides the child's policy just as
+completely** — with nothing in the action that looks like a filter anybody chose.
+
+`getJournalEntries` reads the topics, then their notes with `.in('entry_id', <the ids it just
+got back>)`. For a caller who holds no office the first read answers `[]`, so the function
+returns before it ever mentions a note. **Measured: the notes SELECT policy reduced to family
+plus approval, and all 43 journal assertions stayed green.** The entries policy was answering
+for both tables, and a member who knew an entry id could read its notes straight off PostgREST.
+
+That query is right and should not change — narrowing to the rows you can see is what a read
+should do. What follows is a rule about the TEST:
+
+**Every child table added under a scoped parent owes a `raw/` SELECT probe of its own**, unless
+you have watched its policy's conjunct come out and something go red. The tell is an action that
+reads a parent and then filters the child by ids the parent returned; `tests/rls/raw/journals.mjs`
+is the worked example, and it found this on its first run. Two further shapes fall out of the
+same argument and are in that file:
+
+* **An id the action derives can never be wrong**, so a policy conjunct about it is
+  unreachable. `addJournalNote` takes the byline from the caller's own guard (§2b), so the
+  INSERT policy's `author_id = auth_person_id()` is satisfied by construction — the probe sends
+  somebody else's person id, which no action can.
+* **A `family_code` the action always stamps with the caller's own** likewise. The probe stamps
+  a different one, which is the only way to reach a §4 guard trigger from a browser role.
+
 ## 7b. Arithmetic is tested with `npm test`, not with `tests/rls`
 
 `vitest` runs the pure modules under `lib/`, and its `include` is `lib/**/*.test.ts` as a
@@ -991,7 +1096,9 @@ on the USER client, and the `people` UPDATE policy admits only the caller's own 
 any member without `community/directory:edit` at `'any'` it matched nothing, every time. The
 member's own chapter saved and their account-less children silently did not follow. The repair
 is `lib/chapter-propagation.ts`: the admin client with §3 scoping by hand, the way
-`editPersonRecord` does it.
+`editPersonRecord` does it. (**Who follows narrowed on 2026-08-22** — sons and daughters
+UNDER EIGHTEEN with no account, not every account-less child. See §4b, "there is no household
+either".)
 
 Three things about how it was fixed are the reusable part:
 
@@ -1145,6 +1252,50 @@ migration that sorts before an applied one, an unversioned `.sql` sitting in
 `supabase/scripts/audit_policy_shadowing.sql` is the detector for the one case the ledger
 cannot see: a bare `psql -f` changes no version, so only the policies themselves show it.
 Run it against hosted after **any** hand intervention.
+
+### And the thing that finds drift the ledger AND the shadowing audit both miss: DIFF THE TWO
+
+Added 2026-08-22. A clean ledger means every version this repo has, hosted has. It says nothing
+about what hosted has *in addition*, or about a policy hosted holds under a different name with
+a different body. `audit_policy_shadowing.sql` finds a superseded policy sitting BESIDE its
+replacement — which is the duplicated case — and is blind to the REPLACED case, where the
+chain's policy is simply absent and something else stands in its place, leaving nothing to sit
+beside.
+
+Ask both databases the same question and diff the answers:
+
+```bash
+npx supabase db advisors --linked --type all --level info --fail-on none --output-format json
+npx supabase db advisors --local  --type all --level info --fail-on none --output-format json
+# then, for the detail the advisors only hint at:
+npx supabase db query --linked -f q.sql --output-format json   # and --local
+#   q.sql: SELECT tablename, policyname, cmd, roles::text,
+#                 md5(coalesce(qual,'') || '~' || coalesce(with_check,'')) FROM pg_policies …
+#   and the same for pg_indexes.
+```
+
+That is how `20260822000011` and `20260822000014` were found, and every one of the findings was
+invisible to everything else in this section:
+
+* **hosted carried 12 policies the chain does not write**, including a `chat_rooms` INSERT
+  policy whose CHECK was `true AND <permission>` — the family conjunct gone, OR-ed alongside
+  the correct policy. `chat_participants` INSERT the same, and `chat_messages` INSERT REPLACED
+  by a version missing `auth_uid_is_room_participant`. Together: a cross-family write path into
+  another family's conversation. The fingerprint is the NAME — `perm:chat_messages_insert` is a
+  name `20260618000001`'s sweep generates, so the policy existed for it to rename, so something
+  outside the chain created it. `chat_install.sql`, the unversioned file, is what did.
+* **hosted's `person_relationships` SELECT had no `auth_membership_approved()`**, because
+  `20260819000008` restores that policy only if it is MISSING and on hosted it was — so hosted
+  took the restored form and never got the conjunct `20260806000011` §6 swept in. An applicant
+  nobody had admitted could read the family's whole relationship graph, and `tests/rls` asserts
+  they cannot, about the local database only.
+* **hosted had eight duplicate indexes named `…_idx` and `…_idx1`**, which is Postgres
+  disambiguating a name it has already used: the fingerprint of one file run twice by hand.
+
+The advisor counts alone are enough to start: 34 security warnings hosted / 5 local, and
+`multiple_permissive_policies` 11 hosted / 9 local, is the whole tell. **Two findings on hosted
+that a fresh `db reset` does not reproduce are drift, and drift is where the holes are** — a
+policy nobody wrote is a policy nobody reviewed.
 
 ## Three tables in `public` are product data, and emptying one is a one-way door
 
@@ -1859,6 +2010,75 @@ strings with `Date.UTC` and reads back through `getUTC*`, and its `Intl` formatt
 offset, which is how a calendar comes to put a reunion on the wrong day for half the country.
 `shiftMonth` works on (year, month) integers and never carries a day-of-month, because `setUTCMonth`
 overflows 31 January into 3 March.
+
+# JOURNALS BELONG TO AN OFFICE, AND THE OFFICE IS THE WHOLE ACCESS MODEL
+
+`/journals`, three tables, and one sentence the schema is built on: **the notes follow the
+position, not the member.** A treasurer writes down how the bank reconciliation actually works;
+three years later a different treasurer opens it and it is there. `20260821000005` built it and
+`20260822000001` turned an entry into a rolling topic; both headers argue every decision at
+length and this is the short list of what a change here will get wrong.
+
+**IT WAS `/journal`, SINGULAR, FOR ONE DAY.** The caption is Journals, so the route and the key
+are `journals` (`20260822000000`) — the rule in "The route tree IS the nav rail", applied
+before the mismatch had time to become archaeology. What did NOT move: the tables
+(`position_journal_*`), the `permission_resources.category` value `journal` — the `events`
+precedent, "a caption is one line here; a category is a column three resolvers agree about" —
+and the help chapter's slug, which is not a route.
+
+**NO POLICY ON ANY OF THE THREE TABLES EVALUATES `auth_permission`, and that is asserted in
+both directions.** `journals:view` gates the SCREEN so a family can switch the feature off; it
+decides nothing about who reads what. What the eleven policies test is the OFFICE, through
+`auth_holds_family_role(role_id)` on an entry and `auth_holds_journal_entry_office(entry_id)` on
+the two child tables. So `journals:view` at scope `'any'` buys an administrator their own
+offices and no others — deliberately, because these are working notes and a family that could
+read every officer's notebook would get officers who keep their notebook somewhere else. There
+is **no `permission_table_map` row** for this key and there must not be: a future policy sweep
+composing an `auth_permission('journals', …)` factor onto these tables would open every
+notebook to everybody, `view` defaulting to `'everyone'`.
+
+**FOUR WRITE RULES, AND THEY ARE FOUR ON PURPOSE.** They look like one rule and are enforced by
+three different expressions:
+
+| What | Who | What enforces it |
+|---|---|---|
+| add a note to any topic | any holder of the office | the office conjunct alone |
+| edit or delete one note | its own author, any position in the thread | `author_id = auth_person_id()` on the NOTE |
+| the topic — title, meeting day | whoever started it | `author_id = auth_person_id()` on the ENTRY |
+| who attended a meeting | whoever RECORDED it | `auth_authored_journal_entry(entry_id)` |
+
+The first is the feature: a successor answers a predecessor *underneath* what they wrote instead
+of beside it. The rest are the same argument `reopenGatheringTask` makes — the office owns the
+record, and a record a successor can quietly rewrite is not one. **An attendee list has no
+byline**, which is why it is the recorder's rather than any holder's: two officers editing it
+would be overwriting each other with no trace of who said what. An officer left off the list
+adds a note.
+
+**`body` WAS DROPPED FROM `position_journal_entries`, WHICH IS NOT AN ADDITIVE MIGRATION.** The
+existing bodies became the first note of their own thread. Two columns describing one fact is
+the `is_minor` trap (§4b), so keeping it was not an option — but a DROP COLUMN inverts the
+deployment argument in "How migrations reach the hosted project": the old code runs against the
+new schema for one alias window, asks for a column that is gone, and PostgREST answers 42703 by
+killing the whole query. It cost an empty screen for one deploy and is admissible **because no
+family is using this product yet**. If that stops being true, the shape is two deploys.
+
+**VOTING ON TASKS IS A SENTENCE ON A SCREEN AND HAS NO SCHEMA.** Deliberately: a column nothing
+reads "reads as a control being honoured", and `dues_member_plans.start_date` is what a plausible
+unread column costs later. When voting is real it needs a task row, a ballot per attendee and a
+tally — a decision to make with the feature in front of you.
+
+**THE JUNCTION TABLE MADE AN OLD PAIR AMBIGUOUS.** `position_journal_attendees` joins entries to
+people, so PostgREST reports a many-to-many path between that pair on top of `author_id` — §8's
+`announcement_unpins` incident, arriving on schedule. Every `people` embed from a journal table
+names its constraint, including the ones that would still be unambiguous alone.
+
+**AND THE TESTS OWE A `raw/` PROBE, which is where the read-narrowing lesson in §7 came from.**
+`getJournalEntries` reads the notes by the entry ids it already holds, so the notes policy is
+never consulted for a caller with no office: its office conjunct came out and 43 assertions
+stayed green. `tests/rls/raw/journals.mjs` is what catches it. One stated gap lives in
+`cases.mjs`: no actor in the fixture holds ZERO offices — `alphaAdmin` holds the President —
+so `getJournalAttendeeOptions`' own §5 guard is asserted by nothing, and adding an
+office-less approved member is the fix, not a `setup` that wipes an assignment.
 
 # The signed-in app signs itself out when left idle
 

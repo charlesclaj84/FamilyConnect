@@ -262,7 +262,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Your chapter',
             blocks: [
               p('The block headed with your family\'s name holds one field that belongs to that family alone: which **Chapter** you are in. It appears only once the family has created some; if it has not, the block says so.'),
-              p('It decides two things. Your household moves with you — anybody recorded under you with no account of their own follows — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [regions and chapters](/help/regions-and-chapters#dues).'),
+              p('It decides two things. Any sons or daughters under 18 who have no account of their own move with you — everybody else in the family is their own person and keeps the chapter they are in — and it can decide what you owe, because a family can attach dues to one region or one chapter. Choosing nothing leaves you under **National**: you owe the family-wide dues and none of the local ones. See [regions and chapters](/help/regions-and-chapters#dues).'),
+              note('A child whose date of birth has not been recorded does not move, because nothing on file says they are under 18. Add it on their record, or set their chapter for them from Members & Access.'),
             ],
           },
           {
@@ -452,10 +453,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
     blurb: 'Talking to the family, and keeping track of who everybody is.',
     chapters: [
       {
+        // THE SLUG STAYS `journal` WHILE THE SCREEN IS CALLED **Journals**, deliberately. A
+        // slug is the chapter's identity in `/help/<slug>` and AGENTS.md is explicit that it
+        // is not a route and moves with nothing — sweeping bare keys across this file once
+        // renamed nine chapters. The `route` below is the thing that had to move.
         slug: 'journal',
-        title: 'Journal',
-        summary: 'A notebook for each office your family keeps, and why it stays with the office rather than with you.',
-        route: '/journal',
+        title: 'Journals',
+        summary: 'A notebook for each office your family keeps, how a topic collects notes over time, and why it all stays with the office rather than with you.',
+        route: '/journals',
         sections: [
           {
             id: 'what-it-is',
@@ -463,7 +468,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Every office the family records — treasurer, secretary, events chair — has a notebook. It holds whatever the person doing the job needs written down: how the bank reconciliation actually works, which hall answers the phone, what went wrong last year.'),
               p('**The notes belong to the office, not to you.** That is the whole of it. When you hand the job on, everything you wrote is still there for whoever takes it, and everything the person before you wrote was there for you.'),
-              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — the Journal is for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
+              p('**An entry is a topic, not a page.** It has a title and then a run of notes underneath it, oldest first, each one signed and dated. So "How the bank reconciliation works" is one entry that gets a paragraph added whenever there is something to add, rather than four entries with similar names — and the argument for why it is done that way is the whole thread, not the last version of it.'),
+              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — Journals are for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
             ],
           },
           {
@@ -473,29 +479,60 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Whoever holds the office today, and nobody else.** Not other officers, not the family\'s administrators, not the person who held it last year.'),
               p('That is unusual in this product and it is deliberate. These are working notes rather than a record the family keeps, and a notebook everybody could read is one people would keep somewhere else instead.'),
               p('If you hold more than one office, each has its own notebook and a strip along the top switches between them. Nothing from one appears in another.'),
-              note('A family can switch the Journal off altogether under [Who can do what](/help/who-can-do-what), the same way as any other screen. What it cannot do is open one office\'s notebook to somebody who does not hold it.'),
+              p('If two of you hold the same office, you are both writing in the same notebook. Either of you can add a note to any entry in it, which is what makes an entry a conversation — but a note stays the property of whoever wrote it. See [changing something](#editing).'),
+              note('A family can switch Journals off altogether under [Who can do what](/help/who-can-do-what), the same way as any other screen. What it cannot do is open one office\'s notebook to somebody who does not hold it.'),
             ],
           },
           {
             id: 'writing',
-            heading: 'Writing an entry',
+            heading: 'Starting an entry, and adding to it',
             blocks: [
               steps(
                 'Press **New entry**.',
                 'Give it a title — that is what the list shows.',
-                'Write as much or as little as you like. Line breaks are kept, so a list stays a list.',
+                'Write the first note if you have something to say now. You can leave it empty and come back to it.',
                 'Press **Add entry**.',
               ),
-              p('Entries are listed newest first, with who wrote each one and when. An entry that has been changed since it was written says so.'),
+              p('After that, **Add a note** on the entry is how it grows. Write as much or as little as you like; line breaks are kept, so a list stays a list. Notes appear in the order they were written, each with a name and a date, and one that has been changed since says so.'),
+              p('Entries themselves are listed newest first, with who started each one and when.'),
+              note('Anybody who holds the office can add a note to any entry, including one somebody else started. That is deliberate — it is how a successor answers a predecessor underneath what they wrote instead of starting a rival entry.'),
+            ],
+          },
+          {
+            id: 'meetings',
+            heading: 'Meeting notes',
+            blocks: [
+              p('**Meeting notes** is the second button, and it makes an entry of a particular kind: one that records a day, who was in the room, and what was said.'),
+              steps(
+                'Press **Meeting notes**.',
+                'Check the title and the **Day of the meeting** — both are filled in with today to start with.',
+                'Under **Who attended**, search for each relative who was there and tick them. The names you have chosen stay listed above the search box, so a search that hides one does not lose it.',
+                'Write what was discussed and decided in the notes box.',
+                'Press **Add entry**.',
+              ),
+              p('A meeting shows up in the list marked **Meeting notes**, with the day it happened and everybody who attended. Anyone who holds the office can add a note to it afterwards, the same as any other entry — which is how a correction, or something remembered later, gets recorded.'),
+              p('**Who attended can only be changed by whoever recorded the meeting.** An attendee list is one statement about one room and carries nobody\'s name against it, so it is not something two officers can quietly overwrite between them. If you were there and you were left off, add a note saying so — the record then shows both.'),
+              note('**Voting on tasks is not built yet.** Every meeting entry carries a panel saying so. When it exists, it will turn what a meeting decided into tasks and let the people who attended vote on them; until then, write what was agreed in a note.'),
             ],
           },
           {
             id: 'editing',
-            heading: 'Changing or removing one',
+            heading: 'Changing or removing something',
             blocks: [
-              p('**Only the person who wrote an entry can change or delete it**, and only while they still hold the office. Everybody who holds it can read all of them.'),
-              p('So a note left by the person before you is yours to read and not to rewrite. If it is wrong or out of date, add an entry saying so — that keeps both the original and the correction, which is what makes the notebook worth reading years later.'),
-              p('Deleting is permanent and takes the entry away from everybody who holds the office, now and later. The screen asks you to confirm.'),
+              p('There are two rules, and which one applies depends on what you are changing.'),
+              defs(
+                {
+                  term: 'A note',
+                  text: 'Only the person who wrote it can edit or delete it — any note of theirs, wherever it sits in the thread, not just the most recent one. The pencil and the bin appear beside the notes that are yours and on no others.',
+                },
+                {
+                  term: 'The entry itself',
+                  text: 'Its title, a meeting\'s day, and who attended belong to whoever started it. Everybody else adds notes.',
+                },
+              ),
+              p('Either way it only lasts while you still hold the office. A former officer keeps neither — and everything they wrote stays, which is the point.'),
+              p('So a note left by the person before you is yours to read and not to rewrite. If it is wrong or out of date, add a note saying so — that keeps both the original and the correction, which is what makes the notebook worth reading years later.'),
+              p('Deleting a note leaves the rest of the entry alone. Deleting an **entry** takes every note under it, for everybody who holds the office, now and later. Both are permanent and the screen asks you to confirm.'),
               note('If an office is retired from the family\'s board positions, its notebook goes with it. There is no office left for the notes to follow.'),
             ],
           },

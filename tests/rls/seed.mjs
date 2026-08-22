@@ -426,7 +426,13 @@ async function teardown(db) {
     // from `family_roles`, so listing it after would have it swept away as a side effect and
     // the teardown would silently stop being the thing that removes it. That is the rule the
     // deleted `event_*` block records: order by which parent cascades what, never by habit.
-    'position_journal_entries',
+    //
+    // THE SAME REASONING PUTS THE NOTES AND THE ATTENDEE LIST AHEAD OF THE ENTRIES
+    // (20260822000001). Both cascade from `position_journal_entries`, so listed after it they
+    // would be gone before their own line ran — and the day somebody makes either of those
+    // foreign keys ON DELETE SET NULL, or adds a table this one does not name, the teardown
+    // would leave rows behind with nothing reporting it.
+    'position_journal_attendees', 'position_journal_notes', 'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
     // they recorded is worth keeping as a rule for anything added below: the ORDER is not
@@ -951,16 +957,88 @@ export async function seed() {
     // TWO ENTRIES, BOTH AUTHORED BY `owner`. The second is `deletableChild`'s rule applied
     // here: the delete case's positive control destroys the row it acts on, so it cannot share
     // one with the edit case that runs before or after it.
+    //
+    // NO `body` SINCE 20260822000001 — an entry is a title and a thread of notes now, and the
+    // column is dropped. The secret string moved onto the notes below, which is where the
+    // cross-family and wrong-office assertions have to look for it.
     f.journalEntry = must('journal entry', await db.from('position_journal_entries').insert({
       family_code: code, role_id: journalRole.id, author_id: owner.personId,
-      title: `${code} handover`, body: `secret journal ${code}`,
+      title: `${code} handover`,
     }).select().single())
 
     f.journalDeletable = must('deletable journal entry',
       await db.from('position_journal_entries').insert({
         family_code: code, role_id: journalRole.id, author_id: owner.personId,
-        title: `${code} disposable note`, body: `secret journal spare ${code}`,
+        title: `${code} disposable note`,
       }).select().single())
+
+    // ── THE THREAD, AND WHY IT TAKES THREE NOTES ─────────────────────────────────
+    // The notes table's write policies test the BYLINE (`author_id = auth_person_id()`) where
+    // its read policy tests the OFFICE, so the fixture needs a note by each holder to tell
+    // those two apart:
+    //
+    //   `journalNote`       by `owner` -> `alphaOther` may READ it and must not EDIT it
+    //   `journalNoteOther`  by `other` -> proves the read policy is not the byline test in
+    //                                     disguise: `owner` sees a note they did not write
+    //   `journalNoteSpare`  by `owner` -> the delete control's own row, for the reason the
+    //                                     two entries above have two
+    f.journalNote = must('journal note', await db.from('position_journal_notes').insert({
+      family_code: code, entry_id: f.journalEntry.id, author_id: owner.personId,
+      body: `secret journal ${code}`,
+    }).select().single())
+
+    f.journalNoteOther = must('journal note by the other holder',
+      await db.from('position_journal_notes').insert({
+        family_code: code, entry_id: f.journalEntry.id, author_id: other.personId,
+        body: `secret journal reply ${code}`,
+      }).select().single())
+
+    f.journalNoteSpare = must('deletable journal note',
+      await db.from('position_journal_notes').insert({
+        family_code: code, entry_id: f.journalEntry.id, author_id: owner.personId,
+        body: `secret journal spare ${code}`,
+      }).select().single())
+
+    // ── A MEETING, RECORDED BY `owner`, WITH ONE ATTENDEE ────────────────────────
+    // `met_on` is NOT NULL for a meeting and forbidden on a note — both directions of one
+    // CHECK — so this row is also what stops a case being written against a kind the database
+    // would refuse.
+    //
+    // THE ATTENDEE IS `other`, and it is a person rather than `f.ancestor` for an ordering
+    // reason worth stating: the account-less rows are seeded a few hundred lines below this
+    // and would be undefined here. That the ATTENDEE LIST accepts somebody with no account is
+    // asserted where it actually matters instead — `journal.getJournalAttendeeOptions`, which
+    // checks `f.ancestor` is offered at all.
+    f.journalMeeting = must('journal meeting',
+      await db.from('position_journal_entries').insert({
+        family_code: code, role_id: journalRole.id, author_id: owner.personId,
+        title: `${code} officers meeting`, kind: 'meeting', met_on: '2026-08-20',
+      }).select().single())
+
+    must('journal meeting attendee', await db.from('position_journal_attendees').insert({
+      family_code: code, entry_id: f.journalMeeting.id, person_id: other.personId,
+    }))
+
+    // ── AND A SECOND MEETING, FOR THE CASES THAT REWRITE AN ATTENDEE LIST ────────
+    // `deletableChild`'s rule again, and it bites harder here than anywhere else in this
+    // fixture: `setMeetingAttendees` takes a WHOLE LIST, so every positive control on it
+    // rewrites the row it acts on — and the runner judges a control by whether the probe
+    // CHANGED. Two cases sharing one meeting would therefore have the second one setting the
+    // list its predecessor had just set, reporting "the owner's own write did nothing" for an
+    // action that worked perfectly.
+    //
+    // So the read cases keep `journalMeeting` (whose control only ever ADDS a name) and the
+    // two attendee-write cases get this one, which they are free to rewrite and empty.
+    f.journalMeetingSpare = must('spare journal meeting',
+      await db.from('position_journal_entries').insert({
+        family_code: code, role_id: journalRole.id, author_id: owner.personId,
+        title: `${code} spare meeting`, kind: 'meeting', met_on: '2026-08-21',
+      }).select().single())
+
+    must('spare journal meeting attendee',
+      await db.from('position_journal_attendees').insert({
+        family_code: code, entry_id: f.journalMeetingSpare.id, person_id: other.personId,
+      }))
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
       family_code: code, name: `${code} album`, created_by: owner.personId,
@@ -969,6 +1047,27 @@ export async function seed() {
     f.photo = must('photo', await db.from('photos').insert({
       collection_id: f.collection.id, family_code: code, uploader_id: owner.personId,
       file_path: `${code}/photo.jpg`, caption: `${code} photo`,
+    }).select().single())
+
+    // ── A COLLECTION, A PHOTOGRAPH AND A TAG THAT NOTHING ELSE TOUCHES ────────
+    // `tests/rls/raw/photos.mjs` probes the photo WRITE policies straight through
+    // PostgREST, and it needs rows of its own for two separate reasons. `f.photo` is
+    // genuinely deleted by `photos.deletePhoto`'s positive control, so a probe appended
+    // after it would be reading a row that is gone rather than a row it was refused —
+    // the order hazard `f.deletableChild` exists for. And a probe that MUTATES a caption
+    // or a collection name must not move a value another case's marker scan reads.
+    f.rawCollection = must('raw-probe photo collection',
+      await db.from('photo_collections').insert({
+        family_code: code, name: `${code} raw probe album`, created_by: owner.personId,
+      }).select().single())
+
+    f.rawPhoto = must('raw-probe photo', await db.from('photos').insert({
+      collection_id: f.rawCollection.id, family_code: code, uploader_id: owner.personId,
+      file_path: `${code}/raw-probe.jpg`, caption: `${code} raw probe photo`,
+    }).select().single())
+
+    f.rawPhotoTag = must('raw-probe photo tag', await db.from('photo_tags').insert({
+      photo_id: f.rawPhoto.id, person_id: other.personId, tagged_by: owner.personId,
     }).select().single())
 
     f.room = must('chat room', await db.from('chat_rooms').insert({

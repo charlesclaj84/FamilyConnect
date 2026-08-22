@@ -344,10 +344,15 @@ export async function getMemberProfileForEdit(
  * `REFERENCES chapters(id)`, which constrains EXISTENCE and not ownership, so nothing else
  * here would notice a chapter from another family.
  *
- * ── AND THE CHILDREN FOLLOW, THROUGH THE SHARED HELPER ─────────────────────────────
- * `propagateChapterToChildren`, the same function My Profile now calls. Two implementations of
- * one rule is what this avoids — and the member-facing one was BROKEN when this was written,
- * so a fresh copy here would have been a correct one beside a silent failure.
+ * ── AND THE UNDER-18 CHILDREN FOLLOW, THROUGH THE SHARED HELPER ────────────────────
+ * `propagateChapterToChildren`, the same function My Profile calls. Two implementations of one
+ * rule is what this avoids — and the member-facing one was BROKEN when this was written, so a
+ * fresh copy here would have been a correct one beside a silent failure.
+ *
+ * WHAT IT MOVES IS NARROW AND IS NOT A HOUSEHOLD: a son or daughter, under eighteen, with no
+ * account of their own. Everybody else in this family is their own person and keeps the chapter
+ * they were filed in — including an adult child with no account, who was moved until
+ * 2026-08-22 and should not have been.
  */
 export async function setMemberChapter(
   peopleId: string,
@@ -396,8 +401,8 @@ export async function setMemberChapter(
   if (propagation.error) {
     return {
       success: true,
-      message: 'Chapter saved, but the relatives without accounts of their own could not be '
-        + 'moved with them. Try again, or set their chapter individually.',
+      message: 'Chapter saved, but their children under 18 with no account of their own '
+        + 'could not be moved with them. Try again, or set each chapter individually.',
     }
   }
   if (propagation.moved > 0) {

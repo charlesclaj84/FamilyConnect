@@ -276,7 +276,8 @@ function ChapterBlock({
       )}
       <p className="mt-3 text-xs text-muted-foreground">
         Your chapter applies to this family only — the rest of your profile is shared
-        across every family you belong to. Changing it moves your household with you.
+        across every family you belong to. Changing it also moves any sons or daughters
+        under 18 who have no account of their own; everybody else sets their own.
       </p>
       {/* WHAT IT DECIDES ABOUT MONEY, said here because this is the only screen that sets
           it and 20260817000008 made it consequential: a due can belong to one region or one
@@ -384,7 +385,10 @@ function GeneralSection({
     const ok = await confirm({
       title: 'Save general information',
       description: chapterChanged
-        ? `Save your changes and move to the ${chapters.find(c => c.id === chapterId)?.name ?? 'selected'} chapter? Your household moves with you.`
+        // SAYS WHAT MOVES. There is no household here (AGENTS.md §4b: one kind of `people`
+        // row), and what follows a member is narrower than one: a son or daughter under
+        // eighteen with no account of their own.
+        ? `Save your changes and move to the ${chapters.find(c => c.id === chapterId)?.name ?? 'selected'} chapter? Any sons or daughters under 18 who have no account of their own move with you.`
         : 'Save your changes to your general information?',
       confirmLabel: 'Save changes',
     })
@@ -400,8 +404,8 @@ function GeneralSection({
     if (chapterChanged) {
       const chapterResult = await saveChapterAndPropagate(chapterId || null)
       // Reported rather than swallowed. The chapter is now a SEPARATE write, so it can
-      // fail on its own — and it is the half that moves the household, which is the last
-      // thing to report success over silently.
+      // fail on its own — and it is the half that also moves the member's under-18 children,
+      // which is the last thing to report success over silently.
       if (!chapterResult.success) {
         setServerError(chapterResult.message ?? 'Your details were saved, but the chapter could not be changed.')
         onSaved()

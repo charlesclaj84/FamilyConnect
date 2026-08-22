@@ -215,6 +215,24 @@ minimum_password_length = 6
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
 
+# ── LEAKED PASSWORD PROTECTION IS A DASHBOARD SETTING, AND IT IS STILL OFF ──────────
+# `supabase db advisors --linked --type security` reports `auth_leaked_password_protection`:
+# GoTrue can check a new password against HaveIBeenPwned's k-anonymity API and refuse a
+# password that appears in a known breach. It is the one finding in that report that no
+# migration can close, because it is not schema — it is project configuration, and there is
+# no key for it in this file. The Management API field is `password_hibp_enabled`; the route
+# a person takes is Authentication → Sign In / Providers → Password.
+#
+# IT IS DELIBERATELY NOT PUSHED FROM HERE. `supabase config push` would send `site_url` and
+# `additional_redirect_urls` along with it, and those are DNS names that either resolve or
+# break every confirmation link in the product — which is why `npm run email:push` exists as
+# a ten-field script rather than as a config push (AGENTS.md, "Sending email is a plain
+# module"). Inventing a key this file does not have would also be worse than useless: unknown
+# keys in config.toml are silently IGNORED, measured 2026-08-22, so a plausible-looking line
+# here would read as the setting being on.
+#
+# TODO.md carries it as the one advisor finding that is a person's job.
+
 # Configure passkey sign-ins.
 # [auth.passkey]
 # enabled = false

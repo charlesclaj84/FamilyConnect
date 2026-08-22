@@ -42,7 +42,11 @@ export function ChapterReminderBanner({ chapters }: Props) {
     if (!chapterId) { setError('Please select a chapter.'); return }
     const ok = await confirm({
       title: 'Set your chapter',
-      description: `Set your chapter to ${chapters.find(c => c.id === chapterId)?.name ?? 'the selected chapter'}? Everyone in your household moves with you.`,
+      // WHAT MOVES, IN THE WORDS OF THE RULE. There is no household in this product — every
+      // member is their own person — and `propagateChapterToChildren` moves exactly one other
+      // kind of row: a son or daughter under eighteen with no account of their own. "Everyone
+      // in your household" said both more than is true and less than is clear.
+      description: `Set your chapter to ${chapters.find(c => c.id === chapterId)?.name ?? 'the selected chapter'}? Any sons or daughters under 18 who have no account of their own move with you.`,
       confirmLabel: 'Set chapter',
     })
     if (!ok) return

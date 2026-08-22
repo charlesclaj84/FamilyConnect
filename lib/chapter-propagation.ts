@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { minorCutoff } from '@/lib/age-utils'
+import { todayLocal } from '@/lib/date-utils'
 
 /*
  * NO `import 'server-only'`, and that is deliberate rather than an omission. Nothing in this
@@ -13,7 +15,22 @@ import { createAdminClient } from '@/lib/supabase/admin'
  */
 
 /**
- * Carrying a member's account-less children into the chapter they just moved to.
+ * Carrying a member's account-less children UNDER EIGHTEEN into the chapter they just moved to.
+ *
+ * ── THERE IS NO HOUSEHOLD IN THIS PRODUCT, AND THIS IS THE WHOLE OF WHAT MOVES ──────
+ * Every member is their own person. `people` has one kind of row (AGENTS.md §4b), nothing is
+ * filed under anybody else, and setting your chapter changes exactly one thing about the
+ * family: your own row, plus the rows of children who are too young to have a say and have no
+ * account to say it with. The three conjuncts below ARE that sentence, and every one of them
+ * is doing work:
+ *
+ *   a Son or Daughter edge   they are your child, which a person recorded — never derived
+ *   `user_id IS NULL`        they cannot set their own chapter, so somebody has to
+ *   under eighteen           they are a minor TODAY, derived from `date_of_birth`
+ *
+ * The copy on both surfaces says this in those words. It said "everyone in your household
+ * moves with you" until 2026-08-22, which described a concept this product does not have and
+ * over-promised what the function did in the same breath.
  *
  * ── WHY THIS IS A MODULE OF ITS OWN, AND NOT A THIRD COPY ───────────────────────────
  * Two surfaces set somebody's chapter and both owe this: `saveChapterAndPropagate` (a member
@@ -77,23 +94,39 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const CHILD_RELATIONSHIPS = ['Son', 'Daughter'] as const
 
 export interface ChapterPropagation {
-  /** How many account-less children were moved. Zero is an ordinary answer. */
+  /**
+   * How many children under eighteen with no account of their own were moved. ZERO IS AN
+   * ORDINARY ANSWER — most members have none, and a member whose children's birthdays are not
+   * recorded has none this function can see.
+   */
   moved: number
   /** Set when the propagation itself failed, having already saved the member's own row. */
   error?: string
 }
 
 /**
- * Move every account-less child of `personId` into `chapterId`.
+ * Move every account-less child of `personId` who is under eighteen into `chapterId`.
  *
- * ── WHO FOLLOWS THE PARENT: `user_id IS NULL`, NOT AN AGE ──────────────────────────
- * Carried over verbatim from `saveChapterAndPropagate`, and it is a correction rather than a
- * translation. It was `.eq('is_minor', true)` until `20260813000006` dropped that column, and
- * age was a poor proxy in both directions: a twenty-year-old with no account was left behind
- * while a sixteen-year-old who had claimed one had their chapter overwritten by a parent. The
- * rule was always "somebody who cannot set their own chapter", and `user_id IS NULL` is the
- * fact that decides it — the same test every other surface uses to mean "a record rather than a
- * member" (AGENTS.md §4b).
+ * ── WHO FOLLOWS THE PARENT: `user_id IS NULL` **AND** UNDER EIGHTEEN ───────────────
+ * BOTH, and the second half arrived on 2026-08-22. The history is worth keeping because the
+ * two conjuncts answer different questions and each was once thought to be the whole answer:
+ *
+ *   * It was `.eq('is_minor', true)` until `20260813000006` dropped that column — a STORED
+ *     boolean about age, written once by the retired `addChild`, wrong from the morning the
+ *     child turned eighteen until somebody noticed.
+ *   * It became `user_id IS NULL` alone, on the argument that the rule is really "somebody who
+ *     cannot set their own chapter". That is necessary and it is not sufficient: a
+ *     twenty-five-year-old cousin recorded on the tree with no email address has no account
+ *     either, and moving THEIR chapter because their father moved his is the household concept
+ *     this product does not have.
+ *
+ * So the age test is back and it is a DERIVATION rather than a column — `minorCutoff` from
+ * `lib/age-utils.ts`, which is the same rule `computeIsMinor` applies one row at a time. AN
+ * UNRECORDED BIRTHDAY DOES NOT MOVE: `> NULL` is never true in SQL, exactly as
+ * `computeIsMinor(null)` is false, so somebody nobody has recorded a birthday for stays where
+ * they are. That is the honest direction — "under 18" is something the family has said about a
+ * person, not something to assume about a row with a blank field — and `moved` is reported to
+ * the caller, so a family that records no birthdays sees zero rather than being told nothing.
  *
  * ── IT REPORTS, AND THE CALLER DECIDES WHAT THAT MEANS ─────────────────────────────
  * `moved` and an optional `error`, rather than a thrown exception or a swallowed one. The
@@ -148,8 +181,15 @@ export async function propagateChapterToChildren(
     // §3: the ids came from a family-scoped read, so this is belt on that brace — and it is
     // the conjunct that matters if that read is ever widened.
     .eq('family_code', familyCode)
-    // The rule. A child who has claimed an account sets their own chapter.
+    // The rule, both halves. A child who has claimed an account sets their own chapter; an
+    // adult child sets their own whether they have one or not.
     .is('user_id', null)
+    // UNDER EIGHTEEN, as one filter rather than a sieve in TypeScript — and NULL is excluded
+    // by the comparison itself, which is the same answer `computeIsMinor` gives for a birthday
+    // nobody has recorded. `todayLocal()` is read here rather than taken as a parameter
+    // because this function already reaches the network and is not the pure module §7b is
+    // about; the arithmetic that IS testable lives in `minorCutoff`.
+    .gt('date_of_birth', minorCutoff(todayLocal()))
     .select('id')
   if (error) return { moved: 0, error: error.message }
 

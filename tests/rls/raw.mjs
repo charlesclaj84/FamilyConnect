@@ -11,10 +11,15 @@
  * where family scoping was the ONLY conjunct — the family tree, the permission grid, the
  * family's own restrictions, the notification table. What that conjunct closes is an
  * applicant, inside the family boundary, reading or writing rows every other test admits
- * them to. And the sharpest of those, `notifications` INSERT, is deliberately written
+ * them to. And the sharpest of those, `notifications` INSERT, was deliberately written
  * only by `lib/notifications.ts`, a PLAIN module with no URL — precisely so no action
  * exposes it. So the action-shaped suite structurally cannot reach the thing that protects
  * it. AGENTS.md §7 and TODO.md have both recorded that gap since Phase 3; this closes it.
+ *
+ * (That INSERT policy is GONE as of `20260822000011` — nothing needed it, and a policy that
+ * let any approved member write into any bell in their family was worse than the applicant
+ * question it was being tested for. The case asserts its absence now, which is stronger. The
+ * argument for this module is unchanged: the write it probed still has no action to call.)
  *
  * ── IT IS NOT A FOURTH SUBSTITUTION ─────────────────────────────────────────────────
  * `hooks.mjs` says it has "three jobs and deliberately no more than three — every extra
@@ -89,7 +94,15 @@ export async function rawInsert(table, row) {
  * the SELECT policy into any statement carrying a RETURNING clause, and supabase-js's
  * `.select()` is what adds one — so on a table whose SELECT policy is narrower than its
  * DELETE policy, a probe with `.select()` reports a refusal that came from the wrong policy
- * and the case is not evidence for the conjunct it names. The row's fate is judged by the
+ * and the case is not evidence for the conjunct it names.
+ *
+ * **AND FOR UPDATE AND DELETE THAT IS NOT ENOUGH, WHICH `raw/photos.mjs` MEASURED.**
+ * PostgreSQL applies the SELECT policies to an UPDATE or DELETE whose WHERE clause references
+ * the table's columns, RETURNING or no RETURNING — finding the rows requires reading them. Since
+ * PostgREST cannot express an unfiltered UPDATE or DELETE, the SELECT policy is the FLOOR of
+ * every write reachable from here, and no probe in this file can isolate a write policy's own
+ * conjuncts on a table whose read policy is narrower. Read `raw/photos.mjs` before writing a
+ * case that claims to. The row's fate is judged by the
  * case's `probe`, which reads through the SERVICE ROLE and sees past every policy.
  *
  * `count: 'exact'` is what makes a refusal distinguishable from a match of nothing: RLS

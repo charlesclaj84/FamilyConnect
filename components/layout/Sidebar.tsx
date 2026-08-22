@@ -294,15 +294,15 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
 
   groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
 
-  // ── JOURNAL: A SECTION OF ONE, AND IT STAYS ONE ────────────────────────────────────
+  // ── JOURNALS: A SECTION OF ONE, AND IT STAYS ONE ───────────────────────────────────
   // `NavSection` renders a single-item group as a static divider rather than a slider, which
   // is the right shape — there is nothing to collapse. A second item here would make it a
   // slider automatically and need no change.
   //
-  // THE ROW IS UNCONDITIONAL, filtered by the `journal` grant like every other row in this
+  // THE ROW IS UNCONDITIONAL, filtered by the `journals` grant like every other row in this
   // file and by nothing else. It is deliberately NOT conditional on the caller holding an
   // office, which is the `hasAssignments` decision recorded above the Gatherings block: a row
-  // that is sometimes there is worse than a row that is sometimes empty, and `/journal` has a
+  // that is sometimes there is worse than a row that is sometimes empty, and `/journals` has a
   // real empty state that says what the screen is for.
   //
   // It would not work anyway. The shell is built ONCE and does not re-render on a client-side
@@ -313,9 +313,9 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // AFTER GATHERINGS AND BEFORE ACCOUNTING: it is the officer's own working surface, which
   // sits between what the family does together and what it does with money.
   groups.push({
-    section: { label: 'Journal', icon: BookText },
+    section: { label: 'Journals', icon: BookText },
     items: [
-      { href: '/journal', label: 'Journal', icon: BookText },
+      { href: '/journals', label: 'Journals', icon: BookText },
     ],
   })
 
