@@ -19,7 +19,7 @@ export const metadata = { title: 'Bylaws' }
  *
  * ── READ BY THE WHOLE FAMILY ───────────────────────────────────────────────────────
  * `bylaws` has one SELECT policy, family plus approval, and no write policy at all — so the
- * browser cannot write it and the actions are the boundary (§2c). `journals/bylaws:view` gates
+ * browser cannot write it and the actions are the boundary (§2c). `library/bylaws:view` gates
  * this screen so a family that has adopted none can switch it off; it decides no row.
  */
 export default async function BylawsPage() {
@@ -27,7 +27,7 @@ export default async function BylawsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals/bylaws')
+  await requireView(user.id, 'library/bylaws')
 
   const [bylaws, rights] = await Promise.all([getBylaws(), getBylawRights()])
 

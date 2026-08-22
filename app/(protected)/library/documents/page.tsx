@@ -11,7 +11,7 @@ export const metadata = { title: 'Documents' }
 /**
  * The family's filed records.
  *
- * IT WAS `/review/documents` UNTIL 2026-08-22, and it moved to Journals rather than back to
+ * IT WAS `/review/documents` UNTIL 2026-08-22, and it moved to the Library rather than back to
  * Resources: a family's records sit beside the notebooks its officers keep, and the reader who
  * wants one is the reader who wants the other. `20260822000018` moved the key with the route
  * and retired the Review section, which was the last thing holding it.
@@ -26,12 +26,12 @@ export default async function DocumentsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals/documents')
+  await requireView(user.id, 'library/documents')
 
   const [documents, canUpload, canDeleteAny, myPersonId] = await Promise.all([
     getDocuments(),
-    canAny(user.id, 'journals/documents', 'create'),
-    canAny(user.id, 'journals/documents', 'delete'),
+    canAny(user.id, 'library/documents', 'create'),
+    canAny(user.id, 'library/documents', 'delete'),
     getMyPersonId(user.id),
   ])
 

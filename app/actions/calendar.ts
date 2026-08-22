@@ -190,11 +190,11 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
   const mayGatherings = isFeatureLive('/gatherings')
     ? await can(g.userId, 'gatherings', 'view')
     : false
-  // `journals/meeting-minutes` is the key that owns the screen a meeting cell links to, asked
+  // `library/meeting-minutes` is the key that owns the screen a meeting cell links to, asked
   // the same way and for the same reason: a cell linking to a page the member cannot open is
   // the worst thing a calendar can do.
-  const mayMeetings = isFeatureLive('/journals/meeting-minutes')
-    ? await can(g.userId, 'journals/meeting-minutes', 'view')
+  const mayMeetings = isFeatureLive('/library/meeting-minutes')
+    ? await can(g.userId, 'library/meeting-minutes', 'view')
     : false
 
   const { from, to } = gridWindow(month)
@@ -279,7 +279,7 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
           startsOn: row.meets_on,
           endsOn:   null,
           kind:     'meeting',
-          href:     `/journals/meeting-minutes/${row.id}`,
+          href:     `/library/meeting-minutes/${row.id}`,
         })
       }
     }

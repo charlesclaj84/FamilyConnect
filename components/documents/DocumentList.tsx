@@ -42,7 +42,7 @@ import { formatDate } from '@/lib/date-utils'
 export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPersonId }: {
   initialDocuments: DocumentRecord[]
   canUpload: boolean
-  /** `journals/documents:delete` at scope 'any' — may remove anybody's. */
+  /** `library/documents:delete` at scope 'any' — may remove anybody's. */
   canDeleteAny: boolean
   /** The caller's own `people.id`: an uploader may always remove their own. */
   myPersonId: string | null

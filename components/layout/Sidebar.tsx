@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Images,
   Gavel,
+  Library,
   ChevronDown,
   ArrowRightLeft,
   Settings,
@@ -301,45 +302,44 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
 
   groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
 
-  // ── JOURNALS: FOUR ROWS SINCE 2026-08-22, AND IT WAS ONE THE DAY BEFORE ─────────────
+  // ── LIBRARY: FOUR ROWS, AND IT WAS ONE CALLED "JOURNALS" TWO DAYS AGO ─────
   // `NavSection` renders a single-item group as a static divider and a multi-item one as a
-  // slider, so this became a slider on its own with no change here — which is what that
-  // comment predicted when the section held only Officer.
+  // slider, so this became a slider on its own with no change here.
   //
   // WHAT THE FOUR HAVE IN COMMON is the reader: somebody looking for what the family wrote
-  // down. Officer is one officeholder's working notebook; Meeting Minutes is what the room
-  // decided; Documents is the filing cabinet; Bylaws is the rules. Documents MOVED here from
-  // the retired Review section rather than back to Resources, because a family's records sit
-  // beside the notebooks its officers keep.
+  // down. Officer Notes is one officeholder's working notebook; Meeting Minutes is what the
+  // room decided; Documents is the filing cabinet; Bylaws is the rules. Documents MOVED here
+  // from the retired Review section rather than back to Resources, because a family's records
+  // sit beside the notebooks its officers keep.
+  //
+  // THE HEADING IS **Library** AND WAS "Journals" UNTIL 2026-08-22 (`20260822000021`). That
+  // word named one of the four children and told a reader the other three were somewhere
+  // else. Library is what they have in common: things the family keeps and goes back to, and
+  // it reads beside Community and Gatherings rather than against them.
   //
   // THE ORDER IS BY HOW OFFICIAL EACH ONE IS, which is also how permanent: a private notebook,
   // then the record of a meeting, then the filed documents, then the constitution.
   //
-  // THE ROW IS UNCONDITIONAL, filtered by the `journals` grant like every other row in this
-  // file and by nothing else. It is deliberately NOT conditional on the caller holding an
-  // office, which is the `hasAssignments` decision recorded above the Gatherings block: a row
-  // that is sometimes there is worse than a row that is sometimes empty, and
-  // `/journals/officer` has a real empty state that says what the screen is for.
-  //
-  // THE ITEM IS "Officer" AND NOT "Journals", since 2026-08-22. It wore the section's own word,
-  // so the rail read "Journals > Journals" — which says nothing twice. It is now named for
-  // whose notebook it is, and that renamed the route and the key with it (20260822000017); the
-  // entry in `lib/features.ts` says why one follows the other.
+  // EVERY ROW IS UNCONDITIONAL, filtered by its own grant like every other row in this file
+  // and by nothing else. Officer Notes in particular is deliberately NOT conditional on the
+  // caller holding an office, which is the `hasAssignments` decision recorded above the
+  // Gatherings block: a row that is sometimes there is worse than a row that is sometimes
+  // empty, and that page has a real empty state saying what the screen is for.
   //
   // It would not work anyway. The shell is built ONCE and does not re-render on a client-side
   // navigation; `ShellWatcher` notices a changed permission grid, and holding an office is a
   // `user_roles` row its fingerprint does not include — so a row conditional on office would
   // appear for a newly appointed officer only after a full reload.
   //
-  // AFTER GATHERINGS AND BEFORE ACCOUNTING: it is the officer's own working surface, which
-  // sits between what the family does together and what it does with money.
+  // AFTER GATHERINGS AND BEFORE ACCOUNTING: what the family has written down sits between
+  // what it does together and what it does with money.
   groups.push({
-    section: { label: 'Journals', icon: BookText },
+    section: { label: 'Library', icon: Library },
     items: [
-      { href: '/journals/officer',         label: 'Officer',         icon: BookText },
-      { href: '/journals/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
-      { href: '/journals/documents',       label: 'Documents',       icon: FileText },
-      { href: '/journals/bylaws',          label: 'Bylaws',          icon: Scale },
+      { href: '/library/officer-notes',   label: 'Officer Notes',   icon: BookText },
+      { href: '/library/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
+      { href: '/library/documents',       label: 'Documents',       icon: FileText },
+      { href: '/library/bylaws',          label: 'Bylaws',          icon: Scale },
     ],
   })
 
@@ -487,7 +487,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // it. A Review section that outlives the review is the thing to avoid."
   //
   // The last two left on 2026-08-22: Photos was reviewed, renamed **Gallery** and moved to
-  // Community; Documents moved to Journals. `20260822000018` moved both keys with their
+  // Community; Documents moved to the Library section. `20260822000018` moved both keys with their
   // routes, and `lib/features.ts` carries the record of where all six ended up.
   //
   // NOTHING REPLACES IT, deliberately. A heading kept "for the next review" is a heading

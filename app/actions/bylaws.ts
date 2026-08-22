@@ -9,7 +9,7 @@ import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
 
 /**
- * Bylaws — `/journals/bylaws`. SCAFFOLDING.
+ * Bylaws — `/library/bylaws`. SCAFFOLDING.
  *
  * ── WHAT IS BUILT AND WHAT IS NOT, STATED FIRST ────────────────────────────────────
  * The ask was scaffolding for a screen where a family uploads its governing documents and
@@ -32,7 +32,7 @@ import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload
  * ── THE BOUNDARY IS THE SAME ONE MEETING MINUTES USES ──────────────────────────────
  * One SELECT policy — family and approval — and NO write policy, so §2c denies INSERT, UPDATE
  * and DELETE to the browser outright. Every write below is on the admin client with
- * `.eq('family_code', …)` by hand (§3), behind `journals/bylaws:create` / `:delete` at
+ * `.eq('family_code', …)` by hand (§3), behind `library/bylaws:create` / `:delete` at
  * `canAny`. A guard trigger refuses a cross-family uploader underneath (§4).
  *
  * READ BY THE WHOLE FAMILY, which is the feature rather than a default: bylaws are the rules
@@ -164,8 +164,8 @@ export async function getBylawRights(): Promise<{ create: boolean; remove: boole
   const g = await requireMember()
   if (!g.ok) return { create: false, remove: false }
   const [create, remove] = await Promise.all([
-    canAny(g.userId, 'journals/bylaws', 'create'),
-    canAny(g.userId, 'journals/bylaws', 'delete'),
+    canAny(g.userId, 'library/bylaws', 'create'),
+    canAny(g.userId, 'library/bylaws', 'delete'),
   ])
   return { create, remove }
 }
@@ -180,7 +180,7 @@ export async function getBylawRights(): Promise<{ create: boolean; remove: boole
 export async function addBylaw(formData: FormData): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!(await canAny(g.userId, 'journals/bylaws', 'create'))) {
+  if (!(await canAny(g.userId, 'library/bylaws', 'create'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -238,14 +238,14 @@ export async function addBylaw(formData: FormData): Promise<{ success: boolean; 
     return { success: false, message: error.message }
   }
 
-  revalidatePath('/journals/bylaws')
+  revalidatePath('/library/bylaws')
   return { success: true }
 }
 
 export async function deleteBylaw(id: string): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!(await canAny(g.userId, 'journals/bylaws', 'delete'))) {
+  if (!(await canAny(g.userId, 'library/bylaws', 'delete'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -264,6 +264,6 @@ export async function deleteBylaw(id: string): Promise<{ success: boolean; messa
   // nothing.
   if (row.file_path) await admin.storage.from('documents').remove([row.file_path])
 
-  revalidatePath('/journals/bylaws')
+  revalidatePath('/library/bylaws')
   return { success: true }
 }

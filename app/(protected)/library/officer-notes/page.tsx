@@ -4,21 +4,25 @@ import { BookText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
-import { JournalClient } from '@/components/journal/JournalClient'
+import { OfficerNotesClient } from '@/components/library/OfficerNotesClient'
 import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Officer' }
 
 /**
- * Journals > Officer: an office's notebook, read and written by whoever holds it.
+ * Library > Officer Notes: an office's notebook, read and written by whoever holds it.
  *
- * ── IT WAS `/journals` UNTIL 2026-08-22 ────────────────────────────
- * The rail read "Journals > Journals" — a section of one whose item wore the section's own
- * word, which says nothing twice. The item is named for whose notebook it is now, and
- * AGENTS.md's route rule takes it from there: the caption is the route and the route is the
- * key, so this moved to `app/(protected)/journals/officer/` and `20260822000017` moved
- * `journals` to `journals/officer`, carrying every family's grant. `lib/features.ts` carries
- * the argument.
+ * ── THE ROUTE HAS MOVED THREE TIMES IN THREE DAYS ────────────────────
+ * `/journal` → `/journals` → `/journals/officer` → `/library/officer-notes`. Each
+ * move is one rule being obeyed rather than four opinions: the caption is the route and the
+ * route is the key (§1).
+ *
+ * The section was renamed **Library** on 2026-08-22 because it had stopped holding only
+ * journals — Meeting Minutes, Bylaws and Documents sit beside this now, and a heading that
+ * names one of its four children tells a reader the other three are somewhere else. The item
+ * was renamed **Officer Notes** in the same commit, because "Officer" alone leaned entirely on
+ * the word above it and under any other section reads as a list of officers, which is what
+ * `/admin/members/board-positions` is. `20260822000021` carried every family's grant across.
  *
  * ── THE RAIL ROW IS UNCONDITIONAL, AND THAT IS THE DOCUMENTED RULE ─────────────────
  * The ask was "available to any member holding a position", and there are two ways to read
@@ -42,9 +46,9 @@ export const metadata = { title: 'Officer' }
  * and writes nothing whatever their template says — and this page renders a sentence
  * explaining that rather than an error.
  *
- * ── `requireView('journals/officer')` IS THE GATE AND GATES ONLY THE SCREEN ────────
- * `journals/officer:view` defaults to 'everyone', so what it is FOR is letting a family switch
- * Journals off entirely. It decides nothing about which entries anybody reads — no policy on
+ * ── `requireView('library/officer-notes')` IS THE GATE AND GATES ONLY THE SCREEN ────────
+ * `library/officer-notes:view` defaults to 'everyone', so what it is FOR is letting a family switch
+ * this screen off entirely. It decides nothing about which entries anybody reads — no policy on
  * the table evaluates `auth_permission` at all, and `20260821000005` asserts that absence in
  * both directions so a later policy sweep cannot quietly make the key a row filter.
  *
@@ -59,7 +63,7 @@ export default async function JournalPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals/officer')
+  await requireView(user.id, 'library/officer-notes')
 
   const offices = await getMyOffices()
   // NOT FETCHED AT ALL for a member with no office. The action would answer `[]` on its own —
@@ -68,7 +72,7 @@ export default async function JournalPage() {
   //
   // THE ROSTER USED TO BE FETCHED HERE TOO, for a meeting's attendee picker, and it was the
   // sharper half: the whole family's names, in the RSC payload, for a control most officers
-  // never opened. The meeting half left for `/journals/meeting-minutes` on 2026-08-22 and the
+  // never opened. The meeting half left for `/library/meeting-minutes` on 2026-08-22 and the
   // roster went with it, which means this page now reads nothing but the caller's own offices
   // and one office's notes.
   const entries = offices.length ? await getJournalEntries(offices[0].role_id) : []
@@ -111,7 +115,7 @@ export default async function JournalPage() {
           </p>
         </div>
       ) : (
-        <JournalClient
+        <OfficerNotesClient
           offices={offices}
           initialOffice={offices[0].role_id}
           initialEntries={entries}

@@ -100,7 +100,7 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
     startTransition(async () => {
       const result = await deleteMeeting(meeting.id)
       if (!result.success) { setError(result.message ?? 'Could not delete that.'); return }
-      router.push('/journals/meeting-minutes')
+      router.push('/library/meeting-minutes')
     })
   }
 

@@ -92,7 +92,7 @@ export function MeetingsClient({ initialMeetings, members, maySchedule }: {
         <ScheduleDialog
           members={members}
           onClose={() => setScheduling(false)}
-          onScheduled={id => { setScheduling(false); router.push(`/journals/meeting-minutes/${id}`) }}
+          onScheduled={id => { setScheduling(false); router.push(`/library/meeting-minutes/${id}`) }}
         />
       )}
     </div>
@@ -108,7 +108,7 @@ function MeetingGroup({ heading, meetings }: { heading: string; meetings: Meetin
       <ul className="divide-y rounded-xl border">
         {meetings.map(m => (
           <li key={m.id}>
-            <Link href={`/journals/meeting-minutes/${m.id}`}
+            <Link href={`/library/meeting-minutes/${m.id}`}
               className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-foreground transition-colors hover:bg-brand-soft/40">
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{m.title}</span>

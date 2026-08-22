@@ -430,29 +430,30 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
   },
 
-  // ── Journals > Officer: an office's notebook ──────────────────────────────────
-  // A rail section of one item, and the item is NOT captioned with the section's own word —
-  // which it was, for one day. "Journals > Journals" is the "a section whose own index page
-  // IS the section does not double up" exception (AGENTS.md, "The route tree IS the nav
-  // rail"), and that exception holds only while the section and the item mean the same
-  // thing. Naming the item for WHOSE notebook it is ends that: the section is the feature,
-  // the item is the officer's journal. So the route is `/journals/officer` and the key
-  // follows it (`20260822000017`).
+  // ── Library > Officer Notes: an office's notebook ────────────────────
+  // THE SECTION IS **Library** SINCE 2026-08-22, and it was Journals the day before. That word
+  // was right while the section held one thing; it now holds four, and three of them are not
+  // journals — Meeting Minutes is what a room decided, Bylaws is what the family is bound by,
+  // Documents is a filing cabinet. A heading that names one of its four children is a heading
+  // that tells a reader the other three are somewhere else. **Library** is what they have in
+  // common: things the family keeps and goes back to.
   //
-  // IT LEAVES ROOM, which is the second reason. A journal belonging to a CHAPTER rather than
-  // to an office is the obvious next item here, and it would have had nowhere to go under a
-  // `/journals` that was already a page.
+  // AND THE ITEM IS **Officer Notes**, not "Officer". It leaned entirely on the word above it:
+  // under a section called Journals it read as "the officer's journal", and under any other
+  // word it reads as a list of officers, which is what `/admin/members/board-positions` is.
   //
-  // THE ROUTE HAS MOVED TWICE IN THREE DAYS — `/journal`, `/journals`,
-  // `/journals/officer` — and each move is one rule being obeyed rather than three
-  // opinions: the caption is the route and the route is the key. What it costs is a migration
-  // copying every family's grant across, which is exactly why the rule is worth keeping ahead
-  // of the archaeology 20260820000004 spent 42 keys undoing.
+  // THE ROUTE HAS NOW MOVED THREE TIMES IN THREE DAYS — `/journal`, `/journals`,
+  // `/journals/officer`, `/library/officer-notes` — and each move is one rule being obeyed
+  // rather than four opinions: the caption is the route and the route is the key. What it costs
+  // is a migration copying every family's grant across (`20260822000021` for this one), which
+  // is exactly why the rule is worth keeping ahead of the archaeology 20260820000004 spent 42
+  // keys undoing. What it buys is that a reader who knows the rail can write the path, and a
+  // reader who has the path can find the file and the grant.
   //
-  // `tier: 'plus'`, matching Board Positions and Organization. That is not a pricing
-  // judgement so much as an arithmetic one: the Journal hangs off `family_roles`, and a family
-  // that cannot record an office would have a screen that can never have content. Moving it
-  // down a tier means moving those with it.
+  // `tier: 'plus'`, matching Board Positions and Organization. That is not a pricing judgement
+  // so much as an arithmetic one: this screen hangs off `family_roles`, and a family that
+  // cannot record an office would have a screen that can never have content. Moving it down a
+  // tier means moving those with it.
   //
   // THE ROW IS UNCONDITIONAL and appears for anybody holding the grant, whether or not they
   // hold an office. The page has a real empty state and says why; the alternative — hiding it
@@ -460,8 +461,8 @@ export const FEATURES: readonly Feature[] = [
   // would not work here anyway, because the shell is built once and `ShellWatcher`'s
   // fingerprint does not include `user_roles`. The page's own header argues it.
   {
-    href: '/journals/officer',
-    label: 'Officer',
+    href: '/library/officer-notes',
+    label: 'Officer Notes',
     status: 'live',
     tier: 'plus',
     blurb: 'A notebook for each office your family keeps — it stays with the role, not the person.',
@@ -739,23 +740,25 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Every album the family keeps — upload in a batch, tag who is in each picture, and find them again.',
   },
 
-  // ── Journals: the family's records and how it governs itself ────────────────
-  // THREE ROWS ARRIVED HERE ON 2026-08-22 and the section went from one item to four. Documents
+  // ── Library: the family's records and how it governs itself ─────────────────
+  // THREE ROWS ARRIVED ON 2026-08-22 and the section went from one item to four. Documents
   // MOVED (from `/review/documents`); Meeting Minutes and Bylaws are new. What they share with
-  // the officer's journal is the reader: somebody looking for what the family wrote down.
+  // the officer's notebook is the reader: somebody looking for what the family wrote down —
+  // and that is what made "Journals" the wrong heading and **Library** the right one, in the
+  // same commit that registered them.
   //
-  // ALL THREE ARE `plus`, matching Officer — which is an arithmetic judgement rather than a
-  // pricing one, the same as that row's: the section hangs off `family_roles`, and a family
+  // ALL THREE ARE `plus`, matching Officer Notes — which is an arithmetic judgement rather than
+  // a pricing one, the same as that row's: the section hangs off `family_roles`, and a family
   // that cannot record an office would have screens that can never have content.
   {
-    href: '/journals/documents',
+    href: '/library/documents',
     label: 'Documents',
     status: 'live',
     tier: 'plus',
     blurb: 'Forms, filings and signed copies in one shared place that does not live in an inbox.',
   },
   {
-    href: '/journals/meeting-minutes',
+    href: '/library/meeting-minutes',
     label: 'Meeting Minutes',
     status: 'live',
     tier: 'plus',
@@ -766,7 +769,7 @@ export const FEATURES: readonly Feature[] = [
   // upload and are searchable by title and summary until it is. `app/actions/bylaws.ts` carries
   // the whole argument and every row on the screen carries a badge saying which it is.
   {
-    href: '/journals/bylaws',
+    href: '/library/bylaws',
     label: 'Bylaws',
     status: 'live',
     tier: 'plus',

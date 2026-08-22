@@ -10,7 +10,7 @@ import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload
 import { isDocumentCategory } from '@/lib/document-categories'
 
 /**
- * The family's documents — `/journals/documents`, and `review/documents` until 2026-08-22.
+ * The family's documents — `/library/documents`, and `review/documents` until 2026-08-22.
  *
  * ── IT MOVED TO JOURNALS, AND THE KEY MOVED WITH IT ────────────────────────────────
  * `20260822000018` retired the Review worklist. A family's records — its filings, its forms,
@@ -115,7 +115,7 @@ export async function uploadDocument(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!(await canAny(g.userId, 'journals/documents', 'create'))) {
+  if (!(await canAny(g.userId, 'library/documents', 'create'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -162,7 +162,7 @@ export async function uploadDocument(
     return { success: false, message: dbError.message }
   }
 
-  revalidatePath('/journals/documents')
+  revalidatePath('/library/documents')
   return { success: true }
 }
 
@@ -185,7 +185,7 @@ export async function deleteDocument(
   if (!row) return { success: false, message: 'Document not found' }
 
   // An uploader may delete their own document; deleting somebody else's needs 'any'.
-  const g = await requireOwn('journals/documents', 'delete', row.uploaded_by)
+  const g = await requireOwn('library/documents', 'delete', row.uploaded_by)
   if (!g.ok) return { success: false, message: g.message }
   if (row.family_code !== g.familyCode) return { success: false, message: 'Document not found' }
 
@@ -194,6 +194,6 @@ export async function deleteDocument(
   // Storage after the row: a failed delete then leaves a reachable file rather than a row
   // pointing at nothing.
   await admin.storage.from('documents').remove([row.file_path])
-  revalidatePath('/journals/documents')
+  revalidatePath('/library/documents')
   return { success: true }
 }

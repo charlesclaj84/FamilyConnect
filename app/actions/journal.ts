@@ -10,9 +10,9 @@ import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { formatBoardTitle } from '@/lib/board-positions'
 
 /**
- * Journals — an OFFICE's notebook, read and written by whoever holds it.
+ * Officer Notes — an OFFICE's notebook, read and written by whoever holds it.
  *
- * ── THE FILE IS STILL `journal.ts` WHILE THE SCREEN IS `/journals/officer` ────────
+ * ── THE FILE IS STILL `journal.ts` WHILE THE SCREEN IS `/library/officer-notes` ──
  * Said here so it reads as a decision rather than a miss. The ROUTE and the KEY had to move
  * when the caption became plural — AGENTS.md leaves nothing to decide about that — and a
  * module path, a component directory and a table name are none of those things. Renaming them
@@ -27,11 +27,13 @@ import { formatBoardTitle } from '@/lib/board-positions'
  * on the notes, which resolves the same question through the parent. So:
  *
  *   * a member with no office sees an empty screen, whatever their template says;
- *   * an administrator with `journals:view` at 'any' sees THEIR OWN offices and no others;
+ *   * an administrator with `library/officer-notes:view` at 'any' sees THEIR OWN offices and
+ *     no others;
  *   * a successor sees everything their predecessors recorded, which is the feature.
  *
- * The `journals` key still does real work and it is exactly one thing: it gates the SCREEN, so
- * a family can switch Journals off. That is §2c's distinction between a key that gates a table
+ * The `library/officer-notes` key still does real work and it is exactly one thing: it gates
+ * the SCREEN, so
+ * a family can switch the screen off. That is §2c's distinction between a key that gates a table
  * and a key that gates a screen band, and the migrations argue it at length.
  *
  * ── AN ENTRY IS A TOPIC, AND THE NOTES ARE THE CONVERSATION ────────────────────────
@@ -72,7 +74,7 @@ import { formatBoardTitle } from '@/lib/board-positions'
  *
  * ── THE MEETING HALF LEFT ON 2026-08-22 ──────────────────────────
  * An entry carried a `kind` of 'note' or 'meeting', with `met_on` and an attendee list beside
- * it. `20260822000019` dropped all three and Meeting Minutes (`/journals/meeting-minutes`) is
+ * it. `20260822000019` dropped all three and Meeting Minutes (`/library/meeting-minutes`) is
  * where a meeting lives now. The reason is that a meeting is not a topic in one office's
  * notebook: it belongs to the FAMILY, it has a SECRETARY (one named person, which this file's
  * "any holder of the office" rule cannot express), and it has VOTES, which a journal has
@@ -160,7 +162,7 @@ export interface NewEntryInput {
  * `admin/members/board-positions`, which an ordinary officer does not hold. Through the user
  * client an officer would therefore read NO assignment at all and PostgREST answers that with
  * `[]` rather than an error (§8), so every officer in the family would be told they hold no
- * office and Journals would be permanently empty for exactly the people it is for.
+ * office and Officer Notes would be permanently empty for exactly the people it is for.
  *
  * The same conclusion `familyPlaces` reached about chapters, and the same shape: §3 is
  * discharged by hand — `.eq('family_code', …)` on both reads, and the user id is the caller's
@@ -172,7 +174,7 @@ export interface NewEntryInput {
 export async function getMyOffices(): Promise<JournalOffice[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
+  if (!(await can(g.userId, 'library/officer-notes', 'view'))) return []
 
   const admin = createAdminClient()
   // THREE READS, NOT ONE EMBEDDED QUERY, and the two extra are the places. `chapters` and
@@ -199,7 +201,7 @@ export async function getMyOffices(): Promise<JournalOffice[]> {
   const { data, error } = rolesRes
   if (error) {
     console.error(`[journals] could not read the caller's offices in ${g.familyCode}: `
-      + error.message + ' — Journals will look empty to an officer who holds one.')
+      + error.message + ' — Officer Notes will look empty to an officer who holds one.')
     return []
   }
   // §8, AND A DIFFERENT ANSWER FOR THE PLACES THAN FOR THE OFFICES. A refused `chapters` read
@@ -278,7 +280,7 @@ export async function getMyOffices(): Promise<JournalOffice[]> {
 export async function getJournalEntries(roleId: string): Promise<JournalEntry[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
+  if (!(await can(g.userId, 'library/officer-notes', 'view'))) return []
 
   const supabase = await createClient()
   const { data: entryRows, error } = await supabase
@@ -424,7 +426,7 @@ export async function addJournalEntry(
     if (noteError) partial.push('the first note was not saved')
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   if (partial.length) {
     return {
       success: false,
@@ -473,7 +475,7 @@ export async function updateJournalEntry(
     }
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   return { success: true }
 }
 
@@ -498,7 +500,7 @@ export async function deleteJournalEntry(
     }
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   return { success: true }
 }
 
@@ -541,7 +543,7 @@ export async function addJournalNote(
     return { success: false, message: error.message }
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   return { success: true }
 }
 
@@ -576,7 +578,7 @@ export async function updateJournalNote(
     }
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   return { success: true }
 }
 
@@ -601,6 +603,6 @@ export async function deleteJournalNote(
     }
   }
 
-  revalidatePath('/journals/officer')
+  revalidatePath('/library/officer-notes')
   return { success: true }
 }

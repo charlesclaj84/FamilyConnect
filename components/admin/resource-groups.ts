@@ -59,10 +59,17 @@ export const SCOPE_STYLE: Record<PermissionScope, string> = {
 // bears in SQL is `auth_permission()`'s `category = 'admin'` test, and that migration
 // re-asserts 20260817000004's invariant in both directions.
 //
-// THE CATEGORY VALUE IS STILL `journal` WHILE THE SCREEN IS CALLED **Journals**, and that is
-// the `events` decision below applied a second time rather than an oversight: the KEY moved
-// to `journals` in `20260822000000` because AGENTS.md forces it to follow the route, and a
-// category is not a key. Only the caption below changed.
+// THE CATEGORY VALUE IS STILL `journal` WHILE THE SECTION IS CALLED **Library**, and that is
+// the `events` decision below applied a second time rather than an oversight. The keys under
+// it have moved three times — `journal` → `journals` → `journals/officer` →
+// `library/officer-notes` — because AGENTS.md forces a key to follow its route, and a category
+// is not a key: `auth_permission()` reads this column to decide whether an unregistered-
+// visibility key fails closed, so renaming the VALUE would change how four keys fail in order
+// to retitle a heading. `20260822000021` asserts it did not move. Only the caption below did.
+//
+// It holds four screens now — Officer Notes, Meeting Minutes, Bylaws and Documents — which is
+// why "Journals" stopped being the right word for either the heading or the rail: it named one
+// of the four and told a reader the other three were somewhere else.
 //
 // It sits after `community` because that is where the rail puts it — participation in the
 // family, one step past the roster and the notice board.
@@ -80,7 +87,7 @@ export const CATEGORY_ORDER = ['general', 'personal', 'community', 'journal', 'e
 // fails closed (`category = 'admin'`), so it is load-bearing in SQL and not merely a grouping.
 // A caption is one line here; a category is a column three resolvers agree about.
 export const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', journal: 'Journals',
+  general: 'General', personal: 'Personal', community: 'Community', journal: 'Library',
   events: 'Gatherings',
   accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
 }

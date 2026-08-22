@@ -24,14 +24,14 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals/meeting-minutes')
+  await requireView(user.id, 'library/meeting-minutes')
 
   const meeting = await getMeetingDetail(id)
   if (!meeting) notFound()
 
   return (
     <PageShell className="space-y-6">
-      <Link href="/journals/meeting-minutes"
+      <Link href="/library/meeting-minutes"
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="h-3.5 w-3.5" /> All meetings
       </Link>

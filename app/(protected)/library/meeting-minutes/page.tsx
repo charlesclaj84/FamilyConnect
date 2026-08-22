@@ -21,7 +21,7 @@ export const metadata = { title: 'Meeting Minutes' }
  * ── WHO READS IT: EVERYBODY. WHO WRITES IT: THE SECRETARY OF THAT MEETING ──────────
  * The SELECT policies test family and approval and nothing else, which is the opposite of the
  * journal's rule and is deliberate: minutes are the family's record of its own decisions, so a
- * member who was not in the room still reads what was decided. `journals/meeting-minutes:view`
+ * member who was not in the room still reads what was decided. `library/meeting-minutes:view`
  * gates this SCREEN so a family can switch the feature off; it decides no row.
  *
  * THE ROSTER IS FETCHED FOR THE SCHEDULING FORM, and only for a caller who may schedule (§5):
@@ -33,7 +33,7 @@ export default async function MeetingMinutesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals/meeting-minutes')
+  await requireView(user.id, 'library/meeting-minutes')
 
   const [meetings, maySchedule] = await Promise.all([
     getMeetings(),

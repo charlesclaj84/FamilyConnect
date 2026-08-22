@@ -11,7 +11,7 @@ import { notifyMeetingScheduled } from '@/lib/notifications'
 import { isIsoDate } from '@/lib/calendar'
 
 /**
- * Meeting Minutes — `/journals/meeting-minutes`.
+ * Meeting Minutes — `/library/meeting-minutes`.
  *
  * ── THE WRITE BOUNDARY IS THIS FILE, AND THAT IS THE DESIGN ────────────────────────
  * The five `meeting_*` tables have a SELECT policy each and NO write policy at all, so per
@@ -32,7 +32,7 @@ import { isIsoDate } from '@/lib/calendar'
  *
  * ── WHO MAY DO WHAT ────────────────────────────────────────────────────────────────
  *
- *   schedule a meeting        `journals/meeting-minutes:create`
+ *   schedule a meeting        `library/meeting-minutes:create`
  *   change / close / reopen   `:edit` at 'any', OR being its secretary
  *   delete a meeting          `:delete` at 'any'
  *   topics and notes          THE SECRETARY of that meeting, and only while it is open
@@ -213,8 +213,8 @@ export async function getMeetingDetail(id: string): Promise<MeetingDetail | null
       .eq('session_id', id)
       .order('sort_order')
       .order('created_at'),
-    canAny(g.userId, 'journals/meeting-minutes', 'edit'),
-    canAny(g.userId, 'journals/meeting-minutes', 'delete'),
+    canAny(g.userId, 'library/meeting-minutes', 'edit'),
+    canAny(g.userId, 'library/meeting-minutes', 'delete'),
   ])
 
   if (sessionRes.error) {
@@ -281,7 +281,7 @@ export async function getMeetingDetail(id: string): Promise<MeetingDetail | null
 export async function mayScheduleMeeting(): Promise<boolean> {
   const g = await requireMember()
   if (!g.ok) return false
-  return canAny(g.userId, 'journals/meeting-minutes', 'create')
+  return canAny(g.userId, 'library/meeting-minutes', 'create')
 }
 
 // -------------------------------------------------------
@@ -317,7 +317,7 @@ export async function scheduleMeeting(input: {
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!(await canAny(g.userId, 'journals/meeting-minutes', 'create'))) {
+  if (!(await canAny(g.userId, 'library/meeting-minutes', 'create'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -379,13 +379,13 @@ export async function scheduleMeeting(input: {
       excludePersonId: g.personId || undefined,
       title,
       meetsOn: input.meetsOn,
-      link: `/journals/meeting-minutes/${sessionId}`,
+      link: `/library/meeting-minutes/${sessionId}`,
     })
   } catch (e) {
     console.error(`[meetings] could not announce ${sessionId}: ${(e as Error).message}`)
   }
 
-  revalidatePath('/journals/meeting-minutes')
+  revalidatePath('/library/meeting-minutes')
   revalidatePath('/gatherings/calendar')
   return { success: true, id: sessionId }
 }
@@ -429,7 +429,7 @@ export async function updateMeeting(
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
 
-  const mayManage = await canAny(s.g.userId, 'journals/meeting-minutes', 'edit')
+  const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
   if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
 
   const patch: Record<string, string> = {}
@@ -448,7 +448,7 @@ export async function updateMeeting(
     .from('meeting_sessions').update(patch).eq('id', id).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${id}`)
+  revalidatePath(`/library/meeting-minutes/${id}`)
   revalidatePath('/gatherings/calendar')
   return { success: true }
 }
@@ -469,7 +469,7 @@ export async function setMeetingClosed(
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
 
-  const mayManage = await canAny(s.g.userId, 'journals/meeting-minutes', 'edit')
+  const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
   if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
 
   const { error } = await s.admin
@@ -478,14 +478,14 @@ export async function setMeetingClosed(
     .eq('id', id).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${id}`)
+  revalidatePath(`/library/meeting-minutes/${id}`)
   return { success: true }
 }
 
 export async function deleteMeeting(id: string): Promise<{ success: boolean; message?: string }> {
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
-  if (!(await canAny(s.g.userId, 'journals/meeting-minutes', 'delete'))) {
+  if (!(await canAny(s.g.userId, 'library/meeting-minutes', 'delete'))) {
     return { success: false, message: 'Not authorized' }
   }
 
@@ -493,7 +493,7 @@ export async function deleteMeeting(id: string): Promise<{ success: boolean; mes
     .from('meeting_sessions').delete().eq('id', id).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath('/journals/meeting-minutes')
+  revalidatePath('/library/meeting-minutes')
   revalidatePath('/gatherings/calendar')
   return { success: true }
 }
@@ -506,7 +506,7 @@ export async function setMeetingAttendees(
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
 
-  const mayManage = await canAny(s.g.userId, 'journals/meeting-minutes', 'edit')
+  const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
   if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
   if (!s.isOpen) return { success: false, message: 'This meeting is closed.' }
 
@@ -549,7 +549,7 @@ export async function setMeetingAttendees(
     if (error) return { success: false, message: error.message }
   }
 
-  revalidatePath(`/journals/meeting-minutes/${id}`)
+  revalidatePath(`/library/meeting-minutes/${id}`)
   return { success: true }
 }
 
@@ -607,7 +607,7 @@ export async function addMeetingTopic(
     return { success: false, message: error?.message ?? 'Could not add that topic.' }
   }
 
-  revalidatePath(`/journals/meeting-minutes/${sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${sessionId}`)
   return { success: true, id: created.id as string }
 }
 
@@ -646,7 +646,7 @@ export async function updateMeetingTopic(
     .eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
   return { success: true }
 }
 
@@ -670,7 +670,7 @@ export async function deleteMeetingTopic(
     .from('meeting_topics').delete().eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
   return { success: true }
 }
 
@@ -697,7 +697,7 @@ export async function addMeetingNote(
   })
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
   return { success: true }
 }
 
@@ -729,7 +729,7 @@ export async function updateMeetingNote(
     .eq('id', noteId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${sessionId}`)
   return { success: true }
 }
 
@@ -756,7 +756,7 @@ export async function deleteMeetingNote(
     .from('meeting_topic_notes').delete().eq('id', noteId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${sessionId}`)
   return { success: true }
 }
 
@@ -809,7 +809,7 @@ export async function setTopicVoting(
     .from('meeting_topics').update(patch).eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/journals/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
   return { success: true }
 }
 
@@ -877,6 +877,6 @@ export async function castMeetingVote(
     }
   }
 
-  revalidatePath(`/journals/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
   return { success: true }
 }

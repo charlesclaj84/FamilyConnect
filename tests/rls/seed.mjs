@@ -1019,7 +1019,7 @@ export async function seed() {
     //   `admin`   (alphaAdmin)  is NEITHER         -> holds every grant and may do neither
     //
     // The third is the sharpest and is the whole point of the design: `alphaAdmin` holds
-    // `journals/meeting-minutes` at scope 'any' on every action, and it buys them no ability to
+    // `library/meeting-minutes` at scope 'any' on every action, and it buys them no ability to
     // write a word of somebody else's minutes or to cast a vote in a room they were not in.
     // Point these cases at a member with no grants and they prove nothing.
     f.meeting = must('meeting session',

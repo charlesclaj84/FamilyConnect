@@ -453,27 +453,28 @@ export const HELP_PARTS: readonly HelpPart[] = [
     blurb: 'Talking to the family, and keeping track of who everybody is.',
     chapters: [
       {
-        // THE SLUG STAYS `journal` THROUGH BOTH RENAMES, deliberately. A slug is the
-        // chapter's identity in `/help/<slug>` and AGENTS.md is explicit that it is not a
-        // route and moves with nothing — sweeping bare keys across this file once renamed
-        // nine chapters. The `route` below is the thing that had to move, twice: `/journal`
-        // became `/journals` on 2026-08-22 and `/journals/officer` the same day, when the rail
-        // item stopped wearing its section's own word. `npm run help:check` is what asserts a
-        // chapter route is a real `FEATURES` href, which is how the second move was caught.
+        // THE SLUG STAYS `journal` THROUGH ALL THREE RENAMES, deliberately. A slug is the
+        // chapter's identity in `/help/<slug>` and AGENTS.md is explicit that it is not a route
+        // and moves with nothing — sweeping bare keys across this file once renamed nine
+        // chapters. The `route` below is the thing that had to move, three times in three days:
+        // `/journal` became `/journals`, then `/journals/officer` when the rail item stopped
+        // wearing its section's own word, then `/library/officer-notes` when the section itself
+        // was renamed. `npm run help:check` asserts a chapter route is a real `FEATURES` href,
+        // which is how the second of those was caught.
         slug: 'journal',
-        title: 'Officer Journals',
+        title: 'Officer Notes',
         summary: 'A notebook for each office your family keeps, how a topic collects notes over time, and why it all stays with the office rather than with you.',
-        route: '/journals/officer',
+        route: '/library/officer-notes',
         sections: [
           {
             id: 'what-it-is',
             heading: 'What this screen is',
             blocks: [
               p('Every office the family records — treasurer, secretary, events chair — has a notebook. It holds whatever the person doing the job needs written down: how the bank reconciliation actually works, which hall answers the phone, what went wrong last year.'),
-              p('It is **Journals > Officer** in the rail. The section is the feature and the item says whose notebook it is; a family that records offices for its chapters and regions as well as nationally will find all of them here.'),
+              p('It is **Library > Officer Notes** in the rail, beside [Meeting Minutes](/library/meeting-minutes), [Documents](/library/documents) and [Bylaws](/library/bylaws) — the four things the family writes down and goes back to. A family that records offices for its chapters and regions as well as nationally will find all of them here.'),
               p('**The notes belong to the office, not to you.** That is the whole of it. When you hand the job on, everything you wrote is still there for whoever takes it, and everything the person before you wrote was there for you.'),
               p('**An entry is a topic, not a page.** It has a title and then a run of notes underneath it, oldest first, each one signed and dated. So "How the bank reconciliation works" is one entry that gets a paragraph added whenever there is something to add, rather than four entries with similar names — and the argument for why it is done that way is the whole thread, not the last version of it.'),
-              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — an officer’s journal is for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
+              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — officer notes are for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
             ],
           },
           {
@@ -1390,15 +1391,15 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'meeting-minutes',
         title: 'Meeting Minutes',
         summary: 'Scheduling a meeting, who is expected, who writes it down, and how the room votes on a topic.',
-        route: '/journals/meeting-minutes',
+        route: '/library/meeting-minutes',
         sections: [
           {
             id: 'what-it-is',
             heading: 'What this screen is',
             blocks: [
-              p('[Meeting Minutes](/journals/meeting-minutes) is the family\u2019s record of what it met about and decided. A meeting has a date, a list of who is expected, one **secretary** who writes it down, and any number of **topics** \u2014 each of which can carry notes and a vote.'),
+              p('[Meeting Minutes](/library/meeting-minutes) is the family\u2019s record of what it met about and decided. A meeting has a date, a list of who is expected, one **secretary** who writes it down, and any number of **topics** \u2014 each of which can carry notes and a vote.'),
               p('**Everybody in the family can read the minutes.** That is deliberate and it is the opposite of the [officer\u2019s journal](/help/journal), which only the officeholder reads: minutes are the record of decisions the family made, so somebody who was not in the room still gets to know what was decided.'),
-              note('It was part of the officer\u2019s journal until 2026-08-22, as a \u201cmeeting\u201d kind of entry. A meeting outgrew that: it belongs to the family rather than to one office, it has a secretary, and it has votes \u2014 none of which a notebook can express.'),
+              note('It was part of [Officer Notes](/library/officer-notes) until 2026-08-22, as a \u201cmeeting\u201d kind of entry. A meeting outgrew that: it belongs to the family rather than to one office, it has a secretary, and it has votes \u2014 none of which a notebook can express.'),
             ],
           },
           {
@@ -1454,13 +1455,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'documents',
         title: 'Documents',
         summary: 'The family\u2019s filed records \u2014 what can be uploaded, how to find one, and who can remove it.',
-        route: '/journals/documents',
+        route: '/library/documents',
         sections: [
           {
             id: 'what-it-is',
             heading: 'The filing cabinet',
             blocks: [
-              p('[Documents](/journals/documents) is where the family\u2019s records live \u2014 forms, filings, signed copies. It moved under **Journals** on 2026-08-22, beside the notebooks its officers keep, because the reader who wants one is the reader who wants the other.'),
+              p('[Documents](/library/documents) is where the family\u2019s records live \u2014 forms, filings, signed copies. It moved under **Library** on 2026-08-22, beside the notebooks its officers keep and the family’s minutes and bylaws, because the reader who wants one is the reader who wants the others.'),
               note('**Excel, Word, PDF or CSV only**, up to 25 MB. Both generations of the Office formats, because a document written in 2004 really is a `.doc`. A photograph goes in the [Gallery](/community/gallery), which does albums and tagging that this list never will.'),
             ],
           },
@@ -1474,7 +1475,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Add a description if it needs one, and pick a category.',
                 'Press **Upload**.',
               ),
-              p('**Three categories: Bylaws, Forms and Other.** There were five. *Photos* went because the [Gallery](/community/gallery) is the screen for a picture, and *Meeting Minutes* went because [Meeting Minutes](/journals/meeting-minutes) is a real screen now. A PDF of minutes from a meeting held outside the product is **Other**.'),
+              p('**Three categories: Bylaws, Forms and Other.** There were five. *Photos* went because the [Gallery](/community/gallery) is the screen for a picture, and *Meeting Minutes* went because [Meeting Minutes](/library/meeting-minutes) is a real screen now. A PDF of minutes from a meeting held outside the product is **Other**.'),
               note('A document already filed under one of the retired categories keeps it and still shows it. Nothing rewrites somebody else\u2019s filing decision.'),
             ],
           },
@@ -1492,13 +1493,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'bylaws',
         title: 'Bylaws',
         summary: 'The rules the family agreed to live by, and searching inside them \u2014 including what the search cannot reach yet.',
-        route: '/journals/bylaws',
+        route: '/library/bylaws',
         sections: [
           {
             id: 'what-it-is',
             heading: 'What this screen is',
             blocks: [
-              p('[Bylaws](/journals/bylaws) holds the family\u2019s governing documents, article by article, and lets anybody search them. Every approved member can read them \u2014 a rule nobody may read is not one.'),
+              p('[Bylaws](/library/bylaws) holds the family\u2019s governing documents, article by article, and lets anybody search them. Every approved member can read them \u2014 a rule nobody may read is not one.'),
               p('An article has a number (\u201cArticle IV\u201d), a title, an optional summary, and either the text typed in, an uploaded document, or both.'),
             ],
           },

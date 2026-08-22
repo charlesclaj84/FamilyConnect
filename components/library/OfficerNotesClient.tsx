@@ -22,7 +22,11 @@ import {
 } from '@/app/actions/journal'
 
 /**
- * Journals, for whoever holds the office.
+ * Officer Notes, for whoever holds the office.
+ *
+ * IT WAS `JournalClient` UNTIL 2026-08-22, under a rail section called Journals. The section is
+ * **Library** now and holds four screens; this is the one that is actually a journal, and it is
+ * named for whose it is (`20260822000021`).
  *
  * ── ONE RAIL, ONE OFFICE ────────────────────────────────────────────────────────────
  * A member may hold several — treasurer of the family and secretary of their chapter — and
@@ -78,7 +82,7 @@ interface NoteDraft {
   body: string
 }
 
-export function JournalClient({
+export function OfficerNotesClient({
   offices, initialOffice, initialEntries,
 }: Props) {
   const router = useRouter()
@@ -228,7 +232,7 @@ export function JournalClient({
   const activeOffice = offices.find(o => o.role_id === active)
 
   // ONE CONTROL, SINCE 2026-08-22. There were two — New entry and Meeting notes — and the
-  // second has left for `/journals/meeting-minutes`, where a meeting is a session with a
+  // second has left for `/library/meeting-minutes`, where a meeting is a session with a
   // secretary, an attendee list and votes rather than a kind of journal entry.
   const newControls = (
     <Button size="sm" variant="affirm" onClick={openNewEntry} disabled={isPending}>

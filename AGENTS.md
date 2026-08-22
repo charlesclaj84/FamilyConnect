@@ -2011,19 +2011,19 @@ offset, which is how a calendar comes to put a reunion on the wrong day for half
 `shiftMonth` works on (year, month) integers and never carries a day-of-month, because `setUTCMonth`
 overflows 31 January into 3 March.
 
-# JOURNALS IS FOUR SCREENS, AND ONLY ONE OF THEM BELONGS TO AN OFFICE
+# THE LIBRARY IS FOUR SCREENS, AND ONLY ONE OF THEM BELONGS TO AN OFFICE
 
-The section holds **Officer**, **Meeting Minutes**, **Documents** and **Bylaws**, and what they
-have in common is the reader rather than the access model: somebody looking for what the family
-wrote down. Their rules are deliberately different and a change that assumes one applies to all
-four will be wrong three times.
+The section holds **Officer Notes**, **Meeting Minutes**, **Documents** and **Bylaws**, and what
+they have in common is the reader rather than the access model: somebody looking for what the
+family wrote down and kept. Their rules are deliberately different and a change that assumes one
+applies to all four will be wrong three times.
 
 | Screen | Who reads it | Who writes it |
 |---|---|---|
-| `journals/officer` | whoever holds THAT OFFICE, and nobody else | any holder of the office |
-| `journals/meeting-minutes` | every approved member | the SECRETARY of that session |
-| `journals/documents` | every approved member | anybody with the create grant |
-| `journals/bylaws` | every approved member | anybody with the create grant |
+| `library/officer-notes` | whoever holds THAT OFFICE, and nobody else | any holder of the office |
+| `library/meeting-minutes` | every approved member | the SECRETARY of that session |
+| `library/documents` | every approved member | anybody with the create grant |
+| `library/bylaws` | every approved member | anybody with the create grant |
 
 **THE FIRST ROW IS THE ODD ONE AND IT MUST STAY ODD.** A journal is working notes; the other
 three are the family's record. A family that could read every officer's notebook would get
@@ -2034,33 +2034,55 @@ makes at length.
 to Resources: a family's filings sit beside the notebooks its officers keep. **Meeting Minutes**
 and **Bylaws** are new the same day.
 
-## The officer's journal
+**THE SECTION WAS CALLED "Journals" UNTIL 2026-08-22** (`20260822000021`), which was right while
+it held one thing and wrong the moment it held four: three of them are not journals, so the
+heading named one of its children and told a reader the other three were somewhere else. The
+item was renamed with it, from **Officer** to **Officer Notes** — that caption leaned entirely on
+the word above it, and under any other section it reads as a list of officers, which is what
+`/admin/members/board-positions` is.
 
-`/journals/officer`, three tables, and one sentence the schema is built on: **the notes follow
+**THE CATEGORY VALUE IS STILL `journal` AND MUST STAY.** Its LABEL is "Library" in
+`components/admin/resource-groups.ts`, which is the `events`-prints-"Gatherings" precedent
+applied again: `auth_permission()` reads that column to decide whether an
+unregistered-visibility key fails closed, so renaming the value would change how four keys fail
+in order to retitle a heading. The migration asserts it did not move.
+
+**ONE OF THE FOUR KEYS GATES A TABLE AND THREE DO NOT**, and that asymmetry is asserted in both
+directions. `library/documents` has a `permission_table_map` row with an `own_expr` of
+`uploaded_by = auth_person_id()`, which is what lets an uploader delete their own filing and
+nobody else's. The other three have none and must not gain one: their row rules are the office,
+the session's secretary and the attendee list, none of which a key can express, and a map row
+appearing later would compose an `auth_permission` factor onto those tables with `view`
+defaulting to `'everyone'`. The first draft of `20260822000021` claimed all four gated nothing
+and was refused by its own verify block.
+
+## Officer Notes: the office's own notebook
+
+`/library/officer-notes`, three tables, and one sentence the schema is built on: **the notes follow
 the position, not the member.** A treasurer writes down how the bank reconciliation actually
 works; three years later a different treasurer opens it and it is there. `20260821000005` built
 it and `20260822000001` turned an entry into a rolling topic; both headers argue every decision
 at length and this is the short list of what a change here will get wrong.
 
-**THE ROUTE MOVED TWICE IN THREE DAYS** — `/journal`, `/journals`, `/journals/officer`
-(`20260822000000`, `20260822000017`) — and each move is one rule being obeyed rather than three
-opinions: the caption is the route and the route is the key ("The route tree IS the nav rail").
-What did NOT move any of the three times: the tables (`position_journal_*`), the
+**THE ROUTE MOVED THREE TIMES IN THREE DAYS** — `/journal`, `/journals`,
+`/journals/officer`, `/library/officer-notes` (`20260822000000`, `20260822000017`,
+`20260822000021`) — and each move is one rule being obeyed rather than four opinions: the caption is the route and the route is the key ("The route tree IS the nav rail").
+What did NOT move any of the four times: the tables (`position_journal_*`), the
 `permission_resources.category` value `journal` — the `events` precedent, "a caption is one line
 here; a category is a column three resolvers agree about" — and the help chapter's slug, which
 is not a route.
 
 **NO POLICY ON ANY OF THE THREE TABLES EVALUATES `auth_permission`, and that is asserted in
-both directions.** `journals/officer:view` gates the SCREEN so a family can switch it off; it
+both directions.** `library/officer-notes:view` gates the SCREEN so a family can switch it off; it
 decides nothing about who reads what. What the eleven policies test is the OFFICE, through
 `auth_holds_family_role(role_id)` on an entry and `auth_holds_journal_entry_office(entry_id)` on
-the two child tables. So `journals/officer:view` at scope `'any'` buys an administrator their own
+the two child tables. So `library/officer-notes:view` at scope `'any'` buys an administrator their own
 offices and no others — deliberately, because these are working notes and a family that could
 read every officer's notebook would get officers who keep their notebook somewhere else. There
 is **no `permission_table_map` row** for this key and there must not be: a future policy sweep
-composing an `auth_permission('journals/officer', …)` factor onto these tables would open
+composing an `auth_permission('library/officer-notes', …)` factor onto these tables would open
 every notebook to everybody, `view` defaulting to `'everyone'`. The same is asserted for
-`journals/meeting-minutes` and `journals/bylaws` (`20260822000018` §9f), whose row rules are the
+`library/meeting-minutes` and `library/bylaws` (`20260822000018` §9f), whose row rules are the
 secretary and the attendee list.
 
 **THREE WRITE RULES, AND THEY ARE THREE ON PURPOSE.** They look like one rule and are enforced
@@ -2107,16 +2129,16 @@ happened to be deleted.
 never consulted for a caller with no office: its office conjunct came out and 43 assertions
 stayed green. `tests/rls/raw/journals.mjs` is what catches it. One stated gap lives in
 `cases.mjs`: no actor in the fixture holds ZERO offices — `alphaAdmin` holds the President —
-so `/journals/officer`'s own §5 guard (skip both reads for a member with no office) is asserted
+so `/library/officer-notes`'s own §5 guard (skip both reads for a member with no office) is asserted
 by nothing, and adding an office-less approved member is the fix, not a `setup` that wipes an
 assignment.
 
 ## Meeting Minutes: the room decides, and a vote is final
 
-`/journals/meeting-minutes`, five tables, and `20260822000019` argues every decision at length.
+`/library/meeting-minutes`, five tables, and `20260822000019` argues every decision at length.
 The short list of what a change here will get wrong:
 
-**THE ACCESS MODEL IS THE SESSION, NOT THE KEY.** `journals/meeting-minutes:view` gates the
+**THE ACCESS MODEL IS THE SESSION, NOT THE KEY.** `library/meeting-minutes:view` gates the
 SCREEN; it has no `permission_table_map` row and must not gain one. What decides the writes is
 the ROW: the session names one `secretary_id` and carries an attendee list, and those two
 columns are the whole of who may write minutes and who may vote. A key cannot express "the
@@ -2150,7 +2172,7 @@ read anyway, so writing it as a policy-shaped query would tell the next reader i
 
 ## Bylaws is scaffolding, and the screen says which half
 
-`/journals/bylaws`, one table, `20260822000020`. The table, the GIN index and the search are
+`/library/bylaws`, one table, `20260822000020`. The table, the GIN index and the search are
 real; **text extraction from PDF and Word is not built**. Plain-text uploads are read on upload
 and are searchable word by word; a PDF is searchable by title, article and summary only.
 

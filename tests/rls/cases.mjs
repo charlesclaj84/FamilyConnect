@@ -1822,7 +1822,7 @@ export const MORE_CASES = [
   //   `alphaAdmin`   holds every GRANT, and not the office    -> the read/write attack
   //
   // `alphaAdmin` is the sharpest of the three and is the whole point of the design: they hold
-  // `journals/officer:view` at scope 'any' in their own family, and it buys them nothing. A family
+  // `library/officer-notes:view` at scope 'any' in their own family, and it buys them nothing. A family
   // that could read every officer's notebook would get officers who keep their notebook
   // somewhere else, which the migration's header argues at length.
   //
@@ -1843,7 +1843,7 @@ export const MORE_CASES = [
   // need no raw probe — the lesson `retractNomination` cost us the same day. The one filter
   // any of them states is `.eq('entry_id', …)` on a list the policy scopes anyway, which
   // narrows to a row the caller was already the only person able to reach.
-  read('journals.getMyOffices', 'app/actions/journal.ts', 'getMyOffices', {
+  read('officer-notes.getMyOffices', 'app/actions/journal.ts', 'getMyOffices', {
     // BRAVO's administrator legitimately holds offices in BRAVO, so a non-empty answer is not
     // itself a failure — the assertion is on ALPHA's specific id, which is the shape every
     // read case here uses.
@@ -1865,7 +1865,7 @@ export const MORE_CASES = [
   }),
   // ── [crux] AN OFFICE THEY DO NOT HOLD, IN THEIR OWN FAMILY ────────────────
   // The single assertion this whole feature turns on. `alphaAdmin` is approved, is in ALPHA,
-  // and holds `journals/officer:view` at 'any'; the ONLY thing refusing them is
+  // and holds `library/officer-notes:view` at 'any'; the ONLY thing refusing them is
   // `auth_holds_family_role` in the SELECT policy. Delete that conjunct and this line goes red
   // and nothing else does.
   //
@@ -1876,7 +1876,7 @@ export const MORE_CASES = [
   // people, which makes a bare `people(...)` embed on either journal table PGRST201 — so the
   // three things this checks are the three separate reads `getJournalEntries` makes, and one
   // of them is the nested-embed trap the junction table created.
-  read('journals.getJournalEntries (an office they do not hold)',
+  read('officer-notes.getJournalEntries (an office they do not hold)',
     'app/actions/journal.ts', 'getJournalEntries', {
       attacker: 'alphaAdmin',
       args: fx => [fx.alpha.journalRole.id],
@@ -1898,7 +1898,7 @@ export const MORE_CASES = [
   // And the ordinary cross-family one, which the case above cannot stand in for: it asserts
   // the `family_code` conjunct rather than the office conjunct, and a policy could lose either
   // one without the other noticing.
-  read('journals.getJournalEntries (another family\'s office)',
+  read('officer-notes.getJournalEntries (another family\'s office)',
     'app/actions/journal.ts', 'getJournalEntries', {
       args: fx => [fx.alpha.journalRole.id],
       expectAttack: (r) => Array.isArray(r) && r.length === 0,
@@ -1909,7 +1909,7 @@ export const MORE_CASES = [
     }),
   // ── THE ATTENDEE ROSTER CASES LEFT WITH THE MEETING HALF, 2026-08-22 ──
   // `getJournalAttendeeOptions` is deleted: an officer's journal has no attendee list any
-  // more, because a meeting is a session on `/journals/meeting-minutes` rather than a kind of
+  // more, because a meeting is a session on `/library/meeting-minutes` rather than a kind of
   // journal entry (`20260822000019`). Its two cases went with it.
   //
   // WHAT THEY WERE EVIDENCE FOR IS NOT LOST. The roster read they tested was `people` on the
@@ -1919,7 +1919,7 @@ export const MORE_CASES = [
   //
   // THE STATED GAP THEY CARRIED IS ALSO GONE, and it is worth recording that it went by the
   // feature leaving rather than by anybody fixing it: no actor in this fixture holds ZERO
-  // offices, so the `getMyOffices().length` §5 guard could not be asserted. `/journals/officer`
+  // offices, so the `getMyOffices().length` §5 guard could not be asserted. `/library/officer-notes`
   // still has that guard and still cannot assert it; the roster it withholds is now much
   // smaller, because the page no longer fetches the family at all.
 
@@ -1929,7 +1929,7 @@ export const MORE_CASES = [
   // the `told` assertion is asserting the MESSAGE is a sentence rather than a raw code.
   {
     kind: 'write',
-    id: 'journals.addJournalEntry (an office they do not hold)',
+    id: 'officer-notes.addJournalEntry (an office they do not hold)',
     mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
     attacker: 'alphaAdmin',
     args: fx => [fx.alpha.journalRole.id,
@@ -1945,7 +1945,7 @@ export const MORE_CASES = [
   },
   // ── THE §4 ATTENDEE CASE WENT WITH THE MEETING HALF, 2026-08-22 ────────
   // `addJournalEntry` no longer takes an attendee list; a meeting is a session on
-  // `/journals/meeting-minutes` (`20260822000019`). The shape it asserted — a client-supplied
+  // `/library/meeting-minutes` (`20260822000019`). The shape it asserted — a client-supplied
   // person id written onto a row carrying the CALLER's family code, refused by
   // `belongsToFamily` before the row lands and by a guard trigger underneath — is now
   // `meetings.scheduleMeeting (a secretary from another family)`, which is the same case
@@ -1958,7 +1958,7 @@ export const MORE_CASES = [
   // cross-family one.
   {
     kind: 'write',
-    id: 'journals.addJournalNote (another family\'s entry)',
+    id: 'officer-notes.addJournalNote (another family\'s entry)',
     mod: 'app/actions/journal.ts', fn: 'addJournalNote',
     args: fx => [fx.alpha.journalEntry.id, 'BRAVO writing in ALPHA'],
     probe: (db, fx) => snapshot('position_journal_notes', 'id, body',
@@ -1974,7 +1974,7 @@ export const MORE_CASES = [
   // and could lose either.
   {
     kind: 'write',
-    id: 'journals.addJournalNote (an office they do not hold)',
+    id: 'officer-notes.addJournalNote (an office they do not hold)',
     mod: 'app/actions/journal.ts', fn: 'addJournalNote',
     attacker: 'alphaAdmin',
     args: fx => [fx.alpha.journalEntry.id, 'should not land'],
@@ -1998,7 +1998,7 @@ export const MORE_CASES = [
   // believing it was amended.
   {
     kind: 'write',
-    id: 'journals.updateJournalNote (a note somebody else wrote)',
+    id: 'officer-notes.updateJournalNote (a note somebody else wrote)',
     mod: 'app/actions/journal.ts', fn: 'updateJournalNote',
     attacker: 'alphaOther',
     args: fx => [fx.alpha.journalNote.id, 'Rewritten by a successor'],
@@ -2014,7 +2014,7 @@ export const MORE_CASES = [
   // AGENTS.md §7's warning about a positive control mutating a row a later case depends on.
   {
     kind: 'write',
-    id: 'journals.deleteJournalNote (a note somebody else wrote)',
+    id: 'officer-notes.deleteJournalNote (a note somebody else wrote)',
     mod: 'app/actions/journal.ts', fn: 'deleteJournalNote',
     attacker: 'alphaOther',
     args: fx => [fx.alpha.journalNoteSpare.id],
@@ -2031,7 +2031,7 @@ export const MORE_CASES = [
   // the notes above. `alphaOther` holds the office and did not start this topic.
   {
     kind: 'write',
-    id: 'journals.updateJournalEntry (an entry somebody else wrote)',
+    id: 'officer-notes.updateJournalEntry (an entry somebody else wrote)',
     mod: 'app/actions/journal.ts', fn: 'updateJournalEntry',
     attacker: 'alphaOther',
     args: fx => [fx.alpha.journalEntry.id, 'Rewritten by a successor'],
@@ -2045,7 +2045,7 @@ export const MORE_CASES = [
   },
   {
     kind: 'write',
-    id: 'journals.deleteJournalEntry (an entry somebody else wrote)',
+    id: 'officer-notes.deleteJournalEntry (an entry somebody else wrote)',
     mod: 'app/actions/journal.ts', fn: 'deleteJournalEntry',
     attacker: 'alphaOther',
     args: fx => [fx.alpha.journalDeletable.id],
@@ -2067,7 +2067,7 @@ export const MORE_CASES = [
   //   whether a vote may change   nobody, ever, including the service role
   //
   // ── THE ATTACKER IS `alphaAdmin` FOR MOST OF THESE, AND THAT IS THE DESIGN ─
-  // They hold `journals/meeting-minutes` at scope 'any' on every action, in their own family,
+  // They hold `library/meeting-minutes` at scope 'any' on every action, in their own family,
   // and it buys them no ability to write a word of somebody else's minutes or to vote in a
   // room they were not in. An attacker with no grants would prove nothing here: the question
   // is not whether the permission model works, it is whether the SESSION's own roles do.
@@ -8260,7 +8260,7 @@ const ELECTION_RAW_CASES = [
 // conjunct satisfied by construction and invisible to every action-shaped case.
 const JOURNAL_RAW_CASES = [
   // [crux] AN OFFICE THEY DO NOT HOLD, ONE TABLE DOWN. `alphaAdmin` is approved, is in ALPHA,
-  // holds `journals/officer:view` at 'any' and holds a DIFFERENT office (ALPHATEST President), so
+  // holds `library/officer-notes:view` at 'any' and holds a DIFFERENT office (ALPHATEST President), so
   // every conjunct on the notes SELECT policy except the office one is true for them.
   read('raw:position_journal_notes SELECT (an office they do not hold)',
     'tests/rls/raw/journals.mjs', 'selectJournalNotes', {
