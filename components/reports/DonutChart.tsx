@@ -2,7 +2,15 @@ import { cn } from '@/lib/utils'
 import type { CountSlice } from '@/lib/membership-report'
 
 /**
- * A part-to-whole donut, and the legend that makes it readable.
+ * A part-to-whole donut. The legend that makes it readable lives beside it, in
+ * `components/reports/MembershipBreakdownLegend.tsx`.
+ *
+ * ── THE LEGEND MOVED OUT ON 2026-08-22, AND WAS NOT COPIED ──────────────
+ * It was `DonutLegend`, exported from here, and every legend row is now a button that opens the
+ * slice — so it needed a client boundary and this file must not have one (see below). It
+ * MOVED rather than being wrapped: two renderings of one row drift, and a column added to one
+ * and not the other is invisible until somebody looks. `sliceColor` is still exported from here
+ * and imported there, so the swatch and the arc cannot disagree about a colour.
  *
  * ── IT IS A SERVER COMPONENT, AND THERE IS NO JAVASCRIPT TOOLTIP ────────────────────
  * The usual reason a chart needs a hover layer is that the values are not on the page —
@@ -134,56 +142,5 @@ export function DonutChart({ slices, palette, label, centerValue, centerLabel, c
       <text x="50" y="59" textAnchor="middle" aria-hidden="true"
             className="fill-muted-foreground text-[6px] uppercase tracking-[0.12em]">{centerLabel}</text>
     </svg>
-  )
-}
-
-/**
- * The legend, which is also the direct labelling and also the table.
- *
- * One row per slice, with the swatch, the name, the count and the share — so identity is
- * never carried by colour alone, every value is on screen without hovering, and the
- * contrast relief the palette owes (see globals.css) is discharged by construction.
- *
- * IT LISTS EVERY SLICE, INCLUDING THE ONES THE RING DOES NOT DRAW. The caller passes the
- * FULL breakdown here and the FOLDED one to the chart, so a chapter with nobody in it and
- * the four chapters swept into "Other" are all still readable — which is the whole of what
- * makes folding honest rather than a truncation.
- */
-export function DonutLegend({ slices, palette, drawn, unit }: {
-  slices: readonly CountSlice[]
-  palette: DonutPalette
-  /** The slices the ring actually drew, in order, so the swatches match it. */
-  drawn: readonly CountSlice[]
-  /** What is being counted — "member", pluralised by the caller's copy. */
-  unit: string
-}) {
-  const colorByKey = new Map(drawn.map((s, i) => [s.key, sliceColor(palette, i)]))
-  return (
-    <table className="w-full text-sm">
-      <caption className="sr-only">{`Every ${unit} count in this breakdown, including any the chart folds together`}</caption>
-      <thead className="sr-only">
-        <tr><th scope="col">Group</th><th scope="col">Members</th><th scope="col">Share</th></tr>
-      </thead>
-      <tbody>
-        {slices.map(s => (
-          <tr key={s.key} className="border-b last:border-0">
-            <td className="py-1.5 pr-2">
-              <span className="flex items-center gap-2">
-                {/* A slice the ring did not draw gets a hollow swatch rather than a colour
-                    it does not have — an empty chapter is a real row and a filled swatch
-                    would send the reader looking for it on the ring. */}
-                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full border"
-                      style={colorByKey.has(s.key)
-                        ? { backgroundColor: colorByKey.get(s.key), borderColor: 'transparent' }
-                        : { borderColor: 'var(--border)' }} />
-                <span className="truncate">{s.label}</span>
-              </span>
-            </td>
-            <td className="py-1.5 pr-2 text-right font-medium tabular-nums">{s.count}</td>
-            <td className="py-1.5 text-right tabular-nums text-muted-foreground">{s.percent}%</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }

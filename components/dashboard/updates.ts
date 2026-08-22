@@ -76,7 +76,14 @@ export function announcementToUpdateItem(a: FeedAnnouncement): UpdateItem {
     body: a.body,
     // Every announcement has somewhere to go — the board carries the full text, which a
     // truncated row cannot. Notifications are the ones with a nullable link.
-    link: '/community/announcements',
+    //
+    // AN ELECTION NOTICE GOES TO THE ELECTION INSTEAD, since 2026-08-22 (20260822000016). The
+    // board would be a detour: the reader has already read the whole of a two-line notice in
+    // this row, and what they want next is the ballot. `election_id` is null for every
+    // hand-written announcement and for any reader who may not open Elections —
+    // `withElectionLink` in `app/actions/announcements.ts` is where that is decided — so this
+    // falls back to the board without needing to ask anything itself.
+    link: a.election_id ? `/community/elections/${a.election_id}` : '/community/announcements',
     at: a.published_at,
     author: a.author_name,
     familyPinned: a.pin_active,

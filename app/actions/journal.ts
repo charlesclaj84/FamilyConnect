@@ -8,11 +8,12 @@ import { requireMember } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
+import { formatBoardTitle } from '@/lib/board-positions'
 
 /**
  * Journals — an OFFICE's notebook, read and written by whoever holds it.
  *
- * ── THE FILE IS STILL `journal.ts` WHILE THE SCREEN IS `/journals` ─────────────────
+ * ── THE FILE IS STILL `journal.ts` WHILE THE SCREEN IS `/journals/officer` ────────
  * Said here so it reads as a decision rather than a miss. The ROUTE and the KEY had to move
  * when the caption became plural — AGENTS.md leaves nothing to decide about that — and a
  * module path, a component directory and a table name are none of those things. Renaming them
@@ -72,11 +73,33 @@ import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 
 export interface JournalOffice {
   role_id: string
+  /** The bare position name, as the family typed it — "Treasurer", "Chapter Chair". */
   name: string
+  /**
+   * The position AND the place, as one phrase: "National Treasurer", "Austin Chapter Chair".
+   *
+   * From `formatBoardTitle`, which is the SAME function the Member Directory's Position column
+   * and Members & Access's row and dialog all print. Three surfaces reading one formatter is
+   * what stopped "Eastern Region President" and "Regional President" both being things this
+   * product said, and this screen was the fourth surface — it printed the bare `name`, so a
+   * member chairing Austin and a member chairing Houston both saw "Chapter Chair" and could not
+   * tell their own rail item from each other's.
+   */
+  title: string
   /** 'executive_officer' | 'appointed_position' — the family's own grouping. */
   category: string
-  /** 'national' | 'regional' | 'chapter'. Printed so two same-named offices are tellable. */
+  /**
+   * 'national' | 'regional' | 'chapter', from the ASSIGNMENT and not from the position.
+   *
+   * `user_roles.scope` rather than `family_roles.scope`, matching `getBoardPositionHolders`:
+   * the assignment is what carries the chapter or the region, so reading the scope from
+   * anywhere else could name a place the row does not hold.
+   */
   scope: string
+  /** The chapter this office is held for, on a chapter-scoped assignment. Null otherwise. */
+  chapter_name: string | null
+  /** The region, on a regional one. Null otherwise. A row never carries both. */
+  region_name: string | null
   sort_order: number
 }
 
@@ -164,41 +187,88 @@ const ENTRY_KINDS = ['note', 'meeting']
 export async function getMyOffices(): Promise<JournalOffice[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'journals', 'view'))) return []
+  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
 
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('user_roles')
-    // ONE path to `family_roles`, so a bare embed is unambiguous — `user_roles.role_id` is the
-    // only foreign key between the two. `assigned_by` points at `auth.users`, not `people`.
-    // Worth stating because §8's rule is that a migration adding a second FK anywhere makes
-    // this line PGRST201, which is `[]` with the error discarded.
-    .select('role_id, family_roles(name, category, scope, sort_order)')
-    .eq('user_id', g.userId)
-    .eq('family_code', g.familyCode)
+  // THREE READS, NOT ONE EMBEDDED QUERY, and the two extra are the places. `chapters` and
+  // `regions` are read whole and family-scoped, exactly as `getBoardPositionHolders` reads
+  // them: their composed SELECT policies demand `admin/chapters:view` at 'any', so an
+  // embed would resolve to null for every ordinary officer and the rail would print "Chapter
+  // Chair" with no chapter — which is the silent one-field-wrong failure
+  // `app/actions/announcements.ts` records at length about `chapters(name)`.
+  //
+  // §3 BY HAND on all three: `.eq('family_code', ...)` from the caller's own membership, never
+  // from an argument. This function takes no parameters, so there is no id to verify (§4).
+  const [rolesRes, chaptersRes, regionsRes] = await Promise.all([
+    admin.from('user_roles')
+      // ONE path to `family_roles`, so a bare embed is unambiguous — `user_roles.role_id` is
+      // the only foreign key between the two. `assigned_by` points at `auth.users`, not
+      // `people`. Worth stating because §8's rule is that a migration adding a second FK
+      // anywhere makes this line PGRST201, which is `[]` with the error discarded.
+      .select('role_id, scope, chapter_id, region_id, family_roles(name, category, sort_order)')
+      .eq('user_id', g.userId)
+      .eq('family_code', g.familyCode),
+    admin.from('chapters').select('id, name').eq('family_code', g.familyCode),
+    admin.from('regions').select('id, name').eq('family_code', g.familyCode),
+  ])
+  const { data, error } = rolesRes
   if (error) {
     console.error(`[journals] could not read the caller's offices in ${g.familyCode}: `
       + error.message + ' — Journals will look empty to an officer who holds one.')
     return []
   }
+  // §8, AND A DIFFERENT ANSWER FOR THE PLACES THAN FOR THE OFFICES. A refused `chapters` read
+  // costs a NAME and no structure — the office is still listed, its notebook still opens, and
+  // the title falls back to "Chapter Chair" the way it read before 2026-08-22. Failing the
+  // whole screen because a caption is unavailable would withhold the notes over a label.
+  if (chaptersRes.error || regionsRes.error) {
+    console.error(`[journals] could not name the places for ${g.familyCode}: `
+      + (chaptersRes.error?.message ?? regionsRes.error?.message)
+      + ' — a scoped office will print without its chapter or region.')
+  }
+  const chapterName = new Map(((chaptersRes.data ?? []) as { id: string; name: string }[])
+    .map(c => [c.id, c.name]))
+  const regionName = new Map(((regionsRes.data ?? []) as { id: string; name: string }[])
+    .map(r => [r.id, r.name]))
 
   type Row = {
     role_id: string
-    family_roles: { name: string; category: string; scope: string; sort_order: number } | null
+    scope: string | null
+    chapter_id: string | null
+    region_id: string | null
+    family_roles: { name: string; category: string; sort_order: number } | null
   }
   return ((data ?? []) as unknown as Row[])
     // A NULL EMBED IS DROPPED rather than rendered as an office with no name. `role_id` is
     // NOT NULL with a cascading foreign key so this should be unreachable; it is handled
     // because the alternative is a blank row in a list of offices.
     .filter(r => r.family_roles != null)
-    .map(r => ({
-      role_id: r.role_id,
-      name: r.family_roles!.name,
-      category: r.family_roles!.category,
-      scope: r.family_roles!.scope,
-      sort_order: r.family_roles!.sort_order,
-    }))
-    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+    .map(r => {
+      const scope = r.scope ?? 'national'
+      const chapter = r.chapter_id ? chapterName.get(r.chapter_id) ?? null : null
+      const region = r.region_id ? regionName.get(r.region_id) ?? null : null
+      return {
+        role_id: r.role_id,
+        name: r.family_roles!.name,
+        // ONE FORMATTER, FOUR SURFACES. See `title` on the interface: this screen was the one
+        // printing the bare name, so two chapter chairs saw the same rail item.
+        title: formatBoardTitle({
+          positionName: r.family_roles!.name,
+          scope,
+          chapterName: chapter,
+          regionName: region,
+        }),
+        category: r.family_roles!.category,
+        scope,
+        chapter_name: chapter,
+        region_name: region,
+        sort_order: r.family_roles!.sort_order,
+      }
+    })
+    // SORTED ON THE FULL TITLE at the tie, not on the bare name: an officer holding the same
+    // position in two chapters has two rows with one `name`, and ordering them by something
+    // they share means the rail reorders itself between requests.
+    .sort((a, b) => a.sort_order - b.sort_order || a.title.localeCompare(b.title))
 }
 
 /**
@@ -223,7 +293,7 @@ export async function getMyOffices(): Promise<JournalOffice[]> {
 export async function getJournalEntries(roleId: string): Promise<JournalEntry[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'journals', 'view'))) return []
+  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
 
   const supabase = await createClient()
   const { data: entryRows, error } = await supabase
@@ -344,7 +414,7 @@ export async function getJournalEntries(roleId: string): Promise<JournalEntry[]>
 export async function getJournalAttendeeOptions(): Promise<JournalAttendeeOption[]> {
   const g = await requireMember()
   if (!g.ok) return []
-  if (!(await can(g.userId, 'journals', 'view'))) return []
+  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
   // GATE THE FETCH, NOT THE PICKER (§5). A roster is PII that reaches the browser in the RSC
   // payload whether a control renders it or not, so somebody holding no office must not have
   // it fetched at all.
@@ -474,7 +544,7 @@ export async function addJournalEntry(
     if (attendeeError) partial.push('the attendee list was not saved')
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   if (partial.length) {
     return {
       success: false,
@@ -528,7 +598,7 @@ export async function updateJournalEntry(
     }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }
 
@@ -553,7 +623,7 @@ export async function deleteJournalEntry(
     }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }
 
@@ -596,7 +666,7 @@ export async function addJournalNote(
     return { success: false, message: error.message }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }
 
@@ -631,7 +701,7 @@ export async function updateJournalNote(
     }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }
 
@@ -656,7 +726,7 @@ export async function deleteJournalNote(
     }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }
 
@@ -736,7 +806,7 @@ export async function setMeetingAttendees(
           + 'Reload the meeting and try again.',
       }
     }
-    revalidatePath('/journals')
+    revalidatePath('/journals/officer')
     return { success: true }
   }
 
@@ -748,7 +818,7 @@ export async function setMeetingAttendees(
     .eq('entry_id', entryId)
   if (readError) return { success: false, message: readError.message }
   if (!(existing ?? []).length) {
-    revalidatePath('/journals')
+    revalidatePath('/journals/officer')
     return { success: true }
   }
 
@@ -765,6 +835,6 @@ export async function setMeetingAttendees(
     }
   }
 
-  revalidatePath('/journals')
+  revalidatePath('/journals/officer')
   return { success: true }
 }

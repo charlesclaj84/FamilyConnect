@@ -453,23 +453,27 @@ export const HELP_PARTS: readonly HelpPart[] = [
     blurb: 'Talking to the family, and keeping track of who everybody is.',
     chapters: [
       {
-        // THE SLUG STAYS `journal` WHILE THE SCREEN IS CALLED **Journals**, deliberately. A
-        // slug is the chapter's identity in `/help/<slug>` and AGENTS.md is explicit that it
-        // is not a route and moves with nothing — sweeping bare keys across this file once
-        // renamed nine chapters. The `route` below is the thing that had to move.
+        // THE SLUG STAYS `journal` THROUGH BOTH RENAMES, deliberately. A slug is the
+        // chapter's identity in `/help/<slug>` and AGENTS.md is explicit that it is not a
+        // route and moves with nothing — sweeping bare keys across this file once renamed
+        // nine chapters. The `route` below is the thing that had to move, twice: `/journal`
+        // became `/journals` on 2026-08-22 and `/journals/officer` the same day, when the rail
+        // item stopped wearing its section's own word. `npm run help:check` is what asserts a
+        // chapter route is a real `FEATURES` href, which is how the second move was caught.
         slug: 'journal',
-        title: 'Journals',
+        title: 'Officer Journals',
         summary: 'A notebook for each office your family keeps, how a topic collects notes over time, and why it all stays with the office rather than with you.',
-        route: '/journals',
+        route: '/journals/officer',
         sections: [
           {
             id: 'what-it-is',
             heading: 'What this screen is',
             blocks: [
               p('Every office the family records — treasurer, secretary, events chair — has a notebook. It holds whatever the person doing the job needs written down: how the bank reconciliation actually works, which hall answers the phone, what went wrong last year.'),
+              p('It is **Journals > Officer** in the rail. The section is the feature and the item says whose notebook it is; a family that records offices for its chapters and regions as well as nationally will find all of them here.'),
               p('**The notes belong to the office, not to you.** That is the whole of it. When you hand the job on, everything you wrote is still there for whoever takes it, and everything the person before you wrote was there for you.'),
               p('**An entry is a topic, not a page.** It has a title and then a run of notes underneath it, oldest first, each one signed and dated. So "How the bank reconciliation works" is one entry that gets a paragraph added whenever there is something to add, rather than four entries with similar names — and the argument for why it is done that way is the whole thread, not the last version of it.'),
-              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — Journals are for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
+              note('If you hold no office, the screen says so and there is nothing to see. Nothing has gone wrong — an officer’s journal is for officeholders, and offices are recorded under [Board positions](/help/board-positions).'),
             ],
           },
           {
@@ -479,8 +483,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Whoever holds the office today, and nobody else.** Not other officers, not the family\'s administrators, not the person who held it last year.'),
               p('That is unusual in this product and it is deliberate. These are working notes rather than a record the family keeps, and a notebook everybody could read is one people would keep somewhere else instead.'),
               p('If you hold more than one office, each has its own notebook and a strip along the top switches between them. Nothing from one appears in another.'),
+              p('**Each one is named in full — the position and the place.** "National Treasurer", "Austin Chapter Chair", "Eastern Region Secretary": the same phrase the [Directory](/community/directory) and [Members](/admin/members) print for the same office, so you are never guessing which of two chapter offices a strip item means.'),
+              p('**A notebook belongs to the POSITION rather than to the place**, and a scoped office says so on the screen: everyone holding "Chapter Chair" reads the same notes, whichever chapter they chair. If your family wants a chapter to have notes of its own, that is a separate office per chapter rather than one office held in several.'),
               p('If two of you hold the same office, you are both writing in the same notebook. Either of you can add a note to any entry in it, which is what makes an entry a conversation — but a note stays the property of whoever wrote it. See [changing something](#editing).'),
-              note('A family can switch Journals off altogether under [Who can do what](/help/who-can-do-what), the same way as any other screen. What it cannot do is open one office\'s notebook to somebody who does not hold it.'),
+              note('A family can switch this screen off altogether under [Who can do what](/help/who-can-do-what), the same way as any other screen. What it cannot do is open one office\'s notebook to somebody who does not hold it.'),
             ],
           },
           {
@@ -621,20 +627,20 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'pinning',
             heading: 'Pinning',
             blocks: [
-              p('**There are two pins, and they are two different things.** Both are pin buttons in the corner of a post, and the wording tells them apart.'),
+              p('**There is one pin, and it belongs to the family.** Beside it, on a post the family has pinned, every member gets an eye — which hides that post from the top of their own updates and changes nothing anybody else sees. Two glyphs, because they are two different acts.'),
               defs(
-                { term: 'Pin for everyone', text: 'Puts the post at the top of every member\'s updates. A family-wide act, and a separate permission from posting — a family can let everybody post and let one person pin. It can be given an expiry, which is the right way to pin "the reunion is in three weeks": it takes itself down.' },
-                { term: 'Pin this back to the top — for me', text: 'Your own copy, and every member has it. It appears only on a post the family has pinned, because there is nothing personal to change about one nobody pinned.' },
+                { term: 'Pin for everyone (a pin)', text: 'Puts the post at the top of every member\'s updates. A family-wide act, and a separate permission from posting — a family can let everybody post and let one person pin. It can be given an expiry, which is the right way to pin "the reunion is in three weeks": it takes itself down. The pin is filled in and accent-coloured while it is on.' },
+                { term: 'Hide this from the top of my updates (an eye)', text: 'Your own copy, and every member has it. It appears only on a post the family has pinned — there is nothing to hide from the top of your updates until the family has put something there.' },
               ),
-              note('If you can do both, be careful which you press: unpinning for everyone takes the post off the top of the whole family\'s updates, while unpinning for yourself changes nothing anybody else sees.'),
+              note('If you can do both, be careful which you press: unpinning for everyone takes the post off the top of the whole family\'s updates, while the eye changes nothing anybody else sees.'),
             ],
           },
           {
             id: 'dismissing',
-            heading: 'Dismissing a pinned post',
+            heading: 'Hiding a pinned post from your own updates',
             blocks: [
-              p('Dismissing removes it from the top of *your* updates only. It stays pinned for everybody else, and it stays on this board — the board is the record, the dashboard is the reminder.'),
-              p('It does not hide the post. It drops out of the pinned block and back into the list in date order, so you can always find it again — and the post says so underneath: **Pinned for the family — you have dismissed it from the top of your updates.**'),
+              p('Pressing the eye removes it from the top of *your* updates only. It stays pinned for everybody else, and it stays on this board — the board is the record, the dashboard is the reminder.'),
+              p('It does not hide the post. It drops out of the pinned block and back into the list in date order, so you can always find it again — and the post says so underneath either way: **Pinned for the family — it rides at the top of your updates**, or **Pinned for the family — you have hidden it from the top of your updates.**'),
               p('**Both screens agree.** Dismiss it here or on the dashboard and the other one follows, because both read the same answer — the family\'s pin narrowed by your own dismissal. That was not true before 2026-08-21: this board showed the family\'s pin and the dashboard showed yours, so a post you had dismissed stayed at the top of one and not the other.'),
             ],
           },
@@ -679,7 +685,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('It had a menu row of its own until 2026-08-19 and no longer does — the family\'s news lives on one screen. The old address still works and lands on the pane, so a link anybody has sent still opens the right list.'),
               p('Two kinds of row appear:'),
               defs(
-                { term: 'Announcement', text: 'Family news somebody posted on the board. Opening it goes to [Announcements](/community/announcements), which carries the full text.' },
+                { term: 'Announcement', text: 'Family news somebody posted on the board. Opening it goes to [Announcements](/community/announcements), which carries the full text — except for a notice about an election, which goes to the election itself, because you have already read the whole of it in the row.' },
                 { term: 'Sent to you', text: 'Something addressed to you personally — a task, an approval, a message waiting. These are the same rows as the bell in the top bar.' },
               ),
               p('Nothing here is anybody else\'s mail. The "sent to you" rows are yours alone, and they are the same list the bell shows.'),
@@ -875,8 +881,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Nominations', text: 'From the day they open to the day they close. Put yourself forward, or put somebody else forward.' },
                 { term: 'Voting', text: 'From the day it opens to the day it closes. Cast a vote, or change one.' },
               ),
-              p('**Both ends count.** An election whose nominations read "January 1st – January 5th" is open on the 5th, right up to the end of the day. The same is true of voting.'),
-              p('Voting always opens after nominations close, so the list of candidates you are voting on cannot change under you. There is usually a gap; the screen says what it is waiting for.'),
+              p('**Both ends count.** An election whose nominations read "January 1st – January 5th" is open on the 5th, right up to the end of the day. The same is true of voting — with one exception, below.'),
+              p('Voting never opens before nominations close, so the list of candidates you are voting on cannot change under you. There is often a gap in between, and the screen says what it is waiting for.'),
+              p('**Voting may open on the same day nominations close, and then that day belongs to voting.** Nominations run through their closing date, or until voting opens, whichever comes first — so on a shared day the nomination form is already shut and the ballot is live. If your family wants the whole of that day for nominations, the closing date goes one day earlier.'),
               note('Nothing here happens at a time of day, and no timezone is involved. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
             ],
           },
@@ -1725,6 +1732,31 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'drilling-in',
+            heading: 'Pressing a row to see who is in it',
+            blocks: [
+              p('**Every row beside every chart opens.** Press one and it lists the people it counted, with a filter box once there are more than a handful of them. That includes the rows the chart folded into **Other** and the ones standing at zero, because the table beside a chart always lists every slice.'),
+              p('It is the ROW rather than the slice of the ring: a ring draws five slices and folds the rest, so the row is the only thing that can open every one of them. It is also a real button, so it can be tabbed to and pressed with the keyboard.'),
+              p('**Names are fetched when you press, and not before.** The charts themselves carry counts and place names and no names at all, which is why this report is not an administrator-only screen. Opening one row asks for that one group.'),
+              note('You need the [Member Directory](/community/directory) as well as this report to see who is in a group. A family that has restricted the Directory has decided who may read its members\' names, and a chart does not go around that — if you hold one and not the other, the figures open and the names do not.'),
+            ],
+          },
+          {
+            id: 'putting-it-right',
+            heading: 'Putting right what a chart is pointing at',
+            blocks: [
+              p('**Three of the four charts offer one repair each, on the row that needs it.** Each is the same action the screen that owns it uses, so every rule that screen enforces holds here too.'),
+              defs(
+                { term: 'No chapter, and National', text: 'Set that person\'s chapter. Their region follows it — there is no separate region to set, because a region is a property of the chapter. Their sons and daughters under eighteen with no account of their own move with them, exactly as on [My Profile](/personal-info).' },
+                { term: 'Pending invite, and Invited', text: 'Send them an invitation. It asks for a real email address, because a relative with no account holds a placeholder one that cannot receive mail. Pressing it on an Invited row sends a fresh invitation, which is what chasing an unanswered one means.' },
+                { term: 'Birthday not recorded', text: 'Record their date of birth. Adult or minor is worked out from it every time the report loads; nothing about their age is stored.' },
+              ),
+              p('**Only those rows offer anything**, and that is deliberate: somebody already in the Austin chapter is not a problem the chart is reporting, and **Active** cannot be invited because they can already sign in. A row with nothing to repair still opens and still lists.'),
+              p('**One person at a time.** There is no "file all of these in Austin" button, because each of these is a statement about one person — which chapter they are really in, when they were really born, whether to ask them to join — and setting a chapter moves their young children with them.'),
+              note('The two repairs are two permissions. Setting a chapter and recording a birthday need permission to edit members; sending an invitation needs permission to edit the family tree. If a row lists people and offers no control, the panel says which of the two you have not been given.'),
+            ],
+          },
+          {
             id: 'places',
             heading: 'By region and by chapter',
             blocks: [
@@ -1742,7 +1774,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               defs(
                 { term: 'Active', text: 'They have an account and can sign in.' },
                 { term: 'Invited', text: 'No account yet, and an invitation is open and unanswered. The family has asked; the ball is with them.' },
-                { term: 'Pending invite', text: 'Recorded in the family and never asked to join. This is the one you can act on — invite them from the [family tree](/community/family-tree).' },
+                { term: 'Pending invite', text: 'Recorded in the family and never asked to join. This is the one you can act on — press the row and invite them from there, or from the [family tree](/community/family-tree).' },
               ),
               p('**Can sign in** at the top of the page is the Active figure by another name, and **Never invited** beside it appears only when there is anybody in the third group. Between them they say how much of the family can actually be reached — which is the figure to look at before sending anything to everybody.'),
               note('An invitation that has **expired** counts as Pending invite, not Invited. An expired link cannot be accepted, so the family has to ask again.'),
@@ -1896,7 +1928,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'editing-a-profile',
             heading: 'Correcting somebody\'s profile',
             blocks: [
-              p('Press a member\'s name on the **Members** tab to see their record in full, then **Edit profile** to change it. The form is the same three sections a member sees on their own [My Profile](/personal-info) — General, Address and Additional information — so a misspelt surname or a moved address can be fixed while you have them on the phone.'),
+              p('Press a member\'s name on the **Members** tab to see their record in full, then **Edit profile** to change it — or go straight there with **Edit profile** under **Profile** in the menu at the end of their row. The form is the same three sections a member sees on their own [My Profile](/personal-info) — General, Address and Additional information — so a misspelt surname or a moved address can be fixed while you have them on the phone.'),
               p('Two things are deliberately not editable here, and both are theirs rather than yours:'),
               defs(
                 { term: 'Their email address', text: 'Shown, and read-only. It is what they sign in with, so only they can change it — from Sign-in & Security on their own profile. For a relative who has not registered yet it is a generated placeholder, and it becomes a real address when they accept an invitation.' },
@@ -2021,7 +2053,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Not from this pane.** Setting up which offices your family keeps happens here; deciding who holds one happens on the **Members** tab, from that person\'s own row.'),
               steps(
                 'Open the **Members** tab and find the person.',
-                'Open the menu at the end of their row and choose **Give a board position** under **Position**.',
+                'Open the menu at the end of their row and choose **Give a board position** under **Profile**.',
                 'Pick the position. For a regional or chapter one, choose which region or chapter it is for.',
                 'Press **Give position**.',
               ),
@@ -2077,9 +2109,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Nominations** and **Voting**, each with an opening date and a closing date. They are what makes the election happen; nobody has to come back and press anything.'),
               bullets(
                 'Nominations run from the day they open to the end of the day they close. Both days count.',
-                'Voting runs the same way, and must open after nominations close — so a ballot is never voted on while the list of candidates can still change.',
+                'Voting runs the same way, and may not open BEFORE nominations close — a ballot is never voted on while the list of candidates can still change.',
+                'It may open on the same day they close, and then that day belongs to voting: nominations shut as the ballot opens. That is the shortest election the product can describe — one day of nominations, one day of voting. Give nominations the whole of their closing day by setting it a day earlier.',
                 'Each window has to be at least a day long. A closing date on or before its opening date is refused as you type it.',
-                'The date pickers grey out the days that would break the chain — once nominations open on the 1st, the closing picker will not offer the 1st or anything before it, and the voting pickers move with it.',
+                'The date pickers grey out the days that would break the chain — once nominations open on the 1st, the closing picker will not offer the 1st or anything before it, and the voting pickers move with it. The voting opening picker DOES offer the day nominations close, because that one is allowed.',
               ),
               p('The day after voting closes, the election is over and its results appear for everybody who could vote in it. Nothing publishes them and nothing closes the poll.'),
               note('All four dates are needed to publish. A draft may have none of them, or some — that is what a draft is for.'),
@@ -2119,6 +2152,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Leave **Announce** ticked if you want the family told, then press **Publish** and confirm.',
               ),
               p('The announcement is addressed the way the election is: a chapter election is announced to that chapter. A regional one goes to the whole family and names the region, because an announcement can be addressed to a chapter and not to a region.'),
+              p('**The notice is a way in.** Its title is a link straight to the election, on the board and in the **Recent Updates** card on the [Dashboard](/dashboard) alike, so nobody has to go looking for the ballot they have just been told about. A member whose family has switched Elections off, or is not on a plan that includes them, sees the notice without the link rather than a link that refuses them.'),
               p('After that there is nothing to do. Nominations open on their date, close on theirs, voting opens and closes on its own, and the results appear.'),
             ],
           },

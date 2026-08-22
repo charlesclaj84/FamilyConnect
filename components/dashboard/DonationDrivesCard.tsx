@@ -31,11 +31,18 @@ import type { DonationSummary } from '@/app/actions/dues'
  * time.
  *
  * ── THREE, THEN A COUNT ─────────────────────────────────────────────────────────────
- * This sits in the Dashboard's NARROW column and a family may have any number of drives.
- * Three is what fits without the card becoming the page; the rest are named as a number
- * with the way to reach them, never silently dropped — the same rule
- * `PersonMultiSelect`'s overflow count follows, and for the same reason: a list that
- * stops while LOOKING complete is how somebody concludes a drive does not exist.
+ * This shares a row with the dues balance inside At a Glance, so it has about half the wide
+ * column, and a family may have any number of drives. Three is what fits without the card
+ * becoming the page; the rest are named as a number with the way to reach them, never silently
+ * dropped — the same rule `PersonMultiSelect`'s overflow count follows, and for the same
+ * reason: a list that stops while LOOKING complete is how somebody concludes a drive does not
+ * exist.
+ *
+ * ── ITS CHROME MATCHES `DuesBalanceKpi`, WHICH IS NOW BESIDE IT ─────────────────────
+ * `rounded-2xl border bg-card p-5` and no shadow, because the two are one pair inside one
+ * panel since 2026-08-22. It was a `rounded-3xl` card with `--shadow-card`, which was right
+ * while it stood alone in the narrow column and reads as a mismatched pane the moment it has a
+ * neighbour: two cards of one row with different corners and one of them floating.
  *
  * ── THE GATE IS NOT HERE ────────────────────────────────────────────────────────────
  * `donations` arrives already fetched under `donations:view` and only
@@ -67,7 +74,7 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
   const hidden = open.length - shown.length
 
   return (
-    <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
+    <section className="rounded-2xl border bg-card p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg">
         <HeartHandshake className="h-4 w-4 text-brand-accent" aria-hidden="true" />
         Donation Drives
@@ -99,10 +106,10 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
 /**
  * One drive: what it is, how far the family has got, and what the reader has given.
  *
- * The three facts are on separate lines rather than run together, because this card is
- * ~21rem wide at `lg` and a drive called "Martha's Medical Fund" plus two currency
- * amounts does not fit on one. The name gets the line it needs; the figures share the
- * next.
+ * The three facts are on separate lines rather than run together, because this card is around
+ * 20rem wide at `lg` — half the wide column, sharing its row with the balance — and a drive
+ * called "Martha's Medical Fund" plus two currency amounts does not fit on one. The name gets
+ * the line it needs; the figures share the next.
  */
 function DriveRow({ donation: d }: { donation: DonationSummary }) {
   const { schedule, goalCents, raisedCents, myGivenCents, progressPercent, goalMet } = d

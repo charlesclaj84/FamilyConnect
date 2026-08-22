@@ -4,6 +4,7 @@ import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMembershipReport } from '@/app/actions/reports'
 import { PageShell } from '@/components/layout/PageShell'
 import { MembershipReportView } from '@/components/reports/MembershipReportView'
+import type { MembershipRepairRights } from '@/lib/membership-drill'
 
 export const metadata = { title: 'Membership' }
 
@@ -38,6 +39,23 @@ export const metadata = { title: 'Membership' }
  * `getMembershipReport()` re-checks the grant itself and returns `null` rather than a zeroed
  * shape, so a caller who reaches the action directly gets nothing to render. Nothing on this
  * page is fetched and then hidden.
+ *
+ * ── EVERY SLICE IS A WAY IN, SINCE 2026-08-22, AND NO ROSTER IS SENT WITH IT ───
+ * Each legend row opens the people in that slice and offers the one repair the chart is
+ * pointing at — file somebody in a chapter, invite a relative nobody has asked, record a
+ * birthday. `getMembershipSlice` fetches them WHEN THE ROW IS PRESSED and re-resolves its own
+ * two grants, so eight slices on this screen put at most one roster in the browser. That is
+ * §5 rather than laziness about payload size: this report's whole privacy story is that it
+ * publishes counts and place names and no names at all, and shipping every slice's roster down
+ * so a dialog could hide seven of them would undo it in one prop.
+ *
+ * WHAT THE PAGE RESOLVES IS THE TWO REPAIR GRANTS, and they are TWO because they are two jobs
+ * a family may delegate separately: `admin/members:edit` covers filing somebody in a chapter
+ * and recording a birthday, and `community/family-tree:edit` covers asking a relative to join.
+ * Both are `canAny`, matching the actions exactly — scope 'own' on either would mean the
+ * caller's own row, which is not what any of these three writes touches. They decide which
+ * control the dialog draws and nothing else; all three actions gate themselves, because a
+ * `'use server'` export has a URL whether or not a button exists (§2).
  */
 export default async function MembershipReportPage() {
   const supabase = await createClient()
@@ -47,7 +65,14 @@ export default async function MembershipReportPage() {
   await requireView(user.id, 'membership-report')
   if (!(await canAny(user.id, 'membership-report', 'view'))) notFound()
 
-  const report = await getMembershipReport()
+  // RESOLVED BESIDE THE REPORT rather than after it, so the page costs one round trip's worth
+  // of latency for the pair. Neither is a gate; see the header.
+  const [report, mayEditMembers, mayInvite] = await Promise.all([
+    getMembershipReport(),
+    canAny(user.id, 'admin/members', 'edit'),
+    canAny(user.id, 'community/family-tree', 'edit'),
+  ])
+  const rights: MembershipRepairRights = { mayEditMembers, mayInvite }
   // Unreachable after the two checks above, and handled rather than asserted: the action
   // also returns null when a read fails, and a page that threw on that would replace a
   // recoverable outage with a stack trace.
@@ -60,11 +85,12 @@ export default async function MembershipReportPage() {
         <p className="text-muted-foreground">
           How the family is made up today — where its members are, how many have finished
           joining, and how many are children. Every figure is worked out when the page loads;
-          nothing here is stored.
+          nothing here is stored. Press any row beside a chart to see who is in it, and to put
+          right what it is pointing at.
         </p>
       </div>
 
-      <MembershipReportView report={report} />
+      <MembershipReportView report={report} rights={rights} />
     </PageShell>
   )
 }

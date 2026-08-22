@@ -92,6 +92,23 @@ export const ELECTION_PHASE_LABEL: Record<ElectionPhase, string> = {
  * "closes January 5th" means the 4th was the last day — makes every displayed range lie by a
  * day. Change this and change the SQL function and `/help` in the same commit.
  *
+ * ── AND SINCE 2026-08-22 VOTING MAY OPEN ON THE DAY NOMINATIONS CLOSE ────────
+ * `voting_open_on >= nominations_close_on`, where it was strictly after. An organizer running a
+ * short election should not have to leave a dead day in the middle of it, and under the strict
+ * rule the shortest election anybody could describe was four days long.
+ *
+ * THE OVERLAP IS RESOLVED BY CLOSING NOMINATIONS, NEVER BY OPENING TWO WINDOWS AT ONCE. On the
+ * shared day the phase is `voting`, so the nomination board is shut and the ballot is live —
+ * which keeps the invariant the strict comparison was there for. The whole rule, and the one to
+ * state to a family: **nominations run through their close date, or until voting opens,
+ * whichever comes first.**
+ *
+ * IT COSTS `nominations_close_on` ITS INCLUSIVITY IN EXACTLY THAT CONFIGURATION, and that is
+ * the trade rather than an oversight: an organizer who wants a whole extra day of nominations
+ * sets the close date a day earlier, which is the same number of keystrokes and says what they
+ * mean. Every other window is still inclusive at both ends, and `formatDateRange` still reads
+ * them that way.
+ *
  * ── AN INCOMPLETE PUBLISHED ROW FAILS CLOSED ───────────────────────────────────────
  * `elections_published_has_windows` makes a published row with a missing date impossible in
  * the database, so this branch exists for one case only: a row read through a projection that
@@ -109,10 +126,19 @@ export function electionPhase(e: ElectionWindows, today: string): ElectionPhase 
   if (!nomOpen || !nomClose || !voteOpen || !voteClose) return 'draft'
 
   if (today < nomOpen) return 'scheduled'
+  // VOTING IS ASKED ABOUT FIRST, and that ordering IS the same-day handover rule. Since
+  // 2026-08-22 `voting_open_on` may equal `nominations_close_on`, and on that one day both
+  // `today <= nomClose` and `today >= voteOpen` are true. Voting wins it, because a field
+  // captioned "Voting opens on" that does not open voting on the date an organizer typed into
+  // it is the lie, and because the invariant the old strict CHECK bought - nobody votes on a
+  // slate that can still change - is kept exactly by closing nominations as voting opens.
+  //
+  // So the stated rule is: nominations run THROUGH their close date, or until voting opens,
+  // whichever comes first. `election_window_open()` carries the same second clause in SQL, so
+  // the two halves agree rather than the database being merely the looser of the two.
+  if (today >= voteOpen) return today <= voteClose ? 'voting' : 'closed'
   if (today <= nomClose) return 'nominations'
-  if (today < voteOpen) return 'between'
-  if (today <= voteClose) return 'voting'
-  return 'closed'
+  return 'between'
 }
 
 /** True while nominations may be submitted. The one test any nomination control should make. */
@@ -189,8 +215,11 @@ export function windowProblem(
   if (nomOpen && nomClose && nomClose <= nomOpen) {
     return 'Nominations must close after they open — leave them open at least a day.'
   }
-  if (nomClose && voteOpen && voteOpen <= nomClose) {
-    return 'Voting must open after nominations close, so nobody votes on a slate that is still changing.'
+  // `<` AND NOT `<=`, SINCE 2026-08-22 — voting may open ON the closing day, which is the
+  // shortest handover a family can ask for. It may not open BEFORE it, because the ballot would
+  // then be live while the slate could still change, which is what this test is actually for.
+  if (nomClose && voteOpen && voteOpen < nomClose) {
+    return 'Voting cannot open before nominations close, or the ballot changes while people are voting on it. The same day is fine.'
   }
   if (voteOpen && voteClose && voteClose <= voteOpen) {
     return 'Voting must close after it opens — leave it open at least a day.'
@@ -212,12 +241,17 @@ export function windowProblem(
  * single definition can cross. An `<input type="date">`'s `min`/`max` is not that boundary —
  * it is the same TypeScript — so it is derived here rather than restated in the form.
  *
- * ── STRICT INEQUALITIES, SO EVERY BOUND IS A DAY AWAY ───────────────────────────────
+ * ── EACH BOUND MIRRORS ITS OWN COMPARISON, AND THEY ARE NOT ALL THE SAME ONE ──
  * `windowProblem` refuses `nomClose <= nomOpen`, not `<`, because "leave them open at least a
  * day" is the rule a family was given. So `nomClose`'s floor is the day AFTER `nomOpen`, and
- * `nomOpen`'s ceiling is the day BEFORE `nomClose`. Returning the neighbour's own date would
- * grey out one day too few and leave the picker offering a date the action then refuses,
- * which is the whole thing these bounds exist to prevent.
+ * `nomOpen`'s ceiling is the day BEFORE `nomClose`. The voting window is measured against
+ * itself the same way.
+ *
+ * BETWEEN THE TWO WINDOWS IT IS `<`, SINCE 2026-08-22, so that pair of bounds is the
+ * neighbour's own date rather than a day off it. Getting either kind backwards is one bug in
+ * two directions: a bound a day too tight greys out a date the action would accept, and a
+ * bound a day too loose offers one the action then refuses. That is the whole thing these
+ * bounds exist to prevent.
  *
  * ── IT IS PURELY RELATIVE. NO FLOOR OF "TODAY" ──────────────────────────────────────
  * Deliberate, and two reasons. A draft may legitimately carry a past date — an organizer
@@ -254,10 +288,15 @@ export function electionWindowBounds(input: WindowInput): ElectionWindowBounds {
   // middle dates are blank — would grey out days that become legal the moment the organizer
   // fills the gap, in an order they did not choose to type in. A partly-filled form is the
   // normal state of this one, and `windowProblem` is what catches a chain that never closes.
+  // THE MIDDLE PAIR TOUCH, AND THE OUTER TWO DO NOT. `voting_open_on` may equal
+  // `nominations_close_on` since 2026-08-22, so neither of those two bounds shifts a day —
+  // offering one day fewer than `windowProblem` accepts would grey out the very handover that
+  // change exists to allow. The outer two keep their strict neighbours, because "leave it open
+  // at least a day" is still the rule for a window measured against itself.
   return {
     nominations_open_on: { max: dayBefore(nomClose) },
-    nominations_close_on: { min: dayAfter(nomOpen), max: dayBefore(voteOpen) },
-    voting_open_on: { min: dayAfter(nomClose), max: dayBefore(voteClose) },
+    nominations_close_on: { min: dayAfter(nomOpen), max: voteOpen || undefined },
+    voting_open_on: { min: nomClose || undefined, max: dayBefore(voteClose) },
     voting_close_on: { min: dayAfter(voteOpen) },
   }
 }

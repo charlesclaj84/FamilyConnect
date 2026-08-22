@@ -584,7 +584,13 @@ export default async function DashboardPage() {
 
               `showViewLink` stays on, and it is still the ONE prop that may differ between
               this rendering and Summary's. The drives card renders nothing when none is open,
-              so for most families most of the time this panel is the tiles and the balance. */}
+              so for most families most of the time this panel is the tiles and the balance.
+
+              THEY SHARE A ROW SINCE 2026-08-22 — the panel lays its children out on the
+              same `auto-fit` grid the tiles use, which is what makes the pair read as a pair
+              and what lets the balance fill the row on its own when no drive is open. The
+              order here is the order they appear in: what you owe, then what you are being
+              asked to give. */}
           <AtAGlance tiles={tiles}>
             <DuesBalanceKpi summary={duesSummary} showViewLink />
             <DonationDrivesCard donations={donations} />

@@ -872,6 +872,153 @@ export const CASES = [
       && r.byAge.reduce((n, s) => n + s.count, 0) === r.total,
   }),
 
+  // ── The membership report's DRILL-DOWN, which is the half that names people ─
+  //
+  // `getMembershipSlice` is the exception to everything the case above says about that action's
+  // surface: the report publishes counts and place names, and this one publishes NAMES. So it
+  // carries a second grant — `community/directory:view` at `canAny` on top of
+  // `membership-report:view` — and the same four admin-client reads with the same four
+  // hand-written family conjuncts underneath it.
+  //
+  // ── WHY THE ATTACK IS A CHAPTER ID AND NOT A BARE CALL ────────────────────
+  // This is §4's shape: the slice key arrives FROM THE CLIENT and names one of the family's
+  // chapters. Nothing is written, so no guard trigger stands here — what stops BRAVO
+  // computing a slice against ALPHA's chapter is that the geography is read FIRST, family-scoped,
+  // and the key is matched against the ids that came back. A key that is not among them is "no
+  // such slice" and answers an empty list.
+  //
+  // THE CHAPTER LIST IS ASSERTED AS WELL AS THE ROSTER, and that is the half a marker scan
+  // would miss for a different reason than usual: `chapters` is returned so the repair can offer
+  // one, and an unscoped read there would hand BRAVO's administrator a `<select>` of ALPHA's
+  // chapters to file their own members into. That write would then be refused by
+  // `setMemberChapter`'s own `belongsToFamily` — so the leak is the LIST rather than the
+  // move, which is exactly the kind of thing that survives a test that only looks at rows.
+  //
+  // TO SEE IT FAIL — required before treating this as evidence (§7), and the FIRST attempt
+  // at this record was wrong, which is the reason the rule exists:
+  //
+  //   drop it from the `chapters` read                        ATTACK fails: 'ALPHATEST chapter'
+  //                                                            is in the returned picker list
+  //   drop `.eq('family_code', …)` from the `people` read     NOTHING MOVES. Measured, and
+  //                                                            this case was written claiming
+  //                                                            otherwise until it was run.
+  //                                                            A CHAPTER slice buckets through
+  //                                                            `chapterById`, which is built
+  //                                                            from the chapters read — so
+  //                                                            ALPHA's people arrive, fail to
+  //                                                            match a chapter BRAVO can see,
+  //                                                            and fall out. The chapters
+  //                                                            conjunct is covering for the
+  //                                                            people one, and a case that
+  //                                                            cannot tell them apart is not
+  //                                                            evidence for either.
+  //                                                            `(the invitation slice)` below
+  //                                                            is what catches it: that
+  //                                                            breakdown never touches the
+  //                                                            chapter map.
+  //   remove the `community/directory` conjunct               nothing moves — said out loud
+  //                                                            rather than left looking like
+  //                                                            proof, because every actor in
+  //                                                            this fixture who holds
+  //                                                            `membership-report` also holds
+  //                                                            the Directory. What that
+  //                                                            conjunct withholds is a
+  //                                                            FAMILY's own decision to
+  //                                                            restrict its Directory, and no
+  //                                                            fixture family has made one.
+  read('reports.getMembershipSlice (another family\'s chapter)',
+    'app/actions/reports.ts', 'getMembershipSlice', {
+      positiveActor: 'alphaAdmin',
+      args: fx => ['chapter', fx.alpha.chapter.id],
+      expectAttack: (r) =>
+        r !== null
+        // NOBODY, because ALPHA's chapter id matches no chapter of BRAVO's — and this is
+        // the assertion an unscoped `people` read fails.
+        && Array.isArray(r.members) && r.members.length === 0
+        // ...and the picker offers BRAVO's own chapters and none of ALPHA's. The first half is
+        // the positive control INSIDE the attack: without it, a `chapters` read that answered
+        // nothing at all would pass the second half trivially.
+        && r.chapters.some(c => c.name === `${BRAVO} chapter`)
+        && r.chapters.every(c => c.name !== `${ALPHA} chapter`)
+        && r.truncated === 0,
+      expectPositive: (r, fx) =>
+        r !== null
+        // `alphaOther` is the fixture's occupant of `f.chapter` (see seed.mjs). One member,
+        // named, filed in that chapter and in its region — which is the walk
+        // `chapter_id -> chapters.region_id -> regions.name` resolving on the admin client for
+        // a caller who holds no `admin/chapters` grant at all. That is the same silent failure
+        // the Directory's Chapter column had for a year.
+        && r.members.length === 1
+        && r.members[0].personId === fx.users.alphaOther.personId
+        && r.members[0].chapterName === `${ALPHA} chapter`
+        && r.members[0].regionName === `${ALPHA} region`
+        && r.members[0].hasAccount === true
+        && r.members[0].invitation === 'active'
+        // NO ADDRESS AND NO BIRTH DATE CROSS, which is the claim `MembershipSliceMember`'s own
+        // header makes and the one thing in this feature a future widening would do quietly.
+        && !('email' in r.members[0]) && !('dateOfBirth' in r.members[0])
+        && r.chapters.some(c => c.name === `${ALPHA} chapter`),
+    }),
+  // ── THE SLICE THAT DOES NOT ROUTE THROUGH A CHAPTER ────────
+  // The case above cannot see the `people` conjunct and says so; this one is the case that can.
+  // A slice of the INVITATION breakdown is bucketed from `user_id` and the open-invitation set
+  // alone, so nothing about the chapter map stands between an unscoped roster and the answer:
+  // drop `.eq('family_code', …)` from the `people` read and ALPHA's five active members come
+  // straight out under BRAVO's administrator.
+  //
+  // NO `expectAttack`, DELIBERATELY, so this one runs the DEFAULT MARKER SCAN. `alphaMarkers`
+  // already carries `ownerPersonId`, `otherPersonId`, `child.id`, `ancestor.id`,
+  // `invitedRecord.id` and `uninvitedRecord.id`, and `MembershipSliceMember.personId` is
+  // exactly the field they would arrive in — so the leak is caught by id rather than by a
+  // hand-written list of names this case would then have to keep in step with the fixture.
+  // Writing an `expectAttack` here would REPLACE the scan (see run.mjs), which is how the case
+  // above came to assert nothing about the roster at all.
+  read('reports.getMembershipSlice (the invitation slice, which does not route through a chapter)',
+    'app/actions/reports.ts', 'getMembershipSlice', {
+      positiveActor: 'alphaAdmin',
+      args: () => ['invitation', 'active'],
+      expectPositive: (r, fx) =>
+        r !== null
+        // ALPHA's own five actives, and the two the marker scan is watching for are among
+        // them. Without this the attack half would pass on an action that answers nobody.
+        && r.members.length === 5
+        && r.members.some(m => m.personId === fx.alpha.ownerPersonId)
+        && r.members.some(m => m.personId === fx.users.alphaOther.personId)
+        && r.members.every(m => m.hasAccount === true && m.invitation === 'active'),
+    }),
+  // ── AN APPLICANT NOBODY HAS ADMITTED ──────────────────────────────────────
+  // Inside ALPHA's boundary by every test the case above applies — `auth_family_code()`
+  // resolves ALPHATEST for them deliberately — so this is where the membership gate is
+  // asserted rather than the family one. `requireScope` goes through `requireMember`, which
+  // demands an APPROVED membership since 20260806000011, and `null` is the answer.
+  //
+  // `null` AND NOT AN EMPTY SLICE, and the assertion says so: an empty slice reads on screen as
+  // "nobody is in this chapter", which is a wrong answer rather than a withheld one, and the
+  // dialog draws the two differently.
+  read('reports.getMembershipSlice (an unadmitted applicant)',
+    'app/actions/reports.ts', 'getMembershipSlice', {
+      attacker: 'alphaPending',
+      args: fx => ['chapter', fx.alpha.chapter.id],
+      expectAttack: (r) => r === null,
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r) => r !== null && Array.isArray(r.members),
+    }),
+  // ── A BREAKDOWN THAT IS NOT ONE ───────────────────────────────────────────
+  // `breakdown` is a string off the wire and `isMembershipBreakdown` is a `hasOwnProperty`
+  // check rather than an `in`, so a prototype member is not a breakdown. Worth a case because
+  // the failure of the loose version is not an error: `MEMBERSHIP_BREAKDOWNS['constructor']`
+  // is a function, so `rule.repair` is undefined and the switch falls through returning
+  // undefined for every person — an empty list, which reads as "nobody is in this group".
+  read('reports.getMembershipSlice (a breakdown that is not one)',
+    'app/actions/reports.ts', 'getMembershipSlice', {
+      positiveActor: 'alphaAdmin',
+      args: fx => ['constructor', fx.alpha.chapter.id],
+      expectAttack: (r) => r === null,
+      expectPositive: (r) => r === null,
+      why: 'Both halves are null: the argument is refused before either family is consulted, '
+        + 'so this is a case about the parse and not about isolation.',
+    }),
+
   // ── A drive is hidden from the people it is FOR ───────────────────────────
   // A THIRD KIND OF CLAIM, alongside "can BRAVO reach ALPHA" and "can an ALPHA
   // administrator see another member's own things". This one is: can a caller holding
@@ -1671,7 +1818,7 @@ export const MORE_CASES = [
   //   `alphaAdmin`   holds every GRANT, and not the office    -> the read/write attack
   //
   // `alphaAdmin` is the sharpest of the three and is the whole point of the design: they hold
-  // `journals:view` at scope 'any' in their own family, and it buys them nothing. A family
+  // `journals/officer:view` at scope 'any' in their own family, and it buys them nothing. A family
   // that could read every officer's notebook would get officers who keep their notebook
   // somewhere else, which the migration's header argues at length.
   //
@@ -1698,12 +1845,23 @@ export const MORE_CASES = [
     // read case here uses.
     expectAttack: (r, fx) => Array.isArray(r)
       && !r.some(o => o.role_id === fx.alpha.journalRole.id),
+    // THE CONTROL ASSERTS THE `title` AS WELL AS THE ID, since 2026-08-22. That field is what
+    // the rail prints, and it is composed from THREE reads: the assignment, plus the family's
+    // chapters and regions on the admin client. A control that only checked `role_id` would go
+    // green over a rail printing "Chapter Chair" with no chapter, which is the silent
+    // one-field-wrong failure `chapters(name)` produced on the announcements board for a year.
+    //
+    // The fixture's office is NATIONAL, so the title is "National <name>" — and "National"
+    // is stated rather than left blank, which is `formatBoardTitle`'s own rule and the same one
+    // the dues scope follows: National is somewhere, not nowhere.
     expectPositive: (r, fx) => Array.isArray(r)
-      && r.some(o => o.role_id === fx.alpha.journalRole.id),
+      && r.some(o => o.role_id === fx.alpha.journalRole.id
+        && o.title === `National ${fx.alpha.journalRole.name}`
+        && o.scope === 'national' && o.chapter_name === null && o.region_name === null),
   }),
   // ── [crux] AN OFFICE THEY DO NOT HOLD, IN THEIR OWN FAMILY ────────────────
   // The single assertion this whole feature turns on. `alphaAdmin` is approved, is in ALPHA,
-  // and holds `journals:view` at 'any'; the ONLY thing refusing them is
+  // and holds `journals/officer:view` at 'any'; the ONLY thing refusing them is
   // `auth_holds_family_role` in the SELECT policy. Delete that conjunct and this line goes red
   // and nothing else does.
   //
@@ -7991,7 +8149,7 @@ const ELECTION_RAW_CASES = [
 // conjunct satisfied by construction and invisible to every action-shaped case.
 const JOURNAL_RAW_CASES = [
   // [crux] AN OFFICE THEY DO NOT HOLD, ONE TABLE DOWN. `alphaAdmin` is approved, is in ALPHA,
-  // holds `journals:view` at 'any' and holds a DIFFERENT office (ALPHATEST President), so
+  // holds `journals/officer:view` at 'any' and holds a DIFFERENT office (ALPHATEST President), so
   // every conjunct on the notes SELECT policy except the office one is true for them.
   read('raw:position_journal_notes SELECT (an office they do not hold)',
     'tests/rls/raw/journals.mjs', 'selectJournalNotes', {

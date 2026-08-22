@@ -294,7 +294,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
 
   groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
 
-  // ── JOURNALS: A SECTION OF ONE, AND IT STAYS ONE ───────────────────────────────────
+  // ── JOURNALS > OFFICER: A SECTION OF ONE, AND ITS ITEM IS NAMED ─────────────────
   // `NavSection` renders a single-item group as a static divider rather than a slider, which
   // is the right shape — there is nothing to collapse. A second item here would make it a
   // slider automatically and need no change.
@@ -302,8 +302,13 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // THE ROW IS UNCONDITIONAL, filtered by the `journals` grant like every other row in this
   // file and by nothing else. It is deliberately NOT conditional on the caller holding an
   // office, which is the `hasAssignments` decision recorded above the Gatherings block: a row
-  // that is sometimes there is worse than a row that is sometimes empty, and `/journals` has a
-  // real empty state that says what the screen is for.
+  // that is sometimes there is worse than a row that is sometimes empty, and
+  // `/journals/officer` has a real empty state that says what the screen is for.
+  //
+  // THE ITEM IS "Officer" AND NOT "Journals", since 2026-08-22. It wore the section's own word,
+  // so the rail read "Journals > Journals" — which says nothing twice. It is now named for
+  // whose notebook it is, and that renamed the route and the key with it (20260822000017); the
+  // entry in `lib/features.ts` says why one follows the other.
   //
   // It would not work anyway. The shell is built ONCE and does not re-render on a client-side
   // navigation; `ShellWatcher` notices a changed permission grid, and holding an office is a
@@ -315,7 +320,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { label: 'Journals', icon: BookText },
     items: [
-      { href: '/journals', label: 'Journals', icon: BookText },
+      { href: '/journals/officer', label: 'Officer', icon: BookText },
     ],
   })
 

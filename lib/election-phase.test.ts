@@ -21,18 +21,26 @@ import {
  *   `today <= nomClose` -> `today < nomClose`
  *       trips "the closing day is still open" for both windows — which is the INCLUSIVE
  *       close rule, and the one thing in this file a future change is most likely to flip
+ *   the `today >= voteOpen` branch moved back below the `nomClose` one
+ *       trips "voting takes the day the two windows share" — the same-day handover, which
+ *       is otherwise invisible: every other arrangement gives the same answer either way round
  *   the `!nomOpen || !nomClose || …` guard deleted
  *       trips "a published election missing a date opens nothing"
  *   `status !== 'published'` -> `status === 'draft'`
  *       trips "an unrecognized status is not published"
  *   `nomClose <= nomOpen` -> `nomClose < nomOpen` in windowProblem
  *       trips "a one-day nominations window is refused"
- *   the voting-after-nominations clause deleted
- *       trips "voting may not open on the day nominations close"
+ *   the voting-not-before-nominations clause deleted
+ *       trips "refuses voting that opens before nominations close"
+ *   that clause put back to `<=`
+ *       trips "accepts voting that opens on the day nominations close"
  *   `dayAfter` -> the neighbour's own date (i.e. `shiftDays(iso, 0)`)
- *       trips "every bound is a day away from its neighbour" — the mutation that matters
+ *       trips "each bound mirrors its own comparison" — the mutation that matters
  *       most, because it greys out one day too few and leaves the picker offering exactly
  *       the date `windowProblem` then refuses
+ *   the two MIDDLE bounds shifted a day (back to `dayAfter`/`dayBefore`)
+ *       trips the same test from the other side: those two touch since 2026-08-22, and a day
+ *       of daylight there greys out the handover the change exists to allow
  *   `dayBefore` -> `dayAfter`
  *       trips the same test from the other side
  *   `shiftDays`'s regex loosened to accept a blank
@@ -104,11 +112,48 @@ describe('electionPhase', () => {
   })
 
   it('handles a window with no gap between nominations closing and voting opening', () => {
-    // The minimum the constraint allows: voting opens the day after nominations close, so
-    // there is no `between` day at all. The phase must step straight across.
+    // Voting opens the day after nominations close, so there is no `between` day at all. The
+    // phase must step straight across.
     const tight = { ...PUBLISHED, voting_open_on: '2027-01-03', voting_close_on: '2027-01-04' }
     expect(electionPhase(tight, '2027-01-02')).toBe('nominations')
     expect(electionPhase(tight, '2027-01-03')).toBe('voting')
+  })
+
+  it('gives voting the day the two windows share', () => {
+    // THE SAME-DAY HANDOVER, 2026-08-22. `voting_open_on === nominations_close_on` is legal
+    // now, and on that day both `today <= nomClose` and `today >= voteOpen` are true. Voting
+    // wins, which is what keeps a ballot from being open while the slate can still change —
+    // the invariant the old strictly-after constraint bought.
+    const sameDay = { ...PUBLISHED, voting_open_on: '2027-01-02', voting_close_on: '2027-01-04' }
+    expect(electionPhase(sameDay, '2027-01-01')).toBe('nominations')
+    expect(electionPhase(sameDay, '2027-01-02')).toBe('voting')
+    expect(electionPhase(sameDay, '2027-01-04')).toBe('voting')
+    expect(electionPhase(sameDay, '2027-01-05')).toBe('closed')
+  })
+
+  it('never reports between when the two windows touch', () => {
+    // There is no day left for it to be, and a `between` that could never happen would be a
+    // phase the detail page renders a heading for and nothing else.
+    const sameDay = { ...PUBLISHED, voting_open_on: '2027-01-02', voting_close_on: '2027-01-04' }
+    for (const d of ['2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03', '2027-01-04', '2027-01-05']) {
+      expect(electionPhase(sameDay, d)).not.toBe('between')
+    }
+  })
+
+  it('is a one-day election when every window is one day and they share it', () => {
+    // The shortest thing this product can now describe: nominations on the 1st, voting on the
+    // 2nd, done. Four days was the floor before.
+    const shortest = {
+      status: 'published',
+      nominations_open_on: '2027-01-01',
+      nominations_close_on: '2027-01-02',
+      voting_open_on: '2027-01-02',
+      voting_close_on: '2027-01-03',
+    }
+    expect(electionPhase(shortest, '2027-01-01')).toBe('nominations')
+    expect(electionPhase(shortest, '2027-01-02')).toBe('voting')
+    expect(electionPhase(shortest, '2027-01-03')).toBe('voting')
+    expect(electionPhase(shortest, '2027-01-04')).toBe('closed')
   })
 })
 
@@ -188,22 +233,28 @@ describe('windowProblem', () => {
     )).toMatch(/Nominations must close after they open/)
   })
 
-  it('refuses voting that opens on or before the day nominations close', () => {
-    expect(windowProblem(
-      { ...WINDOWS, voting_open_on: '2027-01-02' }, { requireAll: true },
-    )).toMatch(/Voting must open after nominations close/)
+  it('refuses voting that opens before nominations close', () => {
     expect(windowProblem(
       { ...WINDOWS, voting_open_on: '2027-01-01', voting_close_on: '2027-01-10' },
       { requireAll: true },
-    )).toMatch(/Voting must open after nominations close/)
+    )).toMatch(/Voting cannot open before nominations close/)
   })
 
-  it('accepts the tightest legal arrangement — a day at every step', () => {
+  it('accepts voting that opens on the day nominations close', () => {
+    // 2026-08-22. The handover is allowed and the overlap is resolved by `electionPhase`,
+    // which gives the shared day to voting — so the ballot is never live while the slate
+    // can still change, which is what the strictly-after rule was actually protecting.
+    expect(windowProblem(
+      { ...WINDOWS, voting_open_on: '2027-01-02' }, { requireAll: true },
+    )).toBeNull()
+  })
+
+  it('accepts the tightest legal arrangement — one day per window, sharing the handover', () => {
     expect(windowProblem({
       nominations_open_on: '2027-01-01',
       nominations_close_on: '2027-01-02',
-      voting_open_on: '2027-01-03',
-      voting_close_on: '2027-01-04',
+      voting_open_on: '2027-01-02',
+      voting_close_on: '2027-01-03',
     }, { requireAll: true })).toBeNull()
   })
 
@@ -216,6 +267,14 @@ describe('windowProblem', () => {
       voting_open_on: '2026-12-01',
       voting_close_on: '2026-11-01',
     }, { requireAll: true })).toMatch(/Nominations must close after they open/)
+    // ...and the second thing wrong really is wrong, or the assertion above proves only that
+    // the first test fires rather than that it fires FIRST.
+    expect(windowProblem({
+      nominations_open_on: '2027-01-05',
+      nominations_close_on: '2027-01-06',
+      voting_open_on: '2026-12-01',
+      voting_close_on: '2026-11-01',
+    }, { requireAll: true })).toMatch(/Voting cannot open before nominations close/)
   })
 })
 
@@ -244,7 +303,10 @@ describe('electionWindowBounds', () => {
     })
   })
 
-  it('every bound is a day away from its neighbour', () => {
+  it('each bound mirrors its own comparison', () => {
+    // A WINDOW AGAINST ITSELF IS A DAY AWAY; THE TWO WINDOWS AGAINST EACH OTHER TOUCH. Those
+    // are two different rules in `windowProblem` (`<=` within a window, `<` between them) and
+    // this is where they are checked against each other rather than against prose.
     const b = electionWindowBounds({
       nominations_open_on: '2027-03-01',
       nominations_close_on: '2027-03-10',
@@ -253,11 +315,12 @@ describe('electionWindowBounds', () => {
     })
     expect(b.nominations_open_on.max).toBe('2027-03-09')
     expect(b.nominations_close_on.min).toBe('2027-03-02')
-    expect(b.nominations_close_on.max).toBe('2027-03-19')
-    expect(b.voting_open_on.min).toBe('2027-03-11')
+    expect(b.nominations_close_on.max).toBe('2027-03-20')
+    expect(b.voting_open_on.min).toBe('2027-03-10')
     expect(b.voting_open_on.max).toBe('2027-03-30')
     expect(b.voting_close_on.min).toBe('2027-03-21')
   })
+
 
   it('an unset neighbour is no bound at all, and never an empty string', () => {
     // `min=""` on a date input is not "no minimum" in every engine, and React renders an
@@ -266,7 +329,7 @@ describe('electionWindowBounds', () => {
     expect(b.nominations_close_on.min).toBeUndefined()
     expect(b.nominations_close_on.max).toBeUndefined()
     expect(b.nominations_open_on.max).toBe('2027-05-04')
-    expect(b.voting_open_on.min).toBe('2027-05-06')
+    expect(b.voting_open_on.min).toBe('2027-05-05')
   })
 
   it('crosses a month end, a year end and a leap day', () => {
@@ -311,20 +374,24 @@ describe('electionWindowBounds', () => {
     dates = { ...dates, voting_open_on: electionWindowBounds(dates).voting_open_on.min! }
     dates = { ...dates, voting_close_on: electionWindowBounds(dates).voting_close_on.min! }
 
+    // THREE DAYS, NOT FOUR, SINCE 2026-08-22: voting opens on the day nominations close, so the
+    // walk lands on the same date twice. That is the shortest election this product can
+    // describe, and this is the assertion that would go red if either middle bound drifted
+    // back to a day of daylight.
     expect(dates).toEqual({
       nominations_open_on: '2027-01-01',
       nominations_close_on: '2027-01-02',
-      voting_open_on: '2027-01-03',
-      voting_close_on: '2027-01-04',
+      voting_open_on: '2027-01-02',
+      voting_close_on: '2027-01-03',
     })
     expect(windowProblem(dates, { requireAll: true })).toBeNull()
 
     // And one day earlier at each step is refused, so the floor is exactly the floor.
     expect(windowProblem({ ...dates, nominations_close_on: '2027-01-01' }, { requireAll: true }))
       .not.toBeNull()
-    expect(windowProblem({ ...dates, voting_open_on: '2027-01-02' }, { requireAll: true }))
+    expect(windowProblem({ ...dates, voting_open_on: '2027-01-01' }, { requireAll: true }))
       .not.toBeNull()
-    expect(windowProblem({ ...dates, voting_close_on: '2027-01-03' }, { requireAll: true }))
+    expect(windowProblem({ ...dates, voting_close_on: '2027-01-02' }, { requireAll: true }))
       .not.toBeNull()
   })
 })

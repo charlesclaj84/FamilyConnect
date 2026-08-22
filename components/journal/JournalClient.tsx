@@ -293,10 +293,17 @@ export function JournalClient({
       {/* ONE OFFICE NEEDS NO RAIL. A single-item rail is a heading pretending to be a choice,
           and `MainRail`'s own argument about not claiming `role="tablist"` is the same
           instinct: do not offer a control that cannot do anything. */}
+      {/* ── THE POSITION AND THE PLACE, SINCE 2026-08-22 ────────────────────────
+          `o.title` and not `o.name`. The rail printed the bare position name, so a member who
+          chairs Austin and a member who chairs Houston both saw "Chapter Chair" — and an
+          officer holding the same position in two chapters saw two identical rail items with no
+          way to tell which notebook they were about to open. `title` is `formatBoardTitle`,
+          which is the same phrase Members & Access and the Member Directory print for the same
+          assignment, so the three surfaces cannot word one office three ways. */}
       {offices.length > 1 && (
         <MainRail
           label="Offices you hold"
-          items={offices.map(o => ({ id: o.role_id, label: o.name }))}
+          items={offices.map(o => ({ id: o.role_id, label: o.title }))}
           active={active}
           onSelect={loadOffice}
           action={newControls}
@@ -306,10 +313,28 @@ export function JournalClient({
       {offices.length === 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            The journal for <span className="font-medium text-foreground">{activeOffice?.name}</span>.
+            The journal for <span className="font-medium text-foreground">{activeOffice?.title}</span>.
           </p>
           {newControls}
         </div>
+      )}
+
+      {/* ── WHO ELSE READS THIS, SAID OUT LOUD ─────────────────────────────────
+          The notebook hangs off the POSITION (`position_journal_entries.role_id`), and
+          `auth_holds_family_role` tests the position alone — so every holder of "Chapter
+          Chair" reads the same notes, whichever chapter they chair. Printing the chapter beside
+          the position is what makes that worth saying: without this line, "Austin Chapter Chair"
+          over a shared notebook reads as a promise that it is Austin's alone.
+
+          Only for a SCOPED office, because a national one has nobody to share with in that
+          sense — the page's own lede ("whoever holds it next will read them") already covers
+          succession, which is the other half and is true of all of them. */}
+      {activeOffice && activeOffice.scope !== 'national' && (
+        <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Everyone holding <span className="font-medium text-foreground">{activeOffice.name}</span>{' '}
+          reads this journal, whichever{' '}
+          {activeOffice.scope === 'chapter' ? 'chapter' : 'region'} they hold it for.
+        </p>
       )}
 
       <FormError message={error} />
@@ -318,7 +343,7 @@ export function JournalClient({
         <div className="rounded-xl border bg-card px-4 py-10 text-center">
           <BookText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            Nothing recorded for {activeOffice?.name ?? 'this office'} yet.
+            Nothing recorded for {activeOffice?.title ?? 'this office'} yet.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Whatever you write here stays with the office. Whoever holds it next will read it.

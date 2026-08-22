@@ -144,9 +144,29 @@ export function AtAGlance({
 
       {/* `mt-4` only when there is a grid above to be separated from — a caller with no tiles
           at all gets the balance flush under the heading rather than with a gap where a row of
-          tiles is not. */}
+          tiles is not.
+
+          ── SIDE BY SIDE, NOT STACKED, SINCE 2026-08-22 ────────────────────────────────
+          The balance and the drives sat one above the other in a `space-y-4`, which on a laptop
+          pushed everything below the panel off the fold for the sake of two cards that are each
+          about half the width they were given. They are the same KIND of thing — what the
+          reader owes, and what the family is asking them to give to — so they read as a pair,
+          the way Family Members and Upcoming Gatherings do in the tile grid above.
+
+          THE SAME `auto-fit` AS THE TILES, AND FOR THE SAME REASON: the drives card renders
+          NOTHING when no drive is open, which is most families most of the time, and a fixed
+          `sm:grid-cols-2` would then leave the balance at half width beside a hole. `auto-fit`
+          lets the one surviving child fill the row. `18rem` is the floor at which the balance's
+          plan lines and a drive's goal bar both still read; below it they stack.
+
+          `items-start` is deliberate. Grid children stretch by default, which would pull a
+          two-line drives card down to the height of a balance listing four schedules and leave
+          it with a lake of white under its button. */}
       {children && (
-        <div className={tiles.length > 0 ? 'mt-4 space-y-4' : 'space-y-4'}>{children}</div>
+        <div className={cn(
+          'grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] items-start gap-4',
+          tiles.length > 0 && 'mt-4',
+        )}>{children}</div>
       )}
     </section>
   )

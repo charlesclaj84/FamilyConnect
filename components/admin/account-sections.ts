@@ -15,7 +15,7 @@
  *     each component uses to decide whether to render at all.
  *
  *   * PRESENTATION — how the nav groups sections for the reader. `milestones` is its
- *     own top-level group rather than a page inside Expenses, because an admin
+ *     own top-level group rather than a page inside Funds, because an admin
  *     setting up what a graduation is worth is not thinking about fund plumbing.
  *     That axis lives entirely in SECTION_GROUPS in the shell, deliberately kept out
  *     of here so grouping has exactly one home.
@@ -55,10 +55,16 @@ export const DEFAULT_SECTION: AccountSection = 'dues'
  * Nav label and pane title for each section.
  *
  * These name the PAGE, not its domain — the group pill above it already says
- * "Income" or "Expenses", so repeating that here would label both levels the same and
- * tell the reader nothing about where they actually are. Every page name below is
- * therefore distinct from its group: `funds` is "Funds" under "Expenses", `dues` and
- * `donations` sit under "Income".
+ * "Income" or "Funds", so a page name that merely repeated its group would label both levels
+ * the same and tell the reader nothing about where they actually are.
+ *
+ * `funds` IS THE ONE THAT DOES REPEAT ITS GROUP, since 2026-08-22, and it is the sanctioned
+ * shape rather than the failure the paragraph above describes: the group is the funds domain
+ * and this is the list of the funds themselves, so "Funds > Funds > Routing" is the rail
+ * section whose own index page IS the section. `routing` beside it still names something the
+ * heading does not. The group was captioned "Expenses" until then, which named a thing this
+ * group has never contained — spending is a disbursement, and disbursements are a ledger
+ * on /transactions.
  *
  * The three under Transactions dropped their "History" suffix: the group says what
  * they are, and "Payment History" under "Transactions" said history twice.

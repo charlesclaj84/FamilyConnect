@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
+import { tierAllows } from '@/lib/auth/tier'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { requireEdit, requireOwn, requireMember, requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -47,6 +48,25 @@ export interface Announcement {
   author_id: string | null
   chapter_id: string | null
   chapter_name: string | null
+  /**
+   * The election this notice is about, or null.
+   *
+   * Set only by `announceElection`, which posts one notice per publication; every
+   * hand-written announcement carries null and always will, because nothing in the composer
+   * offers it. It is what gives an election notice somewhere to go — the card was a dead
+   * end before 2026-08-22, naming a ballot and leaving the reader to find it in the rail.
+   *
+   * ── IT IS WITHHELD FROM ANYONE WHO COULD NOT OPEN IT (§5) ─────────────────────────
+   * `withElectionLink` nulls it for a caller who may not view Elections, or whose family is
+   * not on a plan that includes them. The alternative is a card that offers a way through to
+   * a 404, which is worse than a card that offers none: a member reads the refusal as the
+   * product being broken rather than as a screen their family has switched off.
+   *
+   * THAT IS AN AFFORDANCE DECISION AND NOT THE GATE. `/community/elections/[id]` resolves
+   * `requireView` and `getElectionDetail` narrows by `auth_may_see_election`, so a reader who
+   * hand-types the id still gets nothing. This only decides whether the product invites them.
+   */
+  election_id: string | null
   /**
    * Pinned by the family AND still in date — the family's answer, independent of any reader.
    *
@@ -239,8 +259,14 @@ export async function getChapters(): Promise<Chapter[]> {
  * can break an embed on a table you did not touch.** After adding one, grep for bare
  * embeds of either table it joins. The RLS suite's positive control is what caught this
  * — the attack half passed happily, because `[]` contains no ALPHA markers.
+ *
+ * `election_id` IS A PLAIN COLUMN AND NOT AN EMBED, deliberately (20260822000016). All the
+ * card needs is somewhere to go, and an `elections(title)` here would buy a duplicate of the
+ * title already in `announcements.title` at the price of a third relation in this select —
+ * one more thing that can turn the whole query into PGRST201 the next time somebody adds a
+ * foreign key to `elections`.
  */
-const SELECT_COLUMNS = 'id, title, body, scope, pinned, pinned_until, published_at, author_id, chapter_id, people!announcements_author_id_fkey(first_name, last_name)'
+const SELECT_COLUMNS = 'id, title, body, scope, pinned, pinned_until, published_at, author_id, chapter_id, election_id, people!announcements_author_id_fkey(first_name, last_name)'
 
 /**
  * `chapters(name)` USED TO BE IN THAT SELECT AND DELIBERATELY IS NOT ANY MORE.
@@ -275,7 +301,7 @@ function chapterNamesFor(
 type RawAnnouncement = {
   id: string; title: string; body: string; scope: string; pinned: boolean
   pinned_until?: string | null; published_at: string; author_id: string | null
-  chapter_id: string | null; people: unknown
+  chapter_id: string | null; election_id: string | null; people: unknown
 }
 
 /**
@@ -308,10 +334,50 @@ function mapAnnouncement(
     author_id: a.author_id ?? null,
     chapter_id: a.chapter_id,
     chapter_name: a.chapter_id ? chapterNames.get(a.chapter_id) ?? null : null,
+    // CARRIED THROUGH RAW AND NARROWED AFTERWARDS. This mapper sees a row and not a person —
+    // the same reason `pinnedForMe` is false here — so `withElectionLink` is what decides
+    // whether the reader is offered the way through. Every caller that returns rows to a
+    // browser passes them through it.
+    election_id: a.election_id ?? null,
     author_name: a.people
       ? `${(a.people as { first_name: string; last_name: string }).first_name} ${(a.people as { first_name: string; last_name: string }).last_name}`
       : null,
   }
+}
+
+/**
+ * Strip the way through to an election from anybody who could not open it (§5).
+ *
+ * ── WHY IT IS ONE HELPER AND NOT A LINE IN EACH READER ─────────────────────────────
+ * Three actions return announcements to a browser and all three would otherwise have to
+ * remember this. One place, resolved once per call rather than once per row: `can` and
+ * `tierAllows` are both round trips, and a family posts one election notice among forty
+ * ordinary ones.
+ *
+ * IT SHORT-CIRCUITS ON A PAGE WITH NO LINKED NOTICE AT ALL, which is most pages of most
+ * families, so the ordinary case costs nothing — the same shape `chapterNamesFor` uses to
+ * avoid naming a chapter no row on the screen mentions.
+ *
+ * BOTH HALVES ARE NEEDED. `can(...)` answers the permission and `tierAllows` answers the
+ * plan, and `requireView` folds the two together for a PAGE precisely because a caller who
+ * decomposes it has to remember both (AGENTS.md, "A PAGE THAT RESOLVES PANES BY HAND OWES
+ * THE TIER AND REMOVED-FAMILY CHECKS BY HAND TOO"). This is that case one level down: an
+ * announcement is not a pane, so nothing folds it in for us.
+ *
+ * `can` AND NOT `canAny`, because scope 'own' is a real way to hold `community/elections`
+ * and a member who holds it that way can open the ballot they are on.
+ */
+async function withElectionLink(
+  userId: string,
+  rows: readonly Announcement[],
+): Promise<Announcement[]> {
+  if (!rows.some(a => a.election_id)) return rows as Announcement[]
+  const [mayView, inPlan] = await Promise.all([
+    can(userId, 'community/elections', 'view'),
+    tierAllows(userId, 'community/elections'),
+  ])
+  if (mayView && inPlan) return rows as Announcement[]
+  return rows.map(a => (a.election_id ? { ...a, election_id: null } : a))
 }
 
 /**
@@ -384,10 +450,10 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 
   const rows = (data ?? []) as unknown as RawAnnouncement[]
   const chapterNames = await chapterNamesFor(await getMyFamilyCode(user.id), rows)
-  return rows
+  return withElectionLink(user.id, rows
     .map(a => mapAnnouncement(a, chapterNames))
     .map(a => ({ ...a, pinnedForMe: pinnedFor(a, dismissed) }))
-    .sort(byPinThenDate)
+    .sort(byPinThenDate))
 }
 
 /** Only what this member is addressed by — national/regional, plus their own chapter. */
@@ -412,7 +478,10 @@ export async function getMyAnnouncements(): Promise<Announcement[]> {
 
   const rows = ((data ?? []) as unknown as RawAnnouncement[]).filter(addressedTo(chapter))
   const chapterNames = await chapterNamesFor(await getMyFamilyCode(user.id), rows)
-  return rows.map(a => mapAnnouncement(a, chapterNames)).sort(byPinThenDate)
+  return withElectionLink(
+    user.id,
+    rows.map(a => mapAnnouncement(a, chapterNames)).sort(byPinThenDate),
+  )
 }
 
 /**
@@ -456,11 +525,11 @@ export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[
 
   const rows = ((data ?? []) as unknown as RawAnnouncement[]).filter(addressedTo(chapter))
   const chapterNames = await chapterNamesFor(await getMyFamilyCode(user.id), rows)
-  return rows
+  return withElectionLink(user.id, rows
     .map(a => mapAnnouncement(a, chapterNames))
     .map(a => ({ ...a, pinnedForMe: pinnedFor(a, dismissed) }))
     .sort(byPinThenDate)
-    .slice(0, limit)
+    .slice(0, limit))
 }
 
 /**

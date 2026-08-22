@@ -430,15 +430,24 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Nominate, accept, and vote family-wide, with results tallied live.',
   },
 
-  // ── Journals: an office's notebook ──────────────────────────────────────────
-  // A rail SECTION of one item, which is the "a section whose own index page IS the section
-  // does not double up" exception (AGENTS.md, "The route tree IS the nav rail") — the route is
-  // `/journals`, not `/journals/journals`, exactly as Gatherings' own index is `/gatherings`.
+  // ── Journals > Officer: an office's notebook ──────────────────────────────────
+  // A rail section of one item, and the item is NOT captioned with the section's own word —
+  // which it was, for one day. "Journals > Journals" is the "a section whose own index page
+  // IS the section does not double up" exception (AGENTS.md, "The route tree IS the nav
+  // rail"), and that exception holds only while the section and the item mean the same
+  // thing. Naming the item for WHOSE notebook it is ends that: the section is the feature,
+  // the item is the officer's journal. So the route is `/journals/officer` and the key
+  // follows it (`20260822000017`).
   //
-  // IT WAS `/journal` FOR ONE DAY. The caption is Journals now, and that rule leaves nothing
-  // to decide: the route is the caption and the key is the route, so `20260822000000` moved
-  // the key to match rather than leaving a `/journal` under a rail item saying Journals. That
-  // is the archaeology 20260820000004 spent 42 keys undoing.
+  // IT LEAVES ROOM, which is the second reason. A journal belonging to a CHAPTER rather than
+  // to an office is the obvious next item here, and it would have had nowhere to go under a
+  // `/journals` that was already a page.
+  //
+  // THE ROUTE HAS MOVED TWICE IN THREE DAYS — `/journal`, `/journals`,
+  // `/journals/officer` — and each move is one rule being obeyed rather than three
+  // opinions: the caption is the route and the route is the key. What it costs is a migration
+  // copying every family's grant across, which is exactly why the rule is worth keeping ahead
+  // of the archaeology 20260820000004 spent 42 keys undoing.
   //
   // `tier: 'plus'`, matching Board Positions and Organization. That is not a pricing
   // judgement so much as an arithmetic one: the Journal hangs off `family_roles`, and a family
@@ -451,8 +460,8 @@ export const FEATURES: readonly Feature[] = [
   // would not work here anyway, because the shell is built once and `ShellWatcher`'s
   // fingerprint does not include `user_roles`. The page's own header argues it.
   {
-    href: '/journals',
-    label: 'Journals',
+    href: '/journals/officer',
+    label: 'Officer',
     status: 'live',
     tier: 'plus',
     blurb: 'A notebook for each office your family keeps — it stays with the role, not the person.',

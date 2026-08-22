@@ -1,7 +1,9 @@
 import { Users, MapPinned, Building2, MailCheck, Baby } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DonutChart, DonutLegend, type DonutPalette } from '@/components/reports/DonutChart'
+import { DonutChart, type DonutPalette } from '@/components/reports/DonutChart'
+import { MembershipBreakdownLegend } from '@/components/reports/MembershipBreakdownLegend'
 import { foldForChart, type CountSlice, type MembershipReport } from '@/lib/membership-report'
+import type { MembershipBreakdown, MembershipRepairRights } from '@/lib/membership-drill'
 
 /**
  * The Membership Report — every figure the family has about who it is made up of.
@@ -11,14 +13,23 @@ import { foldForChart, type CountSlice, type MembershipReport } from '@/lib/memb
  * payload, with nothing of the old family's held in a `useState` (AGENTS.md, "Switching
  * family remounts the page").
  *
+ * THE LEGENDS ARE CLIENT COMPONENTS AND THE RINGS ARE NOT, since 2026-08-22. Every legend row
+ * opens the slice under it and offers the one repair that slice is pointing at; the ring stays
+ * a server-rendered figure with no JavaScript at all. `MembershipBreakdownLegend`'s header
+ * argues why the rows and not the arcs. Nothing about this component's own contract changes:
+ * `rights` are resolved by the PAGE and passed through, and no roster reaches the browser
+ * until somebody presses a row.
+ *
  * ── FOUR BREAKDOWNS, AND EACH CARD SAYS WHAT ITS FIGURE IS FOR ──────────────────────
  * A count with no consequence attached is a number somebody looks at once. Each lede here
  * names the decision the figure feeds — which is also the honest test of whether the
  * breakdown earns a place on the screen at all.
  */
 
-/** One breakdown: a ring, a legend that is also the table, and a sentence saying why. */
-function BreakdownCard({ title, lede, icon: Icon, slices, palette, unit, keep }: {
+/** One breakdown: a ring, a legend that is also the table and the way in, and a lede. */
+function BreakdownCard({
+  title, lede, icon: Icon, slices, palette, unit, keep, breakdown, rights,
+}: {
   title: string
   lede: string
   icon: React.ComponentType<{ className?: string }>
@@ -27,6 +38,9 @@ function BreakdownCard({ title, lede, icon: Icon, slices, palette, unit, keep }:
   unit: string
   /** Segments the ring draws before folding the tail. See `foldForChart`. */
   keep: number
+  /** Which of the four charts this is — decides which repair a slice offers. */
+  breakdown: MembershipBreakdown
+  rights: MembershipRepairRights
 }) {
   const drawn = foldForChart(slices, keep)
   const total = slices.reduce((sum, s) => sum + s.count, 0)
@@ -49,7 +63,17 @@ function BreakdownCard({ title, lede, icon: Icon, slices, palette, unit, keep }:
             centerValue={total} centerLabel={unit}
           />
           <div className="w-full min-w-0">
-            <DonutLegend slices={slices} palette={palette} drawn={drawn} unit={unit} />
+            <MembershipBreakdownLegend
+              slices={slices} palette={palette} drawn={drawn} unit={unit}
+              breakdown={breakdown} title={title} rights={rights}
+            />
+            {/* THE ROWS ARE BUTTONS AND HAVE TO SAY SO. A table row that behaves like one is
+                not discoverable: the chevron only appears on hover, which is nothing at all on
+                a phone. One line under the table, once per card, rather than a control per
+                row. */}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Press a row to see who is in it.
+            </p>
           </div>
         </div>
       </CardContent>
@@ -57,7 +81,18 @@ function BreakdownCard({ title, lede, icon: Icon, slices, palette, unit, keep }:
   )
 }
 
-export function MembershipReportView({ report }: { report: MembershipReport }) {
+export function MembershipReportView({ report, rights }: {
+  report: MembershipReport
+  /**
+   * What the reader may CHANGE from a drill-down, resolved by the page.
+   *
+   * It reaches the browser as two booleans and nothing else — no grid, no scopes. They
+   * decide which control the dialog draws and never whether the write is allowed: all three
+   * actions resolve their own grant, because a `'use server'` export has a URL whether or not
+   * a button exists (AGENTS.md §2).
+   */
+  rights: MembershipRepairRights
+}) {
   const { total, regionCount, chapterCount } = report
   const reachable = report.byInvitation.find(s => s.key === 'active')?.count ?? 0
   const unasked = report.byInvitation.find(s => s.key === 'pending-invite')?.count ?? 0
@@ -119,21 +154,25 @@ export function MembershipReportView({ report }: { report: MembershipReport }) {
           title="By region" icon={MapPinned}
           lede="Where the family is, one rung above its chapters. A member in no chapter — or in a chapter that sits under no region — is under National, which is the absence of a region rather than a place of its own."
           slices={report.byRegion} palette="sequential" unit="members" keep={5}
+          breakdown="region" rights={rights}
         />
         <BreakdownCard
           title="By chapter" icon={Building2}
           lede="Every chapter the family has set up, including any nobody has joined yet. A chapter standing at zero is the one to look at first."
           slices={report.byChapter} palette="sequential" unit="members" keep={5}
+          breakdown="chapter" rights={rights}
         />
         <BreakdownCard
           title="Invitations" icon={MailCheck}
           lede="Active means the person has an account and can sign in. Invited means an invitation is open and unanswered. Pending invite means nobody has asked them yet — they are on the roster and owe dues like everybody else."
           slices={report.byInvitation} palette="categorical" unit="members" keep={2}
+          breakdown="invitation" rights={rights}
         />
         <BreakdownCard
           title="Adults and minors" icon={Baby}
           lede="Worked out from each member’s date of birth every time this page loads, never stored. A birthday nobody has recorded is counted as neither rather than guessed — dues schedules with a starting age bill from the recorded date, so an empty birthday is money nobody is asking for."
           slices={report.byAge} palette="categorical" unit="members" keep={2}
+          breakdown="age" rights={rights}
         />
       </div>
     </div>

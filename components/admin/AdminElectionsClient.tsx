@@ -401,8 +401,9 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Both days count — nominations are open from the first through the last. The
-              closing date cannot be earlier than the day after they open.
+              Both days count — nominations are open from the first through the last, unless
+              voting opens on the closing day, in which case they shut as it opens. The closing
+              date cannot be earlier than the day after they open.
             </p>
           </div>
 
@@ -426,6 +427,10 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                   onChange={ev => setForm(f => ({ ...f, voteClose: ev.target.value }))} />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Voting may open on the same day nominations close, and that day then belongs to
+              voting. It may not open before.
+            </p>
             {/* Beside the fields it is about, because this is one input being wrong rather
                 than the save being refused — FieldError, not FormError. */}
             <FieldError message={dateProblem} />

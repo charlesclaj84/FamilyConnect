@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pin, PinOff, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Pin, PinOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -55,6 +55,28 @@ import type { PermissionScope } from '@/lib/auth/permissions'
  * "for me" and writes a row in `announcement_unpins`. They are deliberately not merged: one is
  * a decision about the family and the other is a preference, and a single toggle that meant
  * either depending on your grants is the thing that was confusing.
+ *
+ * ── AND THEY NO LONGER WEAR THE SAME GLYPH, 2026-08-22 ─────────────────────────────
+ * Both were `Pin`/`PinOff` in the same corner, one tinted accent and one `on-soft`, which was
+ * reported as indistinguishable and was: two pins side by side read as one control drawn
+ * twice, and the only thing telling them apart was a `title` nobody hovers on a phone.
+ *
+ * THE ADMINISTRATOR'S KEEPS THE PIN, because pinning is what it does — it moves a flag on the
+ * row and every member's copy of the board moves with it. THE MEMBER'S IS AN EYE, because
+ * showing and hiding is what it does: `announcement_unpins` records that THIS reader has taken
+ * a notice off the top of their own updates, and nothing about the family's flag changes.
+ *
+ * That reframing also answers the second half of the same report — "pinning for myself only
+ * appears after pinning for everybody". It is not a second pin that goes missing; it is a
+ * per-reader HIDE, and there is nothing to hide from the top of your updates until the family
+ * has put something there. Said as a pin the absence looks like a bug, said as an eye it is
+ * the only thing it could be. The board says it in words too, under any pinned notice.
+ *
+ * A REAL PERSONAL PIN — one that lifts a notice nobody pinned to the top of your own updates —
+ * is a different feature and is deliberately not this. `announcement_unpins` can only record a
+ * dismissal, so it would take a table, and it would put a member's own ordering in front of an
+ * administrator's on a board whose whole point is that the family decides what rides at the
+ * top.
  */
 export function AnnouncementBoard({
   initialAnnouncements, chapters, canPost, canPin, deleteScope, myPersonId,
@@ -167,32 +189,36 @@ export function AnnouncementBoard({
                 )}
 
                 <div className="absolute right-3 top-3 flex gap-1">
-                    {/* ── EVERY MEMBER'S OWN PIN ─────────────────────────────────────
+                    {/* ── EVERY MEMBER'S OWN VIEW OF A PINNED NOTICE ────────────────
                         Offered whenever the FAMILY has it pinned and in date, which is what
-                        `pin_active` answers — there is nothing to dismiss or restore on a
-                        notice nobody pinned, and a client cannot decide "still in date"
-                        without reading the clock during render.
+                        `pin_active` answers — there is nothing to hide from the top of your
+                        updates until the family has put something there, and a client cannot
+                        decide "still in date" without reading the clock during render.
 
                         The same control, the same two captions and the same glyphs as
                         `RecentUpdates`, deliberately: it is one act and a member should not
-                        have to learn it twice. */}
+                        have to learn it twice. Change one and change the other. */}
                     {a.pin_active && (
                       <Button
                         size="sm" variant="ghost" className="h-7 w-7 p-0"
                         disabled={isPending}
                         onClick={() => handlePinForMe(a)}
                         aria-label={a.pinnedForMe
-                          ? `Stop pinning “${a.title}” to the top of your updates`
-                          : `Pin “${a.title}” back to the top of your updates`}
+                          ? `Hide “${a.title}” from the top of your own updates`
+                          : `Show “${a.title}” at the top of your own updates again`}
                         title={a.pinnedForMe
-                          ? 'Stop pinning this to the top — for me'
-                          : 'Pin this back to the top — for me'}
+                          ? 'Hide this from the top of my updates'
+                          : 'Show this at the top of my updates'}
                       >
                         {a.pinnedForMe
-                          ? <PinOff className="h-3.5 w-3.5" />
-                          : <Pin className="h-3.5 w-3.5 text-brand-accent" />}
+                          ? <Eye className="h-3.5 w-3.5 text-brand-accent" />
+                          : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
                       </Button>
                     )}
+                    {/* ── THE FAMILY'S PIN, AND IT KEEPS THE PIN GLYPH ─────────────
+                        Filled and accent-coloured while it is ON, plain while it is off, so the
+                        state is readable without hovering — and so it can never be mistaken for
+                        the eye beside it. */}
                     {showPin && (
                       <Button
                         size="sm" variant="ghost" className="h-7 w-7 p-0"
@@ -202,7 +228,7 @@ export function AnnouncementBoard({
                         title={a.pinned ? 'Unpin for everyone' : 'Pin for everyone'}
                       >
                         {a.pinned
-                          ? <PinOff className="h-3.5 w-3.5 text-brand-on-soft" />
+                          ? <PinOff className="h-3.5 w-3.5 text-brand-accent" />
                           : <Pin className="h-3.5 w-3.5 text-brand-on-soft" />}
                       </Button>
                     )}
@@ -220,12 +246,16 @@ export function AnnouncementBoard({
                     )}
                 </div>
 
-                {/* WHY IT IS NOT AT THE TOP, said out loud. Without this a member who
-                    dismissed a notice sees an ordinary card and no explanation, and the pin
-                    button beside it reads as broken. */}
-                {a.pin_active && !a.pinnedForMe && (
+                {/* WHAT THE TWO CONTROLS HAVE DONE, said out loud, and now in BOTH states.
+                    It said the dismissed half only, so a member who had NOT hidden a notice saw
+                    two similar glyphs in the corner with nothing anywhere explaining that one
+                    was the family's decision and the other was their own — which is half of why
+                    they read as one control drawn twice. */}
+                {a.pin_active && (
                   <p className="mt-1.5 px-1 text-xs text-muted-foreground">
-                    Pinned for the family — you have dismissed it from the top of your updates.
+                    {a.pinnedForMe
+                      ? 'Pinned for the family — it rides at the top of your updates.'
+                      : 'Pinned for the family — you have hidden it from the top of your updates.'}
                   </p>
                 )}
               </div>

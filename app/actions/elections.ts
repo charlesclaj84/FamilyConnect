@@ -1304,6 +1304,12 @@ export async function publishElection(
  * rather than papered over: the alternative is one post per chapter in the region, which is
  * several rows nobody can edit as one.
  *
+ * ── AND THE NOTICE LINKS TO THE ELECTION, SINCE 2026-08-22 ───────────────
+ * `announcements.election_id` (20260822000016). The card and the dashboard's Recent Updates
+ * both render the title as a link when it is set, and it is withheld from any reader who may
+ * not open Elections — see `withElectionLink` in `app/actions/announcements.ts`, which is
+ * where §5 is discharged for this column.
+ *
  * It fails soft. A notice board entry must never undo the publication it announces — the same
  * rule `lib/notifications.ts` and every `sendEmail` call site follow — so the error is read
  * (§8) and logged, and publishing has already succeeded by the time this runs.
@@ -1333,6 +1339,18 @@ async function announceElection(g: GuardOk, election: RawElection) {
     // which region in the body, because `announcements` has no region column.
     scope: scope === 'chapter' ? 'chapter' : 'national',
     chapter_id: scope === 'chapter' ? election.chapter_id : null,
+    // ── WHAT MAKES THE NOTICE A WAY IN RATHER THAN A DEAD END ─────────────
+    // 20260822000016. Until then the card named a ballot and left the reader to find it in
+    // the rail, which is the one job the notice existed to do for them. `election_id` is
+    // written here and nowhere else — nothing in the composer offers it, so every
+    // hand-written announcement carries null and always will.
+    //
+    // §4 IS SATISFIED TWICE OVER, WHICH IS NOT BELT-AND-BRACES. The id is `election.id`, read
+    // by the caller of this function from a family-scoped query, so it is TRANSITIVE and
+    // cannot be a client-supplied reference. Underneath it `tg_announcement_same_family`
+    // refuses a cross-family id anyway, because this write is on the ADMIN client and there
+    // is no policy under it at all.
+    election_id: election.id,
     pinned: false,
     author_id: g.personId,
   })

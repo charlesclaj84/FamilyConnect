@@ -127,9 +127,20 @@ const SECTION_GROUPS: {
     ],
   },
   {
-    // "Expenses": where money leaves from — the funds themselves, and the share of
-    // income that tops them up.
-    label: 'Expenses',
+    // ── "Funds", NOT "Expenses", SINCE 2026-08-22 ──────────────────────────────────
+    // Neither page under this heading is an expense. `funds` is the family's pots and their
+    // balances; `routing` is how incoming money is SPLIT between them. Money leaving is a
+    // disbursement, and disbursements are a ledger on /transactions, which is not here at
+    // all — so the old caption named a thing this group does not contain and sent a treasurer
+    // looking for spending under it.
+    //
+    // IT NOW READS THE SAME AS ITS FIRST PAGE, which `account-sections.ts` warns against in
+    // the general case ("the group pill above it already says Income or Funds, so repeating
+    // that here would label both levels the same"). The warning is about a page name that
+    // adds nothing; this is the other case — the group IS the funds domain and its first page
+    // IS the fund list, the same way the Gatherings rail section holds a Gatherings item. The
+    // second page keeps its own name and still tells the reader where they are.
+    label: 'Funds',
     icon: Landmark,
     items: [
       { sections: ['funds'], icon: PiggyBank },

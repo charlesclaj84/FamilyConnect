@@ -7,10 +7,18 @@ import { getJournalAttendeeOptions, getJournalEntries, getMyOffices } from '@/ap
 import { JournalClient } from '@/components/journal/JournalClient'
 import { PageShell } from '@/components/layout/PageShell'
 
-export const metadata = { title: 'Journals' }
+export const metadata = { title: 'Officer' }
 
 /**
- * Journals: an office's notebook, read and written by whoever holds it.
+ * Journals > Officer: an office's notebook, read and written by whoever holds it.
+ *
+ * ── IT WAS `/journals` UNTIL 2026-08-22 ────────────────────────────
+ * The rail read "Journals > Journals" — a section of one whose item wore the section's own
+ * word, which says nothing twice. The item is named for whose notebook it is now, and
+ * AGENTS.md's route rule takes it from there: the caption is the route and the route is the
+ * key, so this moved to `app/(protected)/journals/officer/` and `20260822000017` moved
+ * `journals` to `journals/officer`, carrying every family's grant. `lib/features.ts` carries
+ * the argument.
  *
  * ── THE RAIL ROW IS UNCONDITIONAL, AND THAT IS THE DOCUMENTED RULE ─────────────────
  * The ask was "available to any member holding a position", and there are two ways to read
@@ -34,8 +42,8 @@ export const metadata = { title: 'Journals' }
  * and writes nothing whatever their template says — and this page renders a sentence
  * explaining that rather than an error.
  *
- * ── `requireView('journals')` IS THE PAGE'S GATE AND GATES ONLY THE SCREEN ─────────
- * `journals:view` defaults to 'everyone', so what it is FOR is letting a family switch
+ * ── `requireView('journals/officer')` IS THE GATE AND GATES ONLY THE SCREEN ────────
+ * `journals/officer:view` defaults to 'everyone', so what it is FOR is letting a family switch
  * Journals off entirely. It decides nothing about which entries anybody reads — no policy on
  * the table evaluates `auth_permission` at all, and `20260821000005` asserts that absence in
  * both directions so a later policy sweep cannot quietly make the key a row filter.
@@ -51,7 +59,7 @@ export default async function JournalPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'journals')
+  await requireView(user.id, 'journals/officer')
 
   const offices = await getMyOffices()
   // NOT FETCHED AT ALL for a member with no office. Both actions would answer `[]` on their
@@ -72,10 +80,15 @@ export default async function JournalPage() {
 
   return (
     <PageShell className="space-y-8">
+      {/* THE HEADING IS THE RAIL CAPTION, which is the convention every other page here
+          follows (AGENTS.md, "Captions come from the screen"): "Members", "Membership", "Dues
+          & Donations" are each their own rail word. The section heading above it in the rail
+          supplies the rest, and the lede says what an officer's journal IS. */}
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Journals</h1>
+        <h1 className="mb-1 text-3xl font-bold">Officer</h1>
         <p className="text-muted-foreground">
-          Notes that stay with the office. Whoever holds it next will read them.
+          A journal for each office you hold. Notes stay with the office — whoever holds it
+          next will read them.
         </p>
       </div>
 
@@ -86,7 +99,8 @@ export default async function JournalPage() {
         <div className="rounded-xl border bg-card px-4 py-12 text-center">
           <BookText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            Journals are for members who hold an office, and you do not hold one yet.
+            An officer&rsquo;s journal is for members who hold an office, and you do not hold
+            one yet.
           </p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
             Every office in the family has a notebook of its own — what a treasurer worked out

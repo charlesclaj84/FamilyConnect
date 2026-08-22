@@ -607,6 +607,7 @@ function MembersTab({ templates, rights, board, onError }: {
       ) : (
         <MemberTable rows={data.rows} templates={templates} rights={rights} board={board}
           busy={isPending} run={run} onView={setViewingId}
+          onEdit={setEditingId}
           onPosition={setPositionFor} />
       )}
 
@@ -744,7 +745,7 @@ function accessDetails(member: MemberSummary): MemberDetails {
  * Member Directory renders the same four and folds the same three, so the two lists still
  * match column for column at every width.
  */
-function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosition }: {
+function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit, onPosition }: {
   rows: MemberSummary[]
   templates: TemplateSummary[]
   rights: Rights
@@ -752,6 +753,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
   onView: (personId: string) => void
+  onEdit: (personId: string) => void
   onPosition: (member: MemberSummary) => void
 }) {
   // ── THE SAME FOUR SORTABLE COLUMNS THE DIRECTORY HAS ─────────────────────────────
@@ -819,7 +821,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
           {sorted.map(member => (
             <MemberRow key={member.personId} member={member} templates={templates}
               rights={rights} board={board} busy={busy} run={run} onView={onView}
-              onPosition={onPosition} />
+              onEdit={onEdit} onPosition={onPosition} />
           ))}
         </tbody>
       </table>
@@ -827,7 +829,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onPosi
   )
 }
 
-function MemberRow({ member, templates, rights, board, busy, run, onView, onPosition }: {
+function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit, onPosition }: {
   member: MemberSummary
   templates: TemplateSummary[]
   rights: Rights
@@ -835,6 +837,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onPosi
   busy: boolean
   run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
   onView: (personId: string) => void
+  onEdit: (personId: string) => void
   onPosition: (member: MemberSummary) => void
 }) {
   const badge = STATUS_BADGE[member.status]
@@ -966,28 +969,56 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onPosi
               )
             })}
 
-            {/* ── Position ───────────────────────────────────────────────────────────
-                Absent for a caller with no board grant — `board` is null then, and the whole
-                section including its heading goes with it rather than leaving a heading over
-                nothing. The item is offered under VIEW rather than edit, because the dialog is
-                a useful read on its own ("what does Ada hold?") and says so; it renders its own
-                controls only under `mayAssign`. */}
-            {board && (
+            {/* ── PROFILE ────────────────────────────────────────────────────────
+                THE HEADING WAS "Position" UNTIL 2026-08-22, over one item. It is the person's
+                own record now — who they are, and what office they hold — set against
+                the "Permissions" heading above it, which is what they may DO. Those are the two
+                questions an administrator brings to a row, and the menu now answers them under
+                two words rather than under one word and an unheaded list.
+
+                EDIT OPENS THE SAME DIALOG THE DETAIL PANEL DOES, deliberately, and is not a
+                second form: `MemberProfileEditDialog` is mounted once by the pane, keyed on
+                the member, and both routes set the same `editingId`. This is a second ENTRY
+                POINT — pressing the name, reading the record and then editing it is the
+                considered path, and this is the one for an administrator who already knows
+                what they are changing.
+
+                Gated on `rights.edit`, resolved by the page from `admin/members:edit` at
+                `canAny`. That is the UI following the decision and not the gate:
+                `getMemberProfileForEdit` and `updateUserProfile` each resolve it themselves,
+                because a `use server` export has a URL whether or not a button exists
+                (AGENTS.md §2). The whole section is absent for a caller with neither right,
+                rather than leaving a heading over nothing.
+
+                The position item keeps its own `board` guard. It is offered under VIEW rather
+                than edit, because that dialog is a useful read on its own ("what does Ada
+                hold?") and says so; it renders its own controls only under `mayAssign`. */}
+            {(rights.edit || board) && (
               <>
                 <div className="my-1 border-t" />
                 <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Position
+                  Profile
                 </p>
-                <button type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
-                  onClick={() => { close(); onPosition(member) }}>
-                  <Network className="h-3.5 w-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {titles.length === 0
-                      ? 'Give a board position'
-                      : titles.length === 1 ? 'Change board position' : 'Board positions'}
-                  </span>
-                </button>
+                {rights.edit && (
+                  <button type="button"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                    onClick={() => { close(); onEdit(member.personId) }}>
+                    <Pencil className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">Edit profile</span>
+                  </button>
+                )}
+                {board && (
+                  <button type="button"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                    onClick={() => { close(); onPosition(member) }}>
+                    <Network className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {titles.length === 0
+                        ? 'Give a board position'
+                        : titles.length === 1 ? 'Change board position' : 'Board positions'}
+                    </span>
+                  </button>
+                )}
               </>
             )}
 

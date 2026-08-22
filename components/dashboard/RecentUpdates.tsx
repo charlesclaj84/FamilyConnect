@@ -3,7 +3,7 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Bell, Megaphone, Pin, PinOff } from 'lucide-react'
+import { Bell, Eye, EyeOff, Megaphone } from 'lucide-react'
 import { timeAgo } from '@/lib/date-utils'
 import { unpinAnnouncementForMe, repinAnnouncementForMe } from '@/app/actions/announcements'
 import type { UpdateItem } from '@/components/dashboard/updates'
@@ -82,25 +82,34 @@ export function RecentUpdates({
             >
               <UpdateBody item={item} />
 
-              {/* THE PIN CONTROL IS OUTSIDE THE LINK, and has to be: an anchor may not
+              {/* THE CONTROL IS OUTSIDE THE LINK, and has to be: an anchor may not
                   contain a button, and nesting one produces markup a screen reader
-                  cannot describe and a browser may reparent. */}
+                  cannot describe and a browser may reparent.
+
+                  AN EYE AND NOT A PIN, since 2026-08-22 — the same change, the same two
+                  captions and the same glyphs as `AnnouncementBoard`, whose header carries the
+                  whole argument. In one line of it: this hides a notice from the top of THIS
+                  reader's updates and touches nothing the family decided, so wearing the
+                  administrator's pin made two different acts look like one control. Change one
+                  of these two components and change the other. */}
               {item.kind === 'announcement' && item.familyPinned && (
                 <button
                   type="button"
                   onClick={() => setPinned(item.id, !item.pinnedForMe)}
                   disabled={isPending}
-                  title={item.pinnedForMe ? 'Stop pinning this to the top' : 'Pin this back to the top'}
+                  title={item.pinnedForMe
+                    ? 'Hide this from the top of my updates'
+                    : 'Show this at the top of my updates'}
                   aria-label={
                     item.pinnedForMe
-                      ? `Stop pinning “${item.title}” to the top of your updates`
-                      : `Pin “${item.title}” back to the top of your updates`
+                      ? `Hide “${item.title}” from the top of your own updates`
+                      : `Show “${item.title}” at the top of your own updates again`
                   }
                   className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
                 >
                   {item.pinnedForMe
-                    ? <PinOff className="h-3.5 w-3.5" />
-                    : <Pin className="h-3.5 w-3.5" />}
+                    ? <Eye className="h-3.5 w-3.5" />
+                    : <EyeOff className="h-3.5 w-3.5" />}
                 </button>
               )}
 
