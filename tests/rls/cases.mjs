@@ -8244,6 +8244,67 @@ const STORAGE_CASES = [
       { collection_id: fx.alpha.collection.id })(db),
     positiveActor: 'alphaAdmin',
   },
+
+  // ── THE FIRST READ IN THIS BLOCK, AND THE FIRST THAT ASSERTS A CREDENTIAL ─────────
+  //
+  // `getDocumentDownloadUrl` (2026-08-22) replaced a `getPublicUrl` against the PRIVATE
+  // `documents` bucket — a URL that resolved to nothing, so every download on
+  // `/library/documents` had been dead since the screen shipped. What it hands back now is a
+  // SIGNED url: a bearer token for one object, good for sixty seconds, and therefore the one
+  // thing in this suite where a leak is not a row but a key.
+  //
+  // IT LIVES IN THIS BLOCK RATHER THAN BESIDE `documents.getDocuments` FOR TWO REASONS. It
+  // needs `seedObject`, which is defined above these cases and would be a temporal-dead-zone
+  // error used in the main array. And it is genuinely a storage assertion: the action reads a
+  // ROW family-scoped and then asks STORAGE, so there are two boundaries under it and the
+  // second is the one no other read in this file touches.
+  //
+  // THE SETUP IS LOAD-BEARING, and `runRead` gained `setup` support on 2026-08-20 for exactly
+  // this shape. `seed()` plants the `documents` ROW and no object, and `createSignedUrl`
+  // refuses a path with nothing at it — so without a real object the POSITIVE CONTROL fails
+  // and the case would report a vacuous pass while proving nothing about the policy. The same
+  // trap the header above `seedObject` records, in a read.
+  //
+  // ── MUTATION-CHECKED, AND THE RESULT IS NOT THE OBVIOUS ONE ──────────────────────
+  // Three mutations, measured 2026-08-22, because the first one did not do what the first
+  // draft of this comment claimed it would:
+  //
+  //   1. drop `.eq('family_code', g.familyCode)` from the row read      -> STAYS GREEN
+  //   2. move the ROW READ to the admin client (no policy under it)     -> STAYS GREEN
+  //   3. move BOTH the row read and the SIGNING to the admin client     -> RED, and the
+  //      failure prints a working signed URL for `ALPHATEST/secret.pdf`
+  //
+  // So there are TWO independent boundaries under this action and the case is evidence that
+  // at least one of them holds — never that a particular one does:
+  //
+  //   * the `documents` SELECT policy, which is what refuses in (1): the row is read on the
+  //     CALLER's client, so ALPHA's id answers "Document not found" with or without the
+  //     hand-written conjunct beside it;
+  //   * `documents_family_read` on `storage.objects` (`20260820000006`), which is what refuses
+  //     in (2): the row is found, and signing it is not.
+  //
+  // WHAT THAT MAKES THE HAND-WRITTEN `family_code` CONJUNCT: defence in depth, not the gate,
+  // and worth keeping for the reason AGENTS.md gives about `retractNomination` — a later
+  // widening of either policy would otherwise silently make this the only thing standing.
+  // But it is NOT what this case proves, and labelling it as such is the mistake §7 is most
+  // explicit about.
+  //
+  // AND IT ASSERTS NOTHING ABOUT THE EXPIRY. Widening sixty seconds to a year changes no
+  // assertion here. This case is about WHO may be handed a URL.
+  {
+    kind: 'read',
+    id: 'documents.getDocumentDownloadUrl (a document from another family)',
+    mod: 'app/actions/documents.ts', fn: 'getDocumentDownloadUrl',
+    args: fx => [fx.alpha.document.id],
+    setup: (db, fx) => seedObject('documents', fx.alpha.document.file_path)(db),
+    // NOT the marker scan: the answer is a URL rather than a row, and ALPHA's family code is
+    // IN that URL by construction — so the default assertion would report a leak on a correct
+    // refusal and a pass on a successful one. What is asserted is the shape: no url, at all.
+    expectAttack: v => v?.success === false && !v?.url,
+    expectPositive: v => v?.success === true && typeof v?.url === 'string'
+      && v.url.includes('/documents/') && v.url.includes('token='),
+    positiveActor: 'alphaMember',
+  },
 ]
 
 // ── FormData builders for the upload actions ────────────────────────────────

@@ -20,7 +20,7 @@ import { PILLARS } from '@/components/marketing/pillars'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { isFeatureFuture, getFeature } from '@/lib/features'
-import { DEFAULT_TIER, TIER_LABEL } from '@/lib/tiers'
+import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -70,20 +70,24 @@ export const metadata: Metadata = {
  */
 
 /**
- * THE TIER TAG IS NOT DECORATION. This grid used to sit under a heading reading
+ * WHICH TIER A CARD IS IN IS NOT DECORATION. This grid used to sit under a heading reading
  * "Included, not upsold — every one of these ships in the same account", which was true
  * when it was written and stopped being true the moment the tiers were set.
  *
  * A features page that implies a paid capability is free is the most expensive kind of
  * marketing error — the customer discovers it at the exact moment they were ready to
- * commit, and what they learn is that we were not straight with them. So each card says
- * which tier it belongs to, and the tags link to /pricing.
+ * commit, and what they learn is that we were not straight with them.
  *
- * ── AND IT IS DERIVED NOW, WHICH IT WAS NOT UNTIL 2026-08-19 ────────────────────────
- * Every item with a `route` takes its tier from `lib/features.ts` through `getFeature()`, and
- * its NAME from `TIER_LABEL`. It used to be a hand-typed `'Free' | 'Plus'` sitting beside a
- * route that already knew the answer — a second copy of the tier table, on the one page whose
- * entire argument is that it does not misrepresent what a plan includes.
+ * **Since 2026-08-22 the answer is the card's POSITION rather than a pill on it:** the grid is
+ * cut into one band per tier, each headed with the tier's name, its price and its tagline.
+ * `ALSO_BY_TIER` below is where that is derived and argued; the array here stays flat and in
+ * authored order, because the band a card lands in is not this list's business.
+ *
+ * ── AND IT IS DERIVED, WHICH IT WAS NOT UNTIL 2026-08-19 ────────────────────────────
+ * Every item takes its tier from `lib/features.ts` through `getFeature()`. It used to be a
+ * hand-typed `'Free' | 'Plus'` sitting beside a route that already knew the answer — a second
+ * copy of the tier table, on the one page whose entire argument is that it does not
+ * misrepresent what a plan includes.
  *
  * Inserting Standard made that cost concrete rather than theoretical: five of these items kept
  * their routes and changed nothing, and this list would have gone on printing whatever was
@@ -93,8 +97,8 @@ export const metadata: Metadata = {
  *
  * `tier` WAS THEREFORE ONLY SETTABLE ON A ROUTE-LESS ITEM, and as of 2026-08-20 there are
  * none: Trusted Vendors was the last one and has been removed from the roadmap. Both hand-set
- * escape hatches went with it, so **every badge on this grid is now derived** and there is no
- * way to type a tier or a Coming Soon pill into this file at all.
+ * escape hatches went with it, so **nothing about a card's plan or its availability can be
+ * typed into this file at all** — a `route` and a blurb is the whole of what an entry decides.
  *
  * That is the stronger state and it is worth keeping. If a future capability genuinely has no
  * route — no page, no registry entry, nothing to derive from — it needs the hatch back, and
@@ -235,17 +239,48 @@ function isComingSoon(item: { route: string }) {
 }
 
 /**
- * The tier tag's text, read from the registry. There is no other source since 2026-08-20 —
- * the hand-set branch went with the one route-less item on this grid.
+ * Which tier an item belongs to, read from the registry. There is no other source since
+ * 2026-08-20 — the hand-set branch went with the one route-less item on this grid.
  *
  * `getFeature()` longest-prefix-matches, so a typo in a `route` above degrades to whatever the
- * nearest registered parent says rather than to no tag at all. That is the same behaviour the
- * `status` badge has always had here, and it is why the routes in this list are exact hrefs
- * from `lib/features.ts` rather than approximations of them.
+ * nearest registered parent says rather than to no answer at all. That is the same behaviour
+ * the `status` badge has always had here, and it is why the routes in this list are exact
+ * hrefs from `lib/features.ts` rather than approximations of them. `npm run marketing:check`
+ * is what catches such a typo, precisely because this function cannot.
  */
-function tierTag(item: { route: string }): string {
-  return TIER_LABEL[getFeature(item.route)?.tier ?? DEFAULT_TIER]
+function tierOf(item: { route: string }) {
+  return getFeature(item.route)?.tier ?? DEFAULT_TIER
 }
+
+/**
+ * The grid, cut into one band per tier — **derived, not authored.**
+ *
+ * ── WHY GROUPED, 2026-08-22 ──────────────────────────────────────────────────────────
+ * It was one 28-card grid with a tier pill on each card, which asks a reader to hold the whole
+ * grid in their head and sort it themselves: the question somebody brings to a pricing decision
+ * is "what do I get for $5" and the answer was scattered across four rows. Grouping answers it
+ * by position, and the band heading can then carry the price and the tagline that a 10px pill
+ * never could.
+ *
+ * ── THE GROUPING IS THE SAME DERIVATION THE PILL WAS, WHICH IS THE WHOLE POINT ────────
+ * Nothing here assigns a card to a band. `TIERS` gives the order (that array IS the tier
+ * semantics — `TIER_RANK`, `tierMeets` and `tiersIncludedIn` all read it), and `tierOf()` reads
+ * `lib/features.ts`. So moving a route between tiers moves its card between bands with no edit
+ * to this file, exactly as it used to change the pill — and the per-card pill is therefore
+ * REMOVED rather than kept beside a heading that says the same word twice.
+ *
+ * That is the one thing to preserve if this is ever rearranged again: the reason a hand-typed
+ * `'Free' | 'Plus'` was taken off this grid in 2026-08-20 applies with equal force to a
+ * hand-assigned group.
+ *
+ * `.filter()` drops an empty band, which is not cosmetic: Premium's six capabilities are all
+ * unbuilt, so it has no live route and no card. A "Premium" heading over an empty grid would
+ * be the page implying a catalogue it cannot show — and `PLANS[]` on /pricing is where an
+ * unbuilt tier is sold, behind a Coming soon badge, which is the honest place for it.
+ */
+const ALSO_BY_TIER = TIERS
+  .map(tier => ({ tier, items: ALSO.filter(item => tierOf(item) === tier) }))
+  .filter(band => band.items.length > 0)
 
 /**
  * The one FIGURE this page states, read from `TIER_PRICE` rather than typed.
@@ -394,59 +429,81 @@ export default function FeaturesPage() {
             id="also-heading"
             eyebrow="And the rest"
             title="Everything else it does"
-            lede="Chat and announcements come with the free account; running the family is Standard and the organizational machinery is Plus. Every card says which tier it belongs to, and which are still on the way — finding either out at checkout is not a nice surprise."
+            lede="Cut by plan, so you can read one band and stop. Every card here is a screen that ships today — what is still on the way says so on the card, and the tier a card sits under is read from the same registry the product gates itself with."
           />
 
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {ALSO.map((item, i) => (
-              <Reveal key={item.title} delay={(i % 4) * 120} className="h-full">
-                <div className="group flex h-full flex-col rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
-                  <div className="mb-3 flex items-start justify-between gap-2">
-                    <div className="inline-flex rounded-lg bg-brand-soft p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                      <item.icon className="h-5 w-5 text-brand-on-soft" aria-hidden="true" />
+          {/* ONE BAND PER TIER, in `TIERS` order and derived — see the note on
+              `ALSO_BY_TIER`. Not `space-y-*` on a wrapper: each band needs its own
+              landmark and heading, so they are siblings with their own top margin. */}
+          <div className="mt-12 space-y-14 sm:space-y-16">
+            {ALSO_BY_TIER.map(({ tier, items }) => {
+              const price = TIER_PRICE[tier]
+              const headingId = `also-${tier}-heading`
+              return (
+                <section key={tier} aria-labelledby={headingId}>
+                  <Reveal>
+                    {/* THE BAND HEADING CARRIES WHAT THE PILL COULD NOT: the tier's own
+                        one-line pitch and its price. `TIER_TAGLINE` and `TIER_PRICE` are both
+                        read rather than typed — a price in prose is still a price, and
+                        `lib/plans.ts` is the one place any of them is written down.
+
+                        `h3`, because `SectionHeading` above already owns the `h2` for this
+                        section and a band is a level below it. h3–h6 stay in Inter and take
+                        `--brand-accent` from the base layer, which is why no colour is set
+                        here. */}
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-3">
+                      <h3 id={headingId} className="text-xl font-semibold">
+                        {TIER_LABEL[tier]}
+                        <span className="ml-3 text-sm font-normal text-muted-foreground">
+                          {items.length} {items.length === 1 ? 'screen' : 'screens'}
+                        </span>
+                      </h3>
+                      {/* A LINK, not a label. Somebody reading a price wants to know what
+                          else is on that plan, and the answer is one tap away rather than a
+                          scroll back to the nav. Free says "no charge" rather than "$0" —
+                          `TIER_PRICE.free` is `null` on purpose, because Free has no price
+                          rather than a price of zero and "$0.00" is a figure nobody should
+                          render. */}
+                      <Link
+                        href="/pricing"
+                        className="text-sm font-semibold text-brand-accent hover:text-brand-ink"
+                      >
+                        {price ? `${formatPlanPrice(price.monthlyCents)} a month` : 'No charge'}
+                        <span className="sr-only"> — see what is in the {TIER_LABEL[tier]} plan</span>
+                      </Link>
                     </div>
-                    {/* A LINK, not a label. Somebody reading "Plus" wants to know what
-                        that costs, and the answer is one tap away rather than a scroll
-                        back up to the nav. `tier: null` renders nothing — see the note
-                        on ALSO about not guessing an unassigned feature into a tier. */}
-                    {(() => {
-                      // Resolved once here rather than read off the item, because it is
-                      // DERIVED from `lib/features.ts` for anything with a route — see the note
-                      // on `ALSO`. Free stays affirm-green and every paid tier is gold: the tag
-                      // answers "is this in the free account?", and giving Standard, Plus and
-                      // Premium a colour each would ask the reader to learn a key on a page
-                      // that does not print one.
-                      const tier = tierTag(item)
-                      if (!tier) return null
-                      return (
-                        <Link
-                          href="/pricing"
-                          aria-label={`${item.title} is included in the ${tier} plan — see pricing`}
-                          className={cn(
-                            'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-opacity hover:opacity-80',
-                            tier === 'Free'
-                              ? 'bg-brand-affirm/15 text-brand-affirm'
-                              : 'bg-brand-legacy/20 text-brand-ink',
-                          )}
-                        >
-                          {tier}
-                        </Link>
-                      )
-                    })()}
+                    <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+                      {TIER_TAGLINE[tier]}
+                    </p>
+                  </Reveal>
+
+                  <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    {items.map((item, i) => (
+                      <Reveal key={item.title} delay={(i % 4) * 120} className="h-full">
+                        <div className="group flex h-full flex-col rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
+                          {/* NO TIER PILL ANY MORE — the band heading above says it, and a
+                              "Free" pill on every card in a section headed Free is the same
+                              word twice. See the note on `ALSO_BY_TIER`: what mattered about
+                              the pill was that it was DERIVED, and the grouping is the same
+                              derivation. */}
+                          <div className="mb-3 inline-flex w-fit rounded-lg bg-brand-soft p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                            <item.icon className="h-5 w-5 text-brand-on-soft" aria-hidden="true" />
+                          </div>
+                          <h4 className="text-base font-semibold">{item.title}</h4>
+                          {/* Its own line, under the title, rather than crowded into the
+                              header row: at lg these cards are four across a 6xl grid and
+                              there is not room beside the chip. */}
+                          {isComingSoon(item) && <ComingSoonBadge className="mt-2" />}
+                          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                            {item.blurb}
+                          </p>
+                        </div>
+                      </Reveal>
+                    ))}
                   </div>
-                  <h3 className="text-base font-semibold">{item.title}</h3>
-                  {/* Its own line, under the title, rather than crowded into the header
-                      row beside the tier tag: at lg these cards are four across a 6xl
-                      grid, and an icon chip plus "Coming soon" plus "Plus" leaves the
-                      badges about 20px of slack. A wrap there would push the tier tag
-                      under the chip and break the row alignment across the grid. */}
-                  {isComingSoon(item) && <ComingSoonBadge className="mt-2" />}
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                    {item.blurb}
-                  </p>
-                </div>
-              </Reveal>
-            ))}
+                </section>
+              )
+            })}
           </div>
         </div>
       </section>

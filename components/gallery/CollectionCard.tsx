@@ -12,7 +12,17 @@ export function CollectionCard({ collection }: { collection: PhotoCollection }) 
   return (
     <Link
       href={`/community/gallery/${collection.id}`}
-      className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
+      /* `block` IS LOAD-BEARING, and its absence drew two stray hairlines on the Gallery
+         index until 2026-08-22. Tailwind's preflight does not set `display` on an anchor, so
+         this was still `display: inline` while containing two block-level children — and an
+         inline box with a border draws that border around its own empty inline fragments,
+         one before the block content and one after. The visible result was a ~2px vertical
+         stroke above the thumbnail and another below the caption, at the left edge of the
+         column, on every tile.
+         Any anchor here that wraps blocks and carries a border needs a display class. The
+         other bordered inline anchor in the tree (`/invite/[token]`) wraps TEXT, which is
+         what an inline pill is for and is correct as it stands. */
+      className="group block overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
     >
       <div className="flex aspect-video items-center justify-center overflow-hidden bg-muted">
         {collection.cover_photo_url ? (

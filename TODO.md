@@ -82,39 +82,6 @@ reads and writes nothing but the ten mailer fields; the moment it can write `sit
 inherits every hazard `config push` has. A separate read-only auditor over the whole
 `[auth]` block is the right shape and is not built.
 
-### [ ] Look at the reauthentication and email-change mails on a phone
-
-**Action:** trigger one of each and read it. There is nothing to run and nothing to push.
-
-**The push itself is done and is now a mechanism rather than an errand.** `migrate.yml`'s one
-job ends with a step named "Auth email templates match the repo", which runs
-`npm run email:push -- --yes --project-ref="$PROJECT_REF"` with the `SUPABASE_ACCESS_TOKEN`
-that job already holds, so the five templates reach hosted on every merge to `master` and
-drift cannot accumulate again. **Both halves after the `--` are load-bearing** — npm eats a
-bare `--yes` as its own flag, and without the script's copy of it the push refuses a
-non-interactive shell and exits 2; `--project-ref` is what keeps the step independent of
-`supabase link` having run first. It is a
-no-op when nothing has changed: the script GETs the hosted config first and PATCHes only on
-drift. See AGENTS.md, "Sending email is a plain module".
-
-**What that leaves is the half a push cannot prove.** `reauthentication.html` and
-`email-change.html` were the two carrying real drift, and it was not the stale `DORMANT`
-comment TODO used to describe:
-
-| | repo | hosted, until the first merge after 2026-08-19 |
-|---|---|---|
-| `.gn-otp` size | 28px / 0.14em, sized for the 8-character code | **38px / 0.26em, sized for six** |
-| `@media` override | removed | a second, disagreeing number |
-
-`auth.email.otp_length` is 8, and supabase/templates/README.md measures the old block at 271px
-into a 182px budget — it overflows a 320px phone once Gmail strips the `<style>` block, which is
-what Gmail does for a non-Gmail account. So the thing to check is a real reauthentication mail on
-a narrow screen, not the bytes.
-
-Reauthentication is the awkward one to trigger deliberately: it needs a session older than
-GoTrue's 24-hour window, or `secure_password_change` on hosted (the item above). Email change is
-a Sign-in & Security away.
-
 ### [ ] The `production` environment carries all three credentials and a `master` branch rule
 
 **Action:** one look at Settings → Environments → production, and nothing to run.

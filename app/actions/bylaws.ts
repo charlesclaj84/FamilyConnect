@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
-import { canAny } from '@/lib/auth/permissions'
+import { can, canAny } from '@/lib/auth/permissions'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
 
@@ -50,8 +50,15 @@ export interface Bylaw {
   sortOrder: number
   uploadedByName: string | null
   createdAt: string
-  /** A signed-in member's link to the file, or null where the row is text only. */
-  downloadUrl: string | null
+  /**
+   * `true` where the row has a file to download. NOT a URL, deliberately.
+   *
+   * It WAS a URL until 2026-08-22, built with `getPublicUrl` against the PRIVATE `documents`
+   * bucket — so every Download button on this screen 400'd. The repair is
+   * `getBylawDownloadUrl`, which signs one on the press; see its header for why a signed URL
+   * does not belong in a list payload.
+   */
+  hasFile: boolean
   /**
    * Whether the DOCUMENT'S TEXT is in the index, or only its title and summary.
    *
@@ -137,8 +144,6 @@ export async function getBylaws(query?: string): Promise<Bylaw[]> {
 
   return ((data ?? []) as Record<string, unknown>[]).map(r => {
     const path = (r.file_path as string | null) ?? null
-    const { data: { publicUrl } } = supabase.storage
-      .from('documents').getPublicUrl(path ?? '')
     return {
       id: r.id as string,
       title: r.title as string,
@@ -153,10 +158,54 @@ export async function getBylaws(query?: string): Promise<Bylaw[]> {
         return p ? `${p.first_name} ${p.last_name}`.trim() || null : null
       })(),
       createdAt: r.created_at as string,
-      downloadUrl: path ? publicUrl : null,
+      hasFile: path !== null,
       indexedState: stateOf(r as { file_path: unknown; content_text: unknown }),
     }
   })
+}
+
+/**
+ * A short-lived signed URL for one bylaw's file, minted when somebody presses Download.
+ *
+ * The `documents` bucket is `public: false`, so the `getPublicUrl` this replaces produced a
+ * URL that resolved to nothing — every Download on this screen 400'd from the day it shipped.
+ * `app/actions/documents.ts`'s `getDocumentDownloadUrl` carries the full argument for why the
+ * URL is minted on the press rather than in the list, and for why this goes through the USER
+ * client: the same bucket, the same `documents_family_read` policy, the same sixty seconds.
+ *
+ * It is a SEPARATE function from that one rather than a shared helper, because the two answer
+ * to different keys — `library/bylaws:view` and `library/documents:view` — and a family may
+ * restrict one and not the other. A helper taking a key and a table would be one function
+ * whose whole body is the two things that must not be shared.
+ */
+export async function getBylawDownloadUrl(
+  id: string,
+): Promise<{ success: boolean; url?: string; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  // `can`, not `canAny`: the same grant the page's `requireView` resolves. `library/bylaws`
+  // has NO `permission_table_map` row (asserted by `20260822000018` §9f), so its SELECT policy
+  // is family plus approval and there is no own-narrowing for a scope to express — but asking
+  // for a wider grant here than the list is behind would refuse a member the screen admits,
+  // which is the mismatch `getDocumentDownloadUrl` documents at length.
+  if (!(await can(g.userId, 'library/bylaws', 'view'))) {
+    return { success: false, message: 'Not authorized' }
+  }
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('bylaws').select('file_path').eq('id', id).eq('family_code', g.familyCode)
+    .maybeSingle()
+  const row = (data ?? null) as { file_path: string | null } | null
+  if (!row?.file_path) return { success: false, message: 'That bylaw has no file attached.' }
+
+  const signed = await supabase.storage
+    .from('documents').createSignedUrl(row.file_path, 60, { download: true })
+  if (signed.error || !signed.data?.signedUrl) {
+    console.error(`[bylaws] signing failed for ${id}: ${signed.error?.message ?? 'no url'}`)
+    return { success: false, message: 'That file could not be opened. It may have been removed.' }
+  }
+  return { success: true, url: signed.data.signedUrl }
 }
 
 /** May the caller add or remove a bylaw? For the controls, never for the gate. */

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { CalendarDays, MapPin } from 'lucide-react'
-import { HeroCurveCrest, HeroCurveFoot, HeroCurveHairline, TreeWatermark } from '@/components/dashboard/curves'
+import { HeroCurveCrest, HeroCurveFoot, TreeWatermark } from '@/components/dashboard/curves'
 import { formatDateRange } from '@/lib/date-utils'
 import type { PremierGathering } from '@/app/actions/gatherings'
 
@@ -38,11 +38,18 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  *    honest way to have the kit's gold eyebrow, and it is a `globals.css` change with a
  *    measured ratio beside it — not a `text-brand-legacy` typed into a component here.
  *
- * 3. GOLD APPEARS TWICE, IN ITS TWO SANCTIONED FORMS. As a SURFACE — the View details pill
- *    is `bg-brand-legacy text-brand-on-legacy`, which is the kit's gold pill honoured
- *    through the brand's signature measured pairing (6.14) rather than the mock's white on
- *    gold (1.65, forbidden). And as a NON-TEXT STROKE — `HeroCurveHairline`, along the
- *    swoop at the band's head, which is where the kit draws it.
+ * 3. GOLD APPEARS ONCE, AS A SURFACE. The View details pill is
+ *    `bg-brand-legacy text-brand-on-legacy`, which is the kit's gold pill honoured through
+ *    the brand's signature measured pairing (6.14) rather than the mock's white on gold
+ *    (1.65, forbidden).
+ *
+ *    IT APPEARED TWICE UNTIL 2026-08-22, the second being the kit's gold hairline stroked
+ *    along the crest. That is WITHDRAWN by decision, not dropped by accident: on a real band
+ *    it read as a stray curved line drawn around the hero rather than as an edge treatment,
+ *    which is the one thing a 1.9px decoration must not do. The kit's geometry was honoured
+ *    exactly and the result was still wrong, so this is a judgement about the composition
+ *    rather than a tuning problem — do not re-add it from `Welcome_EventHero.svg` on the
+ *    grounds that the kit draws it.
  *
  * 4. THE WATERMARK KEEPS THE REPO'S TREATMENT, NOT THE KIT'S. The kit places it 135x125 at
  *    34% opacity inside the band. `tree-watermark-path.ts` records that the path is a
@@ -68,8 +75,8 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  * hero has both top and bottom asymmetrical curves" as a must-match item, and
  * `08_QA/NO_OVERSIMPLIFICATION.md` says an asset the kit supplies must be consumed.
  *
- * So the band draws BOTH now, each where the kit puts it: `HeroCurveCrest` at the head with
- * the gold hairline along it, `HeroCurveFoot` at the foot. Three things follow:
+ * So the band draws BOTH now, each where the kit puts it: `HeroCurveCrest` at the head and
+ * `HeroCurveFoot` at the foot. Three things follow:
  *
  *   * **The two bands no longer share a silhouette**, which was the visible cost of the old
  *     arrangement rather than a fidelity nicety. `WelcomeHero` keeps `HeroCurve` at its foot;
@@ -79,16 +86,9 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  *   * **"Two competing waves" does not arise**, because the crest and `WelcomeHero`'s foot are
  *     the SAME edge in the SAME direction — the old rule, kept. What meets across the page's
  *     `space-y-6` gap is one curve profile twice, not a mirror pair.
- *   * **The hairline moved WITH the crest, not away from it.** In the kit it is drawn along the
- *     swoop's right half, under the photograph — it belongs to the TOP edge, and was at the
- *     foot only because the swoop was. Nothing about it is retuned.
- *
- * ── WHY THE HAIRLINE REGISTERS WITH THE CREST ────────────────────────────────
- * `HeroCurveCrest` and `HeroCurveHairline` are BOTH in `components/dashboard/curves.tsx`, and
- * that is not filing — they only line up because they share a coordinate space, a viewBox and
- * an aspect handling, all of which `curves.tsx` states beside them. What this file owes them is
- * the third thing: the SAME box. They are given identical `className`s below, and changing one
- * without the other is what would slide the gold line off the edge it is drawn along.
+ *   * **The hairline moved WITH the crest, not away from it** — and was then withdrawn
+ *     altogether on 2026-08-22. See point 3 above; the reasoning about which EDGE it belonged
+ *     to is kept because it is the argument for where the crest goes, which is unchanged.
  */
 export function PremierGatheringHero({ gathering }: { gathering: PremierGathering }) {
   const dates = formatDateRange(gathering.startsOn, gathering.endsOn)
@@ -179,15 +179,13 @@ export function PremierGatheringHero({ gathering }: { gathering: PremierGatherin
         </Link>
       </div>
 
-      {/* THE CREST AND ITS GOLD HAIRLINE. Identical `className` on the pair is what makes
-          them register — see the header on why all three of the box, the viewBox and the
-          aspect handling have to match. */}
+      {/* THE CREST. Its gold hairline was rendered here until 2026-08-22 and is WITHDRAWN —
+          see the header. Do not re-add it from the kit: its absence is a decision, not an
+          omission. */}
       <HeroCurveCrest className="pointer-events-none absolute inset-x-0 top-0 h-24 w-full text-background" />
-      <HeroCurveHairline className="pointer-events-none absolute inset-x-0 top-0 h-24 w-full text-brand-legacy" />
 
       {/* THE KIT'S OWN BOTTOM EDGE, which shipped cropped out of every render until
-          2026-08-21 — see the header. No hairline here: the kit draws exactly one gold line
-          and it is the crest's.
+          2026-08-21 — see the header.
 
           All three curves are `pointer-events-none`: they are painted after the content row,
           so without it the invisible corners of these full-width boxes would sit over the

@@ -11,7 +11,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { DOCUMENT_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '@/lib/upload-types'
-import { addBylaw, deleteBylaw, getBylaws, type Bylaw } from '@/app/actions/bylaws'
+import {
+  addBylaw, deleteBylaw, getBylawDownloadUrl, getBylaws, type Bylaw,
+} from '@/app/actions/bylaws'
 
 /**
  * The family's bylaws, and a search across them. SCAFFOLDING — see `app/actions/bylaws.ts`.
@@ -70,6 +72,27 @@ export function BylawsClient({ initialBylaws, rights }: {
       setBylaws(await getBylaws(searched))
       router.refresh()
     })
+  }
+
+  /**
+   * Fetch a fresh signed URL and hand the file over.
+   *
+   * The file lives in a PRIVATE bucket, so there is no URL to put in an `href` until the press
+   * — see `getBylawDownloadUrl`. `location.assign()` rather than `window.open` because the
+   * open would land after an `await`, outside the gesture window a popup blocker enforces; the
+   * signed response carries `Content-Disposition: attachment`, so the page does not navigate.
+   *
+   * Outside `startTransition` on purpose: `isPending` disables Search and every Delete on the
+   * screen, and opening a file is not a reason to do that.
+   */
+  async function download(b: Bylaw) {
+    setError('')
+    const result = await getBylawDownloadUrl(b.id)
+    if (!result.success || !result.url) {
+      setError(result.message ?? 'Could not open that file.')
+      return
+    }
+    window.location.assign(result.url)
   }
 
   const notIndexed = bylaws.filter(b => b.indexedState === 'title').length
@@ -160,12 +183,12 @@ export function BylawsClient({ initialBylaws, rights }: {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  {b.downloadUrl && (
-                    <a href={b.downloadUrl} target="_blank" rel="noopener noreferrer"
+                  {b.hasFile && (
+                    <button type="button" onClick={() => download(b)}
                       aria-label={`Download ${b.title}`} title="Download"
                       className="rounded-md p-1.5 text-muted-foreground hover:text-foreground">
                       <Download className="h-3.5 w-3.5" />
-                    </a>
+                    </button>
                   )}
                   {rights.remove && (
                     <button type="button" onClick={() => remove(b)} disabled={isPending}

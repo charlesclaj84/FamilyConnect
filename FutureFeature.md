@@ -162,21 +162,23 @@ A flip is not the whole job, and what it leaves behind is invisible: nothing fai
 warns, and the obligation quietly changes from "before launch" to "on running code". With 41 of
 42 routes live, that is what this section is.
 
-### `/library/documents` and `/library/bylaws` hand out dead download links
+### Bylaws has no fixture and no RLS case, and the whole table is uncovered
 
-**The sharpest live defect in the product.** The `documents` bucket is `public: false`
-(`20260609000000`), and both `getDocuments` and the bylaws reader build their `download_url`
-with `storage.from('documents').getPublicUrl(...)`. A public URL against a private bucket
-resolves to nothing, so **every download on two live Plus screens fails.** There is no
-`createSignedUrl` anywhere in the tree — grep it: zero hits. The fix is a signed URL minted
-server-side, with an expiry somebody decides rather than defaults.
+`bylaws` shipped on 2026-08-22 and `tests/rls/seed.mjs` plants no row in it — the table is not
+in the fixture's reset list either, so a row seeded later would accumulate across runs. `grep
+bylaw tests/rls/cases.mjs` returns nothing. Five actions (`getBylaws`, `getBylawRights`,
+`addBylaw`, `deleteBylaw`, `getBylawDownloadUrl`) rely entirely on reading the policy rather
+than running it, which is exactly what §7 says is not the same thing.
 
-This sat here for weeks as a launch obligation for a gated route. Both routes are live now,
-which is what turns it from a note into a bug.
+It is worth doing as one piece of work rather than per action, because the cost is the fixture:
+one row per family, its entry in the reset list in the right cascade order, and then the cases
+are cheap. `documents.getDocumentDownloadUrl` in `STORAGE_CASES` is the nearest shape to copy
+— including its `setup: seedObject(...)`, without which `createSignedUrl` has nothing to sign
+and the positive control passes vacuously.
 
-### 162 server actions have no RLS case
+### 163 server actions have no RLS case
 
-251 functions are exported from `app/actions/`; `tests/rls/cases.mjs` names 89 of them. Read
+253 functions are exported from `app/actions/`; `tests/rls/cases.mjs` names 90 of them. Read
 that as the real backlog rather than a target — §7's suite is what tests family isolation,
 because the policies are *composed* at migration time out of `pg_policies`, so what protects a
 table is a string that existed in no file anyone reviewed.
@@ -494,12 +496,12 @@ grep -c "^    href: '"      lib/features.ts          # 42
 npm run marketing:check                              # every live feature is sold somewhere
 
 # exported server actions, and how many tests/rls names
-LC_ALL=C grep -rhoE "^export (async )?function [A-Za-z0-9_]+" app/actions/ | wc -l   # 251
+LC_ALL=C grep -rhoE "^export (async )?function [A-Za-z0-9_]+" app/actions/ | wc -l   # 253
 LC_ALL=C grep -oE "id: '[^']+'" tests/rls/cases.mjs \
-  | sed "s/id: '//;s/'\$//" | sed 's/ (.*//' | grep -v '^raw:' | sort -u | wc -l     # 89
+  | sed "s/id: '//;s/'\$//" | sed 's/ (.*//' | grep -v '^raw:' | sort -u | wc -l     # 90
 
-grep -rn "createSignedUrl" app/ components/ lib/                # 0 — see §3
 grep -rn "no-img-element" components/ | wc -l                   # the resize decision
+grep -c "bylaw" tests/rls/cases.mjs                             # 0 — see §3
 ```
 
 **When a feature ships:** flip its `status`, and let the derived surfaces correct themselves.

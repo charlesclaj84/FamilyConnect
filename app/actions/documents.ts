@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireMember, requireOwn } from '@/lib/auth/guard'
-import { canAny } from '@/lib/auth/permissions'
+import { can, canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
@@ -50,7 +50,6 @@ export interface DocumentRecord {
   uploaded_by: string | null
   uploaded_by_name: string | null
   created_at: string
-  download_url: string
 }
 
 export async function getDocuments(category?: string): Promise<DocumentRecord[]> {
@@ -76,7 +75,6 @@ export async function getDocuments(category?: string): Promise<DocumentRecord[]>
   }
 
   return (data ?? []).map(d => {
-    const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(d.file_path)
     const uploader = embedOne<PersonNameRow>(d.people)
     return {
       id: d.id,
@@ -90,9 +88,81 @@ export async function getDocuments(category?: string): Promise<DocumentRecord[]>
       uploaded_by: d.uploaded_by,
       uploaded_by_name: uploader ? `${uploader.first_name} ${uploader.last_name}` : null,
       created_at: d.created_at,
-      download_url: publicUrl,
     }
   })
+}
+
+/**
+ * A short-lived signed URL for one document, minted when somebody presses Download.
+ *
+ * ── EVERY DOWNLOAD ON THIS SCREEN WAS DEAD UNTIL 2026-08-22 ────────────────────────
+ * `getDocuments` built a `download_url` with `storage.from('documents').getPublicUrl(path)`,
+ * and the `documents` bucket is `public: false` (`20260609000000`). A public URL against a
+ * private bucket resolves to nothing, so every link on the list — the name and the download
+ * icon — 400'd, on a live Plus screen. `getPublicUrl` is a pure string build in supabase-js:
+ * no network, no await, and therefore no error to notice. It cannot tell you the bucket is
+ * private, which is exactly how this shipped.
+ *
+ * ── WHY ON DEMAND, RATHER THAN SIGNING IN THE LIST ─────────────────────────────────
+ * Swapping `getPublicUrl` for `createSignedUrl` inside `getDocuments` is three lines and is
+ * the wrong shape twice over:
+ *
+ *   * A SIGNED URL IS A BEARER TOKEN. Signing in the list serializes one working token per
+ *     document into the RSC payload of everybody who opens the screen — for files nearly all
+ *     of them will never open — and each keeps working, without a session, until it expires.
+ *     AGENTS.md §5's rule is about not publishing what the screen does not need; this is that
+ *     rule applied to a credential rather than to a row.
+ *   * IT FORCES A BAD EXPIRY. Short enough to be safe and the link is dead by the time a
+ *     reader has scanned a long list; long enough to survive the read and a copied URL
+ *     outlives the permission that produced it. Minting at the moment of the press removes
+ *     the trade-off entirely, which is why the window here is sixty seconds.
+ *
+ * ── THE USER CLIENT, DELIBERATELY, AND NOT THE ADMIN ONE ───────────────────────────
+ * `documents_family_read` (`20260820000006`) scopes the bucket to
+ * `(storage.foldername(name))[1] = auth_family_code()` and `auth_membership_approved()`, so
+ * signing through the caller's own client is family-scoped BY THE POLICY. The admin client
+ * would work and would put the family conjunct back in our hands (§3) for no gain. The row is
+ * still read family-scoped as well, so a `documents.id` from another family answers "not
+ * found" before storage is ever asked.
+ *
+ * `download: true` sets `Content-Disposition: attachment` on the signed response, which is
+ * what lets the client navigate straight to it instead of opening a tab — an async
+ * click handler cannot call `window.open` without tripping a popup blocker, and a filing is
+ * a thing somebody wants saved rather than rendered.
+ */
+export async function getDocumentDownloadUrl(
+  id: string,
+): Promise<{ success: boolean; url?: string; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  // ── `can`, NOT `canAny`, AND THE DIFFERENCE DECIDES A REAL CASE ────────────────────
+  // `library/documents` HAS a `permission_table_map` row with an `own_expr` of
+  // `uploaded_by = auth_person_id()`, so `view` at scope `'own'` is a coherent thing for a
+  // family to grant — it means "your own filings". `canAny` would refuse exactly that member,
+  // while `requireView` on the page (which resolves with `can`) had already let them in and
+  // shown them the row. So the grant asked for here is the same one the list is behind, and
+  // the NARROWING is left to the policy: the row is read on the caller's own client, so a
+  // scope-`'own'` member finds only what they uploaded and everybody else's id answers
+  // "not found" before storage is ever consulted.
+  if (!(await can(g.userId, 'library/documents', 'view'))) {
+    return { success: false, message: 'Not authorized' }
+  }
+
+  const supabase = await createClient()
+  const { data: row } = await supabase
+    .from('documents').select('file_path').eq('id', id).eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (!row?.file_path) return { success: false, message: 'Document not found' }
+
+  const { data, error } = await supabase.storage
+    .from('documents').createSignedUrl(row.file_path, 60, { download: true })
+  if (error || !data?.signedUrl) {
+    // The object can be missing where the row is not — a failed `remove()` leaves the reverse,
+    // and this is the direction that reads to a member as the product having lost their file.
+    console.error(`[documents] signing failed for ${id}: ${error?.message ?? 'no url'}`)
+    return { success: false, message: 'That file could not be opened. It may have been removed.' }
+  }
+  return { success: true, url: data.signedUrl }
 }
 
 /**

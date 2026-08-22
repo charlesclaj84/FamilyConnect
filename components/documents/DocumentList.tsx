@@ -14,7 +14,9 @@ import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { DOCUMENT_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '@/lib/upload-types'
-import { deleteDocument, uploadDocument, type DocumentRecord } from '@/app/actions/documents'
+import {
+  deleteDocument, getDocumentDownloadUrl, uploadDocument, type DocumentRecord,
+} from '@/app/actions/documents'
 import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/document-categories'
 import { formatDate } from '@/lib/date-utils'
 
@@ -50,8 +52,8 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
   const router = useRouter()
   const confirm = useConfirm()
   // `useServerState`: an uploaded file used to stay invisible until the page was left and
-  // re-entered. The row is not built client-side because two of its fields — the uploader's
-  // name and the storage download URL — only exist once the server has read the row back.
+  // re-entered. The row is not built client-side because the uploader's name only exists once
+  // the server has read the row back through its `people` embed.
   const [documents, setDocuments] = useServerState(initialDocuments)
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -85,6 +87,30 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
       router.refresh()
     })
+  }
+
+  /**
+   * Fetch a fresh signed URL and hand the file over.
+   *
+   * ── `location.assign()`, NOT `window.open` ────────────────────────────────────────
+   * The URL does not exist until the action returns, so any `window.open` here happens after
+   * an `await` — outside the user-gesture window every popup blocker enforces, so it is
+   * blocked for some readers and not others. Navigating to a response carrying
+   * `Content-Disposition: attachment` (which is what `download: true` sets on the signed URL)
+   * downloads the file and does not navigate the page away from the list.
+   *
+   * NOT `startTransition`, deliberately: `isPending` is shared with the delete control, and a
+   * download must not disable every Delete button on the screen while it resolves. The error
+   * still goes to the same `FormError`, which is the one per form (AGENTS.md).
+   */
+  async function handleDownload(doc: DocumentRecord) {
+    setError('')
+    const result = await getDocumentDownloadUrl(doc.id)
+    if (!result.success || !result.url) {
+      setError(result.message ?? 'Could not open that file.')
+      return
+    }
+    window.location.assign(result.url)
   }
 
   return (
@@ -151,10 +177,16 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
               {filtered.map(doc => (
                 <tr key={doc.id} className="border-b align-top last:border-0 sm:align-middle">
                   <td className="px-3 py-2.5">
-                    <a href={doc.download_url} target="_blank" rel="noopener noreferrer"
-                      className="font-medium text-foreground hover:underline">
+                    {/* A BUTTON, not an anchor. There is no URL to put in an `href` until
+                        the press: the file is in a private bucket and its signed URL is
+                        minted per click (see `getDocumentDownloadUrl`). A `<button>` is
+                        what this actually is, so it is keyboard-reachable and announces
+                        itself honestly — the same reasoning `MainRail` gives for refusing
+                        `role="tablist"`. */}
+                    <button type="button" onClick={() => handleDownload(doc)}
+                      className="text-left font-medium text-foreground hover:underline">
                       {doc.name}
-                    </a>
+                    </button>
                     {doc.description && (
                       <p className="text-xs text-muted-foreground">{doc.description}</p>
                     )}
@@ -179,11 +211,11 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <span className="flex justify-end gap-1">
-                      <a href={doc.download_url} target="_blank" rel="noopener noreferrer"
+                      <button type="button" onClick={() => handleDownload(doc)}
                         aria-label={`Download ${doc.name}`} title="Download"
                         className="rounded-md p-1.5 text-muted-foreground hover:text-foreground">
                         <Download className="h-3.5 w-3.5" />
-                      </a>
+                      </button>
                       {mayDelete(doc) && (
                         <button type="button" onClick={() => handleDelete(doc)} disabled={isPending}
                           aria-label={`Delete ${doc.name}`} title="Delete"
