@@ -153,7 +153,7 @@ const ALSO: readonly {
   { icon: Bell, route: '/community/updates', title: 'The updates archive', blurb: 'Everything the family has ever announced, and everything sent to you, searchable long after it scrolled off the dashboard.' },
   { icon: ReceiptText, route: '/reporting/payment-history', title: 'Your own payment history', blurb: 'Every payment recorded against you, with its date, amount, method and status — so nobody has to take the treasurer’s word for it.' },
   { icon: TrendingUp, route: '/reporting/dues-projections', title: 'Dues projections', blurb: 'What the family should collect this year, what has come in, and who still owes — counting relatives who never finished registering.' },
-  { icon: ArrowLeftRight, route: '/reporting/transactions/fund-transfers', title: 'Transfers between funds', blurb: 'Move money from one fund to another and keep both sides of it on the record.' },
+  { icon: ArrowLeftRight, route: '/accounting/transactions/fund-transfers', title: 'Transfers between funds', blurb: 'Move money from one fund to another and keep both sides of it on the record.' },
   // MOVED HERE 2026-08-21 from the privacy card below, which had sold it untagged under a
   // heading about family isolation. Isolation is universal and enforced by the database on
   // every query; this is Standard. Conflating the two promised a Free family a screen they

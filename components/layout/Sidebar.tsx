@@ -77,9 +77,12 @@ interface NavGroup {
   items: NavItem[]
 }
 
-// Hand-ordered, not alphabetical: structure first (who the family's officers are),
-// then Accounting, then the people and their access. Elections and Reports are
-// periodic tasks rather than setup, so they trail.
+// Hand-ordered, not alphabetical, and re-ordered on 2026-08-22: Members, Gatherings,
+// Accounting, Elections, Settings. The reading is how often an administrator opens each and
+// how consequential it is when they do — who is in the family, what the family is doing,
+// what that costs, who is standing for office, and last the two or three settings nobody
+// touches twice. The previous note here described a "structure first, then Accounting" order
+// this list had already drifted away from.
 // This order is independent of the permission grid on Members & Access, which sorts
 // by permission_resources.sort_order in the database.
 const adminItems: NavItem[] = [
@@ -141,7 +144,12 @@ const adminItems: NavItem[] = [
   // "Organization" about both halves, because no row is about both. The grid still prints
   // "Organization" for `admin/chapters` and "Board Positions" for `admin/boardpositions`,
   // which is right — an administrator moves two switches, and they are two jobs.
-  { href: '/admin/accounting',        label: 'Accounting',           icon: Wallet },
+  // ── GATHERINGS BEFORE ACCOUNTING, 2026-08-22 ──────────────────────────────────────
+  // The heading above this list read "structure first, then Accounting, then the people and
+  // their access", which described an order this list stopped having some time ago. The
+  // order now is what an administrator actually reaches for, most often first: who is in the
+  // family, what the family is doing, what that costs, who is standing for office, and last
+  // the settings nobody touches twice.
   // ONE GATHERINGS ROW, TWO PANES, TWO KEYS. `/admin/gatherings` is a rail: Management
   // schedules a gathering, hands out its tasks and rules on the answers, and Templates
   // authors the step lists a gathering is built FROM. They were two rail items until
@@ -157,6 +165,7 @@ const adminItems: NavItem[] = [
     icon: CalendarCog,
     viewKeys: ['admin/gatherings', 'admin/gatherings/templates'],
   },
+  { href: '/admin/accounting',        label: 'Accounting',           icon: Wallet },
   // NO Announcement Management ROW. The route is deleted (20260813000000) — posting,
   // pinning and deleting all live on Community > Announcements now, each control gated by
   // the `announcements` grant that governs it. An admin duplicate of a member page is a
@@ -257,11 +266,16 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // it, so if a surface ever needs it again it is set here by hand exactly as it was.
       section: { label: 'Community', icon: UsersRound },
       items: [
-        { href: '/community/chat',          label: 'Chat',             icon: MessageCircle },
+        // GALLERY LEADS, since 2026-08-22, and the order of this group is now the ask rather
+        // than the argument that used to be written here. What replaced the old reading
+        // ("conversation, then the roster, then the family acting as one") is a plainer one:
+        // the picture of the reunion is what a relative opens this section for, so it is the
+        // first thing under the heading rather than the last.
+        { href: '/community/gallery',       label: 'Gallery',          icon: Images },
         // ONE ROW FOR THREE PANES, since 2026-08-19. Announcements is a rail — General (the
         // board), Updates (the archive of announcements and the member's own notifications)
-        // and Birthdays — so the three keys are listed here for the reason `admin/users`
-        // lists four: `viewableResources()` resolves a nav item against the key derived from
+        // and Birthdays — so the three keys are listed here for the reason `admin/members`
+        // lists five: `viewableResources()` resolves a nav item against the key derived from
         // its href, and a member holding ONLY the archive or ONLY the birthdays pane would
         // otherwise have a working page and no link to it. That is a grant taken away in
         // effect if not on paper.
@@ -276,26 +290,26 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
           icon: Megaphone,
           viewKeys: ['community/announcements', 'community/updates', 'community/announcements/birthdays'],
         },
-        { href: '/community/directory',       label: 'Directory',        icon: UsersRound },
+        { href: '/community/chat',          label: 'Chat',             icon: MessageCircle },
+        // FAMILY TREE THEN DIRECTORY, adjacent on purpose: the two answer the same question —
+        // who is in this family and how are they related — so they read as a pair wherever
+        // they sit. Which of the two leads is the only thing that moved.
+        //
+        // NO `beta` FLAG, since 2026-08-13. The badge was hand-set here and on the page, and
+        // both came off together when the per-member lineage view was retired and this became
+        // the only tree — see app/(protected)/community/family-tree/page.tsx. Nothing derives
+        // it, so if a surface ever needs it again it is set here by hand exactly as it was.
         { href: '/community/family-tree',   label: 'Family Tree',      icon: GitBranch },
+        { href: '/community/directory',     label: 'Directory',        icon: UsersRound },
         // ELECTIONS ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-21 (20260821000003), and it
-        // is LAST for the reason the comment above this group gives about its own order: Chat
-        // and Announcements are conversation, Directory and Family Tree are the roster, and
-        // this is the family acting as an organization — which is a third thing and reads as
-        // one only at the end.
+        // is still LAST: the family acting as an organization, which is a different thing
+        // from the album, the board, the conversation and the roster above it.
         //
         // It keeps the `Vote` glyph it carried under Review. The organizer's row wears the
-        // same one under Admin, and that is now fine rather than confusing: the note in the
-        // Review block argued the two must not sit side by side in one collapsed list wearing
-        // one glyph, and they are a whole section apart.
+        // same one under Admin, and that is fine rather than confusing: the note in the
+        // retired Review block argued the two must not sit side by side in one collapsed list
+        // wearing one glyph, and they are a whole section apart.
         { href: '/community/elections',     label: 'Elections',        icon: Vote },
-        // GALLERY ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-22 (20260822000018), and it is
-        // last for the same reason Elections was: the order of this group is conversation,
-        // then the roster, then the family acting as one — and the album is the fourth thing,
-        // which is what the family HAS. It was captioned "Photos" and filed under Resources,
-        // on the strength of it being an upload; that is a fact about the storage rather than
-        // about what the screen is for.
-        { href: '/community/gallery',       label: 'Gallery',          icon: Images },
       ],
     },
   ]
@@ -336,10 +350,15 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { label: 'Library', icon: Library },
     items: [
-      { href: '/library/officer-notes',   label: 'Officer Notes',   icon: BookText },
-      { href: '/library/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
-      { href: '/library/documents',       label: 'Documents',       icon: FileText },
+      // THE ORDER IS THE ASK, 2026-08-22, and it inverts the reading recorded above this
+      // group: the constitution first, then the record of the meetings held under it, then
+      // the officers' own notebooks, then the filed documents. Most binding to least, which
+      // is also most-consulted to least — a relative looking something up in the Library is
+      // far more often checking what the bylaws say than reading a treasurer's working notes.
       { href: '/library/bylaws',          label: 'Bylaws',          icon: Scale },
+      { href: '/library/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
+      { href: '/library/officer-notes',   label: 'Officer Notes',   icon: BookText },
+      { href: '/library/documents',       label: 'Documents',       icon: FileText },
     ],
   })
 
@@ -373,6 +392,20 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // first is when the next payment falls. HeartHandshake did not disappear — it is the
       // Donations pane's own glyph on the rail inside the page.
       { href: '/accounting/dues-and-donations', label: 'Dues & Donations', icon: CalendarClock },
+      // ── TRANSACTIONS ARRIVED HERE ON 2026-08-22, FROM REPORTING ─────────────────────
+      // The four ledgers are where money is RECORDED — a dues payment, a donation, a fund
+      // contribution, a disbursement, a transfer — which is this group's job and not
+      // Reporting's. Reporting reads a recorded figure back; this writes it down. That the
+      // page also LISTS what it holds is what made the old placement plausible, and a list
+      // is not a report.
+      //
+      // THE ROUTE AND THE KEY MOVED WITH IT, both of them, because §1 leaves no choice:
+      // the resource key is the route without its leading slash. `20260822000022` carries
+      // `reporting/transactions` and its six sub-keys onto `accounting/transactions`,
+      // copying every family's grants and rewriting the composed policies before it drops
+      // the old rows. Moving the rail row alone would have left the caption under one
+      // heading and the switch on Members & Access under another.
+      { href: '/accounting/transactions',     label: 'Transactions',      icon: ArrowRightLeft },
       // DUES PROJECTIONS LEFT THIS GROUP ON 2026-08-20 and is in Reporting below. The note
       // that used to stand here argued for keeping it — "the request named two screens" — and
       // the note on Reporting said moving a third would be scope creep. It was asked for, so
@@ -443,7 +476,13 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // the family — the same argument that put Payment History and Transactions here.
       { href: '/reporting/membership', label: 'Membership',       icon: PieChart },
       { href: '/reporting/payment-history',  label: 'Payment History',   icon: History },
-      { href: '/reporting/transactions',     label: 'Transactions',      icon: ArrowRightLeft },
+      // TRANSACTIONS LEFT THIS GROUP ON 2026-08-22 and is under Accounting above. It was
+      // here on the argument this block's heading makes — "a reading of the money" — and
+      // that argument was thinner than it looked: the four ledgers are where a payment, a
+      // donation, a contribution, a disbursement and a transfer are RECORDED, not where a
+      // recorded figure is read back. It sits beside the screens whose rows it holds now,
+      // and the move took its route and its permission key with it (20260822000022), which
+      // is what "the route tree IS the nav rail" costs.
       { href: '/reporting/dues-projections', label: 'Dues Projections',  icon: TrendingUp },
       // P&L SUMMARY ARRIVED HERE ON 2026-08-20, from Accounting by way of Review, and the
       // caption changed with the move. "Family Finances" beside four other readings of the
@@ -454,6 +493,27 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // LAST, because it is the only row here that is a SUMMARY of the two above it: the
       // ledger and the projection are where a figure on it is explained.
       { href: '/reporting/pl-summary',  label: 'P&L Summary',       icon: Scale },
+      // ── THE FOUR ACTIVITY REPORTS, 2026-08-22 ────────────────────────────────────────
+      // AFTER the money ones, and that order is the point rather than the arrival date. The
+      // five above are readings of the family's MONEY and read as a block; these four are
+      // readings of what it DOES. Putting Gatherings next to Membership would break the
+      // money block in half for no reason a reader could infer.
+      //
+      // Board & Offices is LAST of the four because it is the only one that is not about a
+      // period of time — the other three are "what happened", and this is "what is the shape
+      // of the family right now", which is closer to Membership at the top than to the three
+      // above it. It trails rather than joining Membership because moving it up there would
+      // separate it from the group it shipped with, and a reader looking for the new reports
+      // would find three of the four.
+      //
+      // The glyphs are the ones each subject already wears elsewhere in this rail
+      // (PartyPopper for Gatherings, Vote for Elections, Gavel for Meeting Minutes,
+      // ShieldCheck for Admin) — a report is a reading OF something, and wearing that
+      // something's glyph is what says which.
+      { href: '/reporting/gatherings', label: 'Gatherings',       icon: PartyPopper },
+      { href: '/reporting/elections',  label: 'Elections',        icon: Vote },
+      { href: '/reporting/meetings',   label: 'Meetings',         icon: Gavel },
+      { href: '/reporting/board',      label: 'Board & Offices',  icon: ShieldCheck },
     ],
   })
 

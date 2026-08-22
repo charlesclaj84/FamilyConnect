@@ -9,6 +9,13 @@ import { belongsToFamily } from '@/lib/auth/family'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { notifyMeetingScheduled } from '@/lib/notifications'
 import { isIsoDate } from '@/lib/calendar'
+import { isMinorOn } from '@/lib/age-utils'
+import { todayLocal } from '@/lib/date-utils'
+import type { PositionScope } from '@/lib/board-positions'
+import {
+  buildBoards, buildPositions, resolveBoardAttendees,
+  type BoardAssignment, type BoardOption, type PositionOption,
+} from '@/lib/meeting-boards'
 
 /**
  * Meeting Minutes — `/library/meeting-minutes`.
@@ -284,6 +291,172 @@ export async function mayScheduleMeeting(): Promise<boolean> {
   return canAny(g.userId, 'library/meeting-minutes', 'create')
 }
 
+/**
+ * ADULTS ONLY, AND `isMinorOn` IS THE ONE DEFINITION.
+ *
+ * AGENTS.md §4b: there is no `is_minor` column and there must not be — a stored boolean about
+ * age is wrong the moment it is written, because the row does not change when the person has
+ * a birthday. `minorCutoff` in `lib/age-utils.ts` is the single rule and this reads it.
+ *
+ * A MEMBER WITH NO RECORDED BIRTHDAY IS AN ADULT HERE, which is `isMinorOn`'s own answer for
+ * a null and is the right default rather than a gap. "Under eighteen" is something a family
+ * has RECORDED about somebody; assuming it of a blank field would silently refuse to let a
+ * grandmother whose birthday nobody entered take the minutes, and there would be nothing on
+ * the screen to explain why. It is the same reading `propagateChapterToChildren` takes, for
+ * the same reason.
+ */
+async function adultCheck(
+  personIds: readonly string[],
+  familyCode: string,
+): Promise<{ ok: true; minorNames: Map<string, string> } | { ok: false; message: string }> {
+  if (personIds.length === 0) return { ok: true, minorNames: new Map() }
+  const { data, error } = await createAdminClient()
+    .from('people')
+    .select('id, first_name, last_name, date_of_birth')
+    .eq('family_code', familyCode)
+    .in('id', [...new Set(personIds)])
+  // §8: an empty result is not the same as no rows. Reporting "everybody is an adult" over a
+  // refused read is the failure direction that matters, so a refusal is a refusal.
+  if (error) {
+    console.error(`[meetings] could not check ages for ${familyCode}: ${error.message}`)
+    return { ok: false, message: 'Could not check who is an adult just now. Nothing was saved.' }
+  }
+  const today = todayLocal()
+  const minorNames = new Map<string, string>()
+  for (const r of rows(data)) {
+    if (!isMinorOn(r.date_of_birth as string | null, today)) continue
+    minorNames.set(
+      r.id as string,
+      `${r.first_name as string} ${r.last_name as string}`.trim() || 'Somebody',
+    )
+  }
+  // RETURNS A MAP, not a list of names, so one read answers both rules: the caller has to
+  // tell "the secretary is a minor" from "one of the people you added is", and the two have
+  // different remedies. A list of names would need a second query to say which was which.
+  return { ok: true, minorNames }
+}
+
+/**
+ * The boards, the offices and the adults a meeting's attendee list can be built from.
+ *
+ * ── WHY A BOARD AT ALL, RATHER THAN A LIST OF NAMES ────────────────────────────────
+ * A family meeting is almost always a BODY meeting — the national board, one chapter's board,
+ * every chapter president — and ticking eleven names out of a hundred and forty to describe
+ * one of those is both tedious and wrong the following month, when somebody has been
+ * replaced. Picking the body says what the organizer means, and it resolves against whoever
+ * holds the office on the day the meeting is scheduled.
+ *
+ * The shaping is `lib/meeting-boards.ts`, which is pure and tested; this function is the read
+ * that feeds it. Five family-scoped queries and a TypeScript join, for the reason
+ * `getBoardPositionHolders` states at length: `user_roles` has no foreign key to `people` at
+ * all — it points at `auth.users` — so a `people(...)` embed under it is PGRST200, which
+ * answers `[]` in silence (§8).
+ *
+ * ── THE ADMIN CLIENT, SO §3 IS DISCHARGED BY HAND ──────────────────────────────────
+ * Every one of the five reads states `.eq('family_code', …)`. It has to be the admin client
+ * rather than the caller's: `family_roles` and `user_roles` are gated on
+ * `admin/members/board-positions`, and somebody scheduling a meeting is not thereby an
+ * administrator of the family's offices. Reading through their own client would hand most
+ * organizers an empty board list with nothing to say why.
+ *
+ * ── GATED ON THE SAME GRANT AS SCHEDULING (§5) ─────────────────────────────────────
+ * `library/meeting-minutes:create` at `canAny` — what this returns is the roster plus who
+ * holds which office, which is not a thing to serialize into the RSC payload of somebody who
+ * cannot open the dialog it fills. `canAny` and not `can`, because there is no "own" version
+ * of the family's board.
+ */
+export interface MeetingAttendeeOptions {
+  boards: BoardOption[]
+  positions: PositionOption[]
+  /**
+   * Everybody who may be added BY NAME on top of the boards — approved ADULTS, whether or not
+   * they have an account. `SelectablePerson`-shaped so `PersonMultiSelect` can tell two
+   * Martha Allens apart against the whole roster.
+   */
+  adults: { id: string; first_name: string; last_name: string; nick_name: string | null }[]
+  /** Who each resolved id is, so the dialog can say what ticking a board just added. */
+  names: Record<string, string>
+}
+
+const NO_OPTIONS: MeetingAttendeeOptions = { boards: [], positions: [], adults: [], names: {} }
+
+export async function getMeetingAttendeeOptions(): Promise<MeetingAttendeeOptions> {
+  const g = await requireMember()
+  if (!g.ok) return NO_OPTIONS
+  if (!(await canAny(g.userId, 'library/meeting-minutes', 'create'))) return NO_OPTIONS
+
+  const admin = createAdminClient()
+  const [assignmentsRes, positionsRes, peopleRes, chaptersRes, regionsRes] = await Promise.all([
+    admin.from('user_roles')
+      .select('user_id, role_id, scope, chapter_id, region_id')
+      .eq('family_code', g.familyCode),
+    admin.from('family_roles').select('id, name').eq('family_code', g.familyCode),
+    admin.from('people')
+      .select('id, user_id, first_name, last_name, nick_name, date_of_birth')
+      .eq('family_code', g.familyCode)
+      .eq('membership_status', 'approved'),
+    admin.from('chapters').select('id, name').eq('family_code', g.familyCode),
+    admin.from('regions').select('id, name').eq('family_code', g.familyCode),
+  ])
+
+  // §8 on all five. A refused read renders "this family has no boards" over a family with
+  // four, and the organizer has no way to tell that from the truth.
+  const failed = assignmentsRes.error ?? positionsRes.error ?? peopleRes.error
+    ?? chaptersRes.error ?? regionsRes.error
+  if (failed) {
+    console.error(`[meetings] attendee options read failed for ${g.familyCode}: ${failed.message}`)
+    return NO_OPTIONS
+  }
+
+  const positionName = new Map(rows(positionsRes.data).map(p => [p.id as string, p.name as string]))
+  const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
+  const chapterNames = new Map(rows(chaptersRes.data).map(c => [c.id as string, c.name as string]))
+
+  const people = rows(peopleRes.data)
+  const displayName = (r: Row) =>
+    `${r.first_name as string} ${r.last_name as string}`.trim() || 'Unnamed member'
+  const byUserId = new Map(people.filter(r => r.user_id).map(r => [r.user_id as string, r]))
+
+  const assignments: BoardAssignment[] = rows(assignmentsRes.data)
+    // A position from another family cannot appear — every read above is family-scoped — so
+    // an assignment naming one is a row 20260819000004 should have repointed. Dropping it is
+    // the safe direction; the alternative is an unlabelled board nobody can explain.
+    .filter(a => positionName.has(a.role_id as string))
+    .flatMap(a => {
+      const person = byUserId.get(a.user_id as string)
+      // An assignment whose account is no longer one of this family's people. There is
+      // nobody to invite, so there is nothing to put on a board.
+      if (!person) return []
+      return [{
+        personId:   person.id as string,
+        personName: displayName(person),
+        roleId:     a.role_id as string,
+        roleName:   positionName.get(a.role_id as string) as string,
+        scope:      (a.scope as PositionScope | null) ?? 'national',
+        regionId:   (a.region_id as string | null) ?? null,
+        chapterId:  (a.chapter_id as string | null) ?? null,
+      }]
+    })
+
+  const today = todayLocal()
+  return {
+    boards:    buildBoards(assignments, { regionNames, chapterNames }),
+    positions: buildPositions(assignments),
+    // THE ADULT FILTER IS ON THIS LIST ONLY, and `scheduleMeeting` re-applies it. Withholding
+    // a minor from the picker is §5; refusing one in the action is the gate, because a server
+    // action is a public HTTP endpoint and the page in front of it is a convenience.
+    adults: people
+      .filter(r => !isMinorOn(r.date_of_birth as string | null, today))
+      .map(r => ({
+        id:         r.id as string,
+        first_name: r.first_name as string,
+        last_name:  r.last_name as string,
+        nick_name:  (r.nick_name as string | null) ?? null,
+      })),
+    names: Object.fromEntries(people.map(r => [r.id as string, displayName(r)])),
+  }
+}
+
 // -------------------------------------------------------
 // The session
 // -------------------------------------------------------
@@ -308,12 +481,38 @@ export async function mayScheduleMeeting(): Promise<boolean> {
  * a bell entry must never undo the thing it announces (`lib/notifications.ts`'s rule), and
  * supabase-js RETURNS errors rather than throwing them, so the writers there read `error`
  * themselves. The meeting is already scheduled by the time this runs.
+ *
+ * ── WHO IS COMING IS THREE INPUTS SINCE 2026-08-22, AND THEY UNION ─────────────────
+ * `boardIds` (whole boards — the national board, a chapter's board), `positionIds` (one office
+ * taken across every area that fills it — "every chapter president"), and `additionalIds`
+ * (individual adults on top). The first two are resolved HERE, against
+ * `getMeetingAttendeeOptions()`, rather than being trusted as a list of people the client
+ * worked out: a client that sends `boardIds: ['national']` is asking for whoever holds a
+ * national office right now, and letting it send the resolved names instead would let it send
+ * any names at all. `resolveBoardAttendees` unions them, and `lib/meeting-boards.ts` is where
+ * that is argued and tested.
+ *
+ * ── THE ADULT RULE, AND EXACTLY WHAT IT COVERS ─────────────────────────────────────
+ * The SECRETARY must be an adult, and so must every `additionalIds` entry. Those are the two
+ * the ask names and the two a person chooses freely.
+ *
+ * BOARD MEMBERS ARE NOT AGE-CHECKED, deliberately. A board is resolved from `user_roles`, so
+ * everybody on it is somebody the family put in an office — and silently dropping an officer
+ * from the room because their recorded birthday makes them seventeen would be this function
+ * overruling a decision the family already made, invisibly, in a list nobody reads back. If a
+ * family should not be able to appoint a minor to an office, that belongs on
+ * `assignBoardPosition`, where it can be said out loud.
+ *
+ * The check is re-applied here and not left to the picker, because a server action is a public
+ * HTTP endpoint and the dialog in front of it is a convenience (§2).
  */
 export async function scheduleMeeting(input: {
   title: string
   meetsOn: string
   secretaryId: string
-  attendeeIds: string[]
+  boardIds?: string[]
+  positionIds?: string[]
+  additionalIds?: string[]
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
@@ -330,9 +529,50 @@ export async function scheduleMeeting(input: {
     return { success: false, message: 'That secretary is not in this family' }
   }
 
+  // ── THE TWO AGE CHECKS, IN ONE READ, BEFORE ANYTHING IS WRITTEN ───────────────────
+  // Reported separately and BY NAME, because "somebody you picked is under eighteen" over a
+  // list of nine leaves the organizer to work out which — and the two rules have different
+  // remedies: a different secretary, or a name taken off the list.
+  const additionalIds = [...new Set((input.additionalIds ?? []).filter(Boolean))]
+  const ages = await adultCheck([input.secretaryId, ...additionalIds], g.familyCode)
+  if (!ages.ok) return { success: false, message: ages.message }
+
+  const minorSecretary = ages.minorNames.get(input.secretaryId)
+  if (minorSecretary) {
+    return {
+      success: false,
+      message: `${minorSecretary} is under eighteen. Minutes have to be taken by an adult.`,
+    }
+  }
+  const minorGuests = additionalIds
+    .map(id => ages.minorNames.get(id))
+    .filter((name): name is string => Boolean(name))
+  if (minorGuests.length > 0) {
+    return {
+      success: false,
+      message: minorGuests.length === 1
+        ? `${minorGuests[0]} is under eighteen. Only adults can be added to a meeting by name.`
+        : `${minorGuests.join(', ')} are under eighteen. Only adults can be added to a meeting by name.`,
+    }
+  }
+
+  // ── THE BOARDS AND OFFICES, RESOLVED SERVER-SIDE ──────────────────────────────────
+  // See the header: the client names bodies, and this decides who is in them. The read is
+  // gated on the same grant this action already checked, so it costs nothing extra in
+  // authority and everything it returns is family-scoped by hand (§3).
+  const boardIds = input.boardIds ?? []
+  const positionIds = input.positionIds ?? []
+  let fromBoards: string[] = []
+  if (boardIds.length > 0 || positionIds.length > 0) {
+    const options = await getMeetingAttendeeOptions()
+    fromBoards = resolveBoardAttendees({
+      boardIds, positionIds, boards: options.boards, positions: options.positions,
+    })
+  }
+
   // DE-DUPLICATED AND WITH THE SECRETARY FOLDED IN, before anything is checked, so the checks
   // below run once per distinct person and the insert cannot trip its own primary key.
-  const attendeeIds = [...new Set([...(input.attendeeIds ?? []), input.secretaryId])]
+  const attendeeIds = [...new Set([...fromBoards, ...additionalIds, input.secretaryId])]
     .filter(Boolean)
   for (const personId of attendeeIds) {
     if (!(await belongsToFamily('people', personId, g.familyCode))) {
@@ -499,6 +739,20 @@ export async function deleteMeeting(id: string): Promise<{ success: boolean; mes
 }
 
 /** Add somebody to the room, or take them off the list. Both are the secretary's or an editor's. */
+/**
+ * Replace a meeting's attendee list wholesale.
+ *
+ * ── IT DOES NOT APPLY THE ADULTS-ONLY RULE, AND THAT IS DELIBERATE ─────────────────
+ * `scheduleMeeting` refuses a minor as secretary or as somebody added BY NAME. This takes a
+ * flat list of ids with no idea which of them came from a board, so applying the same rule
+ * here would refuse to re-save a room that legitimately contains an officer the family
+ * appointed who is under eighteen — see that function's header for why board members are not
+ * age-checked. The rule belongs where the distinction between "you chose this person" and
+ * "this person holds an office" still exists, which is at scheduling time.
+ *
+ * NOTHING CALLS THIS FROM THE UI TODAY. It is still a public HTTP endpoint and is gated as
+ * one: the edit grant, or being this meeting's secretary, and the meeting still open.
+ */
 export async function setMeetingAttendees(
   id: string,
   personIds: string[],

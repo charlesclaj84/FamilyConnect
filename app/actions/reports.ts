@@ -64,7 +64,7 @@ import {
  * split are all checkable without a database because of that split.
  */
 export async function getMembershipReport(): Promise<MembershipReport | null> {
-  const g = await requireScope('membership-report', 'view')
+  const g = await requireScope('reporting/membership', 'view')
   if (!g.ok) return null
   const familyCode = g.familyCode
   if (!familyCode) return null
@@ -286,7 +286,7 @@ export async function getMembershipSlice(
   breakdown: string,
   sliceKey: string,
 ): Promise<MembershipSlice | null> {
-  const g = await requireScope('membership-report', 'view')
+  const g = await requireScope('reporting/membership', 'view')
   if (!g.ok) return null
   const familyCode = g.familyCode
   if (!familyCode) return null

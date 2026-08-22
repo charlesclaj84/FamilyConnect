@@ -242,7 +242,7 @@ export async function linkPersonToCurrentUser(
   if (childTypeIds.length) {
     const { data: parentRels } = await admin
       .from('person_relationships')
-      .select('person_id, is_step')
+      .select('person_id')
       .eq('related_person_id', targetPersonId)
       .in('relationship_type_id', childTypeIds)
 
@@ -296,7 +296,12 @@ export async function linkPersonToCurrentUser(
           person_id: targetPersonId,
           related_person_id: rel.person_id,
           relationship_type_id: roleTypeId,
-          is_step: rel.is_step,
+          // NO `link_kind` CARRIED, and that is the same answer `is_step` gave before it was
+          // dropped on 2026-08-22: this copies a PARENT edge onto a newly linked account, and
+          // `link_kind` defaults to 'blood' exactly as `is_step` defaulted to false. Carrying
+          // the parent's kind across would be the right thing to do and is a change of
+          // behaviour rather than a rename, so it is not smuggled in here — see AGENTS.md §4c,
+          // "blood is a property of the LINK".
           family_code: familyCode,
           created_by: user.id,
         })

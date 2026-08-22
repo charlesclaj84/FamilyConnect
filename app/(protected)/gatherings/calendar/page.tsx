@@ -52,7 +52,7 @@ export const metadata = { title: 'Calendar' }
 export default async function CalendarPage({
   searchParams,
 }: {
-  // A Promise in this version of Next — see `/reporting/transactions`, which reads its `?ledger=` the
+  // A Promise in this version of Next — see `/accounting/transactions`, which reads its `?ledger=` the
   // same way.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
@@ -74,24 +74,40 @@ export default async function CalendarPage({
 
   // A LIST OF ONE, kept as a list because `sources` is kept as a record — see the action's
   // header. A second source is a line here and nothing else.
+  // ── WHAT IS NOT ON THE GRID, NAMED ─────────────────────────────────────────────────
+  // Three sources now, and this listed one. Meetings had been a source for a day and
+  // elections arrived on 2026-08-22; a member who cannot read either was shown a month with
+  // nothing on it and a page that said nothing was missing, which is a calendar rendering an
+  // empty August as a fact about the family.
+  //
+  // It says WHICH source is absent and never WHY. `sources` deliberately does not
+  // distinguish "you were not granted this" from "the query failed" — see the action's
+  // header — so a sentence claiming a reason would be a guess, and half the time a guess
+  // about somebody's permissions.
   const withheld = [
     !sources.gatherings && 'gatherings',
+    !sources.meetings && 'meetings',
+    !sources.elections && 'elections',
   ].filter((label): label is string => typeof label === 'string')
+  const withheldList = withheld.length === 1
+    ? withheld[0]
+    : `${withheld.slice(0, -1).join(', ')} or ${withheld[withheld.length - 1]}`
 
   return (
     <PageShell className="space-y-8">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Calendar</h1>
         <p className="text-muted-foreground">
-          Every gathering, a month at a time. A reunion that runs over several
-          days shows on each of them, and the month is in the address bar — so a link to it is
-          a link to that month.
+          Every gathering, every meeting you are down for, and every election window, a month
+          at a time. Anything that runs over several days — a reunion, a week of voting —
+          shows on each of them, and the month is in the address bar, so a link to it is a
+          link to that month.
         </p>
       </div>
 
       {withheld.length > 0 && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {`This calendar does not include ${withheld[0]}, so what you see below is not the whole month: that screen has either not been shared with you, or could not be read just now.`}
+          {`This calendar does not include ${withheldList}, so what you see below is not the whole month: ${withheld.length === 1 ? 'that screen has' : 'those screens have'} either not been shared with you, or could not be read just now.`}
         </div>
       )}
 

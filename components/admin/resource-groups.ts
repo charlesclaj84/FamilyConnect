@@ -242,12 +242,28 @@ const NO_OWNER_KEYS: readonly string[] = [
   // narrowing and grants the whole thing, which is what this list exists to prevent: both
   // actions resolve with `canAny`, so 'own' has never been a way to hold them.
   'reporting/membership', 'reporting/pl-summary',
+  // ── THE FOUR ACTIVITY REPORTS, 2026-08-22 ────────────────────────────────────────────
+  // Every one of them is a family-wide count and there is no "own" version of one. Leaving
+  // them off would offer an Own switch that no page and no action reads: all four resolve
+  // with `requireScope(key, 'view')`, which demands scope 'any', so a family setting one of
+  // these to Own would be setting it to none while the grid said otherwise.
+  'reporting/gatherings', 'reporting/elections', 'reporting/meetings', 'reporting/board',
 ]
 
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []
   const scopes = SCOPES_FOR[action]
-  if (resource.key.startsWith('transactions/') || NO_OWNER_KEYS.includes(resource.key)) {
+  // `accounting/transactions/…` — the six ledger sub-keys. None of them has an "own"
+  // version: a dues payment is recorded FOR somebody, and the row a treasurer would own is
+  // the abuse case, which is the same argument `canAny` exists for.
+  //
+  // THE PREFIX HAS MOVED TWICE AND BOTH MOVES BROKE THIS SILENTLY. It read `transactions/`
+  // until 20260820000004 rekeyed the six onto `reporting/transactions/…`, and nothing
+  // reported the mismatch — the grid simply started offering an Own switch that no policy
+  // reads. 20260822000022 moved them again, to `accounting/transactions/…`. A bare key is
+  // not sweepable (AGENTS.md, "routes are safe, bare keys are not"), so this line is the
+  // kind that has to be looked for by hand every time one of these moves.
+  if (resource.key.startsWith('accounting/transactions/') || NO_OWNER_KEYS.includes(resource.key)) {
     return scopes.filter(s => s !== 'own')
   }
   return scopes

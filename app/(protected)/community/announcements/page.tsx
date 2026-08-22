@@ -89,7 +89,7 @@ const first = (v: string | string[] | undefined): string | undefined =>
  *
  * ── WHY `requireView` IS DECOMPOSED HERE INSTEAD OF CALLED ──────────────────────────
  * Because any one of three keys can be a legitimate and sufficient reason to be on this
- * screen, and `requireView('announcements')` would 404 somebody whose family granted them the
+ * screen, and `requireView('community/announcements')` would 404 somebody whose family granted them the
  * birthday pane while restricting the board. That is not hypothetical bookkeeping — it is the
  * difference between the grid saying a member may see the family's birthdays and the product
  * honouring it.

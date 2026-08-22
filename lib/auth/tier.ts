@@ -93,7 +93,7 @@ export const getFamilyTier = cache(async (familyCode: string): Promise<FamilyTie
  * The key is the route without its leading slash — the same string `requireView()` takes
  * and the same one `permission_resources` is keyed by — so a sub-key inherits its page's
  * plan by `getFeature()`'s longest-prefix match. `admin/users/templates` is Free because
- * `/admin/members` is; `transactions/dues-payments` is Free because `/reporting/transactions` is.
+ * `/admin/members` is; `transactions/dues-payments` is Free because `/accounting/transactions` is.
  * That is the behaviour to want: a tab is part of the page it is on.
  */
 export async function tierAllows(userId: string, resourceKey: string): Promise<boolean> {

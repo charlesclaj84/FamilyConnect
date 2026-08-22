@@ -88,7 +88,17 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
   const created = formatDate(settings.createdAt)
 
   return (
-    <div className="space-y-6">
+    // ── TWO BANDS, SINCE 2026-08-22: MY PLAN, THEN FAMILY ──────────────────────────────
+    // The page held four unlabelled cards in a stack — plan, name, code, removal — and
+    // three of the four are the same KIND of fact while the first is not. The plan is a
+    // billing fact about this family's subscription; the other three are the family's own
+    // identity and whether it is switched on. A reader scanning the page had to work that
+    // out from the card captions.
+    //
+    // The bands are `h2` and every card under them is an `h3`, which is what makes the
+    // outline a screen reader reads match the one a sighted reader sees. `PlanPanel`'s own
+    // heading was demoted in the same commit for that reason.
+    <div className="space-y-10">
       {/* THE PLAN LEADS THE PAGE, since 2026-08-13. It used to be the last of three
           sections, under the name and the join code, on the reasoning that "what are we
           on?" is a fact of the same kind as the member count. It is not the same kind of
@@ -110,7 +120,13 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           `family-settings#plan` rather than anything on this screen. It sits UNDER the panel
           so it reads as "more about this" rather than as a caption over the first thing on
           the page. */}
-      <div className="space-y-2">
+      <section aria-labelledby="settings-plan" className="space-y-2">
+        <div className="space-y-1">
+          <h2 id="settings-plan" className="text-xl font-semibold">My Plan</h2>
+          <p className="text-sm text-muted-foreground">
+            Which subscription this family is on, and what moving between them does.
+          </p>
+        </div>
         <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
         <HelpLink
           variant="inline"
@@ -118,115 +134,125 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           section="plan"
           label="What changing the plan does"
         />
-      </div>
+      </section>
 
-      <section className="rounded-xl border bg-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Family name</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What this family is called everywhere in the app — the switcher, the dashboard,
-          and the emails inviting people to join. Changing it moves nothing else: the
-          family code below is what every record is filed under.
-        </p>
+      <section aria-labelledby="settings-family" className="space-y-4">
+        <div className="space-y-1">
+          <h2 id="settings-family" className="text-xl font-semibold">Family</h2>
+          <p className="text-sm text-muted-foreground">
+            What this family is called, the code relatives join it with, and switching it
+            off. Nothing here is ever deleted.
+          </p>
+        </div>
 
-        <form
-          className="mt-4 space-y-4"
-          onSubmit={e => { e.preventDefault(); if (dirty) submit() }}
-        >
-          {/* THE FIELD IS CAPPED, NOT THE PAGE. This page used to be `PageShell`'s
-              `reading` measure so that this box would not run the width of the screen —
-              which narrowed the whole page, and everything else on it, to solve a problem
-              belonging to one input. A family name is a few words; `max-w-md` is the size
-              of the thing being typed. */}
-          <div className="max-w-md space-y-1.5">
-            <Label htmlFor="family-name">Name</Label>
-            <Input
-              id="family-name"
-              value={name}
-              onChange={e => { setName(e.target.value); setSaved(false) }}
-              placeholder="The Okonkwo Family"
-              autoComplete="off"
-              maxLength={MAX_FAMILY_NAME}
-              disabled={!settings.canEdit || isPending}
-            />
+        <div className="rounded-xl border bg-card p-5 sm:p-6">
+          <h3 className="text-lg font-semibold">Family name</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            What this family is called everywhere in the app — the switcher, the dashboard,
+            and the emails inviting people to join. Changing it moves nothing else: the
+            family code below is what every record is filed under.
+          </p>
+
+          <form
+            className="mt-4 space-y-4"
+            onSubmit={e => { e.preventDefault(); if (dirty) submit() }}
+          >
+            {/* THE FIELD IS CAPPED, NOT THE PAGE. This page used to be `PageShell`'s
+                `reading` measure so that this box would not run the width of the screen —
+                which narrowed the whole page, and everything else on it, to solve a problem
+                belonging to one input. A family name is a few words; `max-w-md` is the size
+                of the thing being typed. */}
+            <div className="max-w-md space-y-1.5">
+              <Label htmlFor="family-name">Name</Label>
+              <Input
+                id="family-name"
+                value={name}
+                onChange={e => { setName(e.target.value); setSaved(false) }}
+                placeholder="The Okonkwo Family"
+                autoComplete="off"
+                maxLength={MAX_FAMILY_NAME}
+                disabled={!settings.canEdit || isPending}
+              />
+            </div>
+
+            <FormError message={error} />
+
+            {settings.canEdit ? (
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={!dirty || isPending}
+                  className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {isPending ? 'Saving…' : 'Save name'}
+                </button>
+                {saved && !dirty && (
+                  <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Check className="h-3.5 w-3.5" /> Saved
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                You can see this page but not change the name. Ask an administrator for the
+                Settings permission.
+              </p>
+            )}
+          </form>
+        </div>
+
+        <div className="rounded-xl border bg-card p-5 sm:p-6">
+          <h3 className="text-lg font-semibold">Family code</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Share this with relatives so they can join. Everyone who joins waits in Pending
+            Approval until somebody admits them.
+          </p>
+
+          <div className="mt-4 rounded-xl border-2 border-brand-primary/30 bg-brand-soft/40 px-6 py-4 text-center">
+            <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
+              Family Code
+            </p>
+            <p className="font-mono text-3xl font-bold tracking-widest text-brand-ink">
+              {settings.familyCode}
+            </p>
           </div>
 
-          <FormError message={error} />
-
-          {settings.canEdit ? (
-            <div className="flex items-center gap-3">
-              <button
-                type="submit"
-                disabled={!dirty || isPending}
-                className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {isPending ? 'Saving…' : 'Save name'}
-              </button>
-              {saved && !dirty && (
-                <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Check className="h-3.5 w-3.5" /> Saved
-                </span>
-              )}
-            </div>
-          ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              You can see this page but not change the name. Ask an administrator for the
-              Settings permission.
+              {settings.memberCount === 1
+                ? '1 member'
+                : `${settings.memberCount} members`}
+              {created && <> · started {created}</>}
             </p>
-          )}
-        </form>
-      </section>
+            <button
+              type="button"
+              onClick={copyCode}
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy code'}
+            </button>
+          </div>
 
-      <section className="rounded-xl border bg-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Family code</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Share this with relatives so they can join. Everyone who joins waits in Pending
-          Approval until somebody admits them.
-        </p>
-
-        <div className="mt-4 rounded-xl border-2 border-brand-primary/30 bg-brand-soft/40 px-6 py-4 text-center">
-          <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
-            Family Code
-          </p>
-          <p className="font-mono text-3xl font-bold tracking-widest text-brand-ink">
-            {settings.familyCode}
+          <p className="mt-4 text-sm text-muted-foreground">
+            The code cannot be changed, and a family cannot be deleted. Every record in the
+            family — dues, funds, events, chat, members — is filed under this code, and
+            nothing in the database points back the other way, so changing it would leave
+            the family holding none of its own history.
           </p>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {settings.memberCount === 1
-              ? '1 member'
-              : `${settings.memberCount} members`}
-            {created && <> · started {created}</>}
-          </p>
-          <button
-            type="button"
-            onClick={copyCode}
-            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-          >
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? 'Copied' : 'Copy code'}
-          </button>
-        </div>
+        {/* THE PLAN SECTION MOVED TO THE TOP OF THIS COMPONENT — see the comment there. It
+            is no longer read-only, and it no longer links to /pricing: an in-product screen
+            answering "what do we get?" by sending a signed-in administrator to the marketing
+            site was the thing that change removed. `lib/plans.ts` carries the copy. */}
 
-        <p className="mt-4 text-sm text-muted-foreground">
-          The code cannot be changed, and a family cannot be deleted. Every record in the
-          family — dues, funds, events, chat, members — is filed under this code, and
-          nothing in the database points back the other way, so changing it would leave
-          the family holding none of its own history.
-        </p>
+        {/* AND REMOVAL IS LAST, which is the one thing about its position that is decided
+            rather than left over. It is the heaviest control in the product and the least
+            often wanted, so it sits below everything somebody actually came here to do —
+            the same reasoning that puts the plan at the top. */}
+        <RemoveFamilySection settings={settings} />
       </section>
-
-      {/* THE PLAN SECTION MOVED TO THE TOP OF THIS COMPONENT — see the comment there. It
-          is no longer read-only, and it no longer links to /pricing: an in-product screen
-          answering "what do we get?" by sending a signed-in administrator to the marketing
-          site was the thing that change removed. `lib/plans.ts` carries the copy. */}
-
-      {/* AND REMOVAL IS LAST, which is the one thing about its position that is decided
-          rather than left over. It is the heaviest control in the product and the least
-          often wanted, so it sits below everything somebody actually came here to do —
-          the same reasoning that puts the plan at the top. */}
-      <RemoveFamilySection settings={settings} />
     </div>
   )
 }
@@ -283,10 +309,10 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
   if (settings.status !== 'active') {
     return (
       <section className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-5 sm:p-6">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
           <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
           This family has been removed
-        </h2>
+        </h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Nobody can open it, join it or accept an invitation to it.{' '}
           <strong className="font-semibold">Nothing has been deleted</strong> — every
@@ -368,10 +394,10 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
 
   return (
     <section className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-5 sm:p-6">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
+      <h3 className="flex items-center gap-2 text-lg font-semibold">
         <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
         Remove this family
-      </h2>
+      </h3>
       <p className="mt-1 text-sm text-muted-foreground">
         Switches the family off for everybody in it. Nobody can open it, the family code
         stops working, and outstanding invitations stop being accepted.

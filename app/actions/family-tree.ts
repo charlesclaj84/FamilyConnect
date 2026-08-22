@@ -760,7 +760,6 @@ async function linkRelationship(o: {
     person_id: o.anchorPersonId,
     related_person_id: o.personId,
     relationship_type_id: o.typeId,
-    is_step: false,
     link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,
@@ -793,7 +792,6 @@ async function linkRelationship(o: {
     // THE SAME KIND, both ways. A step-son's step-father is still a step link, and an
     // inverse row written as 'blood' would put him back in the bloodline from the other
     // side — where the walk reaches him just as happily.
-    is_step: false,
     link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,

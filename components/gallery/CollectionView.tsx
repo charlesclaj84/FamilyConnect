@@ -3,18 +3,21 @@
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Check, ChevronLeft, ChevronRight, LayoutGrid, List, Loader2, Pencil, Tag, Trash2, Upload, X,
+  Check, ChevronLeft, ChevronRight, LayoutGrid, List, Loader2, Pencil, Search, SlidersHorizontal,
+  Tag, Trash2, Upload, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
+import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { formatPersonName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
+import { matchesCaption } from '@/lib/photo-search'
+import { cn } from '@/lib/utils'
 import { IMAGE_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '@/lib/upload-types'
 import {
   deletePhoto, tagPersonInPhoto, untagPersonFromPhoto, updatePhotoCaption, uploadPhotos,
@@ -64,7 +67,15 @@ export function CollectionView({
   const confirm = useConfirm()
   const [photos, setPhotos] = useServerState(initialPhotos)
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [tagFilter, setTagFilter] = useState('')
+  // TWO FILTERS SINCE 2026-08-22, AND `tagFilter` IS A LIST NOW. It was one person, chosen
+  // from a `<Select>`, which answers "show me the ones with Ada in" and cannot answer "show
+  // me the ones with any of these three". A photograph matches when it carries ANY of the
+  // chosen people — the union, not the intersection: the control is captioned "who you want
+  // to see" and narrowing to photographs holding ALL of them is a different question, one a
+  // reader would have to be told the control was asking.
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  const [captionQuery, setCaptionQuery] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [error, setError] = useState('')
@@ -90,10 +101,32 @@ export function CollectionView({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [photos])
 
-  const shown = useMemo(
-    () => (tagFilter ? photos.filter(p => p.tags.some(t => t.person_id === tagFilter)) : photos),
-    [photos, tagFilter],
-  )
+  // The tagged people as `SelectablePerson`s, so the shared control can disambiguate two
+  // Martha Allens and search accents and punctuation the way it does everywhere else. Taken
+  // from the roster where the roster has them and synthesized from the embedded tag name
+  // where it does not — a tag can outlive a change to who this caller may read.
+  const taggablePeople = useMemo(() => {
+    const roster = new Map(allMembers.map(m => [m.id, m]))
+    return taggedPeople.map(t => roster.get(t.id) ?? {
+      id: t.id,
+      first_name: t.name.split(' ')[0] ?? t.name,
+      last_name: t.name.split(' ').slice(1).join(' '),
+    })
+  }, [taggedPeople, allMembers])
+
+  const shown = useMemo(() => {
+    const wanted = new Set(tagFilter)
+    return photos.filter(p =>
+      (wanted.size === 0 || p.tags.some(t => wanted.has(t.person_id)))
+      && matchesCaption(p.caption, captionQuery))
+  }, [photos, tagFilter, captionQuery])
+
+  const filterCount = tagFilter.length + (captionQuery.trim() ? 1 : 0)
+  function clearFilters() {
+    setTagFilter([])
+    setCaptionQuery('')
+    setLightbox(null)
+  }
 
   // THE LIGHTBOX INDEXES INTO THE FILTERED LIST, not the full one, so the arrows walk what the
   // reader is actually looking at. Filtering while it is open would otherwise show a
@@ -147,21 +180,68 @@ export function CollectionView({
             </button>
           </div>
 
-          {/* ONLY WHEN SOMEBODY IS TAGGED. A filter over an empty set is a control that cannot
-              do anything, which is the same argument the single-office journal makes about a
-              one-item rail. */}
-          {taggedPeople.length > 0 && (
-            <div className="space-y-1">
-              <Label htmlFor="tag-filter" className="text-xs">Who is in it</Label>
-              <Select id="tag-filter" value={tagFilter}
-                onChange={e => { setTagFilter(e.target.value); setLightbox(null) }}
-                className="w-52">
-                <option value="">Everybody</option>
-                {taggedPeople.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
+          {/* ── SEARCH THE CAPTIONS ──────────────────────────────────────────────────
+              Added 2026-08-22. It is in the bar rather than behind the disclosure below
+              because it is the filter somebody arrives WANTING — "the one of the boat" —
+              whereas narrowing by who is in a photograph is a second thought. The matching
+              rule is `lib/photo-search.ts` and not a `.includes()` here, for the reason
+              `lib/person-search.ts` exists: a rule inside a component can only be shared by
+              copying it, and copying it is how the Directory came to search accents while
+              the tagger did not. */}
+          <div className="space-y-1">
+            <Label htmlFor="caption-search" className="text-xs">Search captions</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                id="caption-search"
+                type="search"
+                value={captionQuery}
+                onChange={e => { setCaptionQuery(e.target.value); setLightbox(null) }}
+                placeholder="lake, reunion, 90th…"
+                className="w-56 pl-8"
+              />
             </div>
+          </div>
+
+          {/* ── WHO IS IN IT, BEHIND A DISCLOSURE ────────────────────────────────────
+              ONLY WHEN SOMEBODY IS TAGGED. A filter over an empty set is a control that
+              cannot do anything, which is the same argument the single-office journal makes
+              about a one-item rail.
+
+              IT IS `PersonMultiSelect` NOW, not a `<Select>`: the ask is to choose the tags
+              you want to SEE, plural, and a single-select cannot express it. That control is
+              the codebase's standard answer to "choose several members" — it searches
+              accents and punctuation, disambiguates two Martha Allens against the whole set,
+              keeps the choice on screen as chips when a search would otherwise hide it, and
+              bounds its own height so the size of the family cannot push the grid off the
+              page. Hand-rolling a fourth copy of that is the gap AGENTS.md records about
+              this very screen.
+
+              BEHIND A TOGGLE because it is a block rather than a field, and a block sitting
+              open above the photographs costs a screenful whether or not anybody is using
+              it. The count on the trigger is what stops a collapsed filter from being a
+              silently applied one. */}
+          {taggedPeople.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(o => !o)}
+              aria-expanded={filtersOpen}
+              aria-controls="who-is-in-it"
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-colors',
+                tagFilter.length > 0
+                  ? 'border-brand-primary/40 bg-brand-soft text-brand-on-soft'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              Who is in it
+              {tagFilter.length > 0 && (
+                <span className="rounded-full bg-brand-primary px-1.5 text-[10px] font-semibold text-brand-on-primary">
+                  {tagFilter.length}
+                </span>
+              )}
+            </button>
           )}
         </div>
 
@@ -179,12 +259,39 @@ export function CollectionView({
         </p>
       )}
 
-      {tagFilter && (
+      {/* THE PANEL THE TRIGGER OPENS. It is rendered rather than hidden with CSS so the
+          control is out of the tab order when it is closed. */}
+      {filtersOpen && taggedPeople.length > 0 && (
+        <div id="who-is-in-it" className="rounded-xl border bg-card p-4">
+          <PersonMultiSelect
+            people={taggablePeople}
+            selected={tagFilter}
+            onChange={next => { setTagFilter(next); setLightbox(null) }}
+            label="Who is in it"
+            hint="Pick anybody tagged in this album. A photograph shows when it has ANY of them in it — choosing three widens the result rather than narrowing it."
+            emptyMessage="Nobody is tagged in a photograph here yet."
+          />
+        </div>
+      )}
+
+      {/* ── WHAT THE FILTERS ARE DOING, IN ONE LINE ─────────────────────────────────
+          Both filters report through here, so the reader is never looking at a narrowed
+          grid with nothing on screen saying it has been narrowed. It counts against
+          `photos.length`, which is the whole album — a fraction of a filtered set would be
+          a figure that means nothing. */}
+      {filterCount > 0 && (
         <p className="text-xs text-muted-foreground">
-          {shown.length} of {photos.length} photograph{photos.length === 1 ? '' : 's'} show{' '}
-          {taggedPeople.find(p => p.id === tagFilter)?.name}.{' '}
-          <button type="button" className="underline underline-offset-4"
-            onClick={() => setTagFilter('')}>Show everybody</button>
+          Showing {shown.length} of {photos.length} photograph{photos.length === 1 ? '' : 's'}
+          {captionQuery.trim() && <> whose caption matches <strong className="font-medium">{captionQuery.trim()}</strong></>}
+          {captionQuery.trim() && tagFilter.length > 0 && ' and'}
+          {tagFilter.length > 0 && (
+            <> with {tagFilter
+              .map(id => taggedPeople.find(t => t.id === id)?.name ?? 'somebody')
+              .join(', ')} in {tagFilter.length === 1 ? 'it' : 'one of them'}</>
+          )}.{' '}
+          <button type="button" className="underline underline-offset-4" onClick={clearFilters}>
+            Clear filters
+          </button>
         </p>
       )}
 
@@ -193,9 +300,19 @@ export function CollectionView({
           No photographs in this album yet.
         </p>
       ) : shown.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Nobody is tagged in a photograph here.
-        </p>
+        // TWO FILTERS NOW, SO THE EMPTY STATE HAS TO SAY WHICH ONE EMPTIED IT. It read
+        // "Nobody is tagged in a photograph here", which was already only half true with one
+        // filter and is a plain lie with a caption search applied — the album HAS
+        // photographs, and the reader has hidden them.
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No photograph here matches what you are filtering on.
+          </p>
+          <button type="button" onClick={clearFilters}
+            className="mt-2 text-xs text-muted-foreground underline underline-offset-4">
+            Clear filters
+          </button>
+        </div>
       ) : view === 'grid' ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((photo, idx) => (

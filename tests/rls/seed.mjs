@@ -1643,17 +1643,17 @@ export async function seed() {
 
     const rels = must('relationships', await db.from('person_relationships').insert([
       { person_id: owner.personId, related_person_id: other.personId,
-        relationship_type_id: types.Wife, family_code: code, is_step: false,
+        relationship_type_id: types.Wife, family_code: code,
         created_by: owner.userId },
       // Matches the child row's creator, for the same reason.
       { person_id: owner.personId, related_person_id: f.child.id,
-        relationship_type_id: types.Son, family_code: code, is_step: false,
+        relationship_type_id: types.Son, family_code: code,
         created_by: familyAdmin.userId },
       { person_id: owner.personId, related_person_id: f.deletableChild.id,
-        relationship_type_id: types.Son, family_code: code, is_step: false,
+        relationship_type_id: types.Son, family_code: code,
         created_by: familyAdmin.userId },
       { person_id: owner.personId, related_person_id: f.ancestor.id,
-        relationship_type_id: types.Father, family_code: code, is_step: false,
+        relationship_type_id: types.Father, family_code: code,
         created_by: owner.userId },
     ]).select())
 

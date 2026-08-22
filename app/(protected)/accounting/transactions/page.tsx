@@ -22,7 +22,7 @@ export const metadata = { title: 'Transactions' }
  * separate gates, because "can see the page", "can see this ledger" and "can move
  * money" are three different questions:
  *
- *   1. requireView('transactions') — 404s anyone the family has restricted.
+ *   1. requireView('accounting/transactions') — 404s anyone the family has restricted.
  *   2. One VIEW grant per ledger, from LEDGER_RESOURCE, added by 20260808000000. It
  *      decides whether the tab is offered AND whether the ledger is fetched. Both
  *      halves matter: props are serialized into the RSC payload and reach the browser
@@ -51,7 +51,7 @@ export default async function TransactionsPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'reporting/transactions')
+  await requireView(user.id, 'accounting/transactions')
 
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
@@ -68,7 +68,7 @@ export default async function TransactionsPage({
   // for the PAGE key (`transactions`, Free) and knows nothing about the panes.
   //
   // It is applied to all five rather than to transfers alone, deliberately. Four of them
-  // resolve Free through `getFeature()`'s longest-prefix match on `/reporting/transactions`, so the
+  // resolve Free through `getFeature()`'s longest-prefix match on `/accounting/transactions`, so the
   // extra term decides nothing for them today — and the next capability sold separately
   // becomes one `tier:` line in `lib/features.ts` rather than an edit here that somebody
   // has to remember to make. A special case for the one ledger that currently differs is

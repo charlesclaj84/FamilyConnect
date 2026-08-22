@@ -28,7 +28,7 @@ export const metadata = { title: 'Membership' }
  * That page sold four things and delivered a mixture — a member count, a gathering count,
  * dues collected, t-shirt sizes and the last twenty money entries — which is a dashboard
  * rather than a report, and every money figure on it duplicated a screen that owns it
- * (`/reporting/pl-summary` for the statement, `/reporting/transactions` for the ledger,
+ * (`/reporting/pl-summary` for the statement, `/accounting/transactions` for the ledger,
  * `/reporting/dues-projections` for what is outstanding). What it did NOT answer was the
  * question an organizer actually brings to a report: where are our people, and how many of
  * them can we reach. This does
@@ -62,8 +62,19 @@ export default async function MembershipReportPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'membership-report')
-  if (!(await canAny(user.id, 'membership-report', 'view'))) notFound()
+  // ── THE KEY IS `reporting/membership`, AND IT SAID `membership-report` UNTIL 2026-08-22 ──
+  // `20260820000004` moved 42 keys onto their routes and swept the code for them; a BARE key
+  // is not mechanically sweepable (AGENTS.md, "routes are safe, bare keys are not") and these
+  // two were missed, along with two more in `app/actions/reports.ts`.
+  //
+  // IT FAILED OPEN, which is why it is worth the note rather than a quiet fix. An
+  // unregistered non-admin key resolves `view` to the `'everyone'` default, so `requireView`
+  // admitted every member and `canAny` answered `'any'` to all of them — this report was
+  // readable by the whole family whatever an administrator had set, and the switch on
+  // Members & Access moved nothing. That is the exact failure §6 describes for a key that
+  // has no row.
+  await requireView(user.id, 'reporting/membership')
+  if (!(await canAny(user.id, 'reporting/membership', 'view'))) notFound()
 
   // RESOLVED BESIDE THE REPORT rather than after it, so the page costs one round trip's worth
   // of latency for the pair. Neither is a gate; see the header.

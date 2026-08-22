@@ -57,7 +57,7 @@
  *     card and the P&L, which is `/reporting/pl-summary` and the unbuilt payments work.
  *   * **THE LEDGER IS FIVE ROUTES, NOT ONE**, and they had to move together or the tier
  *     boundary would run through the middle of one member's money.
- *     `/reporting/transactions`, `/admin/accounting`, `/accounting/dues`, `/accounting/donations` and `/reporting/payment-history` are all
+ *     `/accounting/transactions`, `/admin/accounting`, `/accounting/dues`, `/accounting/donations` and `/reporting/payment-history` are all
  *     `standard`, and `/accounting/summary` — which is a digest of the last three plus the
  *     family's fund balances — went with them, because a Free family reading a Summary with
  *     every section withheld is worse than a Free family with no Summary. Free keeps no money
@@ -69,7 +69,7 @@
  *     Standard sells is planning: `/admin/gatherings/templates` (the checklists a gathering is
  *     built from), `/gatherings/my-tasks` (the duties), and `/gatherings/budget` (the money
  *     band). The last two are rows that exist ONLY to carry a tier, the same device
- *     `/reporting/transactions/fund-transfers` uses; both are argued at their entries.
+ *     `/accounting/transactions/fund-transfers` uses; both are argued at their entries.
  *
  *     THIS BULLET USED TO READ "Every Gatherings route is FREE … forced rather than generous",
  *     and what made it forced was that a gathering could only be created FROM a template. That
@@ -234,7 +234,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Every payment recorded against you, with its date, method, status and reference.',
   },
   {
-    href: '/reporting/transactions',
+    href: '/accounting/transactions',
     label: 'Transactions',
     status: 'live',
     tier: 'standard',
@@ -243,7 +243,7 @@ export const FEATURES: readonly Feature[] = [
   // ── THE FIRST TIER BOUNDARY THAT RUNS *THROUGH* A PAGE, and the mechanism the `tier`
   // note above says to use for one. Added 2026-08-19.
   //
-  // Fund transfers are Plus; the other four ledgers on `/reporting/transactions` are Standard as of
+  // Fund transfers are Plus; the other four ledgers on `/accounting/transactions` are Standard as of
   // 2026-08-19 and were Free when this was written. The boundary still runs THROUGH the page,
   // which is what this row is for — only the rung underneath it moved. That is
   // a decision about the CAPABILITY rather than the screen — moving the family's savings
@@ -254,15 +254,15 @@ export const FEATURES: readonly Feature[] = [
   // THIS ROW EXISTS ONLY TO CARRY THE TIER, and three things follow that a reader will
   // otherwise take for mistakes:
   //
-  //   * `/reporting/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
-  //     is a pane on `/reporting/transactions?ledger=transfers`. The entry is here because
+  //   * `/accounting/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
+  //     is a pane on `/accounting/transactions?ledger=transfers`. The entry is here because
   //     `tierAllows()` resolves a key through `requiredTier()`, which is `getFeature()`'s
-  //     longest-prefix match — so without this row the sub-key inherits `/reporting/transactions`
+  //     longest-prefix match — so without this row the sub-key inherits `/accounting/transactions`
   //     and is Free, which is exactly what `lib/auth/tier.ts` documents as the default
   //     behaviour ("a tab is part of the page it is on"). This is the deliberate exception
   //     to it, and the only way to state one.
   //   * `status: 'live'` MATTERS. `proxy.ts` gates by prefix, so a `'future'` row here
-  //     would rewrite `/reporting/transactions/...` paths to Coming Soon — and, worse, `getResources()`
+  //     would rewrite `/accounting/transactions/...` paths to Coming Soon — and, worse, `getResources()`
   //     drops any grid row under a `'future'` prefix, so the Fund Transfers switch would
   //     vanish from Members & Access with no error at all.
   //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list in
@@ -278,7 +278,7 @@ export const FEATURES: readonly Feature[] = [
   // `families.tier` and none may start to, so a family that lapses to Free keeps every
   // transfer it ever recorded and loses the pane that lists them.
   {
-    href: '/reporting/transactions/fund-transfers',
+    href: '/accounting/transactions/fund-transfers',
     label: 'Fund Transfers',
     status: 'live',
     tier: 'plus',
@@ -564,7 +564,7 @@ export const FEATURES: readonly Feature[] = [
   // which is worth spelling out, because they look like they are. A row in FEATURES carries
   // the TIER for a key; `TAB_RESOURCES` decides whether `viewableResources()` should hand the
   // key back so a rail item can appear. The budget band needs the first and must not have the
-  // second, exactly like `/reporting/transactions/fund-transfers`. (That list gained a second
+  // second, exactly like `/accounting/transactions/fund-transfers`. (That list gained a second
   // entry on 2026-08-19 — `admin/chapters`, the Organization pane — which does not change
   // this reasoning: read the note on it, because the ground it earns its place on is not the
   // one `admin/users/templates` earns its place on.)
@@ -694,7 +694,7 @@ export const FEATURES: readonly Feature[] = [
   // (page, action module, client and `permission_resources` row; 20260820000003). It sold
   // four things and delivered a mixture: a member count, a gathering count, dues collected,
   // t-shirt sizes and the last twenty money entries. Every money figure on it duplicated a
-  // screen that owns one — `/reporting/pl-summary` for the statement, `/reporting/transactions` for the
+  // screen that owns one — `/reporting/pl-summary` for the statement, `/accounting/transactions` for the
   // ledger, `/reporting/dues-projections` for what is outstanding — and the one question an organizer
   // actually brings to a report, *where are our people and how many can we reach*, it did
   // not answer.
@@ -715,6 +715,51 @@ export const FEATURES: readonly Feature[] = [
   // (Reporting) — and that is the same arrangement AGENTS.md already sanctions for "Dues"
   // appearing under both Accounting and Transactions: the section heading is what tells them
   // apart, and each caption is right under its own heading.
+  // ══ THE FOUR ACTIVITY REPORTS, 2026-08-22 ═════════════════════════════════
+  // Reporting had five screens and every one of them read the MONEY: Membership is the
+  // roster, and Payment History, Transactions, Dues Projections and P&L Summary are four
+  // views of the ledger. Nothing reported on what the family DOES. These four answer that,
+  // and they ship together because they are one absence rather than four.
+  //
+  // ALL FOUR ARE `plus`, matching the two reports beside them. `lib/plans.ts` already sells
+  // "The numbers leadership asks for" on the Plus card, which is what these are; shipping
+  // them Free would put four leadership screens under a bullet that says otherwise. A route
+  // sold in no bullet is explicitly allowed here and is what these are, per the note above
+  // `PLANS[]` — the bullet covers the CLASS.
+  //
+  // EACH ONE IS ITS OWN KEY AND ITS OWN ROUTE, which §1 leaves no choice about: the key is
+  // the route without its leading slash. `20260822000023` registers the four, restricts them
+  // per family and grants them to Administrators. They are `view`-only — nothing on a report
+  // writes anything — and a `create`, `edit` or `delete` switch nothing consults reads as a
+  // control being honoured.
+  {
+    href: '/reporting/gatherings',
+    label: 'Gatherings',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Every gathering with how much of its work is done, what is overdue, and what its tasks claim against the budget.',
+  },
+  {
+    href: '/reporting/elections',
+    label: 'Elections',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Turnout per election, how many stood, and which offices nobody put a name forward for.',
+  },
+  {
+    href: '/reporting/meetings',
+    label: 'Meetings',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'How often the family meets, how big each room was, and who answers when a vote is called.',
+  },
+  {
+    href: '/reporting/board',
+    label: 'Board & Offices',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Every office the family has defined, who holds it, and which ones are standing empty.',
+  },
   {
     href: '/reporting/membership',
     label: 'Membership',
@@ -1050,7 +1095,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Reusable step-by-step lists that every gathering is built from.',
   },
   // ── SEPARATION OF DUTIES IS SOLD ON STANDARD, AND THIS ROW IS HOW ────────────────
-  // Added 2026-08-19. Second instance of the `/reporting/transactions/fund-transfers` device — a
+  // Added 2026-08-19. Second instance of the `/accounting/transactions/fund-transfers` device — a
   // registry row whose only job is to carry a tier for a sub-key — and everything that entry
   // says about it applies here. Three things a reader will otherwise take for mistakes:
   //

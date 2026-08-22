@@ -115,25 +115,6 @@ Reauthentication is the awkward one to trigger deliberately: it needs a session 
 GoTrue's 24-hour window, or `secure_password_change` on hosted (the item above). Email change is
 a Sign-in & Security away.
 
-### [ ] Confirm `rate_limit_email_sent` on hosted
-
-**Action:** one look at Authentication → Rate Limits, and nothing to run.
-
-`config.toml` sets `[auth.rate_limit] email_sent = 30` per hour, and says in as many words
-that the file is not read for it — the dashboard is. Nothing in the repo can check it, which
-is what puts this here.
-
-It became worth confirming on 2026-08-17, when `/login` gained a **Send the link again**
-button. `email_sent` is a PROJECT-WIDE hourly cap shared with every signup, reset, invitation
-and reauthentication email, so an abused resend does not merely annoy one address — it
-starves legitimate registrations. That, rather than the abused address, is the reason the
-number matters.
-
-The button is throttled on the client (one press per page load, no countdown) and that is
-honesty rather than a control: `/auth/v1/resend` is reachable without our page. If real abuse
-ever appears, `[auth.captcha]` plus `ResendParams`' `captchaToken` is the lever GoTrue already
-provides.
-
 ### [ ] The `production` environment carries all three credentials and a `master` branch rule
 
 **Action:** one look at Settings → Environments → production, and nothing to run.
@@ -170,63 +151,6 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 `db push` on production has no remaining justification: migrations reach hosted from CI on
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
-
-## `20260820000010` has not reached hosted, and the code already asks for its column
-
-**Action:** merge to `master` so `migrate.yml` applies it. Nothing else, and no code change —
-in particular do not make the select tolerate a missing column.
-
-`gatherings.photo_path` was added on 2026-08-21 for the Dashboard band's photograph, and the
-same commit widened two selects to ask for it — `GATHERING_SELECT` in
-[app/actions/gatherings.ts](app/actions/gatherings.ts) and the admin one in
-[app/actions/admin/gatherings.ts](app/actions/admin/gatherings.ts). Migrations reach hosted
-from CI on merge and by no other route (AGENTS.md, "How migrations reach the hosted project"),
-so a dev server pointed at hosted is running code ahead of the schema **right now**: PostgREST
-answers 42703 and kills the WHOLE query rather than that one column, so `getPremierGathering`
-returns null and the premier band silently disappears. Six reads are affected —
-`getGatherings`, `getGathering`, `getPremierGathering`, `getUpcomingGatheringCount` and both
-admin list and detail reads.
-
-This is Phase 3's incident in miniature and it is self-clearing: the ordering CI enforces for
-production (old code serves while the migration applies, new code is aliased afterwards) is
-exactly what a laptop pointed at hosted opts out of. Recorded because the symptom — a band that
-vanished — looks nothing like the cause, and because the fix is to land the migration rather
-than to soften the read.
-
-Confirm afterwards with `npm run db:check -- --linked`.
-
-Recorded 2026-08-21.
-
-## Confirm the realtime publication on hosted after the merge
-
-**Action:** one query, once, after `20260821000002` has been applied by CI:
-
-```sql
-SELECT schemaname, tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
--- expect exactly: public.chat_messages, public.notifications
-```
-
-**The defect this replaces is FIXED, and it was worse than the entry that used to sit here
-guessed.** The `supabase_realtime` publication held **zero tables** — measured on 2026-08-21 —
-so all three `postgres_changes` subscriptions in the product had been receiving nothing since
-the day each shipped: the notification bell, chat's per-room thread, and chat's unread tracker.
-`20260821000002` publishes both tables, guarded against 42710 for the databases where somebody
-may have toggled one by hand, and `npm run realtime:check` proves an event actually arrives and
-that RLS withholds one addressed to somebody else.
-
-**Why anything is left to do.** Publication membership is PER-DATABASE. The migration reaches
-hosted from CI on merge like everything else, so nothing needs doing by hand — but this is the
-one class of change where local being right says nothing about production, because the
-dashboard is the normal way it is done and the repo cannot see whether anybody did. One look
-closes it.
-
-**And it is worth looking rather than assuming, because hosted may have MORE than these two.**
-A table toggled on in the dashboard months ago is published on hosted and on no laptop, which
-is the divergence in the other direction — a feature that works in production and silently
-does nothing in development. If the query returns a third table, that is what has been found;
-add it to `20260821000002`'s list in a new migration rather than leaving it undeclared.
-
-Recorded 2026-08-21.
 
 ## Sorting is on two tables of sixteen
 
@@ -269,19 +193,6 @@ rather than on surname, which is the less useful order — `MemberRecord` has `l
 about. Both call sites say so; if that field is ever added, move both.
 
 Recorded 2026-08-21.
-
-## The family tree's second pass
-
-**Action:** none blocking. An ordinary backlog against a finished feature — the beta badge
-came off on 2026-08-13 and nothing here is a caveat a member needs warning about.
-
-* **`person_relationships.is_step` is dead weight and should be dropped.** `link_kind`
-  (`20260813000007`) superseded it — four values, `blood | step | adopted | foster`, set when
-  a relative is added and afterwards through the manage dialog, and it is what the Bloodline
-  toggle walks. `is_step` is written by nothing and read by nothing, and two columns
-  describing one fact is how they come to disagree (AGENTS.md §4c says so). Its own
-  migration, and see `20260813000006` for how much care a column drop wants.
-* **Dates on the connectors**, and a person card that says more than a name and a status.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 
@@ -431,53 +342,6 @@ reasoning is now AGENTS.md §2b. Two loose ends survive it:
   Confirm nothing depends on it, then drop it from both.
 * The suite still exercises `anon` through exactly one case. That is one more than
   before, and fewer than the role deserves.
-
-## The idle sign-out's two remaining cross-tab behaviours are still unconfirmed
-
-**Action:** twenty minutes with two tabs, after temporarily dropping the timer — see below.
-
-The single-tab path is **confirmed working in a browser on 2026-08-13**: the timer fires,
-the warning dialog appears for the last minute, the sign-out redirects to `/login` with its
-notice, and signing back in works — which is the half that had actually shipped broken once
-(`genorra:last-activity` outliving the session that wrote it). That is why the larger entry
-this replaces is gone. The number is now `IDLE_LIMIT_MINUTES = 60` in
-[lib/idle-timeout.ts](lib/idle-timeout.ts), matching `jwt_expiry`.
-
-**The cross-tab sign-out is confirmed too, 2026-08-13** — a second tab follows the first out
-via `genorra:idle-signed-out` rather than being left rendering a signed-in page over a
-revoked session. That was the riskiest of the three, because the failure mode is silent: the
-session is dead server-side and the stale tab looks fine until the next write fails.
-
-What is **not** confirmed is the pair below — one needing an already-open dialog, the other
-a second tab left alone for the whole limit. Both are why the first pass and the
-click-through missed them:
-
-* **The warning renders on top of a dialog the page already had open.** Every dialog in the
-  app is `fixed z-50`, so this rests entirely on `IdleTimeout` being mounted *after*
-  `{children}` in `app/(protected)/layout.tsx` — among equal z-indexes the later DOM node
-  wins. Open any form dialog, wait, and watch which one is in front. Getting this wrong
-  hides the warning at the one moment it is worth showing.
-* **Activity in one tab keeps the other alive** (`genorra:last-activity`, written at most
-  every `WRITE_THROTTLE_MS` = 5s). Without this, reading in one tab signs you out of both.
-
-**Drop the timer to validate, and put it back.** At 60 minutes these are untestable in
-practice — the keep-alive one alone needs an hour of not touching the other tab. Set
-`IDLE_LIMIT_MINUTES` to **2** for the session: `WARN_BEFORE_MS` comes *out of* the limit
-rather than being added to it, so 2 gives a minute of normal idling and then the last-minute
-warning, and anything below 2 is a page that warns from the moment it loads. Three things
-that make this safe and are worth knowing before doing it:
-
-* **Everything derives from that one constant**, `inheritedActivity()`'s expiry rule
-  included, so nothing else needs touching and nothing goes inconsistent while it is lowered.
-* **The `/login` notice interpolates it**, so it will read "signed out after 2 minutes" —
-  which is also the cheapest confirmation that the edit took effect at all rather than a
-  stale bundle being served.
-* **Revert before committing.** The value is a product decision and its comment explains the
-  `jwt_expiry` tie; a 2 left in place would sign real families out mid-sentence, and neither
-  typecheck nor lint has any opinion about it.
-
-Recorded 2026-08-13, when the single-tab path was confirmed and the timer moved 75 → 60;
-narrowed from three to two the same day, when the cross-tab sign-out was validated.
 
 ## `setTemplatePermission` takes a scope from the client and validates it against nothing
 

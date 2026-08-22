@@ -780,7 +780,7 @@ export function TransactionsClient({
           id,
           label: LEDGER_LABELS[id],
           icon: LEDGER_ICONS[id],
-          href: `/reporting/transactions?ledger=${id}`,
+          href: `/accounting/transactions?ledger=${id}`,
         }))}
         active={ledger}
         onSelect={selectLedger}

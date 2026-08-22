@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Gavel, Star, Vote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { monthLabel, type CalendarDay, type CalendarEntry, type CalendarMonth } from '@/lib/calendar'
 
@@ -89,8 +89,11 @@ const WEEKDAYS = [
 
 /** What each kind of entry is called, for the `sr-only` prefix and the legend. */
 const ENTRY_KIND_WORD = {
-  premier:   'Premier gathering',
-  gathering: 'Gathering',
+  premier:    'Premier gathering',
+  gathering:  'Gathering',
+  meeting:    'Meeting',
+  nominations: 'Nominations open',
+  voting:     'Voting open',
 } as const
 
 /**
@@ -101,14 +104,39 @@ const ENTRY_KIND_WORD = {
  * cannot make one chip 2px taller than the one above it — the rule `table-collapse.tsx` and
  * `MainRail` both keep for the same reason.
  */
+// ── ONE TONE PER KIND, AND EVERY ONE IS A DOCUMENTED PAIR ────────────────────────────
+// AGENTS.md: "every surface role has an `on-` partner guaranteed to meet WCAG AA against it
+// in BOTH themes", and a foreground from one pair on the surface of another is not a checked
+// combination. So each row below takes a surface and its own partner, and none is invented.
+//
+// `--brand-legacy` is the exception the token list already states: it has no `on-` partner,
+// because gold is 2.30 against white and can never carry text in light mode — `text-brand-on-
+// legacy` is dark ink on it, which is 6.14 and is what the premier chip has always used.
+//
+// THE MEETING TONE IS NEW, AND IT IS A REPAIR RATHER THAN AN ADDITION. `calendar.ts` has
+// emitted `kind: 'meeting'` since 2026-08-22 and `toneOf` looked only at `isPremier`, so
+// every meeting rendered in the gathering colour AND announced itself to a screen reader as
+// "Gathering:". The legend said there were two kinds when there were three.
 const ENTRY_TONE = {
-  premier:   'border border-transparent bg-brand-legacy text-brand-on-legacy font-medium',
-  gathering: 'border border-transparent bg-brand-soft text-brand-on-soft',
+  premier:     'border border-transparent bg-brand-legacy text-brand-on-legacy font-medium',
+  gathering:   'border border-transparent bg-brand-soft text-brand-on-soft',
+  meeting:     'border border-transparent bg-brand-primary text-brand-on-primary',
+  nominations: 'border border-brand-warm bg-transparent text-brand-on-warm',
+  voting:      'border border-transparent bg-brand-warm text-brand-on-warm',
 } as const
 
 type EntryTone = keyof typeof ENTRY_TONE
 
+/**
+ * The chip's tone, which is its KIND plus the one modifier a kind carries.
+ *
+ * An election contributes two entries and they are the same kind, so the two are told apart
+ * by `phase` — outline for nominations, filled for voting. Both are Warmth, because they are
+ * halves of one thing; the fill is what says the vote is the consequential half.
+ */
 function toneOf(entry: CalendarEntry): EntryTone {
+  if (entry.kind === 'meeting') return 'meeting'
+  if (entry.kind === 'election') return entry.phase === 'voting' ? 'voting' : 'nominations'
   return entry.isPremier ? 'premier' : 'gathering'
 }
 
@@ -131,6 +159,10 @@ function EntryChip({ entry }: { entry: CalendarEntry }) {
       title={entry.title}
     >
       {tone === 'premier' && <Star aria-hidden="true" className="mr-1 inline h-3 w-3" />}
+      {tone === 'meeting' && <Gavel aria-hidden="true" className="mr-1 inline h-3 w-3" />}
+      {(tone === 'nominations' || tone === 'voting') && (
+        <Vote aria-hidden="true" className="mr-1 inline h-3 w-3" />
+      )}
       {/* Says in words what the colour says in colour. */}
       <span className="sr-only">{ENTRY_KIND_WORD[tone]}: </span>
       {entry.title}
@@ -148,6 +180,10 @@ function adjacentCaption(day: CalendarDay, month: string): string | null {
 export function MonthCalendar({ month, className }: MonthCalendarProps) {
   const days = month.weeks.flat()
   const hasEntries = days.some(day => day.entries.length > 0)
+  // In `ENTRY_TONE`'s declaration order, so the legend reads the same way every month
+  // rather than in whatever order the first entry of the month happened to be.
+  const onGrid = new Set(days.flatMap(day => day.entries.map(toneOf)))
+  const legend = (Object.keys(ENTRY_TONE) as EntryTone[]).filter(tone => onGrid.has(tone))
 
   return (
     <section className={cn('space-y-4', className)} aria-label={`${month.label} calendar`}>
@@ -197,7 +233,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
       <div className="hidden overflow-hidden rounded-xl border sm:block">
         <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">
-            {`Gatherings in ${month.label}, one column per weekday.`}
+            {`What is on in ${month.label}, one column per weekday.`}
           </caption>
           <thead>
             <tr className="border-b bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -309,14 +345,24 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
         )}
       </div>
 
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-        {(['premier', 'gathering'] as const).map(tone => (
-          <li key={tone} className="flex items-center gap-1.5">
-            <span aria-hidden="true" className={cn('h-3 w-6 rounded', ENTRY_TONE[tone])} />
-            {ENTRY_KIND_WORD[tone]}
-          </li>
-        ))}
-      </ul>
+      {/* ── THE LEGEND NAMES ONLY WHAT IS ON THIS GRID ─────────────────────────────
+          It was a hand-written list of two, which was a second place that had to be kept in
+          step with `ENTRY_TONE` and was not: meetings had been on the calendar for a day
+          with no legend row. Deriving it from the entries fixes that AND fixes the §5-shaped
+          problem underneath — a legend row for Voting, shown to a member whose family has
+          restricted Elections, advertises a kind of thing they will never see a chip for.
+          A grid with nothing on it renders no legend at all, which is right: there is
+          nothing to explain. */}
+      {legend.length > 0 && (
+        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          {legend.map(tone => (
+            <li key={tone} className="flex items-center gap-1.5">
+              <span aria-hidden="true" className={cn('h-3 w-6 rounded', ENTRY_TONE[tone])} />
+              {ENTRY_KIND_WORD[tone]}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

@@ -170,10 +170,16 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
     <section className="rounded-xl border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">Your plan</h2>
+          {/* AN `h3`, NOT AN `h2`, SINCE 2026-08-22. This card sits under the page's own
+              **My Plan** band heading now, so a second `h2` here would put two headings of
+              the same rank on one band and leave a screen reader's outline saying the page
+              has two top-level sections where it has one. The caption changed with the
+              rank: the band answers "what are we on", so the card answers the next
+              question rather than repeating the first. */}
+          <h3 className="text-lg font-semibold">What each plan includes</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            What this family&rsquo;s subscription includes, and everything on the plans
-            above it.
+            Your family&rsquo;s subscription covers everything on its own row and on every
+            row above it.
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-legacy px-3 py-1 text-sm font-semibold text-brand-on-legacy">

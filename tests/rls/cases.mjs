@@ -1088,7 +1088,7 @@ export const CASES = [
   // composed by 20260618000001's sweep, which is exactly why it needs a case of its
   // own: nothing else in the chain would notice if the family conjunct were dropped
   // from a policy that no other file generates. The control is the ADMIN, because the
-  // SELECT policy demands `auth_permission('reporting/transactions/fund-transfers','view') =
+  // SELECT policy demands `auth_permission('accounting/transactions/fund-transfers','view') =
   // 'any'` — a plain member holds none, and `[]` is their correct answer.
   //
   // [crux], and verified as such: rebuild the policy without its
@@ -1425,7 +1425,6 @@ export const CASES = [
         related_person_id: TREE_PROBE_PERSON,
         relationship_type_id: type.id,
         family_code: 'ALPHATEST',
-        is_step: false,
       }))
     },
     probe: async (db) => probeRelationships(db, TREE_PROBE_PERSON),
@@ -2081,6 +2080,74 @@ export const MORE_CASES = [
   //
   // What a `raw/` probe WOULD still catch is the five SELECT policies, and there is none;
   // `tests/rls/seed.mjs` records that gap where the fixture is built.
+  // ── THE FOUR ACTIVITY REPORTS ──────────────────────────────────────────────
+  // Added 2026-08-22 with the reports themselves. Sixteen queries across the four, every one
+  // of them on the ADMIN CLIENT with a hand-written `.eq('family_code', …)` as the entire
+  // boundary — `deleteRegion`'s shape (AGENTS.md §3), which is the hole that has been opened
+  // four times in this codebase and never by disagreement.
+  //
+  // THE DEFAULT MARKER SCAN IS THE RIGHT ATTACK FOR ALL FOUR, and unusually so: these reports
+  // return NAMES and TITLES rather than counts alone — a gathering's title, an election's
+  // area, a secretary's name, an officer's name and the chapter they hold the office for. So
+  // a conjunct dropped from any of the sixteen surfaces as an ALPHA string in the payload,
+  // which is exactly what `alphaMarkers()` is a list of.
+  //
+  // EVERY CONTROL ASSERTS A POPULATED SHAPE, because an action that answers `null` or an
+  // empty report to everybody is perfectly isolated (§7) — and `null` is what all four return
+  // when `requireScope` refuses, so that failure mode is one line away at all times.
+  read('activity-reports.getGatheringsReport', 'app/actions/activity-reports.ts',
+    'getGatheringsReport', {
+      // BRAVO's administrator holds `reporting/gatherings` in their OWN family, because the
+      // migration grants it to every Administrators template. So the permission layer admits
+      // them and only the family conjuncts refuse — which is the whole point of making the
+      // attacker an administrator (§7).
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => Boolean(r)
+        && r.rows.some(row => row.id === fx.alpha.gathering.id)
+        // THE TASKS HALF RESOLVED. Without this the case passes for a report that lists every
+        // gathering with zero tasks against each — a report claiming the family is completely
+        // up to date on work it has not started, which is the failure the action's own §8
+        // guard is about.
+        && r.totals.tasks.total > 0,
+    }),
+  read('activity-reports.getElectionsReport', 'app/actions/activity-reports.ts',
+    'getElectionsReport', {
+      // [not evidence for the family conjunct on `election_votes` or `election_nominations`]
+      // Said out loud rather than left looking like proof, per §7. Neither table HAS a
+      // `family_code` — they are scoped through `election_id`, and the action filters them
+      // with `.in('election_id', <ids from a family-scoped read>)`. So there is no conjunct on
+      // those two to delete; what protects them is the id list, and the case below that
+      // watches the read producing it is this one's own attack half.
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => Boolean(r)
+        && r.rows.some(row => row.id === fx.alpha.election.id),
+    }),
+  read('activity-reports.getMeetingsReport', 'app/actions/activity-reports.ts',
+    'getMeetingsReport', {
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => Boolean(r)
+        && r.rows.some(row => row.id === fx.alpha.meeting.id)
+        // THE PARTICIPANT TABLE RESOLVED, and it is a separate read from the meetings one —
+        // `meeting_attendees` plus the roster. A report listing meetings with nobody in any
+        // room would pass without this.
+        && r.participants.length > 0
+        && r.participants.every(p => typeof p.name === 'string' && p.name.length > 0),
+    }),
+  read('activity-reports.getBoardReport', 'app/actions/activity-reports.ts',
+    'getBoardReport', {
+      positiveActor: 'alphaAdmin',
+      // THREE ASSERTIONS, and the middle one is the report's whole reason for existing.
+      //   * positions came back at all — `family_roles` resolved;
+      //   * `totals.positions` equals the rows, so a vacancy is a ROW and not a dropped one.
+      //     A report that listed only filled offices could not state its most useful fact,
+      //     and that is exactly what a `.filter(holders.length)` slipped in later would do;
+      //   * somebody is actually named — `user_roles` joined through to `people`, which is
+      //     the PGRST200 hazard the action reads five tables to avoid.
+      expectPositive: (r) => Boolean(r)
+        && r.rows.length > 0
+        && r.totals.positions === r.rows.length
+        && r.rows.some(row => row.holders.length > 0),
+    }),
   read('meetings.getMeetings', 'app/actions/meetings.ts', 'getMeetings', {
     // The default marker scan is the attack half — `f.meeting.id` and `f.meetingTopic.id` are
     // in `alphaMarkers()`, so a BRAVO caller receiving ALPHA's meeting is caught by id.
@@ -2204,7 +2271,7 @@ export const MORE_CASES = [
     mod: 'app/actions/meetings.ts', fn: 'scheduleMeeting',
     args: fx => [{
       title: 'cross-family meeting', meetsOn: '2026-10-01',
-      secretaryId: fx.alpha.ownerPersonId, attendeeIds: [],
+      secretaryId: fx.alpha.ownerPersonId, additionalIds: [],
     }],
     // PROBED ON THE SECRETARY AND NOT ON A FAMILY, which is the one shape that can see both
     // halves of this pair. The attack would write a BRAVO row naming an ALPHA person; the
@@ -2220,8 +2287,140 @@ export const MORE_CASES = [
     positiveActor: 'alphaAdmin',
     positiveArgs: fx => [{
       title: 'ALPHA control meeting', meetsOn: '2026-10-01',
-      secretaryId: fx.alpha.ownerPersonId, attendeeIds: [fx.users.alphaOther.personId],
+      secretaryId: fx.alpha.ownerPersonId, additionalIds: [fx.users.alphaOther.personId],
     }],
+  },
+  // ── THE ATTENDEE OPTIONS: BOARDS, OFFICES AND ADULTS ───────────────────────
+  // `getMeetingAttendeeOptions` reads FIVE tables on the ADMIN client — `user_roles`,
+  // `family_roles`, `people`, `chapters`, `regions` — so no policy is underneath any of them
+  // and the five hand-written `.eq('family_code', …)` conjuncts are the entire boundary
+  // (§3, `deleteRegion`'s shape). Every one of them is worth a marker scan.
+  //
+  // THE DEFAULT ATTACK IS THE MARKER SCAN, which is the right instrument here precisely
+  // because this action returns NAMES: `alphaMarkers()` carries ALPHA's people, its chapter
+  // and its region, so a missing conjunct on any of the five surfaces as a name in the payload
+  // rather than as a count that happens to be wrong.
+  read('meetings.getMeetingAttendeeOptions', 'app/actions/meetings.ts',
+    'getMeetingAttendeeOptions', {
+      // THE CONTROL ASSERTS THREE SEPARATE THINGS, because an action that answers an empty
+      // shape to everybody is perfectly isolated (§7):
+      //   * `adults` is populated at all — the roster read resolved.
+      //   * `f.child` (born 2015) is NOT in it — the age filter is doing something. Without
+      //     this, `adults` could be the whole roster and nothing here would say so.
+      //   * `names` resolves an id to a name — the map the dialog's summary renders from.
+      //
+      // [not evidence that a board is ever built] Said out loud rather than left looking like
+      // coverage, per §7. The fixture seeds no `user_roles` row, so `boards` and `positions`
+      // are legitimately empty and asserting otherwise would be asserting something about the
+      // fixture. `lib/meeting-boards.test.ts` covers the shaping; what this file is missing is
+      // a seeded board assignment, and that is the fix rather than a weaker assertion here.
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => Boolean(r)
+        && Array.isArray(r.adults) && r.adults.length > 0
+        && !r.adults.some(p => p.id === fx.alpha.child.id)
+        && typeof r.names[fx.alpha.ownerPersonId] === 'string',
+    }),
+  // ── [crux] THE SECRETARY HAS TO BE AN ADULT ────────────────────────────────
+  // `alphaAdmin` is approved, is in ALPHA, holds every grant the key confers, and names a
+  // person genuinely in their own family. The ONLY thing refusing them is `adultCheck`. Take
+  // that out and this goes red and nothing else does.
+  //
+  // IT IS AN `attacker: 'alphaAdmin'` CASE RATHER THAN A CROSS-FAMILY ONE, deliberately: this
+  // is not a family-isolation rule and dressing it as one would mislead. It is in this suite
+  // because this suite is what calls the real exported endpoint, and a rule enforced only in
+  // the picker is a rule a POST to this URL does not have (§2).
+  //
+  // THE PROBE IS FAMILY-WIDE rather than filtered to the secretary, because one probe serves
+  // both halves: the attack must leave ALPHA's meetings untouched and the control must add
+  // one. A probe filtered on the child would report the control as a no-op.
+  {
+    kind: 'write',
+    id: 'meetings.scheduleMeeting (a secretary who is a minor)',
+    mod: 'app/actions/meetings.ts', fn: 'scheduleMeeting',
+    attacker: 'alphaAdmin',
+    args: fx => [{
+      title: 'minuted by a child', meetsOn: '2026-10-02',
+      secretaryId: fx.alpha.child.id, boardIds: [], positionIds: [], additionalIds: [],
+    }],
+    probe: snapshot('meeting_sessions', 'id, title, family_code, secretary_id',
+      { family_code: 'ALPHATEST' }),
+    expectRefusal: v => v?.success === false && /under eighteen/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: under eighteen' }
+      : { ok: false, detail: `expected an age refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS THE SAME CALL WITH AN ADULT SECRETARY, and it has to be here or the case
+    // passes for a `scheduleMeeting` that refuses everybody. `f.ancestor` was born in 1950.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'ALPHA adult-secretary control', meetsOn: '2026-10-02',
+      secretaryId: fx.alpha.ancestor.id, boardIds: [], positionIds: [], additionalIds: [],
+    }],
+  },
+  // ── [crux] AND SO DOES ANYBODY ADDED BY NAME ───────────────────────────────
+  // The second half of the same rule, refused by the same read and reported with a different
+  // sentence — the remedy differs (a different secretary, versus a name taken off the list),
+  // which is why the action distinguishes them and why this is its own case.
+  {
+    kind: 'write',
+    id: 'meetings.scheduleMeeting (a named attendee who is a minor)',
+    mod: 'app/actions/meetings.ts', fn: 'scheduleMeeting',
+    attacker: 'alphaAdmin',
+    args: fx => [{
+      title: 'a child in the room', meetsOn: '2026-10-03',
+      secretaryId: fx.alpha.ancestor.id,
+      boardIds: [], positionIds: [], additionalIds: [fx.alpha.child.id],
+    }],
+    probe: snapshot('meeting_sessions', 'id, title, family_code, secretary_id',
+      { family_code: 'ALPHATEST' }),
+    expectRefusal: v => v?.success === false && /under eighteen/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: under eighteen' }
+      : { ok: false, detail: `expected an age refusal, got ${JSON.stringify(v)}` },
+    // AN ADULT IN THE SAME SLOT LANDS. Without this the case would pass for an action that
+    // refuses every `additionalIds` entry — the failure §7 says the control exists to catch.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'ALPHA adult-guest control', meetsOn: '2026-10-03',
+      secretaryId: fx.alpha.ancestor.id,
+      boardIds: [], positionIds: [], additionalIds: [fx.users.alphaOther.personId],
+    }],
+  },
+  // ── A BOARD ID IS RESOLVED IN THE CALLER'S OWN FAMILY, NEVER TAKEN AS PEOPLE ───
+  // BRAVO's administrator sends `boardIds: ['national']` and a chapter board keyed on one of
+  // ALPHA's chapters. Both are resolved by `getMeetingAttendeeOptions()` INSIDE the action,
+  // against BRAVO's own five family-scoped reads — so `national` means BRAVO's national board
+  // and ALPHA's chapter key matches no option at all. The client never sends people.
+  //
+  // WHAT THIS IS EVIDENCE FOR, said out loud per §7: that the action resolves bodies to people
+  // itself rather than trusting a list the client worked out. It is NOT evidence for a family
+  // conjunct on any of the five reads — `resolveBoardAttendees` ignores an id it does not
+  // know, so dropping a conjunct would widen the OPTIONS without widening this result.
+  // `meetings.getMeetingAttendeeOptions` above is the case that watches those reads.
+  {
+    kind: 'write',
+    id: 'meetings.scheduleMeeting (another family\'s board)',
+    mod: 'app/actions/meetings.ts', fn: 'scheduleMeeting',
+    args: fx => [{
+      title: 'borrowed board', meetsOn: '2026-10-04',
+      secretaryId: fx.alpha.ownerPersonId,
+      boardIds: ['national', `chapter:${fx.alpha.chapter.id}`],
+      positionIds: [], additionalIds: [],
+    }],
+    // WRAPPED, because `snapshot`'s filter is evaluated when the module loads and `fx` does
+    // not exist then. The two age cases above filter on a literal family code and so need no
+    // wrapper; this one names a fixture row.
+    probe: (db, fx) => snapshot('meeting_sessions', 'id, title, family_code, secretary_id',
+      { secretary_id: fx.alpha.ownerPersonId })(db),
+    // Refused before the boards are looked at — the ALPHA secretary fails `belongsToFamily`
+    // first, which is the correct order. That is also why this case pairs the borrowed board
+    // with a cross-family SECRETARY rather than a BRAVO one: with a BRAVO secretary the call
+    // would succeed and prove nothing, since the ALPHA chapter key resolves to nobody either
+    // way and the meeting would simply have one person in it.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: not in this family' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'The control for this endpoint is `meetings.scheduleMeeting (a secretary from '
+      + 'another family)` directly above — same call, same secretary, an ALPHA caller. A '
+      + 'second control here would schedule an identical meeting and assert the same row.',
   },
   {
     kind: 'write',
@@ -3228,7 +3427,7 @@ export const MORE_CASES = [
   //
   //   1. Drop `.eq('family_code', familyCode)` from the SOURCE fund lookup in
   //      transferBetweenFunds  → (cross-family) goes red.
-  //   2. Drop `canAny(user.id, 'reporting/transactions/fund-transfers', 'create')`
+  //   2. Drop `canAny(user.id, 'accounting/transactions/fund-transfers', 'create')`
   //                            → (member with no grant) goes red.
   //   3. Drop `.eq('family_code', familyCode)` from the DESTINATION lookup
   //                            → (one fund from each family) STAYS GREEN.
@@ -3298,7 +3497,7 @@ export const MORE_CASES = [
     mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
     // The half family scoping cannot catch. alphaMember is inside the boundary and
     // approved; what has to refuse them is the grant — canAny() in the action, and
-    // `auth_permission('reporting/transactions/fund-transfers','create') = 'any'` in the INSERT
+    // `auth_permission('accounting/transactions/fund-transfers','create') = 'any'` in the INSERT
     // policy beneath it. A transfer has no owner, so 'own' must not be a way in either.
     attacker: 'alphaMember',
     args: fx => [{
@@ -4084,7 +4283,7 @@ export const PENDING_CASES = [
   // NOT [crux], and labelled so rather than left looking like evidence. The SELECT
   // policy on fund_transfers does carry `auth_membership_approved()` (20260812000002
   // §6), but neutering it changes nothing here: the conjunct beside it demands
-  // `auth_permission('reporting/transactions/fund-transfers','view') = 'any'`, auth_permission()
+  // `auth_permission('accounting/transactions/fund-transfers','view') = 'any'`, auth_permission()
   // resolves through auth_person_id(), and auth_person_id() already returns NULL for
   // anyone not approved. The applicant is refused twice over and this case cannot tell
   // which refusal did it.

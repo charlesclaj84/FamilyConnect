@@ -5,6 +5,8 @@ import { can } from '@/lib/auth/permissions'
 import { isFeatureLive } from '@/lib/features'
 import { createClient } from '@/lib/supabase/server'
 import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
+import { electionWindows } from '@/lib/election-calendar'
+import { getElectionsForMember } from '@/app/actions/elections'
 
 /**
  * One month of the family calendar — `/gatherings/calendar`.
@@ -81,6 +83,12 @@ export interface CalendarSources {
    * dues date — plugs into that with no re-plumbing."
    */
   meetings: boolean
+  /**
+   * ELECTIONS, since 2026-08-22, and the third thing to plug into the shape this record kept
+   * after Events was retired. It is the first source that is not one row per entry: see
+   * `electionEntries` below.
+   */
+  elections: boolean
 }
 
 export interface CalendarMonthData {
@@ -115,7 +123,7 @@ interface MeetingRow {
 }
 
 const NOTHING: CalendarMonthData = {
-  entries: [], sources: { gatherings: false, meetings: false },
+  entries: [], sources: { gatherings: false, meetings: false, elections: false },
 }
 
 /** `YYYY-MM-DD` from a UTC instant, read through `getUTC*` for the reason in the header. */
@@ -196,10 +204,17 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
   const mayMeetings = isFeatureLive('/library/meeting-minutes')
     ? await can(g.userId, 'library/meeting-minutes', 'view')
     : false
+  // Same shape again, and the same two questions: does the screen a cell would link to
+  // exist, and may this caller open it.
+  const mayElections = isFeatureLive('/community/elections')
+    ? await can(g.userId, 'community/elections', 'view')
+    : false
 
   const { from, to } = gridWindow(month)
   const entries: CalendarEntry[] = []
-  const sources: CalendarSources = { gatherings: mayGatherings, meetings: mayMeetings }
+  const sources: CalendarSources = {
+    gatherings: mayGatherings, meetings: mayMeetings, elections: mayElections,
+  }
 
   const supabase = await createClient()
 
@@ -281,6 +296,35 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
           kind:     'meeting',
           href:     `/library/meeting-minutes/${row.id}`,
         })
+      }
+    }
+  }
+
+  // ── ELECTIONS ───────────────────────────────────────────────────────────────────
+  // NOT FETCHED rather than fetched-and-filtered, like the two sources above it (§5).
+  //
+  // ── IT CALLS `getElectionsForMember()` RATHER THAN QUERYING `elections` ──────────
+  // Deliberately, and it is the one place this file reaches for another action instead of
+  // writing its own read. What decides which elections a member may see is not RLS alone:
+  // an election carries a SCOPE and an AREA (national, one region, one chapter), and
+  // whether the caller is inside that area is resolved in TypeScript by
+  // `electionAreaMatch` against a map of chapter->region the action builds on the admin
+  // client. Writing a second query here would mean a second copy of that resolution, and
+  // `tests/rls/raw/elections.mjs`' own header records what happens when the app layer and
+  // the SQL layer disagree about this: with `auth_may_see_election()` replaced by `true`
+  // the whole suite still reported 649/649, because the app filter was doing the work.
+  // Two copies of a filter like that is how one of them comes to be wrong quietly.
+  //
+  // THE COST IS THAT IT IS NOT WINDOWED. That action reads every published election in the
+  // family and this drops the ones that miss the grid. Elections are a handful per family
+  // per year — a family running enough of them for that to matter has a different problem —
+  // and the alternative is the duplicated area logic above. Revisit by giving that action a
+  // date-range parameter, never by re-querying here.
+  if (mayElections) {
+    for (const election of await getElectionsForMember()) {
+      for (const window of electionWindows(election)) {
+        if (!overlaps(window.startsOn, window.endsOn, from, to)) continue
+        entries.push(window)
       }
     }
   }

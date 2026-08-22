@@ -1652,7 +1652,7 @@ paid a disbursement and never run an event read `$0.00` over money that had demo
 **`fund_balance_cents()` STILL HAS NO `authenticated` EXECUTE GRANT AND MUST NOT GAIN ONE.** That
 migration's first draft added one on §2b's "adding a function means adding its grant" reflex, which
 is right for a function the browser calls and wrong for this one. A balance recomputed on the USER
-client silently omits the transfer term for anyone without `transactions/fund-transfers:view`,
+client silently omits the transfer term for anyone without `accounting/transactions/fund-transfers:view`,
 which is why `getGatheringFundOptions` calls it through the admin client - granting it to
 `authenticated` would put the per-viewer version back within reach. The migration asserts the grant
 is ABSENT.
@@ -1856,7 +1856,7 @@ Three consequences a change here will get wrong:
   redirects a templates-only caller to `/upgrade`. Same for `/gatherings` and its My Tasks pane.
   `requireTier` at the top of either page resolves the page's OWN key and cannot see a pane.
 * **`gatherings/budget` and `admin/users/templates` have `FEATURES` rows that are not routes**,
-  carrying nothing but the tier — the `/transactions/fund-transfers` device. Both are named in
+  carrying nothing but the tier — the `/accounting/transactions/fund-transfers` device. Both are named in
   `help-check.mjs`'s `UNDOCUMENTED_OK` for that reason.
 * **The template READS are tier-gated, the WRITES are not.** `getSchedulableTemplates` and
   `getGatheringTemplates` are skipped for a Free family so the picker offers nothing; the actions
@@ -1960,7 +1960,7 @@ that budget plus what other live gatherings already claim on the same fund. Ther
 concept in the schema — a fund balance counts money that has MOVED — so "already committed" is
 arithmetic this feature invented, and it is computed on the ADMIN client through
 `fund_balance_cents()`, for the same reason `getActiveFundsForRouting` is: a balance read on the
-user client silently omits the transfer term for anyone without `transactions/fund-transfers:view`,
+user client silently omits the transfer term for anyone without `accounting/transactions/fund-transfers:view`,
 and two members must not disagree about whether a gathering is over its fund.
 
 ## `is_premier` HAS NO UNIQUENESS, AND THE SOONEST UPCOMING ONE WINS
@@ -2165,10 +2165,94 @@ moment anybody had voted on it; both directions are asserted in its verify block
 An escape hatch in the `storage.protect_delete()` style was rejected here: a hatch is a thing any
 future action can set, where a depth test can only be satisfied by an actual cascade.
 
+**WHO IS COMING IS A BODY, NOT A LIST OF NAMES — 2026-08-22.** `scheduleMeeting` takes
+`boardIds`, `positionIds` and `additionalIds`, and the first two are resolved SERVER-SIDE
+against `getMeetingAttendeeOptions()`. A family meeting is almost always a body meeting — the
+national board, one chapter's board, every chapter president — and ticking eleven names to
+describe one is both tedious and wrong next month, when somebody has been replaced.
+
+Three things about it are load-bearing:
+
+* **There is no `boards` table and this must not grow one.** A board is the set of people
+  holding an office at one SCOPE in one AREA, which is what `user_roles` already records
+  through `scope` plus `region_id` or `chapter_id`. That is the same three-word vocabulary an
+  election scopes itself with and a board position is created with. `lib/meeting-boards.ts` is
+  the pure shaping and `boardKey` is the composite id — `national`, `regional:<id>`,
+  `chapter:<id>`, PREFIXED because a region id and a chapter id are both uuids from different
+  tables and would otherwise collide.
+* **A BOARD IS LISTED ONLY WHERE SOMEBODY HOLDS AN OFFICE THERE.** Nine chapters with two
+  filled means two boards, not nine — seven empty boards is seven controls that select nobody.
+  The count on each option is what keeps that honest in the other direction.
+* **THE CLIENT NAMES BODIES AND NEVER SENDS PEOPLE.** `scheduleMeeting` re-resolves the ids
+  itself, so `boardIds: ['national']` asks for whoever holds a national office at that moment.
+  Accepting a resolved list would let a caller send any names at all — a server action is a
+  public HTTP endpoint. It also means a board key from another family resolves to nobody
+  rather than to that family's board.
+
+**ADULTS ONLY, IN TWO PLACES, AND DELIBERATELY NOT IN A THIRD.** The SECRETARY must be an
+adult, and so must anybody added BY NAME. Both are the free choices somebody makes in the
+dialog, both pickers are filtered server-side (§5), and `scheduleMeeting` refuses one anyway
+because the dialog in front of it is a convenience (§2).
+
+**BOARD MEMBERS ARE NOT AGE-CHECKED**, and that asymmetry is the decision rather than an
+oversight. Somebody on a board is somebody the family put in an office; silently dropping them
+from the room over a recorded birthday would be the product overruling that appointment,
+invisibly, in a list nobody reads back. If a family should not be able to appoint a minor,
+that belongs on `assignBoardPosition` where it can be said out loud.
+
+`isMinorOn` in `lib/age-utils.ts` is the ONE definition and **a member with no recorded
+birthday is an adult** — its own answer for a null, and the same reading the chapter
+propagation takes (§4b). "Under eighteen" is something a family has recorded, not something to
+assume about a blank field; assuming it would refuse to let a grandmother whose birthday
+nobody entered take the minutes, with nothing on the screen to explain why.
+
+**`setMeetingAttendees` does NOT apply the adult rule**, and its header says so. It takes a
+flat list with no idea which ids came from a board, so applying the rule there would refuse to
+re-save a room legitimately containing an officer under eighteen. The rule belongs where the
+distinction between "you chose this person" and "this person holds an office" still exists.
 **A MEETING IS ON ITS ATTENDEES' CALENDARS AND NOBODY ELSE'S**, which is a per-VIEWER narrowing
 rather than a permission one and is unlike anything else on that grid. It is filtered in
 TypeScript in `app/actions/calendar.ts`, deliberately: the rows it drops are rows the caller may
 read anyway, so writing it as a policy-shaped query would tell the next reader it was §5.
+
+## The calendar has three sources, and adding a fourth is a known shape
+
+`/gatherings/calendar` draws gatherings, the meetings you are down for, and — since
+2026-08-22 — every published election's nomination and voting windows. `CalendarSources` is a
+RECORD rather than a boolean precisely so a fourth plugs in with no re-plumbing, which is what
+that field's own header predicted and what elections then did.
+
+Five things a fourth source has to get right, all of them learned from the three:
+
+* **RESOLVE THE GRANT, THEN SKIP THE QUERY (§5).** Each source is gated on the key that owns
+  the SCREEN A CELL WOULD LINK TO, not on `calendar:view` — a cell linking to a page the
+  member cannot open is the worst thing a calendar can do — and `isFeatureLive` is asked as
+  well, so a source whose route serves Coming Soon is not linked from here.
+* **A REFUSED QUERY MUST MARK ITS SOURCE WITHHELD (§8).** A source that produced nothing
+  because PostgREST refused it must never report itself as shown, or an empty August renders
+  as a fact about the family. And the PAGE has to name every withheld source: it listed one of
+  three until 2026-08-22, so a member who could read neither meetings nor elections was shown
+  an empty month and a page that said nothing was missing.
+* **`sources` ANSWERS "IS THIS ON THE GRID", NEVER "WHY NOT".** A refusal and an outage are
+  deliberately indistinguishable, so the page must not grow a sentence claiming a reason —
+  half the time it would be a guess about somebody's permissions.
+* **A MULTI-DAY SPAN FILLS EVERY DAY, and that is free.** `buildCalendarMonth` puts an entry
+  on every cell between its start and its end inclusively, so a three-day reunion appears
+  three times and a fortnight of voting fourteen. Nothing has to be done to opt in; what has
+  to be got right is that the window is the GRID's, six days either side of the month.
+* **ONE ROW MAY BE MORE THAN ONE ENTRY, and then the ids must differ.** An election
+  contributes TWO — the nomination window and, after a gap, the voting window — because they
+  are two different things a member has to do and the days between them are deliberately
+  empty. `buildCalendarMonth` keys a chip on `${day}:${entry.id}`, so the two carry
+  `:nominations` and `:voting` suffixes. They cannot overlap today (`voting_open_on >
+  nominations_close_on` is a CHECK), which is exactly the kind of invariant that would make a
+  duplicate-key bug wait years for the schema change that breaks it.
+
+**AND THE LEGEND IS DERIVED FROM WHAT IS ON THE GRID**, not hand-written. It was a list of two
+while meetings had been rendering for a day — in the gathering colour, announcing themselves to
+a screen reader as "Gathering:" — because `toneOf` looked only at `isPremier`. Deriving it also
+fixes the §5-shaped half: a legend row for Voting, shown to a member whose family has
+restricted Elections, advertises a kind of thing they will never see a chip for.
 
 ## Bylaws is scaffolding, and the screen says which half
 
@@ -2389,7 +2473,7 @@ therefore a MIGRATION; see below for what one costs.
 * **A pane, a redirect or a tier-carrying sub-key nests under its rail item.** These are not
   rail items and have no caption of their own, so they take their parent's path:
   `admin/members/approvals`, `admin/members/organization`, `admin/gatherings/templates`,
-  `reporting/transactions/fund-transfers`, `accounting/summary/funds`.
+  `accounting/transactions/fund-transfers`, `accounting/summary/funds`.
 
 **`/admin` is not an exception and not a page.** It is the prefix catch-all in
 `lib/features.ts` that gates every nested admin route nobody has registered, and it stays
@@ -2452,6 +2536,38 @@ remembered — every exported helper in `lib/auth/*` that takes a `resource: str
 * The migration's own assertions caught the rest, and they are written to name the offending
   key rather than to say "something is wrong".
 
+**AND NONE OF THE FOUR CAUGHT THE ONE THAT MATTERED. `20260820000004` LEFT FOUR STALE CALL
+SITES AND THEY FAILED OPEN FOR TWO DAYS.** Found on 2026-08-22, by grepping the old keys rather
+than by any gate:
+
+```
+app/(protected)/reporting/membership/page.tsx   requireView(user.id, 'membership-report')
+app/(protected)/reporting/membership/page.tsx   canAny(user.id, 'membership-report', 'view')
+app/actions/reports.ts                          requireScope('membership-report', 'view')  ×2
+```
+
+**An unregistered non-admin key resolves `view` to the `'everyone'` default** (§6). So
+`requireView` admitted every member, `canAny` answered `'any'` to all of them, the Membership
+report was readable by the whole family whatever an administrator had set, and the switch on
+Members & Access moved nothing. Every one of the four gates above was satisfied: the types are
+strings, the manual links a ROUTE and that route was correct, and `test:rls`' control passed
+because the caller who was supposed to succeed still did — it is the ATTACK that should have
+gone red, and there was no case for a member without the grant.
+
+Three things follow:
+
+* **A bare key that goes stale fails OPEN, so the absence of a failure proves nothing.** That
+  is the opposite of every other kind of stale reference in this codebase, and it is why this
+  class cannot be left to "something would have broken".
+* **After any key move, grep the OLD keys as well as sweeping the new ones**, and grep them
+  bare rather than as routes:
+  `git grep -nE "'(old-key-1|old-key-2)'" -- '*.ts' '*.tsx'`. A route literal has a leading
+  slash and is mechanically sweepable; a bare key is not, which is the whole reason this
+  section exists — and the sweep that missed these was written by somebody who had read it.
+* **A migration CAN assert this and should.** `permission_resources` is the list of keys that
+  exist; a check that every `auth_permission`/`can*` literal in the tree names one would have
+  caught all four at deploy time. It does not exist yet and is worth building the next time a
+  key moves.
 **A help chapter's `slug` is NOT a route and must never be swept with one.** It is the
 chapter's identity in `/help/<slug>` and it moves with nothing. Sweeping bare keys across
 `lib/help/content.ts` renamed nine chapters — the replacements cascaded down the file — and
@@ -2469,7 +2585,7 @@ right-aligned slot for the active pane's one action.
   label="Transaction ledgers"                 // names the nav landmark
   items={LEDGERS.map(id => ({
     id, label: LEDGER_LABELS[id], icon: LEDGER_ICONS[id],
-    href: `/transactions?ledger=${id}`,       // optional — see below
+    href: `/accounting/transactions?ledger=${id}`, // optional — see below
   }))}
   active={ledger}
   onSelect={selectLedger}
@@ -2823,7 +2939,7 @@ Four things about the mechanism are load-bearing.
 
   Where the withheld thing IS the whole answer, the tier belongs at the PAGE, which skips the
   call — so the fetch never happens and §5 is discharged without the action having to lie.
-  `/transactions` puts its Plus ledger's tier there; `/admin/gatherings` and
+  `/accounting/transactions` puts its Plus ledger's tier there; `/admin/gatherings` and
   `/admin/gatherings/[id]` put the fund picker's there.
 * **The browser can never set it; one server action can.** A tier is a billing fact.
   `families_guard_tier` (`20260813000003`) refuses any change made by the `authenticated`
@@ -2858,7 +2974,7 @@ paragraph read as a gap; it is a pattern now, and the pattern has a shape worth 
 
 | Sub-key | On a page that is | Carried by |
 |---|---|---|
-| `transactions/fund-transfers` | `/transactions`, Standard | a `FEATURES` row that is not a route |
+| `accounting/transactions/fund-transfers` | `/accounting/transactions`, Standard | a `FEATURES` row that is not a route |
 | `gatherings/budget` | `/gatherings`, Free | a `FEATURES` row that is not a route |
 | `admin/users/templates` | `/admin/users`, Free | a `FEATURES` row that is not a route |
 | `admin/gathering-templates` | `/admin/gatherings`, Free | a real route that redirects into the pane |
@@ -2893,6 +3009,122 @@ surfaces vanished on its own, because it was DERIVED from the two figures rather
 beside them — which is the whole argument for deriving a claim about a number, demonstrated. Do
 not put a yearly figure back by multiplying: it commits the product to an annual plan with no
 billing, no terms and no answer for a family that downgrades in March.
+
+# A FEATURE THAT RECORDS SOMETHING OWES A REPORT ON IT
+
+Reporting had five screens on 2026-08-22 and every one of them read the MONEY. Membership is
+the roster; Payment History, Transactions, Dues Projections and P&L Summary are four views of
+the ledger. Meanwhile the product had shipped Gatherings, Elections, Meeting Minutes and a
+per-family board of offices, and **nothing anywhere counted any of it.** A family could not
+ask how many of a reunion's tasks were done, whether an election drew a turnout worth calling
+a mandate, how often the board met, or which offices were standing empty — and the data to
+answer all four had been sitting in the tables for months.
+
+That is not four oversights. It is one, made four times, because nothing said the report was
+part of the feature.
+
+## THE RULE
+
+> **A feature that RECORDS something across the family owes a report that reads it back, in
+> the same commit or in a stated follow-up.**
+
+The test for whether a feature is in scope is one question: **does it accumulate rows that an
+organizer would want counted?** A gathering accumulates tasks; an election accumulates
+nominations and votes; a meeting accumulates topics and ballots; the board accumulates
+assignments. Each of those is a pile of rows that answers a question nobody can answer by
+scrolling a list.
+
+Three things are NOT in scope, and stating them is what keeps the rule from becoming a tax on
+every commit:
+
+* **A feature that records ONE row per member and shows it to them.** My Profile, My Families.
+  There is no aggregate; the member's own screen is the whole answer.
+* **A feature that IS a list of the thing.** The Member Directory is not owed a report on
+  members — `/reporting/membership` exists because counting them by region, chapter and
+  membership status is a different question from listing them, and that difference is the
+  test. A report that would restate its screen with a total at the bottom is not a report.
+* **Configuration.** Permission templates, board position definitions, dues schedules. What is
+  worth counting is what a family DID with them, which belongs to the feature that records the
+  doing. `reporting/board` is the edge case and it earns its place by reporting the VACANCIES —
+  the offices nobody holds, which is a fact `/admin/members/organization` cannot state because
+  it lists what exists rather than what is missing.
+
+## WHAT A REPORT COSTS, WHICH IS THE REASON THIS IS WRITTEN DOWN
+
+`20260822000023` and the four screens it registers are the worked example. Every item below is
+a thing that was easy to leave out:
+
+| | |
+|---|---|
+| a route | `/reporting/<subject>`, and §1 makes the key `reporting/<subject>` |
+| a `FEATURES` row | with a `tier`, which has no default and must be decided |
+| a `permission_resources` row | `view` ONLY — nothing on a report writes anything |
+| a `resource_visibility` backfill | plus the **Administrators grant**, or it is a screen nobody can open |
+| `NO_OWNER_KEYS` | there is no "own" version of a family-wide count |
+| a rail item | `viewableResources()` cannot conjure one; see the Sidebar |
+| a help chapter | `help:check` fails the build without one |
+| an RLS case | §7, and the control half is what stops it rotting |
+| a pure module and its test | §7b — the roll-up is arithmetic and belongs where `npm test` can reach it |
+
+## AND FIVE RULES ABOUT WHAT A REPORT MAY SAY
+
+These came out of building the four and each one was a decision that could plausibly have gone
+the other way.
+
+* **`canAny`, NEVER `can`, and the page checks it TWICE.** `requireView` resolves with `can()`,
+  which is TRUE for scope `'own'`, and there is no own version of a family-wide count. Without
+  a second `canAny` the page opens, the action answers `null`, and the reader gets an empty
+  screen instead of a 404 — unable to tell whether their family has nothing or whether they
+  were refused. `/reporting/dues-projections` set the pattern.
+
+* **A `null` is a refusal; an empty report is a fact.** They are different sentences and only
+  one of them is about the reader. Every one of these actions returns `null` when the caller
+  may not have it and a populated shape with zero rows when the family simply has nothing yet.
+
+* **A REFUSED READ MUST REFUSE THE WHOLE REPORT (§8).** This is the sharpest of the five,
+  because the failure is a WRONG number rather than a missing one. A refused `gathering_tasks`
+  read leaves a full list of gatherings with every task count at zero — a report claiming the
+  family is completely up to date on work it has not started. A refused `user_roles` read
+  reports every office as VACANT, which is that report's headline finding invented out of an
+  outage. `const { data }` discards the error; read it.
+
+* **COUNT WHAT THE DATA SAYS AND NEVER ESTIMATE THE REST.** `/reporting/meetings` is the case:
+  there is no check-in anywhere in this product, so it reports who was ASKED and who VOTED and
+  refuses to call either attendance. Averaging the two into an "attendance rate" would be a
+  figure no row in the database supports — and it is exactly the sort of number that gets
+  quoted in a meeting a year later. Where a fact is not recorded, the report says so on the
+  screen.
+
+* **DISTINCT ACROSS THE REPORT, not the sum of the rows.** Somebody helping with two gatherings
+  is one helper; somebody voting for three offices is one voter. Summing per-row figures
+  reports a family as having more helpers than it has members, and 300% turnout — the kind of
+  figure that gets a whole report ignored.
+
+* **A TONE IS A FINDING.** `ReportStats` takes one, and the only three are `plain`, `affirm`
+  and `withheld`. There is no `destructive` and there must not be: nothing on a report is an
+  error. An overdue task and a vacant office are `--brand-withheld` — something the family has
+  not done yet — which is the same reading the dues ladder takes of an unpaid installment.
+  `--destructive` is for a failure, and `form-message.tsx` owns reporting one.
+
+## THE ADMIN CLIENT, AND WHY EVERY ONE OF THESE USES IT
+
+Sixteen queries across the four, every one with a hand-written `.eq('family_code', …)` (§3).
+It is not laziness about RLS: **a report counts things the reader is not necessarily entitled
+to open one by one.** A member who may read the Gatherings report but holds no
+`admin/gatherings` grant would, through their own client, receive a subset of the family's
+tasks and a total that silently described it — which is worse than a refusal, because it is a
+wrong number rather than a missing one.
+
+The cost is that §3 is discharged by hand and nothing but the RLS suite watches it. All four
+were mutation-checked: widening every `family_code` conjunct to match any family turns all
+four attack halves red and leaves all four controls green.
+
+**Two tables have no `family_code` at all** — `election_votes` and `election_nominations`,
+which are scoped through `election_id` and nothing else. They are filtered by
+`.in('election_id', <ids from a family-scoped read>)`, which is the TRANSITIVE verdict
+`audit:family-scope` recognises, and it is why `getElectionsReport` is two phases rather than
+one `Promise.all`. Say so in a case rather than letting a reader assume there is a conjunct
+there to protect.
 
 # The product explains itself, and the explanation is part of the screen
 

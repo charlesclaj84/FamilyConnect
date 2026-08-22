@@ -117,7 +117,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'the-rail',
             heading: 'The rail down the left',
             blocks: [
-              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Gatherings**, **Accounting**, **Reporting**, **Resources**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
+              p('Everything in the product is reached from the burgundy rail. Its headings group screens by what they are for — **Community**, **Gatherings**, **Library**, **Accounting**, **Reporting**, **Admin**, **Help** — and a heading opens when you click it, closing the one that was open.'),
               p('The rail only lists screens you can actually open. If a heading you expected is missing, it is because every screen under it is either not part of your family plan or not something your family has given you. That is not a fault — see [Who can do what](/help/who-can-do-what).'),
               p('On a phone the rail is behind the **Menu** button at the top left. It closes itself as soon as you pick something.'),
             ],
@@ -1124,22 +1124,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'calendar',
         title: 'Calendar',
-        summary: 'The month grid that puts every gathering on the day it falls, how to move between months, and what it does on a phone.',
+        summary: 'The month grid that puts every gathering, meeting and election window on the day it falls, how to move between months, and what it does on a phone.',
         route: '/gatherings/calendar',
         sections: [
           {
             id: 'what-it-is',
             heading: 'One month at a time',
             blocks: [
-              p('[Calendar](/gatherings/calendar) is a real month grid — weeks down, weekdays across, Sunday first — with the family\'s gatherings on the days they fall. It creates nothing: everything on it is a link into [Gatherings](/gatherings), where the thing itself lives and is edited.'),
-              p('The legend under the grid names the two treatments — **Premier gathering** and **Gathering** — and every entry says which it is in words as well as in colour, so the distinction survives both a screen reader and a reader who cannot separate the two hues. There was a third for an Event until 2026-08-19; that product is retired.'),
+              p('[Calendar](/gatherings/calendar) is a real month grid \u2014 weeks down, weekdays across, Sunday first \u2014 with three things on the days they fall: the family\u2019s **gatherings**, the **meetings** you are down for, and the open **nomination and voting windows** of its elections. It creates nothing. Every entry is a link into the screen that owns it \u2014 [Gatherings](/gatherings), [Meeting Minutes](/library/meeting-minutes) or [Elections](/community/elections) \u2014 which is where the thing itself lives and is edited.'),
+              p('The legend names only what is actually on the grid this month, and every entry says which kind it is in words as well as in colour \u2014 so the distinction survives both a screen reader and a reader who cannot separate the hues. **Premier gathering** is gold, **Gathering** is soft burgundy, **Meeting** is filled burgundy, and an election is warm terracotta: outlined while **Nominations** are open, filled once **Voting** is. There was a sixth for an Event until 2026-08-19; that product is retired.'),
             ],
           },
           {
             id: 'reading',
             heading: 'Reading a day',
             blocks: [
-              p('Today is marked. Something running over several days appears on every day it covers, which is the whole reason a closing date exists — a three-day reunion is on the grid three times, and each one is the same link.'),
+              p('Today is marked. Anything running over several days appears on every day it covers, and that is the whole reason a closing date exists \u2014 a three-day reunion is on the grid three times, a fortnight of voting fourteen times, and each one is the same link. An election contributes two spans rather than one: the nomination window and, after a gap, the voting window. The days between them are deliberately empty, because on those days the slate has closed and there is nothing to do yet.'),
               p('The grid always shows whole weeks, so the first and last rows carry a few days from the months either side. Those days keep their entries: a reunion starting on the 1st is visible in the last row of the month before, which is where you would be looking for it a week earlier.'),
             ],
           },
@@ -1163,7 +1163,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'missing',
             heading: 'When something is not on it',
             blocks: [
-              p('A line above the grid appears when the gatherings are missing from it. It means one of two things and cannot tell which: that screen has not been shared with you, or it could not be read just now.'),
+              p('A line above the grid appears when one of the three sources is missing from it, and it names which \u2014 gatherings, meetings or elections. It cannot say WHY, and does not guess: it means either that the screen has not been shared with you, or that it could not be read just now.'),
               p('Either way the month you are looking at is not the whole month, which is why the line is there at all — an empty August with nothing said about it reads as a fact about the family. A month that genuinely has nothing on it says that instead.'),
             ],
           },
@@ -1390,7 +1390,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
       {
         slug: 'meeting-minutes',
         title: 'Meeting Minutes',
-        summary: 'Scheduling a meeting, who is expected, who writes it down, and how the room votes on a topic.',
+        summary: 'Scheduling a meeting by board or by office, who may take the minutes, and how the room votes on a topic.',
         route: '/library/meeting-minutes',
         sections: [
           {
@@ -1409,12 +1409,35 @@ export const HELP_PARTS: readonly HelpPart[] = [
               steps(
                 'Press **Schedule a meeting**.',
                 'Give it a title and a date.',
-                'Choose **who is taking the minutes**. Only they can write in it.',
-                'Choose **who is coming**. They are the people who may vote.',
+                'Choose **who is taking the minutes**. Only they can write in it, and they have to be an adult.',
+                'Choose **who is coming** \u2014 whole boards, whole offices, and anybody else by name.',
                 'Press **Schedule meeting**.',
               ),
-              p('**Everybody on the list is told and gets it on their calendar.** A notification goes to each attendee, and the meeting appears on [the calendar](/gatherings/calendar) for them \u2014 not for the whole family, because a committee meeting on everybody\u2019s calendar is a calendar nobody reads.'),
-              note('The secretary is added to the room automatically whether or not you ticked them. Somebody writing the minutes was there, and the attendee list is what decides who may vote.'),
+              p('**Everybody in the room is told and gets it on their calendar.** A notification goes to each attendee, and the meeting appears on [the calendar](/gatherings/calendar) for them \u2014 not for the whole family, because a committee meeting on everybody\u2019s calendar is a calendar nobody reads. The attendee list is also what decides who may vote.'),
+              note('The secretary is added to the room automatically whether or not you ticked them. Somebody writing the minutes was there.'),
+            ],
+          },
+          {
+            id: 'who-is-coming',
+            heading: 'Who is coming: boards, offices, and people',
+            blocks: [
+              p('A family meeting is almost always a **body** meeting rather than a list of eleven names \u2014 the national board, one chapter\u2019s board, every chapter president. So the dialog asks for the body, and works out who is in it when you schedule. Pick as many as you like from any of the three; they add together, and somebody who appears in two of them is one attendee.'),
+              defs(
+                { term: 'Boards', text: 'Everybody holding an office at one level in one place \u2014 **National Board**, **Texas Region Board**, **Austin Chapter Board**. Only boards somebody is actually on are listed, and the number beside each says how many people that is.' },
+                { term: 'Positions', text: 'One office taken across every region or chapter that fills it. Ticking **Chapter President** invites the president of every chapter at once.' },
+                { term: 'Anybody else', text: 'Individual people, on top of the boards. **Adults only** \u2014 see below.' },
+              ),
+              p('**A board is resolved when you schedule, not when it was set up.** If the Austin chapter elects a new treasurer next month, the board you ticked today invited the treasurer who held it today \u2014 which is right, because the meeting is the one they were told about. Set the offices up on **Members \u2192 Organization**; a family that has not has no boards to invite, and the dialog says so rather than showing an empty list.'),
+              p('The line under the controls counts the room and lists it behind **see who**, so you can check what a tick just added before you commit.'),
+            ],
+          },
+          {
+            id: 'adults',
+            heading: 'Adults only, in two places',
+            blocks: [
+              p('**The secretary must be an adult**, and so must anybody added to the room **by name**. Both pickers only offer adults, and the action refuses one anyway if it is asked directly.'),
+              p('**People invited as part of a board are not age-checked.** Somebody holding an office is somebody the family put there, and quietly dropping them from the room over a recorded birthday would be the product overruling that decision in a list nobody reads back.'),
+              note('Age is worked out from the date of birth on the person\u2019s profile, and a member with **no** recorded birthday counts as an adult. \u201cUnder eighteen\u201d is something the family has written down about somebody, not something to assume about a blank field.'),
             ],
           },
           {
@@ -1562,7 +1585,19 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('There are two ways to look at an album, and the toggle is above it. **Grid** is for looking: square thumbnails, and pressing one opens it full size. **List** is for tidying up: smaller pictures, one per row, with the caption and the tags editable in place.'),
               p('**Tagging** says who is in a photograph. Press **Tag somebody** on a row and search the family; the search finds \u201cJos\u00e9\u201d if you type \u201cjose\u201d and \u201cO\u2019Connor\u201d if you type \u201coconnor\u201d. Press the \u00d7 on a tag to take it off.'),
-              p('**Who is in it** above the album filters to the photographs somebody is tagged in. It lists only people who are actually tagged somewhere in this album, so it is short even in a large family.'),
+              p('Neither view hides anything: the filters above the album are what narrow it, and they narrow both \u2014 see [Finding one photograph](#finding).'),
+            ],
+          },
+          {
+            id: 'finding',
+            heading: 'Finding one photograph',
+            blocks: [
+              p('Two filters sit above an album, and they narrow together.'),
+              defs(
+                { term: 'Search captions', text: 'Type any part of a caption. Several words match in any order, so \u201creunion lake\u201d finds \u201cThree days at the lake \u2014 2026 reunion\u201d. Accents and punctuation are ignored on both sides: \u201cjose\u201d finds \u201cJos\u00e9\u201d and \u201cgrandmas\u201d finds \u201cGrandma\u2019s\u201d. A photograph with no caption never matches a search.' },
+                { term: 'Who is in it', text: 'Pick as many tagged people as you like. A photograph shows when it has ANY of them in it, so choosing three widens the result rather than narrowing it. The button carries a count while the filter is on, and only appears once somebody is tagged in this album.' },
+              ),
+              p('A line under the bar says how many of the album\u2019s photographs are showing and why, with **Clear filters** to put them all back. Neither filter changes anything for anybody else \u2014 it is what you are looking at, not what the album holds.'),
             ],
           },
           {
@@ -1574,7 +1609,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Caption', text: 'Its uploader, or somebody with permission to edit anybody\u2019s.' },
                 { term: 'Tags', text: 'Anybody who may edit the gallery. Tagging is not about whose photograph it is \u2014 it is about who is in it, and the person who recognises a cousin is often not the person who took the picture.' },
                 { term: 'Delete a photograph', text: 'Its uploader, or somebody with the unrestricted grant. The image file is removed as well as the row.' },
-                { term: 'Delete an album', text: 'Its creator, or somebody with the unrestricted grant. It takes every photograph in it \u2014 the confirmation says how many.' },
+                { term: 'Delete an album', text: 'Its creator, or somebody with the unrestricted grant \u2014 which is what an administrator holds. The control is the bin in the corner of the album\u2019s tile on the Gallery page. It takes every photograph in the album with it, and the image files too; the confirmation says how many before you commit.' },
               ),
               note('Deleting an album is not reversible and not partly reversible. The warning counts the photographs for exactly that reason.'),
             ],
@@ -1630,7 +1665,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('[Dues & Donations](/accounting/dues-and-donations) answers one question in two directions: what your family asks of you, and what it invites you to give to. **Dues** is every schedule you are on; **Donations** is every drive the family is running. Press either on the rail across the top.'),
               p('They were two separate screens until 2026-08-20. A link or a bookmark to either still finds the family\'s money — start from [Summary](/accounting/summary), which leads with both.'),
-              p('Neither pane ever shows anybody else\'s dues or anybody else\'s giving, whatever you have been granted. Every figure on the screen is either a family total or your own. What the family as a whole has paid is a different question, asked on [Transactions](/reporting/transactions).'),
+              p('Neither pane ever shows anybody else\'s dues or anybody else\'s giving, whatever you have been granted. Every figure on the screen is either a family total or your own. What the family as a whole has paid is a different question, asked on [Transactions](/accounting/transactions).'),
             ],
           },
           {
@@ -1736,7 +1771,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'The list',
             blocks: [
               p('[Payment History](/reporting/payment-history) is every payment the family has recorded against you — dues and donations in one list, each row tagged with which it was. Any column heading sorts, and the **Filter** box narrows by schedule, method or status.'),
-              p('It is under **Reporting** in the rail, beside [Transactions](/reporting/transactions). The two are the money read back — this one is yours, that one is the family\'s — while [Accounting](/admin/accounting) is where it is set up in the first place.'),
+              p('It is under **Reporting** in the rail. [Transactions](/accounting/transactions) is its family-wide counterpart and moved under **Accounting** in August 2026, beside the screens whose rows it holds. The two are the money read back — this one is yours, that one is the family\'s — while [Accounting](/admin/accounting) is where it is set up in the first place.'),
               p('Clicking a row opens the full entry: the cheque number or reference, any notes, and the date it was keyed in — which is not the same as the date it was paid, and is usually what explains why something only just appeared.'),
             ],
           },
@@ -1754,13 +1789,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'transactions',
         title: 'Transactions',
         summary: 'The family\'s five ledgers — money in, money out, and money moving between funds.',
-        route: '/reporting/transactions',
+        route: '/accounting/transactions',
         sections: [
           {
             id: 'ledgers',
             heading: 'The five ledgers',
             blocks: [
-              p('[Transactions](/reporting/transactions) is under **Reporting** in the rail, beside [Payment History](/reporting/payment-history) — the family\'s whole record rather than your own. It is one rail of five tabs, one per kind of entry.'),
+              p('[Transactions](/accounting/transactions) is under **Accounting** in the rail, below **Dues & Donations**. [Payment History](/reporting/payment-history) is the one under **Reporting** — the family\'s whole record rather than your own. It is one rail of five tabs, one per kind of entry.'),
               defs(
                 { term: 'Dues', text: 'Dues paid by members.' },
                 { term: 'Donations', text: 'Gifts to a drive.' },
@@ -1799,8 +1834,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'What it answers',
             blocks: [
-              p('[Transactions](/reporting/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
-              p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/reporting/transactions); changing what a due costs is under [Accounting](/admin/accounting).'),
+              p('[Transactions](/accounting/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
+              p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/accounting/transactions); changing what a due costs is under [Accounting](/admin/accounting).'),
               p('**A relative who has died is not counted.** Setting a **Sunset Date** on somebody’s profile takes them off this screen entirely — they owe nothing, so neither the total the family is owed nor the list of who has still to pay includes them. Payments they made in the past still count toward what was collected.'),
             ],
           },
@@ -1874,7 +1909,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'What it answers',
             blocks: [
-              p('The family\'s statement, on one page: everything that has come in, everything that has gone out, and the difference between them. [Transactions](/reporting/transactions) is the entry-by-entry ledger this is a summary of, and [Dues Projections](/reporting/dues-projections) is what is still owed — this screen is only about money that has actually moved.'),
+              p('The family\'s statement, on one page: everything that has come in, everything that has gone out, and the difference between them. [Transactions](/accounting/transactions) is the entry-by-entry ledger this is a summary of, and [Dues Projections](/reporting/dues-projections) is what is still owed — this screen is only about money that has actually moved.'),
               p('**Every figure is life to date.** There is no date range to set: the page counts every entry the family has ever recorded, from the first one. The line at the top of the page says so, and it is worth reading before a figure goes into a report.'),
               note('This screen was called **Family Finances** until August 2026. Nothing about it moved except the name and where it sits in the rail — it is under **Reporting** now, with the other screens that read the money back.'),
             ],
@@ -1888,7 +1923,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Expenses', text: 'Money disbursed from a fund. That is the only kind of outgoing this product records, so it is the whole of what has been spent.' },
                 { term: 'Net surplus', text: 'Income less expenses. It reads **Net deficit** and turns red when more has gone out than has come in.' },
               ),
-              p('A reversal corrects itself here. Reversing a payment on [Transactions](/reporting/transactions) posts an opposite entry, and both the payment and its reversal are counted — so income lands back where it belongs rather than counting the correction twice.'),
+              p('A reversal corrects itself here. Reversing a payment on [Transactions](/accounting/transactions) posts an opposite entry, and both the payment and its reversal are counted — so income lands back where it belongs rather than counting the correction twice.'),
             ],
           },
           {
@@ -1996,7 +2031,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Setup, not the day\'s work',
             blocks: [
-              p('[Accounting](/admin/accounting) is where the money is *configured*. Recording an actual payment happens on [Transactions](/reporting/transactions), under **Reporting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
+              p('[Accounting](/admin/accounting) is where the money is *configured*. Recording an actual payment happens on [Transactions](/accounting/transactions), under **Accounting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
               p('The rail across the top of the page holds **Dues**, **Donations**, **Funds**, **Routing**, **Milestones**, **Processing** and **Bank Information**. Each is granted separately, so you see the ones you have been given and no others — a rail with three items on it is not a fault. The **New Dues** and **New Donation** buttons sit beside the rail on their own pages, and appear only where you may add to that list.'),
               p('**They are still two separate permissions, and sharing a pane changed nothing about that.** A family that lets somebody keep the dues schedule but not run the donation drives grants one and not the other, and that person sees one list, one button, and a rail item named for the half they hold. It is one screen because the two are read together, not because they are one job — see [Who can do what](/help/who-can-do-what#one-template).'),
             ],
@@ -2051,6 +2086,147 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Processing and Bank Information',
             blocks: [
               p('Both sections exist on the rail and neither is wired up yet. They are where card processing and the family\'s bank details will live; nothing is stored in them today.'),
+            ],
+          },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'reports',
+    title: 'Reports',
+    blurb: 'What the family DOES, read back \u2014 the work, the elections, the meetings and the offices.',
+    chapters: [
+      {
+        slug: 'gatherings-report',
+        title: 'Gatherings Report',
+        summary: 'Every gathering with how much of its work is done, what is overdue, and what its tasks claim against the budget.',
+        route: '/reporting/gatherings',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it answers',
+            blocks: [
+              p('[Gatherings](/reporting/gatherings) under **Reporting** is one row per gathering: how many of its tasks are approved, how many are late, how many nobody is holding, and \u2014 where you can see the money \u2014 what its task lines add up to against what it budgeted.'),
+              p('It changes nothing and creates nothing. Every row links into [Gatherings](/gatherings), where the thing itself lives.'),
+              note('**Cancelled gatherings are left out entirely**, rows and totals alike. Their open tasks are not work anybody owes, and counting them would leave a family that cancelled one thing permanently in the red on every figure here.'),
+            ],
+          },
+          {
+            id: 'overdue',
+            heading: 'What counts as overdue',
+            blocks: [
+              p('A task is overdue when **its date has passed and nobody has approved it**. That includes one that has been submitted and not yet ruled on \u2014 the work may well be done, but it is still outstanding from the organizer\u2019s side, and this is the organizer\u2019s report. A task sent back counts too.'),
+              p('**A task with no due date is never overdue.** Nothing was promised for a particular day, so there is no day it can be late relative to.'),
+            ],
+          },
+          {
+            id: 'money',
+            heading: 'The money columns',
+            blocks: [
+              p('**Allocated** is what the gathering\u2019s task lines claim, shown against what the gathering set aside. It is marked when the lines claim more than the budget \u2014 which is a plan to fix rather than an error, so it is not shown in red.'),
+              note('The two money figures appear only if your family is on a plan that includes the gathering budget band and you have been granted it. Without either, the columns are simply not there \u2014 a column of dashes would be a claim that the family budgeted nothing.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'elections-report',
+        title: 'Elections Report',
+        summary: 'Turnout per election, how many stood, and which offices nobody put a name forward for.',
+        route: '/reporting/elections',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it answers',
+            blocks: [
+              p('[Elections](/reporting/elections) under **Reporting** is one row per published election: which area it covers, what phase it is in, how many nominations it drew and how many were accepted, and what the turnout was.'),
+              note('**Drafts are not counted.** A draft has no dates, no ballot and no electorate, so a 0% turnout row for one would be a report about an election nobody has been told about.'),
+            ],
+          },
+          {
+            id: 'turnout',
+            heading: 'How turnout is worked out',
+            blocks: [
+              p('**Turnout counts people, not ballots.** Somebody voting for three offices in one election is one voter. The bottom half of the figure is who could have voted: every approved member for a national election, the members of one chapter for a chapter election, and the members of every chapter in a region for a regional one \u2014 the same rule that decides who sees the election in the first place.'),
+              p('An election whose area holds no approved members reads **n/a** rather than 0%. Nobody could have voted in it, and 0% would read as an election everybody ignored.'),
+            ],
+          },
+          {
+            id: 'unopposed',
+            heading: 'Offices nobody stood for',
+            blocks: [
+              p('An office with no **accepted** nomination has nothing on the ballot. A nomination the nominee has not accepted does not count \u2014 it puts no name in front of anybody.'),
+              p('This is the figure worth acting on before the nomination window closes, which is why it is one of the four at the top of the page.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'meetings-report',
+        title: 'Meetings Report',
+        summary: 'How often the family meets, how big each room was, and who answers when a vote is called.',
+        route: '/reporting/meetings',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it answers',
+            blocks: [
+              p('[Meetings](/reporting/meetings) under **Reporting** has two tables. The first is one row per meeting \u2014 its date, who took the minutes, how many were in the room, how many topics it took up and how many votes were cast. The second is one row per relative: how many meetings they were asked to, how many they voted in, and how many they minuted.'),
+              p('Every meeting row links into [Meeting Minutes](/library/meeting-minutes), which is where the record itself lives.'),
+            ],
+          },
+          {
+            id: 'not-attendance',
+            heading: 'Why nothing here says \u201cattendance\u201d',
+            blocks: [
+              p('**Nothing in GENORRA records who actually turned up.** There is no check-in. So this reports the two things it can count and neither of them is attendance:'),
+              defs(
+                { term: 'Asked to', text: 'The attendee list \u2014 who was invited when the meeting was scheduled.' },
+                { term: 'Voted in', text: 'How many of those meetings the person answered a vote in. It is the only positive evidence anybody was in the room, and it is a floor rather than a count: a quiet meeting with no vote called produces none of it.' },
+              ),
+              p('Averaging the two into an attendance rate would be a figure no row in the database supports \u2014 and it is exactly the sort of number that gets quoted in a meeting a year later.'),
+            ],
+          },
+          {
+            id: 'minuted',
+            heading: 'Minuted against held',
+            blocks: [
+              p('**Minuted** counts the meetings somebody has closed. Closing is what turns a meeting into a record \u2014 no more topics, no more notes, no more votes \u2014 so the gap between the two figures is the family\u2019s backlog of meetings nobody has signed off.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'board-report',
+        title: 'Board & Offices Report',
+        summary: 'Every office the family has defined, who holds it, and which ones are standing empty.',
+        route: '/reporting/board',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it answers',
+            blocks: [
+              p('[Board & Offices](/reporting/board) under **Reporting** lists every board position the family has defined, in the family\u2019s own order, with whoever holds it \u2014 and, where nobody does, the word **Vacant**.'),
+              p('It changes nothing. Defining a position and handing it out is **Members \u2192 Organization**, which is a separate permission.'),
+              note('That separation is the point of this screen existing at all: a nominations committee can be shown where the gaps are without being given the power to change the roster.'),
+            ],
+          },
+          {
+            id: 'vacancies',
+            heading: 'Vacancies are the finding',
+            blocks: [
+              p('**Every position is a row, including the empty ones**, and **Vacant** is one of the four figures at the top. A report that listed only filled offices could not state its most useful fact.'),
+              p('The rows stay in the family\u2019s own order rather than putting the vacancies first, so this can be read side by side with the list on **Members \u2192 Organization**. The colour is what makes a gap findable.'),
+            ],
+          },
+          {
+            id: 'two-hats',
+            heading: 'Holding more than one office',
+            blocks: [
+              p('A section appears when somebody holds two or more. That is not a problem in itself \u2014 a small chapter often has one person doing two jobs \u2014 but it is usually the sign of a gap somebody has quietly covered, which is worth knowing before the next election.'),
+              note('An office held for a particular region or chapter says which beside the name. The same title at two levels is two different offices: a National President and a Chapter President are separate rows.'),
             ],
           },
         ],
@@ -2387,6 +2563,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
         route: '/admin/settings',
         sections: [
           {
+            id: 'bands',
+            heading: 'Two bands',
+            blocks: [
+              p('The page is in two parts. **My Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+            ],
+          },
+          {
             id: 'name',
             heading: 'The family name',
             blocks: [
@@ -2405,7 +2588,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The panel at the top of the page shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('The panel under **My Plan**, at the top of the page, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
               p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
             ],
           },
@@ -2413,7 +2596,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'removal',
             heading: 'Removing the family',
             blocks: [
-              p('**Remove this family**, at the bottom of the page, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
+              p('**Remove this family**, at the bottom of the **Family** band, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
               note('Nothing is deleted. Every payment, fund, photograph, event, message, document and person stays exactly where it is. Removing closes the family\'s doors; it destroys no records at all.'),
               p('It takes two steps. **Email me a removal code** sends six digits to the address you sign in with — not to an address you type, and not to anybody else. **Enter the code and remove** then asks for those digits and for a confirmation. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries; ask for another with **Send another code**.'),
               p('Members of a removed family are not left guessing. Signing in shows a screen saying the family was removed and that nothing was deleted, [My Families](/my-families) lists it with a **Removed** badge, and the family menu at the top of the page badges it too — so an account that belongs to more than one family carries on in the others exactly as before.'),

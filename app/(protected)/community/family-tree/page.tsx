@@ -41,10 +41,11 @@ export const metadata = { title: 'Family Tree' }
  * ── NO BETA BADGE, since 2026-08-13 ─────────────────────────────────────────────────
  * It came off with this pass. `lib/features.ts` never derived it — `status` has two values
  * and "live but unfinished" is a property of one of them — so it was hand-set here and on
- * the rail item, and both are gone. What TODO.md still lists against this feature — the dead
- * `is_step` column, and dates on the connectors — is an ordinary backlog against a finished
- * thing rather than a caveat on a half-built one. Step relationships and several marriages
- * drawn separately were on that list and are built.
+ * the rail item, and both are gone. Everything TODO.md listed against this feature is now
+ * settled: step relationships and several marriages drawn separately were built, the dead
+ * `is_step` column was dropped on 2026-08-22 (`20260822000024`), and dates on the connectors
+ * were withdrawn rather than deferred — a tree is read for who is related to whom, and a date
+ * on every edge is four more numbers per line on a canvas already dense with names.
  *
  * ── THE PERMISSION KEY, AND WHY IT IS ONE AT ALL ────────────────────────────────────
  * `community/family-tree` is a registered resource with a switch on Members & Access, and it

@@ -1,0 +1,154 @@
+import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
+import { Vote } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { canAny, requireView } from '@/lib/auth/permissions'
+import { getElectionsReport } from '@/app/actions/activity-reports'
+import { cn } from '@/lib/utils'
+import { PageShell } from '@/components/layout/PageShell'
+import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
+import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+
+export const metadata = { title: 'Elections Report' }
+
+/**
+ * Did anybody stand, and did anybody vote.
+ *
+ * ── TWO CHECKS, FOR `/reporting/gatherings`' REASON ─────────────────────────────────
+ * `requireView` resolves with `can()`, which is true for scope 'own', and there is no own
+ * version of a family-wide turnout. `canAny` follows it so the page and the action agree; see
+ * that page's header for the whole argument, and `NO_OWNER_KEYS` for the list.
+ *
+ * ── ONLY PUBLISHED ELECTIONS ────────────────────────────────────────────────────────
+ * The action filters them; the copy says so. A draft has no dates, no ballot and no
+ * electorate, so a 0% turnout row for one would be a report about an election nobody has been
+ * told about.
+ */
+export default async function ElectionsReportPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await requireView(user.id, 'reporting/elections')
+  if (!(await canAny(user.id, 'reporting/elections', 'view'))) notFound()
+
+  const report = await getElectionsReport()
+  if (!report) notFound()
+
+  const { totals, rows } = report
+  const uncontested = rows.reduce((sum, r) => sum + r.uncontested, 0)
+
+  return (
+    <PageShell className="space-y-6">
+      <div>
+        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
+        <p className="text-muted-foreground">
+          Turnout, nominations and offices nobody stood for, one row per published election.
+          Drafts are not counted — an election nobody has been told about has no electorate.
+        </p>
+      </div>
+
+      <ReportStats stats={[
+        { label: 'Elections', value: totals.elections, hint: `${totals.open} open right now` },
+        { label: 'Nominations', value: totals.nominations, hint: 'across every election' },
+        {
+          label: 'Offices nobody stood for',
+          value: uncontested,
+          hint: 'nothing on the ballot',
+          tone: uncontested > 0 ? 'withheld' : 'plain',
+        },
+        {
+          label: 'Members who have voted',
+          value: totals.voters,
+          hint: 'distinct people, not ballots',
+          tone: 'affirm',
+        },
+      ]} />
+
+      {rows.length === 0 ? (
+        <ReportEmpty
+          icon={Vote}
+          message="No election has been published yet."
+          hint="Once one is published, this reports its turnout, its nominations and any office nobody stood for."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-xl border">
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">
+              Every published election with its phase, nominations and turnout.
+            </caption>
+            <thead>
+              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="px-3 py-2">Election</th>
+                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Area</th>
+                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Phase</th>
+                <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                  Nominations
+                </th>
+                <th scope="col" className="px-3 py-2 text-right">Turnout</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.id} className="border-b align-top last:border-0 sm:align-middle">
+                  <td className="px-3 py-2">
+                    <Link href={`/community/elections/${row.id}`}
+                      className="font-medium text-foreground hover:underline">
+                      {row.title}
+                    </Link>
+                    <RowMeta>
+                      <span>{row.scopeLabel}</span>
+                      <MetaDot />
+                      <span>{row.phase}</span>
+                      <MetaDot />
+                      <span>{row.accepted} of {row.nominations} accepted</span>
+                      {row.uncontested > 0 && (
+                        <>
+                          <MetaDot />
+                          <span className="text-brand-withheld">
+                            {row.uncontested} with nobody standing
+                          </span>
+                        </>
+                      )}
+                    </RowMeta>
+                  </td>
+                  <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.scopeLabel}</td>
+                  <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.phase}</td>
+                  <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                    {row.accepted} / {row.nominations}
+                    {row.uncontested > 0 && (
+                      <span className="block text-xs text-brand-withheld">
+                        {row.uncontested} office{row.uncontested === 1 ? '' : 's'} unopposed
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {/* NULL IS NOT ZERO. `turnout` answers null when nobody is eligible — a
+                        chapter election in a chapter with no approved members has no turnout,
+                        and "0%" would read as an election everybody ignored. */}
+                    {row.turnoutPct === null ? (
+                      <span className="text-muted-foreground">n/a</span>
+                    ) : (
+                      <>
+                        {row.turnoutPct}%
+                        <span className="block text-xs text-muted-foreground">
+                          {row.voted} of {row.eligible}
+                        </span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        Turnout counts PEOPLE, not ballots: somebody voting for three offices in one election is
+        one voter. An election whose area holds no approved members reads <strong>n/a</strong>
+        {' '}rather than 0% — nobody could have voted in it.
+      </p>
+    </PageShell>
+  )
+}

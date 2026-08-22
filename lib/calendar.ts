@@ -51,7 +51,21 @@ export interface CalendarEntry {
    * argues why that shape survived Events being retired, and this is the first thing to plug
    * into it since.
    */
-  kind: 'gathering' | 'meeting'
+  /**
+   * WHAT KIND OF THING THIS IS, and it decides the chip's colour and the `sr-only` word
+   * that says the same thing in words. `'election'` arrived 2026-08-22 and is the first
+   * kind that is not one row of one table: an election puts TWO entries on the grid, one
+   * spanning its nomination window and one spanning its voting window, because those are
+   * two different things a member has to do and they never overlap.
+   */
+  kind: 'gathering' | 'meeting' | 'election'
+  /**
+   * WHICH HALF OF AN ELECTION this entry is, and undefined for every other kind. It is a
+   * field rather than two `kind`s because the two halves link to the same screen and read as
+   * one thing in the legend; `MonthCalendar` is the only consumer and uses it to pick the
+   * outline against the fill.
+   */
+  phase?: 'nominations' | 'voting'
   href: string
   isPremier?: boolean
 }

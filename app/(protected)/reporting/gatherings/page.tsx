@@ -1,0 +1,196 @@
+import { notFound, redirect } from 'next/navigation'
+import Link from 'next/link'
+import { CalendarCheck, PartyPopper } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { canAny, requireView } from '@/lib/auth/permissions'
+import { getGatheringsReport } from '@/app/actions/activity-reports'
+import { cn } from '@/lib/utils'
+import { formatDate } from '@/lib/date-utils'
+import { formatCurrency } from '@/lib/currency-utils'
+import { GATHERING_STATUS_LABEL } from '@/lib/gatherings'
+import { PageShell } from '@/components/layout/PageShell'
+import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
+import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+
+export const metadata = { title: 'Gatherings Report' }
+
+/**
+ * Is the work getting done, and is it inside the budget.
+ *
+ * ── TWO CHECKS, AND THE SECOND IS NOT BELT-AND-BRACES ───────────────────────────────
+ * `requireView` is §1's preamble and does three jobs — the removed-family check, the tier gate
+ * and the permission gate. But it resolves the permission with `can()`, which is TRUE FOR
+ * SCOPE 'own', and there is no own version of a family-wide count. So `canAny` follows it,
+ * matching `getGatheringsReport()` exactly. Without it the two disagree and the honest outcome
+ * is the bad one: the page opens, the action returns null, and the reader gets an empty screen
+ * instead of a 404 and cannot tell whether their family has no gatherings or whether they were
+ * refused. `/reporting/dues-projections` set this pattern and it is why `reporting/gatherings`
+ * is in `NO_OWNER_KEYS`.
+ *
+ * ── THE MONEY BAND IS THE ACTION'S DECISION, NOT THIS PAGE'S ────────────────────────
+ * `gatherings/budget` is resolved inside `getGatheringsReport`, which nulls the two money
+ * columns when the tier or the grant is absent. That is a NARROWING and not a refusal, which
+ * is the line AGENTS.md draws for a read action: the rows all still come back. This page
+ * renders the columns only when a figure is there to render, so a caller without the band sees
+ * a table with two fewer columns rather than two columns of dashes.
+ */
+export default async function GatheringsReportPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  await requireView(user.id, 'reporting/gatherings')
+  if (!(await canAny(user.id, 'reporting/gatherings', 'view'))) notFound()
+
+  const report = await getGatheringsReport()
+  // Only reachable if the action refused for a reason the two checks above did not — an
+  // outage, in practice. A 404 is the honest answer: this page has nothing to show and saying
+  // "no gatherings" would be a claim about the family.
+  if (!report) notFound()
+
+  const { totals, rows } = report
+  const showMoney = rows.some(r => r.budgetCents !== null || r.allocatedCents !== null)
+
+  return (
+    <PageShell className="space-y-6">
+      <div>
+        <h1 className="mb-1 text-3xl font-bold">Gatherings</h1>
+        <p className="text-muted-foreground">
+          What the family has planned, how much of the work is done, and who is behind.
+          Cancelled gatherings are left out entirely — their open tasks are not work anybody
+          owes.
+        </p>
+      </div>
+
+      <ReportStats stats={[
+        { label: 'Gatherings', value: totals.gatherings, hint: `${totals.upcoming} still to come` },
+        {
+          label: 'Tasks approved',
+          value: `${totals.tasks.approved} / ${totals.tasks.total}`,
+          hint: `${totals.tasks.submitted} waiting on a decision`,
+          tone: 'affirm',
+        },
+        {
+          label: 'Overdue',
+          value: totals.overdue,
+          hint: 'past its date and not yet approved',
+          tone: totals.overdue > 0 ? 'withheld' : 'plain',
+        },
+        {
+          label: 'Nobody holding it',
+          value: totals.unassigned,
+          hint: `${totals.helpers} relative${totals.helpers === 1 ? '' : 's'} helping`,
+          tone: totals.unassigned > 0 ? 'withheld' : 'plain',
+        },
+      ]} />
+
+      {rows.length === 0 ? (
+        <ReportEmpty
+          icon={PartyPopper}
+          message="Nothing has been scheduled yet."
+          hint="Once the family schedules a gathering, this reports on how its tasks are going."
+        />
+      ) : (
+        <div className="overflow-hidden rounded-xl border">
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">
+              Every gathering with its task progress and, where shown, its budget.
+            </caption>
+            <thead>
+              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="px-3 py-2">Gathering</th>
+                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Starts</th>
+                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Status</th>
+                <th scope="col" className="px-3 py-2 text-right">Tasks</th>
+                <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>Overdue</th>
+                {showMoney && (
+                  <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                    Allocated
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.id} className="border-b align-top last:border-0 sm:align-middle">
+                  {/* THE SUBJECT CELL CARRIES THE FOLDED COLUMNS, per "On a phone a table
+                      narrows". Same cells, hidden by a media query — never a second stacked
+                      rendering, which drifts from the first the moment a column is added. */}
+                  <td className="px-3 py-2">
+                    <Link href={`/gatherings/${row.id}`} className="font-medium text-foreground hover:underline">
+                      {row.title}
+                    </Link>
+                    <RowMeta>
+                      <span>{formatDate(row.startsOn)}</span>
+                      <MetaDot />
+                      <span>{GATHERING_STATUS_LABEL[row.status]}</span>
+                      {row.overdue > 0 && (
+                        <>
+                          <MetaDot />
+                          <span className="text-brand-withheld">{row.overdue} overdue</span>
+                        </>
+                      )}
+                      {row.allocatedCents !== null && (
+                        <>
+                          <MetaDot />
+                          <span>{formatCurrency(row.allocatedCents)} allocated</span>
+                        </>
+                      )}
+                    </RowMeta>
+                  </td>
+                  <td className={cn('px-3 py-2 tabular-nums', COLLAPSING_CELL)}>
+                    {formatDate(row.startsOn)}
+                  </td>
+                  <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
+                    {GATHERING_STATUS_LABEL[row.status]}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {row.tasks.approved} / {row.tasks.total}
+                    {row.unassigned > 0 && (
+                      <span className="block text-xs text-brand-withheld">
+                        {row.unassigned} unheld
+                      </span>
+                    )}
+                  </td>
+                  <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL,
+                    row.overdue > 0 && 'text-brand-withheld')}>
+                    {row.overdue}
+                  </td>
+                  {showMoney && (
+                    <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                      {/* BOTH FIGURES OR NEITHER — the action nulls them together. An
+                          over-allocated gathering is marked `--brand-withheld` and not
+                          `--destructive`: task lines claiming more than the gathering budgeted
+                          is a plan to fix, not an error. That is the same reading
+                          `lib/gathering-budget.ts` takes, and the DESTRUCTIVE case there is
+                          over-FUND, which this report does not compute. */}
+                      {row.allocatedCents === null ? '—' : (
+                        <>
+                          {formatCurrency(row.allocatedCents)}
+                          {row.budgetCents !== null && (
+                            <span className={cn('block text-xs',
+                              row.allocatedCents > row.budgetCents
+                                ? 'text-brand-withheld'
+                                : 'text-muted-foreground')}>
+                              of {formatCurrency(row.budgetCents)}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
+        A task counts as overdue when its date has passed and nobody has approved it — one that
+        has been submitted and not yet ruled on is still outstanding.
+      </p>
+    </PageShell>
+  )
+}

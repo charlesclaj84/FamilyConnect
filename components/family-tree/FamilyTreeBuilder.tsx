@@ -68,9 +68,12 @@ import {
  * the split is derived — from the `parent` edges the children already carry, never guessed.
  *
  * ── WHAT IT DOES NOT DO YET, and is not pretending to ───────────────────────────────
- * No dates on the connectors, no zoom, no export. (`person_relationships.is_step` is
- * superseded by `link_kind` and written false; TODO.md carries dropping the column.) These
- * are a backlog against a finished feature rather than a caveat on a half-built one —
+ * No zoom and no export. NO DATES ON THE CONNECTORS EITHER, and since 2026-08-22 that is a
+ * decision rather than a gap: a tree is read for who is related to whom, and a date on every
+ * edge is four more numbers per line on a canvas already dense with names. A reader who wants
+ * a date opens the person.
+ *
+ * These are a backlog against a finished feature rather than a caveat on a half-built one —
  * which is what the beta badge used to say, and why it came off.
  *
  * ── STATE ───────────────────────────────────────────────────────────────────────────

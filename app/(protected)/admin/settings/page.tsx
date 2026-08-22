@@ -41,7 +41,8 @@ export default async function FamilySettingsPage() {
       <div>
         <h1 className="mb-1 text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">
-          What your family is called, and the code relatives use to join it.
+          Two bands: the plan this family is on, and the family itself — its name, the code
+          relatives join with, and switching it off.
         </p>
       </div>
 

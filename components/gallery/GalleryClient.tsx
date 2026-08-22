@@ -129,7 +129,7 @@ export function GalleryClient({ rights, myPersonId }: {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {collections.map(c => (
-            <div key={c.id} className="relative">
+            <div key={c.id} className="group/tile relative">
               <CollectionCard collection={c} />
               {/* OUTSIDE THE CARD'S ANCHOR, and it has to be: an <a> may not contain a
                   <button>, and nesting one produces markup a screen reader cannot describe
@@ -141,7 +141,19 @@ export function GalleryClient({ rights, myPersonId }: {
                   disabled={isPending}
                   aria-label={`Delete the album “${c.name}”`}
                   title="Delete album"
-                  className="absolute right-1.5 top-1.5 rounded-md bg-background/85 p-1.5 text-destructive opacity-0 shadow-sm transition-opacity hover:bg-background focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 sm:opacity-0"
+                  /* IT WAS INVISIBLE UNTIL 2026-08-22, and both halves of why are worth
+                     keeping. `group-hover:` needs an ANCESTOR carrying `group`, and the
+                     only `group` on this tile is inside `CollectionCard`, on the `<a>` —
+                     which is this button's SIBLING, because an anchor may not contain a
+                     button. So the hover rule matched nothing and `opacity-0 sm:opacity-0`
+                     was the whole of it: the control existed, was permissioned, and could
+                     be reached by keyboard alone. The named `group/tile` on the wrapper is
+                     what fixes it, and naming it rather than using a bare `group` keeps it
+                     from colliding with the card's own.
+                     AND IT IS VISIBLE BELOW `sm`, not hover-revealed: a phone has no hover
+                     state at all, so a control that only appears on one is a control a
+                     phone does not have. */
+                  className="absolute right-1.5 top-1.5 rounded-md bg-background/85 p-1.5 text-destructive shadow-sm transition-opacity hover:bg-background focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover/tile:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
