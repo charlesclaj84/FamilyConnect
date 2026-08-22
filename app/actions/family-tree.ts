@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireMember, requireRead } from '@/lib/auth/guard'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
 import { pickProfileColumns } from '@/lib/profile-columns'
@@ -235,13 +236,20 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     ((typeResult.data ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name]),
   )
 
+  // Profile pictures are Standard (2026-08-22). Narrowed here rather than in the query,
+  // because the column is one `select` among eleven and dropping it conditionally would fork
+  // `PersonRow`; `lib/auth/tier.ts`'s `familyShowsPhotos` carries the argument for gating the
+  // READ. Every card falls back to initials, which is what it already does for the member who
+  // has not uploaded one.
+  const showPhotos = await familyShowsPhotos(g.userId)
+
   const people: TreePerson[] = ((peopleResult.data ?? []) as PersonRow[]).map(p => ({
     id: p.id,
     firstName: p.first_name ?? '',
     lastName: p.last_name ?? '',
     nickName: p.nick_name,
     gender: p.gender,
-    avatarUrl: p.avatar_url,
+    avatarUrl: showPhotos ? p.avatar_url : null,
     dateOfBirth: p.date_of_birth,
     sunsetDate: p.sunset_date,
     hasAccount: Boolean(p.user_id),

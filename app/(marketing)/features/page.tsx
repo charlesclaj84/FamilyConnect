@@ -6,7 +6,7 @@ import {
   BarChart3, ShieldCheck, Users,
   Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
   NotebookPen, Gavel, Scale, CalendarDays, ListChecks, PieChart, Users2,
-  Landmark, LifeBuoy, UsersRound, UserCog,
+  Landmark, LifeBuoy, UsersRound, UserCog, UserRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -225,6 +225,12 @@ const ALSO: readonly {
   { icon: LifeBuoy, route: '/help', title: 'A manual, written for your relatives', blurb: 'Every screen explained by name — the buttons, the columns, what each control does and where to look when something is missing. A question mark in the top bar opens the page for wherever you are standing.' },
   { icon: UsersRound, route: '/my-families', title: 'One login, more than one family', blurb: 'Married into a second family, or keeping your father’s and your mother’s side both? One account belongs to as many as you like, and switching between them changes everything on screen at once.' },
   { icon: UserCog, route: '/admin/members', title: 'Look after the roster', blurb: 'Fix a relative’s record, send somebody a password reset, or switch a member off without deleting a thing they ever did.' },
+  // ADDED 2026-08-22 with the sub-key that carries its tier. Profile pictures had been sold on
+  // the Standard card and shipped free to every family since the tiers were set — the oldest
+  // open item in FutureFeature.md — and `lib/features.ts` could not express it because the
+  // upload lives on `/personal-info`, which is Free. It has its own registry row now, so this
+  // card's tier tag is derived like every other and the claim finally carries its price.
+  { icon: UserRound, route: '/personal-info/photo', title: 'A face against every name', blurb: 'A photograph beside each relative — in the directory, on the family tree, in the top bar and on every screen they are listed. Without one they get their initials.' },
 ]
 
 /**
@@ -282,17 +288,17 @@ const ALSO_BY_TIER = TIERS
   .map(tier => ({ tier, items: ALSO.filter(item => tierOf(item) === tier) }))
   .filter(band => band.items.length > 0)
 
-/**
- * The one FIGURE this page states, read from `TIER_PRICE` rather than typed.
+/*
+ * `STANDARD_RATE` WAS HERE, and its removal is the point rather than a tidy-up.
  *
- * A price in prose is still a price: `lib/plans.ts` is the single place any of them is written
- * down precisely so that a change cannot leave one page saying $5 and another $7. The empty
- * string is the honest fallback for an unpriced tier — the sentence around it names Standard
- * either way, and a "$0" or a "TBA" would both be claims nobody made.
+ * It existed for one sentence under the pillars naming what each tier covered and what Standard
+ * cost — a hand-typed copy of the tier table that went stale twice. The tier BANDS below state
+ * the price of every plan they render, each read from `TIER_PRICE` at the point of use, so a
+ * figure no longer has to be hoisted to the top of the file to be shared by one caller.
+ *
+ * The rule it was written for is unchanged and still binds: a price in prose is still a price,
+ * and `lib/plans.ts` is the only place any of them is written down.
  */
-const STANDARD_RATE = TIER_PRICE.standard
-  ? formatPlanPrice(TIER_PRICE.standard.monthlyCents)
-  : ''
 
 export default function FeaturesPage() {
   return (
@@ -403,18 +409,35 @@ export default function FeaturesPage() {
             })}
           </div>
 
-          {/* `mt-16` to match the rhythm the rows set. At the `mt-8` this had when the
-              pillars were three stacked cards it now reads as a caption on the last
-              pillar rather than as a note about all three. */}
+          {/* ── A PILLAR SPANS TIERS, AND THIS PARAGRAPH USED TO SAY WHICH, BY HAND ────
+              Each of the three narratives above crosses a plan boundary, and all three do — the
+              treasury pillar's dues and routing bullets are Standard while its P&L is Plus, the
+              family-record pillar's directory is Free while the tree is Standard, and the
+              gatherings pillar puts a date on a shared calendar for Free and hands out the work
+              for Standard. That is what a pillar IS: the job a family is trying to do, not a
+              row in a price list.
+
+              SO THE PILLARS CARRY NO TIER TAG, deliberately, and adding one would be worse than
+              the silence — a single badge on a card whose six bullets sit at two different
+              prices is a claim that is wrong either way it resolves.
+
+              WHAT STOOD HERE INSTEAD WAS A HAND-TYPED SENTENCE naming what each tier covers:
+              the fourth copy of the tier table in the tree, in the one form nothing could
+              check. It went stale twice — it was still describing a three-tier product after
+              Standard was inserted, and still omitting the Library and the reports two days
+              after they shipped.
+
+              IT IS NOT REPLACED WITH A DERIVED SENTENCE, because the grid immediately below is
+              already that answer: one band per tier, each headed with its price and its screen
+              count, every card's tier read from `lib/features.ts`. A prose summary of a table
+              that is right there is a second thing to keep in step for no reader's benefit. So
+              this is a pointer, and it names no tier and no figure at all. */}
           <Reveal delay={200}>
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
-              Free covers the directory, chat, announcements and putting the gathering on a
-              shared calendar. The family tree, the dues ledger and handing out the work are
-              Standard, at {STANDARD_RATE} a month. Card and digital payments, elections, the
-              gallery, the Library — bylaws, minutes and each office&apos;s own notebook — and
-              every report are Plus.{' '}
+              Each of those three spans more than one plan. What follows is the exact
+              answer, screen by screen, with the plan it belongs to over each group.{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
-                See what is in each tier
+                Or see what each tier costs
               </Link>
               .
             </p>

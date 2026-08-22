@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { computeIsMinor } from '@/lib/age-utils'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { chapterPlaces } from '@/lib/chapter-places'
@@ -169,6 +170,7 @@ export async function getMembers(): Promise<MemberRecord[]> {
   // curates the list, not who may see who holds what. §3's obligation is discharged by the
   // `family_code` conjunct, from the caller's own membership.
   const familyCode = await getMyFamilyCode(user.id)
+  const showPhotos = await familyShowsPhotos(user.id)
   const { data: roleAssignments, error: rolesError } = await createAdminClient()
     .from('user_roles')
     .select('user_id, scope, chapter_id, family_roles(name)')
@@ -226,7 +228,11 @@ export async function getMembers(): Promise<MemberRecord[]> {
       first_name: p.first_name,
       last_name: p.last_name,
       nick_name: p.nick_name ?? null,
-      avatar_url: p.avatar_url ?? null,
+      // Profile pictures are Standard (2026-08-22). `familyShowsPhotos` is the one place the
+      // key is named — see `lib/auth/tier.ts` for why the gate is on the read. Every surface
+      // this feeds (the Directory, Members & Access, the election nominee picker, the photo
+      // tagger) already falls back to initials for a member who never uploaded one.
+      avatar_url: showPhotos ? (p.avatar_url ?? null) : null,
       primary_email: p.primary_email ?? null,
       primary_phone: p.primary_phone ?? null,
       location: [p.city, p.state].filter(Boolean).join(', ') || null,

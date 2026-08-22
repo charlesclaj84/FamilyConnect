@@ -99,3 +99,36 @@ export const getFamilyTier = cache(async (familyCode: string): Promise<FamilyTie
 export async function tierAllows(userId: string, resourceKey: string): Promise<boolean> {
   return tierMeets(await getMyFamilyTier(userId), requiredTier(`/${resourceKey}`))
 }
+
+/**
+ * Does the family currently being viewed include profile pictures?
+ *
+ * ── ONE FUNCTION SO THE KEY IS TYPED ONCE ──────────────────────────────────────────
+ * Six call sites read `avatar_url` for rendering — My Profile, the Directory, the family
+ * tree, the top bar, the dashboard's own tile and the profile-completeness meter — and each
+ * of them has to answer the same question before it hands the column back. A bare
+ * `tierAllows(userId, 'personal-info/photo')` at six sites is six chances for a key move to
+ * leave one behind, and an UNREGISTERED key resolves to Free rather than failing (see
+ * `getFeature`), so the one that was missed would silently keep showing the picture. That is
+ * the failure mode `20260820000004` shipped four times over and nothing caught for two days.
+ *
+ * ── AND IT IS A RENDER GATE, NEVER A WRITE GATE ON EXISTING ROWS ───────────────────
+ * `uploadAvatar` writes `avatar_url` to every `people` row the user has — one per family, on
+ * purpose, because a portrait is a fact about a person rather than about a membership. So a
+ * Free family's copy of the column may well be populated, and what withholds it is the READ.
+ * Three consequences, and the second is the one a write-side gate could not give:
+ *
+ *   * a member of a Standard family and a Free one sees their picture in the first and
+ *     initials in the second;
+ *   * a family that UPGRADES sees the pictures its members already have, with nothing to
+ *     re-upload;
+ *   * a family that DOWNGRADES keeps every row and loses only the rendering, which is what
+ *     AGENTS.md requires of every tier in the product.
+ *
+ * A read may NARROW on the plan and may never REFUSE on one: `avatar_url` comes back null and
+ * every other column is untouched. Refusing the read outright would be the thing that section
+ * forbids.
+ */
+export async function familyShowsPhotos(userId: string): Promise<boolean> {
+  return tierAllows(userId, 'personal-info/photo')
+}

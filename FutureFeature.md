@@ -18,8 +18,8 @@ are at the bottom.
 
 | | |
 |---|---|
-| `FEATURES[]` entries | **42** |
-| `status: 'live'` | **41** |
+| `FEATURES[]` entries | **43** |
+| `status: 'live'` | **42** |
 | `status: 'future'` | **1** — `/admin`, the fail-closed catch-all, which is not a page |
 | **Marketing claims with no code** | **7** — one on Plus, six on Premium |
 | Live features named on no marketing surface | **0**, and gated: `npm run marketing:check` |
@@ -99,25 +99,7 @@ Then build the renderer. It is the only part that cannot start before those thre
 Each one has a built feature or a published claim sitting on the wrong side of it. These are
 product calls, not engineering work.
 
-1. **Profile pictures are sold as Standard and ship free to everybody.** `AvatarUpload` is on
-   `/personal-info`, which is Free and has no `permission_resources` row at all
-   (`20260806000006` removed it deliberately, so a member's own things cannot be restricted). So
-   this is a capability to **withdraw**, and three calls come with it: whether families already
-   using it are grandfathered, what happens to the pictures already uploaded, and where the check
-   goes. The mechanism is a sub-key with its own `FEATURES` row — a well-worn device now rather
-   than a proposal (`gatherings/budget`, `admin/members/templates`,
-   `accounting/transactions/fund-transfers`). **Settle it before `TIER_IS_SOLD` flips**: a paid
-   bullet a free family already has is the one error on a pricing page a reader can catch by
-   themselves.
-
-2. **The Coming Soon screen offers every member all 41 live routes**, unfiltered by permission or
-   tier — every administrator screen and every Plus one included. The fix is to resolve the
-   caller's viewable set the way the sidebar already does, and gate the fetch (§5). **Its urgency
-   dropped rather than its correctness:** with one `'future'` entry left, and that one a
-   catch-all, almost nobody reaches the screen. The product call underneath is whether it should
-   list anything at all.
-
-3. **The Dashboard's money band is Free while the whole ledger is Standard.** `/dashboard` still
+1. **The Dashboard's money band is Free while the whole ledger is Standard.** `/dashboard` still
    renders `FamilyDuesCollectedCard` and `DonationDrivesCard`. A family that has only ever been
    Free can record no payment, so there is nothing to leak; the real case is a family that
    **downgrades** — it keeps every row, as it must, and its dashboard goes on printing a collected
@@ -127,7 +109,7 @@ product calls, not engineering work.
    permission row, and giving it one to hide a figure would make the landing screen restrictable,
    which is a much larger change than the one being made.
 
-4. **Bylaws text extraction from PDF and Word is not built.** The table, the GIN index and the
+2. **Bylaws text extraction from PDF and Word is not built.** The table, the GIN index and the
    search are real; plain-text uploads are searchable word by word, and a PDF is searchable by
    title, article and summary only. Every row carries a badge saying which it is, and the
    empty-result state says it too — that is the part this scaffolding must not lose, because "no
@@ -136,16 +118,7 @@ product calls, not engineering work.
    the generated `search_vector`, so turning extraction on writes one column: no migration, no
    reindex.
 
-5. **The Gatherings pillar is `tier: 'free'` and five of its six bullets describe Standard
-   capabilities.** Templates, assigned steps, the budget and the review loop are all Standard;
-   only the calendar half is Free. The tier tag and the Coming Soon pill on `/features` are both
-   per CARD, so no badge can express this, and `npm run marketing:check` says in its own header
-   that it cannot see it either. It is disclosed today by the paragraph under the pillars naming
-   what each tier covers. The alternatives are a fourth pillar or per-bullet tier tags, and both
-   are real work — the point of this entry is that the disclosure is currently one sentence a
-   reader may not reach.
-
-6. **`components/marketing/screenshots/events.png` is a capture of a screen that no longer
+3. **`components/marketing/screenshots/events.png` is a capture of a screen that no longer
    exists** — the deleted `/events`, showing a multi-day itinerary with RSVP counts. It is shown
    on Home and on `/features` for the Gatherings pillar. A `Pillar` must have an `image` (a
    missing static import fails `next build`, which is the safe direction) and a screenshot cannot
@@ -159,8 +132,8 @@ product calls, not engineering work.
 ## 3. Debts on live code
 
 A flip is not the whole job, and what it leaves behind is invisible: nothing fails and nothing
-warns, and the obligation quietly changes from "before launch" to "on running code". With 41 of
-42 routes live, that is what this section is.
+warns, and the obligation quietly changes from "before launch" to "on running code". With 42 of
+43 routes live, that is what this section is.
 
 ### Bylaws has no fixture and no RLS case, and the whole table is uncovered
 
@@ -255,7 +228,12 @@ the hand-typed tier tag that grid's own header already warned about.**
   why neither may be derived from the registry. Those stay a judgement, and this file is where
   their gaps live.
 * **That the prose is true**, or that a card describes the screen it names. Nothing can.
-* **That a pillar's bullets sit at the pillar's tier.** Decision 5 above.
+* **That a pillar's bullets sit at the pillar's tier.** All three pillars span tiers by
+  construction — a pillar is the job a family is trying to do, not a row in a price list — so
+  they carry no tier tag and must not gain one: a single badge over six bullets sitting at two
+  prices is wrong either way it resolves. What used to disclose it was a hand-typed sentence
+  naming what each tier covered, which went stale twice; the tier BANDS are that answer now,
+  derived, and the sentence is a pointer to them naming no tier and no figure.
 
 ### `PLANS[]` and `PLAN_ADDS` are two hand-written lists, and they have drifted twice
 
@@ -489,9 +467,9 @@ quote.
 **Re-derive, do not quote.** Every figure above came from these:
 
 ```bash
-grep -c "status: 'live',"   lib/features.ts          # 41
+grep -c "status: 'live',"   lib/features.ts          # 42
 grep -c "status: 'future'," lib/features.ts          # 1
-grep -c "^    href: '"      lib/features.ts          # 42
+grep -c "^    href: '"      lib/features.ts          # 43
 
 npm run marketing:check                              # every live feature is sold somewhere
 

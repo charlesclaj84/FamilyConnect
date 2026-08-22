@@ -17,6 +17,7 @@ import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { ProfileReminderBanner } from '@/components/dashboard/ProfileReminderBanner'
 import { profileCompleteness } from '@/lib/profile-completeness'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { WelcomeHero } from '@/components/dashboard/WelcomeHero'
@@ -387,6 +388,13 @@ export default async function DashboardPage() {
     country: string | null
     date_of_birth: string | null
   } | null
+  // ── PROFILE PICTURES ARE STANDARD (2026-08-22) ─────────────────────────────────────
+  // Resolved once and used twice: the hero's portrait, and whether the completeness nudge is
+  // allowed to ask for a photo at all. `familyShowsPhotos` is cached per request (it reads
+  // `getMyFamilyTier`, which the layout has already warmed), so this costs nothing here.
+  const showPhotos = await familyShowsPhotos(user.id)
+  const heroAvatarUrl = showPhotos ? myPersonData?.avatar_url : null
+
   const myChapterId = myPersonData?.chapter_id ?? null
   const myChapterName = (myPersonData?.chapters as { name: string } | null)?.name ?? null
   const needsChapter = !myChapterId && chapters.length > 0
@@ -403,7 +411,10 @@ export default async function DashboardPage() {
   // family, or a read that failed, is not the same fact as an empty profile — greeting somebody
   // with "there is not much there yet" over a query that did not answer is §8 in a friendly
   // voice.
-  const completeness = profileCompleteness(myPersonData)
+  // `showPhotos` is passed, not looked up: on a Free family "a photo" would sit in `missing`
+  // forever, since the upload control is not rendered and the column is narrowed away. See
+  // the note on `countPhoto`.
+  const completeness = profileCompleteness(myPersonData, showPhotos)
 
   // ── This page no longer reads the clock ─────────────────────────────────────────────
   // It did, for exactly this count, and both the clock read and the span test moved into
@@ -504,7 +515,7 @@ export default async function DashboardPage() {
           <WelcomeHero
             firstName={firstName}
             initials={initials}
-            avatarUrl={myPersonData?.avatar_url}
+            avatarUrl={heroAvatarUrl}
             roles={myRoles.map(formatRoleTitle)}
             chapterName={myChapterName}
             photoUrl={premierGathering.photoUrl}
@@ -516,7 +527,7 @@ export default async function DashboardPage() {
         <WelcomeHero
           firstName={firstName}
           initials={initials}
-          avatarUrl={myPersonData?.avatar_url}
+          avatarUrl={heroAvatarUrl}
           roles={myRoles.map(formatRoleTitle)}
           chapterName={myChapterName}
         />

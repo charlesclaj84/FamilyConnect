@@ -291,6 +291,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               ),
               p('A JPEG, PNG or WebP, up to 2 MB. Anything else is refused with a line saying why rather than failing silently, and a new photo replaces the one it follows.'),
               note('Your photo is ONE photo, shared by every family you belong to — unlike the rest of this page, which is per family. Anybody who can see you in the [Directory](/community/directory) can see it, so it is the one field here to treat as public within the family.'),
+              note('Whether it is SHOWN depends on the family’s plan, and that is decided per family rather than per account: a family whose plan does not include profile pictures shows your initials everywhere instead, and offers no camera on this page. If you belong to two families you may well see your photo in one and your initials in the other. Nothing is lost either way — the picture is still there, and it appears the moment a family’s plan includes it.'),
             ],
           },
         ],

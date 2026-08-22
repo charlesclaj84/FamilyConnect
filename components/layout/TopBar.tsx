@@ -8,6 +8,7 @@ import { HELP_ROUTE_INDEX } from '@/lib/help/routes'
 import { getNotifications } from '@/app/actions/notifications'
 import { getPendingApprovalQueues } from '@/app/actions/admin/approvals'
 import { getMyFamilies, getMyFamilyCode } from '@/lib/auth/family'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
@@ -118,7 +119,11 @@ export default async function TopBar({
     const person = personResult.data as { first_name: string | null; last_name: string | null; avatar_url: string | null } | null
     const first = person?.first_name ?? user.user_metadata?.first_name ?? ''
     const last = person?.last_name ?? user.user_metadata?.last_name ?? ''
-    avatarUrl = person?.avatar_url ?? null
+    // Profile pictures are Standard (2026-08-22). Resolved per family, so switching from a
+    // Standard family to a Free one changes the bar to initials — the bar is rendered by the
+    // protected layout on every request, which is what makes it follow the switch.
+    // `familyShowsPhotos` is the one place the key is named.
+    avatarUrl = (await familyShowsPhotos(user.id)) ? (person?.avatar_url ?? null) : null
     name = [first, last].filter(Boolean).join(' ') || (user.email?.split('@')[0] ?? 'Member')
     initials = [first[0], last[0]].filter(Boolean).join('').toUpperCase()
       || (user.email?.[0] ?? '?').toUpperCase()

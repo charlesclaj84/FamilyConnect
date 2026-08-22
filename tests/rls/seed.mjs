@@ -542,9 +542,28 @@ export async function seed() {
   // The `families` row ids are KEPT, which they were not before: the raw PATCH probe that
   // reaches `families_guard_removal` addresses the row by primary key (rawUpdate is
   // `.eq('id', …)`), and that trigger is reachable no other way.
+  // ── EVERY FIXTURE FAMILY IS `standard`, STATED RATHER THAN DEFAULTED (2026-08-22) ──
+  // `families.tier` defaults to Free, and this suite is about FAMILY ISOLATION rather than
+  // about plans — so a Free fixture quietly turns any action that narrows on the tier into a
+  // case whose POSITIVE CONTROL cannot pass. AGENTS.md records that happening once already:
+  // a tier check went into `getGatheringFundOptions` and the control failed on the first run,
+  // because ALPHA's own administrator — entitled to the call — got nothing.
+  //
+  // It arrived for real with `uploadAvatar`, which is tier-checked (profile pictures are
+  // Standard, and its header carries the one argument in this product for tier-checking a
+  // WRITE). On Free BOTH halves of that case go soft: the control is refused, and the attack
+  // passes because BRAVO is refused too — which would leave a case that reads as green while
+  // asserting nothing about whose folder the object lands in, exactly the vacuous probe its
+  // own comment warns about.
+  //
+  // `standard` AND NOT `premium`: it is the lowest tier that unblocks what is tested today, so
+  // a case that needs Plus or Premium still has to say so and cannot pass by accident. Nothing
+  // in the suite asserts Free behaviour — measured, by running the whole thing before and
+  // after this line: 786 assertions, identical results.
   for (const code of [ALPHA, BRAVO, CHARLIE]) {
     const row = must(`family ${code}`, await db.from('families')
-      .insert({ family_code: code, family_name: `${code} Family` }).select().single())
+      .insert({ family_code: code, family_name: `${code} Family`, tier: 'standard' })
+      .select().single())
     const side = code === ALPHA ? 'alpha' : code === BRAVO ? 'bravo' : 'charlie'
     fx[side].familyCode = code
     fx[side].familyRowId = row.id

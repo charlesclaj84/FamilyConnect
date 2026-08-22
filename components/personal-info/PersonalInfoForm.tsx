@@ -88,7 +88,27 @@ function Field({ label, value }: { label: string; value?: string | null }) {
  * OPERATION rather than one input (AGENTS.md, "Telling somebody something went wrong is a
  * component").
  */
-function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl?: string | null }) {
+/**
+ * ── `allowed` IS THE PLAN, NOT A PERMISSION (2026-08-22) ────────────────────────────
+ * Profile pictures are Standard. When the family being viewed is on Free this renders the
+ * portrait frame and NO control — the member sees their initials, exactly as somebody who has
+ * not uploaded one does, and there is no camera button to press.
+ *
+ * NOTHING IS SAID ON THIS SCREEN ABOUT WHY. An upsell on a member's own profile page is aimed
+ * at the wrong person — most members cannot change their family's plan — and `/upgrade` is the
+ * screen that exists for the one who can. The absent control is the same silence every other
+ * tier boundary keeps.
+ *
+ * IT IS NOT THE GATE. `uploadAvatar` refuses on the tier itself, because a `'use server'`
+ * export has a URL whether or not a button exists (AGENTS.md §2), and its header carries the
+ * one argument in this product for tier-checking a WRITE.
+ */
+function AvatarUpload({ initials, existingUrl, allowed }: {
+  initials: string
+  existingUrl?: string | null
+  /** Does the family being viewed include profile pictures? `familyShowsPhotos`. */
+  allowed: boolean
+}) {
   const confirm = useConfirm()
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
@@ -122,6 +142,17 @@ function AvatarUpload({ initials, existingUrl }: { initials: string; existingUrl
       // as the control being broken rather than as the file being wrong.
       if (fileRef.current) fileRef.current.value = ''
     })
+  }
+
+  // Before the control, and after the hooks — a conditional return above `useState` would
+  // change the hook order between a Free family and a Standard one, and switching family
+  // re-renders this component rather than remounting the tree above it.
+  if (!allowed) {
+    return (
+      <div className="shrink-0">
+        <Avatar url={null} initials={initials} size="md" />
+      </div>
+    )
   }
 
   return (
@@ -317,6 +348,7 @@ function GeneralSection({
   existing,
   chapters,
   familyName,
+  photosAllowed,
   onSaved,
   visible,
   editing,
@@ -324,6 +356,8 @@ function GeneralSection({
 }: {
   existing: PersonalInfoRecord | null
   chapters: Chapter[]
+  /** Does this family's plan include profile pictures? Threaded from the page. */
+  photosAllowed: boolean
   /** Names the chapter block's scope. See ChapterBlock. */
   familyName: string
   onSaved: () => void
@@ -424,7 +458,7 @@ function GeneralSection({
   if (!visible) return null
 
   return (
-    <SectionCard headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} />}>
+    <SectionCard headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} allowed={photosAllowed} />}>
       {!editing ? (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
@@ -809,10 +843,19 @@ const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
  */
 const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> = new Set<ProfileSection>(['security'])
 
-export function PersonalInfoForm({ existing, chapters = [], familyName = '', initialSection, signInEmail }: {
+export function PersonalInfoForm({
+  existing, chapters = [], familyName = '', photosAllowed, initialSection, signInEmail,
+}: {
   existing: PersonalInfoRecord | null
   chapters?: Chapter[]
   familyName?: string
+  /**
+   * Does the family being viewed include profile pictures? Resolved on the page with
+   * `familyShowsPhotos` and threaded down, rather than read here: this is a client component
+   * and the tier is a database fact. NOT optional — a default of `true` is the value that
+   * would silently re-open the boundary on the next surface that forgets to pass it.
+   */
+  photosAllowed: boolean
   /** Resolved from `?section=` on the server, so the first paint is already right. */
   initialSection: ProfileSection
   /** `auth.users.email` — the address the account signs in with, not `primary_email`. */
@@ -866,6 +909,7 @@ export function PersonalInfoForm({ existing, chapters = [], familyName = '', ini
       {/* All three stay MOUNTED and hide themselves — see GeneralSection on why. */}
       <GeneralSection
         existing={existing} chapters={chapters} familyName={familyName} onSaved={handleSaved}
+        photosAllowed={photosAllowed}
         visible={section === 'general'}
         editing={editingSection === 'general'}
         onEditDone={() => setEditingSection(null)}

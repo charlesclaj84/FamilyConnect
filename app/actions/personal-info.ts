@@ -5,6 +5,7 @@ import { propagateChapterToChildren } from '@/lib/chapter-propagation'
 import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { pickProfileColumns } from '@/lib/profile-columns'
 
 /**
@@ -39,6 +40,27 @@ export async function uploadAvatar(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+
+  // ── THE ONE TIER CHECK ON A WRITE IN THIS PRODUCT, AND WHY IT IS ADMISSIBLE ────────
+  // AGENTS.md forbids tier-checking the actions behind a paid page, and the reason is precise:
+  // "the first time a family downgraded, one would start answering 'Not authorized' for their
+  // own history." That argument is about REACHING WHAT ALREADY EXISTS. This creates something
+  // new, and nothing a Free family uploads here would ever render for them — every read gate
+  // is `familyShowsPhotos` — so accepting the file would take a 2 MB upload, replace the
+  // object in a public bucket, stamp every family row the member has, and report success for a
+  // picture they will not see. Refusing is the honest answer and the form does not offer the
+  // control in the first place (§2: the form is a convenience, this is the gate).
+  //
+  // IT DOES NOT DELETE OR HIDE A ROW. A member of a Standard family and a Free one uploads
+  // while viewing the Standard one and the picture lands for both, rendering in the family
+  // that pays for it. That is the whole shape, and it is the reason the gate is on the READ
+  // everywhere else.
+  if (!(await familyShowsPhotos(user.id))) {
+    return {
+      success: false,
+      message: 'Profile pictures are part of the Standard plan. This family is on Free.',
+    }
+  }
 
   const file = formData.get('file') as File | null
   if (!file || file.size === 0) return { success: false, message: 'No file provided' }
@@ -160,7 +182,20 @@ export async function getPersonalInfo(): Promise<PersonalInfoRecord | null> {
     .eq('family_code', familyCode)
     .maybeSingle()
 
-  return data ?? null
+  if (!data) return null
+
+  // ── THE PICTURE IS WITHHELD BY PLAN, NOT BY GRANT (2026-08-22) ─────────────────────
+  // Profile pictures are Standard. `uploadAvatar` writes `avatar_url` to every family row the
+  // user has, so a Free family's copy may well be populated — and this is the read that
+  // decides whether this family shows it. `lib/auth/tier.ts`'s `familyShowsPhotos` carries the
+  // whole argument for why the gate is here rather than on the write.
+  //
+  // NARROWED, NOT REFUSED: one column comes back null and the other twenty are untouched. A
+  // pending member reaches this page in full (see the page), and they get the same answer —
+  // the tier is a fact about the family, not about how far through joining they are.
+  if (!(await familyShowsPhotos(user.id))) return { ...data, avatar_url: null }
+
+  return data
 }
 
 /**

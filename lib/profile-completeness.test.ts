@@ -118,6 +118,52 @@ describe('profileCompleteness', () => {
     ])
   })
 
+  // ── `countPhoto: false` — THE FREE-FAMILY CASE, 2026-08-22 ──────────────────────
+  // Profile pictures are Standard. On a Free family the control is not rendered and
+  // `avatar_url` is narrowed to null on every read, so counting it would leave "a photo"
+  // permanently in `missing` and cap the member at 83% with no way to reach 100.
+  //
+  // THE DENOMINATOR IS THE HALF THAT MATTERS. The threshold is a FRACTION of the counted
+  // fields, so the field and `total` have to move together — mutation-checked by leaving
+  // `total = FIELDS.length` behind, which turns all THREE of the tests below red and no
+  // others (650 of 653 still pass). That is the shape to keep: the three assert the count,
+  // the percentage and the threshold separately, so a denominator bug cannot hide in one of
+  // them looking like a rounding question in another.
+  it('does not ask for a photo when the family’s plan excludes it', () => {
+    const r = profileCompleteness(FULL, false)
+    expect(r.total).toBe(5)
+    expect(r.filled).toBe(5)
+    expect(r.percent).toBe(100)
+    expect(r.missing).toEqual([])
+  })
+
+  it('a photoless profile on a Free family is complete rather than 83%', () => {
+    // Everything but the picture. On Standard this is 5 of 6 and prints "a photo";
+    // on Free there is nothing left to ask for.
+    const noPhoto: ProfileCompletenessInput = { ...FULL, avatar_url: null }
+    expect(profileCompleteness(noPhoto).percent).toBe(83)
+    expect(profileCompleteness(noPhoto).missing).toEqual(['a photo'])
+    expect(profileCompleteness(noPhoto, false).percent).toBe(100)
+    expect(profileCompleteness(noPhoto, false).missing).toEqual([])
+  })
+
+  it('the prompt threshold moves with the denominator', () => {
+    // TWO of five is 40% — under the half — and two of six is 33%, also under. The case that
+    // separates them is THREE: 3/5 = 60% is quiet, and 3/6 = 50% is also quiet (the test is
+    // `< 0.5`). So the boundary worth pinning is two filled, which must prompt on both.
+    const two: ProfileCompletenessInput = {
+      ...EMPTY, primary_phone: '(512) 555-0134', city: 'Austin',
+    }
+    expect(profileCompleteness(two).shouldPrompt).toBe(true)
+    expect(profileCompleteness(two, false).shouldPrompt).toBe(true)
+
+    // Three of five is 60%, quiet. Had the denominator been left at six it would be 50% —
+    // also quiet — so this pair is pinned by `total` above rather than by `shouldPrompt`.
+    const three: ProfileCompletenessInput = { ...two, state: 'Texas' }
+    expect(profileCompleteness(three, false).shouldPrompt).toBe(false)
+    expect(profileCompleteness(three, false).total).toBe(5)
+  })
+
   it('rounds the percentage rather than truncating it', () => {
     // 1/6 is 16.67 and must read as 17, or a member who has filled one thing in is told 16
     // while a member who has filled none is told 0 — a two-point gap for a sixth of the work.

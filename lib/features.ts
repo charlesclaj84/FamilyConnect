@@ -131,6 +131,28 @@ export interface Feature {
   tier: FamilyTier
   /** One-liner shown on the Coming Soon screen and in inline placeholders. */
   blurb: string
+  /**
+   * `true` where this entry is a SUB-KEY rather than a navigable route: a pane, a ledger tab
+   * or a capability inside another page. It exists to carry a `tier` and a permission key, and
+   * `app/(protected)/<href>/page.tsx` does not exist.
+   *
+   * ── WHY THE FLAG IS NEEDED AT ALL, added 2026-08-22 ────────────────────────────────
+   * Four entries are in this state and three of them had been for weeks. Nothing distinguished
+   * them from a real route, so anything that turned this registry into a LIST OF PLACES linked
+   * to a 404 — and one thing does: `ComingSoonScreen` renders `LIVE_FEATURES` as destinations,
+   * so `/gatherings/budget`, `/admin/members/templates` and
+   * `/accounting/transactions/fund-transfers` were all offered as links that go nowhere.
+   *
+   * IT IS NOT A SECOND `status`. A pane is fully shipped; it simply is not a URL. Everything
+   * that asks a QUESTION about a path — `getFeature`, `requiredTier`, `tierAllows`,
+   * `viewableResources`, `isFeatureFuture` — must go on treating it exactly like any other
+   * entry, because that is the whole reason it is here. Only code that offers a path to be
+   * NAVIGATED TO should skip it.
+   *
+   * `TAB_RESOURCES` at the bottom of this file is the neighbouring case and stays separate:
+   * those keys have no registry entry at all, because they carry no tier of their own.
+   */
+  pane?: true
 }
 
 export const FEATURES: readonly Feature[] = [
@@ -148,6 +170,50 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     tier: 'free',
     blurb: 'Your contact details, address, birthday, and t-shirt size.',
+  },
+  /**
+   * ── A SUB-KEY THAT IS NOT A ROUTE, CARRYING A TIER AND NOTHING ELSE ────────────────
+   * Profile pictures are sold on the STANDARD card ("A face against every name") and shipped
+   * free to everybody until 2026-08-22, because `AvatarUpload` lives on `/personal-info`,
+   * which is Free and — deliberately — has no `permission_resources` row at all
+   * (`20260806000006`: a member's own things are not something a family administers). So the
+   * tier boundary runs THROUGH a Free page, which is the case `lib/features.ts` cannot express
+   * without a row of its own. Fourth instance of the device; `accounting/transactions/fund-transfers`
+   * is where it was first exercised end to end.
+   *
+   * `status: 'live'` matters twice, and both are recorded on the fund-transfers entry:
+   * `'future'` would make `proxy.ts` rewrite `/personal-info` itself to Coming Soon, and would
+   * drop this key out of `getResources()` with no error at all.
+   *
+   * ── IT GATES THE RENDER, NOT THE ROW, AND THAT IS THE WHOLE DESIGN ─────────────────
+   * `uploadAvatar` writes `avatar_url` to EVERY `people` row the user has — one per family, on
+   * purpose, because a portrait is a fact about a person rather than about a membership. So the
+   * question a Free family raises is not "may they upload" but "may this family SEE it", and
+   * the answer has to be resolved per family at READ time:
+   *
+   *   * a member of a Standard family and a Free one sees their picture in the first and
+   *     initials in the second, which is what was asked for;
+   *   * a family that UPGRADES sees the picture its members already have, with nothing to
+   *     re-upload — impossible if the write had been gated instead;
+   *   * a family that DOWNGRADES keeps every row and loses only the rendering, which is the
+   *     rule a tier obeys everywhere else in this product.
+   *
+   * AGENTS.md permits exactly this and draws the line precisely: a read action may NARROW on
+   * the plan (fewer columns) and may never REFUSE on one (no rows). `avatar_url` comes back
+   * null; every other column is untouched.
+   *
+   * NO `permission_resources` ROW, and there must not be one. This is a plan boundary, not a
+   * grant: `/personal-info` is on the list `20260806000006` deliberately emptied so that a
+   * member's own profile can never be restricted by an administrator, and a row here would put
+   * it back on the grid.
+   */
+  {
+    href: '/personal-info/photo',
+    label: 'Profile Pictures',
+    status: 'live',
+    tier: 'standard',
+    pane: true,
+    blurb: 'A photograph against your name, on the directory, the tree and everywhere you are listed.',
   },
   {
     href: '/my-families',
@@ -282,6 +348,7 @@ export const FEATURES: readonly Feature[] = [
     label: 'Fund Transfers',
     status: 'live',
     tier: 'plus',
+    pane: true,
     blurb: 'Moving money between the family’s funds, with both sides of the transfer on one row.',
   },
   // ── What the family is owed, as opposed to what it took ───────────────────
@@ -572,6 +639,28 @@ export const FEATURES: readonly Feature[] = [
     href: '/gatherings',
     label: 'Gatherings',
     status: 'live',
+    // ── DO NOT MOVE THIS TO STANDARD, AND THE REASON IS NOT ABOUT GATHERINGS ──────────
+    // Asked and answered 2026-08-22: "Gatherings are Standard but the calendar is Free —
+    // should we simply split this to make it simpler?" It reads as a tidy-up and it is not
+    // available, because the boundary is already where it has to be.
+    //
+    // The Free card sells "Put the reunion on a shared calendar", and a calendar is a VIEW —
+    // something has to create the entries on it. `/gatherings/calendar` renders them and this
+    // page and `/admin/gatherings` are what put them there, so moving either up a rung leaves
+    // a Free family with a calendar that can never have anything on it and a bullet on the
+    // pricing page that is false. `scheduleGathering` accepting an EMPTY template list
+    // (2026-08-19) is what makes the Free half a real feature rather than a stub: a date, a
+    // place and a description, with no planning machinery at all.
+    //
+    // So the line is DATE versus PLAN, not screen versus screen: Free is that a gathering
+    // exists and when it is, Standard is turning it into assigned work with a budget. Three
+    // entries either side, and the split runs through the feature rather than around it —
+    // which is why `/gatherings` and `/admin/gatherings` resolve their Standard panes with
+    // `tierAllows()` by hand (see the note on `/gatherings/my-tasks` below).
+    //
+    // WHAT WAS ACTUALLY WRONG WAS THE MARKETING, and it is fixed there: one pillar sold both
+    // halves with no tier tag. `/features` cuts its catalogue into one band per tier now, and
+    // the pillars carry no tag deliberately, because all three of them span tiers.
     tier: 'free',
     // "built from a template" came out of this blurb on 2026-08-19: a template is Standard
     // now, and a Free gathering is a date, a place and the details. The page is the same page.
@@ -596,6 +685,7 @@ export const FEATURES: readonly Feature[] = [
     label: 'Gathering Budgets',
     status: 'live',
     tier: 'standard',
+    pane: true,
     blurb: 'What a gathering may spend, which fund it draws on, and what each task has claimed.',
   },
   // MORE SPECIFIC THAN `/gatherings`, WHICH IS WHY IT NEEDS ITS OWN ENTRY. `getFeature()`
@@ -1126,6 +1216,7 @@ export const FEATURES: readonly Feature[] = [
     label: 'Permission Templates',
     status: 'live',
     tier: 'standard',
+    pane: true,
     blurb: 'The grid that decides who may do what, one row per feature and four switches across.',
   },
   // Accounting is LIVE — it is where dues get set up: schedules, recorded

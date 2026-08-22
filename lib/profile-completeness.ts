@@ -103,13 +103,32 @@ export interface ProfileCompleteness {
  */
 const PROMPT_BELOW = 0.5
 
+/**
+ * ── `countPhoto` EXISTS BECAUSE A PHOTO IS NOT ALWAYS ASKABLE, since 2026-08-22 ─────
+ * Profile pictures are Standard. On a Free family the upload control is not rendered and
+ * `avatar_url` is narrowed to null on every read (`lib/auth/tier.ts`, `familyShowsPhotos`) —
+ * so counting it here would put "a photo" permanently in `missing` for a member who has no
+ * way to supply one, drag their percentage down by a sixth they cannot recover, and keep the
+ * nudge on screen forever. A to-do list with an item nobody can tick is worse than no list.
+ *
+ * IT IS A PARAMETER RATHER THAN A LOOKUP, so this module stays pure and testable (§7b): the
+ * caller resolves the tier — it already has the answer for the hero's portrait — and this
+ * decides nothing about plans. Defaulting to `true` keeps every existing caller and both
+ * existing tests correct, and makes the Free case the one that has to be stated.
+ *
+ * `total` MOVES WITH IT, which is the half that is easy to miss: the threshold is a FRACTION
+ * of the counted fields, so dropping a field without dropping the denominator would make the
+ * prompt fire at a different point on Free than on Standard.
+ */
 export function profileCompleteness(
   person: ProfileCompletenessInput | null | undefined,
+  countPhoto = true,
 ): ProfileCompleteness {
   const missing: string[] = []
   let filled = 0
+  const fields = countPhoto ? FIELDS : FIELDS.filter(f => f.key !== 'avatar_url')
 
-  for (const field of FIELDS) {
+  for (const field of fields) {
     // A string of spaces is not an answer, and neither is the empty string an
     // `<input type="date">` sends when it is cleared. `?? ''` covers null and undefined
     // together, so a missing key and an explicit null are the same fact — which they are.
@@ -118,7 +137,7 @@ export function profileCompleteness(
     else missing.push(field.label)
   }
 
-  const total = FIELDS.length
+  const total = fields.length
   return {
     filled,
     total,

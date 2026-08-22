@@ -8,6 +8,7 @@ import { getMyRoles } from '@/app/actions/admin/users'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
 import { getViewingMembership } from '@/lib/auth/family'
+import { familyShowsPhotos } from '@/lib/auth/tier'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
@@ -48,11 +49,17 @@ export default async function PersonalInfoPage({
   // cache()-wrapped and already resolved for this request by the layout and the navbar.
   // Fetched for a pending member too, unlike the two below: they are family data, and
   // this is the name of the family they are waiting on.
-  const [existing, myRoles, chapters, membership] = await Promise.all([
+  // `familyShowsPhotos` rides along: profile pictures are Standard (2026-08-22), and it is the
+  // tier of the family being VIEWED rather than anything about the account. Fetched for a
+  // pending member too — a plan is a fact about the family, not about how far through joining
+  // somebody is — and it costs nothing, since `getMyFamilyTier` is cache()d per request and the
+  // layout has already resolved it.
+  const [existing, myRoles, chapters, membership, photosAllowed] = await Promise.all([
     getPersonalInfo(),
     pending ? Promise.resolve([]) : getMyRoles(),
     pending ? Promise.resolve([]) : getChapters(),
     getViewingMembership(user.id),
+    familyShowsPhotos(user.id),
   ])
 
   return (
@@ -91,6 +98,7 @@ export default async function PersonalInfoPage({
         existing={existing}
         chapters={chapters}
         familyName={membership?.familyName ?? ''}
+        photosAllowed={photosAllowed}
         initialSection={initialSection}
         signInEmail={user.email ?? ''}
       />
