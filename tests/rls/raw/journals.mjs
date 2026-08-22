@@ -58,11 +58,6 @@ export async function selectJournalNotes() {
   return rawSelect('position_journal_notes', 'id, entry_id, author_id, body, family_code')
 }
 
-/** Every meeting attendee row the caller can read. */
-export async function selectMeetingAttendees() {
-  return rawSelect('position_journal_attendees', 'entry_id, person_id, family_code')
-}
-
 /**
  * A note filed against an entry, under a byline the caller chooses.
  *
@@ -86,16 +81,12 @@ export async function insertJournalNote(familyCode, entryId, authorId, body) {
   })
 }
 
-/**
- * An attendee filed against a meeting.
- *
- * The action reaches this table too, so this is not the only route to the INSERT policy — but
- * it is the only one that can send a `family_code` of the caller's choosing, which is what
- * `tg_journal_attendee_same_family` exists to refuse (§4 in the database). The action always
- * writes the caller's own.
- */
-export async function insertMeetingAttendee(familyCode, entryId, personId) {
-  return rawInsert('position_journal_attendees', {
-    family_code: familyCode, entry_id: entryId, person_id: personId,
-  })
-}
+// ── TWO ATTENDEE PROBES LEFT WITH THEIR TABLE, 2026-08-22 ──────────────
+// `position_journal_attendees` is dropped (`20260822000019`). `selectMeetingAttendees` and
+// `insertMeetingAttendee` went with it, along with the four cases that used them.
+//
+// WHAT THEY WERE FOR is worth keeping as a note, because the same shapes exist on the new
+// tables and are covered differently: the SELECT probe reached a policy two layers of
+// app-side narrowing hid, and the INSERT probe was the only route to a guard trigger under a
+// service-role write. On `meeting_*` the second of those is exercised by the migration
+// itself, against real rows; the first has no probe yet and `tests/rls/seed.mjs` says so.

@@ -35,6 +35,19 @@ import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
  * failed: a source that produced nothing because PostgREST refused it must never report
  * itself as shown, or the page renders an empty month as a fact about the family (§8).
  *
+ * ── A MEETING IS ON ITS ATTENDEES' CALENDARS, AND NOBODY ELSE'S ────────
+ * That is the ask, and it is a per-VIEWER narrowing rather than a permission one, which makes
+ * it unlike anything else on this grid. Every approved member may READ a meeting — minutes
+ * are the family's record, and the SELECT policy says so — but a committee meeting on
+ * everybody's calendar is a calendar nobody reads. So the filter is the attendee list, plus the
+ * SECRETARY, who is expected in the room whether or not somebody remembered to tick them.
+ *
+ * IT IS FILTERED IN TYPESCRIPT AND NOT IN THE QUERY, deliberately. An `!inner` join on
+ * `meeting_attendees` would express the attendee half in SQL and could not express the OR with
+ * the secretary without a second query anyway — and, more to the point, the rows it would
+ * filter out are rows the caller may read regardless, so this is a RELEVANCE decision and not
+ * §5. Writing it as a policy-shaped query would suggest otherwise to the next reader.
+ *
  * ── THE USER CLIENT, NOT THE ADMIN ONE ─────────────────────────────────────────────
  * `gatherings` has a composed SELECT policy whose `own_expr` is `created_by =
  * auth_person_id()`, so RLS narrows a caller holding `gatherings:view` at scope 'own' to
@@ -62,6 +75,12 @@ import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
 /** Which halves of the calendar are actually on the grid — see the header. */
 export interface CalendarSources {
   gatherings: boolean
+  /**
+   * MEETINGS, since 2026-08-22, and the first thing to plug into the shape this record kept
+   * after Events was retired. Its own header predicted one: "A second source — a birthday, a
+   * dues date — plugs into that with no re-plumbing."
+   */
+  meetings: boolean
 }
 
 export interface CalendarMonthData {
@@ -87,7 +106,17 @@ export interface CalendarMonthData {
  * dropped, this needs a third state before the page can say anything about a source being
  * missing.**
  */
-const NOTHING: CalendarMonthData = { entries: [], sources: { gatherings: false } }
+interface MeetingRow {
+  id: string
+  title: string
+  meets_on: string | null
+  secretary_id: string | null
+  meeting_attendees: { person_id: string }[] | null
+}
+
+const NOTHING: CalendarMonthData = {
+  entries: [], sources: { gatherings: false, meetings: false },
+}
 
 /** `YYYY-MM-DD` from a UTC instant, read through `getUTC*` for the reason in the header. */
 function isoOf(date: Date): string {
@@ -161,10 +190,16 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
   const mayGatherings = isFeatureLive('/gatherings')
     ? await can(g.userId, 'gatherings', 'view')
     : false
+  // `journals/meeting-minutes` is the key that owns the screen a meeting cell links to, asked
+  // the same way and for the same reason: a cell linking to a page the member cannot open is
+  // the worst thing a calendar can do.
+  const mayMeetings = isFeatureLive('/journals/meeting-minutes')
+    ? await can(g.userId, 'journals/meeting-minutes', 'view')
+    : false
 
   const { from, to } = gridWindow(month)
   const entries: CalendarEntry[] = []
-  const sources: CalendarSources = { gatherings: mayGatherings }
+  const sources: CalendarSources = { gatherings: mayGatherings, meetings: mayMeetings }
 
   const supabase = await createClient()
 
@@ -206,6 +241,45 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
           kind:      'gathering',
           href:      `/gatherings/${row.id}`,
           isPremier: row.is_premier,
+        })
+      }
+    }
+  }
+
+  // ── MEETINGS ────────────────────────────────────────────────────────────────────
+  // NOT FETCHED rather than fetched-and-filtered, like the source above it (§5).
+  //
+  // A MEETING IS ONE DAY. `meets_on` is a bare DATE with no end, so the overlap test the
+  // gatherings half needs collapses to a range check — which is done in SQL here, because
+  // there is no `ends_on`-or-`starts_on` coalesce to keep in one place.
+  if (mayMeetings) {
+    const meetingRes = await supabase
+      .from('meeting_sessions')
+      .select('id, title, meets_on, secretary_id, meeting_attendees(person_id)')
+      .gte('meets_on', from)
+      .lte('meets_on', to)
+
+    if (meetingRes.error) {
+      // §8: a refused query returns no rows, and reporting the source as shown would render an
+      // empty month as a fact about the family.
+      console.error(
+        `[calendar] meetings read failed for ${g.familyCode} ${month}: ${meetingRes.error.message}`,
+      )
+      sources.meetings = false
+    } else {
+      for (const row of (meetingRes.data ?? []) as unknown as MeetingRow[]) {
+        if (!row.meets_on) continue
+        // THE PER-VIEWER FILTER. See the header: attendee, or secretary.
+        const mine = row.secretary_id === g.personId
+          || (row.meeting_attendees ?? []).some(a => a.person_id === g.personId)
+        if (!mine) continue
+        entries.push({
+          id:       row.id,
+          title:    row.title,
+          startsOn: row.meets_on,
+          endsOn:   null,
+          kind:     'meeting',
+          href:     `/journals/meeting-minutes/${row.id}`,
         })
       }
     }

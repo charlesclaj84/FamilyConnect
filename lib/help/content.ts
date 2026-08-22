@@ -1230,7 +1230,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Show this across the top of the Dashboard** is on the **Dashboard band** panel of a gathering\'s own page. A flagged gathering gets the band under the greeting on [the dashboard](/dashboard) — its title, its dates, where it is, how many of its tasks are approved, and a way straight in.'),
               p('Several gatherings may be flagged at once, deliberately. The dashboard shows the soonest one that has not finished, so last year\'s reunion never blocks this year\'s, and nothing appears there at all when no flagged gathering is still ahead.'),
               p('**Band photo**, on the same panel, sets the picture the band is built around — one photograph per gathering, cropped to the band\'s shape. Choosing a file uploads it straight away; **Remove photo** takes it off again. Without one the band draws the GENORRA tree instead, so it looks finished either way.'),
-              p('An uploaded band photo can be viewed by anyone who has its address, exactly like a photo in [Photos](/review/photos). Putting one here publishes it to whoever the link reaches, so choose a picture the family would be happy to share.'),
+              p('An uploaded band photo can be viewed by anyone who has its address, exactly like a photograph in the [Gallery](/community/gallery). Putting one here publishes it to whoever the link reaches, so choose a picture the family would be happy to share.'),
             ],
           },
           {
@@ -1382,6 +1382,200 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Archive** takes a template out of the schedule-from list and leaves every gathering built from it exactly as it is. Nothing running changes and nothing is deleted; the card says it is archived and that nothing new can be started from it, and **Restore** puts it back.'),
               p('A template a gathering was built from cannot be deleted. The refusal names how many gatherings used it and offers archiving instead, with an **Archive it instead** button beside the message. The reason is the record: the tasks on those gatherings say which template they came from, and deleting it would take that away. A template nothing has used yet deletes cleanly, along with its steps.'),
               p('The use count is printed on the card beside the delete control, so the refusal is rarely a surprise. It arrived with the page, though, and a gathering scheduled since will not be in it — the refusal itself is what decides.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'meeting-minutes',
+        title: 'Meeting Minutes',
+        summary: 'Scheduling a meeting, who is expected, who writes it down, and how the room votes on a topic.',
+        route: '/journals/meeting-minutes',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What this screen is',
+            blocks: [
+              p('[Meeting Minutes](/journals/meeting-minutes) is the family\u2019s record of what it met about and decided. A meeting has a date, a list of who is expected, one **secretary** who writes it down, and any number of **topics** \u2014 each of which can carry notes and a vote.'),
+              p('**Everybody in the family can read the minutes.** That is deliberate and it is the opposite of the [officer\u2019s journal](/help/journal), which only the officeholder reads: minutes are the record of decisions the family made, so somebody who was not in the room still gets to know what was decided.'),
+              note('It was part of the officer\u2019s journal until 2026-08-22, as a \u201cmeeting\u201d kind of entry. A meeting outgrew that: it belongs to the family rather than to one office, it has a secretary, and it has votes \u2014 none of which a notebook can express.'),
+            ],
+          },
+          {
+            id: 'scheduling',
+            heading: 'Scheduling one',
+            blocks: [
+              steps(
+                'Press **Schedule a meeting**.',
+                'Give it a title and a date.',
+                'Choose **who is taking the minutes**. Only they can write in it.',
+                'Choose **who is coming**. They are the people who may vote.',
+                'Press **Schedule meeting**.',
+              ),
+              p('**Everybody on the list is told and gets it on their calendar.** A notification goes to each attendee, and the meeting appears on [the calendar](/gatherings/calendar) for them \u2014 not for the whole family, because a committee meeting on everybody\u2019s calendar is a calendar nobody reads.'),
+              note('The secretary is added to the room automatically whether or not you ticked them. Somebody writing the minutes was there, and the attendee list is what decides who may vote.'),
+            ],
+          },
+          {
+            id: 'writing',
+            heading: 'During the meeting',
+            blocks: [
+              p('**Only the secretary writes.** Everybody else reads. Add a **topic** for each thing the room takes up, then write notes under it as it goes \u2014 the same shape as an officer\u2019s journal: a heading, and a thread underneath.'),
+              p('Notes are shown oldest first, each with the time it was written, and one that has been changed since says so.'),
+              note('If you are the secretary and the controls are missing, check whether the meeting has been closed. A closed meeting is read-only.'),
+            ],
+          },
+          {
+            id: 'voting',
+            heading: 'Voting on a topic',
+            blocks: [
+              p('The secretary presses **Call a vote** on a topic. Everybody on the attendee list can then answer **For**, **Against** or **Abstain**, and the running count is on the topic.'),
+              p('**A vote cannot be changed or withdrawn by anybody.** Not by the person who cast it, not by the secretary, not by an administrator. That is enforced by the database rather than by the screen, which is why there is no control that looks like it might.'),
+              p('**How each person voted is on the record**, by name. A meeting vote is not a secret ballot \u2014 minutes exist to state who decided what. That is unlike [Elections](/help/elections), where a member\u2019s vote is theirs alone.'),
+              defs(
+                { term: 'Only attendees vote', text: 'The list you chose when scheduling. Somebody not on it can read the topic and the count and cannot answer.' },
+                { term: 'A closed vote stays closed', text: 'It is not reopened. If the question needs asking again, the secretary deletes the topic and adds it fresh \u2014 which is visible, where quietly reopening a ballot is not.' },
+                { term: 'Deleting a topic', text: 'The only way a vote is ever removed, and it removes the whole question along with its notes. The confirmation says how many votes go with it.' },
+              ),
+              note('Somebody who has already voted cannot be taken off the attendee list \u2014 their ballot is in the record, so removing them would leave a vote cast by somebody the minutes say was not there.'),
+            ],
+          },
+          {
+            id: 'closing',
+            heading: 'Closing the minutes',
+            blocks: [
+              p('**Close minutes** is what turns a meeting into a record: no more topics, no more notes, no more votes. It is what makes the thing the family cites next year trustworthy.'),
+              p('It can be reopened, by the secretary or by somebody with permission to edit meetings \u2014 closing too early is an ordinary mistake and the alternative is a permanently wrong record. Reopening undoes nothing that was decided: the votes stay exactly as they are.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'documents',
+        title: 'Documents',
+        summary: 'The family\u2019s filed records \u2014 what can be uploaded, how to find one, and who can remove it.',
+        route: '/journals/documents',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'The filing cabinet',
+            blocks: [
+              p('[Documents](/journals/documents) is where the family\u2019s records live \u2014 forms, filings, signed copies. It moved under **Journals** on 2026-08-22, beside the notebooks its officers keep, because the reader who wants one is the reader who wants the other.'),
+              note('**Excel, Word, PDF or CSV only**, up to 25 MB. Both generations of the Office formats, because a document written in 2004 really is a `.doc`. A photograph goes in the [Gallery](/community/gallery), which does albums and tagging that this list never will.'),
+            ],
+          },
+          {
+            id: 'uploading',
+            heading: 'Filing something',
+            blocks: [
+              steps(
+                'Press **Upload a document**.',
+                'Choose the file. The name fills itself in from the file name; change it if you like.',
+                'Add a description if it needs one, and pick a category.',
+                'Press **Upload**.',
+              ),
+              p('**Three categories: Bylaws, Forms and Other.** There were five. *Photos* went because the [Gallery](/community/gallery) is the screen for a picture, and *Meeting Minutes* went because [Meeting Minutes](/journals/meeting-minutes) is a real screen now. A PDF of minutes from a meeting held outside the product is **Other**.'),
+              note('A document already filed under one of the retired categories keeps it and still shows it. Nothing rewrites somebody else\u2019s filing decision.'),
+            ],
+          },
+          {
+            id: 'finding-and-removing',
+            heading: 'Finding one, and removing one',
+            blocks: [
+              p('The search box matches the name and the description; the category dropdown narrows to one kind. Pressing a document\u2019s name opens it.'),
+              p('**Whoever uploaded a document can delete it.** Deleting anybody\u2019s needs the unrestricted grant \u2014 see [Who can do what](/help/who-can-do-what). The file is removed along with the row.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'bylaws',
+        title: 'Bylaws',
+        summary: 'The rules the family agreed to live by, and searching inside them \u2014 including what the search cannot reach yet.',
+        route: '/journals/bylaws',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What this screen is',
+            blocks: [
+              p('[Bylaws](/journals/bylaws) holds the family\u2019s governing documents, article by article, and lets anybody search them. Every approved member can read them \u2014 a rule nobody may read is not one.'),
+              p('An article has a number (\u201cArticle IV\u201d), a title, an optional summary, and either the text typed in, an uploaded document, or both.'),
+            ],
+          },
+          {
+            id: 'not-finished',
+            heading: 'What the search can and cannot reach',
+            blocks: [
+              p('**This screen is scaffolding, and one part of it is genuinely unbuilt.** Reading the text out of a PDF or a Word file is not implemented, so:'),
+              bullets(
+                'An article whose text you **typed or pasted in** is searchable word by word.',
+                'An article that is **only an uploaded PDF or Word file** is searchable by its title, its article number and its summary \u2014 not by what is inside it. It still uploads and still downloads.',
+              ),
+              p('Every article carries a badge saying which of the two it is, and a search that found nothing says so as well. That is deliberate: \u201cno result\u201d and \u201cnot indexed\u201d are different facts, and a reader who cannot tell them apart concludes the bylaws do not say a thing they do say.'),
+              note('Until that is built, **pasting the text in is what makes an article findable**. The form says so where you would otherwise not think of it.'),
+            ],
+          },
+          {
+            id: 'searching',
+            heading: 'Searching',
+            blocks: [
+              p('Whole words, and it understands endings \u2014 searching \u201cmeeting\u201d finds \u201cmeetings\u201d. Put a phrase in quotes to match it as one, and put a minus in front of a word to exclude it.'),
+              p('Leave the box empty and press **Clear** to read them in order again, which is what the family\u2019s own numbering is for.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'gallery',
+        title: 'Gallery',
+        summary: 'Albums of the family\u2019s photographs \u2014 uploading a batch of them, tagging who is in each one, and finding them again.',
+        route: '/community/gallery',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'Albums, not a pile',
+            blocks: [
+              p('The [Gallery](/community/gallery) keeps photographs in **albums** \u2014 a reunion, a wedding, a year. An album has a name, an optional description, and any number of pictures.'),
+              p('It was called Photos and sat under Resources until 2026-08-22. Same screen, more of it.'),
+              note('Only image files: JPEG, PNG, WebP or GIF, up to 10 MB each. A HEIC straight off an iPhone is refused, because no browser but Safari can display one \u2014 iOS converts to JPEG when you pick a file, so in practice this only bites a file you have copied off the phone yourself.'),
+            ],
+          },
+          {
+            id: 'uploading',
+            heading: 'Adding photographs',
+            blocks: [
+              steps(
+                'Open the album.',
+                'Press **Add photographs**.',
+                'Press **Choose files** and select as many as you like at once.',
+                'Give them a caption if they share one \u2014 it applies to the whole batch.',
+                'Press **Upload**.',
+              ),
+              p('**A batch is not all-or-nothing.** If one file is the wrong kind or too big, the rest still upload and the panel names the ones that did not, and why. You do not have to find the offending file and start again.'),
+              p('The caption applies to every photograph in the batch, which is right for \u201cSaturday, at the lake\u201d and wrong for a picture that needs its own. Fix an individual one afterwards in the list view \u2014 see [changing a caption](#tidying).'),
+            ],
+          },
+          {
+            id: 'tidying',
+            heading: 'Captions, tags, and the list view',
+            blocks: [
+              p('There are two ways to look at an album, and the toggle is above it. **Grid** is for looking: square thumbnails, and pressing one opens it full size. **List** is for tidying up: smaller pictures, one per row, with the caption and the tags editable in place.'),
+              p('**Tagging** says who is in a photograph. Press **Tag somebody** on a row and search the family; the search finds \u201cJos\u00e9\u201d if you type \u201cjose\u201d and \u201cO\u2019Connor\u201d if you type \u201coconnor\u201d. Press the \u00d7 on a tag to take it off.'),
+              p('**Who is in it** above the album filters to the photographs somebody is tagged in. It lists only people who are actually tagged somewhere in this album, so it is short even in a large family.'),
+            ],
+          },
+          {
+            id: 'who-can-change-what',
+            heading: 'Who can change what',
+            blocks: [
+              p('**A photograph belongs to whoever uploaded it.** They can change its caption and delete it. Anybody else needs the unrestricted grant on the Gallery \u2014 see [Who can do what](/help/who-can-do-what).'),
+              defs(
+                { term: 'Caption', text: 'Its uploader, or somebody with permission to edit anybody\u2019s.' },
+                { term: 'Tags', text: 'Anybody who may edit the gallery. Tagging is not about whose photograph it is \u2014 it is about who is in it, and the person who recognises a cousin is often not the person who took the picture.' },
+                { term: 'Delete a photograph', text: 'Its uploader, or somebody with the unrestricted grant. The image file is removed as well as the row.' },
+                { term: 'Delete an album', text: 'Its creator, or somebody with the unrestricted grant. It takes every photograph in it \u2014 the confirmation says how many.' },
+              ),
+              note('Deleting an album is not reversible and not partly reversible. The warning counts the photographs for exactly that reason.'),
             ],
           },
         ],

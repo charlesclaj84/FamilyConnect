@@ -502,12 +502,11 @@ const UNDOCUMENTED_OK = {
   // chapter, and `/admin/reports` was reviewed and deleted, so it is no longer a FEATURES
   // href at all — the mirror check below would have failed the run if the allowance had been
   // left behind, which is exactly what that check is for.
-  '/review/photos':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
-  '/review/documents':
-    'live but unreviewed — in the Review section of the rail since 2026-08-20; a chapter is ' +
-    'owed and is written by the commit that reviews the screen',
+  // AND PHOTOS AND DOCUMENTS CAME OFF IT ON 2026-08-22, which emptied the Review worklist and
+  // deleted the rail heading with it. Both were reviewed, rehomed and given chapters in the
+  // same commit — `gallery` under Community and `documents` under Journals — which is the
+  // whole shape this allowance was holding a place for.
+  //
   // BOTH ELECTION ROUTES CAME OFF THIS LIST ON 2026-08-21, which is what the note above says
   // is supposed to happen: the screens were reviewed (the windows became dates that actually
   // run the ballot, and an election gained a level), and the commit that reviewed them wrote

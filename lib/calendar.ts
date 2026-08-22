@@ -41,7 +41,17 @@ export interface CalendarEntry {
   title: string
   startsOn: string            // YYYY-MM-DD
   endsOn: string | null
-  kind: 'gathering'
+  /**
+   * WHICH PRODUCT PUT IT THERE. A second value arrived on 2026-08-22 with Meeting Minutes, and
+   * the union is what the grid colours by — a reunion and a committee meeting are not the
+   * same kind of thing and must not read as one.
+   *
+   * `sources` in `app/actions/calendar.ts` is the matching record: each kind is granted
+   * separately, queried only when granted, and reported as shown or not shown. Its header
+   * argues why that shape survived Events being retired, and this is the first thing to plug
+   * into it since.
+   */
+  kind: 'gathering' | 'meeting'
   href: string
   isPremier?: boolean
 }
@@ -79,6 +89,28 @@ const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
  */
 export function isValidMonth(value: unknown): value is string {
   return typeof value === 'string' && MONTH_PATTERN.test(value)
+}
+
+const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
+
+/**
+ * A `YYYY-MM-DD` this product will accept, checked before the database is touched.
+ *
+ * ── IT PINS THE RANGES AND NOT ONLY THE SHAPE, for `isValidMonth`'s reason ─────────
+ * `\d{2}` would let "2026-13-40" through, and Postgres would then refuse it with a raw
+ * `date/time field value out of range` that surfaces to a member as a database error. The
+ * ranges are pinned here so the refusal is ours and is a sentence.
+ *
+ * IT DOES NOT KNOW ABOUT FEBRUARY. "2027-02-30" passes this and is refused by the DATE column,
+ * which is the right division of labour: a regex that knew about leap years would be a second,
+ * worse copy of the calendar. What this buys is that everything ABSURD is refused in
+ * TypeScript, so the only thing reaching the database is a date that is nearly right.
+ *
+ * NO `new Date()` ANYWHERE IN IT. `new Date('2026-08-01')` is UTC midnight and reads as 31 July
+ * in any negative offset, which is the trap this whole module is written around.
+ */
+export function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && DATE_PATTERN.test(value)
 }
 
 /** (year, month-number) from a validated `YYYY-MM`. The only place this string is split. */

@@ -85,12 +85,16 @@ export function alphaMarkers(fx) {
     // only, and the office's id too: `family_roles` names are ALPHA-only data (see the
     // President above) and the office's id is what `getMyOffices` publishes.
     //
-    // THREE ROWS ARE DELIBERATELY NOT HERE. `journalDeletable` and `journalNoteSpare` are
+    // TWO ROWS ARE DELIBERATELY NOT HERE. `journalDeletable` and `journalNoteSpare` are
     // destroyed by their own delete controls, and a marker whose row a case deletes stops
     // being findable for every case ordered after it — the reason `f.customRole` is excluded
-    // above. `journalMeetingSpare` is not deleted but IS rewritten, and marking a row two
-    // controls churn buys nothing the stable ones do not.
-    a.journalRole.id, a.journalEntry.id, a.journalMeeting.id,
+    // above. (It said THREE until 2026-08-22; the third was `journalMeetingSpare`, which went
+    // with the meeting half of the journal.)
+    a.journalRole.id, a.journalEntry.id,
+    // THE MEETING AND ITS FIRST TOPIC. Ids only, and the topic's TITLE is not marked: the
+    // notes carry `secret minute ALPHATEST`, which is prose and is the string a leaked minute
+    // would come out in.
+    a.meeting.id, a.meetingTopic.id,
     a.journalNote.id, a.journalNoteOther.id,
     a.announcement.id, a.document.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
@@ -131,6 +135,7 @@ export function alphaMarkers(fx) {
     // row because it is ALPHA's, which the scan asserts for every default-checked read in this
     // file; that ALPHA's OWN pane withholds him is `sunset_date`'s job and is asserted by name
     // in the birthday cases' `expectPositive`.
+    'secret minute ALPHATEST',
     a.birthdayPerson.id, 'ALPHATESTBirthday',
     a.sunsetBirthdayPerson.id, 'ALPHATESTDeparted',
     a.nominationElection.id, a.plan.id,
@@ -522,7 +527,7 @@ export const CASES = [
     expectPositive: (r, fx) => Array.isArray(r) && r.some(c => c.id === fx.alpha.chapter.id),
   }),
   read('documents.getDocuments', 'app/actions/documents.ts', 'getDocuments'),
-  read('photos.getPhotoCollections', 'app/actions/photos.ts', 'getPhotoCollections'),
+  read('gallery.getPhotoCollections', 'app/actions/gallery.ts', 'getPhotoCollections'),
 
   // ── actions taking an id: the attacker supplies ALPHA's ───────────────────
   read('chat.getMessages', 'app/actions/chat.ts', 'getMessages', {
@@ -1508,25 +1513,24 @@ const snapshot = (table, cols, filter) => async (db) => {
   return JSON.stringify(data)
 }
 
+
 /**
- * Who is standing behind one or more candidacies.
+ * Who is on a meeting's attendee list.
  *
- * Its own probe rather than `snapshot()`, and for that helper's own stated reason:
- * `election_nomination_supporters` is keyed (nomination_id, person_id) and has NO `id`
- * column, so `snapshot`'s `.order('id')` would fail with 42703 before it ever looked at a
- * row — and a probe that throws is a case that reports nothing rather than a case that
- * passes, which is the better failure but is still not a test. `template_permissions` needed
- * its own for exactly this.
+ * `snapshot` orders by `id` and `meeting_attendees` is keyed `(session_id, person_id)` with no
+ * `id` column at all — so the generic probe fails 42703 before it looks at a row, which is a
+ * case that reports nothing rather than a case that passes. `election_nomination_supporters`
+ * needed its own for exactly this, and the journal's attendee table did before it was dropped.
  *
- * Ordered explicitly on both key columns, because `before === after` is the whole assertion
- * and PostgREST makes no promise about row order without an ORDER BY.
+ * Ordered explicitly, because `before === after` is the whole assertion and PostgREST makes no
+ * promise about row order without an ORDER BY.
  */
-const probeAttendees = (entryId) => async (db, fx) => {
-  const { data, error } = await db.from('position_journal_attendees')
-    .select('entry_id, person_id')
-    .eq('entry_id', entryId(fx))
+const probeMeetingAttendees = (sessionId) => async (db, fx) => {
+  const { data, error } = await db.from('meeting_attendees')
+    .select('session_id, person_id')
+    .eq('session_id', sessionId(fx))
     .order('person_id')
-  if (error) throw new Error(`probe position_journal_attendees: ${error.message}`)
+  if (error) throw new Error(`probe meeting_attendees: ${error.message}`)
   return JSON.stringify(data)
 }
 
@@ -1884,10 +1888,12 @@ export const MORE_CASES = [
         // its thread, INCLUDING a note the caller did not write — which is the read policy
         // testing the office rather than the byline
         && r.some(e => e.notes?.some(n => n.id === fx.alpha.journalNote.id)
-          && e.notes.some(n => n.id === fx.alpha.journalNoteOther.id && n.mine === false))
-        // and the meeting, with somebody in the room
-        && r.some(e => e.id === fx.alpha.journalMeeting.id
-          && e.kind === 'meeting' && e.met_on && e.attendees?.length > 0),
+          && e.notes.some(n => n.id === fx.alpha.journalNoteOther.id && n.mine === false)),
+        // THE MEETING HALF OF THIS ASSERTION LEFT ON 2026-08-22. It used to check a third
+        // thing — a `kind: 'meeting'` entry with a date and somebody in the room — and those
+        // three columns are dropped (`20260822000019`). What it was really evidence for was
+        // that the third of the action's three reads resolved; there are two reads now, and
+        // both are still asserted above.
     }),
   // And the ordinary cross-family one, which the case above cannot stand in for: it asserts
   // the `family_code` conjunct rather than the office conjunct, and a policy could lose either
@@ -1901,51 +1907,22 @@ export const MORE_CASES = [
         && r.some(e => e.id === fx.alpha.journalEntry.id)
         && r.some(e => e.notes?.some(n => n.id === fx.alpha.journalNote.id)),
     }),
-  // ── THE ATTENDEE ROSTER, WHICH IS THE WHOLE FAMILY'S NAMES ────────────────
-  // `getJournalAttendeeOptions` reads `people` on the ADMIN client — because the SELECT policy
-  // on that table is keyed on `community/directory`, so an officer in a family that restricted
-  // its Directory would otherwise be offered nobody — and §3 is then discharged by one
-  // hand-written `.eq('family_code', …)`. That conjunct is the entire boundary and this is
-  // what tests it: `f.ancestor.id` is an `alphaMarkers()` entry, so the default scan catches a
-  // BRAVO caller receiving ALPHA's roster.
+  // ── THE ATTENDEE ROSTER CASES LEFT WITH THE MEETING HALF, 2026-08-22 ──
+  // `getJournalAttendeeOptions` is deleted: an officer's journal has no attendee list any
+  // more, because a meeting is a session on `/journals/meeting-minutes` rather than a kind of
+  // journal entry (`20260822000019`). Its two cases went with it.
   //
-  // THE CONTROL ASSERTS AN ACCOUNT-LESS PERSON IS OFFERED. `f.ancestor` has no `user_id`, and
-  // a recorded grandmother can sit in a meeting — so this is deliberately NOT the
-  // "accounts only" list a payment picker wants, and the assertion says which of the two this
-  // is rather than leaving it to a reader of the query.
-  read('journals.getJournalAttendeeOptions',
-    'app/actions/journal.ts', 'getJournalAttendeeOptions', {
-      expectPositive: (r, fx) => Array.isArray(r) && r.some(p => p.id === fx.alpha.ancestor.id),
-    }),
-  // ── AND AN APPLICANT NOBODY HAS ADMITTED GETS NO ROSTER ───────────────────
-  // `alphaPending` joined ALPHA by family code and has not been approved, so they are INSIDE
-  // the family boundary by every test the cross-family cases apply — `auth_family_code()`
-  // resolves ALPHATEST for them deliberately. What refuses them is `requireMember()`, which
-  // demands an approved membership, and this action reads on the ADMIN client where no policy
-  // would refuse them afterwards. That combination is the one worth a case of its own.
+  // WHAT THEY WERE EVIDENCE FOR IS NOT LOST. The roster read they tested was `people` on the
+  // admin client with one hand-written `.eq('family_code', …)`, and the equivalent read now
+  // lives in `scheduleMeeting`'s `belongsToFamily` checks and in `getMeetings`, both of which
+  // have cases of their own below.
   //
-  // ── A STATED GAP: THE `getMyOffices().length` GUARD IS NOT TESTED HERE ────
-  // That guard is the §5 half — the roster is PII that reaches the browser in the RSC payload
-  // whether a picker renders it or not, so somebody who could never open a meeting composer
-  // must not have it fetched at all. NO ACTOR IN THIS FIXTURE CAN ASSERT IT: every approved
-  // ALPHA actor holds an office, by construction. `alphaMember` and `alphaOther` hold the
-  // journal office, and `alphaAdmin` holds `ALPHATEST President` — which is not a flaw in the
-  // fixture, it is what makes the read cases above sharp, because `alphaAdmin` is refused for
-  // holding the WRONG office rather than none.
-  //
-  // Written down rather than left looking asserted, per §7. What would test it is an approved
-  // ALPHA member with no `user_roles` row at all, and adding one is not free: the roster,
-  // the Directory's `primary_role_title` control and `admin/chapters.getScopeUsage`'s exact
-  // counts all read that table. The next person to need it should add the actor rather than
-  // wipe `alphaAdmin`'s assignment in a `setup`, which is the shape that made a chapter
-  // occupancy case fail only when run in sequence.
-  read('journals.getJournalAttendeeOptions (an unadmitted applicant)',
-    'app/actions/journal.ts', 'getJournalAttendeeOptions', {
-      attacker: 'alphaPending',
-      expectAttack: (r) => Array.isArray(r) && r.length === 0,
-      positiveActor: 'alphaMember',
-      expectPositive: (r) => Array.isArray(r) && r.length > 0,
-    }),
+  // THE STATED GAP THEY CARRIED IS ALSO GONE, and it is worth recording that it went by the
+  // feature leaving rather than by anybody fixing it: no actor in this fixture holds ZERO
+  // offices, so the `getMyOffices().length` §5 guard could not be asserted. `/journals/officer`
+  // still has that guard and still cannot assert it; the roster it withholds is now much
+  // smaller, because the page no longer fetches the family at all.
+
   // ── WRITING IN AN OFFICE THEY DO NOT HOLD ─────────────────────────────────
   // `alphaAdmin` again, and the INSERT policy is the only thing in the way. An INSERT refused
   // by RLS raises 42501 rather than reporting zero rows, so the action is already honest and
@@ -1956,7 +1933,7 @@ export const MORE_CASES = [
     mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
     attacker: 'alphaAdmin',
     args: fx => [fx.alpha.journalRole.id,
-      { title: 'Attacker note', kind: 'note', firstNote: 'should not land' }],
+      { title: 'Attacker note', firstNote: 'should not land' }],
     probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
       { role_id: fx.alpha.journalRole.id })(db),
     expectRefusal: v => v?.success === false && /holds the office/.test(v?.message ?? '')
@@ -1966,38 +1943,13 @@ export const MORE_CASES = [
     positiveArgs: fx => [fx.alpha.journalRole.id,
       { title: 'A control note', kind: 'note', firstNote: 'written by a holder' }],
   },
-  // ── [crux] §4: A MEETING NAMING SOMEBODY FROM ANOTHER FAMILY ──────────────
-  // The attacker here is ALPHA'S OWN MEMBER, entitled to everything they are doing except the
-  // one id they passed — which is the whole of §4. The row being written carries THEIR
-  // `family_code`, so every policy on it is satisfied; what the attendee id points at is a
-  // question nothing in the database asks except `tg_journal_attendee_same_family`, and what
-  // asks it first is `belongsToFamily` in the action.
-  //
-  // THE PROBE IS THE ENTRY TABLE, DELIBERATELY. `addJournalEntry` verifies every attendee id
-  // BEFORE it inserts the topic, so a refused attendee means no entry at all — and asserting
-  // that is stronger than asserting no attendee row, because it also pins the order. Remove
-  // the `belongsToFamily` loop and the trigger still refuses the attendee, but a titled entry
-  // with no attendees lands and this line goes red.
-  {
-    kind: 'write',
-    id: 'journals.addJournalEntry (a meeting naming another family\'s member)',
-    mod: 'app/actions/journal.ts', fn: 'addJournalEntry',
-    attacker: 'alphaMember',
-    args: fx => [fx.alpha.journalRole.id, {
-      title: 'Meeting with an outsider', kind: 'meeting', metOn: '2026-08-22',
-      firstNote: 'should not land', attendeeIds: [fx.bravo.otherPersonId],
-    }],
-    probe: (db, fx) => snapshot('position_journal_entries', 'id, title',
-      { role_id: fx.alpha.journalRole.id })(db),
-    expectRefusal: v => v?.success === false && /not in this family/.test(v?.message ?? '')
-      ? { ok: true, detail: 'refused before the entry was created' }
-      : { ok: false, detail: `expected the family refusal, got ${JSON.stringify(v)}` },
-    positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalRole.id, {
-      title: 'Meeting with a relative', kind: 'meeting', metOn: '2026-08-22',
-      firstNote: 'the control', attendeeIds: [fx.alpha.otherPersonId],
-    }],
-  },
+  // ── THE §4 ATTENDEE CASE WENT WITH THE MEETING HALF, 2026-08-22 ────────
+  // `addJournalEntry` no longer takes an attendee list; a meeting is a session on
+  // `/journals/meeting-minutes` (`20260822000019`). The shape it asserted — a client-supplied
+  // person id written onto a row carrying the CALLER's family code, refused by
+  // `belongsToFamily` before the row lands and by a guard trigger underneath — is now
+  // `meetings.scheduleMeeting (a secretary from another family)`, which is the same case
+  // against the same two layers.
   // ── [crux] ANY HOLDER MAY ADD A NOTE TO ANY TOPIC ─────────────────────────
   // The control is `alphaOther`, who holds the office and wrote NEITHER the topic nor a word
   // of it — so this asserts the one place in this feature where the office test and the author
@@ -2104,65 +2056,189 @@ export const MORE_CASES = [
       : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
     positiveActor: 'alphaMember',
   },
-  // ── WHO ATTENDED IS THE RECORDER'S TOO, AND FOR A DIFFERENT REASON ───────
-  // Note that the attacker is `alphaOther` — a holder of this office, who may add a note to
-  // this very meeting. `auth_authored_journal_entry` is what refuses them, and it is a
-  // SEPARATE helper from the one the notes use precisely so this can be true: an attendee list
-  // has no byline, so two officers editing it would be overwriting each other with no trace of
-  // who said what.
+  // ── MEETING MINUTES ───────────────────────────────────────────────────
   //
-  // ITS OWN PROBE. `snapshot()` orders by `id` and this table has none — both columns are the
-  // primary key — so it would fail 42703 before looking at a row, which is a case that reports
-  // nothing rather than a case that passes. Same reason `probeSupporters` exists.
+  // The three journal `setMeetingAttendees` cases went with the feature on 2026-08-22: a
+  // journal entry has no attendee list any more. What replaced them is a whole product, and
+  // its rules are unlike anything else in this suite because NONE of them is a permission:
+  //
+  //   who may WRITE the minutes   the SECRETARY of that session, and nobody else
+  //   who may VOTE                somebody on the ATTENDEE list of that session
+  //   whether a vote may change   nobody, ever, including the service role
+  //
+  // ── THE ATTACKER IS `alphaAdmin` FOR MOST OF THESE, AND THAT IS THE DESIGN ─
+  // They hold `journals/meeting-minutes` at scope 'any' on every action, in their own family,
+  // and it buys them no ability to write a word of somebody else's minutes or to vote in a
+  // room they were not in. An attacker with no grants would prove nothing here: the question
+  // is not whether the permission model works, it is whether the SESSION's own roles do.
+  //
+  // ── THE WRITE BOUNDARY IS THE ACTIONS, SO THESE ARE ACTION-SHAPED ──────────
+  // The five tables have a SELECT policy each and no write policy at all (§2c), so every write
+  // goes through `createAdminClient()` and there IS no policy underneath to probe. That makes
+  // the action the boundary rather than a narrowing over one, and an action-shaped case the
+  // right shape rather than the weaker one — the inverse of §7's warning, and worth stating
+  // because the reflex is now to reach for `raw/`.
+  //
+  // What a `raw/` probe WOULD still catch is the five SELECT policies, and there is none;
+  // `tests/rls/seed.mjs` records that gap where the fixture is built.
+  read('meetings.getMeetings', 'app/actions/meetings.ts', 'getMeetings', {
+    // The default marker scan is the attack half — `f.meeting.id` and `f.meetingTopic.id` are
+    // in `alphaMarkers()`, so a BRAVO caller receiving ALPHA's meeting is caught by id.
+    positiveActor: 'alphaMember',
+    expectPositive: (r, fx) => Array.isArray(r)
+      && r.some(m => m.id === fx.alpha.meeting.id
+        // THE ATTENDEE EMBED RESOLVED, which is the half a bare `people(...)` would have
+        // silently emptied: `meeting_sessions` has TWO foreign keys to `people`
+        // (`secretary_id`, `created_by`), so an unqualified embed is PGRST201 and takes the
+        // WHOLE query with it (§8). Asserting the NAME is what catches that.
+        && m.attendees.length === 2
+        && m.secretaryName != null),
+  }),
+  read('meetings.getMeetingDetail (another family\'s meeting)',
+    'app/actions/meetings.ts', 'getMeetingDetail', {
+      args: fx => [fx.alpha.meeting.id],
+      // `null` AND NOT AN EMPTY SHAPE. The SELECT policy answers nothing for a BRAVO caller
+      // and the action returns null, which the page turns into a 404 rather than into an empty
+      // meeting — an id that resolves for one family and reports "not permitted" for another
+      // is an enumeration signal.
+      expectAttack: (r) => r === null,
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r !== null
+        && r.id === fx.alpha.meeting.id
+        && r.iAmSecretary === true
+        && r.topics.some(t => t.id === fx.alpha.meetingTopic.id
+          && t.notes.length > 0),
+    }),
+  // ── [crux] WRITING MINUTES YOU ARE NOT THE SECRETARY OF ────────────────────
+  // The single assertion this feature turns on. `alphaAdmin` is approved, is in ALPHA, and
+  // holds every grant the key confers; the ONLY thing refusing them is
+  // `requireSecretaryOfOpenMeeting`. Delete that check and this goes red and nothing else does.
   {
     kind: 'write',
-    id: 'journals.setMeetingAttendees (a meeting somebody else recorded)',
-    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
+    id: 'meetings.addMeetingNote (not the secretary)',
+    mod: 'app/actions/meetings.ts', fn: 'addMeetingNote',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.meetingTopic.id, 'minutes written by somebody who was not there'],
+    probe: (db, fx) => snapshot('meeting_topic_notes', 'id, body',
+      { topic_id: fx.alpha.meetingTopic.id })(db),
+    expectRefusal: v => v?.success === false && /secretary/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: only the secretary' }
+      : { ok: false, detail: `expected a secretary refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaMember',
+    positiveArgs: fx => [fx.alpha.meetingTopic.id, 'the secretary writing their own minutes'],
+  },
+  // AND THE ATTENDEE IS REFUSED TOO, which is the half that says this is about the SESSION's
+  // roles rather than about grants: `alphaOther` was in the room and still may not write.
+  {
+    kind: 'write',
+    id: 'meetings.addMeetingNote (an attendee who is not the secretary)',
+    mod: 'app/actions/meetings.ts', fn: 'addMeetingNote',
     attacker: 'alphaOther',
-    args: fx => [fx.alpha.journalMeeting.id, [fx.alpha.otherPersonId, fx.alpha.ownerPersonId]],
-    probe: probeAttendees(fx => fx.alpha.journalMeeting.id),
+    args: fx => [fx.alpha.meetingTopic.id, 'an attendee writing the minutes'],
+    probe: (db, fx) => snapshot('meeting_topic_notes', 'id, body',
+      { topic_id: fx.alpha.meetingTopic.id })(db),
     expectRefusal: v => v?.success === false
-      ? { ok: true, detail: 'reported the refusal' }
+      ? { ok: true, detail: 'told: refused' }
       : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
-    positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalMeeting.id, [fx.alpha.ownerPersonId]],
+    positive: 'not-applicable',
+    why: 'the positive control is the case above — `alphaMember` is the secretary, and running '
+      + 'it twice would assert the same write with the same actor',
   },
-  // Cross-family: BRAVO's administrator rewriting the attendee list of ALPHA's meeting. The
-  // family conjunct rather than the author one, and a policy could lose either alone.
+  // ── ANOTHER FAMILY'S TOPIC ─────────────────────────────────────────────────
+  // `loadTopic` reads family-scoped on the admin client, so BRAVO's administrator gets "Topic
+  // not found" rather than a secretary refusal — the family conjunct answering before the role
+  // one, which is the order that keeps an id from leaking through a different message.
   {
     kind: 'write',
-    id: 'journals.setMeetingAttendees (another family\'s meeting)',
-    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
-    args: fx => [fx.alpha.journalMeetingSpare.id, [fx.bravo.otherPersonId]],
-    probe: probeAttendees(fx => fx.alpha.journalMeetingSpare.id),
+    id: 'meetings.addMeetingNote (another family\'s topic)',
+    mod: 'app/actions/meetings.ts', fn: 'addMeetingNote',
+    args: fx => [fx.alpha.meetingTopic.id, 'cross-family minute'],
+    probe: (db, fx) => snapshot('meeting_topic_notes', 'id, body',
+      { topic_id: fx.alpha.meetingTopic.id })(db),
     expectRefusal: v => v?.success === false
-      ? { ok: true, detail: 'reported the refusal' }
+      ? { ok: true, detail: 'told: refused' }
       : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
-    positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalMeetingSpare.id,
-      [fx.alpha.ownerPersonId, fx.alpha.otherPersonId]],
+    positive: 'not-applicable',
+    why: 'the same write by ALPHA\'s secretary is the control on the crux case above',
   },
-  // ── [crux] §4 ON THE LIST-SETTER, AND THE CONTROL CLEARS THE LIST ────────
-  // The attacker is ALPHA's own member again — entitled to rewrite this list, naming one
-  // person they may not. `belongsToFamily` is what refuses it; the guard trigger would too,
-  // with a constraint name instead of a sentence.
+  // ── [crux] VOTING IN A ROOM YOU WERE NOT IN ────────────────────────────────
+  // `alphaAdmin` again, and again every grant is satisfied: what refuses them is a row in
+  // `meeting_attendees` that does not exist.
+  {
+    kind: 'write',
+    id: 'meetings.castMeetingVote (not an attendee)',
+    mod: 'app/actions/meetings.ts', fn: 'castMeetingVote',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.meetingVoteTopic.id, 'for'],
+    probe: (db, fx) => snapshot('meeting_votes', 'id, voter_id, choice',
+      { topic_id: fx.alpha.meetingVoteTopic.id })(db),
+    expectRefusal: v => v?.success === false && /attendee/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: attendees only' }
+      : { ok: false, detail: `expected an attendee refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL CONSUMES ITS TOPIC. A vote cannot be withdrawn, which is why this topic is
+    // seeded for this case alone — see `f.meetingVoteTopic` in seed.mjs.
+    positiveActor: 'alphaOther',
+    positiveArgs: fx => [fx.alpha.meetingVoteTopic.id, 'for'],
+  },
+  // ── §4: SCHEDULING A MEETING WITH ANOTHER FAMILY'S PEOPLE ──────────────────
+  // Both ids arrive from the client and are written onto rows carrying the CALLER's family
+  // code, so every policy would be satisfied while the row pointed into another family. Two
+  // things refuse it — `belongsToFamily` here, and `tg_meeting_same_family` underneath, which
+  // is the layer that holds because this write is on the admin client.
   //
-  // THE CONTROL PASSES AN EMPTY LIST, which is not tidiness: clearing is the ONE path through
-  // that action with no INSERT to raise 42501, so it is the only one whose refusal has to be
-  // recovered from a zero-row DELETE. It reads the list first and `confirmWrite`s the delete
-  // for that reason, and this is the line that exercises it.
+  // [not evidence for WHICH of the two refused] Said out loud rather than left looking like
+  // proof, per §7, and MEASURED: removing the `belongsToFamily` call on the secretary leaves
+  // all three assertions green, because the guard trigger then refuses the INSERT and the
+  // action reports a failure either way. That is the layering working — and it means this case
+  // asserts the PAIR rather than the app-layer check.
+  //
+  // Tightening the `told` assertion to match the action's own sentence would separate them and
+  // is deliberately not done: it would then go red when the TRIGGER is the one refusing, which
+  // is a correct refusal, and the case would be testing which error message a caller sees
+  // rather than whether the boundary holds. What covers the trigger on its own is
+  // `20260822000019`'s verify block, which exercises all five guards against real rows with a
+  // positive control beside each.
   {
     kind: 'write',
-    id: 'journals.setMeetingAttendees (naming another family\'s member)',
-    mod: 'app/actions/journal.ts', fn: 'setMeetingAttendees',
-    attacker: 'alphaMember',
-    args: fx => [fx.alpha.journalMeetingSpare.id, [fx.bravo.otherPersonId]],
-    probe: probeAttendees(fx => fx.alpha.journalMeetingSpare.id),
-    expectRefusal: v => v?.success === false && /not in this family/.test(v?.message ?? '')
-      ? { ok: true, detail: 'refused with a sentence' }
-      : { ok: false, detail: `expected the family refusal, got ${JSON.stringify(v)}` },
+    id: 'meetings.scheduleMeeting (a secretary from another family)',
+    mod: 'app/actions/meetings.ts', fn: 'scheduleMeeting',
+    args: fx => [{
+      title: 'cross-family meeting', meetsOn: '2026-10-01',
+      secretaryId: fx.alpha.ownerPersonId, attendeeIds: [],
+    }],
+    // PROBED ON THE SECRETARY AND NOT ON A FAMILY, which is the one shape that can see both
+    // halves of this pair. The attack would write a BRAVO row naming an ALPHA person; the
+    // control writes an ALPHA row naming the same person. A probe scoped to either family
+    // watches one of the two and reports the other as "the owner's own write did nothing" —
+    // which is exactly what the first draft of this case did, and is the failure the runner's
+    // control half exists to make loud.
+    probe: (db, fx) => snapshot('meeting_sessions', 'id, title, family_code, secretary_id',
+      { secretary_id: fx.alpha.ownerPersonId })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: not in this family' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'ALPHA control meeting', meetsOn: '2026-10-01',
+      secretaryId: fx.alpha.ownerPersonId, attendeeIds: [fx.users.alphaOther.personId],
+    }],
+  },
+  {
+    kind: 'write',
+    id: 'meetings.setMeetingAttendees (not the secretary)',
+    mod: 'app/actions/meetings.ts', fn: 'setMeetingAttendees',
+    attacker: 'alphaOther',
+    args: fx => [fx.alpha.meeting.id, [fx.users.alphaOther.personId]],
+    probe: probeMeetingAttendees(fx => fx.alpha.meeting.id),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE SECRETARY MAY, and the control adds `f.ancestor` — an ACCOUNT-LESS person, which is
+    // the row a picker-shaped fixture never reaches and which the attendee list must accept: a
+    // recorded grandmother can sit in a meeting.
     positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.journalMeetingSpare.id, []],
+    positiveArgs: fx => [fx.alpha.meeting.id,
+      [fx.users.alphaOther.personId, fx.alpha.ancestor.id]],
   },
   // ── SETTING SOMEBODY ELSE'S CHAPTER ────────────────────────────────────────
   // `setMemberChapter` runs on the SERVICE-ROLE client, so no policy is underneath it at all
@@ -2801,7 +2877,7 @@ export const MORE_CASES = [
   read('elections.getElectionDetail', 'app/actions/elections.ts', 'getElectionDetail', {
     args: fx => [fx.alpha.election.id],
   }),
-  read('photos.getCollectionDetail', 'app/actions/photos.ts', 'getCollectionDetail', {
+  read('gallery.getCollectionDetail', 'app/actions/gallery.ts', 'getCollectionDetail', {
     args: fx => [fx.alpha.collection.id],
   }),
   read('funds.getFundWithMilestones', 'app/actions/funds.ts', 'getFundWithMilestones', {
@@ -3537,20 +3613,34 @@ export const MORE_CASES = [
   },
   {
     kind: 'write',
-    id: 'photos.tagPersonInPhoto',
-    mod: 'app/actions/photos.ts', fn: 'tagPersonInPhoto',
-    args: fx => [fx.alpha.photo.id, fx.alpha.otherPersonId, fx.alpha.collection.id],
+    id: 'gallery.tagPersonInPhoto',
+    mod: 'app/actions/gallery.ts', fn: 'tagPersonInPhoto',
+    args: fx => [fx.alpha.photo.id, fx.alpha.otherPersonId],
     probe: (db, fx) => snapshot('photo_tags', 'id, photo_id, person_id',
       { photo_id: fx.alpha.photo.id })(db),
     positiveActor: 'alphaAdmin',
   },
+  // ── AND THIS ONE CARRIES THE `WRITE_NOT_SAVED` ASSERTION SINCE 2026-08-22 ──
+  // `gallery.deletePhoto` used to. That action now resolves `requireOwn` before it touches the
+  // table, so it refuses at the GUARD and never reaches the statement `confirmWrite` measures
+  // — which left this suite with no assertion at all on the sentence a silently-refused write
+  // reports, and `confirmWrite` has five call sites.
+  //
+  // `untagPersonFromPhoto` is the right one to carry it: `photo_tags` maps to
+  // `community/gallery` with a `self_expr` of the literal `false`, so there is no self-service
+  // route to it, and the action deliberately has NO guard in front — the policy is the whole
+  // narrowing, which is exactly the shape §8b is about. BRAVO's administrator matches zero rows
+  // and must be told so rather than thanked.
   {
     kind: 'write',
-    id: 'photos.untagPersonFromPhoto',
-    mod: 'app/actions/photos.ts', fn: 'untagPersonFromPhoto',
-    args: fx => [fx.alpha.photo.id, fx.alpha.otherPersonId, fx.alpha.collection.id],
+    id: 'gallery.untagPersonFromPhoto',
+    mod: 'app/actions/gallery.ts', fn: 'untagPersonFromPhoto',
+    args: fx => [fx.alpha.photo.id, fx.alpha.otherPersonId],
     probe: (db, fx) => snapshot('photo_tags', 'id, photo_id, person_id',
       { photo_id: fx.alpha.photo.id })(db),
+    expectRefusal: v => v?.success === false && v?.message === WRITE_NOT_SAVED
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected the WRITE_NOT_SAVED refusal, got ${JSON.stringify(v)}` },
     positive: 'not-applicable',
     why: 'depends on tagPersonInPhoto having tagged the owner first; asserted there instead',
   },
@@ -3562,7 +3652,7 @@ export const MORE_CASES = [
   //
   // ── THE PREMISE CHANGED ON 2026-08-20, AND THE CASE GOT SHARPER FOR IT ────
   // This was `(a member with no delete grant)` aimed at `alphaMember`, because the General
-  // grid granted `review/photos` create and edit and NOT delete. `20260820000007` filled
+  // grid granted `community/gallery` create and edit and NOT delete. `20260820000007` filled
   // that gap in — the template's own description says "manages only their own records", and
   // the missing row was an oversight rather than a policy — so `alphaMember` now holds
   // `delete` at scope `'own'` and can remove the photograph they uploaded.
@@ -3591,16 +3681,29 @@ export const MORE_CASES = [
   // MUTATION-CHECKED 2026-08-20, which is what makes it evidence: reverting deletePhoto to
   // `const { error } = await …delete().eq('id', id)` turns this line red on its own, and
   // nothing else in the suite moves.
+  //
+  // ── AND THE REFUSAL MOVED A LAYER OUT ON 2026-08-22 ──────────────────
+  // `deletePhoto` now resolves `requireOwn('community/gallery', 'delete', uploader_id)` BEFORE
+  // it touches the table, so a member who did not upload the photograph is refused by the
+  // ACTION and never reaches the statement `confirmWrite` was measuring. The message is
+  // therefore the guard's ("Not authorized") rather than `WRITE_NOT_SAVED`.
+  //
+  // THIS CASE IS STILL WORTH KEEPING AND IS NOW EVIDENCE FOR A DIFFERENT LINE, which is worth
+  // saying rather than quietly re-pointing it: it used to be the one place the suite could see
+  // an action lying about a silently-refused write, and it is now the place it sees the OWNER
+  // check. `confirmWrite` is still underneath and still the second line — nothing in this
+  // suite reaches it on this action any more, and that is a gap recorded rather than a
+  // regression, because the layer that replaced it refuses strictly earlier.
   {
     kind: 'write',
-    id: 'photos.deletePhoto (a photo they did not upload)',
-    mod: 'app/actions/photos.ts', fn: 'deletePhoto',
+    id: 'gallery.deletePhoto (a photo they did not upload)',
+    mod: 'app/actions/gallery.ts', fn: 'deletePhoto',
     attacker: 'alphaOther',
-    args: fx => [fx.alpha.photo.id, fx.alpha.photo.file_path, fx.alpha.collection.id],
+    args: fx => [fx.alpha.photo.id],
     probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.photo.id })(db),
-    expectRefusal: v => v?.success === false && v?.message === WRITE_NOT_SAVED
-      ? { ok: true, detail: 'reported the refusal' }
-      : { ok: false, detail: `expected the WRITE_NOT_SAVED refusal, got ${JSON.stringify(v)}` },
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: `reported the refusal: ${v.message}` }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
     positive: 'not-applicable',
     why: 'the entitled caller is the case below, whose control is now the uploader themselves',
   },
@@ -3610,9 +3713,9 @@ export const MORE_CASES = [
   // `'own'`, so the pair now reads: the uploader may, another General member may not.
   {
     kind: 'write',
-    id: 'photos.deletePhoto',
-    mod: 'app/actions/photos.ts', fn: 'deletePhoto',
-    args: fx => [fx.alpha.photo.id, fx.alpha.photo.file_path, fx.alpha.collection.id],
+    id: 'gallery.deletePhoto',
+    mod: 'app/actions/gallery.ts', fn: 'deletePhoto',
+    args: fx => [fx.alpha.photo.id],
     probe: (db, fx) => snapshot('photos', 'id', { id: fx.alpha.photo.id })(db),
   },
   // ── §4 ON THE *SECOND* ID addRelative TAKES ───────────────────────────────
@@ -3972,7 +4075,7 @@ export const PENDING_CASES = [
   read('documents.getDocuments (pending member)', 'app/actions/documents.ts', 'getDocuments', {
     attacker: 'alphaPending',
   }),
-  read('photos.getPhotoCollections (pending member)', 'app/actions/photos.ts', 'getPhotoCollections', {
+  read('gallery.getPhotoCollections (pending member)', 'app/actions/gallery.ts', 'getPhotoCollections', {
     attacker: 'alphaPending',
   }),
   read('funds.getFunds (pending member)', 'app/actions/funds.ts', 'getFunds', {
@@ -7922,16 +8025,21 @@ const STORAGE_CASES = [
       { family_code: fx.alpha.familyCode })(db),
     positiveActor: 'alphaAdmin',
   },
-  // `uploadPhoto` TAKES A COLLECTION ID FROM THE CLIENT, which makes it the one upload with
+  // `uploadPhotos` TAKES A COLLECTION ID FROM THE CLIENT, which makes it the one upload with
   // a §4 shape — and it had no `belongsToFamily` until 2026-08-20. The row it writes carries
   // the CALLER's family_code, so every policy on `photos` is satisfied while `collection_id`
   // points into ALPHA's album: a cross-family reference nothing in the database was asked
   // about, and nothing in the product would ever report, because the reading side scopes by
   // family and renders a gap where an image should be.
+  //
+  // IT TAKES A BATCH SINCE 2026-08-22 (`uploadPhoto` -> `uploadPhotos`), and the case is
+  // unchanged in shape: one file in the form is still one row attempted, and the §4 check runs
+  // once for the batch rather than once per file — which is the thing worth re-asserting
+  // after that change, because a per-file loop is where a shared check gets dropped.
   {
     kind: 'write',
-    id: 'photos.uploadPhoto (a collection from another family)',
-    mod: 'app/actions/photos.ts', fn: 'uploadPhoto',
+    id: 'gallery.uploadPhotos (a collection from another family)',
+    mod: 'app/actions/gallery.ts', fn: 'uploadPhotos',
     args: fx => [fx.alpha.collection.id, photoForm()],
     probe: (db, fx) => snapshot('photos', 'id, collection_id, family_code',
       { collection_id: fx.alpha.collection.id })(db),
@@ -7963,7 +8071,10 @@ function gatheringPhotoForm(gatheringId) {
 }
 function photoForm() {
   const fd = new FormData()
-  fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'p.jpg', { type: 'image/jpeg' }))
+  // `files`, PLURAL, since `uploadPhotos` took over on 2026-08-22 — the action reads
+  // `formData.getAll('files')`, so a form still keyed `file` uploads nothing and the case would
+  // go green over an action that never reached the database.
+  fd.append('files', new File([new Uint8Array([1, 2, 3, 4])], 'p.jpg', { type: 'image/jpeg' }))
   fd.append('caption', 'RLS probe photo')
   return fd
 }
@@ -8170,22 +8281,6 @@ const JOURNAL_RAW_CASES = [
       positiveActor: 'alphaMember',
       expectPositive: (r, fx) => r.rows.some(n => n.id === fx.alpha.journalNote.id),
     }),
-  // [crux] WHO WAS IN THE ROOM. Two layers of app-side narrowing sit over this policy — the
-  // `.in('entry_id', …)` and the "only ask if a meeting came back" test — so nothing the
-  // action does can reach it either.
-  read('raw:position_journal_attendees SELECT (an office they do not hold)',
-    'tests/rls/raw/journals.mjs', 'selectMeetingAttendees', {
-      attacker: 'alphaAdmin',
-      expectAttack: (r, fx) => !r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
-      positiveActor: 'alphaMember',
-      expectPositive: (r, fx) => r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
-    }),
-  read('raw:position_journal_attendees SELECT (another family\'s meeting)',
-    'tests/rls/raw/journals.mjs', 'selectMeetingAttendees', {
-      expectAttack: (r, fx) => !r.rows.some(a => a.family_code === fx.alpha.familyCode),
-      positiveActor: 'alphaMember',
-      expectPositive: (r, fx) => r.rows.some(a => a.entry_id === fx.alpha.journalMeeting.id),
-    }),
   // [crux] A NOTE UNDER SOMEBODY ELSE'S BYLINE, which no action can attempt.
   //
   // `alphaOther` holds the office and may legitimately add notes to this very topic — so the
@@ -8215,31 +8310,15 @@ const JOURNAL_RAW_CASES = [
     positiveArgs: fx => [fx.alpha.familyCode, fx.alpha.journalEntry.id, fx.alpha.otherPersonId,
       'filed under their own name'],
   },
-  // [crux] §4 IN THE DATABASE: a `family_code` the caller chose, on an entry in another
-  // family. The action always writes the caller's own family code, so this is the only route
-  // to `tg_journal_attendee_same_family` — and the trigger is what stands under the SERVICE
-  // ROLE, where no policy applies at all.
+  // ── THE RAW ATTENDEE PROBE WENT WITH ITS TABLE, 2026-08-22 ─────────────
+  // `position_journal_attendees` is dropped (`20260822000019`). What it was evidence for was
+  // the §4 layering under a SERVICE-ROLE write: a `family_code` the caller chose, on an entry
+  // in another family, refused by `tg_journal_attendee_same_family` where no policy applies.
   //
-  // BRAVO's administrator, naming BRAVO's own member, on ALPHA's meeting, stamped BRAVO. Every
-  // conjunct that mentions the CALLER is true; what is false is that the entry belongs to the
-  // family on the row. Two things refuse it — the policy, because
-  // `auth_authored_journal_entry` resolves nothing for them, and the trigger — which is the
-  // layering the migration's §6 argues for.
-  {
-    kind: 'write',
-    id: 'raw:position_journal_attendees INSERT (another family\'s meeting)',
-    mod: 'tests/rls/raw/journals.mjs', fn: 'insertMeetingAttendee',
-    args: fx => [fx.bravo.familyCode, fx.alpha.journalMeeting.id, fx.bravo.otherPersonId],
-    probe: probeAttendees(fx => fx.alpha.journalMeeting.id),
-    expectRefusal: v => v?.error != null
-      ? { ok: true, detail: `refused ${v.error.code ?? 'with an error'}` }
-      : { ok: false, detail: 'the insert was accepted' },
-    // ALPHA's own recorder, adding a name to their own meeting. `f.ancestor` is account-less,
-    // which is the row a picker-shaped fixture would never reach — and it is deliberately not
-    // one of the two people the action-shaped attendee cases churn.
-    positiveActor: 'alphaMember',
-    positiveArgs: fx => [fx.alpha.familyCode, fx.alpha.journalMeeting.id, fx.alpha.ancestor.id],
-  },
+  // THAT SHAPE IS NOW `meeting_attendees` AND IT IS SHARPER, because every write to the five
+  // meeting tables is on the admin client by design — so the trigger is not defence in depth
+  // there, it is the whole boundary. `20260822000019` exercises all five guards inside its own
+  // verify block, against real rows, and asserts the positive control alongside each.
 ]
 
 CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASES,
@@ -8482,7 +8561,7 @@ export const UNCOVERED = []
  * album last. Same hazard the `photos.deletePhoto` pair records, one group down.
  *
  * The attacker is the default `bravoAdmin`: scope 'any' on every resource their own family can
- * confer, so `review/photos` edit and delete both resolve to 'any' for them — checked through
+ * confer, so `community/gallery` edit and delete both resolve to 'any' for them — checked through
  * `auth_permission` directly, not assumed — and every conjunct of each policy EXCEPT the family
  * one is satisfied. The control is `alphaMember`, the fixture's `owner`: uploader of
  * `f.rawPhoto`, creator of `f.rawCollection`, tagger of `f.rawPhotoTag`, holding all three at

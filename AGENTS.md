@@ -779,13 +779,13 @@ policy's own conjuncts at all.
 Measured rather than reasoned, which is the only reason this is written down. `20260822000013`
 repairs five photo write policies that said `((owner) OR true) AND <permission>` — `X OR true`
 is `true`, so as written all five matched every photograph in the PRODUCT for anybody holding
-`review/photos` at scope `'any'`. Five raw probes were written to catch it and **stayed green
+`community/gallery` at scope `'any'` (then `review/photos`). Five raw probes were written to catch it and **stayed green
 with the broken policy restored.** As BRAVO's administrator, with a real JWT, against the local
 stack:
 
 | | |
 |---|---|
-| `auth_permission('review/photos','delete')` | `'any'` — so the DELETE policy admitted them |
+| `auth_permission('review/photos','delete')` (now `community/gallery`) | `'any'` — so the DELETE policy admitted them |
 | `DELETE /rest/v1/photos?id=eq.<an ALPHA photo>` | `204`, and the row **survives** |
 | the same request, `photos` SELECT widened to `USING (true)` | `204`, and the photograph is **gone** |
 
@@ -1066,13 +1066,13 @@ Four things about it are load-bearing:
   `photos.deletePhoto (a photo they did not upload)` is the worked example and was
   mutation-checked: reverting the action turns that one line red and nothing else moves.
   It was `(a member with no delete grant)` until `20260820000007` gave the General template
-  `review/photos:delete` at scope `'own'` — so the refusal it asserts is now the
+  `review/photos:delete` (now `community/gallery`) at scope `'own'` — so the refusal it asserts is now the
   OWN-EXPRESSION narrowing rather than a missing grant, which is a better test of the same
   mechanism and the first assertion in that suite that an `own_expr` narrows anything.
 
 **A DEFAULT GRANT IS THE OTHER HALF, AND IT IS A PRODUCT DECISION.** Reporting the refusal
 honestly does not answer whether the caller should have been refused. `20260820000007` answered
-that for one resource: the General template already granted `review/photos` at `create: 'any'`
+that for one resource: the General template already granted `review/photos` (now `community/gallery`) at `create: 'any'`
 and `edit: 'own'` and simply had no `delete` row, so a member could upload a photograph and
 retitle it and never remove it — and its own description says "manages only their own records".
 One row fixed it, and it covers tags too, because `permission_table_map` points both `photos`
@@ -2011,48 +2011,73 @@ offset, which is how a calendar comes to put a reunion on the wrong day for half
 `shiftMonth` works on (year, month) integers and never carries a day-of-month, because `setUTCMonth`
 overflows 31 January into 3 March.
 
-# JOURNALS BELONG TO AN OFFICE, AND THE OFFICE IS THE WHOLE ACCESS MODEL
+# JOURNALS IS FOUR SCREENS, AND ONLY ONE OF THEM BELONGS TO AN OFFICE
 
-`/journals`, three tables, and one sentence the schema is built on: **the notes follow the
-position, not the member.** A treasurer writes down how the bank reconciliation actually works;
-three years later a different treasurer opens it and it is there. `20260821000005` built it and
-`20260822000001` turned an entry into a rolling topic; both headers argue every decision at
-length and this is the short list of what a change here will get wrong.
+The section holds **Officer**, **Meeting Minutes**, **Documents** and **Bylaws**, and what they
+have in common is the reader rather than the access model: somebody looking for what the family
+wrote down. Their rules are deliberately different and a change that assumes one applies to all
+four will be wrong three times.
 
-**IT WAS `/journal`, SINGULAR, FOR ONE DAY.** The caption is Journals, so the route and the key
-are `journals` (`20260822000000`) — the rule in "The route tree IS the nav rail", applied
-before the mismatch had time to become archaeology. What did NOT move: the tables
-(`position_journal_*`), the `permission_resources.category` value `journal` — the `events`
-precedent, "a caption is one line here; a category is a column three resolvers agree about" —
-and the help chapter's slug, which is not a route.
+| Screen | Who reads it | Who writes it |
+|---|---|---|
+| `journals/officer` | whoever holds THAT OFFICE, and nobody else | any holder of the office |
+| `journals/meeting-minutes` | every approved member | the SECRETARY of that session |
+| `journals/documents` | every approved member | anybody with the create grant |
+| `journals/bylaws` | every approved member | anybody with the create grant |
+
+**THE FIRST ROW IS THE ODD ONE AND IT MUST STAY ODD.** A journal is working notes; the other
+three are the family's record. A family that could read every officer's notebook would get
+officers who keep their notebook somewhere else, which is the whole argument `20260821000005`
+makes at length.
+
+**Documents ARRIVED FROM THE RETIRED REVIEW SECTION** (`20260822000018`) rather than going back
+to Resources: a family's filings sit beside the notebooks its officers keep. **Meeting Minutes**
+and **Bylaws** are new the same day.
+
+## The officer's journal
+
+`/journals/officer`, three tables, and one sentence the schema is built on: **the notes follow
+the position, not the member.** A treasurer writes down how the bank reconciliation actually
+works; three years later a different treasurer opens it and it is there. `20260821000005` built
+it and `20260822000001` turned an entry into a rolling topic; both headers argue every decision
+at length and this is the short list of what a change here will get wrong.
+
+**THE ROUTE MOVED TWICE IN THREE DAYS** — `/journal`, `/journals`, `/journals/officer`
+(`20260822000000`, `20260822000017`) — and each move is one rule being obeyed rather than three
+opinions: the caption is the route and the route is the key ("The route tree IS the nav rail").
+What did NOT move any of the three times: the tables (`position_journal_*`), the
+`permission_resources.category` value `journal` — the `events` precedent, "a caption is one line
+here; a category is a column three resolvers agree about" — and the help chapter's slug, which
+is not a route.
 
 **NO POLICY ON ANY OF THE THREE TABLES EVALUATES `auth_permission`, and that is asserted in
-both directions.** `journals:view` gates the SCREEN so a family can switch the feature off; it
+both directions.** `journals/officer:view` gates the SCREEN so a family can switch it off; it
 decides nothing about who reads what. What the eleven policies test is the OFFICE, through
 `auth_holds_family_role(role_id)` on an entry and `auth_holds_journal_entry_office(entry_id)` on
-the two child tables. So `journals:view` at scope `'any'` buys an administrator their own
+the two child tables. So `journals/officer:view` at scope `'any'` buys an administrator their own
 offices and no others — deliberately, because these are working notes and a family that could
 read every officer's notebook would get officers who keep their notebook somewhere else. There
 is **no `permission_table_map` row** for this key and there must not be: a future policy sweep
-composing an `auth_permission('journals', …)` factor onto these tables would open every
-notebook to everybody, `view` defaulting to `'everyone'`.
+composing an `auth_permission('journals/officer', …)` factor onto these tables would open
+every notebook to everybody, `view` defaulting to `'everyone'`. The same is asserted for
+`journals/meeting-minutes` and `journals/bylaws` (`20260822000018` §9f), whose row rules are the
+secretary and the attendee list.
 
-**FOUR WRITE RULES, AND THEY ARE FOUR ON PURPOSE.** They look like one rule and are enforced by
-three different expressions:
+**THREE WRITE RULES, AND THEY ARE THREE ON PURPOSE.** They look like one rule and are enforced
+by two different expressions:
 
 | What | Who | What enforces it |
 |---|---|---|
 | add a note to any topic | any holder of the office | the office conjunct alone |
 | edit or delete one note | its own author, any position in the thread | `author_id = auth_person_id()` on the NOTE |
-| the topic — title, meeting day | whoever started it | `author_id = auth_person_id()` on the ENTRY |
-| who attended a meeting | whoever RECORDED it | `auth_authored_journal_entry(entry_id)` |
+| the topic — its title | whoever started it | `author_id = auth_person_id()` on the ENTRY |
 
 The first is the feature: a successor answers a predecessor *underneath* what they wrote instead
 of beside it. The rest are the same argument `reopenGatheringTask` makes — the office owns the
-record, and a record a successor can quietly rewrite is not one. **An attendee list has no
-byline**, which is why it is the recorder's rather than any holder's: two officers editing it
-would be overwriting each other with no trace of who said what. An officer left off the list
-adds a note.
+record, and a record a successor can quietly rewrite is not one.
+
+**THERE WERE FOUR RULES UNTIL 2026-08-22**, and the fourth was who attended a meeting. That went
+with the meeting half (below).
 
 **`body` WAS DROPPED FROM `position_journal_entries`, WHICH IS NOT AN ADDITIVE MIGRATION.** The
 existing bodies became the first note of their own thread. Two columns describing one fact is
@@ -2062,23 +2087,79 @@ new schema for one alias window, asks for a column that is gone, and PostgREST a
 killing the whole query. It cost an empty screen for one deploy and is admissible **because no
 family is using this product yet**. If that stops being true, the shape is two deploys.
 
-**VOTING ON TASKS IS A SENTENCE ON A SCREEN AND HAS NO SCHEMA.** Deliberately: a column nothing
-reads "reads as a control being honoured", and `dues_member_plans.start_date` is what a plausible
-unread column costs later. When voting is real it needs a task row, a ballot per attendee and a
-tally — a decision to make with the feature in front of you.
+**THE MEETING HALF LEFT ON 2026-08-22, AND VOTING WENT WITH IT AND BECAME REAL.** An entry
+carried a `kind` of 'note' or 'meeting', with `met_on` and `position_journal_attendees` beside
+it, and a sentence on the screen saying voting was not built. `20260822000019` dropped all three
+columns and the table. A meeting is not a topic in one office's notebook: it belongs to the
+FAMILY, it has a SECRETARY (one named person, which "any holder of the office" cannot express),
+and it has VOTES, which a journal has nowhere to put. See Meeting Minutes below.
 
-**THE JUNCTION TABLE MADE AN OLD PAIR AMBIGUOUS.** `position_journal_attendees` joins entries to
-people, so PostgREST reports a many-to-many path between that pair on top of `author_id` — §8's
-`announcement_unpins` incident, arriving on schedule. Every `people` embed from a journal table
-names its constraint, including the ones that would still be unambiguous alone.
+**THE JUNCTION TABLE THAT MADE AN OLD PAIR AMBIGUOUS IS GONE, AND THE QUALIFIERS STAY.**
+`position_journal_attendees` joined entries to people, so PostgREST reported a many-to-many path
+between that pair on top of `author_id` — §8's `announcement_unpins` incident, arriving on
+schedule. Every `people` embed from a journal table still names its constraint, deliberately:
+the hazard was never that table, it was that ANY two-column join table added later reintroduces
+it. Removing the qualifiers now would be removing the guard because the last thing to trip it
+happened to be deleted.
 
 **AND THE TESTS OWE A `raw/` PROBE, which is where the read-narrowing lesson in §7 came from.**
 `getJournalEntries` reads the notes by the entry ids it already holds, so the notes policy is
 never consulted for a caller with no office: its office conjunct came out and 43 assertions
 stayed green. `tests/rls/raw/journals.mjs` is what catches it. One stated gap lives in
 `cases.mjs`: no actor in the fixture holds ZERO offices — `alphaAdmin` holds the President —
-so `getJournalAttendeeOptions`' own §5 guard is asserted by nothing, and adding an
-office-less approved member is the fix, not a `setup` that wipes an assignment.
+so `/journals/officer`'s own §5 guard (skip both reads for a member with no office) is asserted
+by nothing, and adding an office-less approved member is the fix, not a `setup` that wipes an
+assignment.
+
+## Meeting Minutes: the room decides, and a vote is final
+
+`/journals/meeting-minutes`, five tables, and `20260822000019` argues every decision at length.
+The short list of what a change here will get wrong:
+
+**THE ACCESS MODEL IS THE SESSION, NOT THE KEY.** `journals/meeting-minutes:view` gates the
+SCREEN; it has no `permission_table_map` row and must not gain one. What decides the writes is
+the ROW: the session names one `secretary_id` and carries an attendee list, and those two
+columns are the whole of who may write minutes and who may vote. A key cannot express "the
+person this session named", which is the same argument the officer's journal makes about the
+office.
+
+**EVERY APPROVED MEMBER READS IT.** Five SELECT policies testing family and approval and nothing
+else — the opposite of the journal's rule, deliberately: minutes are the family's record of its
+own decisions, so somebody who was not in the room still learns what was decided.
+
+**THERE IS NO WRITE POLICY ON ANY OF THE FIVE.** Per §2c that denies the browser those commands
+outright, so every write goes through `app/actions/meetings.ts` on the admin client with
+`.eq('family_code', …)` by hand (§3), and five guard triggers refuse a cross-family id
+underneath (§4). Same arrangement as the six Gatherings tables and for the same reason.
+
+**A VOTE CANNOT BE CHANGED BY ANYBODY, AND THAT IS A TRIGGER RATHER THAN A RULE IN AN ACTION.**
+`meeting_votes_are_final` refuses UPDATE for every role including `service_role`, and refuses
+DELETE unless `pg_trigger_depth() > 1` — which is true only inside the `ON DELETE CASCADE` from
+`meeting_topics`, MEASURED rather than assumed (a direct delete reports depth 1, a cascade
+reports 2). So the only way a vote goes is with the QUESTION it answered.
+
+The first draft of that migration refused every DELETE and thereby made a topic undeletable the
+moment anybody had voted on it; both directions are asserted in its verify block for that reason.
+An escape hatch in the `storage.protect_delete()` style was rejected here: a hatch is a thing any
+future action can set, where a depth test can only be satisfied by an actual cascade.
+
+**A MEETING IS ON ITS ATTENDEES' CALENDARS AND NOBODY ELSE'S**, which is a per-VIEWER narrowing
+rather than a permission one and is unlike anything else on that grid. It is filtered in
+TypeScript in `app/actions/calendar.ts`, deliberately: the rows it drops are rows the caller may
+read anyway, so writing it as a policy-shaped query would tell the next reader it was §5.
+
+## Bylaws is scaffolding, and the screen says which half
+
+`/journals/bylaws`, one table, `20260822000020`. The table, the GIN index and the search are
+real; **text extraction from PDF and Word is not built**. Plain-text uploads are read on upload
+and are searchable word by word; a PDF is searchable by title, article and summary only.
+
+**EVERY ROW CARRIES A BADGE SAYING WHICH IT IS, and the empty-result state says it too.** That is
+the one thing this scaffolding must not drop: "no result" and "not indexed" are different facts,
+and a reader who cannot tell them apart concludes the bylaws do not say a thing they do say.
+
+`bylaws.content_text` is inside the generated `search_vector`, so turning extraction on is a job
+that writes one column — no migration, no reindex.
 
 # The signed-in app signs itself out when left idle
 

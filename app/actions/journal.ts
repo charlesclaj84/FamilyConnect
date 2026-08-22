@@ -5,7 +5,6 @@ import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
-import { belongsToFamily } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { formatBoardTitle } from '@/lib/board-positions'
@@ -25,7 +24,7 @@ import { formatBoardTitle } from '@/lib/board-positions'
  * `20260821000005` and `20260822000001` put eleven policies across three tables and not one of
  * them evaluates `auth_permission`. What they test is whether the caller holds the office —
  * `auth_holds_family_role(role_id)` on an entry, and `auth_holds_journal_entry_office(entry_id)`
- * on the notes and the attendee list, which resolves the same question through the parent. So:
+ * on the notes, which resolves the same question through the parent. So:
  *
  *   * a member with no office sees an empty screen, whatever their template says;
  *   * an administrator with `journals:view` at 'any' sees THEIR OWN offices and no others;
@@ -44,8 +43,8 @@ import { formatBoardTitle } from '@/lib/board-positions'
  *     answers a predecessor underneath what they wrote instead of beside it.
  *   * EACH NOTE is editable and deletable by its own AUTHOR and by nobody else, at any
  *     position in the thread. Somebody else's paragraph stays theirs.
- *   * THE TOPIC — its title, its meeting date, its attendee list — belongs to whoever
- *     recorded it. An officer who was left off a meeting's list adds a note saying so.
+ *   * THE TOPIC — its title — belongs to whoever started it. A successor who
+ *     disagrees with how it was framed answers underneath rather than restating it.
  *
  * ── SO EVERY WRITE HERE GOES THROUGH THE USER CLIENT ───────────────────────────────
  * Deliberately, and it is the opposite of the Gatherings pattern. AGENTS.md's preference is
@@ -54,7 +53,7 @@ import { formatBoardTitle } from '@/lib/board-positions'
  * rather than a courtesy, and `tests/rls` can attack them.
  *
  * The ADMIN client appears exactly twice, and both are reads that RLS cannot answer for the
- * caller — `getMyOffices` and `getJournalAttendeeOptions`. Each says why on itself.
+ * caller — `getMyOffices`, which says why on itself.
  *
  * ── AND EVERY NARROWED WRITE IS `confirmWrite` ─────────────────────────────────────
  * UPDATE and DELETE narrowed by RLS are exactly the shape §8b exists for: a statement refused
@@ -63,12 +62,24 @@ import { formatBoardTitle } from '@/lib/board-positions'
  * safe on the idempotent two, and an INSERT refused by RLS raises 42501 and is already honest.
  *
  * ── §8: EVERY `people` EMBED HERE NAMES ITS CONSTRAINT ─────────────────────────────
- * `position_journal_attendees` joins entries to people, so PostgREST reports a many-to-many
- * path between that pair on top of `author_id`. A bare `people(...)` embed from either journal
- * table is therefore PGRST201 — which is `[]` with the error discarded — and that is the
- * `announcement_unpins` incident exactly: an ordinary two-column join table breaking a correct
- * embed on a table nobody edited. Every `.select()` below names the constraint, including the
- * ones that would still be unambiguous on their own.
+ * `position_journal_attendees` USED TO make this pair many-to-many, so a bare `people(...)`
+ * embed from either journal table was PGRST201 — which is `[]` with the error discarded. That
+ * table is gone (`20260822000019`, with the meeting half), and every `.select()` below STILL
+ * names its constraint. Deliberately: the hazard was never that table specifically, it was that
+ * ANY two-column join table added later reintroduces it on a table nobody edited, which is the
+ * `announcement_unpins` incident. Removing the qualifiers now would be removing the guard
+ * because the last thing to trip it happened to be deleted.
+ *
+ * ── THE MEETING HALF LEFT ON 2026-08-22 ──────────────────────────
+ * An entry carried a `kind` of 'note' or 'meeting', with `met_on` and an attendee list beside
+ * it. `20260822000019` dropped all three and Meeting Minutes (`/journals/meeting-minutes`) is
+ * where a meeting lives now. The reason is that a meeting is not a topic in one office's
+ * notebook: it belongs to the FAMILY, it has a SECRETARY (one named person, which this file's
+ * "any holder of the office" rule cannot express), and it has VOTES, which a journal has
+ * nowhere to put.
+ *
+ * WHAT IS LEFT IS THE THING THIS FILE WAS ALWAYS FOR: a rolling topic in one office's notebook,
+ * readable only by whoever holds that office.
  */
 
 export interface JournalOffice {
@@ -117,54 +128,28 @@ export interface JournalNote {
   updated_at: string
 }
 
-/** Somebody who was in the room. */
-export interface JournalAttendee {
-  person_id: string
-  name: string
-}
-
 export interface JournalEntry {
   id: string
   role_id: string
   title: string
-  /** 'note' | 'meeting'. A meeting carries `met_on` and an attendee list; a note carries neither. */
-  kind: string
-  /** `YYYY-MM-DD`, and only on a meeting. A bare DATE — there is no time of day here. */
-  met_on: string | null
   author_id: string | null
   author_name: string | null
-  /** Whether the CALLER recorded the topic — which decides the title and attendee controls. */
+  /** Whether the CALLER started the topic — which decides the title controls. */
   mine: boolean
   created_at: string
   updated_at: string
   /** Oldest first: a conversation is read down the page. */
   notes: JournalNote[]
-  /** Empty for a plain note, and for a meeting nobody has listed yet. */
-  attendees: JournalAttendee[]
 }
 
 /** What the composer needs to open a new topic. */
 export interface NewEntryInput {
   title: string
-  kind: string
-  /** Required when `kind` is 'meeting', and refused otherwise — the CHECK runs both ways. */
-  metOn?: string | null
   /** The opening paragraph. Optional: a topic may be titled today and written in tomorrow. */
   firstNote?: string
-  /** `people.id`s, for a meeting. Every one is verified against the family before it lands. */
-  attendeeIds?: string[]
 }
 
-/** A member as `PersonMultiSelect` names them — see `SelectablePerson`. */
-export interface JournalAttendeeOption {
-  id: string
-  first_name: string
-  last_name: string
-  nick_name: string | null
-  date_of_birth: string | null
-}
 
-const ENTRY_KINDS = ['note', 'meeting']
 
 /**
  * The offices the caller holds in the family they are viewing.
@@ -302,7 +287,7 @@ export async function getJournalEntries(roleId: string): Promise<JournalEntry[]>
     // literal it is handed, so `'a, b' + 'c'` types every column as GenericStringError and the
     // whole projection stops compiling — which is the useful direction of that inference and
     // is exactly what the first draft of this line did.
-    .select('id, role_id, title, kind, met_on, author_id, created_at, updated_at, people!position_journal_entries_author_id_fkey(first_name, last_name)')
+    .select('id, role_id, title, author_id, created_at, updated_at, people!position_journal_entries_author_id_fkey(first_name, last_name)')
     .eq('role_id', roleId)
     .order('created_at', { ascending: false })
   if (error) {
@@ -316,8 +301,6 @@ export async function getJournalEntries(roleId: string): Promise<JournalEntry[]>
       id: row.id,
       role_id: row.role_id,
       title: row.title,
-      kind: row.kind,
-      met_on: row.met_on,
       author_id: row.author_id,
       // NULL WHERE THE AUTHOR HAS LEFT, and the screen prints "a former officer" for it. The
       // column is ON DELETE SET NULL precisely so the office keeps the note; rendering
@@ -327,7 +310,6 @@ export async function getJournalEntries(roleId: string): Promise<JournalEntry[]>
       created_at: row.created_at,
       updated_at: row.updated_at,
       notes: [],
-      attendees: [],
     }
   })
   if (!entries.length) return entries
@@ -362,76 +344,10 @@ export async function getJournalEntries(roleId: string): Promise<JournalEntry[]>
     })
   }
 
-  // ASKED FOR ONLY WHERE IT CAN EXIST. A plain note may never carry attendees — the guard
-  // trigger refuses it — so a family whose officers keep no minutes makes no third round trip.
-  const meetingIds = entries.filter(e => e.kind === 'meeting').map(e => e.id)
-  if (meetingIds.length) {
-    const { data: attendeeRows, error: attendeeError } = await supabase
-      .from('position_journal_attendees')
-      .select('entry_id, person_id, people!position_journal_attendees_person_id_fkey(first_name, last_name)')
-      .in('entry_id', meetingIds)
-    if (attendeeError) {
-      console.error(`[journals] attendee read failed for office ${roleId}: `
-        + attendeeError.message + ' — every meeting will render as though nobody attended.')
-    }
-    for (const row of attendeeRows ?? []) {
-      const person = embedOne<PersonNameRow>(row.people)
-      if (!person) continue
-      byId.get(row.entry_id)?.attendees.push({
-        person_id: row.person_id,
-        name: `${person.first_name} ${person.last_name}`,
-      })
-    }
-    for (const entry of entries) {
-      entry.attendees.sort((a, b) => a.name.localeCompare(b.name))
-    }
-  }
+  // A THIRD ROUND TRIP USED TO GO HERE, for a meeting's attendee list. It left with the
+  // meeting half (`20260822000019`). Two queries now: the topics, and their notes.
 
   return entries
-}
-
-/**
- * The family members an officer can list as having attended a meeting.
- *
- * ── THE ADMIN CLIENT, AND WHAT GATES IT IS THE OFFICE ──────────────────────────────
- * `people`'s SELECT policy is keyed on `community/directory`, so through the user client an
- * officer in a family that has restricted its Directory would get `[]` and the attendee picker
- * would offer nobody — a screen that cannot record who was in the room. So this reads on the
- * admin client with §3 discharged by hand (`.eq('family_code', …)`), and what admits the
- * caller is holding an office, which is the access model of this whole feature.
- *
- * TWO THINGS KEEP THAT NARROW. It returns NAMES ONLY — the four fields `PersonMultiSelect`
- * needs to tell two Martha Allens apart, and no address, no phone, no chapter. And the list it
- * produces is only ever readable back inside an office's own notebook, because
- * `position_journal_attendees` is gated on the office like everything else here.
- *
- * ── EVERY APPROVED PERSON, ACCOUNT OR NOT ──────────────────────────────────────────
- * A recorded grandmother with no email address can sit in a meeting, so this is not the
- * "accounts only" list a PICKER usually wants (AGENTS.md, on projections versus pickers). What
- * it does exclude is a pending, rejected or disabled membership: somebody who has not been
- * admitted has not joined the family yet.
- */
-export async function getJournalAttendeeOptions(): Promise<JournalAttendeeOption[]> {
-  const g = await requireMember()
-  if (!g.ok) return []
-  if (!(await can(g.userId, 'journals/officer', 'view'))) return []
-  // GATE THE FETCH, NOT THE PICKER (§5). A roster is PII that reaches the browser in the RSC
-  // payload whether a control renders it or not, so somebody holding no office must not have
-  // it fetched at all.
-  if (!(await getMyOffices()).length) return []
-
-  const { data, error } = await createAdminClient()
-    .from('people')
-    .select('id, first_name, last_name, nick_name, date_of_birth')
-    .eq('family_code', g.familyCode)
-    .eq('membership_status', 'approved')
-    .order('last_name', { ascending: true })
-    .order('first_name', { ascending: true })
-  if (error) {
-    console.error(`[journals] attendee options read failed for ${g.familyCode}: ${error.message}`)
-    return []
-  }
-  return (data ?? []) as JournalAttendeeOption[]
 }
 
 /**
@@ -452,9 +368,9 @@ export async function getJournalAttendeeOptions(): Promise<JournalAttendeeOption
  * The topic, its opening note and its attendee list are three statements and PostgREST has no
  * transaction across them. The topic is what the officer typed a title into, so it lands
  * first and is never rolled back; if a later step fails the caller is TOLD which one, in the
- * `propagateChapterToChildren` shape — a bare `{ success: true }` over a meeting with no
- * attendees is the silence AGENTS.md §8b is about, and reporting outright failure over a
- * topic that really was created would be worse.
+ * `propagateChapterToChildren` shape — a bare `{ success: true }` over a topic whose first
+ * note did not save is the silence AGENTS.md §8b is about, and reporting outright failure over
+ * a topic that really was created would be worse.
  */
 export async function addJournalEntry(
   roleId: string,
@@ -470,29 +386,6 @@ export async function addJournalEntry(
   // endpoint directly, and this is what an officer reads.
   if (!title) return { success: false, message: 'Give the entry a title.' }
 
-  const kind = input?.kind === 'meeting' ? 'meeting' : 'note'
-  if (!ENTRY_KINDS.includes(kind)) return { success: false, message: 'Unknown entry type.' }
-
-  // A MEETING NEEDS A DAY. The CHECK refuses it either way; this is the sentence, and it is
-  // the same rule stated at the one place somebody can act on it.
-  const metOn = kind === 'meeting' ? (input?.metOn ?? '').trim() : null
-  if (kind === 'meeting' && !metOn) {
-    return { success: false, message: 'Say which day the meeting was.' }
-  }
-
-  const attendeeIds = kind === 'meeting'
-    ? Array.from(new Set(input?.attendeeIds ?? [])).filter(Boolean)
-    : []
-  // §4: EVERY ID FROM THE CLIENT IS VERIFIED BEFORE IT IS WRITTEN ONTO A ROW. The row's own
-  // `family_code` is the caller's, so every policy is satisfied while `person_id` could point
-  // into another family — and the guard trigger underneath would refuse it with a constraint
-  // name where this refuses it with a sentence.
-  for (const personId of attendeeIds) {
-    if (!(await belongsToFamily('people', personId, g.familyCode))) {
-      return { success: false, message: 'One of the people you listed is not in this family.' }
-    }
-  }
-
   const supabase = await createClient()
   const { data: created, error } = await supabase
     .from('position_journal_entries')
@@ -500,8 +393,6 @@ export async function addJournalEntry(
       family_code: g.familyCode,
       role_id: roleId,
       title,
-      kind,
-      met_on: metOn,
       author_id: g.personId,
     })
     .select('id')
@@ -533,17 +424,6 @@ export async function addJournalEntry(
     if (noteError) partial.push('the first note was not saved')
   }
 
-  if (attendeeIds.length) {
-    const { error: attendeeError } = await supabase
-      .from('position_journal_attendees')
-      .insert(attendeeIds.map(personId => ({
-        family_code: g.familyCode,
-        entry_id: created.id,
-        person_id: personId,
-      })))
-    if (attendeeError) partial.push('the attendee list was not saved')
-  }
-
   revalidatePath('/journals/officer')
   if (partial.length) {
     return {
@@ -556,17 +436,14 @@ export async function addJournalEntry(
 }
 
 /**
- * Retitle a topic, or move a meeting's date.
+ * Retitle a topic.
  *
- * The topic is the RECORDER's, so both halves of `perm:authors can edit their own journal
+ * The topic is the AUTHOR's, so both halves of `perm:authors can edit their own journal
  * entries` apply and this function checks neither: a successor may not retitle a handover
  * note, and a former officer may not edit the office's journal from outside. What a successor
  * does instead is add a note, which is the same answer `reopenGatheringTask` gives.
  *
- * `metOn` IS PASSED STRAIGHT THROUGH, including as null. The CHECK constraint is what decides
- * whether the pair is coherent — a meeting must keep a date and a plain note may never gain
- * one — and it is a constraint rather than a branch here because this action does not read the
- * row's `kind` and must not guess it.
+ * IT TOOK A `metOn` UNTIL 2026-08-22, for the meeting half that has moved to Meeting Minutes.
  *
  * `confirmWrite` because the refusal is silent otherwise (§8b): an UPDATE the policy declines
  * is zero rows and `{ error: null }`, and telling somebody their correction saved when the
@@ -575,19 +452,17 @@ export async function addJournalEntry(
 export async function updateJournalEntry(
   entryId: string,
   title: string,
-  metOn: string | null = null,
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
 
   const trimmed = (title ?? '').trim()
   if (!trimmed) return { success: false, message: 'Give the entry a title.' }
-  const day = (metOn ?? '').trim() || null
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
     .from('position_journal_entries')
-    .update({ title: trimmed, met_on: day })
+    .update({ title: trimmed })
     .eq('id', entryId)
     .select('id'))
   if (!outcome.ok) {
@@ -723,115 +598,6 @@ export async function deleteJournalNote(
       success: false,
       message: 'That note could not be removed. Only the person who wrote it can, and only '
         + 'while they still hold the office.',
-    }
-  }
-
-  revalidatePath('/journals/officer')
-  return { success: true }
-}
-
-/**
- * Say who was in the room, as a whole list.
- *
- * ── WHOEVER RECORDED THE MEETING, WHICH IS NOT THE NOTE RULE ───────────────────────
- * `auth_authored_journal_entry` gates both attendee policies. An attendee list has no byline —
- * it is one assertion about one room — so two officers editing it would be overwriting each
- * other with no trace of who said what. An officer who was there and was left off adds a NOTE
- * saying so, and the record then shows both.
- *
- * ── ADD BEFORE REMOVE, AND THAT ORDER IS THE WHOLE DESIGN ──────────────────────────
- * There is no transaction across two PostgREST calls, so one of them can fail with the other
- * already applied. Inserting first means a failure leaves TOO MANY names rather than none —
- * a list somebody can see is wrong, instead of minutes quietly emptied.
- *
- * ── AND IT IS WHAT MAKES THE REFUSAL HONEST (§8b) ──────────────────────────────────
- * An INSERT refused by RLS raises 42501, so a caller who did not record the meeting is told.
- * A DELETE refused by RLS is zero rows and `{ error: null }` — indistinguishable from "there
- * was nothing to remove" — so where there is nothing to insert (somebody CLEARING the list),
- * the current list is read first: if it is already empty there is nothing to do, and if it is
- * not, `confirmWrite` turns a zero-row delete back into the refusal it was.
- */
-export async function setMeetingAttendees(
-  entryId: string,
-  personIds: string[],
-): Promise<{ success: boolean; message?: string }> {
-  const g = await requireMember()
-  if (!g.ok) return { success: false, message: g.message }
-
-  const wanted = Array.from(new Set(personIds ?? [])).filter(Boolean)
-  // §4 again: every id from the client, before any of them is written onto a row.
-  for (const personId of wanted) {
-    if (!(await belongsToFamily('people', personId, g.familyCode))) {
-      return { success: false, message: 'One of the people you listed is not in this family.' }
-    }
-  }
-
-  const supabase = await createClient()
-
-  if (wanted.length) {
-    const { error } = await supabase
-      .from('position_journal_attendees')
-      // `ignoreDuplicates` so re-saving an unchanged list is not a unique violation. The
-      // primary key is `(entry_id, person_id)`, which is what makes this safe to repeat.
-      .upsert(
-        wanted.map(personId => ({
-          family_code: g.familyCode,
-          entry_id: entryId,
-          person_id: personId,
-        })),
-        { onConflict: 'entry_id,person_id', ignoreDuplicates: true },
-      )
-    if (error) {
-      if (error.code === '42501') {
-        return {
-          success: false,
-          message: 'That list could not be saved. Only the person who recorded the meeting '
-            + 'can change who attended, and only while they still hold the office.',
-        }
-      }
-      return { success: false, message: error.message }
-    }
-
-    // Everything not on the list goes. The INSERT above having landed proves the caller may
-    // write here, so a zero-row answer to this genuinely means there was nothing to remove.
-    const { error: pruneError } = await supabase
-      .from('position_journal_attendees')
-      .delete()
-      .eq('entry_id', entryId)
-      .not('person_id', 'in', `(${wanted.join(',')})`)
-    if (pruneError) {
-      return {
-        success: false,
-        message: 'The names were added, but the ones you took off could not be removed. '
-          + 'Reload the meeting and try again.',
-      }
-    }
-    revalidatePath('/journals/officer')
-    return { success: true }
-  }
-
-  // CLEARING THE LIST, which is the one path with no insert to prove anything. Read it first,
-  // so "already empty" and "refused" stop looking alike.
-  const { data: existing, error: readError } = await supabase
-    .from('position_journal_attendees')
-    .select('person_id')
-    .eq('entry_id', entryId)
-  if (readError) return { success: false, message: readError.message }
-  if (!(existing ?? []).length) {
-    revalidatePath('/journals/officer')
-    return { success: true }
-  }
-
-  const outcome = await confirmWrite(() => supabase
-    .from('position_journal_attendees')
-    .delete()
-    .eq('entry_id', entryId)
-    .select('person_id'))
-  if (!outcome.ok) {
-    return {
-      success: false,
-      message: 'That list could not be cleared. Only the person who recorded the meeting can '
-        + 'change who attended, and only while they still hold the office.',
     }
   }
 

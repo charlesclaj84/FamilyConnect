@@ -432,7 +432,14 @@ async function teardown(db) {
     // would be gone before their own line ran — and the day somebody makes either of those
     // foreign keys ON DELETE SET NULL, or adds a table this one does not name, the teardown
     // would leave rows behind with nothing reporting it.
-    'position_journal_attendees', 'position_journal_notes', 'position_journal_entries',
+    // THE FIVE MEETING TABLES, CHILDREN FIRST. `meeting_votes` is the one that CANNOT be
+    // deleted by an ordinary statement — `meeting_votes_are_final` refuses a direct DELETE for
+    // every role including this one — so it is NOT listed here and must not be: the only way a
+    // vote row goes is the cascade from its topic, which `meeting_topics` below triggers. A
+    // line for it would fail the teardown on the second run of the suite and take every case
+    // with it.
+    'meeting_topic_notes', 'meeting_topics', 'meeting_attendees', 'meeting_sessions',
+    'position_journal_notes', 'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
     // they recorded is worth keeping as a rule for anything added below: the ORDER is not
@@ -999,46 +1006,57 @@ export async function seed() {
         body: `secret journal spare ${code}`,
       }).select().single())
 
-    // ── A MEETING, RECORDED BY `owner`, WITH ONE ATTENDEE ────────────────────────
-    // `met_on` is NOT NULL for a meeting and forbidden on a note — both directions of one
-    // CHECK — so this row is also what stops a case being written against a kind the database
-    // would refuse.
+    // ── A MEETING, AND WHY ITS THREE ROLES ARE THREE DIFFERENT PEOPLE ──
+    // `position_journal_entries.kind`, `.met_on` and `position_journal_attendees` were dropped
+    // on 2026-08-22 (`20260822000019`) and a meeting is a session of its own now, with a
+    // secretary, an attendee list and votes. Two rows used to be seeded here for the journal's
+    // meeting half; these replace them.
     //
-    // THE ATTENDEE IS `other`, and it is a person rather than `f.ancestor` for an ordering
-    // reason worth stating: the account-less rows are seeded a few hundred lines below this
-    // and would be undefined here. That the ATTENDEE LIST accepts somebody with no account is
-    // asserted where it actually matters instead — `journal.getJournalAttendeeOptions`, which
-    // checks `f.ancestor` is offered at all.
-    f.journalMeeting = must('journal meeting',
-      await db.from('position_journal_entries').insert({
-        family_code: code, role_id: journalRole.id, author_id: owner.personId,
-        title: `${code} officers meeting`, kind: 'meeting', met_on: '2026-08-20',
+    // THE FIXTURE IS BUILT SO EACH RULE HAS SOMEBODY IT REFUSES:
+    //
+    //   `owner`   (alphaMember) is the SECRETARY   -> the only person who may write the minutes
+    //   `other`   (alphaOther)  is an ATTENDEE     -> may vote, may NOT write
+    //   `admin`   (alphaAdmin)  is NEITHER         -> holds every grant and may do neither
+    //
+    // The third is the sharpest and is the whole point of the design: `alphaAdmin` holds
+    // `journals/meeting-minutes` at scope 'any' on every action, and it buys them no ability to
+    // write a word of somebody else's minutes or to cast a vote in a room they were not in.
+    // Point these cases at a member with no grants and they prove nothing.
+    f.meeting = must('meeting session',
+      await db.from('meeting_sessions').insert({
+        family_code: code, title: `${code} quarterly meeting`, meets_on: '2026-09-10',
+        secretary_id: owner.personId, created_by: owner.personId,
       }).select().single())
 
-    must('journal meeting attendee', await db.from('position_journal_attendees').insert({
-      family_code: code, entry_id: f.journalMeeting.id, person_id: other.personId,
+    must('meeting attendees', await db.from('meeting_attendees').insert([
+      { session_id: f.meeting.id, person_id: owner.personId, family_code: code },
+      { session_id: f.meeting.id, person_id: other.personId, family_code: code },
+    ]))
+
+    // A TOPIC WITH ITS VOTE ALREADY OPEN, so the ballot cases have something to answer without
+    // a `setup` that calls the action they are testing.
+    f.meetingTopic = must('meeting topic',
+      await db.from('meeting_topics').insert({
+        family_code: code, session_id: f.meeting.id, title: `${code} motion to adopt`,
+        created_by: owner.personId, voting_opened_at: new Date().toISOString(),
+      }).select().single())
+
+    must('meeting note', await db.from('meeting_topic_notes').insert({
+      family_code: code, topic_id: f.meetingTopic.id, author_id: owner.personId,
+      body: `secret minute ${code}`,
     }))
 
-    // ── AND A SECOND MEETING, FOR THE CASES THAT REWRITE AN ATTENDEE LIST ────────
-    // `deletableChild`'s rule again, and it bites harder here than anywhere else in this
-    // fixture: `setMeetingAttendees` takes a WHOLE LIST, so every positive control on it
-    // rewrites the row it acts on — and the runner judges a control by whether the probe
-    // CHANGED. Two cases sharing one meeting would therefore have the second one setting the
-    // list its predecessor had just set, reporting "the owner's own write did nothing" for an
-    // action that worked perfectly.
-    //
-    // So the read cases keep `journalMeeting` (whose control only ever ADDS a name) and the
-    // two attendee-write cases get this one, which they are free to rewrite and empty.
-    f.journalMeetingSpare = must('spare journal meeting',
-      await db.from('position_journal_entries').insert({
-        family_code: code, role_id: journalRole.id, author_id: owner.personId,
-        title: `${code} spare meeting`, kind: 'meeting', met_on: '2026-08-21',
+    // ── A SECOND TOPIC, FOR THE CONTROL THAT VOTES ───────────────────────────────
+    // `deletableChild`'s rule: a vote CANNOT BE WITHDRAWN, so the control that casts one
+    // consumes its topic permanently — a second case sharing it would report "already voted"
+    // for an action that works. This is the one fixture row in the file that cannot be reset
+    // even by re-running the case, which is what makes the separation load-bearing rather than
+    // tidy.
+    f.meetingVoteTopic = must('votable meeting topic',
+      await db.from('meeting_topics').insert({
+        family_code: code, session_id: f.meeting.id, title: `${code} motion to vote on`,
+        created_by: owner.personId, voting_opened_at: new Date().toISOString(),
       }).select().single())
-
-    must('spare journal meeting attendee',
-      await db.from('position_journal_attendees').insert({
-        family_code: code, entry_id: f.journalMeetingSpare.id, person_id: other.personId,
-      }))
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
       family_code: code, name: `${code} album`, created_by: owner.personId,

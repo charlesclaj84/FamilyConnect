@@ -24,12 +24,12 @@ import {
   Vote,
   BarChart3,
   TrendingUp,
-  Camera,
+  Images,
+  Gavel,
   ChevronDown,
   ArrowRightLeft,
   Settings,
   LifeBuoy,
-  ClipboardCheck,
   PieChart,
   Scale,
   BookText,
@@ -288,16 +288,32 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
         // Review block argued the two must not sit side by side in one collapsed list wearing
         // one glyph, and they are a whole section apart.
         { href: '/community/elections',     label: 'Elections',        icon: Vote },
+        // GALLERY ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-22 (20260822000018), and it is
+        // last for the same reason Elections was: the order of this group is conversation,
+        // then the roster, then the family acting as one — and the album is the fourth thing,
+        // which is what the family HAS. It was captioned "Photos" and filed under Resources,
+        // on the strength of it being an upload; that is a fact about the storage rather than
+        // about what the screen is for.
+        { href: '/community/gallery',       label: 'Gallery',          icon: Images },
       ],
     },
   ]
 
   groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
 
-  // ── JOURNALS > OFFICER: A SECTION OF ONE, AND ITS ITEM IS NAMED ─────────────────
-  // `NavSection` renders a single-item group as a static divider rather than a slider, which
-  // is the right shape — there is nothing to collapse. A second item here would make it a
-  // slider automatically and need no change.
+  // ── JOURNALS: FOUR ROWS SINCE 2026-08-22, AND IT WAS ONE THE DAY BEFORE ─────────────
+  // `NavSection` renders a single-item group as a static divider and a multi-item one as a
+  // slider, so this became a slider on its own with no change here — which is what that
+  // comment predicted when the section held only Officer.
+  //
+  // WHAT THE FOUR HAVE IN COMMON is the reader: somebody looking for what the family wrote
+  // down. Officer is one officeholder's working notebook; Meeting Minutes is what the room
+  // decided; Documents is the filing cabinet; Bylaws is the rules. Documents MOVED here from
+  // the retired Review section rather than back to Resources, because a family's records sit
+  // beside the notebooks its officers keep.
+  //
+  // THE ORDER IS BY HOW OFFICIAL EACH ONE IS, which is also how permanent: a private notebook,
+  // then the record of a meeting, then the filed documents, then the constitution.
   //
   // THE ROW IS UNCONDITIONAL, filtered by the `journals` grant like every other row in this
   // file and by nothing else. It is deliberately NOT conditional on the caller holding an
@@ -320,7 +336,10 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { label: 'Journals', icon: BookText },
     items: [
-      { href: '/journals/officer', label: 'Officer', icon: BookText },
+      { href: '/journals/officer',         label: 'Officer',         icon: BookText },
+      { href: '/journals/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
+      { href: '/journals/documents',       label: 'Documents',       icon: FileText },
+      { href: '/journals/bylaws',          label: 'Bylaws',          icon: Scale },
     ],
   })
 
@@ -461,66 +480,18 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
 
   groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
 
-  // ── REVIEW: LIVE, BUT NOT YET WALKED ───────────────────────────────────────────────
-  // What is left of the six routes that came off `status: 'future'` in lib/features.ts on
-  // 2026-08-20. FOUR HAVE ALREADY LEFT, which is the section working rather than the section
-  // shrinking, and no two of them left the same way:
+  // ── THE REVIEW SECTION IS GONE, 2026-08-22 ───────────────────────────
+  // It held the six routes that came off `status: future` on 2026-08-20 so somebody could
+  // walk them, and its own comment set the exit condition: "each row leaves for its real
+  // section as its screen is walked, and when the last row goes, this whole block goes with
+  // it. A Review section that outlives the review is the thing to avoid."
   //
-  //   `/reporting/pl-summary`   reviewed, renamed P&L Summary, moved to Reporting above
-  //   `/admin/reports`          reviewed and DELETED outright — a screen that sold four things
-  //                             and delivered a mixture of five, replaced by the Membership
-  //                             Report. Deleting is a legitimate outcome of a review and is
-  //                             the one this heading exists to make possible.
-  //   `/admin/elections`        reviewed, renamed Elections, moved to Admin (20260821000000)
-  //   `/community/elections`    reviewed, moved to COMMUNITY (20260821000003) — the member's
-  //                             own ballot, which is not a Resource and never was
+  // The last two left on 2026-08-22: Photos was reviewed, renamed **Gallery** and moved to
+  // Community; Documents moved to Journals. `20260822000018` moved both keys with their
+  // routes, and `lib/features.ts` carries the record of where all six ended up.
   //
-  // The last two are the same screen pair walked on the same day, and they went to different
-  // sections, which is the outcome this worklist exists to make possible: the walk decides
-  // where a screen belongs, and "back where it came from" is only one of the answers.
-  //
-  // TWO ROWS LEFT: Photos and Documents.
-  //
-  // Every route still here was already built — a page gating itself with `requireView`, an action module
-  // behind it and a `permission_resources` row registered since 20260618000000 — and gated
-  // only because nobody had been through it end to end. They are reachable now so that
-  // somebody can be.
-  //
-  // WHY ONE SECTION RATHER THAN THE ROWS PUT BACK WHERE THEY BELONG. Three of these were
-  // Resources and one is Admin, and scattering them is exactly what
-  // makes a review impossible to finish: there would be no list of what is left, and the only
-  // way to tell a reviewed screen from an unreviewed one would be to remember. One heading is
-  // the worklist. It empties itself — each row leaves for its real section as its screen is
-  // walked, and the notes at Accounting, Reporting and Resources above each name the row they
-  // are waiting for — and when the last row goes, this whole block goes with it. A Review
-  // section that outlives the review is the thing to avoid.
-  //
-  // IT IS NOT A PERMISSION BOUNDARY AND CHANGES NOTHING ABOUT WHO SEES WHAT. Every row here
-  // is filtered by `viewable` like every other row in this file, and each page still resolves
-  // its own `requireView` — a member without the grant sees no row AND no page, exactly as
-  // before. Both rows still here are `tier: 'plus'`, so a Free or Standard family gets
-  // `/upgrade` rather than the screen. This heading is a place to stand, not a gate.
-  //
-  // NO `beta` BADGES, deliberately. That flag marks a route that is live and UNFINISHED, and
-  // that is a claim about the screen that nobody is yet in a position to make about any of
-  // these — the review is what will decide it. Set it per row if a walk finds one, which is
-  // the badge doing its actual job rather than being applied six times in advance.
-  //
-  // BOTH ELECTION ROWS ARE GONE FROM HERE, and the reason the first one's glyph mattered is
-  // worth keeping for the next row that lands in this section: it put side by side two rows
-  // that were never neighbours — the organizer's election screen and the member's own ballot
-  // — and two rows in one collapsed list wearing the same glyph is not a list of four things,
-  // it is a list of three. The organizer's row left for Admin on 2026-08-21 (`Gavel` went
-  // with it, replaced there by `Vote`, which is the one that actually means elections) and
-  // the member's row left for Community the same day. Both now wear `Vote`, a whole section
-  // apart, which is the arrangement the old conflict was an argument for.
-  groups.push({
-    section: { label: 'Review', icon: ClipboardCheck },
-    items: [
-      { href: '/review/photos',          label: 'Photos',              icon: Camera },
-      { href: '/review/documents',       label: 'Documents',           icon: FileText },
-    ],
-  })
+  // NOTHING REPLACES IT, deliberately. A heading kept "for the next review" is a heading
+  // that collects rows nobody has to justify moving out of.
 
   // HELP IS LAST, and it is the one section whose position is not a judgement about
   // importance. It is where a reader's eye goes when everything above has failed them, and

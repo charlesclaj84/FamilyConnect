@@ -564,3 +564,55 @@ export async function notifyGatheringTaskReopened(opts: {
     link: opts.link,
   })
 }
+
+/**
+ * A meeting has been scheduled. Tell everybody who is expected in the room.
+ *
+ * ── NOT `notifyAllMembers`, AND THAT IS THE WHOLE POINT ────────────────────
+ * A meeting of the board is of no interest to the other hundred and thirty relatives, and a
+ * bell that announces everything is a bell nobody reads. The recipients are the ATTENDEE LIST
+ * — the same list that decides who may vote — so being told and being able to act are the
+ * same set by construction, which is the property `notifyGatheringTaskSubmitted` argues for
+ * when it resolves recipients from the permission model rather than from a template name.
+ *
+ * ── THE SCHEDULER IS NOT TOLD ────────────────────────────────────
+ * `excludePersonId` is the caller. They pressed the button; a notification about their own act
+ * is noise, and it is the same exclusion `notifyAllMembers` makes for the same reason. They
+ * are still on the attendee list and still vote — this is about the bell, not the room.
+ *
+ * ── IT FAILS SOFT, AND EACH RECIPIENT FAILS ON THEIR OWN ───────────────
+ * `createNotification` reads its own error and logs it, because supabase-js RETURNS errors
+ * rather than throwing them — so the `try/catch` the call site wraps this in would catch
+ * nothing PostgREST produced. One recipient's row failing must not cost the other eleven
+ * theirs, which is why this awaits them together rather than in a loop that can throw.
+ */
+export async function notifyMeetingScheduled(opts: {
+  familyCode: string
+  /** Every attendee's `people.id`. The secretary is among them. */
+  attendeePersonIds: readonly string[]
+  /** The caller, who is not told about their own act. */
+  excludePersonId?: string
+  title: string
+  /** `YYYY-MM-DD`. Rendered by `formatDate`, which is UTC-pinned. */
+  meetsOn: string
+  link: string
+}): Promise<void> {
+  // AN EMPTY STRING IS NOT A UUID, and `getMyPersonId` answers one for a caller with no
+  // membership. Passed through, Postgres reports `invalid input syntax for type uuid: ""`,
+  // which the call site's try/catch would swallow entirely.
+  const recipients = opts.attendeePersonIds
+    .filter(id => Boolean(id) && id !== opts.excludePersonId)
+  if (recipients.length === 0) return
+
+  const when = formatDate(opts.meetsOn)
+  await Promise.all(recipients.map(recipientPersonId => createNotification({
+    familyCode: opts.familyCode,
+    recipientPersonId,
+    type: 'meeting_scheduled',
+    title: 'You are expected at a meeting',
+    body: when
+      ? `${clip(opts.title)} on ${when}. It is on your calendar.`
+      : `${clip(opts.title)}. It is on your calendar.`,
+    link: opts.link,
+  })))
+}

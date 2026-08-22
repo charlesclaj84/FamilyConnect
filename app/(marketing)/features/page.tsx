@@ -122,8 +122,8 @@ const ALSO: readonly {
   // now belongs to the whole family, one region or one chapter, so the old blurb was false
   // for two of the three. The window sentence is the other half of what changed.
   { icon: Vote, route: '/community/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote — inside the nomination and voting windows your family set, with results tallied when the poll closes.' },
-  { icon: Images, route: '/review/photos', title: 'Photo collections', blurb: 'A gallery per gathering, captions, and tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, route: '/review/documents', title: 'Documents', blurb: 'Bylaws, minutes, forms and records in one shared place that does not live in an inbox.' },
+  { icon: Images, route: '/community/gallery', title: 'Gallery', blurb: 'Albums for every gathering, uploaded in a batch, with tagging that finds the right cousin out of a hundred.' },
+  { icon: FileText, route: '/journals/documents', title: 'Documents', blurb: 'Forms, filings and records in one shared place that does not live in an inbox.' },
   // TRIMMED 2026-08-21 for the same reason: board positions have their own card now, and this
   // one is about the family's GEOGRAPHY. The two share a screen (Organization is one pane over
   // two grants — see AGENTS.md) and they are two different jobs, which is exactly why they are

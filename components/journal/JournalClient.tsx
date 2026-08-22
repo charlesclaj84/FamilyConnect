@@ -2,21 +2,22 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { BookText, CalendarCheck, MessageSquarePlus, Pencil, Plus, Trash2, Users, Vote } from 'lucide-react'
+import {
+  BookText, ChevronDown, ChevronRight, Pencil, Plus, Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person-multi-select'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { MainRail } from '@/components/layout/MainRail'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, todayLocal } from '@/lib/date-utils'
+import { formatDate } from '@/lib/date-utils'
 import {
   addJournalEntry, addJournalNote, deleteJournalEntry, deleteJournalNote, getJournalEntries,
-  setMeetingAttendees, updateJournalEntry, updateJournalNote,
+  updateJournalEntry, updateJournalNote,
   type JournalEntry, type JournalNote, type JournalOffice,
 } from '@/app/actions/journal'
 
@@ -58,25 +59,15 @@ interface Props {
   offices: JournalOffice[]
   initialOffice: string
   initialEntries: JournalEntry[]
-  /**
-   * The family, for the attendee picker. EMPTY IS A REAL ANSWER — `getJournalAttendeeOptions`
-   * returns `[]` for anybody with no office, and `PersonMultiSelect` says so itself rather
-   * than rendering an empty box.
-   */
-  attendeeOptions: SelectablePerson[]
 }
 
 /** The composer, for a new topic or for retitling one that exists. */
 interface EntryDraft {
   /** The topic being edited, or null when opening a new one. */
   entry: JournalEntry | null
-  kind: 'note' | 'meeting'
   title: string
-  /** `YYYY-MM-DD`. Only ever read for a meeting — the CHECK refuses one on a plain note. */
-  metOn: string
   /** The opening paragraph. New topics only: an existing thread is added to, never rewritten. */
   firstNote: string
-  attendeeIds: string[]
 }
 
 /** The note composer, for adding a paragraph or editing one of your own. */
@@ -87,10 +78,8 @@ interface NoteDraft {
   body: string
 }
 
-const KIND_LABEL: Record<string, string> = { note: 'Note', meeting: 'Meeting notes' }
-
 export function JournalClient({
-  offices, initialOffice, initialEntries, attendeeOptions,
+  offices, initialOffice, initialEntries,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -128,79 +117,40 @@ export function JournalClient({
     router.refresh()
   }
 
-  function openNewEntry(kind: 'note' | 'meeting') {
+  function openNewEntry() {
     setDialogError('')
-    setEntryDraft({
-      entry: null,
-      kind,
-      // A MEETING'S TITLE IS PREFILLED and a note's is not. "Meeting" plus a date is what an
-      // officer would type anyway, and the title is required — so the one field they cannot
-      // skip starts filled in for the kind where its content is predictable.
-      title: kind === 'meeting' ? `Meeting — ${formatDate(todayLocal()) ?? ''}` : '',
-      metOn: todayLocal(),
-      firstNote: '',
-      attendeeIds: [],
-    })
+    setEntryDraft({ entry: null, title: '', firstNote: '' })
   }
 
   function openEditEntry(entry: JournalEntry) {
     setDialogError('')
-    setEntryDraft({
-      entry,
-      kind: entry.kind === 'meeting' ? 'meeting' : 'note',
-      title: entry.title,
-      metOn: entry.met_on ?? todayLocal(),
-      firstNote: '',
-      attendeeIds: entry.attendees.map(a => a.person_id),
-    })
+    setEntryDraft({ entry, title: entry.title, firstNote: '' })
   }
 
   function saveEntry() {
     if (!entryDraft) return
     const draft = entryDraft
     if (!draft.title.trim()) { setDialogError('Give the entry a title.'); return }
-    if (draft.kind === 'meeting' && !draft.metOn) {
-      setDialogError('Say which day the meeting was.'); return
-    }
     setDialogError('')
     startTransition(async () => {
       if (!draft.entry) {
         const result = await addJournalEntry(active, {
           title: draft.title,
-          kind: draft.kind,
-          metOn: draft.kind === 'meeting' ? draft.metOn : null,
           firstNote: draft.firstNote,
-          attendeeIds: draft.kind === 'meeting' ? draft.attendeeIds : [],
         })
         if (!result.success) {
           setDialogError(result.message ?? 'That entry could not be saved.')
           // REFETCHED EVEN ON FAILURE, because `addJournalEntry` reports a PARTIAL success:
-          // the topic can exist while its first note or its attendee list did not save. Left
-          // alone, the officer would read a refusal over a topic that is really there.
+          // the topic can exist while its first note did not save. Left alone, the officer
+          // would read a refusal over a topic that is really there.
           setEntries(await getJournalEntries(active))
           return
         }
       } else {
-        const result = await updateJournalEntry(
-          draft.entry.id,
-          draft.title,
-          draft.kind === 'meeting' ? draft.metOn : null,
-        )
+        const result = await updateJournalEntry(draft.entry.id, draft.title)
         if (!result.success) {
           setDialogError(result.message ?? 'That entry could not be saved.')
           return
-        }
-        // THE ATTENDEE LIST IS ITS OWN ACTION, and its own refusal. Only sent when it has
-        // actually changed: re-saving an unchanged list is a write nobody asked for, and its
-        // refusal would then be reported on a dialog where nothing about attendance was
-        // touched.
-        if (draft.kind === 'meeting' && attendeesChanged(draft)) {
-          const attendeeResult = await setMeetingAttendees(draft.entry.id, draft.attendeeIds)
-          if (!attendeeResult.success) {
-            setDialogError(attendeeResult.message ?? 'Who attended could not be saved.')
-            setEntries(await getJournalEntries(active))
-            return
-          }
         }
       }
       setEntryDraft(null)
@@ -277,15 +227,13 @@ export function JournalClient({
 
   const activeOffice = offices.find(o => o.role_id === active)
 
+  // ONE CONTROL, SINCE 2026-08-22. There were two — New entry and Meeting notes — and the
+  // second has left for `/journals/meeting-minutes`, where a meeting is a session with a
+  // secretary, an attendee list and votes rather than a kind of journal entry.
   const newControls = (
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant="affirm" onClick={() => openNewEntry('note')} disabled={isPending}>
-        <Plus /> New entry
-      </Button>
-      <Button size="sm" variant="outline" onClick={() => openNewEntry('meeting')} disabled={isPending}>
-        <CalendarCheck /> Meeting notes
-      </Button>
-    </div>
+    <Button size="sm" variant="affirm" onClick={openNewEntry} disabled={isPending}>
+      <Plus /> New entry
+    </Button>
   )
 
   return (
@@ -371,9 +319,8 @@ export function JournalClient({
         open={entryDraft !== null}
         onClose={() => setEntryDraft(null)}
         title={entryDraft?.entry
-          ? 'Edit entry'
-          : `${entryDraft?.kind === 'meeting' ? 'Meeting notes' : 'New entry'}`
-            + `${activeOffice ? ` — ${activeOffice.name}` : ''}`}
+          ? 'Rename entry'
+          : `New entry${activeOffice ? ` — ${activeOffice.title}` : ''}`}
         description={entryDraft?.entry
           ? 'Only you can change what you recorded, and only while you hold this office.'
           : 'This stays with the office. Whoever holds it next will read it.'}
@@ -387,60 +334,25 @@ export function JournalClient({
                 id="journal-title"
                 value={entryDraft.title}
                 onChange={e => setEntryDraft({ ...entryDraft, title: e.target.value })}
-                placeholder={entryDraft.kind === 'meeting'
-                  ? 'Quarterly officers’ meeting'
-                  : 'How the bank reconciliation works'}
+                placeholder="How the bank reconciliation works"
               />
               <p className="text-xs text-muted-foreground">
                 What the list shows. Everything else goes in notes underneath it.
               </p>
             </div>
 
-            {entryDraft.kind === 'meeting' && (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="journal-met-on" required>Day of the meeting</Label>
-                  <Input
-                    id="journal-met-on"
-                    type="date"
-                    className="max-w-[12rem]"
-                    value={entryDraft.metOn}
-                    onChange={e => setEntryDraft({ ...entryDraft, metOn: e.target.value })}
-                  />
-                </div>
-
-                {/* THE SHARED CONTROL, not a column of checkboxes. A hundred-member family is
-                    an ordinary one for this product, and `PersonMultiSelect` is what survives
-                    that size — search, chips that stay visible when a filter hides a ticked
-                    name, and an honest count. AGENTS.md forbids a fourth hand-rolled copy. */}
-                <PersonMultiSelect
-                  people={attendeeOptions}
-                  selected={entryDraft.attendeeIds}
-                  onChange={next => setEntryDraft({ ...entryDraft, attendeeIds: next })}
-                  label="Who attended"
-                  hint="Recorded on the meeting, and only visible inside this office’s journal."
-                  emptyMessage="No family members to choose from yet."
-                  disabled={isPending}
-                />
-              </>
-            )}
-
             {/* ONLY ON A NEW TOPIC. An existing thread is added to from its own card — there
                 is no "edit the entry's text", because the text is the notes and each one
                 belongs to whoever wrote it. */}
             {!entryDraft.entry && (
               <div className="space-y-1.5">
-                <Label htmlFor="journal-first-note">
-                  {entryDraft.kind === 'meeting' ? 'Notes from the meeting' : 'First note'}
-                </Label>
+                <Label htmlFor="journal-first-note">First note</Label>
                 <Textarea
                   id="journal-first-note"
                   rows={8}
                   value={entryDraft.firstNote}
                   onChange={e => setEntryDraft({ ...entryDraft, firstNote: e.target.value })}
-                  placeholder={entryDraft.kind === 'meeting'
-                    ? 'What was discussed, and what was decided.'
-                    : 'Optional — you can add notes to this entry later.'}
+                  placeholder="Optional — you can add notes to this entry later."
                 />
                 <p className="text-xs text-muted-foreground">
                   You can add more notes to this entry whenever there is something to add.
@@ -513,26 +425,26 @@ export function JournalClient({
 }
 
 /**
- * Whether the attendee list in the draft differs from the one on the row.
- *
- * Compared as SETS, because `PersonMultiSelect` does not preserve order and says so — an
- * order-sensitive comparison would report a change every time somebody unticked a name and
- * ticked it again, and each false positive is a write, and every write can be refused.
- */
-function attendeesChanged(draft: EntryDraft): boolean {
-  const before = new Set((draft.entry?.attendees ?? []).map(a => a.person_id))
-  const after = new Set(draft.attendeeIds)
-  if (before.size !== after.size) return true
-  for (const id of after) if (!before.has(id)) return true
-  return false
-}
-
-/**
  * One topic: its heading, its thread, and the controls each of those two carries.
  *
  * A COMPONENT RATHER THAN A LOOP BODY because the two permission booleans are read at
  * different levels — `entry.mine` for the heading, `note.mine` per paragraph — and nesting
  * that inside the shell put four ternaries in one JSX expression that nobody could check.
+ *
+ * ── THE THREAD IS COLLAPSED UNTIL SOMEBODY OPENS IT, SINCE 2026-08-22 ────
+ * An office keeps its notebook for years and a topic accumulates: "How the bank
+ * reconciliation works" is one heading with fourteen paragraphs under it, and a screen that
+ * expands all of them is a screen an officer scrolls past rather than reads. Collapsed, the
+ * page is a table of contents of everything the office knows, which is what somebody
+ * arriving at it actually wants.
+ *
+ * THE COUNT IS ON THE HEADING, so a collapsed topic still says how much is in it " a
+ * disclosure that hides an unknown quantity is one nobody presses.
+ *
+ * IT IS A `<button>` WITH `aria-expanded`, and the panel is plain markup underneath rather
+ * than a `role="region"`: the button names what it opens through its own text, which is the
+ * heading. Same instinct as `MainRail` refusing `role="tablist"` — claim only what is
+ * implemented.
  */
 function EntryCard({
   entry, busy, onAddNote, onEdit, onDelete, onEditNote, onDeleteNote,
@@ -545,25 +457,34 @@ function EntryCard({
   onEditNote: (note: JournalNote) => void
   onDeleteNote: (note: JournalNote) => void
 }) {
-  const isMeeting = entry.kind === 'meeting'
+  // COLLAPSED BY DEFAULT, always " including for a topic somebody has just opened. The
+  // alternative (expand the newest, or expand a topic with one note) is a rule the reader
+  // has to infer from behaviour, and it makes the page a different shape every visit.
+  const [open, setOpen] = useState(false)
+  const noteCount = entry.notes.length
 
   return (
     <li className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="min-w-0 font-medium">{entry.title}</h2>
-            {/* THE KIND IS PRINTED ONLY FOR A MEETING. A pill saying "Note" on every other
-                card is a label on the default, which is furniture — and it would make the one
-                distinction that matters harder to see rather than easier. */}
-            {isMeeting && (
-              <span className="shrink-0 whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
-                {KIND_LABEL.meeting}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {isMeeting && entry.met_on && <>Met {formatDate(entry.met_on)} · </>}
+          {/* THE HEADING IS THE DISCLOSURE. Its text is the accessible name of the control,
+              which is exactly what a reader needs announced — "How the bank reconciliation
+              works, collapsed" rather than "expand, button". */}
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            aria-expanded={open}
+            className="flex w-full min-w-0 items-center gap-2 text-left"
+          >
+            {open
+              ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+            <span className="min-w-0 flex-1 font-medium">{entry.title}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {noteCount} note{noteCount === 1 ? '' : 's'}
+            </span>
+          </button>
+          <p className="mt-1 pl-6 text-xs text-muted-foreground">
             {/* "A FORMER OFFICER" RATHER THAN "UNKNOWN". `author_id` is ON DELETE SET NULL so
                 the office keeps the record when its author leaves the family, and "Unknown"
                 would make that read like data loss rather than like a record outliving the
@@ -576,7 +497,7 @@ function EntryCard({
           <div className="flex shrink-0 gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
               onClick={onEdit} disabled={busy}
-              aria-label={`Edit “${entry.title}”`} title="Edit">
+              aria-label={`Rename “${entry.title}”`} title="Rename">
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button size="sm" variant="ghost"
@@ -589,94 +510,61 @@ function EntryCard({
         )}
       </div>
 
-      {isMeeting && (
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
-          <span className="inline-flex items-center gap-1 font-medium text-foreground">
-            <Users className="h-3.5 w-3.5" aria-hidden="true" /> Attended
-          </span>
-          {entry.attendees.length ? (
-            <span className="text-muted-foreground">
-              {entry.attendees.map(a => a.name).join(', ')}
-            </span>
+      {open && (
+        <>
+          {/* ── The thread ──────────────────
+              Oldest first, which is how a conversation is read. Each paragraph carries its
+              own byline, because the whole point of a rolling topic is that two officers can
+              both have written in it. */}
+          {noteCount === 0 ? (
+            <p className="mt-4 border-t pt-3 text-sm text-muted-foreground">
+              Nothing written under this yet.
+            </p>
           ) : (
-            // NOT AN ERROR AND NOT A REFUSAL. Nobody listed is an ordinary state for a meeting
-            // recorded in a hurry, and only the person who recorded it can fix it — so this
-            // says what is missing without implying anything went wrong.
-            <span className="text-muted-foreground">
-              nobody listed yet{entry.mine ? ' — Edit to add names' : ''}
-            </span>
+            <ul className="mt-4 space-y-3 border-t pt-3">
+              {entry.notes.map(note => (
+                <li key={note.id} className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                  <div className="min-w-0 flex-1">
+                    {/* `whitespace-pre-wrap`: the composer is a textarea and somebody writing
+                        a handover note uses line breaks. Rendering it as one paragraph would
+                        silently destroy the structure of every list anybody wrote. */}
+                    <p className="whitespace-pre-wrap text-sm text-muted-foreground">{note.body}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {note.author_name ?? 'A former officer'} · {formatDate(note.created_at)}
+                      {note.updated_at !== note.created_at
+                        && ` · edited ${formatDate(note.updated_at)}`}
+                    </p>
+                  </div>
+                  {note.mine && (
+                    <div className="flex shrink-0 gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                        onClick={() => onEditNote(note)} disabled={busy}
+                        aria-label="Edit this note" title="Edit">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => onDeleteNote(note)} disabled={busy}
+                        aria-label="Delete this note" title="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
+
+          {/* ANY HOLDER OF THE OFFICE MAY ADD ONE, including to a topic somebody else
+              started — that is the feature. A successor answers a predecessor underneath
+              what they wrote instead of opening a rival topic. */}
+          <div className="mt-3">
+            <Button size="sm" variant="outline" onClick={onAddNote} disabled={busy}>
+              <Plus /> Add a note
+            </Button>
+          </div>
+        </>
       )}
-
-      {/* ── The thread ──────────────────────────────────────────────────────
-          Oldest first, which is how a conversation is read. Each paragraph carries its own
-          byline, because the whole point of a rolling topic is that two officers can both
-          have written in it. */}
-      {entry.notes.length > 0 && (
-        <ul className="mt-4 space-y-3 border-t pt-3">
-          {entry.notes.map(note => (
-            <li key={note.id} className="flex flex-wrap items-start gap-x-3 gap-y-1">
-              <div className="min-w-0 flex-1">
-                {/* `whitespace-pre-wrap`: the composer is a textarea and somebody writing a
-                    handover note uses line breaks. Rendering it as one paragraph would
-                    silently destroy the structure of every list anybody wrote. */}
-                <p className="whitespace-pre-wrap text-sm text-muted-foreground">{note.body}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {note.author_name ?? 'A former officer'} · {formatDate(note.created_at)}
-                  {note.updated_at !== note.created_at
-                    && ` · edited ${formatDate(note.updated_at)}`}
-                </p>
-              </div>
-              {note.mine && (
-                <div className="flex shrink-0 gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                    onClick={() => onEditNote(note)} disabled={busy}
-                    aria-label="Edit this note" title="Edit">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="sm" variant="ghost"
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                    onClick={() => onDeleteNote(note)} disabled={busy}
-                    aria-label="Delete this note" title="Delete">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* ── Voting on tasks: A PLACEHOLDER, AND IT SAYS SO ──────────────────
-          There is no schema behind this and there deliberately is not — see
-          `20260822000001`'s header. A control that looked real and did nothing would be worse
-          than a sentence: AGENTS.md's rule is that a switch nothing reads "reads as a control
-          being honoured", and an officer who thought the family had voted would be wrong
-          about a decision rather than about a feature.
-
-          `bg-muted` and not `--destructive` or `--brand-withheld`: nothing has failed and no
-          capability is being taken away. This is a part of the screen that is not built yet. */}
-      {isMeeting && (
-        <div className="mt-4 rounded-lg border border-dashed bg-muted/40 px-3 py-3">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-            <Vote className="h-3.5 w-3.5" aria-hidden="true" /> Voting on tasks
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Not here yet. When it is, this is where the meeting will turn what it decided into
-            tasks and let the people who attended vote on them. For now, write what was agreed
-            in a note.
-          </p>
-        </div>
-      )}
-
-      <div className="mt-4 border-t pt-3">
-        {/* NOT BEHIND `entry.mine`. Any holder of the office may add to any topic, which is
-            what makes it a conversation rather than a filing cabinet. */}
-        <Button size="sm" variant="outline" onClick={onAddNote} disabled={busy}>
-          <MessageSquarePlus /> Add a note
-        </Button>
-      </div>
     </li>
   )
 }

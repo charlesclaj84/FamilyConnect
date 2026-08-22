@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { BookText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
-import { getJournalAttendeeOptions, getJournalEntries, getMyOffices } from '@/app/actions/journal'
+import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
 import { JournalClient } from '@/components/journal/JournalClient'
 import { PageShell } from '@/components/layout/PageShell'
 
@@ -48,11 +48,11 @@ export const metadata = { title: 'Officer' }
  * the table evaluates `auth_permission` at all, and `20260821000005` asserts that absence in
  * both directions so a later policy sweep cannot quietly make the key a row filter.
  *
- * ── THE FIRST OFFICE'S ENTRIES ARE FETCHED HERE, AND ONLY THE FIRST ────────────────
+ * ── THE FIRST OFFICE'S ENTRIES ARE FETCHED HERE, AND ONLY THE FIRST ────────────
  * §5. A member may hold several offices and the client refetches on a switch, because an
  * officeholder's journal is the sharpest personal data in the product — shipping every
- * office's notes into the RSC payload so a rail can hide four of them is exactly what "gate
- * the fetch, not the button" forbids.
+ * office's notes into the RSC payload so a rail can hide four of them is exactly what "gate the
+ * fetch, not the button" forbids.
  */
 export default async function JournalPage() {
   const supabase = await createClient()
@@ -62,21 +62,16 @@ export default async function JournalPage() {
   await requireView(user.id, 'journals/officer')
 
   const offices = await getMyOffices()
-  // NOT FETCHED AT ALL for a member with no office. Both actions would answer `[]` on their
-  // own — the policies refuse, and `getJournalAttendeeOptions` checks the same thing itself —
-  // but this is the difference between "not asked" and "asked and refused", which is the
-  // distinction §5 is about even where the answer is the same.
+  // NOT FETCHED AT ALL for a member with no office. The action would answer `[]` on its own —
+  // the policies refuse — but this is the difference between "not asked" and "asked and
+  // refused", which is the distinction §5 is about even where the answer is the same.
   //
-  // THE ROSTER IS THE SHARPER HALF. It is the whole family's names, fetched only so a meeting
-  // can record who was in the room, and props are serialized into the RSC payload whether a
-  // component renders them or not — so for a member holding no office it must never be asked
-  // for at all.
-  const [entries, attendeeOptions] = offices.length
-    ? await Promise.all([
-      getJournalEntries(offices[0].role_id),
-      getJournalAttendeeOptions(),
-    ])
-    : [[], []]
+  // THE ROSTER USED TO BE FETCHED HERE TOO, for a meeting's attendee picker, and it was the
+  // sharper half: the whole family's names, in the RSC payload, for a control most officers
+  // never opened. The meeting half left for `/journals/meeting-minutes` on 2026-08-22 and the
+  // roster went with it, which means this page now reads nothing but the caller's own offices
+  // and one office's notes.
+  const entries = offices.length ? await getJournalEntries(offices[0].role_id) : []
 
   return (
     <PageShell className="space-y-8">
@@ -120,7 +115,6 @@ export default async function JournalPage() {
           offices={offices}
           initialOffice={offices[0].role_id}
           initialEntries={entries}
-          attendeeOptions={attendeeOptions}
         />
       )}
     </PageShell>

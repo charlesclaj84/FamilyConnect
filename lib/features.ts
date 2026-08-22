@@ -624,50 +624,33 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'A real month grid with every gathering on the days it falls.',
   },
 
-  // ── IN REVIEW: SIX ROUTES CAME OFF `status: 'future'` ON 2026-08-20 ─────────
-  // `/reporting/pl-summary`, `/review/photos`, `/review/documents`, `/admin/reports`, and the
-  // two elections screens — then spelled `/review/elections` and
-  // `/review/election-management`, now `/community/elections` and `/admin/elections` — were
-  // all Coming Soon until that commit. Every one of them was already
-  // BUILT — a page that gates itself with `requireView`, an action module behind it, and a
-  // `permission_resources` row registered since 20260618000000 — and gated only because
-  // nobody had walked them end to end. They are live now so that somebody can, and the rail
-  // gathered all six under one heading, **Review**, rather than returning each to the section
-  // it will eventually belong to. See `buildNavGroups` in components/layout/Sidebar.tsx.
+  // ── THE REVIEW WORKLIST IS FINISHED, 2026-08-22 ──────────────────────
+  // Six routes came off `status: future` on 2026-08-20 and the rail gathered them under one
+  // heading, **Review**, rather than returning each to the section it would eventually
+  // belong to. Every one of them was already BUILT — a page gating itself with
+  // `requireView`, an action module behind it and a `permission_resources` row — and gated
+  // only because nobody had walked them end to end.
   //
-  // FOUR OF THE SIX HAVE NOW BEEN WALKED AND LEFT, and the four went four different ways —
-  // renamed and regrouped, deleted outright, moved to Admin, moved to Community. The Sidebar
-  // block carries the list. Photos and Documents are what is left.
+  // ALL SIX HAVE NOW BEEN WALKED, and no two went the same way, which is the section having
+  // worked rather than the section having shrunk:
   //
-  // THREE THINGS THIS FLIP DID, and none of them is undone by moving a rail item:
+  //   /reporting/pl-summary        reviewed, renamed **P&L Summary**, moved to Reporting
+  //   /admin/reports               reviewed and DELETED outright, replaced by Membership
+  //   /review/election-management  reviewed, renamed **Elections**, moved to Admin
+  //   /review/elections            reviewed, moved to Community — the member's own ballot
+  //   /review/photos               reviewed, renamed **Gallery**, moved to COMMUNITY
+  //   /review/documents            reviewed, moved to JOURNALS
   //
-  //   * **The permission grid gained six rows.** `getResources()` drops any key whose path
-  //     resolves to a 'future' feature, so Members & Access now renders a switch for each of
-  //     these — which is the point, since a page nobody can be granted is a page nobody can
-  //     review. All six were already registered, so this needed no migration.
-  //   * **Home stopped saying Coming Soon about five of them.** `/features` and the landing
-  //     page derive that pill from `isFeatureFuture()` per route, so Elections, Photo
-  //     collections, Documents, Leadership reports and the Family Finances pillar now read as
-  //     SHIPPED to a stranger who has never signed in. That is the honest reading of this
-  //     registry and it is a PUBLIC claim — worth knowing before flipping a route for an
-  //     internal reason. It reverses itself: put the route back behind the gate and the pill
-  //     comes back with no other edit.
-  //   * **`npm run help:check` needed six allowances.** A live route with no chapter fails
-  //     that step, and writing six chapters now would have the manual describe screens
-  //     nobody has reviewed. The allowances in scripts/help-check.mjs name that reason and
-  //     print on every run, so the gap stays visible instead of blending into the green.
+  // The last two went on 2026-08-22 (`20260822000018`), and the **Review** heading in
+  // `buildNavGroups` went with them — which its own comment set as the exit condition: "A
+  // Review section that outlives the review is the thing to avoid."
   //
-  // WHAT DID NOT CHANGE: no tier moved. All six are still `plus`, which is where they were
-  // parked and what `/pricing` sells, so a Free or Standard family gets `/upgrade` rather
-  // than the screen — the review happens on a Plus family.
-  //
-  // THREE OF THE SIX HAVE LEFT, and each left differently, which is the section doing its
-  // job: `/reporting/pl-summary` was reviewed, renamed and moved to Reporting; `/admin/reports`
-  // was reviewed and DELETED outright; and the organizer's election screen was reviewed,
-  // renamed **Elections** and moved to Admin as `/admin/elections` (2026-08-21) — see its own
-  // entry in the Admin block below for what that cost. Three remain, and when the last one
-  // goes the Review heading in `buildNavGroups` goes with it.
-  //
+  // WHAT THE FLIP DID THAT MOVING A RAIL ITEM DOES NOT UNDO. The permission grid still
+  // renders a switch for each; Home still reads them as SHIPPED rather than Coming Soon,
+  // because `/features` derives that pill from `isFeatureFuture()` per route; and each now
+  // owes a chapter in `/help`, which `npm run help:check` enforces. All three are the review
+  // finishing rather than side effects of it.
+
   // ── In review: accounting ───────────────────────────────────────────────────
   // WHAT THE OLD `dues` RESOURCE GOVERNED, AND WHERE IT WENT — worth keeping now that
   // the key is back above under a different meaning. 20260808000001 retired "Dues
@@ -739,20 +722,55 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Members by region and chapter, who has finished joining, and adults against minors.',
   },
 
-  // ── In review: resources ────────────────────────────────────────────────────
+  // ── Community: the family's photographs ─────────────────────────────────────
+  // **Gallery**, and `/review/photos` captioned "Photos" until 2026-08-22. A shared album is
+  // the family being a family, which is what the Community section holds — the Directory, the
+  // tree, Chat. It was filed under `resources` beside Documents on the strength of both being
+  // uploads, which is a fact about the STORAGE rather than about what either screen is for.
+  //
+  // THE CAPTION MOVED TOO, because "Photos" named a file type where every other row in that
+  // section names a thing the family keeps. `20260822000018` moved the key with the route and
+  // the label with the caption, per "One rail item, one permission resource".
   {
-    href: '/review/photos',
-    label: 'Photos',
+    href: '/community/gallery',
+    label: 'Gallery',
     status: 'live',
     tier: 'plus',
-    blurb: 'A shared gallery for every gathering — upload, caption, and relive it.',
+    blurb: 'Every album the family keeps — upload in a batch, tag who is in each picture, and find them again.',
   },
+
+  // ── Journals: the family's records and how it governs itself ────────────────
+  // THREE ROWS ARRIVED HERE ON 2026-08-22 and the section went from one item to four. Documents
+  // MOVED (from `/review/documents`); Meeting Minutes and Bylaws are new. What they share with
+  // the officer's journal is the reader: somebody looking for what the family wrote down.
+  //
+  // ALL THREE ARE `plus`, matching Officer — which is an arithmetic judgement rather than a
+  // pricing one, the same as that row's: the section hangs off `family_roles`, and a family
+  // that cannot record an office would have screens that can never have content.
   {
-    href: '/review/documents',
+    href: '/journals/documents',
     label: 'Documents',
     status: 'live',
     tier: 'plus',
-    blurb: 'Bylaws, forms, meeting minutes, and family records in one shared place.',
+    blurb: 'Forms, filings and signed copies in one shared place that does not live in an inbox.',
+  },
+  {
+    href: '/journals/meeting-minutes',
+    label: 'Meeting Minutes',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'Who met, who was there, what was decided — and how the room voted.',
+  },
+  // SCAFFOLDING, and the entry says so rather than the screen pretending otherwise. The table,
+  // the index and the search are real; extraction from PDF and Word is not built, so those
+  // upload and are searchable by title and summary until it is. `app/actions/bylaws.ts` carries
+  // the whole argument and every row on the screen carries a badge saying which it is.
+  {
+    href: '/journals/bylaws',
+    label: 'Bylaws',
+    status: 'live',
+    tier: 'plus',
+    blurb: 'The rules the family agreed to live by, searchable.',
   },
   // ── Admin ───────────────────────────────────────────────────────────────────
   // The `/admin` entry covers every nested admin route by prefix; the specific

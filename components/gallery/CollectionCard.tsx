@@ -1,18 +1,20 @@
 import Link from 'next/link'
 import { Camera, Images } from 'lucide-react'
-import type { PhotoCollection } from '@/app/actions/photos'
+import type { PhotoCollection } from '@/app/actions/gallery'
 
-interface Props {
-  collection: PhotoCollection
-}
-
-export function PhotoCollectionCard({ collection }: Props) {
+/**
+ * One album on the Gallery's index.
+ *
+ * It was `PhotoCollectionCard` under `/review/photos` until 2026-08-22; the screen was walked,
+ * renamed **Gallery** and moved to Community (20260822000018).
+ */
+export function CollectionCard({ collection }: { collection: PhotoCollection }) {
   return (
     <Link
-      href={`/review/photos/${collection.id}`}
-      className="group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow"
+      href={`/community/gallery/${collection.id}`}
+      className="group overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
     >
-      <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
+      <div className="flex aspect-video items-center justify-center overflow-hidden bg-muted">
         {collection.cover_photo_url ? (
           /* A PLAIN <img>, DELIBERATELY, AND NOT next/image.
              The URL is a member's uploaded photograph in a public Supabase bucket, so it is
@@ -29,15 +31,15 @@ export function PhotoCollectionCard({ collection }: Props) {
           <img
             src={collection.cover_photo_url}
             alt={collection.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <Images className="h-10 w-10 text-muted-foreground/30" />
         )}
       </div>
       <div className="px-3 py-2.5">
-        <p className="font-medium text-sm truncate">{collection.name}</p>
-        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+        <p className="truncate text-sm font-medium">{collection.name}</p>
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
           <Camera className="h-3 w-3" />
           {collection.photo_count} photo{collection.photo_count !== 1 ? 's' : ''}
         </p>
