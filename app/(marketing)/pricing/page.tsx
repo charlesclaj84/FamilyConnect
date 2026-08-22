@@ -286,6 +286,27 @@ const PLANS: readonly Plan[] = [
         label: 'Keep talking between gatherings',
         detail: 'Family-wide chat and private messages.',
       },
+      // ── THREE ADDED 2026-08-22 ────────────────────────────────────────────────────
+      // `npm run marketing:check` found eleven live screens named nowhere on the feature
+      // catalogue, and three of them were FREE — so this card was underselling the tier that
+      // has to do the persuading. It cannot check this list (a bullet is prose about a
+      // benefit and corresponds to no route; see the note above `PLANS[]`), which is exactly
+      // why the omission survived here after the catalogue was fixed.
+      {
+        label: 'One account, however many families',
+        detail:
+          'Married into a second family, or keeping both your parents’ sides? Switch between them without a second login — everything on screen changes at once.',
+      },
+      {
+        label: 'Nothing is lost when it scrolls away',
+        detail:
+          'Every announcement, and everything sent to you, searchable long after it left the dashboard.',
+      },
+      {
+        label: 'A manual your relatives will actually use',
+        detail:
+          'Every screen explained by name, with a question mark in the corner that opens the page for wherever they are standing.',
+      },
     ],
     available: true,
     featured: false,
@@ -370,19 +391,42 @@ const PLANS: readonly Plan[] = [
       },
       {
         label: 'A profit and loss for your treasurer',
-        detail: 'The statement the board asks for, straight from the ledger.',
+        detail: 'The statement the board asks for, straight from the ledger — plus transfers between your funds, with both sides on the record.',
       },
+      // ── THE DETAIL HERE WAS FALSE UNTIL 2026-08-22 ────────────────────────────────
+      // It sold "the family's size OVER TIME", and nothing in this product has ever recorded
+      // a membership figure over time — `/reporting/membership` is a snapshot by region,
+      // chapter and joining status. `/features` corrected the same sentence on 2026-08-20 and
+      // this copy of it was left standing, which is the hand-maintained drift the note above
+      // `PLANS[]` warns about, caught in the direction that matters most: a claim a buyer
+      // could check.
       {
         label: 'The numbers leadership keeps asking for',
-        detail: 'Dues collected against outstanding, and the family’s size over time.',
+        detail: 'Dues collected against outstanding, and your membership by region, chapter and how far each relative got through joining.',
+      },
+      // ADDED 2026-08-22. Four reports shipped that have nothing to do with money, and this
+      // card's whole reporting story was the treasury — so a buyer could not tell that the
+      // product answers "did the reunion work get done" or "which offices are empty" at all.
+      {
+        label: 'Reports on more than the money',
+        detail: 'Whether the reunion work came back, election turnout, how often you meet, and which offices are standing empty.',
       },
       {
         label: 'Elect your officers properly',
-        detail: 'Nominate, accept or decline, then vote family-wide.',
+        detail: 'Nominate, accept or decline, then vote — the whole family, one region or one chapter.',
       },
+      // BROADENED 2026-08-22. "Minutes" undersold what shipped: a meeting names one secretary,
+      // its room is picked by BODY rather than by ticking names, and a recorded vote cannot be
+      // edited by anybody afterwards. That last part is the reason a family would keep minutes
+      // here rather than in a document, so it is the part worth saying.
       {
         label: 'The paperwork, and the structure to match',
-        detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
+        detail: 'Searchable bylaws, and minutes that record how the room voted — plus regions and chapters with their own leadership.',
+      },
+      // ADDED 2026-08-22 — sold nowhere at all before, on any surface.
+      {
+        label: 'Every office keeps its own notebook',
+        detail: 'Working notes that stay with the role rather than the person, readable only by whoever holds it.',
       },
       // PROFILE PICTURES WERE THE EIGHTH BULLET HERE and moved to Standard on 2026-08-19.
       // `lib/plans.ts` carries the same move in the in-product copy, by hand and on purpose —
@@ -406,9 +450,13 @@ const PLANS: readonly Plan[] = [
         label: 'Stop chasing relatives for their dues',
         detail: 'Reminders go out as each installment falls due, and stop the moment it is paid.',
       },
+      // "FOR EVENTS, ANNOUNCEMENTS AND MESSAGES" UNTIL 2026-08-22, and one of those three had
+      // not existed since the Events product was deleted on 2026-08-19. It is the subjects the
+      // bell actually fires on now — which is also the honest scope for whoever builds push,
+      // since a design that inherited the old list would be building for a table that is gone.
       {
         label: 'News that arrives, instead of waiting to be found',
-        detail: 'Notifications on the phone and in the browser for events, announcements and messages.',
+        detail: 'Notifications on the phone and in the browser for announcements, messages, and the tasks you have been given.',
       },
       {
         label: 'The family in everybody’s pocket',

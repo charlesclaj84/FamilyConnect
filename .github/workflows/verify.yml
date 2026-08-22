@@ -66,6 +66,18 @@ jobs:
       - name: Help manual checks
         run: npm run help:check
 
+      # The other direction of the same idea: the manual documents every live screen, and this
+      # asserts the marketing CATALOGUE names every live screen. The gap only ever opens one
+      # way — a feature ships, the registry gains a row, and `/features` does not — so the
+      # product undersells itself silently. Eleven live screens were named nowhere when this
+      # was first run, including three whole sections.
+      #
+      # It CANNOT check the pricing cards. A pricing bullet is prose about a benefit and
+      # corresponds to no route (see the header above `PLANS[]`), so those stay a judgement and
+      # live in FutureFeature.md. No database, no network, exits 1 on a finding.
+      - name: Every live feature is sold somewhere
+        run: npm run marketing:check
+
       # The sitemap's date, which is the one part of it that can rot. Route COVERAGE is derived
       # from `MARKETING_ROUTES` and cannot drift; `lastModified` is a literal, deliberately (a
       # `new Date()` there would stamp build time and a date that moves every deploy is one

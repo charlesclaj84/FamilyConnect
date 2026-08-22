@@ -17,6 +17,7 @@
     "audit:family-scope": "node scripts/family-scope.mjs",
     "sitemap:check": "node scripts/sitemap-freshness.mjs",
     "help:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/help-check.mjs",
+    "marketing:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/marketing-coverage.mjs",
     "email:check": "node scripts/auth-templates.mjs check",
     "email:push": "node scripts/auth-templates.mjs push",
     "email:pull": "node scripts/auth-templates.mjs pull",

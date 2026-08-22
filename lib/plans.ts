@@ -91,6 +91,24 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
       label: 'Chat, family-wide and private',
       detail: 'Keep talking between gatherings.',
     },
+    // ── THREE ADDED 2026-08-22, in step with `PLANS[]` on /pricing ────────────────────
+    // `npm run marketing:check` found eleven live screens the feature catalogue named
+    // nowhere, and three of them were Free. That checker deliberately cannot see this list
+    // or `PLANS[]` — a bullet is prose about a benefit and corresponds to no route — so
+    // both hand-written lists were edited in the same commit, which is the discipline the
+    // header above asks for and the thing that had already drifted twice.
+    {
+      label: 'One account, however many families',
+      detail: 'Belong to both sides, and switch between them without a second login.',
+    },
+    {
+      label: 'Nothing is lost when it scrolls away',
+      detail: 'Every announcement, and everything sent to you, searchable long afterwards.',
+    },
+    {
+      label: 'A manual your relatives will actually use',
+      detail: 'Every screen explained by name, reachable from the corner of the screen they are on.',
+    },
   ],
   // ── STANDARD, ADDED 2026-08-19 ────────────────────────────────────────────────────
   // Four bullets came UP from Free and one came DOWN from Plus, and the two directions carry
@@ -146,19 +164,36 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     },
     {
       label: 'A profit and loss for your treasurer',
-      detail: 'The statement the board asks for, straight from the ledger.',
+      detail: 'The statement the board asks for, plus transfers between your funds.',
     },
+    // ── "THE FAMILY'S SIZE OVER TIME" WAS FALSE AND IS GONE, 2026-08-22 ───────────────
+    // Nothing in this product records a membership figure over time; `/reporting/membership`
+    // is a snapshot. `/features` corrected the same sentence on 2026-08-20 and both copies of
+    // it survived here and on `/pricing` — which is the hand-maintained drift the header warns
+    // about, in the direction that matters most, since a member can check this one.
     {
       label: 'The numbers leadership asks for',
-      detail: 'Dues collected against outstanding, and the family’s size over time.',
+      detail: 'Dues collected against outstanding, and your membership by region and chapter.',
+    },
+    // ADDED 2026-08-22 with the four activity reports. This tier's reporting story was
+    // entirely money, so nothing told a family it could also answer "did the reunion work get
+    // done" or "which offices are empty".
+    {
+      label: 'Reports on more than the money',
+      detail: 'Reunion work returned, election turnout, meetings held, and the offices nobody holds.',
     },
     {
       label: 'Elect your officers properly',
-      detail: 'Nominate, accept or decline, then vote family-wide.',
+      detail: 'Nominate, accept or decline, then vote — family-wide, or one region or chapter.',
     },
     {
       label: 'The paperwork, and the structure to match',
-      detail: 'Bylaws and minutes, plus regions and chapters with their own leadership.',
+      detail: 'Searchable bylaws, minutes that record how the room voted, and regions and chapters with their own leadership.',
+    },
+    // ADDED 2026-08-22 — the Library's officer notebooks were sold on no surface at all.
+    {
+      label: 'Every office keeps its own notebook',
+      detail: 'Notes that stay with the role rather than the person, read only by whoever holds it.',
     },
     // THE FACE HALF OF THIS BULLET MOVED TO STANDARD on 2026-08-19. Profile pictures are sold
     // a rung lower now, and leaving them named here would sell one capability twice — the
@@ -175,7 +210,7 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     },
     {
       label: 'News that arrives rather than waiting to be found',
-      detail: 'Notifications on the phone and in the browser.',
+      detail: 'Notifications on the phone and in the browser, for announcements, messages and the tasks you have been given.',
     },
     {
       label: 'The family in everybody’s pocket',
@@ -188,6 +223,16 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     {
       label: 'Your family’s own website, keeping itself current',
       detail: 'It builds itself from your next gathering, newest photographs and latest announcement.',
+    },
+    // ── THE TWO-BULLET DRIFT AGAINST `PLANS[]` IS CLOSED, 2026-08-22 ──────────────────
+    // This list was five where /pricing was six, and the missing one was not a merge: a family
+    // put on Premium was never told, anywhere INSIDE the product, that the address comes with
+    // the website. FutureFeature.md had carried that diff since 2026-08-19. The Plus row of
+    // that same table is a genuine merge ("A face against every name" folded into
+    // "Photographs, findable") and stays merged.
+    {
+      label: 'A proper address for it, ready to go',
+      detail: 'No hosting bill, no plugins, and nobody in the family maintaining it.',
     },
   ],
 }

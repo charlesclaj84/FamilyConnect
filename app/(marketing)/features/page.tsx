@@ -3,8 +3,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
-  BarChart3, ShieldCheck, Users, Network,
+  BarChart3, ShieldCheck, Users,
   Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
+  NotebookPen, Gavel, Scale, CalendarDays, ListChecks, PieChart, Users2,
+  Landmark, LifeBuoy, UsersRound, UserCog,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -48,18 +50,20 @@ export const metadata: Metadata = {
  *
  * ── THE COMING SOON BADGES ARE NOT DECORATION EITHER ─────────────────────────
  * This header used to assert that every capability below "exists and is reachable by a
- * signed-in member today", and that no badge was therefore needed. It was not true —
- * `FutureFeature.md` records that seventeen of the twenty-seven routes in
- * `lib/features.ts` are still gated, including all three pillars and seven of the eight
- * cards below. `FeatureShowcase` had always derived a badge from the registry; this page
- * had no mechanism at all, which made it the surface that would silently misrepresent
- * every flip.
+ * signed-in member today", and that no badge was therefore needed. It was not true at the
+ * time — seventeen of twenty-seven routes were gated, including all three pillars.
+ * `FeatureShowcase` had always derived a badge from the registry; this page had no mechanism
+ * at all, which made it the surface that would silently misrepresent every flip.
  *
- * So `isFeatureFuture(route)` decides the badge here too, from the same registry the
+ * IT IS VERY NEARLY TRUE NOW, which is a different reason to keep the mechanism rather than a
+ * reason to drop it: as of 2026-08-22 exactly one registry entry is `'future'`, and it is
+ * `/admin`, the fail-closed catch-all that is not a page. So no badge renders here today. The
+ * derivation stays because a page that would be silently wrong on the next gated route is
+ * silently wrong whether or not one exists this week.
+ *
+ * So `isFeatureFuture(route)` decides the badge here, from the same registry the
  * `/coming-soon` gate reads. Flip a status in `lib/features.ts` and this page corrects
- * itself with no edit. Do not replace a derived badge with a hand-set boolean — the one
- * hand-set flag below (`soon`) exists only for a capability that has no route to derive
- * from, and it is commented as such.
+ * itself with no edit. Do not replace a derived badge with a hand-set boolean.
  *
  * None of these routes is LINKED from here. `ACCOUNT_ROUTES` is deliberately just login
  * and register, so a visitor can never walk from a promise into a wall.
@@ -113,7 +117,16 @@ const ALSO: readonly {
 }[] = [
   { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
   { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  { icon: Network, route: '/community/family-tree', title: 'The family tree', blurb: 'Four generations around whoever you click, with blood and marriage told apart.' },
+  // ── THE FAMILY TREE CARD WENT ON 2026-08-22, and it is the one removal on this grid ──
+  // It duplicated the family-record PILLAR, on the same page, about 400px above it — six
+  // bullets about the tree, then a card repeating one of them. This grid's heading is
+  // "Everything else it does", and "else" means other than the three pillars, so the card
+  // contradicted the section it was in. `npm run marketing:check` is what says so now: it
+  // refuses any route claimed by two cards, PILLARS included.
+  //
+  // Removing it withholds nothing. The pillar's `route` IS `/community/family-tree`, so the
+  // tree is still on the catalogue, still tier-tagged from the registry, and still the
+  // fullest thing on the page about itself.
   // TRIMMED 2026-08-21, when Election Management became its own card below. This one is the
   // MEMBER's half — being nominated, accepting, voting — and the sentence about positions
   // pulling from the board roster moved with the administrator's half, where the person
@@ -174,6 +187,40 @@ const ALSO: readonly {
   // which was a description of the three buttons an organizer had to press; the dates run it
   // now. The LEVEL is the other half and is new — see lib/features.ts.
   { icon: ClipboardList, route: '/admin/elections', title: 'Running the election', blurb: 'Set when nominations and voting open and close, and they run themselves. Choose whether the whole family votes or just one region or chapter. Positions pull from your board roster at the matching level.' },
+  // ── ELEVEN ADDED 2026-08-22, and this time by a SCRIPT rather than by reading ──────
+  // `npm run marketing:check` walks the registry against this grid and the pillars and fails
+  // on anything live that neither names. Its first run reported eleven, which is the whole
+  // argument for having written it: the same check was done by hand fourteen months' worth of
+  // features ago — 2026-08-21, four cards, against a 34-entry registry — and the registry
+  // reached 42 two days later. A hand-remembered inventory rots exactly as fast as a
+  // hand-typed tier tag, and this grid's header already said so about the tier.
+  //
+  // WHAT WAS MISSING IS THE SHAPE WORTH NOTICING: not details of things already sold, but
+  // whole SECTIONS. The Library (four screens, three of them unnamed anywhere), four of the
+  // five reports, the calendar, the manual, the roster screen and multi-family membership.
+  // Every one has its own rail item, its own permission key and its own tier — and a buyer
+  // reading this page would have concluded the product does none of it.
+  //
+  // Each tier tag below is derived, like every other row here. Nothing is hand-typed.
+
+  // The Library — Documents is above, and had been the only one of the four on this page.
+  { icon: NotebookPen, route: '/library/officer-notes', title: 'The office keeps its own notebook', blurb: 'Working notes that stay with the ROLE, not the person: three treasurers from now, whoever holds it opens the same notebook. Only the officers who hold that office can read it — not even an administrator.' },
+  { icon: Gavel, route: '/library/meeting-minutes', title: 'Minutes, and how the room voted', blurb: 'Schedule a meeting, name its secretary, and pick who is coming by BODY — the national board, one chapter’s board — rather than by ticking eleven names. Topics get put to a vote, and a recorded vote can never be edited by anybody.' },
+  { icon: Scale, route: '/library/bylaws', title: 'Your bylaws, searchable', blurb: 'The rules the family agreed to live by, kept by article with the amendments that changed them. Plain-text uploads are searchable word by word; a PDF is searchable by title, article and summary, and every entry says which it is.' },
+
+  // The reports. "Leadership reports" above is the MEMBERSHIP one; these four are the rest,
+  // and none of them is about money — which is what made them invisible to a page whose
+  // reporting story was the treasury pillar.
+  { icon: ListChecks, route: '/reporting/gatherings', title: 'Is the reunion work actually done', blurb: 'Every gathering with how much of its work has come back, what is overdue, who is helping, and what the tasks have claimed against the budget.' },
+  { icon: PieChart, route: '/reporting/elections', title: 'Turnout worth calling a mandate', blurb: 'How many voted in each election, how many stood, and which offices nobody put a name forward for.' },
+  { icon: Users2, route: '/reporting/meetings', title: 'How often you actually meet', blurb: 'Meetings held, how big each room was, how many decisions were put to a vote, and who answers when one is called. It counts who was asked and who voted, and refuses to call either attendance — nothing in the product records who walked in.' },
+  { icon: Landmark, route: '/reporting/board', title: 'Which offices are standing empty', blurb: 'Every office your family has defined, who holds it, and the vacancies — which is the one thing a roster of what exists cannot tell you.' },
+
+  // Free, and all three were unsold.
+  { icon: CalendarDays, route: '/gatherings/calendar', title: 'One calendar, not three', blurb: 'A real month grid carrying every gathering on the days it runs, the meetings you are down for, and the days nominations and voting are open. A three-day reunion fills three days.' },
+  { icon: LifeBuoy, route: '/help', title: 'A manual, written for your relatives', blurb: 'Every screen explained by name — the buttons, the columns, what each control does and where to look when something is missing. A question mark in the top bar opens the page for wherever you are standing.' },
+  { icon: UsersRound, route: '/my-families', title: 'One login, more than one family', blurb: 'Married into a second family, or keeping your father’s and your mother’s side both? One account belongs to as many as you like, and switching between them changes everything on screen at once.' },
+  { icon: UserCog, route: '/admin/members', title: 'Look after the roster', blurb: 'Fix a relative’s record, send somebody a password reset, or switch a member off without deleting a thing they ever did.' },
 ]
 
 /**
@@ -328,8 +375,9 @@ export default function FeaturesPage() {
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
               Free covers the directory, chat, announcements and putting the gathering on a
               shared calendar. The family tree, the dues ledger and handing out the work are
-              Standard, at {STANDARD_RATE} a month. Card and digital payments, the dues
-              projections and the treasury reports are Plus.{' '}
+              Standard, at {STANDARD_RATE} a month. Card and digital payments, elections, the
+              gallery, the Library — bylaws, minutes and each office&apos;s own notebook — and
+              every report are Plus.{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
                 See what is in each tier
               </Link>
