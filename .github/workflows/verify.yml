@@ -109,6 +109,22 @@ jobs:
       - name: Service-role queries are family-scoped
         run: npm run audit:family-scope
 
+      # The third of the static audits, added 2026-08-22, and the one that gates the RLS suite
+      # rather than the code. §7 says "adding an action means adding a case" and nothing
+      # enforced it, so the gap was invisible by construction: an action with no case does not
+      # fail and does not warn. It was only ever found by somebody deciding to count, which had
+      # happened once, by hand, and produced the wrong number — FutureFeature.md carried "167
+      # server actions have no RLS case" against a real figure of 57, because the hand count
+      # matched `fn:` and missed the `read(id, mod, fn)` helper form most of the suite is
+      # written in.
+      #
+      # Same promise as the two above and no more: it checks that a verdict EXISTS, never that
+      # it is true. What it adds beyond an inventory is a RATCHET — the backlog cannot grow, so
+      # a new action ships with a case or with somebody deciding in public that the debt should
+      # get bigger. Static; no database, no network.
+      - name: Every server action has an RLS case or a stated verdict
+        run: npm run audit:rls-cases
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

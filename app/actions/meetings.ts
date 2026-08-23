@@ -608,7 +608,17 @@ export async function scheduleMeeting(input: {
   if (attendeeError) {
     // THE SESSION GOES BACK. A meeting with no attendee list is one nobody may vote in and
     // nobody was told about, which is worse than no meeting: it looks scheduled.
-    await admin.from('meeting_sessions').delete().eq('id', sessionId)
+    //
+    // §3 BY HAND, EVEN THOUGH THE ID IS TRANSITIVELY SAFE. `sessionId` came out of the insert
+    // eight lines above, which stamped `g.familyCode` — so `.eq('id', …)` alone genuinely
+    // cannot reach another family here. The conjunct is added anyway because `.eq('id', id)`
+    // as a whole predicate on the admin client is the exact shape that has been a real hole in
+    // this codebase four times (`deleteRegion`, `deleteChapter`, `revokeRoleByAssignmentId`,
+    // `addGroupMember`), and the safety of this one is a property of the surrounding function
+    // rather than of the statement. Found by `npm run audit:family-scope` on 2026-08-22, once
+    // its hand-maintained SCOPED_TABLES list was refreshed and could see this table at all.
+    await admin.from('meeting_sessions').delete()
+      .eq('id', sessionId).eq('family_code', g.familyCode)
     return { success: false, message: attendeeError.message }
   }
 

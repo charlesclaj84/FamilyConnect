@@ -729,6 +729,89 @@ export const HELP_PARTS: readonly HelpPart[] = [
         ],
       },
       {
+        slug: 'distributions',
+        title: 'Distributions',
+        summary: 'Emailing everyone in the family at once, with no list to keep up to date.',
+        route: '/community/distributions',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it is',
+            blocks: [
+              p('A distribution is one email sent to everybody in the family, or to everybody in one region or chapter. You write a subject and a message, choose who it goes to, and press send.'),
+              p('The difference between this and [Announcements](/community/announcements) is where the message lands. An announcement waits on everybody\'s dashboard until they look; a distribution arrives in their inbox. Use an announcement for family news, and a distribution for something that has to be read this week.'),
+              p('There is no list to build and nothing to keep up to date. The people who get it are read from your membership each time you send, so a relative who joined yesterday is on it and one who was never in the family never is.'),
+              note('There is no draft. A distribution goes out as soon as you send it, and it cannot be unsent — so read it through before you press the button.'),
+            ],
+          },
+          {
+            id: 'who-gets-it',
+            heading: 'Choosing who gets it',
+            blocks: [
+              p('The **Who it goes to** list offers everyone in the family, then each of your regions, then each of your chapters. Every option carries the number of relatives it reaches, so you can check the audience against what you meant before anything is sent.'),
+              p('A region reaches the relatives in that region\'s chapters, and nobody else. This is not the same as a regional announcement, which everybody sees — mail cannot be taken back, so an audience here means exactly what it says.'),
+              bullets(
+                'A relative who is not in any chapter is not in any region, so a regional distribution does not reach them. They are still reached by "Everyone in the family".',
+                'Only approved members are ever emailed. Somebody still waiting to be admitted is not on any distribution.',
+                'Nobody gets two copies. Where a couple share an email address, the message goes once, and the second relative is listed as sharing an address.',
+              ),
+              p('The line under the picker says how many will actually be emailed, which can be fewer than the number in brackets — see below.'),
+            ],
+          },
+          {
+            id: 'no-email-address',
+            heading: 'Relatives with no email address',
+            blocks: [
+              p('Somebody recorded on the [Family Tree](/community/family-tree) who has never had an account has no email address of their own. GENORRA gives them a stand-in address so the record works, and that address goes nowhere.'),
+              p('Those relatives are counted in the audience and are never emailed. Both the picker and the delivery report say how many there are, using the words **No email address on file** — which is not a delivery failure and is nothing to chase. If you want them included, invite them from the family tree, or pass the message on yourself.'),
+            ],
+          },
+          {
+            id: 'sending',
+            heading: 'While it is going out',
+            blocks: [
+              p('A distribution to a large family is sent in batches, so the screen shows how far it has got — **Sending — 24 of 118 delivered**. It carries on while the page is open.'),
+              p('You can leave the page. The send picks up from where it got to, and the list shows what is still outstanding when you come back. Nothing is sent twice, however many times the page is reopened.'),
+              p('**Stop** ends a send that is under way. Everything already emailed has gone and cannot be recalled; the rest is not sent, and the report says **Stopped** with both numbers. Anybody who may send may stop a send, including somebody else\'s.'),
+            ],
+          },
+          {
+            id: 'what-happened',
+            heading: 'What happened to each message',
+            blocks: [
+              p('Pressing the subject opens the message that was sent and the list of everyone it went to, with one line each:'),
+              defs(
+                { term: 'Sent', text: 'The message was handed to the mail provider for that address.' },
+                { term: 'Could not be delivered', text: 'Something went wrong. **Try again** puts these back in the queue and has another go — a temporary problem usually clears.' },
+                { term: 'No email address on file', text: 'A relative on the family tree with no address. Nothing went wrong and there is nothing to retry.' },
+                { term: 'Shares an address', text: 'Another relative has the same email address and got the message.' },
+                { term: 'Not sent — stopped', text: 'The send was stopped before reaching them.' },
+              ),
+              p('The screen never says a message was sent when it was not. If the report says "8 sent, 2 could not be delivered", that is what happened — so it is worth looking after sending something that matters.'),
+              note('"Sent" means the message left GENORRA. It cannot tell you whether somebody opened it, or whether their mail provider filed it as junk.'),
+            ],
+          },
+          {
+            id: 'replies',
+            heading: 'Replies, and what the message looks like',
+            blocks: [
+              p('The message arrives from GENORRA, with your name on it, and a reply goes to **your own email address** rather than to us. So a relative answering a distribution is writing to you, which is almost always what they mean to do.'),
+              p('The message is plain text. Leave a blank line between paragraphs and they arrive as paragraphs; there is no formatting, no attachments and no links added for you. To share a document, put it in [Documents](/library/documents) and say where it is.'),
+              p('Every message says at the bottom which family it came from and who sent it, so nobody has to guess. There is no unsubscribe link — this is your family writing to its own members, not a mailing list.'),
+            ],
+          },
+          {
+            id: 'who-can',
+            heading: 'Who can use it',
+            blocks: [
+              p('Distributions is switched off for everybody until an administrator grants it, and it is granted separately from Announcements — being able to post on the board does not let somebody email the whole family. See [Who can do what](/help/who-can-do-what).'),
+              p('There are three separate permissions. **View** shows the record of what has been sent. **Create** is what lets somebody write and send one, and stop a send. **Delete** removes the record of a distribution, which is a stronger thing to be able to do — it is the only copy of who was emailed and what happened to each message.'),
+              p('Deleting the record does not unsend anything. A send that has not finished has to be stopped first.'),
+            ],
+          },
+        ],
+      },
+      {
         slug: 'directory',
         title: 'Directory',
         summary: 'Everyone in the family, searchable, with how to reach them.',

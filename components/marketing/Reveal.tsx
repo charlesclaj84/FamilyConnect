@@ -54,6 +54,21 @@ export function Reveal({
   return (
     <div
       ref={ref}
+      // ── A HOOK FOR CHILDREN THAT WANT TO ANIMATE THEMSELVES ─────────────────
+      // Added 2026-08-22 for the pillar vignettes on /features, whose bars grow when
+      // the panel arrives. Nothing about that could be done with `gn-rise`: that
+      // stagger is pure CSS running at first paint, which is right for a hero and
+      // useless for a panel two thousand pixels down the page — by the time somebody
+      // scrolls to it, it has long since finished.
+      //
+      // An attribute rather than context or a render prop, because the consumer is
+      // CSS: `[data-revealed] .gn-grow { … }` in globals.css lets any descendant at
+      // any depth key off it without this component knowing what it wraps, and
+      // without turning a child into a client component to read a hook.
+      //
+      // ABSENT rather than "false" until it fires, so the selector is a plain
+      // presence test and there is no second state to write a rule for.
+      data-revealed={visible ? 'true' : undefined}
       style={{ transitionDelay: `${delay}ms` }}
       className={cn(
         'transition-all duration-700 ease-out will-change-transform',

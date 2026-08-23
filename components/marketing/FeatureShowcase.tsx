@@ -1,7 +1,7 @@
 // No 'use client'. This is data and markup — the whole band renders on the server
 // and ships no JS. Only `Reveal` crosses to the client. Adding a hook or a handler
 // here would need the directive back; prefer a small client child instead.
-import Image from 'next/image'
+import { PillarVignette } from '@/components/marketing/PillarVignette'
 import { Reveal } from '@/components/marketing/Reveal'
 import { SectionHeading, ComingSoonBadge, MoreLink } from '@/components/marketing/sections'
 import { PILLARS } from '@/components/marketing/pillars'
@@ -10,7 +10,7 @@ import { APP_NAME, APP_PROMISE } from '@/lib/brand'
 
 /**
  * The landing page's product band: the three core jobs, one sentence and one
- * screenshot each.
+ * drawn panel each.
  *
  * ── WHAT THIS USED TO BE, AND WHY IT IS NOT THAT ANY MORE ────────────────────
  * Three full-width spotlight rows carrying EIGHTEEN bullets between them, then an
@@ -29,7 +29,7 @@ import { APP_NAME, APP_PROMISE } from '@/lib/brand'
  * ── THE COPY IS NOT DEFINED HERE ─────────────────────────────────────────────
  * `components/marketing/pillars.ts` holds it, shared with `/features`, so the two
  * surfaces cannot drift into two descriptions of one product again. This file
- * chooses `short` and the screenshot; `/features` chooses `blurb` and `bullets`.
+ * chooses `short` and the vignette; `/features` chooses `blurb` and `bullets`.
  *
  * ── THE BADGE IS DERIVED, NEVER TYPED ────────────────────────────────────────
  * `isFeatureFuture(route)` reads `lib/features.ts`, so a card cannot claim
@@ -56,24 +56,26 @@ export function FeatureShowcase() {
           lede={`${APP_NAME} replaces the group texts, spreadsheets and shoeboxes of receipts with one private home for your family, your plans and your money.`}
         />
 
-        {/* One column below lg, not two or three. These are screenshots, and three
-            of them across a tablet renders each about 200px wide — at which point
-            they stop being evidence that a real product exists and become texture. */}
+        {/* One column below lg, not two or three. Three panels across a tablet
+            renders each about 200px wide — at which point the calendar strip and the
+            fund bars stop being legible and become texture. */}
         <div className="mt-12 grid gap-6 lg:mt-14 lg:grid-cols-3">
           {PILLARS.map((pillar, i) => (
             <Reveal key={pillar.route} delay={i * 160} className="h-full">
               <div className="group flex h-full flex-col overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
-                {/* `h-auto w-full` with the intrinsic size from the import, so the
-                    box takes the image's own ratio — nothing cropped, nothing
-                    letterboxed. `sizes` matters: the card is a third of a 6xl grid
-                    at lg (~22rem) and full width below it, and without saying so
-                    Next serves the whole-viewport candidate to every phone. */}
-                <Image
-                  src={pillar.image}
-                  alt={pillar.imageAlt}
-                  placeholder="blur"
-                  sizes="(min-width: 1024px) 22rem, (min-width: 640px) 90vw, 100vw"
-                  className="h-auto w-full border-b"
+                {/* A DRAWN PANEL, NOT A SCREENSHOT, since 2026-08-22. What was here
+                    was `next/image` over three PNGs that this file's own comment
+                    called screenshots and that were placeholder cards reading COMING
+                    SOON — so the landing page's product band announced all three
+                    flagship capabilities as unbuilt. `PillarVignette`'s header has
+                    the full account.
+
+                    The frame's own rounding and border come off here, because the
+                    card around it already draws both: a rounded panel inside a
+                    rounded card leaves a sliver of ground in each corner. */}
+                <PillarVignette
+                  kind={pillar.vignette}
+                  className="rounded-none border-0 border-b shadow-none"
                 />
 
                 <div className="flex flex-1 flex-col p-5 sm:p-6">

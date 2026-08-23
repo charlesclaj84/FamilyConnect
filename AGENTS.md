@@ -307,7 +307,7 @@ hand-maintained and is the honest weak point.
 ### And `audit_cross_family_refs.sql` is the DATA half, which no code sweep can answer
 
 `supabase/scripts/audit_cross_family_refs.sql`, hand-run against local or hosted. It walks
-`pg_constraint` for every foreign key where BOTH tables carry a `family_code` — 67 of them
+`pg_constraint` for every foreign key where BOTH tables carry a `family_code` — 90 of them
 today — and reports rows where the two disagree. DERIVED rather than listed, so a table added
 next year is checked with no edit, which is the lesson `audit_global_lookups.sql` learned from
 `truncate_entire_database.sql`'s hand-written keep-list.
@@ -735,6 +735,38 @@ Where a control genuinely cannot apply, say so in the case (`positive:
 'not-applicable'` plus a `why`) rather than deleting it. The runner reports those
 separately, so a gap stays visible instead of blending into the green.
 
+### `npm run audit:rls-cases` is the gate for that sentence, and it corrected its own backlog
+
+`scripts/rls-coverage.mjs`, a step in `verify.yml`. It enumerates every exported function in
+`app/actions/`, cross-references the module-and-function pairs `cases.mjs` names, and fails
+until each uncovered one carries a stated verdict — the same shape and the same promise as
+`audit:people` and `audit:family-scope`: **it checks that a verdict EXISTS, never that it is
+true.**
+
+The reason it is worth having is that this gap is invisible by construction. A missing case
+does not fail, does not warn, and reads exactly like a covered action — so it is only ever
+found by somebody deciding to count, which had happened once, by hand, and produced the wrong
+number: FutureFeature.md carried "167 server actions have no RLS case" against a real figure
+of 57, because the hand count matched `fn:` and missed the `read(id, mod, fn)` helper form
+most of the suite is written in. **A backlog nobody can count is a backlog nobody can shrink.**
+
+Four things about it, and the third is the one that makes it a gate rather than an inventory:
+
+* **Three verdicts, not 57 sentences.** `BACKLOG` (owed a case, and the honest state),
+  `RIGHTS-ONLY` (the whole return value is booleans about the caller's own grants, so no
+  cross-family assertion is available — `bylaws.getBylawRights` is the worked example of
+  writing one anyway), `STAFF` (`app/actions/staff/**` reads across families by design). A
+  bespoke excuse per entry is what `createDuesSchedule` fell off: a reason is read once, and a
+  name is diffable.
+* **A `raw/` probe is NOT coverage of the action it stands in for.** The two answer different
+  questions, and conflating them would let a raw probe retire an action's case.
+* **`BACKLOG_CEILING` is a ratchet.** Lower it freely; raising it is a deliberate act needing a
+  sentence. Without it a new action could be added to the verdict list in the same commit that
+  introduces it, which is this section's rule broken with the audit's blessing.
+* **It cannot tell a good case from a bad one.** A vacuous control counts the same as a
+  mutation-checked case, so "a green suite is not evidence until you have seen it fail" is
+  still addressed to a person.
+
 Two failure modes to watch for in the fixture itself, both of which silently turn a
 real finding into a pass: a case whose positive control **mutates a row a later case
 depends on** (give it its own row — that is what `deletableChild` is for), and a probe
@@ -843,6 +875,28 @@ same argument and are in that file:
   somebody else's person id, which no action can.
 * **A `family_code` the action always stamps with the caller's own** likewise. The probe stamps
   a different one, which is the only way to reach a §4 guard trigger from a browser role.
+
+#### AND A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES
+
+Added 2026-08-22, and it is the third instance of one shape rather than a new one. The two
+cases above are an action narrowing a statement — by a filter it writes, or by ids its parent
+returned. This is an action not sending the statement AT ALL.
+
+Measured on `bylaws`, whose SELECT policy is `family_code = auth_family_code() AND
+auth_membership_approved()`. Delete the second conjunct and **`bylaws.getBylaws (pending
+member)` stays green** — because `getBylaws` opens with `requireMember()`, which refuses an
+applicant and returns `[]` before a query is ever sent. The guard answers, the policy is never
+consulted, and the case is evidence for the guard.
+
+That generalises uncomfortably far: **every applicant-shaped case in the suite whose action
+opens with `requireMember()` is evidence for the guard rather than for the conjunct**, and the
+`PENDING_CASES` header's own instruction — mutate the thing you believe is protecting the data
+— is the only way to tell which of your cases are in that position. `tests/rls/raw/bylaws.mjs`
+is what reaches the conjunct there; under the same mutation exactly one line in the suite goes
+red, which is what a probe is supposed to look like.
+
+The rule this leaves: **an approval or membership conjunct on a policy owes a `raw/` probe**,
+because no action that checks membership first can ever reach it.
 
 ## 7b. Arithmetic is tested with `npm test`, not with `tests/rls`
 
@@ -1620,11 +1674,27 @@ that sold all three went in the same commit**, on `/pricing`, `/features`, `/how
 `/why-us`, `lib/plans.ts` and `components/marketing/pillars.ts`. A retired feature whose sales copy
 survives is the drift FutureFeature.md is largely a record of.
 
-**ONE ASSET IS KNOWINGLY STALE**: `components/marketing/screenshots/events.png`, shown on Home for
-the Gatherings pillar, is a capture of the deleted `/events`. A `Pillar` must have an `image` and a
-screenshot cannot be re-captured from a script, so its `imageAlt` is deliberately generic - an alt
-naming RSVPs would advertise a feature we do not have, and one naming tasks would describe the
-wrong image. Do not make that alt specific until the PNG is replaced.
+**THE STALE ASSET IS GONE, AND IT WAS WORSE THAN STALE** (2026-08-22). This said
+`components/marketing/screenshots/events.png` was "a capture of the deleted `/events`" whose alt had
+to stay generic until it was re-captured. It was not a capture of anything. All THREE files in that
+folder were placeholder cards - a title, the lockup, a line of stock prose and the words **COMING
+SOON** in gold - so Home and `/features` were each announcing Gatherings, the treasury and the family
+tree as unbuilt, in the largest artwork on the page, a few inches above copy saying every screen
+ships today. The `alt` was the sharper failure: it told a screen reader that `finances.png` showed
+"fund balances, dues collected against outstanding, and the routing waterfall", none of which was in
+the image.
+
+All three are deleted. `components/marketing/PillarVignette.tsx` draws each pillar instead - a
+gathering spanning three days of a month strip, the routing waterfall filling one fund before the
+next, three generations with a marriage across the middle - in tokens, theme-aware, and honestly a
+DRAWING rather than a photograph. `Pillar.image`/`imageAlt` are replaced by `vignette`, and the whole
+panel is `aria-hidden` because every fact it draws is written out in the bullets beside it.
+
+**THE ONE RULE FOR EDITING A VIGNETTE**: it may only draw what its pillar's `bullets` already claim.
+The copy is reviewed and `npm run marketing:check` walks it against the registry, so a drawing inside
+the copy inherits both guards. An RSVP count in one would be exactly how the last set died. **A real
+capture is still owed** - it needs a browser pointed at a seeded family; TODO.md carries it, and the
+swap back is one field.
 
 **ALL THIRTEEN `event_*` TABLES ARE DROPPED**, along with `funds.event_id`,
 `photo_collections.event_id`, `cancel_overdue_event_assignments()` and the `event_expenses` term
@@ -2383,7 +2453,7 @@ the flag becomes decoration. The note is in `config.toml` beside the block.
 
 # Sending email is a plain module, never a server action
 
-`lib/email/` sends the mail the **app** composes — membership approved, family invitation.
+`lib/email/` sends the mail the **app** composes — membership approved, family invitation, the family-removal code, and email distributions.
 `supabase/templates/` is the mail **GoTrue** sends. Both go out through one Resend
 account, over different protocols, and [lib/email/README.md](lib/email/README.md) has the
 full picture.
@@ -2429,6 +2499,100 @@ Two more that have already shaped call sites:
   success over an email that did not go. `inviteMember` is the worked example: it withholds
   the invitation token when the send worked and hands it back, with an explicit failure
   notice, when it did not.
+
+## MAILING THE WHOLE FAMILY IS A QUEUE IN THE DATABASE, NOT A LOOP IN AN ACTION
+
+`/community/distributions` (`20260822000025`), and **the first `tier: 'premium'` route in the
+product** — `lib/features.ts` said "NOTHING IS PREMIUM" until 2026-08-22. A member writes a
+subject and a message, names an AUDIENCE, and everybody in it gets one email.
+
+**IT IS THE SHAPE THE OPEN-RELAY RULE ABOVE FORBIDS, AND FOUR THINGS ARE WHAT MAKE IT A
+FEATURE INSTEAD.** All four have to survive any change here:
+
+* **The caller never names a recipient.** They name a scope — `family | region | chapter` —
+  and at most one area id, and the server resolves it against the family's own roster. This
+  is `scheduleMeeting`'s rule ("THE CLIENT NAMES BODIES AND NEVER SENDS PEOPLE") with higher
+  stakes: a resolved list arriving from a client is an arbitrary recipient list, and a server
+  action is a public HTTP endpoint.
+* **Sending is `canAny`, never `can`.** Family-wide operation with no coherent "own" version,
+  and the row a member would own — a distribution they sent — is exactly the abuse case.
+* **`From` is ours and `reply_to` is read off the sender's own `people` row.** A
+  caller-chosen reply-to on mail carrying our SPF and DKIM is a phishing header on
+  authenticated mail; it is the same rule as the first bullet about a different field. A
+  generated placeholder address is never used as one.
+* **The BODY is the only member-authored payload in `lib/email/`,** so `esc()` on it is the
+  boundary rather than hygiene. `bodyParagraphs()` returns PLAIN text on purpose —
+  `lib/distribution-audience.ts` is pure and cannot import the email layer — and
+  `distributionEmail` escapes one line away. Keep the two adjacent.
+
+**THE FAN-OUT IS CHUNKED BECAUSE THIS PRODUCT HAS NOWHERE TO RUN BACKGROUND WORK.** No cron,
+no worker, no queue, no `vercel.json` — and `sendEmail` takes ONE recipient per call, so a
+hundred and forty relatives is a hundred and forty provider calls at a rate limit. That does
+not fit a request. So `distribution_recipients` **is** the queue: `sendDistribution` resolves
+the audience and mails nobody, and `sendDistributionBatch` claims a bounded slice, sends it,
+and records each outcome. The client drives it until nothing is pending.
+
+Three consequences worth knowing before changing any of it, and the third is the one a
+future feature will get wrong:
+
+* **A send survives a closed laptop**, because the state is in the table rather than in a
+  request. `requeueDistribution` recovers rows stranded in `sending` by a killed batch — that
+  is not a nicety, it is the only thing that can move them.
+* **`BATCH_SIZE * SEND_SPACING_MS` is bounded by two limits we do not control** — the
+  provider's per-second cap and the platform's wall-clock ceiling. Raise either and do the
+  multiplication first: exceeding the first records 429s as delivery `failed`, so a pacing
+  bug presents as a mail problem and sends somebody looking at DNS.
+* **`claim_distribution_recipients()` is SQL because the app races itself.** One statement
+  under `FOR UPDATE SKIP LOCKED`; a read-then-write from the action lets two administrators
+  pressing Send mail one relative twice, which cannot be recalled. It is granted to NOBODY
+  (§2b) and asserts its own family argument anyway (§2b rule 3) — and that assertion is not
+  decoration: with the action's family conjunct deleted, the function's 42501 is what still
+  refuses the write. Measured.
+
+**SIX RECIPIENT STATES, AND THE LAST THREE ARE THE FEATURE.** `pending | sent | failed` is
+not sufficient, and each of the others is a fact that would otherwise be reported as one of
+those three and be wrong:
+
+| | |
+|---|---|
+| `unreachable` | a recorded relative whose address is a GENERATED placeholder. **`placeholderEmail()` builds those on `@genorra.com` — a REAL domain — so `sendEmail`'s reserved-TLD guard does NOT catch them** and mailing one is a hard bounce against our own sending reputation. `lib/family-tree.ts` says every sender owes this check; this is where it is owed. Filed as `failed` it would sit forever in the column an organizer works through. |
+| `duplicate` | both relatives sharing a mailbox keep a row, so the family's arithmetic still accounts for both, and only one is mailed. `/pricing`'s "nobody is on it twice", enforced by a **partial unique index** on `(distribution_id, lower(email)) WHERE state <> 'duplicate'` rather than by whichever code path last wrote a row. |
+| `cancelled` | addressed and deliberately not mailed. Distinct from `failed` for the reason a reopened gathering task is a different bell entry from a denied one. |
+
+**THERE IS NO `status` COLUMN ON `distributions`.** `distributionProgress()` derives the label
+from the counts — a stored status is the `is_minor` trap (§4b), stale the first time a send is
+interrupted.
+
+**AN AREA SCOPE NARROWS, WHICH IS DELIBERATELY NOT THE ANNOUNCEMENT RULE.** `addressedTo` in
+`lib/announcement-audience.ts` treats a national or regional announcement as reaching
+everybody, and an empty area picker as family-wide. Both inversions are right there and wrong
+here, and the difference is what the two surfaces DO: an announcement that reaches too far is
+a card somebody scrolls past, and a distribution that reaches too far is mail in a hundred and
+forty inboxes. So a region reaches that region's chapters and nobody else — **a member in no
+chapter is in no region and is not reached**, which is correct and is the sort of correct that
+reads as a bug unless the screen prints the excluded count, which it does — and an unnamed
+area addresses NOBODY, refused by the action, by `inAudience`, and by a CHECK constraint.
+
+**THE KEY GATES A TABLE, unlike `library/bylaws` or `gatherings/budget`.**
+`community/distributions` has a `permission_table_map` row, so its SELECT policies compose
+`auth_permission` and the key withholds ROWS rather than a screen band. That is the decision:
+a recipient list is every relative's address with a delivery outcome beside it. `own_expr` is
+the SENDER; `self_expr` is `false` on both tables, because an expression admitting the
+RECIPIENT would publish the whole roster to exactly the set of people the roster is made of.
+
+**AND THE ROSTER READ IS THE ADMIN CLIENT ON PURPOSE (§3 by hand).** If the audience narrowed
+to what the SENDER may read, "nobody is missed" would be false — a sender without
+`community/directory` at `'any'` would mail a subset and be told it went to everybody. A wrong
+number rather than a missing one, which is the argument the four activity reports make.
+
+**WHAT THE RLS SUITE CAN AND CANNOT SEE HERE, because it is unusual.** Every read in that
+action module is on the admin client, so **no policy is underneath any of them** — deleting
+`perm:distributions:select` leaves every case green, and the policies are asserted in the
+migration's verify block instead. And for the writes, three of four mutation checks left every
+probe green and were caught only by `expectRefusal`: each is stopped by a *second* layer that
+then refuses for a different reason, so the row is genuinely untouched. **`deleteDistribution`
+shipped without its `belongsToFamily` check and the `told` assertion is what found it** — §8b,
+and the reason to read that column rather than the attack column alone.
 
 # The route tree IS the nav rail. A screen lives where the rail says it does
 
@@ -2990,6 +3154,37 @@ several routes and several routes are sold in no bullet at all. Moving a bullet 
 cards now changes more than a document: check whether a route has to move with it —
 `grep "tier: '" lib/features.ts` is the whole job.
 
+### THE TWO PLAN LISTS ARE SEPARATE COPY AND ONE SET OF CLAIMS
+
+`PLANS[]` on `/pricing` is what a BUYER reads; `PLAN_ADDS` in `lib/plans.ts` is what a MEMBER
+reads on `/admin/settings` and `/upgrade`. **Neither may be derived from the other** — the words
+a buyer needs are not the words a member needs, and both files argue it at length.
+
+For a long time that was the end of it, and both files said so: kept in step by hand, no gate
+possible. **They drifted twice** — a Premium bullet went missing in-product, so a family paying
+for Premium was never told inside the product that the address comes with the website; and a
+false detail survived on both after `/features` had corrected it.
+
+The sentence "there cannot be a gate" was conflating two claims, and separating them is the
+reusable part:
+
+| | |
+|---|---|
+| the WORDS | genuinely uncheckable, and different on purpose |
+| WHICH THINGS ARE SOLD | one set per tier, and exactly what drifted both times |
+
+So every bullet in both lists carries **`claim: '<tier>/<slug>'`**, never rendered, and
+`npm run marketing:check` asserts the sets match per tier, that neither list says one thing
+twice, and that a claim's prefix names the card or key it sits under — so a bullet re-priced in
+one file only is a finding rather than two clean-looking set differences. The field is REQUIRED
+rather than optional, because an optional field is omitted by exactly the edit this catches, and
+`npm run typecheck` is then the first thing to refuse a bullet with no id.
+
+**Adding a bullet is still two edits in one commit.** The gate does not write the member-facing
+wording for you; it refuses to let you forget that it is owed. And whether a claim should exist
+at all, whether it is true, and which tier it belongs in are untouched by any of this —
+FutureFeature.md is where those live.
+
 **A TIER TAG THAT SITS BESIDE A ROUTE *IS* DERIVED, AND MUST BE.** The distinction is the one
 above, one level down: a BULLET is prose about benefits and corresponds to nothing, while a
 tag on a card that already names a route is a second copy of this registry. `/features`'s
@@ -3529,13 +3724,18 @@ reads a kit directly**, which is not serving: it derives a PNG at author time. I
 one path into `design/` that any code holds.
 
 **Product screenshots are not brand artwork and do not go here.** They are colocated
-with the component that renders them and pulled in with a **static import** —
-`components/marketing/screenshots/*.png`, imported by `FeatureShowcase.tsx`. That keeps
-`public/` at one row, and it buys the thing a URL string cannot: `next/image` reads
-the intrinsic width, height and blur placeholder from the file, and a path that names
-nothing fails `next build` instead of rendering an empty box. The landing page shipped
-for a while with `image: '/features/events.png'` against a `public/features/` that did
-not exist, and nothing anywhere said so.
+with the component that renders them and pulled in with a **static import**, never a
+`/public` URL string: `next/image` reads the intrinsic width, height and blur
+placeholder from the file, and a path that names nothing fails `next build` instead of
+rendering an empty box. The landing page shipped for a while with
+`image: '/features/events.png'` against a `public/features/` that did not exist, and
+nothing anywhere said so.
+
+**There are none in the tree at the moment.** `components/marketing/screenshots/` held
+three and all three were placeholder cards rather than captures — see the Gatherings
+section above for what they were doing to Home and `/features`, and
+`components/marketing/PillarVignette.tsx` for what draws those pillars now. The rule
+stands for whenever a real capture arrives.
 
 **Nor are the kits' decorative illustrations, and one of them is DERIVED rather than
 copied.** `components/dashboard/illustrations/family-tree.png` — the tree beside the

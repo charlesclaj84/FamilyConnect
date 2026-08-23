@@ -5,10 +5,18 @@ import { BRAND_SOCIAL, type SocialPlatform } from '@/lib/brand'
  * The brand's social profiles in the footer — as links once they exist, and as inert
  * marks until then.
  *
+ * ── TWO PROFILES ARE LIVE, SO THE ROW IS THE LIVE-ONLY SHAPE ─────────────────
+ * As of 2026-08-22 Facebook and Instagram have URLs and X does not, so this renders TWO
+ * `<a>`s and no inert marks at all — the `live.length > 0` branch below. The inert state
+ * described next is therefore no longer what the footer shows; it is what the footer
+ * showed until that URL arrived, and what it would show again if the link were removed.
+ * Both shapes are still built and the choice between them is still the one argued at
+ * `profiles`, so the reasoning is kept rather than deleted.
+ *
  * ── THE INERT STATE IS THE FEATURE, NOT A STUB ───────────────────────────────
- * The accounts are being created and their URLs are not known yet, so every `href` in
- * `BRAND_SOCIAL` is `null` and every glyph below renders as a `<span>`. That is a
- * deliberate choice over the two usual alternatives, both of which are worse:
+ * While an account's URL is not known, its `href` in `BRAND_SOCIAL` is `null` and its
+ * glyph renders as a `<span>`. That is a deliberate choice over the two usual
+ * alternatives, both of which are worse:
  *
  *  * **`<a href="#">` (or a guessed URL).** A link that goes nowhere is announced as a
  *    link, focusable, and clickable — so it is a promise the page cannot keep, and a
@@ -29,9 +37,10 @@ import { BRAND_SOCIAL, type SocialPlatform } from '@/lib/brand'
  *
  * ── NOT A `<nav>` LANDMARK ───────────────────────────────────────────────────
  * The Product and Account columns beside this one are `<nav>`s because they are the
- * site's crawlable route list, and a landmark is worth it there. Three off-site icons
- * are not a way around this site, and a landmark containing zero links — which is what
- * this would be today — is a signpost to nowhere.
+ * site's crawlable route list, and a landmark is worth it there. A few off-site icons
+ * are not a way around this site, so one is not worth it here — and while every profile
+ * was still inert this would additionally have been a landmark containing zero links,
+ * which is a signpost to nowhere.
  */
 
 /**
@@ -93,10 +102,11 @@ export function SocialProfiles() {
    * describing all three. Every reading of that row is wrong, and the likeliest one is
    * that the icons are broken.
    *
-   * So the row has two honest shapes. Nothing live yet — the state today — and it is
-   * plainly an announcement: three marks, dimmed, captioned. Something live, and it is
-   * an ordinary social row containing only profiles that exist. A platform rejoins it
-   * by getting a URL, which is the same one-line edit either way.
+   * So the row has two honest shapes. Nothing live yet, and it is plainly an
+   * announcement: three marks, dimmed, captioned. Something live — the state since
+   * 2026-08-22, when Facebook and Instagram got URLs — and it is an ordinary social row
+   * containing only profiles that exist. A platform rejoins it by getting a URL, which
+   * is the same one-line edit either way.
    */
   const live = BRAND_SOCIAL.filter(profile => profile.href !== null)
   const profiles = live.length > 0 ? live : BRAND_SOCIAL

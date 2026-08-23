@@ -6,7 +6,7 @@ GoTrue only speaks SMTP and a serverless function only comfortably speaks HTTPS.
 
 | | GoTrue (`supabase/templates/`) | App (`lib/email/`) |
 |---|---|---|
-| Sends | sign-up, recovery, email change, reauthentication, GoTrue invite | membership approved, family invitation |
+| Sends | sign-up, recovery, email change, reauthentication, GoTrue invite | membership approved, family invitation, family-removal code, email distributions |
 | Composed from | static HTML pasted into the Supabase dashboard | `layout.ts` + `templates.ts` |
 | Knows about families | no | yes — which is the whole reason these are here |
 | Transport | SMTP → `smtp.resend.com` | HTTPS → `api.resend.com` |
@@ -71,6 +71,40 @@ design exists to prevent.
 `sendEmail` takes a single `to`. Resend accepts an array, and a shared array is how one
 family's members end up reading another recipient's address in the To line. Fan out with
 one call each.
+
+**Email distributions is the reason that rule now has a cost worth knowing about.**
+`/community/distributions` mails everyone in a family, so one distribution to a hundred and
+forty relatives is a hundred and forty calls at a provider rate limit — which does not fit
+one request, and there is no cron, worker or queue anywhere in this product. So it does not
+try: `sendDistribution` writes a `distribution_recipients` row per addressed relative and
+mails nobody, and `sendDistributionBatch` claims a bounded slice, sends it, and records each
+outcome. **The recipient rows are the queue.** A send survives a closed laptop, and the
+constants that size a batch (`BATCH_SIZE`, `SEND_SPACING_MS`) are about two limits we do not
+control — the provider's per-second cap and the platform's wall-clock ceiling. Raise either
+and do the multiplication first; the header on those constants says what goes wrong.
+
+## `reply_to` is resolved on the server, never taken from a caller
+
+Added with distributions, and it is the only message here that sets it. The other three are
+*from the product about the product*, so a reply belongs at `support@`; a distribution was
+written by a relative, and a cousin pressing Reply means to reach them.
+
+The rule that comes with it is rule 1 in a different costume: **the address must come from a
+row the caller already owns.** `sendDistribution` reads it off the sender's own `people` row
+and skips it entirely for a generated placeholder address. A caller-supplied reply-to on mail
+carrying GENORRA's SPF and DKIM is a phishing header on authenticated mail — the same reason
+`to` is not a parameter a client chooses either.
+
+## A member's words are the one payload that must be escaped
+
+`distributionEmail` is the only template here whose *content* somebody typed. The other three
+compose their own prose and interpolate a family name or a token, so `esc()` there is hygiene;
+in that one it is the boundary, because the string is rendered in somebody else's mail client.
+
+`bodyParagraphs()` in `lib/distribution-audience.ts` deliberately returns **plain text** and
+the escaping happens in the template, one line away — that module is pure and importing the
+email layer to be correct would defeat the point of it. Keep the two adjacent, and keep the
+`esc()` visible.
 
 ## The scaffold is expressed twice
 

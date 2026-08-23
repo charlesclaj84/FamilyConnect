@@ -178,7 +178,11 @@ export function ComingSoonBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-legacy/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-ink',
+        // `w-fit` because this is rendered on its own line as often as it is rendered
+        // beside a heading, and a flex COLUMN stretches its children: on /features'
+        // catalogue cards the pill ran the full width of the card and read as a banner
+        // rather than as a tag. `inline-flex` alone does not survive being a flex item.
+        'inline-flex w-fit shrink-0 items-center gap-1 rounded-full bg-brand-legacy/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-ink',
         className,
       )}
     >

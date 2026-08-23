@@ -15,11 +15,16 @@
  * the shorter, flatter version a member needs — no prices, no calls to action, no
  * inheritance rendering — keyed by `FamilyTier` so a lookup cannot miss.
  *
- * The two are kept in step BY HAND, deliberately, and the cost of that is real: an edit
- * to `PLANS[]` on `/pricing` should be reflected here in the same commit. Generating
- * either from the other would mean inventing a correspondence that does not exist — one
- * marketing bullet frequently spans several routes, and several routes are sold in no
- * bullet at all.
+ * The two are WORDED by hand, deliberately, and the cost of that is real: an edit to
+ * `PLANS[]` on `/pricing` has to be reflected here in the same commit. Generating either from
+ * the other would mean inventing a correspondence that does not exist — one marketing bullet
+ * frequently spans several routes, and several routes are sold in no bullet at all.
+ *
+ * ── AND SINCE 2026-08-22 THE *SET* OF CLAIMS IS CHECKED, WHICH IS NOT THE SAME THING ─
+ * This header used to end there, and both files said a gate was impossible. It was not: the
+ * WORDS cannot be compared and WHICH THINGS ARE SOLD can, and the second is exactly what had
+ * drifted twice. Every bullet in both lists carries a `claim` id and
+ * `npm run marketing:check` holds the two sets equal per tier. See `PlanHighlight.claim`.
  *
  * ── THE PRICE LIVES HERE, AND IT IS THE ONE THING `/pricing` DOES SHARE ─────────────
  * This section used to say a price MAY NOT appear here, on the grounds that none had been
@@ -48,6 +53,20 @@ import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
 import { formatCurrency } from '@/lib/currency-utils'
 
 export interface PlanHighlight {
+  /**
+   * WHICH CLAIM THIS IS, as a stable `<tier>/<slug>` id shared with the bullet on `/pricing`
+   * that sells the same thing. Never rendered.
+   *
+   * The two lists stay separately WORDED — that is the whole argument above and it does not
+   * change — and the SET of ids per tier must match, which `npm run marketing:check` asserts.
+   * `PlanFeature.claim` in `components/marketing/PlanLadder.tsx` carries the full reasoning,
+   * including why it is required rather than optional and why it is tier-prefixed.
+   *
+   * A claim with no counterpart is the drift this closes: it has happened twice, and the
+   * expensive direction is a benefit sold on `/pricing` that the member's own plan panel
+   * never mentions — a family paying for something the product never tells them they have.
+   */
+  claim: string
   /** The benefit, in the fewest words that land it. */
   label: string
   /** The mechanism, for whoever slowed down. */
@@ -72,22 +91,27 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
   // no charge, and be able to find them and talk to them.
   free: [
     {
+      claim: 'free/every-relative-free',
       label: 'Every relative, at no charge',
       detail: 'Unlimited members, with no per-person fee.',
     },
     {
+      claim: 'free/directory',
       label: 'A directory of the whole family',
       detail: 'Who is who, and how to reach them.',
     },
     {
+      claim: 'free/shared-calendar',
       label: 'The gathering on a shared calendar',
       detail: 'The date, the place and the details, on one page everybody can see.',
     },
     {
+      claim: 'free/announcements',
       label: 'Announcements the whole family sees',
       detail: 'Family news on everyone’s dashboard instead of buried in a group text.',
     },
     {
+      claim: 'free/chat',
       label: 'Chat, family-wide and private',
       detail: 'Keep talking between gatherings.',
     },
@@ -98,14 +122,17 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // both hand-written lists were edited in the same commit, which is the discipline the
     // header above asks for and the thing that had already drifted twice.
     {
+      claim: 'free/one-account-many-families',
       label: 'One account, however many families',
       detail: 'Belong to both sides, and switch between them without a second login.',
     },
     {
+      claim: 'free/nothing-scrolls-away',
       label: 'Nothing is lost when it scrolls away',
       detail: 'Every announcement, and everything sent to you, searchable long afterwards.',
     },
     {
+      claim: 'free/manual',
       label: 'A manual your relatives will actually use',
       detail: 'Every screen explained by name, reachable from the corner of the screen they are on.',
     },
@@ -125,32 +152,39 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
   // being run.
   standard: [
     {
+      claim: 'standard/family-tree',
       label: 'The family tree, traced back',
       detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
     },
     {
+      claim: 'standard/ledger',
       label: 'A real ledger for the money you collect',
       detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
     },
     {
+      claim: 'standard/gathering-budget',
       label: 'Plan the gathering, not just the date',
       detail: 'Checklists a gathering is built from, and a budget drawn on one of your funds.',
     },
     {
+      claim: 'standard/duties',
       label: 'Everybody knows their duties',
       detail: 'Every step handed to a named relative, with what came back and whether it was accepted.',
     },
     {
+      claim: 'standard/separation-of-duties',
       label: 'Separation of duties',
       detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
     },
     {
+      claim: 'standard/profile-pictures',
       label: 'A face against every name',
       detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
     },
   ],
   plus: [
     {
+      claim: 'plus/card-payments',
       label: 'Take payment the way your family pays',
       detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds behind them.',
     },
@@ -159,10 +193,12 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // Dues Projections, which IS a Plus route (`lib/features.ts`) and is the one figure
     // leadership asks for that this tier really delivers today.
     {
+      claim: 'plus/dues-projections',
       label: 'Know what is still owed, before you have to ask',
       detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
     },
     {
+      claim: 'plus/pnl',
       label: 'A profit and loss for your treasurer',
       detail: 'The statement the board asks for, plus transfers between your funds.',
     },
@@ -172,6 +208,7 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // it survived here and on `/pricing` — which is the hand-maintained drift the header warns
     // about, in the direction that matters most, since a member can check this one.
     {
+      claim: 'plus/membership-report',
       label: 'The numbers leadership asks for',
       detail: 'Dues collected against outstanding, and your membership by region and chapter.',
     },
@@ -179,19 +216,23 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // entirely money, so nothing told a family it could also answer "did the reunion work get
     // done" or "which offices are empty".
     {
+      claim: 'plus/activity-reports',
       label: 'Reports on more than the money',
       detail: 'Reunion work returned, election turnout, meetings held, and the offices nobody holds.',
     },
     {
+      claim: 'plus/elections',
       label: 'Elect your officers properly',
       detail: 'Nominate, accept or decline, then vote — family-wide, or one region or chapter.',
     },
     {
+      claim: 'plus/library',
       label: 'The paperwork, and the structure to match',
       detail: 'Searchable bylaws, minutes that record how the room voted, and regions and chapters with their own leadership.',
     },
     // ADDED 2026-08-22 — the Library's officer notebooks were sold on no surface at all.
     {
+      claim: 'plus/officer-notes',
       label: 'Every office keeps its own notebook',
       detail: 'Notes that stay with the role rather than the person, read only by whoever holds it.',
     },
@@ -199,28 +240,34 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // a rung lower now, and leaving them named here would sell one capability twice — the
     // drift the note above `PLANS[]` on /pricing is about, in miniature.
     {
+      claim: 'plus/gallery',
       label: 'Photographs, findable',
       detail: 'Collections per gathering, with tagging.',
     },
   ],
   premium: [
     {
+      claim: 'premium/dues-reminders',
       label: 'Stop chasing relatives for their dues',
       detail: 'Reminders go out as each installment falls due, and stop when it is paid.',
     },
     {
+      claim: 'premium/notifications',
       label: 'News that arrives rather than waiting to be found',
       detail: 'Notifications on the phone and in the browser, for announcements, messages and the tasks you have been given.',
     },
     {
+      claim: 'premium/mobile-apps',
       label: 'The family in everybody’s pocket',
       detail: 'Apps for iPhone and Android, on the same family account.',
     },
     {
+      claim: 'premium/email-distributions',
       label: 'Email the whole family without building a list',
       detail: 'Distributions drawn straight from your membership.',
     },
     {
+      claim: 'premium/family-website',
       label: 'Your family’s own website, keeping itself current',
       detail: 'It builds itself from your next gathering, newest photographs and latest announcement.',
     },
@@ -231,6 +278,7 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // that same table is a genuine merge ("A face against every name" folded into
     // "Photographs, findable") and stays merged.
     {
+      claim: 'premium/custom-domain',
       label: 'A proper address for it, ready to go',
       detail: 'No hosting bill, no plugins, and nobody in the family maintaining it.',
     },

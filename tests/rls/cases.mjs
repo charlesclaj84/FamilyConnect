@@ -96,6 +96,22 @@ export function alphaMarkers(fx) {
     // would come out in.
     a.meeting.id, a.meetingTopic.id,
     a.journalNote.id, a.journalNoteOther.id,
+    // ── THE DISTRIBUTIONS, ADDED 2026-08-22 ─────────────────────────────────────────────
+    //
+    // The one thing in this fixture that is BOTH a message body and a contact list. A leaked
+    // recipient row carries a relative's email address with a delivery state beside it, so the
+    // prose marker below is what catches the message coming out of some OTHER action's
+    // response — the case-by-case assertions cover the distribution reads themselves.
+    //
+    // THE PROSE, NOT THE SUBJECT. `${code} reunion details` would match a substring of almost
+    // any leaked ALPHA row that happened to mention the family code; `secret distribution body
+    // ALPHATEST` appears in exactly one column of one row, which is what makes a hit legible.
+    //
+    // `f.deletableDistribution` IS DELIBERATELY NOT HERE, the same exclusion `f.customRole` and
+    // `journalDeletable` carry above: its own delete control destroys it, and a marker whose
+    // row a case removes stops being findable for every case ordered after it.
+    a.distribution.id, 'secret distribution body ALPHATEST',
+    a.requeueableDistribution.id,
     a.announcement.id, a.document.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
@@ -173,6 +189,14 @@ export function alphaMarkers(fx) {
     'confidential ALPHATEST message',
     'private ALPHATEST note',
     'ALPHATEST/secret.pdf',
+    // ── BYLAWS (20260822000020) ───────────────────────────────────────────────
+    // The ids first, so every default-checked read in the suite gains the assertion for free,
+    // then the prose a leaked library would actually show. `ALPHATEST/bylaws/probe.txt` is
+    // here for the same reason `ALPHATEST/secret.pdf` is: a `file_path` is the object key in a
+    // private bucket, and handing one to another family is handing over what to ask for.
+    a.bylaw.id, a.deletableBylaw.id,
+    'ALPHATEST bylaw article', 'ALPHATEST bylaw summary', 'ALPHATEST secret bylaw text',
+    'ALPHATEST spare bylaw article', 'ALPHATEST/bylaws/probe.txt',
     'ALPHATEST fund',
     'ALPHATEST election',
     'ALPHATEST dues',
@@ -8005,7 +8029,15 @@ const objectsIn = (bucket, dir) => async db => {
  * against an absent object and pass.
  */
 const seedObject = (bucket, path) => async db => {
-  const type = /\.pdf$/.test(path) ? 'application/pdf' : 'image/jpeg'
+  // `.txt` ADDED 2026-08-22 with the bylaws fixture. `documents` carries no
+  // `allowed_mime_types` list, so a plain-text bylaw seeded as `image/jpeg` would have been
+  // accepted and nothing would have complained — which is precisely the reason to state it:
+  // the fixture would then describe a row the product cannot produce, and the next person to
+  // add a mime allow-list to that bucket (FutureFeature.md carries it) would find a test
+  // failing for a reason that has nothing to do with their change.
+  const type = /\.pdf$/.test(path) ? 'application/pdf'
+    : /\.txt$/.test(path) ? 'text/plain'
+      : 'image/jpeg'
   await db.storage.from(bucket).remove([path])
   const { error } = await db.storage.from(bucket)
     .upload(path, new Blob([new Uint8Array([7, 7, 7, 7])], { type }), { upsert: true })
@@ -8338,6 +8370,290 @@ function photoForm() {
   fd.append('caption', 'RLS probe photo')
   return fd
 }
+/**
+ * A bylaw with NO FILE, deliberately.
+ *
+ * `addBylaw` uploads to the private `documents` bucket before it writes the row, so a form
+ * carrying a file would put a storage policy under this case as well as a database one — and
+ * `documents.getDocumentDownloadUrl` above already records what that costs: two boundaries
+ * under one assertion, and no way to say which of them refused. A file-less article is a shape
+ * the product supports on purpose (the screen recommends it while extraction is unbuilt), so
+ * this exercises the row write and nothing else.
+ */
+function bylawForm(title) {
+  const fd = new FormData()
+  fd.append('title', title)
+  fd.append('article', 'Article IX')
+  fd.append('text', 'RLS probe bylaw text.')
+  return fd
+}
+
+/**
+ * ── BYLAWS — THE TABLE HAD NO FIXTURE AND NO CASE UNTIL 2026-08-22 ──────────────────
+ *
+ * `bylaws` shipped on 2026-08-22 (`20260822000020`) and `grep bylaw tests/rls/cases.mjs`
+ * returned nothing: five exported actions resting entirely on a reading of the policy, which
+ * is exactly what AGENTS.md §7 says is not the same thing as running it. The table was not in
+ * the fixture's reset list either, so the first row anybody seeded would have accumulated
+ * across runs and the teardown would have gone on reporting success.
+ *
+ * ── WHAT IS UNDER EACH OF THE FIVE, because it is not the same thing twice ──────────
+ * The table has ONE policy, `perm:bylaws:select` (family plus approval), and no INSERT, UPDATE
+ * or DELETE policy at all — so per §2c the browser is denied those outright and every write
+ * below goes through the admin client with a hand-written `family_code` conjunct. That makes
+ * the two halves of this block different in kind:
+ *
+ *   getBylaws, getBylawDownloadUrl   the USER client. A policy refuses them.
+ *   addBylaw, deleteBylaw            the ADMIN client. NOTHING is underneath — the conjunct in
+ *                                    the action is the entire boundary, the same position
+ *                                    `editPersonRecord` is in.
+ *
+ * ── CHECKED BY MUTATION, per AGENTS.md §7 ───────────────────────────────────────────
+ * Observed 2026-08-22, each mutation reverted before the next:
+ *
+ *   b1  drop `.eq('family_code', g.familyCode)` from `deleteBylaw`'s row read AND its delete
+ *         FAIL  bylaws.deleteBylaw (another family's bylaw)          — attack
+ *         FAIL  bylaws.deleteBylaw (another family's bylaw) — and says so
+ *       ALPHA's article destroyed by BRAVO's administrator, over the wire, with no policy to
+ *       stop it, and the action reporting `{ success: true }` while it happened. Two lines
+ *       rather than one, and they are two different failures: the row moved, AND the caller
+ *       was told the truth about the wrong family's data. §8b.
+ *
+ *   b2  drop `.eq('family_code', g.familyCode)` from `getBylawDownloadUrl`'s row read
+ *         pass  — and that is the SELECT POLICY answering, not the conjunct.
+ *   b3  `perm:bylaws:select` widened to `USING (true)`
+ *         FAIL  bylaws.getBylaws               — BRAVO reads ALPHA's articles
+ *         FAIL  bylaws.getBylaws (a search)    — attack AND control: the search stops
+ *                                                narrowing to one family, so the row count
+ *                                                the control pins moves too
+ *         pass  bylaws.getBylawDownloadUrl     — refused by the hand-written conjunct
+ *
+ *       READ b2 AND b3 TOGETHER, because separately each one is misleading: the download has
+ *       TWO independent boundaries under it and neither case is evidence for a particular
+ *       one. Remove the conjunct and the policy refuses; widen the policy and the conjunct
+ *       refuses. That is the same finding `documents.getDocumentDownloadUrl` records at
+ *       length, measured again here rather than assumed to carry across.
+ *
+ *   b4  `auth_membership_approved()` removed from `perm:bylaws:select`
+ *         pass  bylaws.getBylaws (pending member)  — WHICH IS THE FINDING, not a reassurance.
+ *       `getBylaws` opens with `requireMember()`, so an applicant is refused and handed `[]`
+ *       before a query is ever sent: the guard answers and the policy is never consulted. The
+ *       applicant cases in this block are therefore evidence for the GUARD and not for the
+ *       conjunct. `BYLAW_RAW_CASES` below is what reaches it, and under that mutation exactly
+ *       one line in the whole suite goes red.
+ *
+ *   b5  `canAny` -> `can` in `addBylaw` and `deleteBylaw`
+ *         pass  — the fixture has no actor holding either key at scope 'own', which is the
+ *               general gap `UNCOVERED`'s Gatherings entry records for the whole suite. Named
+ *               here so this block is not read as evidence for the helper choice.
+ */
+const BYLAW_CASES = [
+  read('bylaws.getBylaws', 'app/actions/bylaws.ts', 'getBylaws', {
+    // The whole library, in the family's own order. The default marker scan is the attack
+    // assertion — the fixture's markers carry the title, the summary, the extracted text AND
+    // the object key, so a leak is caught whichever field it comes out in.
+    expectPositive: (r, fx) => Array.isArray(r)
+      && r.some(b => b.id === fx.alpha.bylaw.id)
+      // `uploadedByName` comes from a bare `people(...)` embed, which §8 says is one foreign
+      // key away from PGRST201 and an empty list. Asserted so that day is a red line here
+      // rather than a blank column somebody notices in a year.
+      && r.some(b => b.id === fx.alpha.bylaw.id && typeof b.uploadedByName === 'string'
+        && b.uploadedByName.length > 0)
+      // 'full' rather than 'title': the fixture row has a file AND extracted text, so this is
+      // the one state the scaffolding can currently produce for an uploaded document.
+      && r.some(b => b.id === fx.alpha.bylaw.id && b.indexedState === 'full'),
+  }),
+  read('bylaws.getBylaws (a search)', 'app/actions/bylaws.ts', 'getBylaws', {
+    // ONE ORDINARY WORD, and it is in `content_text` rather than in a marker string. A query
+    // of 'ALPHATEST bylaw' would be two lexemes ANDed by `websearch_to_tsquery` and would
+    // match for reasons that have nothing to do with the index working; 'quorum' is in the
+    // extracted text of one row per family and nowhere else in the fixture.
+    args: () => ['quorum'],
+    // BRAVO's administrator searching inside ALPHA's constitution. Their own family's article
+    // comes back — which is correct, and is why the assertion is the marker scan rather than
+    // "the list is empty".
+    expectPositive: (r, fx) => Array.isArray(r)
+      && r.length === 1 && r[0].id === fx.alpha.bylaw.id,
+  }),
+  read('bylaws.getBylawRights', 'app/actions/bylaws.ts', 'getBylawRights', {
+    // [not evidence for family isolation] Said out loud rather than left looking like proof.
+    // The answer is two booleans about the CALLER's own grants and carries no family data at
+    // all, so no cross-family assertion is available and the marker scan would pass over an
+    // action that returned anything. What this pair does assert is that the resolver answers
+    // per caller and does not throw: BRAVO's administrator holds both in BRAVO.
+    expectAttack: v => v?.create === true && v?.remove === true,
+    positiveActor: 'alphaAdmin',
+    expectPositive: v => v?.create === true && v?.remove === true,
+  }),
+  read('bylaws.getBylawRights (a member with no write grant)',
+    'app/actions/bylaws.ts', 'getBylawRights', {
+      // THE HALF THAT IS WORTH SOMETHING. `20260822000018` gives every template `view` at
+      // 'any' and hands `create`/`delete` to Administrators alone — publishing a family's
+      // bylaws being an organizational act rather than something every member may do. So the
+      // General template must answer false to both, and this is what says so: a migration
+      // that widened that default would turn this line red.
+      attacker: 'alphaMember',
+      expectAttack: v => v?.create === false && v?.remove === false,
+      positiveActor: 'alphaAdmin',
+      expectPositive: v => v?.create === true && v?.remove === true,
+    }),
+  {
+    kind: 'read',
+    id: 'bylaws.getBylawDownloadUrl (a bylaw from another family)',
+    mod: 'app/actions/bylaws.ts', fn: 'getBylawDownloadUrl',
+    args: fx => [fx.alpha.bylaw.id],
+    // WITHOUT THIS THE CONTROL PASSES VACUOUSLY. `seed()` plants the ROW and no object, and
+    // `createSignedUrl` refuses a path with nothing at it — so ALPHA's own member would be
+    // told "That file could not be opened" and the case would prove nothing. The same trap
+    // `documents.getDocumentDownloadUrl` records; `runRead` runs `setup` for both phases,
+    // because a download refused because the file is missing is not evidence of a policy.
+    setup: (db, fx) => seedObject('documents', fx.alpha.bylaw.file_path)(db),
+    // NOT the marker scan: ALPHA's family code is IN a correct URL by construction, so the
+    // default assertion would report a leak on every successful control. The shape is what is
+    // asserted — no url, at all.
+    expectAttack: v => v?.success === false && !v?.url,
+    expectPositive: v => v?.success === true && typeof v?.url === 'string'
+      && v.url.includes('/documents/') && v.url.includes('token='),
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'bylaws.addBylaw',
+    mod: 'app/actions/bylaws.ts', fn: 'addBylaw',
+    // NO ID ARRIVES FROM THE CLIENT, which puts this in the `createFund` / `createElection`
+    // shape: the row's `family_code` comes from the caller's own guard, so there is no other
+    // family's id to supply and no §4 case to construct. It has a case anyway rather than an
+    // entry in the exemption paragraph, for `createGatheringTemplate`'s reason — an exemption
+    // expires silently the day a migration gives the table a foreign key (which is exactly how
+    // `createDuesSchedule` fell off that list), and a case that already exists cannot.
+    //
+    // WHAT IT IS EVIDENCE FOR, then: that BRAVO's administrator writing a bylaw writes it into
+    // BRAVO. The probe is scoped to ALPHA, so the attack half is "ALPHA's library is untouched"
+    // and the control half is that an entitled ALPHA caller really can add one.
+    args: () => [bylawForm('BRAVO probe bylaw')],
+    positiveArgs: () => [bylawForm('ALPHATEST probe bylaw')],
+    probe: (db, fx) => snapshot('bylaws', 'id, title', { family_code: fx.alpha.familyCode })(db),
+    // ADMINISTRATOR, because `library/bylaws:create` goes to that template alone. A control on
+    // the default member would fail for a reason that is the permission model working.
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'bylaws.deleteBylaw (another family\'s bylaw)',
+    mod: 'app/actions/bylaws.ts', fn: 'deleteBylaw',
+    // [crux] The sharpest case in this block, and the one with nothing underneath it. The
+    // action runs on the ADMIN client — the table has no DELETE policy at all — so its two
+    // `.eq('family_code', …)` conjuncts are the entire boundary between BRAVO's administrator
+    // and ALPHA's constitution. Mutation b1 above destroys the row.
+    args: fx => [fx.alpha.bylaw.id],
+    // THE SPARE, and it has to be a different row. The control really deletes, and the row the
+    // attack half is about is read by four other cases in this block — same rule as
+    // `deletableChild` and `f.deletableFund`. Ordered after those reads for the same reason.
+    positiveArgs: fx => [fx.alpha.deletableBylaw.id],
+    // BOTH ROWS IN ONE PROBE, because `probe` is one function shared by the two phases:
+    // scoped to the family rather than to an id, so the attack half sees "nothing in ALPHA's
+    // library moved" and the control half sees the spare leave it.
+    probe: (db, fx) => snapshot('bylaws', 'id, title', { family_code: fx.alpha.familyCode })(db),
+    // §8b: the row is untouched, and the caller must also be TOLD. `deleteBylaw` answers 'Not
+    // found' because its scoped read matches nothing, which is the honest report — filed under
+    // its own `told` phase so the summary does not read it as a boundary being crossed.
+    expectRefusal: v => ({
+      ok: v?.success === false,
+      detail: v?.success === false
+        ? `refused: ${v.message}`
+        : `reported success over a delete that did not happen: ${JSON.stringify(v)}`,
+    }),
+    positiveActor: 'alphaAdmin',
+  },
+  // ── THE APPLICANT HALF ────────────────────────────────────────────────────────────
+  // Somebody who has joined ALPHA by family code and has not been admitted. They are INSIDE
+  // the family boundary by every test the cases above apply — `auth_family_code()` resolves
+  // ALPHATEST for them, deliberately and permanently — so these are the cases that say the
+  // bylaws are the MEMBERS' and not the applicants'. `requireMember()` refuses the two writes
+  // before the database is reached; `auth_membership_approved()` in `perm:bylaws:select`
+  // refuses the reads, which is mutation b4.
+  read('bylaws.getBylaws (pending member)', 'app/actions/bylaws.ts', 'getBylaws', {
+    attacker: 'alphaPending',
+  }),
+  {
+    kind: 'read',
+    id: 'bylaws.getBylawDownloadUrl (pending member)',
+    mod: 'app/actions/bylaws.ts', fn: 'getBylawDownloadUrl',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.bylaw.id],
+    setup: (db, fx) => seedObject('documents', fx.alpha.bylaw.file_path)(db),
+    expectAttack: v => v?.success === false && !v?.url,
+    expectPositive: v => v?.success === true && typeof v?.url === 'string',
+    positiveActor: 'alphaMember',
+  },
+  {
+    kind: 'write',
+    id: 'bylaws.deleteBylaw (pending member)',
+    mod: 'app/actions/bylaws.ts', fn: 'deleteBylaw',
+    attacker: 'alphaPending',
+    args: fx => [fx.alpha.bylaw.id],
+    // NOTE THE POSITIVE CONTROL IS NOT REPEATED. The delete case above already consumed the
+    // spare row, so a control here would have nothing left to remove and would report the
+    // vacuous failure the runner exists to shout about. What the attack half needs is a row
+    // that survives, which `f.bylaw` is.
+    positive: 'not-applicable',
+    why: 'the spare row is consumed by the cross-family delete control above; a second '
+      + 'control would have nothing to remove and would report a vacuous failure',
+    probe: (db, fx) => snapshot('bylaws', 'id, title', { family_code: fx.alpha.familyCode })(db),
+    expectRefusal: v => ({
+      ok: v?.success === false,
+      detail: v?.success === false ? `refused: ${v.message}` : 'told an applicant it worked',
+    }),
+  },
+]
+
+/**
+ * ── AND THE HALF NO ACTION CAN REACH ────────────────────────────────────────────────
+ *
+ * `perm:bylaws:select` is two conjuncts and `BYLAW_CASES` above is real evidence for exactly
+ * one of them. Mutation b4 is the finding: with `auth_membership_approved()` deleted from the
+ * policy, `bylaws.getBylaws (pending member)` STAYED GREEN — because `getBylaws` opens with
+ * `requireMember()`, which refuses an applicant and returns `[]` before a query is sent. The
+ * guard answers, the policy is never consulted, and the case is evidence for the guard.
+ *
+ * This is that conjunct, with the action out of the way. `tests/rls/raw/bylaws.mjs` carries
+ * the full argument; the shape is `raw/journals.mjs`'s, which found the same thing one table
+ * down on the same day.
+ *
+ * ── MUTATION-CHECKED, AND BOTH DIRECTIONS ARE RECORDED ──────────────────────────────
+ *   the approval conjunct removed  -> `raw:bylaws SELECT (an applicant)` FAILS, and it is the
+ *                                     only line in the suite that moves
+ *   the policy widened to `true`   -> both cases here FAIL, and so does `bylaws.getBylaws`
+ */
+const BYLAW_RAW_CASES = [
+  // [crux] AN APPLICANT, INSIDE THE FAMILY BOUNDARY, ASKING FOR THE TABLE.
+  //
+  // `alphaPending` has joined ALPHA by family code and has not been admitted, so
+  // `auth_family_code()` resolves ALPHATEST for them — deliberately and permanently — and the
+  // family conjunct is TRUE. `auth_membership_approved()` is the only thing refusing this
+  // read, and nothing else in the product is standing behind it: `library/bylaws:view` is
+  // 'any' on every template by design (the bylaws are the family's, not an office's), so a
+  // grant withholds nothing here.
+  read('raw:bylaws SELECT (an applicant)', 'tests/rls/raw/bylaws.mjs', 'selectBylaws', {
+    attacker: 'alphaPending',
+    // NOT the marker scan. `rows: []` would satisfy it trivially and so would a 42501, and
+    // this case has to be able to tell a refusal from a match of nothing — the assertion is
+    // that no ALPHA row came back, whichever way the database said no.
+    expectAttack: (r, fx) => !r.rows.some(b => b.family_code === fx.alpha.familyCode),
+    positiveActor: 'alphaMember',
+    expectPositive: (r, fx) => r.rows.some(b => b.id === fx.alpha.bylaw.id),
+  }),
+  // The family conjunct on the same policy, reached the same way. `bylaws.getBylaws` above IS
+  // evidence for this one (mutation b3), so this is a second angle rather than the only one —
+  // worth having because it is the form the leak would actually take: a member of any family
+  // in the product asking PostgREST for the whole table, with no screen involved.
+  read('raw:bylaws SELECT (another family\'s library)',
+    'tests/rls/raw/bylaws.mjs', 'selectBylaws', {
+      expectAttack: (r, fx) => !r.rows.some(b => b.family_code === fx.alpha.familyCode),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(b => b.id === fx.alpha.bylaw.id),
+    }),
+]
 
 /**
  * THE ELECTION POLICIES, REACHED WITHOUT AN ACTION — and the reason they need to be.
@@ -8581,11 +8897,372 @@ const JOURNAL_RAW_CASES = [
   // verify block, against real rows, and asserts the positive control alongside each.
 ]
 
+/**
+ * EMAIL DISTRIBUTIONS — `/community/distributions`, and the first Premium route.
+ *
+ * ── WHAT MAKES THIS FEATURE DIFFERENT FROM EVERY OTHER ONE IN THIS FILE ────────────
+ * Everywhere else, the worst outcome of a hole is that BRAVO reads or writes an ALPHA row.
+ * Here it is that BRAVO's administrator sends mail to ALPHA's relatives, over GENORRA's
+ * authenticated domain, and it cannot be recalled. So the cases below are ordered by that
+ * rather than by table: the two that matter most are `sendDistribution` naming another
+ * family's chapter, and `sendDistributionBatch` driving another family's queue.
+ *
+ * ── THE ATTACK IS BRAVO'S ADMINISTRATOR, WITH EVERY GRANT THEIR FAMILY CAN CONFER ──
+ * §7's rule, and it is doing real work on this key: `community/distributions` is registered
+ * with all three actions and the Administrators template holds them at `'any'`, so whatever
+ * `bravoAdmin` still cannot do here, they cannot do because family isolation held — not
+ * because nobody had checked a grant.
+ *
+ * ── THE POSITIVE CONTROLS ARE LOAD-BEARING, AND ONE OF THEM IS THE ONLY THING THAT
+ *    COULD HAVE CAUGHT A WHOLE CLASS OF BUG ────────────────────────────────────────
+ * `getDistributions` returns `null` on a refused read and `[]` on a family with none. Every
+ * cross-family assertion here is satisfied by BOTH, so without the controls this block would
+ * pass in full against an action that answered nothing to everybody — the exact failure §7
+ * describes and the one that caught `getPhotoCollections` and the `photos` DELETE policy.
+ *
+ * ── WHAT THESE CASES ARE NOT EVIDENCE FOR, said out loud per §7 ────────────────────
+ * Four things, and each is covered somewhere else or stated as a gap:
+ *
+ *   1. THE SELECT POLICIES ON EITHER TABLE. Every read in `app/actions/distributions.ts` is
+ *      on the ADMIN client, so no policy is underneath any of them — the family conjunct
+ *      being tested is the hand-written `.eq('family_code', …)` (§3) and nothing else.
+ *      Deleting `perm:distributions:select` entirely would leave every case here green. That
+ *      is not an omission in the cases, it is what the feature is: the roster read must NOT
+ *      narrow to what the sender may see, or "nobody is missed" is false. The policies are
+ *      asserted in `20260822000025`'s verify block, which reads them back out of `pg_policies`.
+ *   2. THE FAN-OUT ITSELF. No mail is sent by this suite and none should be: every fixture
+ *      address is `@rls.test`, which `sendEmail` refuses by reserved TLD before touching the
+ *      network. So `sendDistributionBatch`'s control asserts that the batch CLAIMED and
+ *      RECORDED — the row leaves `pending` and lands in `failed` with a reserved-TLD
+ *      diagnostic — which is the boundary this suite can see. The delivery arithmetic is
+ *      `lib/distribution-audience.test.ts` under `npm test`.
+ *   3. THE DEDUPE AND THE `unreachable` RULE. Pure functions over a roster, tested by value
+ *      and by mutation in that file. The fixture has six people and no shared mailbox, so an
+ *      assertion about either here would exercise one branch and pass while testing nothing.
+ *   4. THE CONCURRENCY OF `claim_distribution_recipients`. `FOR UPDATE SKIP LOCKED` cannot be
+ *      observed from a single-session suite. The migration asserts it textually and says so.
+ *
+ * ── CHECKED BY MUTATION, per §7, AND THE RESULT CHANGES HOW TO READ THIS BLOCK ─────
+ * Five mutations, all measured 2026-08-22, and the pattern in them is the important part:
+ *
+ *   1. `belongsToFamily('chapters', …)` deleted from `sendDistribution`   told  FAIL
+ *   2. the family conjunct deleted from `sendDistributionBatch`'s read    told  FAIL
+ *   3. `belongsToFamily('distributions', …)` deleted from `cancel`        told  FAIL
+ *   4. the family conjunct deleted from `getDistributions`' list read   attack  FAIL
+ *                                                    (LEAKED 5 markers)
+ *   5. the family conjunct deleted from the cancel UPDATE itself         NOTHING FAILED
+ *
+ * **FOR THIS FEATURE THE `told` ASSERTION IS CARRYING MOST OF THE EVIDENCE, AND THE WRITE
+ * PROBES ARE VERY NEARLY VACUOUS.** Three of the four write mutations left every probe green,
+ * because each one is caught by a SECOND layer that then refuses the write for a different
+ * reason — so the row is genuinely untouched and the probe is genuinely satisfied. What has
+ * actually gone wrong in each case is that the caller was told the wrong thing:
+ *
+ *   * (1) the area check gone, `resolveRecipients` then addresses nobody, because BRAVO has no
+ *     member in ALPHA's chapter — so the send is refused downstream. That is LUCK, not a
+ *     boundary, and it stops being luck the moment somebody belongs to both families.
+ *   * (2) the read's conjunct gone, `claim_distribution_recipients` raises 42501 because the
+ *     distribution is not in the family passed to it. That is §2b rule 3 — "write the function
+ *     as if it were reachable" — doing real work: the defence-in-depth layer caught the removal
+ *     of the outer one. Worth knowing before anybody simplifies that function's signature.
+ *   * (3) `belongsToFamily` gone, the UPDATE's own `.eq('family_code', …)` still matches zero
+ *     rows, so nothing changes and `{ success: true, cancelled: 0 }` comes back. §8b exactly.
+ *
+ * **AND (5) IS A STATED GAP RATHER THAN A PASS.** With `belongsToFamily` in place, the family
+ * conjunct on the cancel UPDATE is unreachable — the action refuses before the statement runs —
+ * so no action-shaped case can isolate it. That is AGENTS.md's "an action that narrows a write
+ * by hand hides its own policy from the suite", one layer up: here the hand-written filter is
+ * hidden by a hand-written GUARD rather than by a policy. It is kept because the guard's safety
+ * is a property of the surrounding function and the conjunct's is a property of the statement.
+ * If it ever needs asserting, it needs a `raw/` probe.
+ *
+ * `deleteDistribution` IS WHY ANY OF THIS IS WRITTEN DOWN: it shipped without a
+ * `belongsToFamily` check, its probe was green on the first run — the row really was untouched
+ * — and the `told` half is what reported it. Reading only the attack column would have passed
+ * an action that told BRAVO's administrator it had deleted ALPHA's record.
+ */
+const DISTRIBUTION_CASES = [
+  // ── [crux] SENDING TO ANOTHER FAMILY'S CHAPTER ─────────────────────────────
+  // §4 exactly, and the most expensive version of it in the product. `bravoAdmin` holds
+  // `community/distributions:create` at 'any' IN BRAVO, so the grant check passes; the row
+  // they are asking to create would carry BRAVO's own `family_code`, so every policy would be
+  // satisfied; and the `chapter_id` they pass points into ALPHA. What refuses it is
+  // `belongsToFamily('chapters', …)` and nothing else.
+  //
+  // WHAT HAPPENS IF IT IS REMOVED — measured, not predicted: the distribution IS created in
+  // BRAVO naming ALPHA's chapter, `resolveRecipients` then addresses nobody (BRAVO has no
+  // member in that chapter), and the send is refused downstream with a different message. So
+  // the PROBE STAYS GREEN and `expectRefusal` is the only thing that fires. That downstream
+  // refusal is luck rather than a boundary, and it stops being luck the moment somebody
+  // belongs to both families — which is the ordinary case this product is built for.
+  {
+    kind: 'write',
+    id: 'distributions.sendDistribution (another family\'s chapter as the audience)',
+    mod: 'app/actions/distributions.ts', fn: 'sendDistribution',
+    args: fx => [{
+      subject: 'cross-family distribution',
+      body: 'this should never be addressed to anybody',
+      scope: 'chapter',
+      areaId: fx.alpha.chapter.id,
+    }],
+    probe: (db, fx) => snapshot('distributions', 'id, subject, family_code, chapter_id',
+      { chapter_id: fx.alpha.chapter.id })(db),
+    expectRefusal: v => v?.success === false && /chapter not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: chapter not found' }
+      : { ok: false, detail: `expected a chapter refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS ALPHA'S OWN ADMINISTRATOR SENDING TO THAT SAME CHAPTER, which is what
+    // makes the refusal above about the FAMILY rather than about the chapter being unreachable
+    // for everybody. `alphaOther` is the member in `f.chapter`, so this addresses a real
+    // person and gets past `resolveRecipients` — an audience that resolved to nobody would
+    // report "nobody matches that audience" and the control would pass for the wrong reason.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      subject: 'a legitimate chapter distribution',
+      body: 'sent by the chapter\'s own family',
+      scope: 'chapter',
+      areaId: fx.alpha.chapter.id,
+    }],
+  },
+  // ── AND THE REGION HALF, WHICH IS A SEPARATE `belongsToFamily` CALL ────────
+  // One per id, the way `tests/rls/cases.mjs` split `addRelative`'s two: the region and the
+  // chapter are checked by two different branches, and a case for one is no evidence about the
+  // other. `f.region` has no member of its own in the fixture, so this one has no positive
+  // control that would resolve to a recipient — stated rather than faked.
+  {
+    kind: 'write',
+    id: 'distributions.sendDistribution (another family\'s region as the audience)',
+    mod: 'app/actions/distributions.ts', fn: 'sendDistribution',
+    args: fx => [{
+      subject: 'cross-family regional distribution',
+      body: 'this should never be addressed to anybody',
+      scope: 'region',
+      areaId: fx.alpha.region.id,
+    }],
+    probe: (db, fx) => snapshot('distributions', 'id, subject, family_code, region_id',
+      { region_id: fx.alpha.region.id })(db),
+    expectRefusal: v => v?.success === false && /region not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: region not found' }
+      : { ok: false, detail: `expected a region refusal, got ${JSON.stringify(v)}` },
+    // A REAL CONTROL, because `f.region` holds `f.chapter` and `alphaOther` is in it — so a
+    // regional distribution reaches somebody. That matters: an audience resolving to NOBODY
+    // would be refused with "nobody matches that audience" and the control would then be
+    // asserting the wrong refusal rather than a successful send.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      subject: 'a legitimate regional distribution',
+      body: 'sent by the region\'s own family',
+      scope: 'region',
+      areaId: fx.alpha.region.id,
+    }],
+  },
+  // ── THE ROSTER: BRAVO MUST NOT LEARN WHO ALPHA MAILED ─────────────────────
+  // A recipient row carries a relative's NAME and EMAIL ADDRESS with a delivery state beside
+  // it. This is the read that would publish ALPHA's contact list, and the default marker scan
+  // is the attack assertion — `secret distribution body ALPHATEST` is in `alphaMarkers`.
+  read('distributions.getDistributions', 'app/actions/distributions.ts', 'getDistributions', {
+    // THE CONTROL IS SPELLED OUT because `null` and `[]` are both refusals to this action's
+    // caller and both satisfy the attack assertion. Without this half the whole block would
+    // pass against an action that answered nothing to anybody.
+    positiveActor: 'alphaAdmin',
+    expectPositive: rows => Array.isArray(rows)
+      && rows.some(r => /reunion details/.test(r.subject ?? '')),
+  }),
+  read('distributions.getDistribution', 'app/actions/distributions.ts', 'getDistribution', {
+    args: fx => [fx.alpha.distribution.id],
+    // THE BODY AND THE ROSTER BOTH, because they are two reads in one action and the second is
+    // the one that carries the addresses. A refusal that returned the message with an empty
+    // roster would satisfy a body-only assertion.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (d, fx) => d?.body?.includes('secret distribution body')
+      && (d?.recipients ?? []).some(r => r.email === fx.users.alphaOther.email),
+  }),
+  // ── [crux] DRIVING ANOTHER FAMILY'S SEND ──────────────────────────────────
+  // The one that would actually put mail in ALPHA's inboxes. `sendDistributionBatch` takes a
+  // distribution id from the client, claims its pending recipients and mails them — so if the
+  // `.eq('family_code', …)` on the read above the claim were dropped, BRAVO's administrator
+  // could drive ALPHA's queue to completion by id alone.
+  //
+  // TWO LAYERS ARE UNDERNEATH IT and this asserts the outer one: the action's own family
+  // conjunct, and then `claim_distribution_recipients` raising 42501 for a mismatched family
+  // (§2b rule 3, written as if reachable). The action's conjunct is what answers "Not found"
+  // here; the function's assertion is exercised in the migration's verify block.
+  {
+    kind: 'write',
+    id: 'distributions.sendDistributionBatch (another family\'s send)',
+    mod: 'app/actions/distributions.ts', fn: 'sendDistributionBatch',
+    // `setup` RATHER THAN A `positiveSetup` — the runner has no such hook, and this is the
+    // better shape anyway: it runs before BOTH halves, so the attack and the control each
+    // start from a row that is genuinely `pending`. Without it the attack half would pass
+    // against a queue that was already empty, which is a refusal proving nothing.
+    setup: async (db, fx) => {
+      await db.from('distribution_recipients')
+        .update({ state: 'pending', error: null, sent_at: null })
+        .eq('distribution_id', fx.alpha.requeueableDistribution.id)
+    },
+    args: fx => [fx.alpha.requeueableDistribution.id],
+    probe: (db, fx) => snapshot('distribution_recipients', 'id, state, email',
+      { distribution_id: fx.alpha.requeueableDistribution.id })(db),
+    expectRefusal: v => v?.success === false && /not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not found' }
+      : { ok: false, detail: `expected a not-found refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL PROVES THE CLAIM-AND-RECORD LOOP WORKS, which is the half this suite can
+    // see. The batch claims the pending row, tries to mail an `@rls.test` address, and
+    // `sendEmail` refuses it by reserved TLD — so the row moves `pending` -> `failed` and the
+    // probe changes. THAT IS THE CORRECT ASSERTION: what is tested is that the queue advances
+    // and the outcome is RECORDED, not that mail arrives. A control expecting `sent` would
+    // pass only on a machine that happened to have a live RESEND_API_KEY, which is the one
+    // thing a fixture must never depend on.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.requeueableDistribution.id],
+  },
+  // ── STOPPING AND RETRYING ANOTHER FAMILY'S SEND ───────────────────────────
+  // Both go through `belongsToFamily('distributions', …)` — which is the §4 check on a
+  // parameter that is not written onto a row but IS used to select rows for a write. A missing
+  // one here is `revokeRoleByAssignmentId`'s hole: `.eq('distribution_id', id)` on the admin
+  // client with no family conjunct.
+  {
+    kind: 'write',
+    id: 'distributions.cancelDistribution (another family\'s send)',
+    mod: 'app/actions/distributions.ts', fn: 'cancelDistribution',
+    // EACH OF THESE THREE ESTABLISHES ITS OWN PRECONDITION, which is what makes them
+    // independent of the order they run in. Cancel only touches `pending`, so a row left
+    // `failed` by the batch case above would give it nothing to do and its control would
+    // report a no-op — a green attack line over a vacuous test.
+    setup: async (db, fx) => {
+      await db.from('distribution_recipients')
+        .update({ state: 'pending', error: null, sent_at: null })
+        .eq('distribution_id', fx.alpha.requeueableDistribution.id)
+    },
+    args: fx => [fx.alpha.requeueableDistribution.id],
+    probe: (db, fx) => snapshot('distribution_recipients', 'id, state',
+      { distribution_id: fx.alpha.requeueableDistribution.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.requeueableDistribution.id],
+  },
+  {
+    kind: 'write',
+    id: 'distributions.requeueDistribution (another family\'s send)',
+    mod: 'app/actions/distributions.ts', fn: 'requeueDistribution',
+    // `failed` this time, since that is what requeue moves. The mirror of the case above, and
+    // the reason both need their own setup rather than sharing one.
+    setup: async (db, fx) => {
+      await db.from('distribution_recipients')
+        .update({ state: 'failed', error: 'seeded bounce', sent_at: null })
+        .eq('distribution_id', fx.alpha.requeueableDistribution.id)
+    },
+    args: fx => [fx.alpha.requeueableDistribution.id],
+    probe: (db, fx) => snapshot('distribution_recipients', 'id, state',
+      { distribution_id: fx.alpha.requeueableDistribution.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.requeueableDistribution.id],
+  },
+  // ── DELETING ANOTHER FAMILY'S RECORD ──────────────────────────────────────
+  // The audit trail of who was emailed. `deleteDistribution` is the only action here behind
+  // the `delete` grant, and its family conjunct is on the statement itself.
+  {
+    kind: 'write',
+    id: 'distributions.deleteDistribution (another family\'s record)',
+    mod: 'app/actions/distributions.ts', fn: 'deleteDistribution',
+    // ITS OWN ROW, `f.deletableDistribution` — `deletableChild`'s rule, and the fixture says
+    // why at the seed. Pointing this at `f.distribution` would have the control delete the row
+    // `getDistributions` and `getDistribution` assert on, so those two would pass VACUOUSLY
+    // from then on: nothing leaked because nothing was there. That failure only appears when
+    // the suite runs in sequence, which is what makes it worth a second fixture row.
+    args: fx => [fx.alpha.deletableDistribution.id],
+    probe: (db, fx) => snapshot('distributions', 'id, subject',
+      { id: fx.alpha.deletableDistribution.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL DELETES ALPHA'S OWN RECORD, which is what distinguishes the refusal above
+    // from an action that refuses everybody — and it is the reason the fixture seeds that row's
+    // recipient as `sent` rather than `pending`: a pending row would make `deleteDistribution`
+    // answer "this send has not finished", and both halves would then be asserting a check
+    // that has nothing to do with the family boundary.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableDistribution.id],
+  },
+  // ── THE AUDIENCE PICKER, WHICH IS A ROSTER READ IN DISGUISE ───────────────
+  // It answers region and chapter NAMES with a head count against each. Names are family
+  // structure rather than PII, and the counts are derived from `people` — so this is a read of
+  // ALPHA's roster shape, and the marker scan covers the names.
+  read('distributions.getDistributionAudiences',
+    'app/actions/distributions.ts', 'getDistributionAudiences', {
+      positiveActor: 'alphaAdmin',
+      // THE FAMILY-WIDE OPTION MUST COUNT SOMEBODY. Zero would mean the admin-client roster
+      // read came back empty — which is precisely the failure that would make every
+      // distribution address nobody while reporting success, and it is invisible to the
+      // attack half.
+      expectPositive: opts => Array.isArray(opts)
+        && (opts.find(o => o.scope === 'family')?.addressed ?? 0) > 0
+        && opts.some(o => o.scope === 'chapter'),
+    }),
+]
+
+/**
+ * AND THE PENDING ATTACKER, for the two reads and the send.
+ *
+ * `alphaPending` has joined ALPHA by family code and not been admitted, so `auth_family_code()`
+ * resolves ALPHATEST for them — they are INSIDE the family boundary by every test the cases
+ * above apply. What refuses them is `requireMember()`, and it has to, because a distribution's
+ * roster is the family's whole contact list and an applicant is somebody nobody has decided to
+ * admit yet.
+ *
+ * SENDING IS THE ONE THAT MATTERS MOST HERE: an applicant who could compose a distribution
+ * could mail every relative in a family that has not admitted them, from the family's own
+ * domain, before anybody reviewed their application.
+ */
+const DISTRIBUTION_PENDING_CASES = DISTRIBUTION_CASES
+  .filter(c => [
+    'distributions.getDistributions',
+    'distributions.getDistribution',
+    'distributions.getDistributionAudiences',
+  ].includes(c.id))
+  .map(c => ({
+    ...c,
+    id: `${c.id} (pending member)`,
+    attacker: 'alphaPending',
+    // The control is the one on the case this was derived from; re-running it here would
+    // assert the same read with the same actor.
+    positive: 'not-applicable',
+    positiveActor: undefined,
+    positiveArgs: undefined,
+    expectPositive: undefined,
+    why: 'the control is on the same case in DISTRIBUTION_CASES, run by ALPHA\'s administrator',
+  }))
+
+DISTRIBUTION_PENDING_CASES.push({
+  kind: 'write',
+  id: 'distributions.sendDistribution (pending member)',
+  mod: 'app/actions/distributions.ts', fn: 'sendDistribution',
+  attacker: 'alphaPending',
+  args: () => [{
+    subject: 'a distribution from somebody nobody admitted',
+    body: 'this must never be queued',
+    scope: 'family',
+  }],
+  probe: (db, fx) => snapshot('distributions', 'id, subject',
+    { family_code: fx.alpha.familyCode })(db),
+  expectRefusal: v => v?.success === false && /approval/i.test(v?.message ?? '')
+    ? { ok: true, detail: 'told: awaiting approval' }
+    : { ok: false, detail: `expected a membership refusal, got ${JSON.stringify(v)}` },
+  positive: 'not-applicable',
+  why: 'the family-wide send by an approved administrator is the control on the chapter case '
+    + 'in DISTRIBUTION_CASES, which exercises the same guard and the same insert',
+})
+
 CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASES,
   ...JOURNAL_RAW_CASES,
   ...REMOVAL_CASES, ...APPROVAL_CASES,
   ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES, ...PROFILE_EDIT_CASES,
-  ...STORAGE_CASES, ...STAFF_CASES)
+  ...DISTRIBUTION_CASES, ...DISTRIBUTION_PENDING_CASES,
+  ...STORAGE_CASES, ...BYLAW_CASES, ...BYLAW_RAW_CASES, ...STAFF_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.

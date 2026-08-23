@@ -1,12 +1,15 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
-  Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned,
+  Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned, Send,
   BarChart3, ShieldCheck, Users,
   Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
   NotebookPen, Gavel, Scale, CalendarDays, ListChecks, PieChart, Users2,
   Landmark, LifeBuoy, UsersRound, UserCog, UserRound,
+  ArrowRight, Check, Sparkles, Zap, Crown,
+  CreditCard, CalendarClock, BellRing, Smartphone,
+  Network, HandCoins, ScrollText, SlidersHorizontal, ClipboardCheck, PiggyBank,
+  FileStack, Wallet, LineChart, BookUser, IdCard, UserCheck, PartyPopper, CalendarPlus,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,10 +20,12 @@ import {
   PageHero, SectionHeading, CtaBand, MoreLink, ComingSoonBadge,
 } from '@/components/marketing/sections'
 import { PILLARS } from '@/components/marketing/pillars'
+import { PillarVignette } from '@/components/marketing/PillarVignette'
+import { TIER_ACCENT } from '@/components/marketing/tier-accent'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { isFeatureFuture, getFeature } from '@/lib/features'
-import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE } from '@/lib/tiers'
+import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -40,9 +45,9 @@ export const metadata: Metadata = {
  *
  * The two used to describe the same eleven capabilities in two sets of words, with the
  * LANDING page carrying the longer version — eighteen spotlight bullets and an eight-card
- * grid, plus the only three product screenshots on the site. All of that detail belongs
+ * grid, plus the only three product images on the site. All of that detail belongs
  * here, where somebody has already decided to evaluate the product, so it moved: the three
- * pillars now render `bullets` and the screenshots, and the landing page renders one
+ * pillars now render `bullets` and a drawn vignette, and the landing page renders one
  * sentence each.
  *
  * The three pillars come from `components/marketing/pillars.ts` and are shared with the
@@ -119,18 +124,80 @@ const ALSO: readonly {
    */
   route: string
 }[] = [
+  // ── THE FOURTEEN THE PILLARS WERE COVERING FOR, 2026-08-22 ─────────────────────────
+  // Asked of this page directly: "Family Tree is a Standard feature, why isn't it listed?"
+  // It was not, and neither were thirteen others — the whole ledger, the planning half of
+  // Gatherings, the directory, the P&L. Every one of them was live, and every one was
+  // recorded in `marketing-coverage.mjs` as SOLD ELSEWHERE, which was true and had stopped
+  // being sufficient.
+  //
+  // WHAT CHANGED UNDER THIS GRID WITHOUT ANYBODY MOVING IT. It was written as the complement
+  // to the pillars — its heading was "Everything ELSE it does" — and a screen a pillar
+  // narrated did not need a second card. That is a coherent rule for a flat list beside three
+  // spotlight rows. It stopped being one when the grid was cut into tier bands: the bands are
+  // now the answer to "what do I get for $5", the lede tells a reader to read one band and
+  // stop, and stopping at Standard meant not learning that the product has a family tree.
+  //
+  // MEASURED RATHER THAN FEARED: the Standard band was three cards — payment history,
+  // permission templates and profile pictures — while seven more Standard screens existed,
+  // including the three the tier is actually sold on. The cheapest step out of Free was
+  // presenting its weakest three capabilities as its whole offer.
+  //
+  // SO A PILLAR ROUTE MAY NOW ALSO HOLD A CARD, and that is a deliberate reversal of the
+  // rule that removed the family-tree card in the first place. The two are not the same
+  // claim: the pillar is the NARRATIVE and the card is the INDEX ENTRY, the way /pricing
+  // carries both a Free band and a plan ladder. `npm run marketing:check`'s duplicate rule
+  // was narrowed to match — two cards on ONE surface is still the drift it was written for.
+  //
+  // TWO ROUTES ARE STILL NOT HERE and both are in `SOLD_ELSEWHERE` with their reasons:
+  // `/dashboard`, which is where the other capabilities render rather than a capability, and
+  // `/admin/settings`, a card for which would be selling "rename your family" as a feature.
+
+  // Standard — the tier this omission was costing, so it leads the band in the order it is
+  // actually sold in: the record, then the money, then the work.
+  { icon: Network, route: '/community/family-tree', title: 'The family tree', blurb: 'Every branch traced back through the generations, with blood and marriage told apart, and a relative who has no email yet recorded exactly like everybody else.' },
+  { icon: HandCoins, route: '/accounting/dues-and-donations', title: 'Dues and donation drives', blurb: 'What you owe this year and what you have paid, and the drives the family is running — the member’s own side of the ledger.' },
+  { icon: ScrollText, route: '/accounting/transactions', title: 'The full ledger', blurb: 'Every contribution recorded and every disbursement paid, on one ledger, with who entered it and when.' },
+  { icon: SlidersHorizontal, route: '/admin/accounting', title: 'Set up how the money works', blurb: 'Dues at any cadence with installment plans, the funds your family keeps, and the routing that fills the reunion fund before the college fund.' },
+  { icon: Wallet, route: '/accounting/summary', title: 'Where you stand', blurb: 'Your dues, your donations and what is still to pay, with the family’s fund balances beside them.' },
+  { icon: FileStack, route: '/admin/gatherings/templates', title: 'The checklist, written once', blurb: 'Author the list of steps your family runs every year. Schedule a gathering from it and every step becomes somebody’s job with a date on it.' },
+  { icon: ClipboardCheck, route: '/gatherings/my-tasks', title: 'The jobs you were given', blurb: 'Every step of a gathering that is yours, what it is asking for, and whether the answer you sent came back accepted or with notes.' },
+  { icon: PiggyBank, route: '/gatherings/budget', title: 'What the gathering is costing', blurb: 'A budget drawn on one of your funds, what each task has claimed against it, and a marker the moment it is over either one.' },
+
+  // Free — the band that has to do the converting, and the directory is its first promise.
+  { icon: BookUser, route: '/community/directory', title: 'The family directory', blurb: 'Everybody in one searchable list with the contact details you actually need — and search that handles real names, accents and all.' },
+  { icon: PartyPopper, route: '/gatherings', title: 'Every gathering, on one page', blurb: 'What the family has coming up, with the date, the place and the details — and one flagged premier across the top of everybody’s dashboard.' },
+  { icon: CalendarPlus, route: '/admin/gatherings', title: 'Put a gathering on the calendar', blurb: 'Schedule it, give it its dates and its place, and see what has come back on it. Free needs no checklist — a date, a place and a description is a gathering.' },
+  { icon: IdCard, route: '/personal-info', title: 'Your own record, kept by you', blurb: 'Contact details, birthday, t-shirt size — what the family needs about you, maintained by you rather than by whoever is keeping the list.' },
+  { icon: UserCheck, route: '/admin/members/approvals', title: 'Nobody gets in until you let them', blurb: 'Every request to join waits in a queue until somebody admits it, and sees nothing of the family in the meantime.' },
+
+  // Plus.
+  { icon: LineChart, route: '/reporting/pl-summary', title: 'A profit and loss for your treasurer', blurb: 'Money in against money out, straight from the ledger, in the statement the board asks for.' },
+
   { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
   { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
-  // ── THE FAMILY TREE CARD WENT ON 2026-08-22, and it is the one removal on this grid ──
-  // It duplicated the family-record PILLAR, on the same page, about 400px above it — six
-  // bullets about the tree, then a card repeating one of them. This grid's heading is
-  // "Everything else it does", and "else" means other than the three pillars, so the card
-  // contradicted the section it was in. `npm run marketing:check` is what says so now: it
-  // refuses any route claimed by two cards, PILLARS included.
+  // ── THE FIRST PREMIUM CARD ON THIS GRID, 2026-08-22 ──────────────────────────────────
+  // It sits directly under Announcements because the two are the pair a buyer is comparing:
+  // one waits on a dashboard to be found, the other arrives in an inbox. The tier tag beside
+  // it is DERIVED, so this card says "Premium" only because `lib/features.ts` does — which is
+  // the whole reason the hand-set `tier` escape hatch was removed from this grid.
   //
-  // Removing it withholds nothing. The pillar's `route` IS `/community/family-tree`, so the
-  // tree is still on the catalogue, still tier-tagged from the registry, and still the
-  // fullest thing on the page about itself.
+  // THE BLURB DOES NOT PROMISE AN UNSUBSCRIBE, A TEMPLATE OR AN OPEN RATE, and none of the
+  // three is built. It names the one thing that is actually the feature — the audience being
+  // the membership rather than a list somebody maintains — which is also the claim
+  // `/pricing`'s Premium card has been making since it existed.
+  { icon: Send, route: '/community/distributions', title: 'Email the whole family', blurb: 'One message to everyone, or to one region or chapter, drawn straight from your membership — nobody is missed, nobody gets it twice, and you can see exactly who it reached.' },
+  // ── THE FAMILY TREE CARD WAS REMOVED AND IS BACK, WITHIN THE SAME DAY ────────────────
+  // It went on the argument that it duplicated the family-record PILLAR 400px above it, and
+  // that "Everything ELSE it does" meant other than the three pillars. Both were true. What
+  // the argument missed is that the pillars carry NO TIER — a pillar spans plans, which is
+  // stated in the paragraph under them — so removing the card took the family tree out of
+  // the only place on this page that answers which plan a thing is on. It is Standard, and
+  // for one day the catalogue said so nowhere.
+  //
+  // It is at the top of this list now, with the other thirteen that were in the same
+  // position. The reasoning is in the block above; the short version is that a narrative and
+  // an index are not the same claim.
   // TRIMMED 2026-08-21, when Election Management became its own card below. This one is the
   // MEMBER's half — being nominated, accepting, voting — and the sentence about positions
   // pulling from the board roster moved with the administrator's half, where the person
@@ -259,6 +326,101 @@ function tierOf(item: { route: string }) {
 }
 
 /**
+ * The glyph on each band heading — the SAME four `/pricing` puts on its plan cards.
+ *
+ * A tick for what you already have, `Sparkles` for the tier that turns a place to be
+ * into a family being run, a lift for the one that adds the organizational machinery,
+ * a crown for the one that reaches every relative. Repeating them here is the point:
+ * a visitor arriving from the pricing page should recognise a band by its mark before
+ * reading its name, and the two pages are describing one ladder.
+ *
+ * A `Record<FamilyTier, …>` for the reason `TIER_ACCENT` is one — a fifth tier is a
+ * type error here rather than a band that silently draws whatever the default was.
+ */
+const TIER_GLYPH: Record<FamilyTier, LucideIcon> = {
+  free: Check,
+  standard: Sparkles,
+  plus: Zap,
+  premium: Crown,
+}
+
+/**
+ * ── WHAT IS SOLD AND NOT YET BUILT ──────────────────────────────────────────────────
+ *
+ * The catalogue enumerated only what SHIPS, and that left it telling half a story: a
+ * visitor reading the Premium band saw one card under a heading whose price is $25, and
+ * nothing on the page connected that band to the capabilities the pricing page sells it
+ * on. The plan was on `/pricing`; the shape of the plan was not on `/features`.
+ *
+ * These are those capabilities. Every one is on a paid card at `/pricing` today, none is
+ * built, and each renders as a visibly different object — dashed, unshaded, badged Coming
+ * soon — so nobody can mistake one for a screen they can open. That distinction matters
+ * more than the cards do: this page's whole value is that it does not misrepresent what a
+ * plan includes, and a roadmap item drawn like a shipped one would burn exactly that.
+ *
+ * ── `tier` IS HAND-SET HERE, AND ONLY HERE ──────────────────────────────────────────
+ * Read the note above `ALSO` before copying this. That grid's `tier` is DERIVED from
+ * `lib/features.ts`, and the hand-set field was removed from it in 2026-08-20 because a
+ * typed tier beside a real route is a second copy of the tier table that goes stale in
+ * silence — it had a wrong `'Free' | 'Plus'` tag on it for months.
+ *
+ * The reason the hatch is admissible here is precisely that these have NO ROUTE. There is
+ * no registry entry, no permission key and no page, so there is nothing to derive from and
+ * no second copy to disagree with. **The moment one of these ships it gets a `lib/features.ts`
+ * entry, and it MOVES to `ALSO` with its `route` — it does not stay here with a tier typed
+ * beside a route that knows better.** That is the one rule for this table.
+ *
+ * ── WHY THE WEBSITE IS NOT IN IT ────────────────────────────────────────────────────
+ * Premium's family website and its address are sold on this page already, by
+ * `LivingSitePreview`, which is a full band with its own heading and its own three Coming
+ * Soon badges. A card repeating it 1500px above would be the duplication the family-tree
+ * card was deleted for on 2026-08-22 — this section's heading is "Everything else it does",
+ * and "else" means other than what the page already spells out at length.
+ *
+ * ── THE COPY IS HAND-KEPT AGAINST `/pricing` AND `lib/plans.ts` ─────────────────────
+ * A third copy of the same promises, and deliberately so, for the reason the note above
+ * `PLANS[]` gives: a bullet is prose about a benefit, these blurbs are a paragraph about a
+ * screen, and neither derives from the other without inventing correspondences. Nothing
+ * mechanical can check this one — `npm run marketing:check` reads `route:` and these have
+ * none — so an edit to a paid card's promise is an edit here too.
+ */
+const ROADMAP: readonly {
+  icon: LucideIcon
+  title: string
+  blurb: string
+  tier: FamilyTier
+}[] = [
+  {
+    icon: CreditCard,
+    tier: 'plus',
+    title: 'Take payment the way your family pays',
+    blurb:
+      'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, routed into your funds the moment they land. Until this ships, the ledger records the cash and cheques you collect the way you collect them now.',
+  },
+  {
+    icon: CalendarClock,
+    tier: 'premium',
+    title: 'Stop chasing relatives for their dues',
+    blurb:
+      'A reminder goes out as each installment falls due, and stops the moment it is paid — so nobody is chased for money they already sent.',
+  },
+  {
+    icon: BellRing,
+    tier: 'premium',
+    title: 'News that arrives, instead of waiting to be found',
+    blurb:
+      'Notifications on the phone and in the browser for announcements, messages and the tasks you have been given, rather than a dashboard somebody has to remember to open.',
+  },
+  {
+    icon: Smartphone,
+    tier: 'premium',
+    title: 'The family in everybody’s pocket',
+    blurb:
+      'Apps for iPhone and Android, signed in to the same family account, showing the same family you see here.',
+  },
+]
+
+/**
  * The grid, cut into one band per tier — **derived, not authored.**
  *
  * ── WHY GROUPED, 2026-08-22 ──────────────────────────────────────────────────────────
@@ -279,14 +441,23 @@ function tierOf(item: { route: string }) {
  * `'Free' | 'Plus'` was taken off this grid in 2026-08-20 applies with equal force to a
  * hand-assigned group.
  *
- * `.filter()` drops an empty band, which is not cosmetic: Premium's six capabilities are all
- * unbuilt, so it has no live route and no card. A "Premium" heading over an empty grid would
- * be the page implying a catalogue it cannot show — and `PLANS[]` on /pricing is where an
- * unbuilt tier is sold, behind a Coming soon badge, which is the honest place for it.
+ * `.filter()` drops a band with nothing in it AT ALL, live or promised. It used to drop a band
+ * with no live route, which was written when Premium had none — and that was the page choosing
+ * silence over an honest "not yet": a tier priced at the top of the card stack, with no answer
+ * anywhere on the catalogue for what it buys. `ROADMAP` is that answer now, and the filter has
+ * to count both halves or the band it was written about disappears again the day its one
+ * shipped screen moves.
  */
 const ALSO_BY_TIER = TIERS
-  .map(tier => ({ tier, items: ALSO.filter(item => tierOf(item) === tier) }))
-  .filter(band => band.items.length > 0)
+  .map(tier => ({
+    tier,
+    items: ALSO.filter(item => tierOf(item) === tier),
+    // The shipped cards first, then what the plan is still going to be. Sorting them the
+    // other way round would put a promise above a fact on a page whose argument is that it
+    // does not confuse the two.
+    soon: ROADMAP.filter(item => item.tier === tier),
+  }))
+  .filter(band => band.items.length + band.soon.length > 0)
 
 /*
  * `STANDARD_RATE` WAS HERE, and its removal is the point rather than a tidy-up.
@@ -387,21 +558,23 @@ export default function FeaturesPage() {
                       </ul>
                     </div>
 
-                    {/* `h-auto w-full` with the intrinsic size from the static import, so
-                        the frame takes the image's own ratio — nothing cropped, nothing
-                        letterboxed. `sizes` matters: this column is half of a 6xl grid at
-                        lg (~34rem) and the full width below it, and without saying so
-                        Next serves the whole-viewport candidate to every phone. */}
+                    {/* ── A DRAWN PANEL, NOT A SCREENSHOT ─────────────────────────
+                        Until 2026-08-22 this was `next/image` over
+                        `components/marketing/screenshots/*.png`, and the comment that
+                        stood here explained how the frame took the image's intrinsic
+                        ratio. What it did not know is that none of the three files was
+                        a screenshot: each was a placeholder card carrying a title, the
+                        lockup, a line of stock prose and the words COMING SOON in gold.
+
+                        So the strongest band on the catalogue — the three jobs the
+                        product is sold on — was three large boxes announcing that all
+                        three were unbuilt, about four hundred pixels above a heading
+                        that reads "Every card here is a screen that ships today". They
+                        do ship. `PillarVignette` carries the rest of the account,
+                        including the one rule for editing a vignette: it may only draw
+                        what its pillar's bullets already claim. */}
                     <div className={cn(reversed ? 'lg:order-1' : 'lg:order-2')}>
-                      <div className="overflow-hidden rounded-3xl border shadow-[var(--shadow-card)]">
-                        <Image
-                          src={pillar.image}
-                          alt={pillar.imageAlt}
-                          placeholder="blur"
-                          sizes="(min-width: 1024px) 34rem, 100vw"
-                          className="h-auto w-full"
-                        />
-                      </div>
+                      <PillarVignette kind={pillar.vignette} />
                     </div>
                   </div>
                 </Reveal>
@@ -448,75 +621,197 @@ export default function FeaturesPage() {
       {/* ── Everything else ──────────────────────────────────────────────── */}
       <section aria-labelledby="also-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-6xl">
+          {/* "AND THE REST" / "EVERYTHING ELSE IT DOES" UNTIL 2026-08-22, when the grid
+              stopped being the pillars' complement and became the complete index — see the
+              block at the top of `ALSO`. A heading saying "else" over a list that now
+              includes the three pillars' own screens would be the page contradicting
+              itself, and it is the heading that told a reader the tree was elsewhere. */}
           <SectionHeading
             id="also-heading"
-            eyebrow="And the rest"
-            title="Everything else it does"
-            lede="Cut by plan, so you can read one band and stop. Every card here is a screen that ships today — what is still on the way says so on the card, and the tier a card sits under is read from the same registry the product gates itself with."
+            eyebrow="Screen by screen"
+            title="Everything it does, and the plan it is on"
+            lede="Every screen in the product, cut by plan, so you can read one band and stop. A solid card ships today; a dashed one is a promise the plan makes and says so on its face. The tier a card sits under is read from the same registry the product gates itself with."
           />
 
           {/* ONE BAND PER TIER, in `TIERS` order and derived — see the note on
               `ALSO_BY_TIER`. Not `space-y-*` on a wrapper: each band needs its own
               landmark and heading, so they are siblings with their own top margin. */}
           <div className="mt-12 space-y-14 sm:space-y-16">
-            {ALSO_BY_TIER.map(({ tier, items }) => {
+            {ALSO_BY_TIER.map(({ tier, items, soon }) => {
               const price = TIER_PRICE[tier]
+              const accent = TIER_ACCENT[tier]
+              const TierGlyph = TIER_GLYPH[tier]
               const headingId = `also-${tier}-heading`
               return (
                 <section key={tier} aria-labelledby={headingId}>
                   <Reveal>
-                    {/* THE BAND HEADING CARRIES WHAT THE PILL COULD NOT: the tier's own
-                        one-line pitch and its price. `TIER_TAGLINE` and `TIER_PRICE` are both
-                        read rather than typed — a price in prose is still a price, and
-                        `lib/plans.ts` is the one place any of them is written down.
+                    {/* ── THE BAND HEADING IS AN OBJECT NOW, NOT A RULE ─────────
+                        It was a heading over a hairline border, which is enough to
+                        separate two paragraphs and not enough to separate four grids
+                        of near-identical cards: the section read as one wall of
+                        twenty-eight tiles with some text interleaved, and a reader
+                        halfway down a band had nothing on screen telling them which
+                        plan they were in.
 
-                        `h3`, because `SectionHeading` above already owns the `h2` for this
-                        section and a band is a level below it. h3–h6 stay in Inter and take
-                        `--brand-accent` from the base layer, which is why no colour is set
-                        here. */}
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-3">
-                      <h3 id={headingId} className="text-xl font-semibold">
-                        {TIER_LABEL[tier]}
-                        <span className="ml-3 text-sm font-normal text-muted-foreground">
-                          {items.length} {items.length === 1 ? 'screen' : 'screens'}
-                        </span>
-                      </h3>
-                      {/* A LINK, not a label. Somebody reading a price wants to know what
-                          else is on that plan, and the answer is one tap away rather than a
-                          scroll back to the nav. Free says "no charge" rather than "$0" —
-                          `TIER_PRICE.free` is `null` on purpose, because Free has no price
-                          rather than a price of zero and "$0.00" is a figure nobody should
-                          render. */}
-                      <Link
-                        href="/pricing"
-                        className="text-sm font-semibold text-brand-accent hover:text-brand-ink"
-                      >
-                        {price ? `${formatPlanPrice(price.monthlyCents)} a month` : 'No charge'}
-                        <span className="sr-only"> — see what is in the {TIER_LABEL[tier]} plan</span>
-                      </Link>
+                        As a filled panel in the tier's own hue it is a landmark you
+                        can find by scrolling, and it has room for what a 10px pill
+                        never could — the tier's one-line pitch and its price.
+                        `TIER_TAGLINE` and `TIER_PRICE` are both read rather than
+                        typed; a price in prose is still a price, and `lib/plans.ts`
+                        is the one place any of them is written down.
+
+                        `h3`, because `SectionHeading` above already owns this
+                        section's `h2` and a band is a level below it. */}
+                    <div className="overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)]">
+                      <div aria-hidden="true" className={cn('h-1.5 w-full', accent.rail)} />
+                      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 p-5">
+                        <div className="flex items-center gap-3">
+                          <span className={cn('inline-flex shrink-0 rounded-xl p-2.5', accent.chip)}>
+                            <TierGlyph className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <h3 id={headingId} className="text-xl font-semibold">
+                              {TIER_LABEL[tier]}
+                              <span className="ml-2.5 text-sm font-normal text-muted-foreground">
+                                {/* BOTH HALVES, and the promised one only when there
+                                    is one. "12 screens" over a grid holding fifteen
+                                    cards is a heading contradicting the thing under it;
+                                    "12 screens · 3 on the way" is the same sentence the
+                                    cards themselves make. The word stays SCREENS for
+                                    the live count and never covers the promises — a
+                                    roadmap item is not a screen until it is one. */}
+                                {items.length > 0 && (
+                                  <>
+                                    {items.length} {items.length === 1 ? 'screen' : 'screens'}
+                                  </>
+                                )}
+                                {items.length > 0 && soon.length > 0 && ' · '}
+                                {soon.length > 0 && `${soon.length} on the way`}
+                              </span>
+                            </h3>
+                            <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
+                              {TIER_TAGLINE[tier]}
+                            </p>
+                          </div>
+                        </div>
+                        {/* A LINK, not a label. Somebody reading a price wants to know
+                            what else is on that plan, and the answer is one tap away
+                            rather than a scroll back to the nav. Free says "No charge"
+                            rather than "$0" — `TIER_PRICE.free` is `null` on purpose,
+                            because Free has no price rather than a price of zero and
+                            "$0.00" is a figure nobody should render. */}
+                        <Link
+                          href="/pricing"
+                          className="group/price inline-flex items-center gap-1.5 text-sm font-semibold text-brand-accent hover:text-brand-ink"
+                        >
+                          {price ? `${formatPlanPrice(price.monthlyCents)} a month` : 'No charge'}
+                          <ArrowRight
+                            aria-hidden="true"
+                            className="h-4 w-4 transition-transform duration-300 group-hover/price:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/price:translate-x-0"
+                          />
+                          <span className="sr-only"> — see what is in the {TIER_LABEL[tier]} plan</span>
+                        </Link>
+                      </div>
                     </div>
-                    <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                      {TIER_TAGLINE[tier]}
-                    </p>
                   </Reveal>
 
-                  <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* ── THREE ACROSS, NOT FOUR ────────────────────────────────────
+                      Four in a 6xl measure gives each card about 250px, and these
+                      blurbs are two and three sentences long — at that width the
+                      longest of them ran fourteen lines and the grid read as a column
+                      of fragments. Three is about 370px, which is a readable measure
+                      for a paragraph, and it costs one extra row per band.
+
+                      It also stops the Premium band, which has one live screen, being
+                      a single tile marooned in a quarter of the page. */}
+                  <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((item, i) => (
-                      <Reveal key={item.title} delay={(i % 4) * 120} className="h-full">
-                        <div className="group flex h-full flex-col rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-shadow duration-300 hover:shadow-[var(--shadow-card-hover)]">
-                          {/* NO TIER PILL ANY MORE — the band heading above says it, and a
-                              "Free" pill on every card in a section headed Free is the same
-                              word twice. See the note on `ALSO_BY_TIER`: what mattered about
-                              the pill was that it was DERIVED, and the grouping is the same
-                              derivation. */}
-                          <div className="mb-3 inline-flex w-fit rounded-lg bg-brand-soft p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                            <item.icon className="h-5 w-5 text-brand-on-soft" aria-hidden="true" />
+                      <Reveal key={item.title} delay={(i % 3) * 110} className="h-full">
+                        {/* ── THE CARD ──────────────────────────────────────────────
+                            It was a white box with a sand chip, identical twenty-eight
+                            times over. Three things give it a shape now, and each is
+                            doing a different job:
+
+                            THE CHIP TAKES THE TIER'S HUE, from the same ramp the
+                            pricing ladder climbs (`tier-accent.ts`). This is not the
+                            tier PILL coming back — that was removed because a word
+                            repeating the heading above it is noise. A colour is not a
+                            word: it is what tells you which band you are in when you
+                            have scrolled past the heading, which is most of the time
+                            you spend in a band this long.
+
+                            THE RAIL APPEARS ON HOVER, so a card answers when you point
+                            at it rather than shouting at rest. Twenty-eight permanent
+                            rails would be the wall again in a second costume.
+
+                            THE CARD LIFTS. A shadow change alone reads as nothing at
+                            this size; the transform is what makes it feel like an
+                            object. Pinned flat under reduced motion. */}
+                        <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-card-hover)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              'absolute inset-x-0 top-0 h-1 opacity-0 transition-opacity duration-300 group-hover:opacity-100 motion-reduce:transition-none',
+                              accent.rail,
+                            )}
+                          />
+                          <div
+                            className={cn(
+                              'mb-3 inline-flex w-fit rounded-lg p-2 transition-transform duration-300 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100',
+                              accent.chip,
+                            )}
+                          >
+                            <item.icon className="h-5 w-5" aria-hidden="true" />
                           </div>
                           <h4 className="text-base font-semibold">{item.title}</h4>
-                          {/* Its own line, under the title, rather than crowded into the
-                              header row: at lg these cards are four across a 6xl grid and
-                              there is not room beside the chip. */}
+                          {/* Its own line, under the title, rather than crowded into
+                              the header row: there is not room beside the chip. */}
                           {isComingSoon(item) && <ComingSoonBadge className="mt-2" />}
+                          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                            {item.blurb}
+                          </p>
+                        </div>
+                      </Reveal>
+                    ))}
+
+                    {/* ── THE PROMISED ONES ─────────────────────────────────────
+                        Same grid, same order of reading, and deliberately NOT the same
+                        object. Dashed rather than bordered, the page's ground rather
+                        than the card surface, no shadow and no hover lift — so the
+                        difference between "you can open this" and "this is what the
+                        plan is going to be" is legible at a glance and from across the
+                        room, before anybody has read a badge.
+
+                        THE BADGE IS STILL THERE, because the visual difference is a
+                        convention a first-time reader has not learned yet and because
+                        it is the half a screen reader gets. Both, or neither is enough.
+
+                        The chip keeps the tier's hue at reduced opacity: it belongs to
+                        this band and is not yet a thing, which is exactly what a
+                        washed-out version of the band's own colour says.
+
+                        `isComingSoon` is NOT consulted here and must not be. That
+                        function asks the registry, and these have no registry entry —
+                        the badge is unconditional because the table is, by definition,
+                        the things that have not shipped. The day one does, it moves to
+                        `ALSO` with a route and the derivation takes over again. */}
+                    {soon.map((item, i) => (
+                      <Reveal
+                        key={item.title}
+                        delay={((items.length + i) % 3) * 110}
+                        className="h-full"
+                      >
+                        <div className="flex h-full flex-col rounded-2xl border border-dashed bg-brand-soft/30 p-5">
+                          <div
+                            className={cn(
+                              'mb-3 inline-flex w-fit rounded-lg p-2 opacity-60',
+                              accent.chip,
+                            )}
+                          >
+                            <item.icon className="h-5 w-5" aria-hidden="true" />
+                          </div>
+                          <h4 className="text-base font-semibold">{item.title}</h4>
+                          <ComingSoonBadge className="mt-2" />
                           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                             {item.blurb}
                           </p>

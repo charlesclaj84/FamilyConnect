@@ -18,15 +18,21 @@ are at the bottom.
 
 | | |
 |---|---|
-| `FEATURES[]` entries | **43** |
-| `status: 'live'` | **42** |
+| `FEATURES[]` entries | **44** |
+| `status: 'live'` | **43** |
 | `status: 'future'` | **1** — `/admin`, the fail-closed catch-all, which is not a page |
-| **Marketing claims with no code** | **7** — one on Plus, six on Premium |
+| **Marketing claims with no code** | **6** — one on Plus, five on Premium |
 | Live features named on no marketing surface | **0**, and gated: `npm run marketing:check` |
+
+**Premium is no longer an empty tier.** `/community/distributions` shipped on 2026-08-22 and is
+the first `tier: 'premium'` route in the registry — `lib/features.ts` said "NOTHING IS PREMIUM"
+until then. That closes one of the six Premium bullets and changes nothing about the other five,
+which is the distinction to keep hold of: a family put on Premium today gains one screen over
+Plus.
 
 **The registry is effectively fully shipped.** For most of this file's life the interesting
 question was *which built thing is still gated*; there is one entry left and it is a catch-all.
-So the gap has inverted. What is left is (a) seven claims nobody has built, (b) obligations that
+So the gap has inverted. What is left is (a) six claims nobody has built, (b) obligations that
 did not travel with the flips, and (c) two hand-written marketing surfaces no script can check.
 
 **`/admin` stays `'future'` and is not a gap.** It is what an unregistered `admin/…` key
@@ -35,12 +41,26 @@ than tidy anything.
 
 ---
 
-## 1. The seven claims with no code
+## 1. The six claims with no code
 
 **No route means no gate.** `proxy.ts` can only rewrite a path that is registered, so none of
 these ever shows a Coming Soon screen — a visitor reads the bullet and there is nothing anywhere
-that says "not yet". That is why these seven are the most exposed items in the product, and why
+that says "not yet". That is why these six are the most exposed items in the product, and why
 this section is first.
+
+**This said seven until 2026-08-22**, when email distributions was built. What is worth carrying
+forward from that one is the thing that made it the cheapest of the seven to close and the
+thing that made it expensive:
+
+* **Cheap:** the audience was already computable. A distribution's whole value is that its
+  recipients are the membership rather than a list, and `people` plus the chapter→region walk
+  already answered that. The feature is mostly the honest reporting around it.
+* **Expensive:** `sendEmail` takes ONE recipient per call and there is no cron, worker or queue
+  anywhere in this product. So the fan-out had to become a resumable queue in the database
+  (`distribution_recipients`), driven a batch at a time. **Every remaining Premium bullet except
+  the apps hits that same wall** — reminders need a scheduler, push needs a delivery channel —
+  so the next one of these to be built should read `app/actions/distributions.ts` first rather
+  than rediscovering that this product has nowhere to run background work.
 
 | Claim | Tier | Where it is sold | What it actually needs |
 |---|---|---|---|
@@ -48,19 +68,36 @@ this section is first.
 | **Automatic dues reminders** | Premium | `PLANS[]`, `PLAN_ADDS` | The hard half is built. A scheduler and a sender. |
 | **Push notifications, web and mobile** | Premium | same | No code. Two design questions below. |
 | **Apps for iPhone and Android** | Premium | same | The largest single item in the product; it leaves the web app entirely. |
-| **Email distributions from membership** | Premium | same | `lib/email/` sends one recipient at a time. Read its open-relay rule first. |
 | **The public family website that builds itself** | Premium | same | Three decisions before a line of code. |
 | **A per-family public address** | Premium | same | Wildcard subdomain and certificate provisioning for `yourfamily.genorra.com`. |
 
-### Reminders is the cheapest of the six, and its hard half is done
+### Reminders is the cheapest of the five, and BOTH its halves are now done elsewhere
 
 `/reporting/dues-projections` already computes, per approved person, what is owed and whether
 they are Active, Invited or Pending Invite. `duesPlanMath` in `lib/dues-utils.ts` computes what
 the NEXT installment has to be, arrears included, as a pure function taking `today` as a
 parameter and unit-tested under `npm test`. So *what to remind whom about* is built and checked.
-What is missing is a scheduler and a sender — and **the sender has to read `lib/email/`'s rule
-first**: never export a sender from a `'use server'` file, because everything exported from one
-gets a URL, and a `sendEmail` export is an open relay carrying our SPF and DKIM.
+
+**And since 2026-08-22 so is the sending.** `app/actions/distributions.ts` is a working
+per-recipient mail fan-out with resumable state, honest per-address delivery reporting, a
+provider-rate-limit pacing argument and a claim-under-lock so two callers cannot double-send.
+A reminder is a distribution whose audience is "everybody with an installment due" and whose
+body is generated rather than typed — so what is left is genuinely just **the scheduler**, plus
+one decision that feature will not answer for you:
+
+* **A reminder must not re-send.** A distribution is a one-off somebody pressed a button for;
+  a reminder fires on a date and must not fire twice for the same installment. That is a
+  uniqueness key on (person, schedule, period) and it belongs in the schema, not in the job.
+
+**The sender still has to read `lib/email/`'s rule first**: never export a sender from a
+`'use server'` file, because everything exported from one gets a URL, and a `sendEmail` export
+is an open relay carrying our SPF and DKIM.
+
+**The scheduler is the thing this product still does not have, and it is now the binding
+constraint on three of the five.** There is no cron, no worker, no queue and no `vercel.json`.
+Distributions worked around it by making the client drive a resumable queue, which is fine for
+something a person initiates and useless for something that has to happen on the 1st of the
+month with nobody watching.
 
 ### Push has two questions that are not engineering
 
@@ -135,36 +172,62 @@ A flip is not the whole job, and what it leaves behind is invisible: nothing fai
 warns, and the obligation quietly changes from "before launch" to "on running code". With 42 of
 43 routes live, that is what this section is.
 
-### Bylaws has no fixture and no RLS case, and the whole table is uncovered
+### Bylaws has a fixture and eight cases — CLOSED 2026-08-22
 
-`bylaws` shipped on 2026-08-22 and `tests/rls/seed.mjs` plants no row in it — the table is not
-in the fixture's reset list either, so a row seeded later would accumulate across runs. `grep
-bylaw tests/rls/cases.mjs` returns nothing. Five actions (`getBylaws`, `getBylawRights`,
-`addBylaw`, `deleteBylaw`, `getBylawDownloadUrl`) rely entirely on reading the policy rather
-than running it, which is exactly what §7 says is not the same thing.
+`bylaws` shipped on 2026-08-22 with no row in `tests/rls/seed.mjs`, no entry in the fixture's
+reset list, and `grep bylaw tests/rls/cases.mjs` returning nothing: five actions resting on a
+reading of the policy rather than a run of it. `BYLAW_CASES` and `BYLAW_RAW_CASES` in
+`cases.mjs` are what closed it — two fixture rows (one with a real object in the private
+`documents` bucket, one spare for the delete control), eight action-shaped cases, two raw
+probes, and the reset-list line without which a seeded row would have accumulated across runs.
 
-It is worth doing as one piece of work rather than per action, because the cost is the fixture:
-one row per family, its entry in the reset list in the right cascade order, and then the cases
-are cheap. `documents.getDocumentDownloadUrl` in `STORAGE_CASES` is the nearest shape to copy
-— including its `setup: seedObject(...)`, without which `createSignedUrl` has nothing to sign
-and the positive control passes vacuously.
+**What the mutation check found is worth more than the cases**, and it is a general finding
+rather than one about this table. With `auth_membership_approved()` deleted from
+`perm:bylaws:select`, `bylaws.getBylaws (pending member)` STAYED GREEN — because `getBylaws`
+opens with `requireMember()`, which refuses an applicant and returns `[]` before a query is
+ever sent. **A guard hides a policy exactly as a hand-written filter does.** So every applicant
+case in the suite whose action opens with `requireMember()` is evidence for the guard and not
+for the conjunct, and `tests/rls/raw/bylaws.mjs` is what reaches the conjunct. That is the same
+lesson `raw/journals.mjs` learned through a `.in()` narrowing on the same day, arriving through
+a different mechanism.
 
-### 163 server actions have no RLS case
+### 48 server actions have no RLS case — and there is a gate now
 
-253 functions are exported from `app/actions/`; `tests/rls/cases.mjs` names 90 of them. Read
-that as the real backlog rather than a target — §7's suite is what tests family isolation,
-because the policies are *composed* at migration time out of `pg_policies`, so what protects a
-table is a string that existed in no file anyone reviewed.
+`npm run audit:rls-cases` (`scripts/rls-coverage.mjs`), a step in `verify.yml`. It enumerates
+every exported action, cross-references `tests/rls/cases.mjs`, and fails until each uncovered
+one carries a stated verdict — the same shape and the same promise as `audit:people` and
+`audit:family-scope`: **it checks that a verdict EXISTS, never that it is true.**
 
-Two things about the shape of it, both of which change what a case is worth writing:
+**This section said 167 and the real figure was 57.** The hand count matched `fn:` and missed
+the `read(id, mod, fn)` helper form that most of the suite is written in, which is the whole
+argument for the gate in one line: a backlog nobody can count is a backlog nobody can shrink.
+Today it is 262 actions, 205 with a case, 57 with a verdict — 48 `BACKLOG`, 3 `RIGHTS-ONLY`
+(the whole return value is booleans about the caller's own grants), 6 `STAFF`.
 
-* **A write narrowed by hand hides its own policy.** Where an action states a filter that
-  duplicates a conjunct of the policy underneath it, no action-shaped case can test that
-  conjunct — measured twice, both times with the conjunct deleted and the suite still green.
-  Those belong in `tests/rls/raw/`.
-* **Every child table under a scoped parent owes a `raw/` SELECT probe.** A read filtered by ids
-  the parent returned is narrowed for free, so the child's own policy is never consulted:
-  `getJournalEntries` proved it, with 43 assertions staying green and the notes policy gutted.
+`BACKLOG_CEILING` is a ratchet. Lower it freely — that is what writing a case looks like from
+here — and raising it is a deliberate act needing a sentence, so a new action ships with a case
+or with somebody deciding in public that the debt should grow.
+
+**Where the backlog is worst, and why those two are worth doing first:**
+
+* **`chat.ts`, eight of twelve.** The only feature whose SELECT policy calls
+  `auth_uid_is_room_participant()`, a SECURITY DEFINER function with no other call site and
+  load-bearing for the realtime subscription as well as the query — and nothing exercises it.
+  `20260822000011` found hosted carrying a `chat_messages` INSERT policy MISSING that conjunct,
+  which is a cross-family write path into another family's conversation that no test in this
+  repo could have seen.
+* **`meetings.ts`, ten of seventeen.** Shipped 2026-08-22 with five guard triggers and a
+  `meeting_votes_are_final` trigger that refuses UPDATE for every role including
+  `service_role`. The migration's own verify block is the only thing that has ever probed any
+  of it, and that is a point-in-time assertion.
+
+Two things about the SHAPE of what is left, both of which change what a case is worth writing:
+
+* **A write narrowed by hand hides its own policy** — measured three times now, twice with a
+  filter and once with a guard (see the bylaws entry above). Those belong in `tests/rls/raw/`.
+* **Every child table under a scoped parent owes a `raw/` SELECT probe.** A read filtered by
+  ids the parent returned is narrowed for free, so the child's own policy is never consulted.
+
 
 ### Storage: reads are still open, and nothing resizes
 
@@ -204,7 +267,7 @@ Three surfaces make claims, and they fail in different ways.
 |---|---|
 | Landing `FeatureShowcase` — 3 pillar cards | Coming Soon pill, per card |
 | `/features` — 3 pillars + 28 cards | Coming Soon pill AND tier tag, per card. No hand-set escape hatch left |
-| `/pricing` — `PLANS[]` | **Nothing.** Every bullet is prose typed by hand |
+| `/pricing` — `PLANS[]` | **Nothing from the registry.** Every bullet is prose typed by hand — but each carries a `claim` id, and `marketing:check` holds the two plan lists to the same set of claims |
 
 ### The catalogue is gated now: `npm run marketing:check`, a step in `verify.yml`
 
@@ -222,11 +285,15 @@ the hand-typed tier tag that grid's own header already warned about.**
 
 **What it cannot assert**, and the first is why §1 and §2 exist at all:
 
-* **The pricing cards.** A pricing bullet is prose about a BENEFIT: one bullet spans several
-  routes, several routes are sold in no bullet at all, and the words a buyer needs are not the
-  words a member needs. That is why `lib/plans.ts` refuses to derive itself from `PLANS[]`, and
-  why neither may be derived from the registry. Those stay a judgement, and this file is where
-  their gaps live.
+* **Whether the pricing cards sell the right things.** A pricing bullet is prose about a
+  BENEFIT: one bullet spans several routes, several routes are sold in no bullet at all, and the
+  words a buyer needs are not the words a member needs. That is why `lib/plans.ts` refuses to
+  derive itself from `PLANS[]`, and why neither may be derived from the registry. Those stay a
+  judgement, and this file is where their gaps live.
+
+  **It does now check ONE mechanical thing inside them** (added 2026-08-22): that `PLANS[]` and
+  `PLAN_ADDS` agree about which claims each tier carries, compared by `claim` id and never by a
+  word of copy. See the entry below for what that closes and what it deliberately does not.
 * **That the prose is true**, or that a card describes the screen it names. Nothing can.
 * **That a pillar's bullets sit at the pillar's tier.** All three pillars span tiers by
   construction — a pillar is the job a family is trying to do, not a row in a price list — so
@@ -235,43 +302,55 @@ the hand-typed tier tag that grid's own header already warned about.**
   naming what each tier covered, which went stale twice; the tier BANDS are that answer now,
   derived, and the sentence is a pointer to them naming no tier and no figure.
 
-### `PLANS[]` and `PLAN_ADDS` are two hand-written lists, and they have drifted twice
+### `PLANS[]` and `PLAN_ADDS` are two hand-written lists, and they no longer drift silently
 
 `PLANS[]` on `/pricing` is what a BUYER reads; `PLAN_ADDS` in `lib/plans.ts` is what a MEMBER
 reads on `/admin/settings` and `/upgrade`. Neither may be derived from the other — that argument
-is sound and is stated in both files — and the cost is real and has been paid twice: a Premium
+is sound and is stated in both files — and the cost was real and had been paid twice: a Premium
 bullet went missing in-product, so a family on Premium was never told inside the product that the
 address comes with the website; and a false detail ("the family's size over time", which nothing
 in this product records) survived on both after `/features` had corrected it.
 
-**So an edit to either belongs in the same commit as the edit to the other.** There is no gate and
-there cannot be one. Four things to redo after any edit to `PLANS[]`:
+**This section said "there is no gate and there cannot be one". There is one now, and the reason
+that sentence was wrong is worth keeping.** It conflated two different claims: that the two lists
+must not be derived from each other (true, and unchanged) with the idea that nothing about them
+could be compared at all (false). What could never be checked is the WORDS — the buyer's phrasing
+and the member's phrasing are different on purpose. What can be checked is WHICH THINGS ARE SOLD,
+and that is exactly what drifted both times.
+
+Every bullet in both lists now carries a `claim` id — `<tier>/<slug>`, never rendered — and
+`npm run marketing:check` asserts the SETS match per tier, that no card says one thing twice, and
+that a claim's prefix names the card it sits on (so a bullet re-priced in one file only is a
+finding rather than two clean-looking set differences). The field is required rather than
+optional, so `npm run typecheck` refuses a new bullet that declares none: an optional field would
+be omitted by exactly the edit this exists to catch.
+
+**What is still a judgement, and still belongs in this file:** whether a claim should exist at
+all, whether it is true, and which tier it belongs in. Three things to redo after any edit to
+`PLANS[]`:
 
 1. The severity of every claim that moved. Severity here is keyed to the tier a claim is sold in,
    so `PLANS[]` is an input to this file on the same footing as the registry.
 2. §1 in both directions: not only "does this claim have code?" but "does this code have a claim,
    and is it in the right tier?"
-3. The `PLANS[]` ↔ `PLAN_ADDS` diff.
-4. Whether a ROUTE has to move with the bullet. `grep "tier: '" lib/features.ts` is the whole job.
+3. Whether a ROUTE has to move with the bullet. `grep "tier: '" lib/features.ts` is the whole job.
 
-### A RETIRED route is invisible to every derived badge
+The fourth item was "the `PLANS[]` ↔ `PLAN_ADDS` diff", by hand. The gate does that one.
 
-The one registry movement nothing can see. A flip corrects both marketing surfaces
-automatically; a **deletion** corrects neither — `proxy.ts` cannot gate what is not there,
-`isFeatureFuture()` answers `false` because `getFeature()` finds nothing, and the pill simply
-comes off. `/direct-lineage` was deleted and went on being sold by name in six places on two
-files for six days. `/admin/announcements` was retired the same day and cost nothing only
-because no surface had ever named it: luck, not process.
+### A retired route used to owe a copy sweep — DELETED 2026-08-22, and not by being solved
 
-**So a retired route owes a copy sweep in the same commit:**
+A section here said that a deleted route is invisible to every derived badge (`proxy.ts` cannot
+gate what is not there, `isFeatureFuture()` answers `false` because `getFeature()` finds nothing,
+and the Coming Soon pill simply comes off), and that a retirement therefore owed a `grep` of the
+marketing prose in the same commit. It was true, and it is gone because **nothing is expected to
+be retired again** — the retirements it was written for (`/direct-lineage`, Events, the Review
+section) were a phase of getting the route tree right, and that phase is over.
 
-```bash
-grep -rni "<the retired route, and the WORDS it was sold in>" \
-  "app/(marketing)" components/marketing lib/plans.ts app/page.tsx
-```
-
-`marketing:check` catches the other half — a card still pointing at the dead route — but it
-cannot see prose.
+Recorded rather than silently dropped so nobody reinstates the obligation from the git history
+without first asking whether a route is actually being retired. If one ever is, the sweep is
+`grep -rni "<the route, and the WORDS it was sold in>" "app/(marketing)" components/marketing
+lib/plans.ts app/page.tsx`, and `marketing:check` catches the other half — a card still pointing
+at the dead route — but it cannot see prose.
 
 ---
 
@@ -467,29 +546,32 @@ quote.
 **Re-derive, do not quote.** Every figure above came from these:
 
 ```bash
-grep -c "status: 'live',"   lib/features.ts          # 42
+grep -c "status: 'live',"   lib/features.ts          # 43
 grep -c "status: 'future'," lib/features.ts          # 1
-grep -c "^    href: '"      lib/features.ts          # 43
+grep -c "^    href: '"      lib/features.ts          # 44
 
 npm run marketing:check                              # every live feature is sold somewhere
 
-# exported server actions, and how many tests/rls names
-LC_ALL=C grep -rhoE "^export (async )?function [A-Za-z0-9_]+" app/actions/ | wc -l   # 253
-LC_ALL=C grep -oE "id: '[^']+'" tests/rls/cases.mjs \
-  | sed "s/id: '//;s/'\$//" | sed 's/ (.*//' | grep -v '^raw:' | sort -u | wc -l     # 90
+# exported server actions, and how many have an RLS case. DO NOT HAND-COUNT THIS: the pair of
+# greps that used to live here reported 95 covered against a real 205, because it matched case
+# IDs rather than the (module, function) pairs a case actually names — and §3 then carried a
+# backlog of 167 against a real 57 for as long as anybody read it.
+npm run audit:rls-cases            # 262 actions, 205 with a case, 57 with a stated verdict
 
 grep -rn "no-img-element" components/ | wc -l                   # the resize decision
-grep -c "bylaw" tests/rls/cases.mjs                             # 0 — see §3
 ```
 
 **When a feature ships:** flip its `status`, and let the derived surfaces correct themselves.
-Then check the two things no mechanism can: whether a `PLANS[]` bullet needs writing, and whether
-`marketing:check` wants a card or an allowance. It will tell you which.
+Then run `marketing:check`, which will tell you whether it wants a card or an allowance, and
+decide the one thing no mechanism can: whether a `PLANS[]` bullet needs writing. If one does,
+`PLAN_ADDS` needs its counterpart in the same commit and the check enforces that half.
 
-**When a route is RETIRED,** sweep the copy in the same commit — §4 has the grep and the reason.
+**When an action is added,** it owes a case in `tests/rls/cases.mjs` — AGENTS.md §7, and
+`audit:rls-cases` is what refuses a commit that skips it. Adding a `BACKLOG` verdict instead
+breaches the ceiling, deliberately.
 
-**When a bullet moves between tiers,** this file changes and no code does. §4 has the four things
-to redo.
+**When a bullet moves between tiers,** this file changes and its `claim` prefix does. §4 has the
+three things to redo; the fourth used to be the hand diff and is a gate now.
 
 **Delete a gap when it closes.** Do not strike it through, do not leave it as an epitaph, and do
 not add a revision log. The one thing worth keeping from a closed gap is a *mechanism* that will

@@ -32,7 +32,8 @@ import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
  *
  *  * the feature list is the landing page's own value cards,
  *  * the free offer is its closing "Create your free account" button,
- *  * `sameAs` is omitted entirely rather than guessed at, and
+ *  * `sameAs` names only the profiles the footer itself links, never a guessed
+ *    handle, and is omitted entirely while there are none, and
  *  * there is NO `aggregateRating`. A rating is the field that makes a software
  *    result look like a rich one, and it is therefore the field most often
  *    invented. There are no reviews, so there is no rating; when there are real

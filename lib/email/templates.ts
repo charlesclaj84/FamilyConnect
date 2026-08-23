@@ -1,10 +1,15 @@
 /**
- * The three emails the APPLICATION sends, as opposed to the five GoTrue sends.
+ * The four emails the APPLICATION sends, as opposed to the five GoTrue sends.
  *
- * All three carry data GoTrue has never heard of — which family, who invited you, which
- * family somebody is about to switch off — which is the whole reason they cannot be
- * templates in `supabase/templates/`. Chrome and voice come from ./layout.ts; the
- * reasoning behind both is in supabase/templates/README.md.
+ * All four carry data GoTrue has never heard of — which family, who invited you, which
+ * family somebody is about to switch off, what a relative typed into a distribution — which
+ * is the whole reason they cannot be templates in `supabase/templates/`. Chrome and voice
+ * come from ./layout.ts; the reasoning behind both is in supabase/templates/README.md.
+ *
+ * THE FOURTH IS UNLIKE THE OTHER THREE and the difference is worth knowing before editing
+ * anything here: `distributionEmail` is the only one whose CONTENT a member wrote. The other
+ * three compose their own prose and interpolate a name or a token into it, so escaping there
+ * is hygiene; in that one it is the security boundary. Its own header says so at length.
  *
  * A plain module, deliberately: see the header of ./send.ts.
  */
@@ -185,6 +190,80 @@ export function familyRemovalCodeEmail(o: {
         'If you did not ask for this, do nothing — the code expires on its own and the '
         + 'family stays exactly as it is. Then change your password, because somebody '
         + 'else is signed in as you.',
+    }),
+  }
+}
+
+/**
+ * One email distribution, to one relative.
+ *
+ * ── THE ONLY MESSAGE IN THIS MODULE WHOSE BODY A MEMBER WROTE ──────────────────────
+ * Every other template here composes its own prose and interpolates a family name or a
+ * token into it. This one's content arrives from a textarea, and is then rendered inside
+ * somebody else's mail client — so `esc()` on `subject` and on every paragraph is not
+ * defence in depth, it is the boundary. `bodyParagraphs()` deliberately returns PLAIN text
+ * for exactly that reason: it cannot escape, because `lib/distribution-audience.ts` is a
+ * pure module and importing the email layer to be correct would defeat the point of it.
+ * The escaping is here, one line from the split, and it must stay visible.
+ *
+ * THE SUBJECT IS NOT ESCAPED, and that is right rather than an oversight: `subject` is a
+ * mail header, not HTML, and `&amp;` in a subject line renders as those five characters in
+ * every inbox in the world. The preheader and the heading ARE escaped, because both are
+ * markup.
+ *
+ * ── NO BUTTON, AND NO LINK TO THE DISTRIBUTION ─────────────────────────────────────
+ * The message IS the content. Every other template ends in a call to action because it is
+ * asking somebody to come and do something; this one has already done it. A "read it on
+ * GENORRA" button would also be a lie for most recipients — `community/distributions` is
+ * restricted by default, so the great majority of the family cannot open the screen this
+ * came from. The one link is to the dashboard, in the footnote, for somebody who wants to
+ * see the family rather than the message.
+ *
+ * ── THE FOOTNOTE SAYS WHY THEY GOT IT, AND WHAT IT DOES NOT SAY IS DELIBERATE ──────
+ * It names the family and the sender, because "why am I receiving this" has a real answer
+ * here and it is not a marketing one: they are a member of that family and a relative sent
+ * it. There is NO unsubscribe link, and inventing one would be inventing a feature — a
+ * public endpoint, a token, a preference column, and a rule for what happens when the
+ * family's treasurer opts out of dues mail. What the copy does instead is tell them who to
+ * reply to, which the `reply_to` header makes real: a reply reaches the relative who wrote
+ * it rather than a mailbox that cannot help them. FutureFeature.md carries the preference
+ * decision; the copy here must not imply one exists.
+ */
+export function distributionEmail(o: {
+  origin: string
+  familyName: string
+  subject: string
+  /** The authored message, already split by `bodyParagraphs()`. Escaped here. */
+  paragraphs: readonly string[]
+  /** Display name of whoever sent it. Omitted rather than faked when unknown. */
+  senderName?: string | null
+}): ComposedEmail {
+  const family = esc(o.familyName)
+  const sender = o.senderName?.trim() ? esc(o.senderName.trim()) : null
+
+  return {
+    // The member's own words, verbatim. A prefix like "[Family name]" was considered and
+    // dropped: it eats the part of the subject an inbox actually shows on a phone, and the
+    // From name already says who this is from.
+    subject: o.subject,
+    tag: 'distribution',
+    html: renderEmailFrom(o.origin, {
+      // NOT the first paragraph. A preheader that repeats the opening line wastes the one
+      // extra sentence an inbox will show — the rule stated on `EmailOptions.preheader`.
+      preheader: sender
+        ? `From ${sender}, to everyone in ${family}.`
+        : `A message to everyone in ${family}.`,
+      heading: esc(o.subject),
+      // ESCAPED, ONE BY ONE. See the header. An empty body cannot reach here — the action
+      // refuses it and `bodyParagraphs` returns `[]` for whitespace — but a fallback line is
+      // cheaper than an email with chrome and no content in it.
+      paragraphs: o.paragraphs.length > 0
+        ? o.paragraphs.map(esc)
+        : ['(No message was included.)'],
+      footnote: sender
+        ? `${sender} sent this to everyone in ${family} on ${esc(APP_NAME)}. Reply to this `
+          + 'email to answer them directly.'
+        : `This was sent to everyone in ${family} on ${esc(APP_NAME)}.`,
     }),
   }
 }

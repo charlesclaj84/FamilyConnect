@@ -134,19 +134,34 @@ export interface BrandSocialProfile {
  * show. Both are cured by there being nowhere for a second copy to live, which is the
  * same argument `APP_PUBLISHER` is written to.
  *
- * ── EVERY `href` IS NULL TODAY, DELIBERATELY ─────────────────────────────────
- * The accounts are being created; the URLs are not known yet. This is the one field
- * here that cannot be written by reasoning about the codebase — a URL that is not a
- * real, live, brand-owned profile is a false claim, and an unverifiable one is worse
- * than none. So the glyphs land now as non-clickable marks and the entity graph stays
- * silent, which is honest in both directions.
+ * ── FACEBOOK AND INSTAGRAM ARE LIVE; X IS NOT ────────────────────────────────
+ * This said EVERY `href` IS NULL until 2026-08-22, when the Facebook page was created
+ * and its URL supplied; Instagram followed the same day. X does not exist yet, and
+ * `null` stays the honest answer for it: this is the one field here that cannot be
+ * written by reasoning about the codebase — a URL that is not a real, live, brand-owned
+ * profile is a false claim, and an unverifiable one is worse than none. Do not guess
+ * `x.com/genorra`.
+ *
+ * **THE ROW IS THE LIVE-ONLY SHAPE, WHICH IS A VISIBLE CHANGE BEYOND THE LINKS.**
+ * `SocialProfiles` renders all-inert or live-only and never a mixture (its own header
+ * argues why), so filling these `href`s in ALSO drops the X glyph from the footer and
+ * removes the "Profiles coming soon." line. That is the design working rather than a
+ * regression — the glyph comes back by getting a URL of its own.
  *
  * **Turning one on is this one edit.** Fill in the `href` and the footer renders a real
  * link, the structured data starts claiming it, and nothing else changes.
+ *
+ * NEITHER LIVE URL IS THE HANDLE A GUESS WOULD HAVE PRODUCED, which is the argument
+ * above demonstrated rather than restated: Facebook is `profile.php?id=…`, because that
+ * is the page's actual address until somebody claims a username for it, and Instagram
+ * is `joingenorra` rather than `genorra`, because that is the handle the account holds.
+ * Both are kept exactly as the platform gives them. Swapping either for a tidier one
+ * later is this one line again; tidying one now would be a link into somebody else's
+ * namespace.
  */
 export const BRAND_SOCIAL: readonly BrandSocialProfile[] = [
-  { id: 'facebook',  label: 'Facebook',  href: null },
-  { id: 'instagram', label: 'Instagram', href: null },
+  { id: 'facebook',  label: 'Facebook',  href: 'https://www.facebook.com/profile.php?id=61593367183791' },
+  { id: 'instagram', label: 'Instagram', href: 'https://www.instagram.com/joingenorra/' },
   { id: 'x',         label: 'X',         href: null },
 ]
 

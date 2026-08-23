@@ -69,7 +69,7 @@ const ROOT = join(HERE, '..')
 const SCAN = ['app', 'lib']
 
 /**
- * Every `public` table with a `family_code` column, as of 2026-08-20.
+ * Every `public` table with a `family_code` column, as of 2026-08-22.
  *
  * HAND-MAINTAINED, AND THAT IS THE WEAK POINT — stated rather than hidden. A new
  * family-scoped table nobody adds here is invisible to this sweep, which is the same class of
@@ -79,19 +79,34 @@ const SCAN = ['app', 'lib']
  *     SELECT table_name FROM information_schema.columns
  *      WHERE table_schema='public' AND column_name='family_code' ORDER BY 1;
  *
+ * ── THE WEAK POINT WAS MEASURED ON 2026-08-22, AND IT HAD COST TEN TABLES ──────────
+ * That is the whole argument for running the query rather than appending to the list. Between
+ * 2026-08-20 and 2026-08-22 the product gained Meeting Minutes (five tables), Officer Notes
+ * (two), Bylaws (one) and Distributions (two), and NOT ONE of them was here — so this sweep
+ * reported "Clean" about three whole features it could not see. A green run over an
+ * incomplete list is exactly the "green suite is not evidence" failure AGENTS.md §7 is about,
+ * arriving through a hand-maintained constant instead of through a test.
+ *
+ * So: after any migration that adds a table with a `family_code`, run the query. Do not add
+ * the one table you were thinking about — the reason this list goes stale is that everybody
+ * adds their own and nobody checks the others.
+ *
  * `families` is deliberately ABSENT. Its `family_code` IS the primary key rather than a scope,
  * so every read of it filters by id and would report as a finding for doing the one thing that
  * table cannot get wrong.
  */
 const SCOPED_TABLES = new Set([
-  'announcement_unpins', 'announcements', 'chapters', 'chat_rooms', 'documents',
-  'donation_beneficiaries', 'dues_member_plans', 'dues_payments', 'dues_schedules',
-  'elections', 'family_invitations', 'family_removal_challenges', 'family_roles',
-  'fund_allocations', 'fund_contributions', 'fund_disbursements', 'fund_milestones',
-  'fund_transfers', 'funds', 'gathering_task_submissions', 'gathering_tasks',
-  'gathering_template_steps', 'gathering_template_uses', 'gathering_templates',
-  'gatherings', 'notifications', 'people', 'permission_templates', 'person_relationships',
-  'photo_collections', 'photos', 'regions', 'resource_visibility', 'user_roles',
+  'announcement_unpins', 'announcements', 'bylaws', 'chapters', 'chat_rooms',
+  'distribution_recipients', 'distributions', 'documents', 'donation_beneficiaries',
+  'dues_member_plans', 'dues_payments', 'dues_schedules', 'elections',
+  'family_invitations', 'family_removal_challenges', 'family_roles', 'fund_allocations',
+  'fund_contributions', 'fund_disbursements', 'fund_milestones', 'fund_transfers',
+  'funds', 'gathering_task_submissions', 'gathering_tasks', 'gathering_template_steps',
+  'gathering_template_uses', 'gathering_templates', 'gatherings', 'meeting_attendees',
+  'meeting_sessions', 'meeting_topic_notes', 'meeting_topics', 'meeting_votes',
+  'notifications', 'people', 'permission_templates', 'person_relationships',
+  'photo_collections', 'photos', 'position_journal_entries', 'position_journal_notes',
+  'regions', 'resource_visibility', 'user_roles',
 ])
 
 /**

@@ -15,6 +15,7 @@
     "db:audit": "npx supabase db query -f supabase/scripts/audit_policy_shadowing.sql",
     "audit:people": "node scripts/people-writes.mjs",
     "audit:family-scope": "node scripts/family-scope.mjs",
+    "audit:rls-cases": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/rls-coverage.mjs",
     "sitemap:check": "node scripts/sitemap-freshness.mjs",
     "help:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/help-check.mjs",
     "marketing:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/marketing-coverage.mjs",

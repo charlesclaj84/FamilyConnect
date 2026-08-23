@@ -1,18 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, HeartHandshake, Sparkles, Zap, Crown } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Check, HeartHandshake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { Testimonials } from '@/components/marketing/Testimonials'
-import { PageHero, SectionHeading, CtaBand, ComingSoonBadge, MoreLink } from '@/components/marketing/sections'
+import { PlanLadder, type MarketingPlan } from '@/components/marketing/PlanLadder'
+import { FamilySizeSlider, type SizedPlan } from '@/components/marketing/FamilySizeSlider'
+import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/marketing/sections'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { TIER_PRICE, formatPlanPrice, type TierPrice } from '@/lib/plans'
 import { TIERS, TIER_LABEL } from '@/lib/tiers'
 import { APP_NAME } from '@/lib/brand'
-import { cn } from '@/lib/utils'
 
 const PAGE_TITLE = 'Pricing — Free to Start, No Card Required'
 const PAGE_DESCRIPTION =
@@ -63,7 +63,35 @@ export const metadata: Metadata = {
 const PRICING_IS_ANNOUNCED = true
 
 /**
+ * ── THE SHAPE LIVES WITH THE COMPONENT THAT RENDERS IT ──────────────────────
+ *
+ * `MarketingPlan` and its per-field reasoning moved to
+ * `components/marketing/PlanLadder.tsx` on 2026-08-22, when the paid tiers stopped
+ * being three boxes in this file and became a component. TWO FIELDS CHANGED SHAPE
+ * IN THE MOVE and both are worth knowing before editing the table below:
+ *
+ *  * `icon` is a KEY (`'check' | 'sparkles' | 'zap' | 'crown'`) rather than a Lucide
+ *    component. The ladder is a client component and this file is a server one; a
+ *    function cannot cross that boundary.
+ *  * `accent` is NEW, and names which rung of the brand ramp the tier owns —
+ *    Growth, Heritage, Warmth, Legacy, climbing. It is a key rather than a class
+ *    name so the colour decision stays in one file with the rest of the ramp and
+ *    cannot be typed into the copy by hand.
+ *
+ * WHAT DID NOT MOVE, and must not: the table itself. `PLANS[]` is the COPY, and the
+ * copy belongs on the page it sells.
+ */
+type Plan = MarketingPlan
+
+/**
  * ── THE PLAN TABLE — THIS IS WHAT YOU EDIT ──────────────────────────────────
+ *
+ * EVERY BULLET CARRIES A `claim` ID — `<tier>/<slug>`, never rendered. It is what holds this
+ * table and `PLAN_ADDS` in `lib/plans.ts` (the member-facing list, on `/admin/settings` and
+ * `/upgrade`) to the same SET of claims while leaving the two separately WORDED, which is the
+ * distinction that made a gate possible after both files had said one was not. Adding a bullet
+ * here means adding its counterpart there in the same commit; `npm run marketing:check` is what
+ * refuses to let you forget. `PlanFeature.claim` in `PlanLadder.tsx` carries the full argument.
  *
  * THE PRODUCT NOW ENFORCES THESE, which it did not until 2026-08-13, and the two halves
  * are deliberately NOT derived from one another. `PLANS[]` below is prose about benefits;
@@ -110,47 +138,6 @@ const PRICING_IS_ANNOUNCED = true
  * email distributions and automatic dues reminders — so its tagline names both halves
  * rather than the website alone.
  */
-interface PlanFeature {
-  /** The benefit, in the fewest words that land it. This is what gets scanned. */
-  label: string
-  /** The proof, for the reader who slowed down. Optional. */
-  detail?: string
-}
-
-interface Plan {
-  name: string
-  tagline: string
-  /**
-   * The headline figure and its period.
-   *
-   * `null` while a price is not announced — which is still a supported state; see the note
-   * on `PRICING_IS_ANNOUNCED`. Free carries a hand-written `$0 / forever` rather than coming
-   * from `TIER_PRICE`, because Free has no price rather than a price of zero and `$0` is a
-   * marketing statement rather than an amount anybody is charged. It is also what `FREE_PLAN`
-   * below identifies Free BY, which is why that `period` string is load-bearing.
-   *
-   * THERE WAS AN `annual` FIELD HERE and it is gone with the annual rate itself (2026-08-19).
-   * One figure per plan now, month to month.
-   */
-  price: { amount: string; period: string } | null
-  /** Name of the tier this one contains, or null for the base tier. */
-  inheritsFrom: string | null
-  /** What THIS tier adds on top of the one it inherits. */
-  adds: readonly PlanFeature[]
-  available: boolean
-  /** The one tier the eye should land on. Exactly one should be true. */
-  featured: boolean
-  /**
-   * The bullet glyph, one per tier rather than one per state.
-   *
-   * Free and Plus both used to draw `Sparkles`, which made two different offers look like
-   * the same offer at a glance — and on a pricing page the glance is most of the decision.
-   * A tick for what you already have, `Sparkles` for the tier that turns a place to be into
-   * a family being run, a lift for the one that adds the organizational machinery, a crown
-   * for the one that reaches every relative and puts the family on the public internet.
-   */
-  icon: LucideIcon
-}
 
 /**
  * Every paid figure, derived from `TIER_PRICE` in `lib/plans.ts` — the one place the numbers
@@ -163,6 +150,14 @@ interface Plan {
  * number is typed beside the number.
  */
 function planPrice(tier: 'standard' | 'plus' | 'premium'): Plan['price'] {
+  // THE FLAG IS READ HERE NOW, and this is the only place it is read — it used to be
+  // tested at the render site, in a `priced` expression beside each card. Moving it
+  // into the derivation is what survived the ladder becoming a component: a client
+  // component takes DATA, so "this price is not announced" has to be a `null` in the
+  // data rather than a branch in the markup. Which is the better shape anyway — one
+  // test rather than one per surface, and `SIZED_PLANS` below inherits it for free
+  // instead of having to remember the flag exists.
+  if (!PRICING_IS_ANNOUNCED) return null
   const price = TIER_PRICE[tier]
   if (!price) return null
   return { amount: formatPlanPrice(price.monthlyCents), period: '/month' }
@@ -259,9 +254,11 @@ const PLANS: readonly Plan[] = [
     tagline: 'Get your whole family in one place. All of them.',
     price: { amount: '$0', period: 'forever' },
     inheritsFrom: null,
-    icon: Check,
+    icon: 'check',
+    accent: 'affirm',
     adds: [
       {
+        claim: 'free/every-relative-free',
         label: 'Every single relative, at no charge',
         detail: 'Unlimited members. No per-person fee, so nobody gets left out to keep a bill down.',
       },
@@ -271,18 +268,22 @@ const PLANS: readonly Plan[] = [
         // the DIRECTORY, and splitting them apart was the point — "never lose track of who is
         // who" was doing two jobs at once, and they are two different questions. Who is in this
         // family and how do I reach them is the directory; how are we related is the tree.
+        claim: 'free/directory',
         label: 'Everybody in one place, and reachable',
         detail: 'A directory you can search, with the contact details you actually need.',
       },
       {
+        claim: 'free/shared-calendar',
         label: 'Put the reunion on a shared calendar',
         detail: 'The date, the place and the details, on one page the whole family can see.',
       },
       {
+        claim: 'free/announcements',
         label: 'News that reaches the whole family',
         detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
       },
       {
+        claim: 'free/chat',
         label: 'Keep talking between gatherings',
         detail: 'Family-wide chat and private messages.',
       },
@@ -293,16 +294,19 @@ const PLANS: readonly Plan[] = [
       // benefit and corresponds to no route; see the note above `PLANS[]`), which is exactly
       // why the omission survived here after the catalogue was fixed.
       {
+        claim: 'free/one-account-many-families',
         label: 'One account, however many families',
         detail:
           'Married into a second family, or keeping both your parents’ sides? Switch between them without a second login — everything on screen changes at once.',
       },
       {
+        claim: 'free/nothing-scrolls-away',
         label: 'Nothing is lost when it scrolls away',
         detail:
           'Every announcement, and everything sent to you, searchable long after it left the dashboard.',
       },
       {
+        claim: 'free/manual',
         label: 'A manual your relatives will actually use',
         detail:
           'Every screen explained by name, with a question mark in the corner that opens the page for wherever they are standing.',
@@ -316,7 +320,8 @@ const PLANS: readonly Plan[] = [
     tagline: 'Run the family: the tree, the money and who is doing what.',
     price: STANDARD_PRICE,
     inheritsFrom: 'Free',
-    icon: Sparkles,
+    icon: 'sparkles',
+    accent: 'primary',
     // ── WHERE THIS TIER CAME FROM, 2026-08-19 ─────────────────────────────────────────
     // Carved out of Free rather than invented: the tree, the dues-and-donations ledger,
     // per-feature permissions and the planning half of Gatherings were all on the Free card,
@@ -330,26 +335,32 @@ const PLANS: readonly Plan[] = [
     // the duties are third because they are the part nobody knew they wanted.
     adds: [
       {
+        claim: 'standard/ledger',
         label: 'A real ledger for the money you collect',
         detail: 'Dues plans, a contribution ledger and funds — recorded instead of remembered. Cash on this plan.',
       },
       {
+        claim: 'standard/family-tree',
         label: 'The family tree, traced back',
         detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
       },
       {
+        claim: 'standard/duties',
         label: 'Everybody knows their duties',
         detail: 'A gathering built from a checklist, every step handed to a named relative, and a ruling on what comes back.',
       },
       {
+        claim: 'standard/gathering-budget',
         label: 'Plan what the gathering costs',
         detail: 'A budget drawn on one of your funds, and what each task has claimed against it.',
       },
       {
+        claim: 'standard/separation-of-duties',
         label: 'Separation of duties',
         detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
       },
       {
+        claim: 'standard/profile-pictures',
         label: 'A face against every name',
         detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
       },
@@ -367,7 +378,8 @@ const PLANS: readonly Plan[] = [
     tagline: 'For families collecting real payments and answering to a board.',
     price: PLUS_PRICE,
     inheritsFrom: 'Standard',
-    icon: Zap,
+    icon: 'zap',
+    accent: 'warm',
     // ── DETAILS DELIBERATELY SHORT ────────────────────────────────────────────
     // Eight items with two-line explanations each made this the tallest card by a wide
     // margin, and height is not persuasion — a reader skims a pricing card, they do not
@@ -375,6 +387,7 @@ const PLANS: readonly Plan[] = [
     // few words as will carry it. The full story lives on /features, which is the page for it.
     adds: [
       {
+        claim: 'plus/card-payments',
         label: 'Get paid the way your family actually pays',
         detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds and a full ledger behind them.',
       },
@@ -386,10 +399,12 @@ const PLANS: readonly Plan[] = [
       // note above `PLANS[]`: one bullet spans several routes and several routes are sold in
       // no bullet at all, so the two lists are kept in step by hand and neither is derived.
       {
+        claim: 'plus/dues-projections',
         label: 'Know what is still owed, before you have to ask',
         detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
       },
       {
+        claim: 'plus/pnl',
         label: 'A profit and loss for your treasurer',
         detail: 'The statement the board asks for, straight from the ledger — plus transfers between your funds, with both sides on the record.',
       },
@@ -401,6 +416,7 @@ const PLANS: readonly Plan[] = [
       // `PLANS[]` warns about, caught in the direction that matters most: a claim a buyer
       // could check.
       {
+        claim: 'plus/membership-report',
         label: 'The numbers leadership keeps asking for',
         detail: 'Dues collected against outstanding, and your membership by region, chapter and how far each relative got through joining.',
       },
@@ -408,10 +424,12 @@ const PLANS: readonly Plan[] = [
       // card's whole reporting story was the treasury — so a buyer could not tell that the
       // product answers "did the reunion work get done" or "which offices are empty" at all.
       {
+        claim: 'plus/activity-reports',
         label: 'Reports on more than the money',
         detail: 'Whether the reunion work came back, election turnout, how often you meet, and which offices are standing empty.',
       },
       {
+        claim: 'plus/elections',
         label: 'Elect your officers properly',
         detail: 'Nominate, accept or decline, then vote — the whole family, one region or one chapter.',
       },
@@ -420,11 +438,13 @@ const PLANS: readonly Plan[] = [
       // edited by anybody afterwards. That last part is the reason a family would keep minutes
       // here rather than in a document, so it is the part worth saying.
       {
+        claim: 'plus/library',
         label: 'The paperwork, and the structure to match',
         detail: 'Searchable bylaws, and minutes that record how the room voted — plus regions and chapters with their own leadership.',
       },
       // ADDED 2026-08-22 — sold nowhere at all before, on any surface.
       {
+        claim: 'plus/officer-notes',
         label: 'Every office keeps its own notebook',
         detail: 'Working notes that stay with the role rather than the person, readable only by whoever holds it.',
       },
@@ -432,6 +452,7 @@ const PLANS: readonly Plan[] = [
       // `lib/plans.ts` carries the same move in the in-product copy, by hand and on purpose —
       // see the note above `PLANS[]`. A bullet left on two cards sells one capability twice.
       {
+        claim: 'plus/gallery',
         label: 'Every photograph, findable',
         detail: 'Collections per gathering, with tagging.',
       },
@@ -444,9 +465,11 @@ const PLANS: readonly Plan[] = [
     tagline: 'In every relative’s pocket, and out in the world.',
     price: PREMIUM_PRICE,
     inheritsFrom: 'Plus',
-    icon: Crown,
+    icon: 'crown',
+    accent: 'legacy',
     adds: [
       {
+        claim: 'premium/dues-reminders',
         label: 'Stop chasing relatives for their dues',
         detail: 'Reminders go out as each installment falls due, and stop the moment it is paid.',
       },
@@ -455,22 +478,27 @@ const PLANS: readonly Plan[] = [
       // bell actually fires on now — which is also the honest scope for whoever builds push,
       // since a design that inherited the old list would be building for a table that is gone.
       {
+        claim: 'premium/notifications',
         label: 'News that arrives, instead of waiting to be found',
         detail: 'Notifications on the phone and in the browser for announcements, messages, and the tasks you have been given.',
       },
       {
+        claim: 'premium/mobile-apps',
         label: 'The family in everybody’s pocket',
         detail: 'Apps for iPhone and Android, signed in to the same family account.',
       },
       {
+        claim: 'premium/email-distributions',
         label: 'Email the whole family without building a list',
         detail: 'Distributions that draw straight from your membership, so nobody is missed and nobody is on it twice.',
       },
       {
+        claim: 'premium/family-website',
         label: 'Your family’s own website, keeping itself current',
         detail: 'It builds itself from your next gathering, your newest photographs and your latest announcement. Every other family site is abandoned by March because somebody has to update it. This one nobody has to.',
       },
       {
+        claim: 'premium/custom-domain',
         label: 'A proper address for it, ready to go',
         detail: 'No hosting bill, no plugins, and no relative who "knows computers" maintaining it.',
       },
@@ -494,6 +522,36 @@ const PLANS: readonly Plan[] = [
  */
 const FREE_PLAN: Plan = PLANS.find(p => p.price === null || p.price.period === 'forever')!
 const PAID_PLANS: readonly Plan[] = PLANS.filter(p => p !== FREE_PLAN)
+
+/**
+ * What the per-relative band divides.
+ *
+ * DERIVED FROM `PLANS[]` AND `TIER_PRICE`, never typed — the amount is the very
+ * string the card renders, so the figure in the slider and the figure on the card
+ * cannot come apart, and the cents come from the one place the product writes a
+ * price down. A widget with its own copy of a rate is the fourth copy of a number
+ * this file spends a page arguing should only ever have one, and it is the copy
+ * nobody would think to check when a rate moves.
+ *
+ * THE TIER IS RESOLVED FROM THE PLAN'S NAME, lower-cased, against `TIER_PRICE` —
+ * which is a join on a label and would normally be a smell. It is admissible here
+ * for one reason and it is asserted rather than assumed: `TIER_LABEL` in
+ * `lib/tiers.ts` is where those names come from, so a rename that broke the join
+ * would have to be a rename of the plan NAME on the card away from the tier's own
+ * label, which is a thing this page must not do anyway. An unmatched name drops the
+ * row rather than rendering a zero — a plan quoted at nothing per relative is a
+ * different offer from the one on the cards.
+ *
+ * FREE IS IN IT, and that is the point rather than padding: the band's argument is
+ * that the bill does not move with the family, and the row that never moves at all
+ * is the one that makes the other three read as a ladder rather than as a bill.
+ */
+const SIZED_PLANS: readonly SizedPlan[] = PLANS.flatMap(plan => {
+  if (!plan.price) return []
+  const tier = TIERS.find(t => TIER_LABEL[t] === plan.name)
+  if (!tier) return []
+  return [{ name: plan.name, monthlyCents: TIER_PRICE[tier]?.monthlyCents ?? null, amount: plan.price.amount }]
+})
 
 const FAQ = [
   {
@@ -577,7 +635,10 @@ export default function PricingPage() {
         </Link>
       </PageHero>
 
-      {/* ── The plans ────────────────────────────────────────────────────── */}
+      {/* ── FREE, ON THE PAGE ────────────────────────────────────────────
+          The floor the whole offer stands on, and the only plan anybody can have
+          today. It keeps the cream page and a white band: this is ground level, and
+          the three paid tiers are the shelf above it. */}
       <section aria-labelledby="plans-heading" className="bg-background px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-5xl">
           <SectionHeading
@@ -587,41 +648,53 @@ export default function PricingPage() {
             lede="Get every relative in and talk to each other — free, forever. Pay when you start running the family like an organization."
           />
 
-          {/* ── FREE RUNS THE FULL WIDTH; THE THREE PAID PLANS SHARE ONE ROW ─────
-              Four cards in a row was the obvious layout and is the wrong one at every width
-              this page is read at: in a 5xl measure it gives each plan about 240px, which
-              wraps a price onto two lines and turns a six-bullet list into a column of
-              fragments. Widening the measure to fit four only moves the problem — the cards
-              get their pixels back and the row gets too wide to compare across, which is the
-              one job a pricing table has.
+          {/* ── FREE RUNS THE FULL WIDTH ─────────────────────────────────────
+              Four cards in a row was the obvious layout and is the wrong one at every
+              width this page is read at: in a 5xl measure it gives each plan about
+              240px, which wraps a price onto two lines and turns a six-bullet list
+              into a column of fragments. Widening the measure to fit four only moves
+              the problem — the cards get their pixels back and the row gets too wide
+              to compare across, which is the one job a pricing table has.
 
-              So Free is promoted out of the comparison, and the argument is commercial rather
-              than typographic. FREE IS NOT ONE OF FOUR OPTIONS; IT IS THE FLOOR THE OTHER
-              THREE STAND ON. Every paid card says "Everything in …" and that chain terminates
-              here, so laying it across the top states the offer's actual shape: this is what
-              you get for nothing, and the three below are what you add to it. It also lets
-              Free's own bullets run in two columns instead of one narrow stack — the only
-              place on this page where more width makes the copy read faster rather than just
-              bigger.
+              So Free is promoted out of the comparison, and the argument is commercial
+              rather than typographic. FREE IS NOT ONE OF FOUR OPTIONS; IT IS THE FLOOR
+              THE OTHER THREE STAND ON. Every paid card says "Everything in …" and that
+              chain terminates here, so laying it across the top states the offer's
+              actual shape: this is what you get for nothing, and the three below are
+              what you add to it. It also lets Free's own bullets run in two columns
+              instead of one narrow stack — the only place on this page where more
+              width makes the copy read faster rather than just bigger.
 
-              WHAT THAT BUYS THE THREE THAT MATTER: the row that is left is three columns of
-              the width these cards were designed for, on one level and at one height. The
-              comparison a visitor actually makes — Standard against Plus against Premium — is
-              the one thing on the page that is not compromised by the fourth plan existing. */}
+              PROMOTING IT OUT OF THE ROW IS NOT ENOUGH ON ITS OWN, which is what the
+              four-tier split proved: it still shared a background with everything
+              else, so the page read as one cream field of outlined boxes. The
+              separation that does the work now is the GROUND — see the band below. */}
           <Reveal>
-            <div className="relative mt-12 overflow-hidden rounded-2xl border-2 border-brand-primary/30 bg-card p-6 shadow-[var(--shadow-card-hover)] sm:p-7">
-              <span className="absolute right-0 top-0 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
+            <div className="relative mt-12 overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-card)]">
+              {/* Growth olive: the first rung of the ramp the ladder below climbs.
+                  Every tier gets a rail in its own hue and Free is where the climb
+                  starts, so the four bands read as one ascending set rather than as a
+                  free thing and then some paid things. */}
+              <div aria-hidden="true" className="h-1.5 w-full bg-brand-affirm" />
+
+              <span className="absolute right-0 top-1.5 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
                 Available now
               </span>
 
-              {/* `lg:` and not `md:`: the right-hand half carries two columns of bullets, so
-                  splitting the band before there is room for four columns of text leaves both
-                  halves too narrow. Below that it stacks, which is the order the eye reads it
-                  in anyway — offer, price, button, then what is in it. */}
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
+              {/* `lg:` and not `md:`: the right-hand half carries two columns of
+                  bullets, so splitting the band before there is room for four columns
+                  of text leaves both halves too narrow. Below that it stacks, which is
+                  the order the eye reads it in anyway — offer, price, button, then
+                  what is in it. */}
+              <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
                 <div className="lg:border-r lg:pr-10">
-                  <h3 className="text-2xl">{FREE_PLAN.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{FREE_PLAN.tagline}</p>
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex rounded-xl bg-brand-affirm p-2 text-brand-on-affirm">
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <h3 className="text-2xl">{FREE_PLAN.name}</h3>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">{FREE_PLAN.tagline}</p>
 
                   {FREE_PLAN.price && (
                     <p className="mt-5 flex items-baseline gap-2">
@@ -642,14 +715,14 @@ export default function PricingPage() {
                   </p>
                 </div>
 
-                {/* TWO COLUMNS OF BULLETS, and `sm:` rather than `lg:` deliberately: on a
-                    tablet the band has already stacked, so this half has the whole measure to
-                    itself and one column of four bullets would run a long way down the page
-                    for no reason. */}
+                {/* TWO COLUMNS OF BULLETS, and `sm:` rather than `lg:` deliberately: on
+                    a tablet the band has already stacked, so this half has the whole
+                    measure to itself and one column of bullets would run a long way
+                    down the page for no reason. */}
                 <ul className="grid gap-3.5 text-sm sm:grid-cols-2 sm:gap-x-8">
                   {FREE_PLAN.adds.map(item => (
                     <li key={item.label} className="flex gap-3">
-                      <FREE_PLAN.icon
+                      <Check
                         className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm"
                         aria-hidden="true"
                       />
@@ -665,142 +738,84 @@ export default function PricingPage() {
               </div>
             </div>
           </Reveal>
+        </div>
+      </section>
 
-          {/* One line, doing a job neither the band nor the cards can: it names the boundary
-              they sit either side of. Without it the three paid cards read as a second,
-              unrelated table that happens to be on the same page. */}
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            Then, when the family needs more than a place to be —
-          </p>
+      {/* ── THE PAID LADDER, ON THE HERITAGE BAND ─────────────────────────
+          THIS IS THE FIX FOR "THEY ALL SHARE THE SAME BACKGROUND". Splitting one
+          offer into four left four outlined boxes on one cream field, which is a
+          list rather than a ladder — the eye had nothing to climb and no way to tell
+          in four seconds what the shape of the offer was.
 
-          {/* Three paid tiers, each inheriting the one below it. `items-stretch` rather than
-              `items-start` so all three share a height — with different-length lists,
-              `items-start` left them floating at different heights and the row read as broken
-              rather than as three options.
+          Moving the three paid tiers onto burgundy does three things at once that no
+          amount of card styling could do on the page ground. It draws the commercial
+          boundary — free below, paid above — as a boundary you can see from across
+          the room. It turns every card from an outline drawn ON a surface into a
+          white object sitting IN FRONT of one, which is what makes the shadows and
+          the hover raise read at all. And it puts the featured tier's gold crown on
+          burgundy, which is the brand's signature pairing and the highest-contrast
+          thing on the page.
 
-              EVERY CARD HERE IS UNBUYABLE, which is what let the `plan.available` branches
-              come out of this block: Free was the only tier with `available: true` and it is
-              not in this list any more. The flag stays on the type and on the data, because it
-              is what turns the band above into a real offer and these into Coming soon — the
-              day one of them can be bought, the branch comes back HERE rather than being
-              rediscovered from scratch. */}
-          <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-3">
-            {PAID_PLANS.map((plan, i) => {
-              const priced = Boolean(plan.price) && (plan.available || PRICING_IS_ANNOUNCED)
-              return (
-                <Reveal key={plan.name} delay={i * 150} className="h-full">
-                  <div
-                    className={cn(
-                      'relative flex h-full flex-col overflow-hidden rounded-2xl p-6 sm:p-7',
-                      plan.featured
-                        // The featured tier gets a solid border and the card surface, so the
-                        // eye lands on it — but NOT the affirmative fill, which would read as
-                        // buyable.
-                        ? 'border-2 border-brand-legacy/50 bg-card shadow-[var(--shadow-card)]'
-                        : 'border border-dashed bg-brand-soft/30',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h3 className="text-2xl">{plan.name}</h3>
-                      <ComingSoonBadge />
-                    </div>
-                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
+          FLAT `bg-brand-hero`, NOT `.gn-hero-gradient` — that class is specified for
+          the dashboard hero, and every marketing band is flat with atmospheric pools
+          over it. See the note above it in globals.css: widening it is one class per
+          surface and a re-measure per surface. The pools are the same two the hero
+          and the closing ask use, so the three burgundy bands on this page are
+          recognisably one treatment rather than three. */}
+      <section
+        aria-labelledby="paid-plans-heading"
+        className="relative overflow-hidden bg-brand-hero px-4 py-16 sm:px-6 sm:py-20"
+      >
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="gn-float absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
+          <div className="gn-float-slow absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
+        </div>
 
-                    {/* NOTHING RENDERS HERE FOR AN UNPRICED TIER — no figure, and no "price to
-                        be announced" standing in for one. The card already says Coming soon
-                        beside its name and Not yet available on its button, so a third line
-                        saying the same thing was the over-explaining this site was asked to
-                        stop.
+        <div className="relative mx-auto max-w-5xl">
+          <SectionHeading
+            id="paid-plans-heading"
+            eyebrow="When the family needs more than a place to be"
+            title="Three steps up, each one containing the last"
+            lede="None of them can be bought yet — there is no billing in the product. The prices are set, and they are what you will pay."
+            onDark
+          />
 
-                        The rule the absence protects is unchanged: no placeholder FIGURE. A
-                        number here is a commercial representation people budget against and
-                        crawlers cache, and the cached result outlives the edit that was going
-                        to fix it. Set a price back to `null` and the slot empties.
-
-                        `min-h-14` RATHER THAN `min-h-20`, because there is no annual line under
-                        the figure any more — one rate, since 2026-08-19. The floor exists so a
-                        priced and an unpriced card share a baseline for the button below; it
-                        has to track the tallest price block, and shrank when that block did. */}
-                    <div className="mt-6 min-h-14">
-                    {priced && plan.price && (
-                      <p className="flex items-baseline gap-2">
-                        <span className="text-5xl font-semibold text-brand-ink">
-                          {plan.price.amount}
-                        </span>
-                        <span className="text-muted-foreground">{plan.price.period}</span>
-                      </p>
-                    )}
-                    </div>
-
-                    <Button size="lg" disabled className="mt-6 w-full text-base">
-                      Not yet available
-                    </Button>
-                    <p className="mt-3 text-center text-xs text-muted-foreground">
-                      Create a free account and you will hear about it first.
-                    </p>
-
-                    {/* ── THE INHERITED TIER IS THE FIRST LIST ITEM ──────────────
-                        It used to be a sentence above the list reading "Everything in Plus,
-                        plus:", which says "plus" twice and reads as a stutter — made worse by
-                        one of the tiers being NAMED Plus. As a checked row at the top of the
-                        list it needs no connecting words at all: the list is what you get, and
-                        the first thing you get is everything below. It also stops these cards
-                        drifting out of step with the Free band the way a copied list would. */}
-                    <div className="mt-7 flex-1 border-t pt-6">
-                      <ul className="space-y-3.5 text-sm">
-                        {plan.inheritsFrom && (
-                          <li className="flex gap-3 border-b pb-3.5">
-                            <Check
-                              className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm"
-                              aria-hidden="true"
-                            />
-                            <span className="font-semibold">
-                              Everything in {plan.inheritsFrom}
-                            </span>
-                          </li>
-                        )}
-
-                        {plan.adds.map(item => (
-                          <li key={item.label} className="flex gap-3">
-                            <plan.icon
-                              className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent"
-                              aria-hidden="true"
-                            />
-                            <span className="leading-relaxed">
-                              {/* The benefit is the scannable line and carries the weight; the
-                                  mechanism sits under it in muted text for whoever slowed
-                                  down. A single run of body text makes the reader find the
-                                  point themselves. */}
-                              <span className="block font-medium text-foreground">
-                                {item.label}
-                              </span>
-                              {item.detail && (
-                                <span className="mt-0.5 block text-muted-foreground">
-                                  {item.detail}
-                                </span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-
-                        {plan.adds.length === 0 && (
-                          // Renders instead of an empty list, so the card reads as "not
-                          // specified yet" — which is true — rather than inventing
-                          // capabilities to pad it out to match its neighbours.
-                          <li className="text-muted-foreground">
-                            What this tier adds is still being decided.
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                </Reveal>
-              )
-            })}
+          <div className="mt-12">
+            <PlanLadder plans={PAID_PLANS} />
           </div>
+        </div>
+      </section>
 
-          <Reveal delay={240}>
-            <div className="mt-10 flex flex-col items-center gap-3 rounded-2xl border bg-card p-6 text-center shadow-[var(--shadow-card)]">
+      {/* ── THE PAGE'S CENTRAL CLAIM, MADE INTERACTIVE ────────────────────
+          Back on the cream page, deliberately: the burgundy band above is the price
+          list and this is the argument about it, and running them together would
+          make the argument look like a fourth plan.
+
+          It gets its own band rather than a line inside the ladder because "no charge
+          per relative" is the objection that actually keeps families off products
+          like this one, and an objection answered in a bullet has not been answered.
+          See `FamilySizeSlider` for why no competitor's figure appears in it. */}
+      <section aria-labelledby="per-member-heading" className="bg-background px-4 py-16 sm:px-6 sm:py-20">
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading
+            id="per-member-heading"
+            eyebrow="However many of you there are"
+            title="The price does not know how big your family is"
+            lede="Most tools charge by the seat, so the first thing you do is decide which relatives are worth paying for. Move the slider and watch nothing happen."
+          />
+          <Reveal>
+            <div className="mt-10">
+              <FamilySizeSlider plans={SIZED_PLANS} />
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── Why it works this way ─────────────────────────────────────────── */}
+      <section className="bg-background px-4 pb-16 sm:px-6 sm:pb-20">
+        <div className="mx-auto max-w-5xl">
+          <Reveal delay={120}>
+            <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card p-6 text-center shadow-[var(--shadow-card)]">
               <div className="inline-flex rounded-xl bg-brand-soft p-2.5">
                 <HeartHandshake className="h-6 w-6 text-brand-on-soft" aria-hidden="true" />
               </div>

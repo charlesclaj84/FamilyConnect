@@ -574,5 +574,136 @@
 .gn-rise-5 { animation-delay: 420ms; }
 
 @media (prefers-reduced-motion: reduce) {
-  .gn-float, .gn-float-slow, .gn-shimmer, .gn-rise { animation: none; }
+  .gn-float, .gn-float-slow, .gn-shimmer, .gn-rise, .gn-sheen { animation: none; }
+}
+
+/* ── Pricing: the plan ladder ─────────────────────────────────────
+   The three paid tiers sit on the Heritage band rather than on the page, which is
+   what separates them from Free. Free is the FLOOR — a white band on the cream
+   page — and the three above it are the shelf you step up onto. Before this they
+   were four outlined boxes on one cream field, and the split into four tiers made
+   that read as a list of four similar things rather than as a ladder.
+
+   Nothing here paints a plan's own colour. The per-tier hue is applied in
+   `PlanLadder` from the `--brand-*` SURFACE tokens (never the foregrounds — see
+   the note on `--brand-warm` above), so the ladder cannot drift from the ramp. */
+
+/* The slow gold sweep across the featured tier's crown. One card on one page:
+   an entrance that repeats is decoration, and this is the single element on the
+   page the eye is meant to return to. Long, and idle for most of its cycle, so it
+   reads as light moving over gold rather than as something demanding attention. */
+@keyframes gn-sheen {
+  0%        { transform: translateX(-130%); }
+  55%, 100% { transform: translateX(130%); }
+}
+.gn-sheen { animation: gn-sheen 5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+
+/* A snap carousel's scrollbar, hidden.
+   ONLY for a track that also ships a real control — `PlanLadder`'s tier switcher,
+   which is a row of buttons rather than dots, so the pane is reachable without the
+   gesture and is named rather than numbered. A track whose only affordance is the
+   scrollbar must keep it. This is the family-tree canvas exception, not a licence
+   to scroll a table sideways; see AGENTS.md, "On a phone a table narrows". */
+.gn-scroll-x { scrollbar-width: none; -ms-overflow-style: none; }
+.gn-scroll-x::-webkit-scrollbar { display: none; }
+
+/* ── The range control on the per-member band ─────────────────────
+   Native `input[type=range]` cannot be styled through Tailwind — the track and the
+   thumb are pseudo-elements — so it is set here, where the colour tokens live
+   anyway. It stays a real `<input type="range">`: keyboard, screen readers and
+   touch all come with it, and none of the three is worth reimplementing.
+
+   `--gn-range-fill` is a PERCENTAGE set inline by the component, never a colour, so
+   the "colours live in one place" rule holds at the call site. */
+.gn-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+}
+.gn-range::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--brand-primary) var(--gn-range-fill, 50%),
+    var(--muted) var(--gn-range-fill, 50%)
+  );
+}
+.gn-range::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--brand-primary) var(--gn-range-fill, 50%),
+    var(--muted) var(--gn-range-fill, 50%)
+  );
+}
+/* Gold thumb ringed in the card surface, so it reads as a physical grip sitting on
+   the track rather than as a dot painted on it. `--brand-legacy` is a surface and is
+   carrying no text here, which is the one thing gold may always do. */
+.gn-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5rem;
+  width: 1.5rem;
+  margin-top: -0.5rem;
+  border-radius: 999px;
+  background: var(--brand-legacy);
+  border: 3px solid var(--card);
+  box-shadow: var(--shadow-card);
+}
+.gn-range::-moz-range-thumb {
+  height: 1.5rem;
+  width: 1.5rem;
+  border: 3px solid var(--card);
+  border-radius: 999px;
+  background: var(--brand-legacy);
+  box-shadow: var(--shadow-card);
+}
+.gn-range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--ring); outline-offset: 2px; }
+.gn-range:focus-visible::-moz-range-thumb     { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ── Growing a bar when its panel arrives ─────────────────────────
+   Paired with `data-revealed` on `Reveal` (see the note there). `gn-rise` is the
+   above-the-fold stagger and runs at first paint; this is its below-the-fold
+   counterpart, and it exists because the pillar vignettes on /features are two
+   thousand pixels down the page — an entrance that has already finished by the time
+   somebody scrolls to it is not an entrance.
+
+   The 0 lives ONLY inside the keyframe, exactly as it does for `gn-rise`, and for the
+   same reason: killing the animation under reduced motion has to leave the element at
+   its natural full size rather than stranding it at zero width. Never move the
+   `scaleX(0)` onto the class.
+
+   `transform-origin: left` because these are quantities filling from a baseline — a
+   fund taking its share, a task list completing. A bar that grew from its centre would
+   read as an object appearing rather than as a measure being taken. */
+@keyframes gn-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+[data-revealed] .gn-grow {
+  transform-origin: left;
+  animation: gn-grow 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+[data-revealed] .gn-grow-1 { animation-delay: 90ms; }
+[data-revealed] .gn-grow-2 { animation-delay: 200ms; }
+[data-revealed] .gn-grow-3 { animation-delay: 310ms; }
+[data-revealed] .gn-grow-4 { animation-delay: 420ms; }
+
+/* The same idea for something that appears rather than fills — a tick landing on a
+   finished task, a chip arriving. Scale plus fade, from the element's own centre. */
+@keyframes gn-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+[data-revealed] .gn-pop { animation: gn-pop 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+[data-revealed] .gn-pop-1 { animation-delay: 260ms; }
+[data-revealed] .gn-pop-2 { animation-delay: 380ms; }
+[data-revealed] .gn-pop-3 { animation-delay: 500ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-revealed] .gn-grow, [data-revealed] .gn-pop { animation: none; }
 }

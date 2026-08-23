@@ -181,11 +181,66 @@ BEGIN
   DELETE FROM chat_participants;
   DELETE FROM chat_rooms;
 
+  -- ── 6b. The Library, and the record of what the family decided ────────────
+  --
+  -- ELEVEN TABLES ADDED 2026-08-22, AND NINE OF THEM WERE OWED BEFORE THIS COMMIT. That is
+  -- the point of writing this block out rather than appending two lines: Meeting Minutes
+  -- (20260822000019), Officer Notes (20260821000005, 20260822000001) and Bylaws
+  -- (20260822000020) all shipped without a DELETE here, so §11's dynamic check found rows in
+  -- tables nothing had emptied and RAISEd — **which rolls the whole script back.** This
+  -- script has therefore been unrunnable against any database holding minutes, officer notes
+  -- or bylaws, in exactly the way the `adults`/`kids` note further down records for an
+  -- earlier era. §11 did its job; nobody had run it.
+  --
+  -- THE ORDER IS BY WHICH PARENT CASCADES WHAT, never by habit — the rule the deleted
+  -- `event_*` block left behind. Two of these are not obvious:
+  --
+  --   `meeting_votes` IS ABSENT AND MUST STAY ABSENT. `meeting_votes_are_final` refuses a
+  --   direct DELETE for EVERY role, including this one, and admits it only at
+  --   `pg_trigger_depth() > 1` — i.e. inside a cascade. So the only way a vote row goes is
+  --   the cascade from `meeting_topics` below, and a line for it would abort the script with
+  --   a 42501 rather than a missing row. (`tests/rls/seed.mjs` omits it for the same reason
+  --   and says so.)
+  --
+  --   `position_journal_entries` COMES BEFORE `family_roles` in §7. Its `role_id` cascades
+  --   from that table, so listed after it these rows would already be gone — and the day
+  --   somebody makes that foreign key SET NULL, the entries would survive with nothing here
+  --   removing them and §11 would start failing again.
+  DELETE FROM meeting_topic_notes;
+  DELETE FROM meeting_topics;
+  DELETE FROM meeting_attendees;
+  DELETE FROM meeting_sessions;
+  DELETE FROM position_journal_notes;
+  DELETE FROM position_journal_entries;
+  DELETE FROM bylaws;
+
+  -- ── 6c. Email distributions ───────────────────────────────────────────────
+  -- Child first. `distribution_recipients` does cascade from `distributions`, so the second
+  -- line alone would clear it today; both are written because the row also references
+  -- `people`, which §8 empties, and a table left to a cascade is one that starts leaving
+  -- rows behind the day somebody changes a foreign key to SET NULL.
+  --
+  -- NEITHER IS KEPT. A distribution is a record of mail the family sent, so it is family
+  -- data by every test in this script — and unlike a dues payment there is nothing
+  -- append-only about it: `20260822000025` writes no trigger refusing a DELETE.
+  DELETE FROM distribution_recipients;
+  DELETE FROM distributions;
+
   -- ── 7. Everything else family-scoped ──────────────────────────────────────
   DELETE FROM announcements;
   DELETE FROM notifications;
   DELETE FROM family_invitations;
   DELETE FROM person_relationships;
+  -- ADDED 2026-08-22, and it was the LAST table §11 was reporting once §6b and §6c landed.
+  -- `family_removal_challenges` (20260817000006) is keyed on `family_code` with no foreign key
+  -- to `families`, and its `requested_by` is ON DELETE SET NULL — so nothing above removes it
+  -- and nothing ever would have. `tests/rls/seed.mjs` lists it in its own reset sweep with the
+  -- same observation, which is where the shape was borrowed from.
+  --
+  -- DELETED RATHER THAN KEPT, and it is not a close call: a row here is a 15-minute one-shot
+  -- hash for a removal somebody started before the reset. Keeping it would leave a live
+  -- challenge against a family whose members have just been deleted.
+  DELETE FROM family_removal_challenges;
   -- `family_role_exclusions` WAS DELETED HERE and the table is gone: it recorded
   -- which of the 25 built-in board positions a family did not use, and
   -- 20260819000004 retired the built-ins along with the table.
@@ -205,8 +260,6 @@ BEGIN
   -- standing above a statement that says the opposite.
   DELETE FROM family_roles;
   DELETE FROM user_roles;
-  DELETE FROM chapters;
-  DELETE FROM regions;
   -- `adults` AND `kids` WERE DELETED HERE AND COULD NOT BE, which is why this whole script
   -- has been unrunnable rather than merely stale. 20260602000003 dropped both tables;
   -- plpgsql resolves a name when the statement RUNS, so the DO block reached this line and
@@ -218,6 +271,33 @@ BEGIN
   -- ── 8. Members: keep only the surviving account's rows ────────────────────
   -- IS DISTINCT FROM so a NULL user_id (an orphan member row) is caught too.
   DELETE FROM people WHERE user_id IS DISTINCT FROM v_keep;
+
+  -- ── 8b. The family's geography, AFTER the members who point at it ─────────
+  --
+  -- THESE TWO WERE ABOVE §8 AND COULD NOT RUN THERE. `people.chapter_id` REFERENCES
+  -- `chapters(id)` with no ON DELETE action at all, so `DELETE FROM chapters` while any
+  -- member row still names a chapter raises 23503 and rolls the whole script back:
+  --
+  --   ERROR: update or delete on table "chapters" violates foreign key constraint
+  --          "people_chapter_id_fkey" on table "people"
+  --
+  -- Measured 2026-08-22 against the local stack, and it is the SECOND reason this script was
+  -- unrunnable — the first being the nine missing tables in §6b. Both were found the same way
+  -- the `adults`/`kids` note above records: by running it, which nothing does on a schedule.
+  --
+  -- MOVING THEM IS NOT ENOUGH ON ITS OWN, because the KEPT account's own `people` row
+  -- survives §8 and may itself name a chapter. So the pointer is cleared first. That is a
+  -- correct reset rather than a workaround: a just-created family has no chapters, so nobody
+  -- in it can be in one — the same reasoning that puts `family_roles` on §7 rather than in
+  -- the keep-list.
+  --
+  -- NOTHING ELSE POINTS HERE BY THIS LINE. `user_roles` (chapter_id, region_id) is emptied in
+  -- §7 above; `dues_schedules` in §5; `distributions` in §6c — and that one is ON DELETE SET
+  -- NULL anyway, so it would not have blocked. The order below is child before parent:
+  -- `chapters.region_id` REFERENCES `regions`.
+  UPDATE people SET chapter_id = NULL WHERE chapter_id IS NOT NULL;
+  DELETE FROM chapters;
+  DELETE FROM regions;
 
   -- ── 9. The other auth accounts ────────────────────────────────────────────
   -- Every public FK to auth.users that is NO ACTION (chapters, chat_rooms,

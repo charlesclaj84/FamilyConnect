@@ -78,11 +78,18 @@
  *     can keep. Splitting the tier without that change would have left Free selling a calendar
  *     nothing could be put on.
  *
- * NOTHING IS PREMIUM, and that is correct rather than an omission. Every Premium bullet
- * — the apps, push notifications, email distributions, automatic dues reminders, the
- * public family website — is unbuilt and has no route, so there is nothing here to mark.
- * The tier exists in `lib/tiers.ts` and a family can be put on it; it currently buys
- * everything Plus buys and nothing more, which is the honest state of that plan.
+ * ONE ROUTE IS PREMIUM, SINCE 2026-08-22, and this bullet said "NOTHING IS PREMIUM" until
+ * then. `/community/distributions` is it — email distributions, the first of that card's six
+ * bullets to acquire any code. The other five (the apps, push notifications, automatic dues
+ * reminders, the public family website and its address) are still unbuilt and have no route,
+ * so there is still nothing here to mark for them.
+ *
+ * WHICH MEANS THE PLAN IS STILL MOSTLY A PROMISE, and that is worth stating plainly here
+ * rather than in FutureFeature.md alone: a family put on Premium today gains one screen over
+ * Plus. What changed is that the tier is no longer EMPTY, so the next reader of this file
+ * cannot conclude from "nothing is premium" that the card is entirely aspirational — and the
+ * two states need telling apart, because a per-route field can only ever say which of the six
+ * exist.
  *
  * ── WHAT A TIER STILL CANNOT DO, RESTATED BECAUSE STANDARD MADE IT TEMPTING ─────────
  * It withholds SCREENS, never rows. A family moved down from Standard to Free keeps every
@@ -441,6 +448,38 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     tier: 'free',
     blurb: 'Every announcement and everything sent to you, searchable, newest first.',
+  },
+  // ── EMAIL DISTRIBUTIONS — THE FIRST PREMIUM ROUTE IN THE PRODUCT ────────────────
+  //
+  // `/pricing` has sold this since the Premium card existed: *"Email the whole family without
+  // building a list — distributions that draw straight from your membership, so nobody is
+  // missed and nobody is on it twice."* It had no code, no route and therefore NO GATE, which
+  // is the whole reason FutureFeature.md §1 put the unbuilt Premium claims first: `proxy.ts`
+  // can only rewrite a path that is registered, so a visitor read the bullet and nothing
+  // anywhere said "not yet".
+  //
+  // IT SITS BESIDE ANNOUNCEMENTS ON PURPOSE, in the rail and at sort_order 65 in the grid.
+  // The two are the pair — one puts family news on everybody's dashboard, the other puts it in
+  // their inbox — and a family deciding who may do either wants the two switches together.
+  //
+  // `premium` IS FORCED RATHER THAN CHOSEN, and the note above `PLANS[]` is why: the bullet is
+  // ON the Premium card, so any other value here would make `/pricing` false in the one
+  // direction that matters — a Free family reading a paid bullet and finding it works. What
+  // makes it a defensible Premium feature independently is that it is the only thing in the
+  // product that spends money per use: every send is a metered provider call.
+  //
+  // ── WHAT THIS ENTRY DOES NOT AND CANNOT SAY ────────────────────────────────────
+  // Premium's five other bullets stay unbuilt (reminders, push, the apps, the public website
+  // and its address), so this ROUTE being Premium does not make the CARD true. The paragraph
+  // in the header above this file's registry said "NOTHING IS PREMIUM, and that is correct
+  // rather than an omission … the tier currently buys everything Plus buys and nothing more";
+  // that is no longer true and has been rewritten there rather than left to be inferred here.
+  {
+    href: '/community/distributions',
+    label: 'Distributions',
+    status: 'live',
+    tier: 'premium',
+    blurb: 'Email everyone in the family at once, drawn straight from your membership.',
   },
   // The family-wide tree, and since 2026-08-13 the ONLY tree: `/community/directory/family-tree` —
   // the per-member lineage view — has been deleted along with `FamilyTreeClient`,

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import type { StaticImageData } from 'next/image'
+import type { PillarVignetteKind } from '@/components/marketing/PillarVignette'
 import { CalendarCheck, Wallet, Network } from 'lucide-react'
 
 /**
@@ -28,36 +28,28 @@ import { CalendarCheck, Wallet, Network } from 'lucide-react'
  * `lib/features.ts` rather than from somebody's memory of what shipped. Flip a
  * status in the registry and the marketing site corrects itself the same day.
  *
- * ── THE SCREENSHOTS ARE STATIC IMPORTS ───────────────────────────────────────
- * Not `/public` URL strings, and the difference is a bug this repo has already
- * shipped once: a string `src` that resolves to nothing renders an empty box in
- * silence, whereas a static import of a missing file fails `next build`. The
- * intrinsic width, height and blur placeholder come from the file too, so swapping
- * in a screenshot of a different shape needs no code change.
+ * ── THE ARTWORK IS DRAWN, NOT PHOTOGRAPHED ───────────────────────────────────
+ * `vignette` names a panel in `components/marketing/PillarVignette.tsx`, which draws
+ * the SHAPE of the job in tokens: a gathering spanning three days of a month strip,
+ * the routing waterfall filling one fund before the next, three generations with a
+ * marriage across the middle.
  *
- * They stay under `components/marketing/screenshots/` rather than `public/`:
- * AGENTS.md reserves `public/` for the three identity folders, and a static import
- * does not need to be there.
+ * IT REPLACED THREE PNGs THAT WERE NOT SCREENSHOTS. Every comment in this file, and
+ * two on the pages that rendered them, described `events.png`, `finances.png` and
+ * `family-tree.png` as product captures. All three were placeholder cards: a title,
+ * the lockup, a line of stock prose, and **COMING SOON** in gold across the middle.
+ * So the three flagship capabilities were each announced as unbuilt, in the largest
+ * type on the catalogue, on a page that says in words three inches below that every
+ * screen on it ships today. See that component's header for the rest, including what
+ * the `alt` text was telling a screen reader in the meantime.
+ *
+ * A REAL CAPTURE IS STILL BETTER and is still owed — it needs a browser pointed at a
+ * seeded family. When one arrives, this field becomes a static import again and the
+ * vignette is deleted; the reason it was a static import and never a `/public` URL
+ * string is worth keeping for that day, because the repo has shipped the bug once: a
+ * string `src` that resolves to nothing renders an empty box in silence, whereas a
+ * static import of a missing file fails `next build`.
  */
-// ⚠ THE PIXELS IN THIS FILE ARE OF A SCREEN THAT NO LONGER EXISTS.
-//
-// `events.png` was captured from `/events`, which is deleted (2026-08-19) — it shows a
-// multi-day itinerary with RSVP counts, none of which is in the product. It is still here
-// because a `Pillar` must have an `image` (`next/image` reads the intrinsic size and the blur
-// placeholder from the file, and a missing path fails `next build` rather than rendering an
-// empty box), and because a screenshot cannot be re-captured from a script — it needs a
-// browser, and Playwright is not a dependency of this repo.
-//
-// SO THE `imageAlt` BELOW IS DELIBERATELY GENERIC. An alt that named RSVPs would describe the
-// image and advertise a feature we do not have; one that named tasks and assignees would
-// advertise the right feature and describe the wrong image. Neither is acceptable, so it says
-// only what is true of both.
-//
-// TO FIX IT: open `/gatherings/<id>` on a seeded family, capture at the same width as the
-// other two shots, and replace this file. TODO.md carries the item.
-import eventsShot from './screenshots/events.png'
-import financesShot from './screenshots/finances.png'
-import familyTreeShot from './screenshots/family-tree.png'
 
 export interface Pillar {
   /** Route in `lib/features.ts` whose status decides the Coming Soon badge. Never linked. */
@@ -75,9 +67,17 @@ export interface Pillar {
   tone: string
   /** The wash behind the icon. */
   chip: string
-  image: StaticImageData
-  /** What the screenshot SHOWS. The title is already on the page, so it does not repeat it. */
-  imageAlt: string
+  /**
+   * Which panel `PillarVignette` draws beside this pillar.
+   *
+   * THERE IS NO `imageAlt` ANY MORE, and its absence is a decision rather than an
+   * omission. The vignette is `aria-hidden`: every fact it draws is written out in
+   * `bullets` immediately beside it, so describing the drawing as well would read the
+   * section twice — and the field it replaces is the one that told a screen reader
+   * about "fund balances, dues collected against outstanding, and the routing
+   * waterfall" in an image that contained none of them.
+   */
+  vignette: PillarVignetteKind
 }
 
 export const PILLARS: readonly Pillar[] = [
@@ -111,11 +111,7 @@ export const PILLARS: readonly Pillar[] = [
     icon: CalendarCheck,
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
-    image: eventsShot,
-    // Generic on purpose — see the warning above the import. Do not make this specific until
-    // the screenshot itself has been re-captured.
-    imageAlt:
-      'A planning screen in the product, showing one gathering laid out with its details.',
+    vignette: 'gatherings',
   },
   {
     route: '/reporting/pl-summary',
@@ -136,9 +132,7 @@ export const PILLARS: readonly Pillar[] = [
     icon: Wallet,
     tone: 'text-brand-accent',
     chip: 'bg-brand-accent/12',
-    image: financesShot,
-    imageAlt:
-      'The finances screen: fund balances, dues collected against outstanding, and the routing waterfall that fills each fund in priority order.',
+    vignette: 'treasury',
   },
   {
     route: '/community/family-tree',
@@ -175,8 +169,6 @@ export const PILLARS: readonly Pillar[] = [
     // needs 3:1 — gold is the WASH here, never the foreground.
     tone: 'text-brand-ink',
     chip: 'bg-brand-legacy/20',
-    image: familyTreeShot,
-    imageAlt:
-      'The family tree screen: several generations laid out as connected cards, with spouses and children branching from each couple.',
+    vignette: 'family-record',
   },
 ]

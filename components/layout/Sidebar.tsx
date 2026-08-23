@@ -20,6 +20,7 @@ import {
   X,
   BookOpen,
   Megaphone,
+  Send,
   FileText,
   Vote,
   BarChart3,
@@ -290,6 +291,19 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
           icon: Megaphone,
           viewKeys: ['community/announcements', 'community/updates', 'community/announcements/birthdays'],
         },
+        // DISTRIBUTIONS SITS DIRECTLY UNDER ANNOUNCEMENTS, and the two are a pair rather than
+        // neighbours: Announcements puts family news on everybody's dashboard and waits to be
+        // found, Distributions puts the same kind of news in their inbox and arrives. Somebody
+        // who has just written one is the person most likely to want the other, so they read
+        // together — and the permission grid puts their switches together for the same reason
+        // (sort_order 65, immediately after the three announcement keys).
+        //
+        // NO `beta` FLAG, and it is worth saying why not, since this is the newest row here and
+        // the only Premium one: that badge marks a route that is live and UNFINISHED, which
+        // this is not. What is unfinished is the Premium PLAN around it — five of that card's
+        // six bullets are still unbuilt — and a badge on this row would say the wrong thing
+        // about the wrong scope.
+        { href: '/community/distributions', label: 'Distributions',    icon: Send },
         { href: '/community/chat',          label: 'Chat',             icon: MessageCircle },
         // FAMILY TREE THEN DIRECTORY, adjacent on purpose: the two answer the same question —
         // who is in this family and how are they related — so they read as a pair wherever

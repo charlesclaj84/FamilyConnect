@@ -25,6 +25,10 @@
  *     all, which is exactly why `lib/plans.ts` refuses to derive itself from `PLANS[]` and
  *     why neither may be derived from this registry. The pricing cards are a judgement and
  *     stay one; FutureFeature.md is where their gaps live.
+ *
+ *     CHECK 5 IS NOT AN EXCEPTION TO THAT. It compares the two hand-written lists to EACH
+ *     OTHER and to nothing else — never to the registry, and never a word of copy. Whether a
+ *     bullet should exist at all remains the judgement this paragraph is about.
  *   * THAT A PILLAR'S BULLETS SIT AT THE PILLAR'S TIER. The tier tag and the Coming Soon
  *     pill are both per CARD, and the Gatherings pillar is `tier: 'free'` while five of its
  *     six bullets describe Standard capabilities. That is disclosed in the paragraph under
@@ -37,10 +41,20 @@
  *      longest-prefix-matches, so a renamed or deleted route does not fail — it resolves to
  *      the nearest registered parent and prints that parent's tier tag and status. That is
  *      how `/admin/reports` came to sit on this grid printing "Free" over a Plus screen;
- *   3. no two cards claim the same route, so the catalogue cannot say one thing twice;
+ *   3. no two cards on the SAME SURFACE claim one route. It was no two cards anywhere until
+ *      2026-08-22, which forbade the arrangement the catalogue now deliberately has: a pillar
+ *      NARRATES a capability and a card INDEXES it under its plan, and those are different
+ *      claims — the pillars carry no tier, so the card is the only place on the page that says
+ *      which plan a thing is on. Removing the family-tree card under the old rule took the
+ *      tree out of the tier bands entirely, which is the failure that widened this one. Two
+ *      cards in ALSO is still the drift it was written for;
  *   4. no stale allowance — every `SOLD_ELSEWHERE` key is a live route, and none of them is
  *      also on the catalogue. Both directions, for `audit_global_lookups.sql`'s reason: a
  *      one-way assertion cannot see the half where the list itself has gone out of date.
+ *   5. THE TWO PLAN LISTS SELL THE SAME THINGS — `PLANS[]` on `/pricing` and `PLAN_ADDS` in
+ *      `lib/plans.ts`, compared per tier by the `claim` id each bullet carries, never by its
+ *      words. See the block above the check; it is the one mechanical question inside the
+ *      pricing cards, and it was worth adding a field to make askable.
  *
  * ── HOW IT READS THE TWO MARKETING FILES ────────────────────────────────────────────────
  * By TEXT, not by import, and that is a limitation accepted deliberately. `pillars.ts` pulls
@@ -64,11 +78,32 @@
  *      leaves a real screen unsold and a card pointing at nothing, and it is reported as two
  *      findings because it is two problems. It does NOT pass via the `/library` prefix, which
  *      is exactly what `getFeature()` would have done with it on the page itself.
- *   3. a second card added for `/community/gallery`          -> duplicate cards
+ *   3. a second ALSO card added for `/community/directory`   -> duplicate cards, naming the
+ *      surface. Re-run after the rule was narrowed on 2026-08-22, together with its other
+ *      half: `/community/family-tree`, which is now on PILLARS *and* on ALSO, is GREEN. Both
+ *      directions, because a rule that stopped refusing something has to be shown still
+ *      refusing what it was written for.
  *   4. a `SOLD_ELSEWHERE` entry for `/community/gallery`,
  *      which is on the grid                                 -> stale allowances
  *   5. `/dashboard`'s allowance deleted                     -> uncovered live features
  *   6. a `SOLD_ELSEWHERE` key of `/direct-lineage`          -> stale allowances, by name
+ *
+ * AND FOUR MORE FOR CHECK 5, added with it on 2026-08-22. Each reports every problem it
+ * genuinely is rather than collapsing to one line, which is the same answer mutation 2 gives:
+ *
+ *   7. `premium/custom-domain` renamed in `PLAN_ADDS` only  -> plan claims, TWICE — sold on
+ *      /pricing and unmentioned in-product, AND in PLAN_ADDS and on no card. Two findings for
+ *      one edit, because from the two lists' point of view that is two disagreements
+ *   8. `standard/ledger` -> `plus/ledger` on its pricing
+ *      card, i.e. a bullet re-priced in one file only       -> plan claims, THREE times: the
+ *      prefix does not match the card it sits on, and both set comparisons then miss
+ *   9. a second `free/chat` bullet, replacing `free/manual`  -> plan claims — the duplicate,
+ *      named, plus the claim it displaced
+ *  10. `standard/ledger` -> `plus/ledger` in `PLAN_ADDS`,
+ *      i.e. mutation 8 from the other side                  -> plan claims, three times again.
+ *      Both sides of the prefix rule are checked because only one of them is protected by a
+ *      type: `PLAN_ADDS` is keyed by tier and the pricing table is a flat array, and neither
+ *      key nor position makes the prefix inside the bullet agree with either
  */
 import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
@@ -107,6 +142,12 @@ export async function resolve(specifier, context, next) {
 register(`data:text/javascript,${encodeURIComponent(HOOK)}`)
 
 const { FEATURES } = await import(pathToFileURL(join(ROOT, 'lib', 'features.ts')).href)
+// `PLAN_ADDS` and the tier vocabulary, for check 5. `lib/plans.ts` is pure by design — data,
+// no React, no database, no `server-only` — which is exactly what makes it importable here;
+// the pricing page it is checked against is a React server component and has to be read as
+// text, the same limitation this file already accepts for the two catalogue surfaces.
+const { PLAN_ADDS } = await import(pathToFileURL(join(ROOT, 'lib', 'plans.ts')).href)
+const { TIERS, TIER_LABEL } = await import(pathToFileURL(join(ROOT, 'lib', 'tiers.ts')).href)
 
 // ---------------------------------------------------------------- the surfaces
 
@@ -116,42 +157,28 @@ const CATALOGUE = [
 ]
 
 /**
- * A live route the catalogue carries no card for, and the surface that sells it instead. The
- * value is the reason, printed on every run so the list stays readable rather than becoming
- * somewhere to file an inconvenience.
+ * A live route the catalogue carries no card for, and the reason. Printed on every run so the
+ * list stays readable rather than becoming somewhere to file an inconvenience.
  *
- * THE BAR IS "a buyer can find out that they get this", not "a card exists somewhere". A
- * screen whose whole content is another screen's bullet does not need its own card; a screen
- * a buyer would search this page for does. Where the two readings disagree, add the card — an
- * over-full catalogue costs a reader a few seconds and an under-full one costs the sale.
+ * ── IT WAS THIRTEEN ENTRIES AND IS NOW TWO, 2026-08-22 ───────────────────────────────
+ * The bar used to be "a buyer can find out that they get this", satisfied by a pillar bullet
+ * or a pricing card. That was sound while `/features`' grid was a flat complement to the
+ * pillars. It stopped being sound when the grid became one band per PLAN: a pillar carries no
+ * tier, so a capability sold only by a pillar appears in no band, and the page's own lede
+ * tells a reader to read one band and stop. Eleven allowances were quietly holding the family
+ * tree, the whole ledger and the planning half of Gatherings out of the tier bands — the
+ * Standard band was three cards while seven more Standard screens existed.
+ *
+ * THE BAR NOW IS "is this a capability at all". Both survivors fail it rather than being
+ * excused: one is where capabilities render and the other is the family's own name. Anything a
+ * buyer could want gets a card, even if a pillar already narrates it — check 3 above allows
+ * exactly that pairing, and the narrative and the index are different claims.
  */
 const SOLD_ELSEWHERE = {
   '/dashboard':
     'Not a capability. It is where the other capabilities are rendered, and every card on it is sold as the feature behind it.',
-  '/personal-info':
-    'The family-record pillar sells it: "Profiles the family maintains: contact details, birthdays, t-shirt sizes."',
-  '/community/directory':
-    'The family-record pillar\'s last bullet and the Free card\'s second bullet, "Everybody in one place, and reachable". That pillar is the directory as much as the tree.',
-  '/accounting/summary':
-    'The treasury pillar sells the ledger as one thing. This is a member\'s own standing in it, and the payment-history card is the half a buyer searches for.',
-  '/accounting/dues-and-donations':
-    'The treasury pillar\'s dues and drives bullets, and the Standard card\'s "A real ledger for the money you collect".',
-  '/accounting/transactions':
-    'The treasury pillar: "Contributions and disbursements on one full ledger." The one ledger sold separately is fund transfers, which has its own card because it is a separate grant at a higher tier.',
-  '/admin/accounting':
-    'The treasury pillar sells what it configures — dues cadence, installments, routing and funds — in four of its six bullets. A setup screen behind a sold capability is not a second claim.',
-  '/gatherings/my-tasks':
-    'The gatherings pillar, "Every step assigned to a named relative, with a due date", and the Standard card\'s "Everybody knows their duties".',
-  '/gatherings/budget':
-    'The gatherings pillar, "A budget drawn on a real fund, with each task claiming its own line", and the Standard card\'s "Plan what the gathering costs".',
-  '/admin/gatherings':
-    'The gatherings pillar IS the organizer\'s screen: scheduling, handing out the steps and ruling on the answers are three of its six bullets.',
-  '/admin/gatherings/templates':
-    'The gatherings pillar\'s first bullet, which is the template library said out loud: "the checklist your family runs every year, written once".',
   '/admin/settings':
     'How it works, step one — "Share one family code" — which is the screen that code lives on. A card here would sell renaming a family as a feature.',
-  '/admin/members/approvals':
-    'The privacy card: "New members reviewed before they see anything." It belongs there rather than in the grid because it is a guarantee about who gets in, not a screen a buyer shops for.',
 }
 
 // ---------------------------------------------------------------- reading the surfaces
@@ -207,14 +234,21 @@ for (const [route, entries] of carded) {
   )
 }
 
-// 3 — one card per route
+// 3 — one card per route PER SURFACE. A pillar and a card may both name a route: one is the
+// narrative and the other is the index entry under its plan. Two on one surface is the
+// duplication this was written for, and the message names the surface so the finding is
+// actionable rather than a puzzle.
 for (const [route, entries] of carded) {
-  if (entries.length < 2) continue
-  fail(
-    'duplicate cards',
-    `${route} has ${entries.length} cards (${entries.map(e => e.surface).join(', ')}). The ` +
-      `catalogue says one thing twice, and both copies drift.`,
-  )
+  const bySurface = new Map()
+  for (const e of entries) bySurface.set(e.surface, (bySurface.get(e.surface) ?? 0) + 1)
+  for (const [surface, count] of bySurface) {
+    if (count < 2) continue
+    fail(
+      'duplicate cards',
+      `${route} has ${count} cards on ${surface}. That surface says one thing twice, and both ` +
+        `copies drift.`,
+    )
+  }
 }
 
 // 4 — no stale allowance, in both directions
@@ -238,14 +272,140 @@ for (const route of Object.keys(SOLD_ELSEWHERE)) {
   }
 }
 
+// ---------------------------------------------------------------- 5 — the two plan lists
+//
+// ── WHAT THIS DOES AND DOES NOT CLAIM ───────────────────────────────────────────────────
+// It does NOT derive either list from the other, and it does not compare a single word of
+// copy. `PLANS[]` on `/pricing` is what a BUYER reads and `PLAN_ADDS` in `lib/plans.ts` is
+// what a MEMBER reads on `/admin/settings` and `/upgrade`; the two say the same things in
+// different words on purpose, and both files argue at length why generating either from the
+// other would mean inventing a correspondence that does not exist. That argument is sound and
+// nothing here touches it.
+//
+// What it asserts is narrower and is the thing that actually went wrong twice: the two lists
+// must agree about WHICH THINGS ARE SOLD. A `claim` id per bullet — `<tier>/<slug>`, never
+// rendered — is what makes that a set comparison instead of a judgement about prose.
+//
+// THE HEADER OF THIS FILE SAYS THE PRICING CARDS CANNOT BE CHECKED, and that is still true of
+// everything else about them: whether a bullet is true, whether it is in the right tier,
+// whether the tier has enough in it to be worth the money. This is the one mechanical
+// question inside them, and it was worth a field to make askable.
+//
+// THE PRICING PAGE IS READ AS TEXT, per this file's header — it is a React server component
+// and does not load under node's type stripping. The claim ids are tier-prefixed partly for
+// that reason: the prefix is what lets a flat scan know which card a bullet is on, and check
+// 5c is what verifies the prefix against the card it is actually sitting in, so the prefix
+// cannot become a lie.
+// POSIX, deliberately: this string is printed in findings as well as used to open the file, and
+// `join()` on win32 would put backslashes into a path a reader is meant to paste.
+const PRICING_FILE = 'app/(marketing)/pricing/page.tsx'
+
+function pricingClaims() {
+  const src = readFileSync(join(ROOT, PRICING_FILE), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+  const open = src.indexOf('const PLANS: readonly Plan[] = [')
+  if (open === -1) {
+    fail('plan claims', `${PRICING_FILE} no longer declares \`const PLANS: readonly Plan[] = [\`. `
+      + `This check reads that table as text and has just stopped reading anything — which `
+      + `would otherwise be a silent pass, so it is a finding.`)
+    return new Map()
+  }
+  const end = src.indexOf('\n]\n', open)
+  const seg = src.slice(open, end === -1 ? undefined : end)
+
+  // ONE PASS, tracking the card. `name: '<Tier>'` is the first field of every entry in this
+  // table, so the most recent one is the card a claim sits in.
+  const byCard = new Map()
+  let card = null
+  for (const m of seg.matchAll(/name: '([^']*)'|claim: '([^']*)'/g)) {
+    if (m[1] !== undefined) { card = m[1]; continue }
+    if (!byCard.has(card)) byCard.set(card, [])
+    byCard.get(card).push(m[2])
+  }
+  return byCard
+}
+
+const cardClaims = pricingClaims()
+const labelToTier = new Map(TIERS.map(t => [TIER_LABEL[t], t]))
+
+// 5c — a claim's prefix names the card it is on. Checked FIRST, because 5a compares by prefix
+// and a mis-filed bullet would otherwise be reported as two unrelated set differences.
+for (const [cardName, claims] of cardClaims) {
+  const tier = labelToTier.get(cardName)
+  if (!tier) {
+    fail('plan claims',
+      `${PRICING_FILE} has a card named '${cardName}' carrying ${claims.length} claim(s), and `
+        + `that is not one of the four tier labels (${[...labelToTier.keys()].join(', ')}). `
+        + `TIER_LABEL is what /pricing and the in-product plan panel agree on.`)
+    continue
+  }
+  for (const claim of claims) {
+    if (claim.startsWith(`${tier}/`)) continue
+    fail('plan claims',
+      `${PRICING_FILE}: the ${cardName} card carries the claim '${claim}', whose prefix names `
+        + `a different tier. A bullet moved between cards has to take its id with it, or the `
+        + `two lists agree while selling the same thing at two prices.`)
+  }
+}
+
+// 5a and 5b — the sets match, per tier, and neither list says one thing twice.
+const dupes = list => list.filter((c, i) => list.indexOf(c) !== i)
+for (const tier of TIERS) {
+  const sold = cardClaims.get(TIER_LABEL[tier]) ?? []
+  const told = (PLAN_ADDS[tier] ?? []).map(h => h.claim)
+
+  for (const [where, list] of [[`${PRICING_FILE} PLANS[]`, sold], ['lib/plans.ts PLAN_ADDS', told]]) {
+    for (const claim of new Set(dupes(list))) {
+      fail('plan claims', `${where} lists the claim '${claim}' twice under ${tier}. That card `
+        + `says one thing twice, and both copies drift.`)
+    }
+  }
+
+  // 5c, the other side. `PLAN_ADDS` is a Record keyed by tier, so its filing is enforced by
+  // the type — but the PREFIX is a string and nothing makes it agree with the key it sits
+  // under. Left unchecked, a bullet moved between tiers in this file with its old prefix
+  // intact would report as two clean set differences and read as two unrelated edits.
+  for (const claim of told) {
+    if (claim.startsWith(`${tier}/`)) continue
+    fail('plan claims',
+      `lib/plans.ts PLAN_ADDS.${tier} carries the claim '${claim}', whose prefix names a `
+        + `different tier. The prefix is what makes a re-pricing visible; keep it with the key.`)
+  }
+
+  const missingInProduct = sold.filter(c => !told.includes(c))
+  const missingOnPricing = told.filter(c => !sold.includes(c))
+
+  // THE EXPENSIVE DIRECTION FIRST, and it is expensive rather than untidy: a benefit sold on
+  // /pricing and absent from PLAN_ADDS is a family paying for something the product never
+  // tells them they have. That is one of the two drifts this was built for — a Premium bullet
+  // went missing in-product and nobody found it from inside the product.
+  for (const claim of missingInProduct) {
+    fail('plan claims',
+      `'${claim}' is sold on /pricing and is in no PLAN_ADDS.${tier} bullet. A family on `
+        + `${TIER_LABEL[tier]} is paying for it and is never told inside the product that they `
+        + `have it. Add the member-facing wording to lib/plans.ts — the words, not the same `
+        + `words.`)
+  }
+  for (const claim of missingOnPricing) {
+    fail('plan claims',
+      `'${claim}' is in PLAN_ADDS.${tier} and is on no /pricing bullet. Either the card is `
+        + `underselling the tier, or the claim outlived the copy that made it — both are `
+        + `edits, and doing neither leaves two lists disagreeing about the offer.`)
+  }
+}
+
 // ---------------------------------------------------------------- report
 
 const byTier = t => live.filter(f => f.tier === t).length
+const claimCount = [...cardClaims.values()].reduce((n, c) => n + c.length, 0)
 console.log(
   `Walked ${live.length} live features ` +
     `(free ${byTier('free')}, standard ${byTier('standard')}, plus ${byTier('plus')}, ` +
     `premium ${byTier('premium')}), ${cards.length} catalogue cards, ` +
-    `${Object.keys(SOLD_ELSEWHERE).length} stated allowances.`,
+    `${Object.keys(SOLD_ELSEWHERE).length} stated allowances, ` +
+    `${claimCount} pricing claims against ${TIERS.reduce((n, t) => n + PLAN_ADDS[t].length, 0)} ` +
+    `in-product ones.`,
 )
 
 // The allowances are PRINTED, not merely counted. `help:check` does the same with its three,
@@ -256,7 +416,8 @@ for (const [route, why] of Object.entries(SOLD_ELSEWHERE).sort()) {
 }
 
 if (findings.length === 0) {
-  console.log('\nEvery live feature is on a marketing surface.')
+  console.log('\nEvery live feature is on a marketing surface, and the two plan lists sell '
+    + 'the same things.')
   process.exit(0)
 }
 

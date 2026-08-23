@@ -422,6 +422,13 @@ async function teardown(db) {
     'fund_transfers',
     'dues_member_plans', 'dues_schedules',
     'notifications', 'documents', 'announcements',
+    // ADDED 2026-08-22, and it needs its own line rather than a cascade. `bylaws` has exactly
+    // one inbound reference — `uploaded_by REFERENCES people(id) ON DELETE SET NULL` — so
+    // removing the people below would blank that column and LEAVE THE ROW, which is the shape
+    // the deleted `event_*` block warned about: a table whose only inbound reference is SET
+    // NULL is one nothing removes for you. Listed BEFORE `people` for the same reason
+    // `family_removal_challenges` is.
+    'bylaws',
     // BEFORE `user_roles` AND `family_roles` — `position_journal_entries.role_id` cascades
     // from `family_roles`, so listing it after would have it swept away as a side effect and
     // the teardown would silently stop being the thing that removes it. That is the rule the
@@ -439,6 +446,13 @@ async function teardown(db) {
     // line for it would fail the teardown on the second run of the suite and take every case
     // with it.
     'meeting_topic_notes', 'meeting_topics', 'meeting_attendees', 'meeting_sessions',
+    // THE TWO DISTRIBUTION TABLES, CHILD FIRST — and the child line is NOT redundant with the
+    // cascade. `distribution_recipients` does cascade from `distributions`, so deleting the
+    // parents alone would clear it today; it is listed anyway because the row also references
+    // `people`, which is swept further down, and a table left to a cascade is one that starts
+    // leaving rows behind the day somebody changes a foreign key to SET NULL. That is the rule
+    // the deleted `event_*` block recorded and the meeting tables above follow.
+    'distribution_recipients', 'distributions',
     'position_journal_notes', 'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
@@ -910,6 +924,53 @@ export async function seed() {
       uploaded_by: owner.personId, category: 'bylaws',
     }).select().single())
 
+    // ── BYLAWS (20260822000020) — TWO ROWS, AND BOTH ARE LOAD-BEARING ─────────────────
+    //
+    // The table shipped with no fixture at all, so `grep bylaw tests/rls/cases.mjs` returned
+    // nothing and all five actions rested on a reading of the policy rather than a run of it.
+    //
+    // WHY THE FIRST ROW CARRIES A `file_path` AND `content_text`. `getBylawDownloadUrl` signs
+    // an object in the PRIVATE `documents` bucket, so a row with no path answers "That bylaw
+    // has no file attached" for everybody and the positive control would pass vacuously —
+    // exactly the trap `documents.getDocumentDownloadUrl`'s `setup: seedObject(...)` records,
+    // one layer up. The path is `<family>/bylaws/…` because that is what `addBylaw` writes and
+    // what `documents_family_read` (20260820000006) scopes on: the FIRST SEGMENT is the family
+    // code, so a path shaped any other way would be refused by storage for the owner too and
+    // the case would report a policy failure that is really a fixture failure.
+    //
+    // `content_text` is what puts real words in the generated `search_vector`, which is the one
+    // thing `getBylaws(query)` does that `getBylaws()` does not. Without it the search half of
+    // that action is untested — the empty-query branch would be the only one ever taken.
+    f.bylaw = must('bylaw', await db.from('bylaws').insert({
+      family_code: code,
+      title: `${code} bylaw article`,
+      article: 'Article IV',
+      summary: `${code} bylaw summary`,
+      // THE SEARCH TERM IS 'quorum', and it is a WORD rather than a marker string on purpose:
+      // `websearch_to_tsquery` is stemmed and tokenised, so a query of 'ALPHATEST bylaw' would
+      // be two lexemes ANDed and would match this row for reasons that have nothing to do with
+      // the index working. One ordinary English word is the honest probe.
+      content_text: `${code} secret bylaw text. A quorum is two thirds of the membership.`,
+      file_path: `${code}/bylaws/probe.txt`,
+      mime_type: 'text/plain',
+      file_size_bytes: 64,
+      sort_order: 1,
+      uploaded_by: owner.personId,
+    }).select().single())
+
+    // THE SPARE, FOR THE DELETE CONTROL. Same rule as `deletableChild`, `f.deletableFund` and
+    // `f.deletableSchedule`: a control that really deletes must not consume a row a later case
+    // reads, or that case starts passing for a reason nobody chose. Deliberately WITHOUT a
+    // file, so the control exercises `deleteBylaw`'s `row.file_path` null branch and does not
+    // depend on an object having been seeded.
+    f.deletableBylaw = must('deletable bylaw', await db.from('bylaws').insert({
+      family_code: code,
+      title: `${code} spare bylaw article`,
+      summary: `${code} spare bylaw summary`,
+      sort_order: 2,
+      uploaded_by: owner.personId,
+    }).select().single())
+
     // ── THE EVENT FIXTURE WAS HERE: ELEVEN ROWS ACROSS SEVEN TABLES ────────────────
     // `f.event`, `f.deletableEvent`, `f.eventPhoto`, `f.budgetItem`, `f.deletableBudgetItem`,
     // `f.expense`, `f.rsvp`, `f.eventType`, `f.blueprintItem`, `f.assignment`. Every one of
@@ -1076,6 +1137,66 @@ export async function seed() {
         family_code: code, session_id: f.meeting.id, title: `${code} motion to vote on`,
         created_by: owner.personId, voting_opened_at: new Date().toISOString(),
       }).select().single())
+
+    // ── A SENT DISTRIBUTION, AND ONE RECIPIENT ROW ───────────────────────────────
+    // The point of seeding this rather than letting a case create it: the cross-family cases
+    // need an id in ALPHA that BRAVO's administrator can name, and the roster read is what
+    // must not answer. A `setup` that called `sendDistribution` would also FAN OUT — every run
+    // of the suite would attempt real provider calls for every seeded member, which is exactly
+    // what `sendEmail`'s reserved-TLD guard exists to stop and not something to lean on.
+    //
+    // `state: 'sent'` rather than 'pending', deliberately. A pending row is a queue somebody
+    // can drive, so `deleteDistribution` would refuse it for the wrong reason ("this send has
+    // not finished") and the delete cases would go green on a check that is not the family
+    // boundary. The requeue case seeds its own failure below.
+    f.distribution = must('distribution',
+      await db.from('distributions').insert({
+        family_code: code, subject: `${code} reunion details`,
+        body: `secret distribution body ${code}`,
+        scope: 'family', sent_by: owner.personId,
+        reply_to: owner.email, not_addressed: 0,
+      }).select().single())
+
+    must('distribution recipient', await db.from('distribution_recipients').insert({
+      family_code: code, distribution_id: f.distribution.id, person_id: other.personId,
+      email: other.email, state: 'sent', sent_at: new Date().toISOString(),
+    }))
+
+    // A SECOND DISTRIBUTION WITH A FAILED ROW, for the requeue and cancel cases.
+    // `deletableChild`'s rule again: `requeueDistribution` MUTATES the row it finds, so a case
+    // sharing the row above would leave the first one's assertions describing a different
+    // state on the next run.
+    f.requeueableDistribution = must('requeueable distribution',
+      await db.from('distributions').insert({
+        family_code: code, subject: `${code} message with a bounce`,
+        body: `bounced distribution body ${code}`,
+        scope: 'family', sent_by: owner.personId, not_addressed: 0,
+      }).select().single())
+
+    must('failed distribution recipient', await db.from('distribution_recipients').insert({
+      family_code: code, distribution_id: f.requeueableDistribution.id,
+      person_id: owner.personId, email: owner.email, state: 'failed', error: 'seeded bounce',
+    }))
+
+    // A THIRD, FOR THE DELETE CASE TO CONSUME. `deletableChild`'s rule, and it is not
+    // hypothetical here: `deleteDistribution`'s positive control REMOVES the row it is given,
+    // and both `getDistributions` and `getDistribution` assert on `f.distribution`. Sharing one
+    // row would make those two reads pass VACUOUSLY on every run after the delete — nothing to
+    // leak because nothing is there — which is precisely the "a case whose positive control
+    // mutates a row a later case depends on" failure AGENTS.md §7 names, and it only shows up
+    // in sequence.
+    f.deletableDistribution = must('deletable distribution',
+      await db.from('distributions').insert({
+        family_code: code, subject: `${code} message to be deleted`,
+        body: `deletable distribution body ${code}`,
+        scope: 'family', sent_by: owner.personId, not_addressed: 0,
+      }).select().single())
+
+    must('deletable distribution recipient', await db.from('distribution_recipients').insert({
+      family_code: code, distribution_id: f.deletableDistribution.id,
+      person_id: other.personId, email: other.email, state: 'sent',
+      sent_at: new Date().toISOString(),
+    }))
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
       family_code: code, name: `${code} album`, created_by: owner.personId,

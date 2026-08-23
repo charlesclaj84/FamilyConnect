@@ -26,6 +26,14 @@ import { SITE_URL } from '@/lib/site'
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
+/**
+ * RFC 2606's reserved TLDs, which exist precisely so they can never resolve.
+ *
+ * Declared once because two things now test against it — the recipient and the reply-to —
+ * and they act on a match differently. See both call sites below.
+ */
+const RESERVED_TLD = /\.(test|example|invalid|localhost)$/i
+
 export interface SendResult {
   sent: boolean
   /** Present when `sent` is false. Server-side diagnostics; never shown to a user. */
@@ -79,6 +87,26 @@ export async function sendEmail(opts: {
   html: string
   /** Shown in Resend's dashboard for grouping. Not sent to the recipient. */
   tag?: string
+  /**
+   * Where a reply goes, when it should not go to `EMAIL_FROM`.
+   *
+   * ── WHY THIS EXISTS, AND THE ONE RULE THAT COMES WITH IT ─────────────────────────
+   * Added for email distributions. Every other message this module sends is FROM the
+   * product ABOUT the product — an approval, an invitation, a removal code — and a reply
+   * to any of those belongs at `support@`. A distribution is the opposite: a relative
+   * wrote it, and a cousin pressing Reply means to reach that relative, not us. Without
+   * this the whole family's answers land in a mailbox that cannot help them.
+   *
+   * IT MUST BE RESOLVED ON THE SERVER FROM A ROW THE CALLER ALREADY OWNS — never taken
+   * from a client, and never assembled from one. This is the same class of parameter as
+   * `to`: an attacker-chosen reply-to on a message carrying GENORRA's SPF and DKIM is a
+   * phishing header on authenticated mail, which is exactly what rule 1 in this module's
+   * README is about. `sendDistribution` reads it off the sender's own `people` row.
+   *
+   * REFUSED FOR A RESERVED TLD, like `to` and for the same reason — a placeholder address
+   * as a reply-to would advertise a mailbox that can only bounce.
+   */
+  replyTo?: string
 }): Promise<SendResult> {
   // RFC 2606 reserves .test, .example, .invalid and .localhost precisely so they can
   // never resolve. Mailing one can only ever produce a hard bounce, and bounce rate is
@@ -89,10 +117,16 @@ export async function sendEmail(opts: {
   // inviteMember with addresses like legit.invite@rls.test, so a developer who happens
   // to have RESEND_API_KEY in their environment would fire live sends at nonexistent
   // domains every time they ran the suite.
-  if (/\.(test|example|invalid|localhost)$/i.test(opts.to.trim())) {
+  if (RESERVED_TLD.test(opts.to.trim())) {
     console.warn(`[email] refusing reserved-TLD recipient ${opts.to} — "${opts.subject}" not sent`)
     return { sent: false, error: 'reserved TLD' }
   }
+
+  // A REPLY-TO ON A RESERVED TLD IS DROPPED, NOT REFUSED. Unlike `to`, this is not who the
+  // message is for — so a fixture address here should cost the reply header, never the
+  // delivery. `tests/rls` reaches this path with `@rls.test` senders.
+  const replyTo = opts.replyTo?.trim()
+  const usableReplyTo = replyTo && !RESERVED_TLD.test(replyTo) ? replyTo : undefined
 
   const key = process.env.RESEND_API_KEY?.trim()
 
@@ -115,6 +149,7 @@ export async function sendEmail(opts: {
         to: [opts.to],
         subject: opts.subject,
         html: opts.html,
+        ...(usableReplyTo ? { reply_to: usableReplyTo } : {}),
         ...(opts.tag ? { tags: [{ name: 'kind', value: opts.tag }] } : {}),
       }),
       // A mail provider having a bad day must not hold a server action open until the
