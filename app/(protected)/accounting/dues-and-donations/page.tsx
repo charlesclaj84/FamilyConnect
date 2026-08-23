@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getDonationProgress } from '@/app/actions/dues'
+import { getDuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DuesAndDonationsShell } from '@/components/account/DuesAndDonationsShell'
 import { PageShell } from '@/components/layout/PageShell'
 import { resolveMoneyPane } from '@/lib/money-panes'
@@ -56,15 +57,25 @@ export default async function DuesAndDonationsPage({
   const { pane: raw } = await searchParams
   const pane = resolveMoneyPane(raw)
 
-  const [summary, donations] = await Promise.all([
+  const [summary, donations, online] = await Promise.all([
     getMyDuesSummary(),
     getDonationProgress(),
+    // NOT GATED ON A THIRD GRANT. It answers a question about the caller's OWN card
+    // arrangements and about a family-wide capability flag, and one `requireView` already
+    // admits the whole page — so there is nothing here a reader of this screen is not entitled
+    // to. `getDuesOnlineStatus` gates itself on `requireMember()` anyway.
+    getDuesOnlineStatus(),
   ])
 
   return (
     <PageShell className="space-y-8">
       <h1 className="text-3xl font-bold">Dues &amp; Donations</h1>
-      <DuesAndDonationsShell initialPane={pane} summary={summary} donations={donations} />
+      <DuesAndDonationsShell
+        initialPane={pane}
+        summary={summary}
+        donations={donations}
+        online={online}
+      />
     </PageShell>
   )
 }

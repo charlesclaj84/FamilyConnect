@@ -32,6 +32,23 @@ const SERVER_ONLY_ENV = [
   'META_CONVERSIONS_API_ACCESS_TOKEN',
   'SUPABASE_SERVICE_ROLE_KEY',
   'RESEND_API_KEY',
+  // ── STRIPE, ADDED 2026-08-23 ──────────────────────────────────────────────────────
+  // `STRIPE_SECRET_KEY` is the strongest reason this file exists: it can charge, refund and
+  // read every customer on GENORRA's account, and with a `Stripe-Account` header it acts on
+  // every connected family's account too. The two webhook secrets are what stand between a
+  // POST from the internet and a family being granted a tier they did not pay for.
+  //
+  // THERE IS NO PUBLISHABLE KEY HERE AND THAT IS THE DESIGN. A publishable key would be
+  // legitimately client-side — but this integration uses HOSTED Checkout, so the browser
+  // never loads Stripe.js and is only ever handed one URL to visit. Nothing about Stripe
+  // belongs in a client bundle at all, which makes this list absolute rather than a
+  // judgement about which key is safe to ship.
+  //
+  // The PRICE ids are deliberately absent: they are not secrets, and they are also never
+  // read client-side, so listing them would be a rule nothing enforces.
+  'STRIPE_SECRET_KEY',
+  'STRIPE_PLATFORM_WEBHOOK_SECRET',
+  'STRIPE_CONNECT_WEBHOOK_SECRET',
 ]
 
 /** Modules that read a secret, hold `node:crypto`, or touch the database. */
@@ -46,6 +63,19 @@ const SERVER_ONLY_MODULES = [
   '@/lib/meta/identity',
   '@/lib/meta/attribution-store',
   '@/lib/supabase/admin',
+  // ── THE STRIPE MODULES ────────────────────────────────────────────────────────────
+  // Every one of these either reads the secret key, holds the SDK, or writes a family's
+  // billing state. `lib/platform-billing.ts` is deliberately NOT here: it is the pure
+  // arithmetic half, it reads no environment and touches no database, and a client component
+  // that wanted to render a paid-through date is entitled to import it.
+  '@/lib/stripe/client',
+  '@/lib/stripe/config',
+  '@/lib/stripe/webhook',
+  '@/lib/stripe/webhook-route',
+  '@/lib/stripe/platform-events',
+  '@/lib/stripe/connect-events',
+  '@/lib/stripe/tier-sweep',
+  '@/lib/dues-routing',
 ]
 
 /**

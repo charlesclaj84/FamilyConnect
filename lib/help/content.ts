@@ -1917,6 +1917,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
+            id: 'pay-online',
+            heading: 'Paying by card',
+            blocks: [
+              p('A **Pay online** section appears under the table once your family has connected a card processor. It lists each due you still owe with the amount that is due now already filled in — change it if you want to pay more or clear the due entirely — and **Pay by card** takes you to Stripe\'s own page to enter it.'),
+              p('The payment posts to the family\'s books as soon as it clears. There is nothing for a treasurer to key in afterwards, and it appears in your own payment history alongside anything recorded by hand.'),
+              p('**Pay … automatically** sets up a standing card payment for that due, at the cadence you have already chosen above. It follows that cadence rather than asking again, so changing **Pay cadence** is how you change what is taken. Each due is separate: setting one up says nothing about the others.'),
+              note('Automatic payments are for dues only. A donation drive is a gift, and agreeing to give once is not agreeing to give every month — so drives are given to one at a time from the **Donations** pane.'),
+              p('**Stop** ends the automatic payments straight away, and everything already paid stays on your record. There is nothing to cancel elsewhere.'),
+              note('No **Pay online** section means your family has not connected a processor yet, or Stripe is still checking the account. Ask whoever keeps your family\'s accounting — it is the **Processing** section of [Accounting](/admin/accounting) — and pay by whatever means your family already uses in the meantime.'),
+            ],
+          },
+          {
             id: 'age',
             heading: 'Dues that start at an age',
             blocks: [
@@ -2303,10 +2315,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
             ],
           },
           {
-            id: 'not-yet',
-            heading: 'Processing and Bank Information',
+            id: 'processing',
+            heading: 'Processing',
             blocks: [
-              p('Both sections exist on the rail and neither is wired up yet. They are where card processing and the family\'s bank details will live; nothing is stored in them today.'),
+              p('**Processing** is where your family connects its own Stripe account, so relatives can pay their dues by card instead of writing a cheque. Press **Connect a Stripe account** and Stripe collects everything it needs on its own pages; when you come back, this pane says whether card payments are switched on.'),
+              p('**The account belongs to your family, not to GENORRA.** Money goes straight to your family\'s bank, Stripe\'s processing fees come out of your family\'s side, and your family keeps its own Stripe dashboard, its own payout schedule and its own refunds. GENORRA takes no share of what your family collects.'),
+              note('**You will never be asked for a Stripe key, and you should never give one to anybody.** GENORRA stores only your account\'s id — enough to send a payment to you, and useless to anyone on its own. If a screen ever asks you to paste a key that begins `sk_`, it is not this product.'),
+              p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/accounting/transactions) beside everything else.'),
+              p('**Check with Stripe** asks Stripe for the account\'s current state, which is worth pressing if you have just finished something on their side. Until it says card payments are on, members see no **Pay online** section at all — better than a button that fails once somebody has decided to pay.'),
+              note('**Disconnecting stops every member\'s automatic payment as well.** The panel says how many there are before you confirm. Nothing already recorded is removed, and your family\'s Stripe account is untouched — this only stops GENORRA using it.'),
+            ],
+          },
+          {
+            id: 'not-yet',
+            heading: 'Bank Information',
+            blocks: [
+              p('The section exists on the rail and is not wired up yet. It is where the family\'s own bank details will live — the account dues are deposited into, and that disbursements are paid from. Nothing is stored in it today.'),
+              note('Connecting a card processor under **Processing** does not need this, and does not fill it in: Stripe holds the bank details you give it, and this section is for writing down the numbers a treasurer would otherwise have to look up for a cheque or a transfer.'),
             ],
           },
         ],
@@ -2810,7 +2835,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'The plan',
             blocks: [
               p('The **Plan** section, which Settings opens on, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
-              p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
+              p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way.'),
+            ],
+          },
+          {
+            id: 'billing',
+            heading: 'Paying for the plan',
+            blocks: [
+              p('**Billing**, beneath the plans, is what your family has actually paid: which plan, the day it is paid through, and whether anything renews it. **Pay for …** opens Stripe\'s own page; nothing on this screen takes a card number.'),
+              p('There are two ways to pay and one rate. **Monthly** renews until you stop it. **In advance** is one payment covering however many months you like — a year, three years, or any number up to 36, which you can also change on Stripe\'s page. There is no discount for paying ahead and no annual price; a year in advance is twelve months at the monthly rate.'),
+              defs(
+                { term: 'Moving up', text: 'Takes effect at once. If you had paid ahead at a cheaper plan, what was left of it is carried over as its VALUE at the new rate rather than being refunded or lost — so ten months of Standard becomes about two months of Premium.' },
+                { term: 'Moving down', text: 'Costs nothing and changes nothing today. Your family keeps the plan it paid for until the term ends, and the new one starts the day after. There is no refund for the rest of the period, which is exactly what keeps those pages open until it finishes.' },
+              ),
+              note('**Nothing is granted by pressing a button here.** The plan changes when the payment clears, which can be a moment later — so if the band still shows the old plan straight after paying, give it a minute and reload. If a payment fails, this section says so and nothing your family can reach changes while Stripe keeps trying the card.'),
+              p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here.'),
+              note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this band appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
+              p('**Stop renewing** ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
             ],
           },
           {

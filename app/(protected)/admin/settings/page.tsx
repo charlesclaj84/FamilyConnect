@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getFamilySettings } from '@/app/actions/admin/family'
+import { getPlatformBilling } from '@/app/actions/billing'
 import { FAMILY_RESOURCE, resolveSettingsPane } from '@/components/admin/family-settings'
 import { FamilySettingsClient } from '@/components/admin/FamilySettingsClient'
 import { PageShell } from '@/components/layout/PageShell'
@@ -55,7 +56,13 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
   // in front of it is a convenience and not a gate.
   await requireView(user.id, FAMILY_RESOURCE)
 
-  const [settings, params] = await Promise.all([getFamilySettings(), searchParams])
+  // BOTH BEHIND THE SAME GRANT, which is the decision `getPlatformBilling`'s header argues:
+  // choosing a plan and paying for it are one job on one screen, so billing rides
+  // `admin/settings` rather than inventing a key an administrator would have to find and set
+  // before the pane they were already looking at would work.
+  const [settings, billing, params] = await Promise.all([
+    getFamilySettings(), getPlatformBilling(), searchParams,
+  ])
   const pane = resolveSettingsPane(params.pane)
 
   return (
@@ -69,7 +76,7 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
       </div>
 
       {settings
-        ? <FamilySettingsClient settings={settings} initialPane={pane} />
+        ? <FamilySettingsClient settings={settings} initialPane={pane} billing={billing} />
         : (
           <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
             We could not load this family&rsquo;s details. Try again in a moment.

@@ -59,6 +59,24 @@
  * A query built by string interpolation or issued through `.rpc()`, and a SECURITY DEFINER
  * function that does its own reading. It also cannot see a table nobody added to
  * SCOPED_TABLES — see the note there, which is the honest weak point.
+ *
+ * AND IT CANNOT TELL A FILTER FROM A PROJECTION, which is a FALSE NEGATIVE rather than a
+ * false positive and so is the more dangerous of the two. The test is whether the string
+ * `family_code` appears anywhere in the chained statement, so
+ *
+ *     .from('family_stripe_accounts').select('family_code').eq('stripe_account_id', acct)
+ *
+ * passes — the conjunct it found is a COLUMN BEING READ, and the query is scoped by nothing.
+ * Measured 2026-08-23 on `familyForAccount` in lib/stripe/connect-events.ts, which is that
+ * exact shape and is deliberately unscoped: it is the resolver that answers *which family owns
+ * this Stripe account*, so it cannot filter by its own answer — the same position
+ * lib/auth/family.ts is in and is exempted for.
+ *
+ * Narrowing the match to `.eq('family_code'` / `.in('family_code'` was the obvious fix and was
+ * NOT taken here: several legitimate call sites carry the conjunct in an insert PAYLOAD rather
+ * than in a filter (see the lib/notifications.ts verdict), and tightening the pattern would
+ * turn those into findings while this class stayed invisible. Both directions want a real
+ * parse. Until then, a read whose only `family_code` is in its projection is on the reviewer.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
@@ -69,7 +87,7 @@ const ROOT = join(HERE, '..')
 const SCAN = ['app', 'lib']
 
 /**
- * Every `public` table with a `family_code` column, as of 2026-08-22.
+ * Every `public` table with a `family_code` column, as of 2026-08-23 — 53 of them.
  *
  * HAND-MAINTAINED, AND THAT IS THE WEAK POINT — stated rather than hidden. A new
  * family-scoped table nobody adds here is invisible to this sweep, which is the same class of
@@ -91,6 +109,17 @@ const SCAN = ['app', 'lib']
  * the one table you were thinking about — the reason this list goes stale is that everybody
  * adds their own and nobody checks the others.
  *
+ * ── AND IT WENT STALE AGAIN WITHIN ONE DAY, WHICH IS THE PARAGRAPH ABOVE MEASURED ───
+ * Refreshed 2026-08-23 while adding the Stripe tables, and the query answered NINE missing
+ * rather than the four this commit introduced: Safety Check-Ins (two) and SMS consent (three)
+ * had shipped earlier the same day and were not here either. So the sweep was reporting
+ * "Clean" about two more whole features on the day the warning above was written about the
+ * last three.
+ *
+ * That is the strongest available argument for running the query rather than appending: the
+ * person adding four tables is exactly the person in a position to notice the other five, and
+ * they only notice by DIFFING. The command is one line and it is in the block above.
+ *
  * `families` is deliberately ABSENT. Its `family_code` IS the primary key rather than a scope,
  * so every read of it filters by id and would report as a finding for doing the one thing that
  * table cannot get wrong.
@@ -98,15 +127,18 @@ const SCAN = ['app', 'lib']
 const SCOPED_TABLES = new Set([
   'announcement_unpins', 'announcements', 'bylaws', 'chapters', 'chat_rooms',
   'distribution_recipients', 'distributions', 'documents', 'donation_beneficiaries',
-  'dues_member_plans', 'dues_payments', 'dues_schedules', 'elections',
-  'family_invitations', 'family_removal_challenges', 'family_roles', 'fund_allocations',
-  'fund_contributions', 'fund_disbursements', 'fund_milestones', 'fund_transfers',
-  'funds', 'gathering_task_submissions', 'gathering_tasks', 'gathering_template_steps',
+  'dues_autopay', 'dues_member_plans', 'dues_payments', 'dues_schedules', 'elections',
+  'family_invitations', 'family_removal_challenges', 'family_roles',
+  'family_stripe_accounts', 'fund_allocations', 'fund_contributions',
+  'fund_disbursements', 'fund_milestones', 'fund_transfers', 'funds',
+  'gathering_task_submissions', 'gathering_tasks', 'gathering_template_steps',
   'gathering_template_uses', 'gathering_templates', 'gatherings', 'meeting_attendees',
   'meeting_sessions', 'meeting_topic_notes', 'meeting_topics', 'meeting_votes',
   'notifications', 'people', 'permission_templates', 'person_relationships',
-  'photo_collections', 'photos', 'position_journal_entries', 'position_journal_notes',
-  'regions', 'resource_visibility', 'user_roles',
+  'person_sms', 'phone_verifications', 'photo_collections', 'photos',
+  'platform_billing_accounts', 'platform_payments', 'position_journal_entries',
+  'position_journal_notes', 'regions', 'resource_visibility', 'safety_check_in_people',
+  'safety_check_ins', 'sms_consent_events', 'user_roles',
 ])
 
 /**
@@ -138,6 +170,13 @@ const REVIEWED = {
     'TRANSITIVE — payment ids from family-scoped reads in the same function: the routing pass '
     + 'reads the payments it is routing, and `reverses_id` is matched against a payment already '
     + 'resolved inside the family.',
+  'lib/dues-routing.ts:dues_payments':
+    'TRANSITIVE — the `routed_at` stamp, on a payment row the caller already holds. Both '
+    + 'occurrences are `.eq(\'id\', payment.id)` where `payment` came out of the insert or read '
+    + 'that produced it, inside the family. This verdict MOVED here from '
+    + 'app/actions/dues.ts:dues_payments on 2026-08-23 when the waterfall was extracted so the '
+    + 'Stripe webhook could share it — the code did not change, and a verdict has to move with '
+    + 'the lines it is about or the sweep reports a new finding for a line nobody wrote.',
 
   'app/actions/family-tree.ts:people':
     "TRANSITIVE — `.eq('id', o.anchorPersonId)` reading `gender` to choose an inverse "

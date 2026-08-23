@@ -119,6 +119,88 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+### [ ] Stripe: two flags, seven variables, two webhook endpoints, one tax decision
+
+**Action:** set the environment variables, create the two webhook endpoints, and flip one
+constant. The integration is built and inert; every item below lives in somebody's Stripe
+account or on Vercel, and nothing in this repo can detect any of it.
+
+Both flows are implemented and merged — `lib/stripe/`, `app/actions/billing.ts`,
+`app/actions/pay-dues.ts`, `app/actions/admin/processing.ts`, `app/api/stripe/*`, and
+`20260823000004` / `20260823000005`. `payment_info.md` is the architecture and AGENTS.md's
+"MONEY HAS TWO DIRECTIONS" section is the rule.
+
+**1. THE PRODUCT FLAG, AND IT IS NOT A CREDENTIAL.** `TIER_IS_SOLD` in `lib/plans.ts` is
+`false` for every paid tier, and `startPlanCheckout` refuses on it before it looks at Stripe.
+So nothing can be bought until somebody decides it is for sale — deliberately, because
+`/pricing` says "Not yet available" on all three cards and a checkout that took money while
+that was on screen would be a sale nobody made. **Flipping it is two edits in one commit:**
+`TIER_IS_SOLD` and `PLANS[].available` on `/pricing`. `npm run marketing:check` will not catch
+that pair; it compares claim SETS, not availability.
+
+**2. Environment variables**, on Vercel. Nothing is `NEXT_PUBLIC_` and nothing may become so —
+this integration uses hosted Checkout, so the browser never loads Stripe.js and needs no
+publishable key at all. `lib/meta/no-client-secrets.test.ts` asserts none of them is reachable
+from a client bundle.
+
+| Variable | Notes |
+|---|---|
+| `STRIPE_SECRET_KEY` | **Prefer a restricted key (`rk_`)** over `sk_`. It needs write on Checkout Sessions, Customers, Subscriptions, Prices (read), Billing Portal, and Connect accounts/account links. |
+| `STRIPE_PLATFORM_WEBHOOK_SECRET` | The signing secret of the endpoint in §3. Not interchangeable with the next one. |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | The **Connect** endpoint's. One shared secret would make the two endpoints indistinguishable, which is the mix-up that would credit a family's ledger with our revenue. |
+| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier. |
+| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**. Prepaid terms are `quantity: months` against it. |
+| `STRIPE_API_VERSION` | Leave unset. Pinned to `2026-07-29.dahlia` in code; this is the override for testing a bump. |
+
+**One Product per plan, not one Product with three prices.** Checkout and every invoice print
+the Product name on the line item, so three tiers sharing one Product gives every family a
+receipt that cannot tell them apart. Both Prices for a tier belong to that tier's Product, and
+**both must equal `TIER_PRICE[tier].monthlyCents`** — nothing in this repo can check that, and
+the screen quotes `TIER_PRICE`, so a mismatch shows up as a hosted page asking for a different
+number than the button promised.
+
+**A LIVE KEY IS REFUSED ON A PREVIEW DEPLOYMENT** (`liveKeyOnNonProduction` in
+`lib/stripe/config.ts`), so QA cannot charge a real card. **The opposite cannot be detected
+from inside the process and is the expensive one:** a TEST key on production means every
+checkout succeeds, every webhook fires, every tier is granted and no money is ever collected,
+with the product working perfectly. Check the key prefix on production by eye.
+
+**3. Two webhook endpoints.** Both are `POST` only and both verify a signature before parsing
+anything.
+
+| Endpoint | URL | Events |
+|---|---|---|
+| Account | `https://genorra.com/api/stripe/platform` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` |
+| **Connect** | `https://genorra.com/api/stripe/connect` | the first four above, plus `customer.subscription.updated`, `customer.subscription.deleted`, `account.updated` |
+
+Then **turn a real payment on and watch it land.** "The endpoint returned 200" is not
+validation; these are:
+
+| Check | What wrong looks like |
+|---|---|
+| Buy a month, then reload `/admin/settings` | **Paid through** moves and the tier is granted. Still Free means the webhook is not arriving — check the signing secret, not the code |
+| Replay the same event from the Stripe dashboard | Nothing changes. `platform_payments.stripe_ref` is unique; a second row means the ref is not the charge |
+| `SELECT * FROM stripe_webhook_events WHERE processed_at IS NULL` | Empty. A row here with a `last_error` is an event that failed and is being redelivered |
+| Buy 12 months, then change it to 3 on Stripe's page | `paid_through` is three months out, not twelve — the quantity is read off the session |
+| Move down a tier | The tier does NOT change today, and **Billing** names the date it will |
+| Connect a family account and pay a due | A `dues_payments` row with `source='stripe'`, `recorded_by` NULL, and `fund_contributions` rows against it |
+| Compare a charge against `platform_payments.amount_cents` | Cents, not dollars. A $5.00 charge stored as `5` is the failure |
+
+**4. Stripe Tax is a decision nobody has taken, and it is not a code change alone.**
+`automatic_tax` is NOT enabled on any session in this integration. Turning it on without an
+active tax registration in the buyer's jurisdiction collects nothing and reports no error — the
+single most common Stripe Tax mistake — so it needs a registration first, and a plan
+subscription sold across US states may need several. Read
+[Collect taxes for recurring payments](https://docs.stripe.com/billing/taxes/collect-taxes.md)
+before touching it. **The family side is not ours to decide at all:** on a direct charge the
+family is the merchant of record, so their tax position is theirs.
+
+**5. Set a CSP header if Stripe.js is ever loaded.** It is not today — hosted Checkout is a
+redirect — and that is why `next.config.ts` needs no `frame-src`. An embedded Payment Element
+would change that.
+
+Recorded 2026-08-23.
+
 ### [ ] Meta advertising: two credentials, four dashboard settings, one decision
 
 **Action:** set five environment variables and untick one box. Nothing in this repo can
@@ -243,6 +325,120 @@ step is the whole of the legal model and is the one nobody tests.
 
 Recorded 2026-08-23.
 
+## DISCUSS: what happens when a family stops paying
+
+**Action:** a conversation, then a policy, then about a day of code. Nothing is broken today
+and nothing is guessing — the data is recorded and deliberately acted on by nothing.
+
+`invoice.payment_failed` stamps `platform_billing_accounts.delinquent_since` and
+`last_payment_failure` and stops there. No tier drops, no email goes, nothing is scheduled, and
+the **Billing** band on `/admin/settings` says so out loud: *"A card payment has been failing
+since … Nothing has changed about what this family can reach."*
+
+**THAT IS A HOLDING POSITION, NOT AN ANSWER.** A family whose card expired keeps Premium
+indefinitely, and the only trace is a date on a screen an administrator may never open.
+
+**Why it was left open rather than guessed at.** Stripe retries a failed card for days — the
+exact schedule is a Dashboard setting — so a family whose payment fails on Tuesday and succeeds
+on Thursday must not lose their pages in between. Any rule tighter than that is a product
+decision about a real family's real card, and the wrong one closes a hundred and forty people's
+family album over a bank's fraud hold.
+
+**The questions, roughly in the order they have to be answered:**
+
+1. **How long is the grace period?** Stripe's own dunning runs about two weeks by default. A
+   grace period shorter than that fights it; one much longer is a free plan with extra steps.
+2. **What does the family SEE, and when?** The band exists. Does the dashboard say something?
+   Does the administrator get an email — and which administrator, given
+   `platform_billing_accounts` deliberately holds no billing email (see the entry below)?
+3. **What actually happens at the end of it?** The mechanism exists and is one row:
+   `scheduled_tier = 'free'`, `scheduled_tier_on = <the day>`, and the sweep does the rest. The
+   decision is the DATE, not the code.
+4. **Is a prepaid lapse the same thing?** It is not, today. A prepaid term that runs out is
+   swept straight to Free with no grace at all, because nothing is retrying and nothing failed —
+   the family simply stopped buying. Those two paths reaching the same tier by different rules
+   is defensible and is currently undocumented anywhere a family would read it.
+5. **Does Stripe's own dunning email replace ours?** It is configurable in the Dashboard, it is
+   free, and it comes from Stripe rather than from an address a family might not recognise.
+   Probably yes, and then item 2 is much smaller.
+
+**Where the code would go, so the estimate is honest.** `onInvoiceFailed` in
+`lib/stripe/platform-events.ts` for the stamp (already there), the sweep in
+`20260823000004` §5 for the drop (already there — it would need a `delinquent_since + N days`
+branch beside the prepaid one), and `lib/platform-billing.ts` for the pure "is this family past
+the grace period" function, which is where it should be tested by value rather than by running
+a webhook.
+
+**One thing NOT to do:** put the grace period in a policy or in `families.tier` semantics. No
+RLS policy consults the tier and none may, and a family in dunning must keep every row it has —
+the whole point of a soft failure is that paying fixes it with nothing to restore.
+
+Recorded 2026-08-23.
+
+## BUILD: what a downgrade takes away
+
+**Action:** decide what "loses the data attached to that tier" means, table by table, then build
+it. This is a big piece of work and the shape of it matters more than the size.
+
+**The request, as given:** when a family moves down a tier, it should lose the data belonging to
+the tier it left.
+
+**THE CONCERN, STATED ONCE, BECAUSE IT CONTRADICTS AN INVARIANT THE PRODUCT IS BUILT ON.**
+Today a downgrade withholds SCREENS and touches no rows, and that is asserted in several places
+rather than merely being true: no RLS policy consults `families.tier` and none may
+(`20260813000003`), `PlanPanel`'s copy promises *"a family that moves down to Free keeps every
+record it has ever entered … so moving back up restores the pages with their data intact"*,
+`/help/family-settings#plan` says the same, and the removal flow makes the identical promise
+about a much bigger action. Deleting on downgrade inverts all of that, and three consequences
+follow that are worth being sure about before building it:
+
+* **It is irreversible in a way nothing else in this product is.** Removing a family — the
+  largest destructive act available — deletes nothing. A downgrade would become the one
+  operation that does, and a mis-clicked plan change would destroy a family tree.
+* **It makes a billing failure destructive.** With delinquency wired up (the entry above), an
+  expired card would eventually delete records. That is a very different product from one where
+  an expired card closes a page.
+* **The copy on four surfaces becomes false** in the same commit, and one of them is a
+  confirmation dialog somebody reads while deciding.
+
+**A middle position worth considering first**, because it may be the whole of what is actually
+wanted: keep the rows, and make the withholding HONEST — say what is being locked, how much of
+it there is, and that it comes back. *"Moving to Free closes the family tree. Its 147 people are
+kept and return if you move back up."* That is a day's work rather than a month's, it needs no
+new mechanism, and it is reversible.
+
+**If deletion is the decision, here is what it costs.** Recorded now because the shape is the
+expensive part:
+
+1. **A tier→data map, per tier, decided by a person.** `lib/features.ts` maps ROUTES to tiers;
+   it says nothing about tables. Standard covers the family tree, the whole dues-and-donations
+   ledger, permission templates and the planning half of Gatherings — so "Standard's data" is
+   `person_relationships`, `dues_schedules`, `dues_payments`, `fund_*`, `permission_templates`,
+   `gathering_templates` and more. **`dues_payments` is append-only** (`20260806000002` refuses
+   a DELETE even to the service role), so deleting a family's ledger means either dropping that
+   trigger or an exemption inside it. That alone is worth a separate conversation.
+2. **What happens to rows that CASCADE.** Deleting `dues_schedules` cascades to
+   `dues_member_plans` and nulls `dues_payments.schedule_id`. Deleting `permission_templates`
+   would leave every member's `permission_template_id` dangling — that is the whole permission
+   model, and Free families need one.
+3. **A grace window, and it is not optional.** Deleting at the moment a term ends means a card
+   that failed on the last day of the month destroys records the same night. An "archived until"
+   window with a restore path is the humane version, and it is a second feature.
+4. **Somewhere to say it, twice.** A confirmation naming what will be destroyed and how much of
+   it, and an email afterwards. Neither exists.
+5. **`apply_due_platform_tier_changes()` becomes destructive.** It is a SECURITY DEFINER sweep
+   with no caller and no `auth.uid()`, called from a webhook and one day from `pg_cron`. Wiring
+   deletion into it means an unattended job deleting family records, which is the single riskiest
+   shape in this codebase and would want its own confirmation path rather than a sweep.
+6. **Every promise above rewritten in the same commit** — `PlanPanel`, `lib/plans.ts`,
+   `/help/family-settings#plan`, `/help/plans`, and the marketing copy on `/pricing`.
+
+**No family is using this product yet**, which is what makes the decision cheap to take now and
+expensive to take later — the same ground `20260819000006` retired Events on. It is worth taking
+deliberately rather than as a side effect of building billing.
+
+Recorded 2026-08-23.
+
 ## The scheduler is one migration away, and three features are queued behind it
 
 **Action:** enable `pg_cron` and `http` in a migration, and assert the job in the same file.
@@ -264,13 +460,20 @@ need anybody to hold production credentials.
 
 **What it unblocks, in the order the value falls:**
 
-1. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
+1. **A LAPSED PREPAID PLAN, and this one is now REAL rather than prospective.**
+   `apply_due_platform_tier_changes()` (`20260823000004` §5) is written for a scheduler and has
+   none: it is called at the end of every Stripe webhook delivery, which is EXACT for a monthly
+   renewal (the invoice IS the period boundary) and a genuine gap for a term bought outright. A
+   family that prepaid three months in January keeps its tier until some OTHER family's payment
+   happens to arrive — and on a product with no families paying, until nothing does. The function
+   takes no arguments, is idempotent, and is safe hourly forever; scheduling it is one line.
+2. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
    elsewhere. `/reporting/dues-projections` computes what is owed and `app/actions/distributions.ts`
    is a working resumable per-recipient fan-out. FutureFeature.md §1 has the one decision it still
    needs (a uniqueness key on person/schedule/period, in the schema rather than in the job).
-2. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
+3. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
    which needs no API key.
-3. Anything else that has to happen with nobody watching.
+4. Anything else that has to happen with nobody watching.
 
 **Three things to get right, and the second is the one that will bite:**
 
@@ -353,29 +556,34 @@ worth a `verify.yml`-shaped assertion more than it is worth the delete.
 
 Recorded 2026-08-23.
 
-## Meta: the money half is built and has no caller
+## RESOLVED 2026-08-23: Meta's money half is wired
 
-**Action:** when a payment provider exists, call one function from its webhook. Until then
-there is nothing to do here and nothing is broken.
+**It has a caller now.** `lib/stripe/platform-events.ts` calls `trackSubscriptionPayment` from
+the verified webhook after Stripe confirms the charge, and `app/actions/billing.ts` calls
+`trackCheckoutStarted` when a hosted Checkout Session is actually created. All four rules this
+entry set out are honoured at the call site: `transactionId` is the invoice or payment-intent id
+rather than the subscription, `firstPayment` comes from Stripe's own
+`billing_reason === 'subscription_create'`, `amountCents` is `invoice.amount_paid` rather than
+`TIER_PRICE`, and a renewal sends `SubscriptionRenewal` alone.
 
-`lib/meta/billing.ts` implements `InitiateCheckout`, `Purchase`, `Subscribe` and
-`SubscriptionRenewal` — typed, tested, deduplicated, idempotent — and **is imported by
-nothing**. That is not an oversight and must not be "finished" by finding something to fire
-it from.
+Two things it does that this entry could not have specified:
 
-**Why it is parked rather than wired.** GENORRA has no payment provider.
-[payment_info.md](payment_info.md) is pre-implementation research, `TIER_IS_SOLD` in
-`lib/plans.ts` is `false` for every paid tier, and `setFamilyTier` is scaffolding that
-charges nothing and says so on screen. So there is no authoritative confirmation of a
-payment anywhere in the product to fire a `Purchase` from.
+* **It never throws into the webhook.** A Meta outage must not make the endpoint answer 500,
+  because Stripe would then redeliver an event whose money has already been applied. The tier is
+  granted first; the analytics are best effort, in that order.
+* **A placeholder address is never hashed.** The holder comes from the family's founder row, and
+  a generated `@genorra.com` address is passed as `null` rather than as an email — it would be a
+  match key that matches nothing and drags Event Match Quality down.
 
-Firing one from `setFamilyTier` was the obvious shortcut and is the anti-pattern the whole
-event is about: **the button press is not the payment.** It would teach Meta's optimiser to
-find people who press a free control, and report revenue the business never received — and
-value-based bidding would then be built on that figure.
+**THE VALIDATION TABLE AT THE BOTTOM IS STILL OWED**, and is now checkable — it moved to the
+Stripe GO LIVE item's own table. What remains open here is `Lead`, which still has no lead
+surface (no waitlist, no demo request, no newsletter), and the reporting half below.
 
-**What wiring it costs**, once a provider is chosen — one import in the verified webhook
-handler, after the charge is confirmed:
+The rest of this entry is kept because it is the argument for the shape, and because the four
+rules are the things a future edit will get wrong:
+
+**What wiring it cost** — one import in the verified webhook handler, after the charge is
+confirmed:
 
 ```ts
 import { trackSubscriptionPayment } from '@/lib/meta/billing'
@@ -412,26 +620,64 @@ in the file:
   the existing base. The revenue is not lost — turn `SubscriptionRenewal` into a custom
   conversion in Events Manager when lifetime revenue is wanted.
 
-**`InitiateCheckout` waits for a real checkout session** for the same reason: there is no
-flow to enter. **`Lead` waits for a real lead surface** — there is no waitlist, demo request
-or newsletter in this product, and using `Lead` to mean "viewed pricing" would make a
-Lead-optimised campaign chase readers instead of prospects.
+**`InitiateCheckout` HAS its real checkout session now.** **`Lead` still waits for a real lead
+surface** — there is no waitlist, demo request or newsletter in this product, and using `Lead`
+to mean "viewed pricing" would make a Lead-optimised campaign chase readers instead of
+prospects.
 
-**Validation once it is wired**, and none of it is checkable today:
+**Validation, now checkable and therefore OWED rather than hypothetical.** It needs
+`META_TEST_EVENT_CODE` and a Stripe test key on the same preview deployment:
 
 | | |
 |---|---|
 | Refresh the success page repeatedly | One `Purchase` in Test Events, not one per refresh |
-| Replay the webhook from the provider's dashboard | Still one — the ledger claim is what covers a redelivery beyond Meta's 48-hour window |
+| Replay the webhook from Stripe's dashboard | Still one — `stripe_webhook_events` refuses the second delivery before Meta is ever reached |
 | Let a renewal charge settle | `SubscriptionRenewal` only. **No `Purchase`, no `Subscribe`** |
-| Compare `value` against the provider's charge | Dollars, not cents. A $5.00 charge reported as `500` is the failure |
+| Compare `value` against the Stripe charge | Dollars, not cents. A $5.00 charge reported as `500` is the failure |
 | `SELECT * FROM marketing_conversion_events WHERE delivery <> 'sent'` | Empty, or a readable reason in `detail` |
 
-**And the reporting half is owed too.** `marketing_attribution` records which campaign found
-each account, and the question it exists to answer — *which campaign produced this paying
-family?* — cannot be asked until a subscription joins to an account. A `/reporting` screen
-for it is the natural follow-up, and it belongs to whoever builds billing: it is one join
-away then and is nothing but an empty table now.
+**And the reporting half is owed too, and is now one join rather than none.**
+`marketing_attribution` records which campaign found each account, and the question it exists to
+answer — *which campaign produced this paying family?* — is answerable the moment
+`platform_payments` has rows in it. A `/reporting` screen for it is the natural follow-up, and
+the join is `marketing_attribution` → account → `people.family_code` → `platform_payments`.
+
+Recorded 2026-08-23; the wiring half resolved the same day.
+
+## Three smaller Stripe follow-ups, none of them urgent
+
+**Action:** four short conversations and a few hours of code, in whatever order they come up.
+
+1. **A FAMILY'S BILLING EMAIL. There is deliberately no column for one.**
+   `ensureCustomer` in `app/actions/billing.ts` creates the Stripe customer with the family's
+   NAME and no email, and Stripe collects one on the hosted page instead. The obvious value —
+   whoever happened to press the button — is wrong the moment that administrator leaves the
+   family, and it is where Stripe would mail every future receipt and dunning notice. So it
+   wants to be a field on Family Settings, chosen once, and it is not built.
+
+2. **DOES GENORRA TAKE A CUT OF FAMILY DUES?** Today: no.
+   `app/actions/pay-dues.ts` sets no `application_fee_amount` and there is no column to hold
+   one. That is a real decision rather than an omission — direct charges permit it, so adding
+   one later is a line of code, whereas taking one now and reversing it means refunding
+   families. If it is ever wanted, the fee has to appear on the member's own screen before they
+   pay: a family collecting $40 of dues and receiving $38 needs to have been told.
+
+3. **v2 EVENT DESTINATIONS for connected-account capability changes.** Accounts are created
+   through the v2 API, whose capability events —
+   `v2.core.account[configuration.merchant].capability_status_updated` — travel through EVENT
+   DESTINATIONS rather than a v1 webhook endpoint, and that is not wired up. The Connect handler
+   listens for the v1 `account.updated` instead, which still fires and carries enough; and
+   `refreshProcessorStatus()` pulls the account on demand, which is the path the return-from-
+   onboarding page uses and does not depend on any webhook. So this is a robustness item, not a
+   gap: worst case a treasurer presses **Check with Stripe**.
+
+4. **CLOSING THE `STRIPE-INERT` VERDICT.** Eleven actions in `scripts/rls-coverage.mjs` have no
+   RLS case because they refuse on a missing credential before they query anything, so a case
+   would assert the credential check and pass with every family conjunct deleted. Giving
+   `tests/rls` a Stripe TEST key would make all eleven reachable and turn each verdict into a
+   real case — and would make the suite talk to the network, which is a slower and flakier
+   suite. `BACKLOG_CEILING` was raised from 57 to 68 to admit them and its own comment carries
+   the trade.
 
 Recorded 2026-08-23.
 

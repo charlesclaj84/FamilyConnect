@@ -2629,6 +2629,122 @@ Three things follow, and the first is the one that gets misread:
 24h for that reason: no session could then reach the age at which GoTrue demands the code, and
 the flag becomes decoration. The note is in `config.toml` beside the block.
 
+# MONEY HAS TWO DIRECTIONS, AND THE TWO LEDGERS MUST NEVER MEET
+
+Stripe arrived on 2026-08-23 and it brought two entirely separate flows. Nearly every mistake
+available in this feature is a mistake about WHICH of them you are in.
+
+| | Who pays whom | Whose Stripe account | Recorded in |
+|---|---|---|---|
+| **Platform** | a family pays GENORRA for its plan | **ours** | `platform_payments` |
+| **Connect** | a relative pays THEIR FAMILY its dues | the **family's own**, via `Stripe-Account` | `dues_payments` |
+
+One API key serves both — a direct charge is our platform key plus an account header — which is
+exactly why they are easy to cross by accident. `onAccount()` in `lib/stripe/client.ts` is the
+ONLY place that header is set, deliberately, so a grep for it is the complete list of calls
+GENORRA makes on a family's behalf.
+
+**A SUBSCRIPTION CHARGE IN `dues_payments` WOULD BE THE WORST BUG IN THE PRODUCT**, and it
+would look like a working feature. It would inflate `getFamilyDuesCollected()` — the dashboard
+headline — with money the family never received; `routePaidPayment` would split it across their
+own funds, so a slice of GENORRA's invoice would land in their Reunion fund; it would appear in
+`/reporting/pl-summary` as income and in a member's history as a due they paid; and it would be
+UNREMOVABLE, because that table is append-only (`20260806000002`) so the correction is a negative
+row and the mistake stays in the family's ledger forever. Hence the `platform_*` prefix: nothing
+in `app/actions/dues.ts`, `lib/fund-routing.ts` or `fund_balance_cents()` knows those tables
+exist.
+
+**THE FAMILY'S DUES GOING THE OTHER WAY IS RIGHT, THOUGH, and needed no schema at all.**
+`dues_payments.source` has permitted `'stripe'` since `20260610000005` and
+`(source, processor_ref)` has been unique since the same file, with a comment saying it was for
+webhook-retry idempotency. A card payment IS the family's money and belongs in the family's
+books, routed by the same waterfall as a cheque keyed in by hand.
+
+## WE HOLD NO FAMILY'S API KEY, AND MUST NEVER START
+
+`payment_info.md` §4 is the long argument and it is the single most important rule here. A
+family connects its own Stripe account through Stripe's hosted onboarding and we store an
+`acct_…` — an identifier, useless without our platform key, revocable by the family, and it
+arrives with an event when they revoke it. A family's `sk_live_…` in our database would make a
+breach of GENORRA a total compromise of every family's money, with no scoping and no
+revocation, in violation of Stripe's own terms.
+
+`20260823000005`'s verify block **fails the deploy** if a column on either processor table so
+much as looks like a credential (`%secret%`, `%api_key%`, `%private_key%`, `%access_token%`).
+That is the one rule in this feature whose violation would break nothing and cost everything,
+which is why it is asserted rather than promised.
+
+## THE BUTTON PRESS IS NOT THE PAYMENT
+
+`app/actions/billing.ts` may create a Checkout Session, update a subscription, and write a
+PROMISE (`scheduled_tier`). It may **not** decide that a family has paid. Nothing in any action
+writes `families.tier` or `paid_through`; those move in exactly two places:
+
+* `lib/stripe/platform-events.ts`, after a signature-verified event says the money moved;
+* `apply_due_platform_tier_changes()`, when a term ends.
+
+A member can press Pay, be redirected, and abandon the page. They can pay and lose the
+connection before the return page loads. A delayed-notification method completes the session
+while it is still UNPAID and fails three days later. In every one of those the action ran and no
+money arrived — so an action that granted the tier would give the product away to anybody who
+could reach the endpoint, which is everybody signed in. Hence `payment_status !== 'unpaid'` on
+both checkout handlers, and hence the return page only ever REPORTS.
+
+**`families.tier` IS STILL THE ONLY THING ANY GATE READS**, and that is not a stepping stone. No
+RLS policy consults it, none may, and making a family's access depend on a billing read would put
+a Stripe-shaped query on the hot path of every page load. `entitlementOn()` in TypeScript
+DESCRIBES the paid standing; the SQL sweep is the only writer. If a third expression of that rule
+appears, one of them is wrong.
+
+## FOUR RULES ABOUT PLANS, WRITTEN INTO COLUMNS RATHER THAN INTO CODE
+
+1. **ONE RATE PER TIER, MONTHLY.** No annual price — `lib/plans.ts` records why one was
+   withdrawn, and a year in advance is twelve months at the monthly rate.
+2. **NO REFUNDS.** There is no refund column, no credit-note table, and `amount_cents > 0` is a
+   CHECK. The one place this is a live hazard is `proration_behavior`: Stripe's DEFAULT is
+   `'create_prorations'`, which issues a CREDIT for the unused remainder — a refund that has not
+   been paid out yet. `changePlanTier` passes `'none'` on a downgrade for exactly that reason.
+3. **A DOWNGRADE WAITS FOR THE TERM TO END.** `scheduled_tier_on` is `paid_through + 1 day`,
+   because `paid_through` is INCLUSIVE — a day early is a refund in the one direction this system
+   does not do, and `scheduleDowngrade` is mutation-tested on that off-by-one.
+4. **AN UPGRADE TAKES EFFECT AT ONCE, AND THE UNUSED TERM IS KEPT AS VALUE.**
+   `upgradeCreditDays` converts the remainder at the dearer tier's rate:
+   `floor(remainingDays × oldMonthly ÷ newMonthly)`. The alternative — stacking the new months
+   on the end — is not an unfairness, it is an EXPLOIT: ten months of Standard plus one of
+   Premium would be eleven months of Premium, because the tier in force is a single value.
+
+## IDEMPOTENCY IS THE DATABASE'S JOB, IN THREE LAYERS
+
+Stripe redelivers: on a 500, on a timeout, and days later in the ordinary course of things — past
+every in-process cache and past its own 24-hour idempotency window. So:
+
+* **`stripe_webhook_events`** claims each event in ONE statement (`claim_stripe_event`), for the
+  reason `claim_distribution_recipients` is one statement: a read-then-write from this process
+  lets two concurrent deliveries both decide they are the first, and here that means a family
+  credited twice for one payment. **The claim is RECOVERABLE after fifteen minutes** — without
+  that, a handler that dies mid-event leaves the row claimed forever and every redelivery is
+  refused as a duplicate, so the event is permanently lost by the mechanism meant to protect it.
+* **`platform_payments.stripe_ref`** and **`dues_payments(source, processor_ref)`** are unique,
+  and both hold the CHARGE rather than the subscription. Every renewal of one subscription shares
+  the subscription id, so keying on that makes month two a duplicate of month one and discards it
+  forever — silently, because a suppressed duplicate looks exactly like a working integration.
+* **`intentKey()`** on outbound POSTs, derived from the INTENT and never from a clock. A fresh
+  random key defeats the whole mechanism while looking like it is using it.
+
+**A HANDLER THAT COULD NOT DO ITS JOB MUST ANSWER 500.** Stripe reads the status code and decides
+whether to redeliver; swallowing a failure into a 200 loses the event permanently, and the events
+lost that way are the ones that grant a tier somebody paid for. `finish_stripe_event` leaves
+`processed_at` NULL on a failure for the same reason.
+
+## AND `/api` IS EXCLUDED FROM `proxy.ts`
+
+The first `app/api` routes in the product arrived with this, and the matcher had to learn about
+them. A webhook carries no cookie, so the session plumbing is waste — but the real reason is
+that `isGatedPath()` longest-prefix-matches the feature registry, so a future `FEATURES` entry
+whose href began `/api` would start REWRITING deliveries to the Coming Soon page, which answers
+200. Stripe would record every one as accepted and never retry. `/auth/confirm` is deliberately
+NOT excluded: that route needs the cookies this file rotates.
+
 # Sending email is a plain module, never a server action
 
 `lib/email/` sends the mail the **app** composes — membership approved, family invitation, the family-removal code, and email distributions.

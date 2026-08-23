@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { CalendarClock, HeartHandshake } from 'lucide-react'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { DuesPlanSection } from '@/components/account/DuesPlanSection'
+import { PayOnlineSection } from '@/components/account/PayOnlineSection'
+import type { DuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import {
   MONEY_PANES, MONEY_PANE_LABEL, MONEY_PANE_LEDE, type MoneyPane,
@@ -46,12 +48,20 @@ import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
  * out of the accessibility tree and the tab order, which a `sr-only`-style hide would not.
  */
 export function DuesAndDonationsShell({
-  initialPane, summary, donations,
+  initialPane, summary, donations, online,
 }: {
   /** Resolved from `?pane=` on the SERVER, so the first paint is already right. */
   initialPane: MoneyPane
   summary: DuesSummary[]
   donations: DonationSummary[]
+  /**
+   * Whether this member can pay by card, and what they already pay automatically.
+   *
+   * ALWAYS PRESENT rather than nullable: `getDuesOnlineStatus` answers a shape with
+   * `chargesReady: false` and no rows for every failure path, so this pane needs no second
+   * branch and a family with no processor simply renders nothing extra.
+   */
+  online: DuesOnlineStatus
 }) {
   const [pane, setPane] = useState<MoneyPane>(initialPane)
 
@@ -80,7 +90,13 @@ export function DuesAndDonationsShell({
       <p className="text-sm text-muted-foreground">{MONEY_PANE_LEDE[pane]}</p>
 
       <div hidden={pane !== 'dues'}>
-        <DuesPlanSection summary={summary} />
+        <div className="space-y-8">
+          <DuesPlanSection summary={summary} />
+          {/* BELOW the table, not a column in it — see PayOnlineSection's header. It renders
+              null when the family cannot take a card, so a family with no processor gets the
+              screen it had yesterday. */}
+          <PayOnlineSection summary={summary} online={online} />
+        </div>
       </div>
 
       <div hidden={pane !== 'donations'}>

@@ -17,6 +17,8 @@ import {
   DEFAULT_SETTINGS_PANE, type SettingsPane,
 } from '@/components/admin/family-settings'
 import { PlanPanel } from '@/components/admin/PlanPanel'
+import { BillingPanel } from '@/components/admin/BillingPanel'
+import type { PlatformBilling } from '@/app/actions/billing'
 import { HelpLink } from '@/components/help/HelpLink'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 
@@ -48,13 +50,23 @@ import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
  * copyable — because this is now the one place in the app an administrator can reliably
  * come back to for it.
  */
-export function FamilySettingsClient({ settings, initialPane }: {
+export function FamilySettingsClient({ settings, initialPane, billing }: {
   settings: FamilySettings
   /**
    * Resolved from `?pane=` on the SERVER, so the first paint is already the right pane and a
    * bookmarked `?pane=family` does not flash the plan on its way there.
    */
   initialPane: SettingsPane
+  /**
+   * What this family pays GENORRA, or null when the read failed.
+   *
+   * PASSED THROUGH RATHER THAN FETCHED IN THE PANEL, for the reason every other prop on this
+   * component is: the page resolves the grant and the data together, so a caller who may not
+   * see it never receives it (§5). Null is a FAILED read and not "never paid" — the panel
+   * says so, because rendering an empty billing band over a live subscription invites somebody
+   * to start a second one.
+   */
+  billing: PlatformBilling | null
 }) {
   // WHICH PANE IS SHOWING. Genuinely UI-local — it is not a family-scoped value and needs no
   // keying (AGENTS.md, "Switching family remounts the page"): `<main key={familyCode}>`
@@ -206,6 +218,16 @@ export function FamilySettingsClient({ settings, initialPane }: {
       <div hidden={pane !== 'plan'} className="overflow-hidden rounded-xl border bg-card">
         <div className="p-5 sm:p-6">
           <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
+        </div>
+        {/* ── WHAT THIS FAMILY PAYS, BENEATH WHAT THE PLANS ARE ──────────────────────
+            A second band in the same box rather than a third pane on the rail. `PlanPanel`
+            above is a CATALOGUE — what the four plans include — and this is a STATEMENT: what
+            has been paid, until when, and what happens next. Two questions, read in that
+            order, so they are stacked and separated by a rule rather than merged.
+            `BillingPanel`'s header argues why merging them would have put a checkout inside a
+            component whose job is to explain. */}
+        <div className="border-t p-5 sm:p-6">
+          <BillingPanel billing={billing} />
         </div>
         <div className="border-t px-5 py-4 sm:px-6">
           <HelpLink

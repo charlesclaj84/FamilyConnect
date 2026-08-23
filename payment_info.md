@@ -1,15 +1,42 @@
 # GENORRA — Stripe Payments Architecture Notes
 
-**Status:** Pre-implementation research. No code written.
-**Date:** 2026-08-12
-**Sources:** Stripe plugin v0.5.1 bundled reference material (`connect-recommend`,
-`stripe-best-practices`), plus a survey of this repository.
-**Not yet run:** `stripe_implementation_planner` (the Stripe MCP server at
-`https://mcp.stripe.com` is installed but still unauthenticated). Everything below
-should be re-confirmed against the planner's output before building.
+**Status: BUILT, 2026-08-23. This document is now the DECISION RECORD rather than a proposal.**
+**Researched:** 2026-08-12 · **Implemented:** 2026-08-23
+**Sources:** Stripe plugin bundled reference material (`connect-recommend`,
+`stripe-best-practices`, and its `connect`/`billing`/`payments`/`security` references), plus a
+survey of this repository.
 
 > This is engineering decision-support, not legal or tax advice. The entity and tax
-> questions in §5 need a CPA or attorney.
+> questions in §5 need a CPA or attorney, and §5 IS STILL OPEN.
+
+## What was built, and where
+
+Every recommendation below was followed. Model C, Accounts v2, direct charges, `dashboard:
+'full'`, `fees_collector`/`losses_collector` both `stripe`, hosted onboarding, and **no family
+API keys anywhere**.
+
+| | |
+|---|---|
+| Credentials and price lookup | [lib/stripe/config.ts](lib/stripe/config.ts) |
+| The one client, and the ONLY place an account header is set | [lib/stripe/client.ts](lib/stripe/client.ts) — `onAccount()` |
+| Signature verification and event claiming | [lib/stripe/webhook.ts](lib/stripe/webhook.ts) |
+| GENORRA's own revenue, decided from Stripe events | [lib/stripe/platform-events.ts](lib/stripe/platform-events.ts) |
+| A family's dues, posted to the family's own ledger | [lib/stripe/connect-events.ts](lib/stripe/connect-events.ts) |
+| Pure arithmetic: terms, prepay, upgrade credit | [lib/platform-billing.ts](lib/platform-billing.ts) + its test |
+| Schema | `20260823000004` (platform), `20260823000005` (Connect) |
+| Endpoints | `app/api/stripe/platform`, `app/api/stripe/connect` |
+
+**THE ONE THING THIS DOCUMENT DID NOT ANTICIPATE** is the rule the whole build turned out to
+need, and it is now AGENTS.md's own section: **GENORRA's money and a family's money are two
+ledgers and must never meet.** §6 below is right that `dues_payments` was built to receive a
+Stripe payment — and the mirror of that is that a family's SUBSCRIPTION charge must never land
+there, because it would inflate the family's collected total, route a slice of our invoice into
+their Reunion fund, and be unremovable in an append-only table. `platform_payments` exists for
+that reason and 20260823000004's header argues it at length.
+
+**What is still open** is in TODO.md rather than here: the credentials and the two webhook
+endpoints (GO LIVE), Stripe Tax, delinquency policy, and §5's entity question — which remains
+the biggest unresolved item and is not a Stripe question.
 
 ---
 

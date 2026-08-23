@@ -470,6 +470,20 @@ async function teardown(db) {
     // CASCADE from `people`, which this list sweeps further down — which is exactly the shape
     // that trigger allows (`pg_trigger_depth() > 1`).
     'person_sms', 'phone_verifications',
+    // ── THE BILLING TABLES ──────────────────────────────────────────────────────────────
+    // Both keyed on `family_code` with no foreign key to `families`, so nothing else here
+    // removes them — the same position `resource_visibility` and `family_removal_challenges`
+    // are in, and the same reason they are listed by name.
+    //
+    // BEFORE `people`, because `family_stripe_accounts.connected_by` REFERENCES people(id)
+    // ON DELETE SET NULL: leaving it later would silently blank the column rather than fail,
+    // and an account row belonging to nobody would outlive the run it was seeded for. That is
+    // the ordering rule the thirteen deleted `event_*` lines left behind.
+    //
+    // `platform_payments` has a UNIQUE `stripe_ref`, so a run that did not clear it would fail
+    // its own reseed on the second attempt rather than accumulating — loud, but only after
+    // somebody had spent a while wondering why.
+    'family_stripe_accounts', 'dues_autopay', 'platform_payments', 'platform_billing_accounts',
     'position_journal_notes', 'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
@@ -1361,6 +1375,69 @@ export async function seed() {
       family_code: code, person_id: owner.personId,
       event: 'granted', source: 'profile', note: `${code} seeded consent`,
     }))
+
+    // ── BILLING: WHAT THIS FAMILY PAYS GENORRA, AND ITS OWN PAYMENT PROCESSOR ──────────
+    //
+    // TWO TABLES SEEDED AND ELEVEN ACTIONS THAT CANNOT USE THEM, which is stated here rather
+    // than left to be discovered. Every action in `app/actions/billing.ts` and
+    // `app/actions/pay-dues.ts` that TALKS to Stripe refuses before it queries anything —
+    // there is no `STRIPE_SECRET_KEY` in this harness and there must not be — so an
+    // action-shaped case against one of them would pass with every family conjunct deleted.
+    // `scripts/rls-coverage.mjs` records that as the `STRIPE-INERT` verdict.
+    //
+    // The two that DO read before checking any credential are `getPlatformBilling` and
+    // `getProcessorStatus`, and these rows are what their cases assert on. Both read on the
+    // ADMIN client against tables with RLS enabled and ZERO policies, so the hand-written
+    // `.eq('family_code', …)` is the only thing scoping them (AGENTS.md §3) — which is exactly
+    // the shape worth a real cross-family assertion.
+    //
+    // THE FIGURES ARE PER-FAMILY AND DISTINCTIVE so a leak is legible in the marker scan:
+    // ALPHA pays 1111 cents on `cus_alphaseed`, BRAVO 2222 on `cus_bravoseed`.
+    //
+    // `paid_through` IS A YEAR OUT, and that is load-bearing rather than generous:
+    // `entitlementOn` reports a lapsed term as Free, so a date in the past would make the
+    // control assert the empty answer and pass while testing nothing. A fixed far-future date
+    // rather than a computed one, so the assertion does not depend on when the suite runs.
+    //
+    // NO `scheduled_tier`, deliberately. Nothing in the suite calls
+    // `apply_due_platform_tier_changes()`, so a scheduled change would sit here describing a
+    // sweep that never runs — and if a future case DOES call it, a pre-existing schedule would
+    // move `families.tier` underneath every tier-sensitive assertion in the file.
+    f.platformBilling = must('platform billing', await db.from('platform_billing_accounts').insert({
+      family_code: code,
+      stripe_customer_id: `cus_${side}seed`,
+      mode: 'prepaid',
+      paid_tier: 'plus',
+      paid_through: '2027-12-31',
+    }).select().single())
+
+    f.platformPayment = must('platform payment', await db.from('platform_payments').insert({
+      family_code: code,
+      kind: 'prepaid',
+      tier: 'plus',
+      months: 12,
+      amount_cents: side === 'alpha' ? 1111 : 2222,
+      // UNIQUE across the product, so the two families cannot collide on a reseed.
+      stripe_ref: `pi_${side}seed`,
+      covers_from: '2026-12-31',
+      covers_through: '2027-12-31',
+      first_payment: true,
+    }).select().single())
+
+    // The family's OWN Stripe account — an `acct_…` and nothing else. There is no column here
+    // that could hold a key, and 20260823000005's verify block refuses a migration that adds
+    // one (see payment_info.md §4).
+    //
+    // `card_payments_status: 'active'` for ALPHA and `'pending'` for BRAVO, so the two halves
+    // of `chargesReady` are both exercised by real rows rather than by one row and an absence.
+    f.stripeAccount = must('family stripe account', await db.from('family_stripe_accounts').insert({
+      family_code: code,
+      stripe_account_id: `acct_${side}seed`,
+      card_payments_status: side === 'alpha' ? 'active' : 'pending',
+      details_submitted: side === 'alpha',
+      connected_by: owner.personId,
+      connected_at: new Date().toISOString(),
+    }).select().single())
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({
       family_code: code, name: `${code} album`, created_by: owner.personId,

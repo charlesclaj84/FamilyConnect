@@ -23,6 +23,8 @@ import {
   type AccountSection, type AccountRights, type IncomeSection,
 } from '@/components/admin/account-sections'
 import { MainRail } from '@/components/layout/MainRail'
+import { ProcessingPanel } from '@/components/admin/ProcessingPanel'
+import type { ProcessorStatus } from '@/app/actions/admin/processing'
 import type { DuesSchedule, ScheduleUsage } from '@/app/actions/dues'
 import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
 
@@ -232,6 +234,15 @@ interface Props {
   /** The regions and chapters a due can be scoped to — see AdminIncomeClient. Empty when
    *  the caller cannot view Dues, because the page gates the fetch. */
   scopeOptions: ScopeOptions
+  /**
+   * The family's Stripe connection, or null.
+   *
+   * NULL MEANS TWO DIFFERENT THINGS and the panel tells them apart: the page passes null when
+   * the caller cannot view this section (§5 — the fetch is gated, not the pane), and the action
+   * returns null when the read was refused. The panel renders nothing for the first and a
+   * warning for the second, which is why this is not a boolean.
+   */
+  processorStatus: ProcessorStatus | null
 }
 
 /**
@@ -272,6 +283,7 @@ export function AdminAccountShell({
   members,
   hasBloodline,
   scopeOptions,
+  processorStatus,
 }: Props) {
   // Only the sections this caller may view, and only the items and rails that still hold
   // one. Derived from the same rights the server actions enforce, so a visible rail always
@@ -515,7 +527,7 @@ export function AdminAccountShell({
             initialAllocations={initialAllocations}
             rights={rights}
           />
-          {section === 'processing' && <ProcessingPanel />}
+          {section === 'processing' && <ProcessingPanel status={processorStatus} />}
           {section === 'bank' && <BankInfoPanel />}
         </div>
       </div>
@@ -579,20 +591,11 @@ function SectionLink({ id, label, icon: Icon, active, onSelect }: {
  * processor config schema yet, and a form that looked functional would invite
  * someone to type real Stripe keys into a field that discards them.
  */
-function ProcessingPanel() {
-  return (
-    <div className="rounded-xl border bg-card p-8 text-center space-y-3">
-      <CreditCard className="h-8 w-8 mx-auto text-muted-foreground" />
-      <p className="text-sm font-medium">No payment processor connected</p>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        Dues and disbursements are recorded by hand today, from the Transactions ledgers.
-        Connecting a processor will let members pay their dues online and have those
-        payments post — and route into funds — on their own.
-      </p>
-      <p className="text-xs text-muted-foreground">Stripe support is planned for a future release.</p>
-    </div>
-  )
-}
+// ── ProcessingPanel MOVED OUT ON 2026-08-23 ─────────────────────────────────────────
+// It was an inert placeholder here — "Stripe support is planned for a future release" — and
+// it is real now, in components/admin/ProcessingPanel.tsx, because it needs a prop. Its own
+// header carries why it is a separate file and why this shell's keep-everything-mounted rule
+// does not apply to it.
 
 /**
  * Placeholder for the family's bank details — where dues get deposited and what

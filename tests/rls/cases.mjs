@@ -10366,3 +10366,128 @@ const SMS_CONSENT_CASES = [
 ]
 
 CASES.push(...SMS_CONSENT_CASES)
+
+/**
+ * ── BILLING: WHAT A FAMILY PAYS GENORRA, AND ITS OWN PAYMENT PROCESSOR ────────────────
+ *
+ * TWO COVERED ACTIONS OUT OF FIFTEEN, AND THE RATIO IS THE POINT OF THIS BLOCK.
+ *
+ * `app/actions/billing.ts`, `app/actions/admin/processing.ts` and `app/actions/pay-dues.ts`
+ * export fifteen actions between them. Thirteen open by resolving a Stripe credential —
+ * `stripeUnavailableReason()`, `stripeClient()`, `connectConfigured()` — and there is no
+ * `STRIPE_SECRET_KEY` in this harness, so every one of them returns a refusal BEFORE it issues a
+ * single query.
+ *
+ * That makes an action-shaped case against any of them worthless as evidence, in exactly the way
+ * AGENTS.md §7's "A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES" describes: the
+ * assertion would be about the credential check, and the family conjuncts underneath could all be
+ * deleted with the suite staying green. `scripts/rls-coverage.mjs` carries that as the
+ * `STRIPE-INERT` verdict, named so it cannot be mistaken for coverage.
+ *
+ * The two that read before they check anything are below, and both are the shape §3 is really
+ * about: the admin client against a table with RLS enabled and ZERO policies, where a
+ * hand-written `.eq('family_code', …)` is not belt and braces but the entire boundary.
+ *
+ * ── TWO THINGS WENT WRONG WRITING THESE, AND BOTH ARE WORTH THE PARAGRAPH ─────────────
+ *
+ * 1. **`expectAttack` RETURNS A BOOLEAN.** `run.mjs` does `const ok = c.expectAttack(value, fx)`
+ *    and records `ok` directly — so a predicate returning `{ ok: false, detail: … }`, which is
+ *    the shape `expectRefusal` takes on a write case, is TRUTHY and passes unconditionally. All
+ *    four attack halves here were first written that way and all four were vacuous. Nothing
+ *    found it except the mutation below, whose signature was unmistakable once seen: the
+ *    CONTROLS went red and the attacks stayed green.
+ *
+ * 2. **THE ATTACKER'S ACTIVE FAMILY IS NOT BRAVOTEST BY THE TIME THESE RUN.** Section 5 of the
+ *    sweep block above already records why — `my-families.createFamily` runs `bravoAdmin` as its
+ *    attacker twice, and creating a family makes it the creator's ACTIVE one, so
+ *    `getMyFamilyCode(bravoAdmin)` answers a freshly minted code by the end of the file. The
+ *    first draft asserted `familyCode === BRAVO` and failed for a reason that had nothing to do
+ *    with the action.
+ *
+ *    So these assert the ORDER-INDEPENDENT thing: whatever family the attacker is in, what comes
+ *    back is not ALPHA's. That is also the only question worth asking — did ALPHA's billing leak
+ *    — and it is the shape the note above says every case here should use.
+ *
+ * ── MUTATION-CHECKED, per §7, after both of those were fixed ──────────────────────────
+ * Each conjunct removed in turn (2026-08-23):
+ *
+ *   `getPlatformBilling`'s `.eq('family_code', g.familyCode)` on `platform_billing_accounts`
+ *       -> 3 red of the 4 below. `maybeSingle()` matches two rows and errors, so the action
+ *          answers null for every caller: the attack fails because null is not an answer about
+ *          the attacker's own family, and BOTH controls fail because ALPHA's administrator sees
+ *          nothing of their own. One bug, three consequences.
+ *   `getProcessorStatus`'s `.eq('family_code', g.familyCode)` on `family_stripe_accounts`
+ *       -> 3 red, the same way.
+ *
+ * THE FOURTH — the applicant's ATTACK half — stays green under both, and that is the note below
+ * it being confirmed rather than a gap. An applicant is refused by `requireRead` before a query
+ * is issued, so no conjunct underneath can change their answer; the case is evidence for the
+ * guard and says so. A mutation that trips a case labelled "evidence for the guard" would mean
+ * the label was wrong.
+ */
+const BILLING_CASES = [
+  read('billing.getPlatformBilling', 'app/actions/billing.ts', 'getPlatformBilling', {
+    // The attacker reads their OWN family's record — whichever family that is by now. What is
+    // asserted is that ALPHA's is not in it: not the customer id, not the 1111-cent payment, not
+    // the term. `v != null` is the half the mutation trips, because a conjunct-free
+    // `maybeSingle()` over two rows errors and this action reports that as null (§8).
+    expectAttack: (v) => v != null
+      && v.familyCode !== ALPHA
+      && !JSON.stringify(v).includes('alphaseed')
+      && !(v.payments ?? []).some((p) => p.amountCents === 1111),
+    // THE WEIGHT-BEARING HALF, and the other half of what catches the mutation: an action that
+    // answers nothing to everybody is perfectly isolated. ALPHA's administrator must see ALPHA's
+    // term, ALPHA's entitlement and ALPHA's own 1111-cent payment.
+    positiveActor: 'alphaAdmin',
+    expectPositive: (v) => v?.familyCode === ALPHA
+      && v?.paidTier === 'plus'
+      && v?.paidThrough === '2027-12-31'
+      && v?.paidEntitlement?.tier === 'plus'
+      && v?.paidEntitlement?.lapsed === false
+      && (v?.payments ?? []).some((p) => p.amountCents === 1111 && p.months === 12),
+  }),
+
+  read('processing.getProcessorStatus', 'app/actions/admin/processing.ts', 'getProcessorStatus', {
+    // ALPHA's account is seeded `active` and BRAVO's `pending`, so `chargesReady` has both
+    // answers in the fixture rather than one answer and an absence. The attacker's own family
+    // has no account at all by this point, which is why the assertion is about ALPHA's id NOT
+    // appearing rather than about what theirs says — and `chargesReady === false` is the
+    // dangerous direction to get wrong, since that flag alone decides whether members are
+    // offered a Pay Online button.
+    expectAttack: (v) => v != null
+      && v.accountId !== 'acct_alphaseed'
+      && v.chargesReady === false,
+    positiveActor: 'alphaAdmin',
+    expectPositive: (v) => v?.accountId === 'acct_alphaseed'
+      && v?.connected === true
+      && v?.chargesReady === true
+      && v?.cardPaymentsStatus === 'active'
+      && v?.awaitingFamily === false,
+  }),
+
+  // ── AND AN APPLICANT, because both of these read a family's processor identifiers ─────
+  // `alphaPending` has joined ALPHA by family code and has not been admitted. `requireRead`
+  // refuses them on the permission key, so both answer null.
+  //
+  // [evidence for the GUARD, not for the conjunct] Said out loud per §7's rule about cases whose
+  // action checks membership first: it returns before it queries anything, so deleting a family
+  // conjunct leaves these two green. They are here because the alternative is no assertion at all
+  // that an applicant cannot read a family's Stripe ids, and because an edit that swapped
+  // `requireRead` for a bare session check would turn them red.
+  read('billing.getPlatformBilling (pending member)', 'app/actions/billing.ts',
+    'getPlatformBilling', {
+      attacker: 'alphaPending',
+      expectAttack: (v) => v === null,
+      positiveActor: 'alphaAdmin',
+      expectPositive: (v) => v?.paidTier === 'plus',
+    }),
+  read('processing.getProcessorStatus (pending member)', 'app/actions/admin/processing.ts',
+    'getProcessorStatus', {
+      attacker: 'alphaPending',
+      expectAttack: (v) => v === null,
+      positiveActor: 'alphaAdmin',
+      expectPositive: (v) => v?.accountId === 'acct_alphaseed',
+    }),
+]
+
+CASES.push(...BILLING_CASES)

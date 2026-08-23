@@ -107,6 +107,17 @@ const VERDICTS = {
     'app/actions/staff/** reads across families by design, so the shape every other case in '
     + 'the suite asserts is inverted here. What is worth asserting is that a NON-STAFF caller '
     + 'is refused; `cases.mjs`\'s UNCOVERED note records that gap and what closing it costs.',
+  'STRIPE-INERT':
+    'The action resolves a Stripe credential BEFORE it issues any query, and this harness has '
+    + 'no STRIPE_SECRET_KEY — so it returns a refusal without touching the database. An '
+    + 'action-shaped case would therefore be evidence about the credential check and nothing '
+    + 'else: every family conjunct underneath could be deleted with the suite staying green, '
+    + 'which is AGENTS.md §7\'s "A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES" '
+    + 'exactly. NOT an exemption in principle — the two actions in these modules that read '
+    + 'BEFORE checking a credential (billing.getPlatformBilling, '
+    + 'processing.getProcessorStatus) DO have mutation-checked cases, and they are the ones '
+    + 'where an assertion means something. Setting a test key in the harness would make the '
+    + 'rest reachable and is the way to close this; the cost is a suite that talks to Stripe.',
 }
 
 /**
@@ -172,6 +183,23 @@ const NO_CASE_YET = {
   'app/actions/my-families.ts': { validateFamilyCode: 'BACKLOG' },
   'app/actions/personal-info.ts': { upsertPersonalInfo: 'BACKLOG' },
   'app/actions/register.ts': { registerUser: 'BACKLOG' },
+  // ── THE STRIPE ACTIONS, 2026-08-23 ──────────────────────────────────────────────────────
+  // Thirteen of the fifteen actions across these three modules. Every one refuses on a missing
+  // credential before it queries anything; the two that do not — `getPlatformBilling` and
+  // `getProcessorStatus` — have cases in `cases.mjs` and are deliberately absent from this list.
+  // See the `STRIPE-INERT` verdict above for why a case for the rest would be worse than none.
+  'app/actions/admin/processing.ts': {
+    startProcessorOnboarding: 'STRIPE-INERT', refreshProcessorStatus: 'STRIPE-INERT',
+    disconnectProcessor: 'STRIPE-INERT',
+  },
+  'app/actions/billing.ts': {
+    startPlanCheckout: 'STRIPE-INERT', changePlanTier: 'STRIPE-INERT',
+    cancelPlanRenewal: 'STRIPE-INERT', openBillingPortal: 'STRIPE-INERT',
+  },
+  'app/actions/pay-dues.ts': {
+    getDuesOnlineStatus: 'STRIPE-INERT', startDuesCheckout: 'STRIPE-INERT',
+    startDuesAutopay: 'STRIPE-INERT', cancelDuesAutopay: 'STRIPE-INERT',
+  },
   'app/actions/staff/accounts.ts': {
     listStaffAccounts: 'STAFF', lookupStaffAccount: 'STAFF', getStaffMembershipCount: 'STAFF',
   },
@@ -188,8 +216,26 @@ const NO_CASE_YET = {
  * `NO_CASE_YET` in the same commit that introduces it, which is the exact behaviour AGENTS.md
  * §7 forbids, performed with the audit's blessing. With it, the only way a new action ships is
  * with a case, or with somebody explicitly deciding in public that the debt should grow.
+ *
+ * ── RAISED FROM 57 TO 68 ON 2026-08-23, AND HERE IS THE SENTENCE IT ASKS FOR ────────────
+ * Eleven `STRIPE-INERT` entries: the Stripe actions across `billing.ts`, `admin/processing.ts`
+ * and `pay-dues.ts` that refuse on a missing credential before they query anything. A case for
+ * one of those would assert the credential check and pass with every family conjunct deleted,
+ * which is worse than no case because it LOOKS like coverage — so the verdict is the honest
+ * answer and the ceiling has to move to admit it.
+ *
+ * IT IS NOT A FREE PASS FOR THE FEATURE. The two actions in those modules that read before
+ * checking anything — `getPlatformBilling` and `getProcessorStatus` — got real,
+ * mutation-checked cases in the same commit, and they are the ones where a cross-family
+ * assertion is evidence.
+ *
+ * HOW TO LOWER IT BY ELEVEN: give the harness a Stripe TEST key and a stub or sandbox to talk
+ * to. The actions become reachable, their family conjuncts become assertable, and every one of
+ * these verdicts turns into a case. That is a real piece of work — a suite that makes network
+ * calls is a slower and flakier suite — and TODO.md carries it rather than this comment
+ * pretending it is a five-minute job.
  */
-const BACKLOG_CEILING = 57
+const BACKLOG_CEILING = 68
 
 // ---------------------------------------------------------------- reading both sides
 

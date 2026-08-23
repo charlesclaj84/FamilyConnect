@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { getDuesSchedules, getScheduleUsage, getDuesScopeOptions } from '@/app/actions/dues'
 import { getFunds, getFundAllocations } from '@/app/actions/funds'
+import { getProcessorStatus } from '@/app/actions/admin/processing'
 import { AdminAccountShell } from '@/components/admin/AdminAccountShell'
 import {
   resolveSection, SECTION_RESOURCE,
@@ -70,7 +71,7 @@ export default async function AdminAccountPage({
   // regardless of which pane is showing (AGENTS.md §4).
   const [
     schedules, scheduleUsage, fundsData, allocations, milestonesResult, membersResult,
-    bloodlineResult, scopeOptions,
+    bloodlineResult, scopeOptions, processorStatus,
   ] = await Promise.all([
     rights.dues.view || rights.donations.view ? getDuesSchedules() : Promise.resolve([]),
     // Gated on the same pair as the schedules themselves: it says which of them the
@@ -123,6 +124,16 @@ export default async function AdminAccountPage({
     // to EDIT the family's structure. Maintaining what members owe and drawing the map are
     // different jobs, and the treasurer needs to read the second without holding it.
     rights.dues.view ? getDuesScopeOptions() : Promise.resolve({ regions: [], chapters: [] }),
+    // ── THE FAMILY'S PAYMENT PROCESSOR ──────────────────────────────────────────
+    // Gated on the Processing section, per §5. What is withheld is small and real: the
+    // family's Stripe account id, and whether card payments are live. The action gates
+    // itself again on the same key, so this is the FETCH half rather than the only check.
+    //
+    // NULL FOR A CALLER WHO MAY NOT SEE IT, which is deliberately the same shape the action
+    // returns when a READ FAILS — and the panel tells the two apart by which branch it is in
+    // rather than by the value, because a caller without the grant never renders the pane at
+    // all. See ProcessingPanel's header.
+    rights.processing.view ? getProcessorStatus() : Promise.resolve(null),
   ])
 
   // EITHER of them is enough, matching how getFamilyTree and familyBloodline resolve the
@@ -152,6 +163,7 @@ export default async function AdminAccountPage({
         rights={rights}
         hasBloodline={hasBloodline}
         scopeOptions={scopeOptions}
+        processorStatus={processorStatus}
         members={(membersResult.data ?? []).map(m => ({
           id: m.id,
           first_name: m.first_name,

@@ -267,7 +267,40 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
   // instead of a constraint violation logged as "could not save".
   if (!isFamilyTier(tier)) return { success: false, message: 'That is not a plan.' }
 
-  const { data, error } = await createAdminClient()
+  const admin = createAdminClient()
+
+  // ── BILLING WINS, ADDED 2026-08-23 ────────────────────────────────────────────────
+  // This action is scaffolding: it moves the tier and charges nothing, and the panel says so.
+  // Once a family has actually PAID, that scaffolding becomes a second door into a column
+  // billing is now authoritative about — and the two would fight, invisibly and in the
+  // family's favour:
+  //
+  //   move DOWN by hand   nothing revokes anything until the paid term ends, so every page
+  //                       stays open — and `apply_due_platform_tier_changes()` puts the tier
+  //                       back on its next run, because `paid_through` still says they bought
+  //                       it. A change that appears to work and silently reverts.
+  //   move UP by hand     the product given away. `families.tier` is what every gate reads,
+  //                       so this is a Premium plan for the cost of pressing a button, and the
+  //                       sweep only ever moves a tier DOWN to what was paid for when a term
+  //                       LAPSES — an active prepaid term at Standard would never correct it.
+  //
+  // So while a paid term is live, the billing panel owns the decision and this refuses. A
+  // family with NO billing row is untouched, which is every family today and every family in
+  // `tests/rls` — see 20260823000004's header on why the sweep is joined the same way.
+  const { data: billing } = await admin
+    .from('platform_billing_accounts')
+    .select('paid_tier, paid_through')
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (billing?.paid_tier && typeof billing.paid_through === 'string'
+      && billing.paid_through >= new Date().toISOString().slice(0, 10)) {
+    return {
+      success: false,
+      message: 'This family is on a paid plan. Change it from the Billing section of Settings, so the payment follows the plan.',
+    }
+  }
+
+  const { data, error } = await admin
     .from('families')
     .update({ tier })
     .eq('family_code', g.familyCode)

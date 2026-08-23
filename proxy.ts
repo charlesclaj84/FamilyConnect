@@ -91,7 +91,21 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // ── `api/` IS EXCLUDED, ADDED 2026-08-23 WITH THE FIRST ROUTE HANDLERS ─────────────
+  // `/api/stripe/platform` and `/api/stripe/connect` are Stripe webhooks. They carry no cookie
+  // and have no session, so everything this file does for them is waste — a GoTrue
+  // `getUser()` round trip on a request that is authenticated by an HMAC over its own body,
+  // sitting between Stripe's three-day retry window and a payment being recorded.
+  //
+  // It is also the safe direction rather than merely the cheap one. `isGatedPath()`
+  // longest-prefix-matches the feature registry, so a future `FEATURES` entry whose href began
+  // `/api` would start REWRITING webhook deliveries to the Coming Soon page — which answers
+  // 200, so Stripe would record every delivery as accepted and never retry one. A whole
+  // family's payments would go missing with nothing anywhere reporting a failure.
+  //
+  // `/auth/confirm` is deliberately NOT excluded: that route needs the session cookies this
+  // file rotates, which is the whole reason it works.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
