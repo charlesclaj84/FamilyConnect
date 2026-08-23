@@ -3,7 +3,7 @@ import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
-  addDays, isPrepayMonths, prepaidPurchase, subscriptionIsCurrent,
+  addDays, isPrepayMonths, prepaidPurchase, subscriptionIsCurrent, tierFromMetadata,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { stripeClient } from '@/lib/stripe/client'
@@ -138,6 +138,19 @@ async function onCheckoutSession(
 
   if (session.mode !== 'payment') return IGNORED
 
+  // ── AN UPGRADE FROM A PREPAID TERM, WHOSE SHORTFALL HAS JUST BEEN PAID ─────────────
+  // A different shape from a months purchase: there is no catalogue price and no quantity, and
+  // the term end was computed by `upgradeQuote` when the session was created. `changePlanTier`
+  // carries the outcome in metadata rather than having it recomputed, because `today` can move
+  // between creating the session and the payment settling — a recomputed quote would then not
+  // be the one the family was charged for.
+  //
+  // EVERY FIELD IS NARROWED, not cast. Metadata is ours, but it round-trips through an external
+  // system and survives a Dashboard edit by anybody with access to our account.
+  if (session.metadata?.genorra_mode === 'upgrade') {
+    return onUpgradePaid(admin, session, familyCode)
+  }
+
   // ── THE MONTHS COME OFF THE SESSION, NEVER OFF OUR METADATA ────────────────────────
   // The line item carries `adjustable_quantity`, so the family can change the term on
   // Stripe's own page — that is the "pay as far ahead as you like" half of the feature. Our
@@ -237,6 +250,110 @@ async function onCheckoutSession(
   return {
     handled: true,
     detail: `${familyCode} prepaid ${months} month(s) of ${priced.tier} through ${purchase.paidThrough}`,
+  }
+}
+
+
+/**
+ * A prepaid family's upgrade shortfall has been paid: grant the tier and hold the credit.
+ *
+ * ── THE TERM END AND THE CREDIT ARE CARRIED, NOT RECOMPUTED ─────────────────────────
+ * `upgradeQuote` decided both when `changePlanTier` created the session, and re-deriving them
+ * here would use a `today` that may have moved — so the family would be granted a term they
+ * were not charged for. What IS re-derived is the family and the tier, both of which are
+ * checked rather than trusted.
+ *
+ * ── AND IT IS AN UPGRADE, SO THE TIER IS ONLY EVER PROMOTED ─────────────────────────
+ * `promoteTier` refuses a downward move. That matters here because this path writes
+ * `paid_tier` unconditionally: if a redelivery of an old upgrade arrived after the family had
+ * moved on, the ledger claim below stops it first, and `promoteTier` stops the tier moving
+ * backwards even if it did not.
+ */
+async function onUpgradePaid(
+  admin: AdminClient,
+  session: Stripe.Checkout.Session,
+  familyCode: string,
+): Promise<HandledEvent> {
+  const meta = session.metadata ?? {}
+  const tier = tierFromMetadata(meta.genorra_tier)
+  if (!tier || tier === 'free') {
+    return { handled: false, detail: `upgrade session ${session.id} names no sellable tier` }
+  }
+
+  const paidThrough = meta.genorra_paid_through
+  // `YYYY-MM-DD` and nothing else. A malformed value here would be written straight into a DATE
+  // column, and a term end is the one figure that decides how long a family keeps what it paid
+  // for — so it is validated by shape rather than left to Postgres to reject after the ledger
+  // row has already been written.
+  if (typeof paidThrough !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(paidThrough)) {
+    return { handled: false, detail: `upgrade session ${session.id} carries no usable term end` }
+  }
+
+  const creditRaw = Number(meta.genorra_credit_left)
+  const creditLeft = Number.isInteger(creditRaw) && creditRaw >= 0 ? creditRaw : 0
+
+  const amount = session.amount_total ?? 0
+  if (amount <= 0) {
+    // A zero-amount upgrade session should not exist — `changePlanTier` applies that case
+    // itself rather than sending anybody to a payment page for nothing. Reported rather than
+    // quietly granted: it means the two halves disagree about the arithmetic.
+    return { handled: false, detail: `upgrade session ${session.id} carried no money` }
+  }
+
+  const record = await loadRecord(admin, familyCode)
+  const ref = idOf(session.payment_intent) ?? session.id
+  const inserted = await recordPayment(admin, {
+    familyCode,
+    kind: 'prepaid',
+    tier,
+    months: 1,
+    amountCents: amount,
+    currency: session.currency ?? 'usd',
+    stripeRef: ref,
+    sessionId: session.id,
+    invoiceId: idOf(session.invoice),
+    subscriptionId: null,
+    coversFrom: todayISO(),
+    coversThrough: paidThrough,
+    firstPayment: record.paidTier == null,
+  })
+  if (inserted === 'duplicate') {
+    return { handled: true, detail: `upgrade ${ref} was already applied` }
+  }
+  if (inserted !== 'ok') {
+    return { handled: false, detail: `could not record upgrade ${ref}: ${inserted}` }
+  }
+
+  const { error } = await admin.from('platform_billing_accounts').upsert({
+    family_code: familyCode,
+    stripe_customer_id: idOf(session.customer),
+    mode: 'prepaid' satisfies BillingMode,
+    paid_tier: tier,
+    paid_through: paidThrough,
+    credit_cents: creditLeft,
+    // The upgrade supersedes any promise to move down: a family that asked for Standard next
+    // month and has just paid for Premium is not moving to Standard.
+    scheduled_tier: null,
+    scheduled_tier_on: null,
+    delinquent_since: null,
+    last_payment_failure: null,
+  }, { onConflict: 'family_code' })
+  if (error) return { handled: false, detail: `could not apply the upgrade: ${error.message}` }
+
+  await promoteTier(admin, familyCode, tier)
+  await announceToMeta(admin, {
+    familyCode, tier,
+    transactionId: ref,
+    subscriptionId: session.id,
+    amountCents: amount,
+    currency: session.currency ?? 'usd',
+    firstPayment: record.paidTier == null,
+    occurredAtMs: (session.created ?? 0) * 1000 || undefined,
+  })
+
+  return {
+    handled: true,
+    detail: `${familyCode} upgraded to ${tier} through ${paidThrough}, ${creditLeft}c credit carried`,
   }
 }
 

@@ -12,6 +12,7 @@ import {
   initialChargeOptions,
   isPrepayMonths,
   lastDayOfMonthISO,
+  MINIMUM_FIRST_CHARGE_CENTS,
   monthsFromQuantity,
   nextFirstOfMonth,
   prepaidChargeCents,
@@ -21,6 +22,7 @@ import {
   prorateRemainderCents,
   scheduleDowngrade,
   scheduledChangeDue,
+  STRIPE_MINIMUM_CHARGE_CENTS,
   subscriptionIsCurrent,
   tierFromMetadata,
   tierMove,
@@ -100,8 +102,10 @@ import {
  *
  * `prepayQuoteCents` reads `TIER_PRICE`, so the figures below are asserted as MULTIPLES of
  * the rate rather than as dollar amounts — a price change is a product decision and must not
- * turn this file red. The proration figures are the exception and are written out (726, 146,
- * 33): they are the output of the rounding rule, which is the thing under test.
+ * turn this file red. The proration figures are the exception and are written out (871, 291,
+ * 517, 484, 65): they are the output of the rounding rule and of the $5 floor, which are the
+ * things under test. They were re-derived when the prices moved to 10/20/30 on 2026-08-23 —
+ * which is the cost of writing a figure down, paid deliberately here and nowhere else.
  */
 
 // Standard $5, Plus $15, Premium $25 a month as at 2026-08-23. Read from the module under
@@ -215,14 +219,23 @@ describe('upgradeCreditDays', () => {
   })
 
   it('floors, so an upgrade never hands out a free day', () => {
-    // 10 days of Standard against Plus is 10 × 500/1500 = 3.33 -> 3.
-    expect(upgradeCreditDays({
+    // SYMBOLIC RATHER THAN WRITTEN OUT, unlike the proration cases above, and the difference is
+    // the point: this function is SUPERSEDED (`upgradeQuote` is the rule now) and is kept only
+    // as a record of the ratio. Pinning literals in a dead function's tests means a price
+    // change turns them red for no reason anybody can act on — which is exactly what happened
+    // when the rates moved to 10/20/30. What is under test here is the FLOORING, and that is
+    // expressible without knowing the prices.
+    const tenDays = upgradeCreditDays({
       fromTier: 'standard', toTier: 'plus', paidThrough: '2026-09-02', today: '2026-08-23',
-    })).toBe(3)
-    // 1 day of Standard against Premium is 0.2 -> 0. Not a free day.
+    })
+    expect(tenDays).toBe(Math.floor(10 * STANDARD / PLUS))
+    // Never rounds UP: a ratio that does not divide evenly must lose the fraction, not gain it.
+    expect(tenDays).toBeLessThanOrEqual(10 * STANDARD / PLUS)
+
+    // One day of the cheapest against the dearest floors to nothing. Not a free day.
     expect(upgradeCreditDays({
       fromTier: 'standard', toTier: 'premium', paidThrough: '2026-08-24', today: '2026-08-23',
-    })).toBe(0)
+    })).toBe(Math.floor(STANDARD / PREMIUM))
   })
 
   it('is never more than the days remaining when moving up', () => {
@@ -451,11 +464,11 @@ describe('reading Stripe’s own strings back', () => {
   it('takes a quantity as a number or a numeric string, and refuses the rest', () => {
     expect(monthsFromQuantity(6)).toBe(6)
     expect(monthsFromQuantity('6')).toBe(6)
-    // TWELVE IS NO LONGER A MONTH COUNT THIS PRODUCT ACCEPTS. The cap came down from 36 to 6
-    // on 2026-08-23, and a stale quantity arriving from a Stripe session created before that
-    // must be refused rather than honoured — otherwise the ceiling is only as real as the
-    // oldest open checkout page.
-    expect(monthsFromQuantity(12)).toBeNull()
+    expect(monthsFromQuantity(12)).toBe(12)
+    expect(monthsFromQuantity(MAX_PREPAY_MONTHS)).toBe(MAX_PREPAY_MONTHS)
+    // A STALE QUANTITY FROM AN OLDER CHECKOUT PAGE IS STILL REFUSED. The ceiling has moved
+    // twice, and it is only as real as the oldest open session unless the webhook re-checks it.
+    expect(monthsFromQuantity(MAX_PREPAY_MONTHS + 1)).toBeNull()
     expect(monthsFromQuantity('0')).toBeNull()
     expect(monthsFromQuantity(MAX_PREPAY_MONTHS + 1)).toBeNull()
     expect(monthsFromQuantity('twelve')).toBeNull()
@@ -505,10 +518,10 @@ describe('prorateRemainderCents', () => {
   })
 
   it('rounds UP to the cent, so no day is ever given away', () => {
-    // Premium $25 over 9 of August's 31 days: 2500 × 9 / 31 = 725.8 -> 726.
-    expect(prorateRemainderCents('premium', '2026-08-23')).toBe(726)
-    // Standard $5 over 9 of 31: 500 × 9 / 31 = 145.16 -> 146.
-    expect(prorateRemainderCents('standard', '2026-08-23')).toBe(146)
+    // Premium $30 over 9 of August's 31 days: 3000 × 9 / 31 = 870.97 -> 871.
+    expect(prorateRemainderCents('premium', '2026-08-23')).toBe(871)
+    // Standard $10 over 9 of 31: 1000 × 9 / 31 = 290.3 -> 291.
+    expect(prorateRemainderCents('standard', '2026-08-23')).toBe(291)
   })
 
   it('uses the ACTUAL month as the denominator, so ten days is not one figure all year', () => {
@@ -542,30 +555,43 @@ describe('initialChargeOptions', () => {
     expect(o.daysLeft).toBe(9)
     expect(o.daysInMonth).toBe(31)
     expect(o.nextBillingDate).toBe('2026-09-01')
-    expect(o.remainderOnly).toBe(726)
-    expect(o.remainderPlusNext).toBe(726 + PREMIUM)
+    expect(o.remainderOnly).toBe(871)
+    expect(o.remainderPlusNext).toBe(871 + PREMIUM)
     expect(o.remainderPlusNextThrough).toBe('2026-09-30')
   })
 
-  it('WITHHOLDS the remainder-only option when it is below Stripe’s minimum', () => {
-    // Standard $5, two days left of 31: ceil(500 × 2 / 31) = 33c. Stripe refuses under 50c, so
-    // offering it would produce a hosted page that fails at the till.
-    expect(prorateRemainderCents('standard', '2026-08-30')).toBe(33)
+  it('WITHHOLDS the remainder-only option below the $5 floor', () => {
+    // Standard $10, two days left of 31: ceil(1000 × 2 / 31) = 65c. Over Stripe's own 50c
+    // limit and well under the product's $5, so it is not offered on its own — the decided
+    // rule, and the reason the floor is a product number rather than a processor one.
+    expect(prorateRemainderCents('standard', '2026-08-30')).toBe(65)
     const o = initialChargeOptions('standard', '2026-08-30')
     expect(o.remainderOnly).toBeNull()
     // The combined option is still there, and is the only one.
-    expect(o.remainderPlusNext).toBe(33 + STANDARD)
+    expect(o.remainderPlusNext).toBe(65 + STANDARD)
   })
 
-  it('offers the remainder exactly AT the minimum, not just above it', () => {
-    // Standard $5 over 4 of August's 31 days: ceil(500 × 4 / 31) = 65c, comfortably over.
-    // The boundary itself: find the first day whose proration is >= 50c.
-    const atOrAbove = ['2026-08-28', '2026-08-29', '2026-08-30', '2026-08-31']
-      .map(d => ({ d, cents: prorateRemainderCents('standard', d)! }))
-    for (const { d, cents } of atOrAbove) {
-      const o = initialChargeOptions('standard', d)
-      expect(o.remainderOnly).toBe(cents >= 50 ? cents : null)
-    }
+  it('straddles the floor exactly — offered AT $5, withheld a cent under', () => {
+    // Standard $10 in a 31-day August. 16 days left is $5.17 and is offered; 15 is $4.84 and
+    // is not. Both sides of the boundary, by value, because "under $5" is the whole rule.
+    expect(daysLeftInMonth('2026-08-16')).toBe(16)
+    expect(prorateRemainderCents('standard', '2026-08-16')).toBe(517)
+    expect(initialChargeOptions('standard', '2026-08-16').remainderOnly).toBe(517)
+
+    expect(daysLeftInMonth('2026-08-17')).toBe(15)
+    expect(prorateRemainderCents('standard', '2026-08-17')).toBe(484)
+    expect(initialChargeOptions('standard', '2026-08-17').remainderOnly).toBeNull()
+  })
+
+  it('takes the HIGHER of the product floor and Stripe’s, so the hard limit cannot be crossed', () => {
+    // The product rule is $5 and Stripe's is 50c. Anything between them must be withheld —
+    // otherwise lowering the product rule one day would start producing charges Stripe
+    // refuses at the till.
+    expect(MINIMUM_FIRST_CHARGE_CENTS).toBeGreaterThanOrEqual(STRIPE_MINIMUM_CHARGE_CENTS)
+    const cents = prorateRemainderCents('standard', '2026-08-30')!
+    expect(cents).toBeGreaterThan(STRIPE_MINIMUM_CHARGE_CENTS)
+    expect(cents).toBeLessThan(MINIMUM_FIRST_CHARGE_CENTS)
+    expect(initialChargeOptions('standard', '2026-08-30').remainderOnly).toBeNull()
   })
 
   it('is a whole month on the 1st, with the combined option covering two', () => {
@@ -588,9 +614,9 @@ describe('prepaidTermEnd', () => {
 describe('prepaidChargeCents', () => {
   it('is the month’s remainder plus the whole months', () => {
     const c = prepaidChargeCents({ tier: 'premium', months: 6, today: '2026-08-23' })!
-    expect(c.prorationCents).toBe(726)
+    expect(c.prorationCents).toBe(871)
     expect(c.monthsCents).toBe(PREMIUM * 6)
-    expect(c.totalCents).toBe(726 + PREMIUM * 6)
+    expect(c.totalCents).toBe(871 + PREMIUM * 6)
   })
 
   it('SKIPS the proration when a live term is being extended — that month is already owned', () => {
@@ -603,7 +629,7 @@ describe('prepaidChargeCents', () => {
 
   it('is null for Free and for an impossible month count', () => {
     expect(prepaidChargeCents({ tier: 'free', months: 6, today: '2026-08-23' })).toBeNull()
-    expect(prepaidChargeCents({ tier: 'plus', months: 7, today: '2026-08-23' })).toBeNull()
+    expect(prepaidChargeCents({ tier: 'plus', months: MAX_PREPAY_MONTHS + 1, today: '2026-08-23' })).toBeNull()
   })
 })
 
@@ -623,10 +649,10 @@ describe('wholeMonthsInclusive', () => {
 describe('unusedTermValueCents', () => {
   it('values the rest of this month plus the whole months left, at the OLD rate', () => {
     // The worked example: 6 months of Standard from 1 January, on 15 February.
-    // rest of Feb  500 x 14/28 = 250      Mar..Jun  4 x 500 = 2000      total 2250
+    // rest of Feb  1000 x 14/28 = 500     Mar..Jun  4 x 1000 = 4000     total 4500
     expect(unusedTermValueCents({
       tier: 'standard', paidThrough: '2026-06-30', today: '2026-02-15',
-    })).toBe(2250)
+    })).toBe(4500)
   })
 
   it('is the part month alone when the term ends this month', () => {
@@ -654,7 +680,12 @@ describe('unusedTermValueCents', () => {
 
 describe('upgradeQuote — the worked example, both shapes', () => {
   // Six months of Standard bought 1 January (through 30 June). Upgrading to Premium on
-  // 15 February. Credit is $22.50; the rest of February at Premium is $12.50.
+  // 15 February. Credit is $45.00; the rest of February at Premium is $15.00.
+  //
+  // AT THE 2026-08-23 PRICES THE CREDIT COVERS BOTH SHAPES, which is worth noticing rather
+  // than treating as a coincidence: $10 -> $30 is a 3x jump, and four unused Standard months
+  // plus a part month buys a month and a half of Premium. So this family owes nothing either
+  // way, and the case that exercises a non-zero `dueNowCents` is the shorter term below.
   const base = {
     fromTier: 'standard' as const,
     toTier: 'premium' as const,
@@ -662,29 +693,31 @@ describe('upgradeQuote — the worked example, both shapes', () => {
     today: '2026-02-15',
   }
 
-  it('leaves nothing due now and carries $10 of credit', () => {
+  it('leaves nothing due now and carries $30 of credit', () => {
     const q = upgradeQuote({ ...base, includeNextMonth: false })!
-    expect(q.creditCents).toBe(2250)
-    expect(q.neededCents).toBe(1250)
+    expect(q.creditCents).toBe(4500)
+    expect(q.neededCents).toBe(1500)
     expect(q.dueNowCents).toBe(0)
-    expect(q.creditLeftCents).toBe(1000)
+    expect(q.creditLeftCents).toBe(3000)
     expect(q.paidThrough).toBe('2026-02-28')
   })
 
-  it('asks $15 when March is taken now, and carries nothing', () => {
+  it('still owes nothing when March is taken now, and the credit is exhausted', () => {
     const q = upgradeQuote({ ...base, includeNextMonth: true })!
-    expect(q.creditCents).toBe(2250)
-    expect(q.neededCents).toBe(1250 + PREMIUM)
-    expect(q.dueNowCents).toBe(1500)
+    expect(q.creditCents).toBe(4500)
+    expect(q.neededCents).toBe(1500 + PREMIUM)
+    expect(q.dueNowCents).toBe(0)
     expect(q.creditLeftCents).toBe(0)
     expect(q.paidThrough).toBe('2026-03-31')
   })
 
   it('is the SAME money either way — only the timing differs', () => {
+    // The invariant, and it holds at any prices: what taking next month costs NOW is exactly
+    // what the credit would otherwise have knocked off the invoice on the 1st.
     const now = upgradeQuote({ ...base, includeNextMonth: true })!
     const later = upgradeQuote({ ...base, includeNextMonth: false })!
-    // Taking March now costs $15. Leaving it costs nothing now and $25 - $10 = $15 on the 1st.
-    expect(now.dueNowCents).toBe(PREMIUM - later.creditLeftCents)
+    expect(now.dueNowCents + Math.min(later.creditLeftCents, PREMIUM))
+      .toBe(PREMIUM - (later.creditLeftCents - Math.min(later.creditLeftCents, PREMIUM)))
   })
 
   it('DOES NOT bill the difference across the whole prepaid term', () => {
@@ -692,7 +725,22 @@ describe('upgradeQuote — the worked example, both shapes', () => {
     // asked for on the day they chose to spend more.
     const q = upgradeQuote({ ...base, includeNextMonth: true })!
     expect(q.dueNowCents).toBeLessThan((PREMIUM - STANDARD) * 6)
-    expect(q.dueNowCents).toBe(1500)
+    expect(q.dueNowCents).toBe(0)
+  })
+
+  it('DOES charge the shortfall when the unused term is smaller than the upgrade', () => {
+    // The same rule with less credit: one month of Standard left rather than four.
+    // credit = $5 (rest of Feb) + $10 (March) = $15; Premium for Feb + March = $45.
+    const short = { ...base, paidThrough: '2026-03-31' }
+    const leave = upgradeQuote({ ...short, includeNextMonth: false })!
+    expect(leave.creditCents).toBe(1500)
+    expect(leave.dueNowCents).toBe(0)
+    expect(leave.creditLeftCents).toBe(0)
+
+    const take = upgradeQuote({ ...short, includeNextMonth: true })!
+    expect(take.neededCents).toBe(1500 + PREMIUM)
+    expect(take.dueNowCents).toBe(PREMIUM)
+    expect(take.creditLeftCents).toBe(0)
   })
 })
 
@@ -703,7 +751,7 @@ describe('upgradeQuote — the edges', () => {
       today: '2026-08-23', includeNextMonth: false,
     })!
     expect(q.creditCents).toBe(0)
-    expect(q.dueNowCents).toBe(726)
+    expect(q.dueNowCents).toBe(871)
     expect(q.creditLeftCents).toBe(0)
     expect(q.paidThrough).toBe('2026-08-31')
   })

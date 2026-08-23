@@ -13,9 +13,9 @@ import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency-utils'
 import {
   MAX_PREPAY_MONTHS, PREPAY_PRESET_MONTHS, initialChargeOptions, isPrepayMonths,
-  prepaidChargeCents, prepayQuoteCents,
+  prepaidChargeCents, prepayQuoteCents, upgradeQuote,
 } from '@/lib/platform-billing'
-import { TIER_LABEL, TIERS, type FamilyTier } from '@/lib/tiers'
+import { TIER_LABEL, TIER_RANK, TIERS, type FamilyTier } from '@/lib/tiers'
 import {
   cancelPlanRenewal, changePlanTier, openBillingPortal, startPlanCheckout,
   type PlatformBilling,
@@ -54,6 +54,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [buying, setBuying] = useState<FamilyTier | null>(null)
+  const [upgrading, setUpgrading] = useState<FamilyTier | null>(null)
 
   // §8: null is a refused or failed read, not "this family has never paid". Saying so beats
   // rendering an empty billing panel over a live subscription.
@@ -98,6 +99,9 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
   })
 
   const term = billing.paidEntitlement
+  // A live term with no subscription behind it: the case `upgradeQuote` exists for. A
+  // subscription is changed at Stripe instead, and a lapsed term is an ordinary purchase.
+  const upgradingFromPrepaid = billing.paidTier != null && !term.lapsed && !billing.subscriptionStatus
 
   return (
     <div className="space-y-4">
@@ -188,18 +192,30 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
                   variant={isCurrent ? 'outline' : 'affirm'}
                   disabled={pending}
                   onClick={() => {
-                    // An EXISTING monthly plan changes tier through Stripe rather than
-                    // through a second checkout — `changePlanTier` prorates an upgrade and
-                    // schedules a downgrade. A family with no subscription buys.
+                    // ── THREE ROUTES, AND WHICH ONE IS NOT THE FAMILY'S CHOICE ──────────
+                    // An EXISTING monthly plan changes tier through Stripe: `changePlanTier`
+                    // prorates an upgrade and schedules a downgrade with no page in between.
                     if (billing.mode === 'recurring' && billing.subscriptionStatus && !isCurrent) {
                       run(() => changePlanTier(tier))
+                      return
+                    }
+                    // A live PREPAID term being upgraded goes through `upgradeQuote` — the
+                    // unused term is spent on the new tier and only the shortfall is charged,
+                    // which is often nothing. Its dialog asks the one question that has a real
+                    // answer: settle next month now, or let the credit take it on the 1st.
+                    if (upgradingFromPrepaid && tierRank(tier) > tierRank(billing.paidTier)) {
+                      setUpgrading(tier)
                       return
                     }
                     setBuying(tier)
                   }}
                 >
                   <CreditCard className="h-4 w-4" />
-                  {isCurrent ? `Extend ${TIER_LABEL[tier]}` : `Pay for ${TIER_LABEL[tier]}`}
+                  {isCurrent
+                    ? `Extend ${TIER_LABEL[tier]}`
+                    : upgradingFromPrepaid && tierRank(tier) > tierRank(billing.paidTier)
+                      ? `Upgrade to ${TIER_LABEL[tier]}`
+                      : `Pay for ${TIER_LABEL[tier]}`}
                 </Button>
               )
             })}
@@ -267,6 +283,20 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
             ))}
           </ul>
         </details>
+      )}
+
+      {upgrading && (
+        <UpgradeDialog
+          fromTier={billing.paidTier}
+          toTier={upgrading}
+          paidThrough={billing.paidThrough}
+          today={billing.today}
+          onClose={() => setUpgrading(null)}
+          onUpgrade={(includeNextMonth) => {
+            setUpgrading(null)
+            run(() => changePlanTier(upgrading, includeNextMonth))
+          }}
+        />
       )}
 
       {buying && (
@@ -445,6 +475,113 @@ function BuyDialog({
             </p>
           </section>
         )}
+      </div>
+    </Dialog>
+  )
+}
+
+/** Rank, tolerating a null "no paid tier" as Free. Local so the panel needs no second import. */
+function tierRank(tier: FamilyTier | null): number {
+  return TIER_RANK[tier ?? 'free']
+}
+
+/**
+ * Upgrading a family that paid in advance: what the unused term is worth, and the one choice.
+ *
+ * ── IT SHOWS THE ARITHMETIC, WHICH IS THE WHOLE JOB OF THIS DIALOG ──────────────────
+ * "Upgrade to Premium: $0.00" is a sentence nobody believes. The credit is what makes it true,
+ * so the credit is on screen: what the old term is worth, what the new tier costs for the
+ * period, and the difference. An administrator about to explain this to a treasurer needs the
+ * three figures, not the conclusion.
+ *
+ * ── AND THE CHOICE IS REAL BUT NOT A PRICE DIFFERENCE ───────────────────────────────
+ * Both options cost the same money. Taking next month now spends the credit today; leaving it
+ * lets the credit draw against the invoice on the 1st. The copy says so explicitly, because a
+ * screen offering two buttons with different numbers on them implies one is cheaper, and a
+ * family that picks the "cheaper" one and is then billed the difference has been misled by
+ * a layout.
+ *
+ * `upgradeQuote` is called twice — once per shape — and it is the SAME pure function the action
+ * and the webhook use. That is what makes the figure on the button the figure Stripe asks for.
+ */
+function UpgradeDialog({
+  fromTier, toTier, paidThrough, today, onClose, onUpgrade,
+}: {
+  fromTier: FamilyTier | null
+  toTier: FamilyTier
+  paidThrough: string | null
+  today: string
+  onClose: () => void
+  onUpgrade: (includeNextMonth: boolean) => void
+}) {
+  const leave = upgradeQuote({ fromTier, toTier, paidThrough, today, includeNextMonth: false })
+  const take = upgradeQuote({ fromTier, toTier, paidThrough, today, includeNextMonth: true })
+  if (!leave || !take) return null
+
+  const monthly = prepayQuoteCents(toTier, 1)
+
+  return (
+    <Dialog open onClose={onClose} title={`Upgrade to ${TIER_LABEL[toTier]}`}>
+      <div className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          {TIER_LABEL[toTier]} starts as soon as this is settled. What is left of the{' '}
+          {fromTier ? TIER_LABEL[fromTier] : 'current'} term you already paid for is not lost and
+          not refunded — it is worth{' '}
+          <strong>{formatCurrency(leave.creditCents)}</strong> and is spent on{' '}
+          {TIER_LABEL[toTier]} first.
+        </p>
+
+        {/* THE WORKINGS, as three lines rather than one total. */}
+        <dl className="space-y-1 rounded-lg border bg-muted/30 p-3 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">
+              Rest of this month at {TIER_LABEL[toTier]}
+            </dt>
+            <dd>{formatCurrency(leave.neededCents)}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">
+              Your {fromTier ? TIER_LABEL[fromTier] : 'current'} term, unused
+            </dt>
+            <dd>&minus;{formatCurrency(leave.creditCents)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-t pt-1 font-medium">
+            <dt>Due now</dt>
+            <dd>{formatCurrency(leave.dueNowCents)}</dd>
+          </div>
+        </dl>
+
+        <div className="space-y-2">
+          <Button
+            variant="affirm"
+            className="w-full justify-start"
+            onClick={() => onUpgrade(false)}
+          >
+            <CreditCard className="h-4 w-4" />
+            {leave.dueNowCents === 0
+              ? `Upgrade now — nothing to pay`
+              : `Upgrade now — pay ${formatCurrency(leave.dueNowCents)}`}
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => onUpgrade(true)}
+          >
+            <CalendarClock className="h-4 w-4" />
+            {take.dueNowCents === 0
+              ? `Upgrade and cover next month too — nothing to pay`
+              : `Upgrade and cover next month too — pay ${formatCurrency(take.dueNowCents)}`}
+          </Button>
+        </div>
+
+        {/* THE SAME MONEY, SAID OUT LOUD. Two buttons with different figures imply one is
+            cheaper; neither is, and the family should know that before choosing. */}
+        <p className="text-xs text-muted-foreground">
+          {leave.creditLeftCents > 0
+            ? `Either way costs the same overall. Take the first and ${formatCurrency(leave.creditLeftCents)} stays as credit against your invoice on ${leave.paidThrough === take.paidThrough ? 'the 1st' : take.paidThrough}; take the second and it is spent now instead.`
+            : `Either way costs the same overall — the second just settles next month today rather than on the 1st.`}
+          {monthly != null && ` After that it is ${formatCurrency(monthly)} a month, on the 1st.`}
+        </p>
       </div>
     </Dialog>
   )

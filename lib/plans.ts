@@ -330,9 +330,19 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
 
 export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
   free: null,
-  standard: { monthlyCents: 500 },
-  plus: { monthlyCents: 1_500 },
-  premium: { monthlyCents: 2_500 },
+  // ── RE-PRICED 2026-08-23: 5/15/25 -> 10/20/30 ─────────────────────────────────────
+  // One edit, and everything that shows a price follows it: the three `/pricing` cards, the
+  // FAQ, the plan panel, `/upgrade`, the one sentence on `/features`, every proration and
+  // every prepaid quote. That is the whole point of the paragraph above about a price living
+  // in one place — the alternative was a figure typed into six surfaces, one of which would
+  // still say $5 today.
+  //
+  // NOTHING IS GRANDFATHERED, because nothing has been sold: `TIER_IS_SOLD` is false for all
+  // three and no family has ever been charged. Re-pricing after that is a different job with
+  // a migration in it, and 20260819000009's header is the precedent for what it costs.
+  standard: { monthlyCents: 1_000 },
+  plus: { monthlyCents: 2_000 },
+  premium: { monthlyCents: 3_000 },
 }
 
 /**

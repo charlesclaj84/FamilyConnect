@@ -7,11 +7,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
 import { TIER_IS_SOLD, TIER_PRICE } from '@/lib/plans'
-import { TIER_LABEL, isFamilyTier, type FamilyTier } from '@/lib/tiers'
+import { formatCurrency } from '@/lib/currency-utils'
+import { TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
   MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, entitlementOn,
   initialChargeOptions, isPrepayMonths, nextFirstOfMonth, prepayQuoteCents,
-  prorateRemainderCents, scheduleDowngrade, tierMove,
+  prorateRemainderCents, scheduleDowngrade, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { intentKey, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
@@ -502,7 +503,20 @@ export async function startPlanCheckout(input: {
 }
 
 export type PlanChangeResult =
-  | { success: true; message: string }
+  | {
+      success: true
+      message: string
+      /**
+       * A hosted Stripe page to send the browser to, when the change needs paying for.
+       *
+       * PRESENT ON EXACTLY ONE PATH — an upgrade from a prepaid term whose credit does not
+       * cover the whole cost. Every other plan change either charges nothing (a downgrade, or
+       * an upgrade the credit covers) or is settled by Stripe against a subscription already on
+       * file, and neither needs a page. The panel redirects when it is here and refreshes when
+       * it is not, so a caller cannot get that wrong by forgetting to check.
+       */
+      url?: string
+    }
   | { success: false; message: string }
 
 /**
@@ -525,7 +539,17 @@ export type PlanChangeResult =
  * in place would mean a family could move down mid-period and have the difference sitting on
  * their next invoice, which is precisely what "downgrades do not give refunds" forbids.
  */
-export async function changePlanTier(nextTier: string): Promise<PlanChangeResult> {
+export async function changePlanTier(
+  nextTier: string,
+  /**
+   * Upgrade-from-prepaid only: also buy the whole of next month now.
+   *
+   * The family's choice rather than ours, and both answers cost the same money — the credit
+   * either settles the coming invoice today or draws against it on the 1st. `upgradeQuote`
+   * returns both figures so a screen can put them side by side.
+   */
+  includeNextMonth = false,
+): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
@@ -545,14 +569,26 @@ export async function changePlanTier(nextTier: string): Promise<PlanChangeResult
   // because Stripe models it differently — there is no cheaper price to move the item to.
   if (nextTier === 'free') return cancelPlanRenewal()
 
-  if (!record.stripe_subscription_id) {
-    return {
-      success: false,
-      message: 'This family has no monthly plan to change. Start one, or pay in advance.',
-    }
-  }
   if (!TIER_IS_SOLD[nextTier]) {
     return { success: false, message: `${TIER_LABEL[nextTier]} is not on sale yet.` }
+  }
+
+  // ── NO SUBSCRIPTION: A PREPAID TERM, OR NONE AT ALL ───────────────────────────────
+  if (!record.stripe_subscription_id) {
+    // MOVING DOWN NEEDS NO STRIPE CALL AT ALL. There is no subscription price to change and
+    // nothing to refund — it is a promise, written down, applied by the sweep on the 1st after
+    // the paid term ends. `cancelPlanRenewal` above handles the same move to Free, which is
+    // where a family with no subscription and no term will already have gone.
+    if (move === 'downgrade') {
+      return scheduleDowngradeOnly({ admin, familyCode: g.familyCode, record, nextTier })
+    }
+    // An UPGRADE, and `upgradeQuote` is its rule: value the unused old term at the OLD rate,
+    // spend it on the new tier, carry the remainder as a credit. `lib/platform-billing.ts`
+    // holds the arithmetic and the worked example.
+    return upgradeFromPrepaid({
+      admin, stripe, familyCode: g.familyCode, userId: g.userId,
+      record, nextTier, includeNextMonth,
+    })
   }
   const priceId = platformPriceId(nextTier, 'recurring')
   if (!priceId) return { success: false, message: `${TIER_LABEL[nextTier]} cannot be bought monthly yet.` }
@@ -702,6 +738,247 @@ export async function openBillingPortal(): Promise<CheckoutResult> {
   } catch (e) {
     console.error(`[billing] portal failed for ${g.familyCode}: ${describe(e)}`)
     return { success: false, message: 'Could not open the billing portal. Please try again.' }
+  }
+}
+
+/**
+ * Moving DOWN with no subscription: a promise, and nothing else.
+ *
+ * No Stripe call, no charge, no refund. `scheduleDowngrade` lands it on the 1st after the paid
+ * term ends — the next 1st for a family with no term — and the sweep applies it on the day.
+ * Every page stays open until then, which is the whole of what the no-refunds rule buys the
+ * family in exchange for not getting their money back.
+ */
+async function scheduleDowngradeOnly(input: {
+  admin: AdminClient
+  familyCode: string
+  record: BillingRow
+  nextTier: FamilyTier
+}): Promise<PlanChangeResult> {
+  const { admin, familyCode, record, nextTier } = input
+  const scheduled = scheduleDowngrade({
+    record: toRecord(record), toTier: nextTier, today: todayISO(),
+  })
+
+  const { error } = await admin.from('platform_billing_accounts')
+    .upsert({
+      family_code: familyCode,
+      scheduled_tier: scheduled.tier,
+      scheduled_tier_on: scheduled.on,
+    }, { onConflict: 'family_code' })
+  if (error) {
+    console.error(`[billing] could not record the scheduled downgrade for ${familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not record the change. Please try again.' }
+  }
+
+  revalidateBilling()
+  return {
+    success: true,
+    message: `${TIER_LABEL[nextTier]} starts on ${scheduled.on}. Nothing changes before then, and there is no refund for the term already paid for.`,
+  }
+}
+
+/**
+ * Moving UP from a prepaid term — or from nothing at all.
+ *
+ * ── TWO OUTCOMES, AND ONLY ONE OF THEM INVOLVES STRIPE ──────────────────────────────
+ * `upgradeQuote` decides. When the unused old term is worth more than the new tier costs for
+ * the period being bought, `dueNowCents` is zero and there is nothing to charge — so the tier
+ * moves HERE, immediately, and the leftover is recorded as a credit. That is the case the
+ * worked example produces at the 10/20/30 prices, and it is the one a first draft forgets:
+ * routing it through a Checkout Session would show a family a payment page for $0.00.
+ *
+ * When there IS a shortfall it goes through hosted Checkout like every other charge, and the
+ * webhook applies the tier — because the button press is not the payment (this file's header).
+ *
+ * ── THE IMMEDIATE PATH WRITES `families.tier`, WHICH ALMOST NOTHING ELSE HERE DOES ──
+ * Stated because it looks like a violation of this file's own rule and is not. The rule is that
+ * an action may not decide a family has PAID; this path decides nothing of the kind — the
+ * family already paid, for a term this product is holding as credit, and `upgradeQuote` has
+ * established that the credit covers the whole cost. No money changes hands, so there is no
+ * payment to confirm and nothing for a webhook to tell us. `promoteFamilyTier` refuses to move
+ * a tier DOWN, so the worst a bug here can do is fail to open a page.
+ */
+async function upgradeFromPrepaid(input: {
+  admin: AdminClient
+  stripe: NonNullable<ReturnType<typeof stripeClient>>
+  familyCode: string
+  userId: string
+  record: BillingRow
+  nextTier: FamilyTier
+  includeNextMonth: boolean
+}): Promise<PlanChangeResult> {
+  const { admin, stripe, familyCode, userId, record, nextTier, includeNextMonth } = input
+  const today = todayISO()
+  const from = toRecord(record)
+
+  const quote = upgradeQuote({
+    fromTier: from.paidTier,
+    toTier: nextTier,
+    paidThrough: from.paidThrough,
+    today,
+    includeNextMonth,
+  })
+  if (!quote) return { success: false, message: `${TIER_LABEL[nextTier]} cannot be bought yet.` }
+
+  // ── NOTHING TO CHARGE: APPLY IT NOW ────────────────────────────────────────────────
+  if (quote.dueNowCents === 0) {
+    const { error } = await admin.from('platform_billing_accounts').upsert({
+      family_code: familyCode,
+      mode: 'prepaid' satisfies BillingMode,
+      paid_tier: nextTier,
+      paid_through: quote.paidThrough,
+      credit_cents: quote.creditLeftCents,
+      // The upgrade supersedes any promise to move down: a family that asked for Standard next
+      // month and has just bought Premium is not moving to Standard.
+      scheduled_tier: null,
+      scheduled_tier_on: null,
+    }, { onConflict: 'family_code' })
+    if (error) {
+      console.error(`[billing] could not apply the upgrade for ${familyCode}: ${error.message}`)
+      return { success: false, message: 'Could not change the plan. Please try again.' }
+    }
+
+    await promoteFamilyTier(admin, familyCode, nextTier)
+    // The credit at Stripe, so it draws against whatever the family is invoiced next. Best
+    // effort and AFTER the tier: a family that has been upgraded and whose credit did not
+    // register is over-charged by at most the credit, which is recoverable; the reverse leaves
+    // them paying for a tier they cannot reach.
+    if (quote.creditLeftCents > 0 && record.stripe_customer_id) {
+      await recordStripeCredit(stripe, record.stripe_customer_id, quote.creditLeftCents, familyCode)
+    }
+
+    revalidateBilling()
+    return {
+      success: true,
+      message: quote.creditLeftCents > 0
+        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents)} — is held as credit against your next invoice.`
+        : `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. The term you had already paid for covered it exactly.`,
+    }
+  }
+
+  // ── A SHORTFALL: HOSTED CHECKOUT, AND THE WEBHOOK APPLIES IT ───────────────────────
+  const customerId = await ensureCustomer(admin, stripe, {
+    familyCode, existing: record.stripe_customer_id,
+  })
+  if (!customerId) return { success: false, message: 'Could not start the payment. Please try again.' }
+
+  // THE OUTCOME TRAVELS IN METADATA, and the webhook narrows every field of it rather than
+  // casting. It is carried rather than recomputed because `today` can differ by a day between
+  // creating this session and the payment settling, and a recomputed quote would then not be
+  // the one the family was charged for.
+  const metadata = {
+    genorra_flow: 'platform',
+    genorra_family_code: familyCode,
+    genorra_tier: nextTier,
+    genorra_mode: 'upgrade',
+    genorra_paid_through: quote.paidThrough,
+    genorra_credit_left: String(quote.creditLeftCents),
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      client_reference_id: familyCode,
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: quote.dueNowCents,
+          product_data: {
+            name: `${TIER_LABEL[nextTier]} — upgrade`,
+            description: quote.includesNextMonth
+              ? 'The rest of this month and next, less what your current term is worth'
+              : 'The rest of this month, less what your current term is worth',
+          },
+        },
+      }],
+      payment_intent_data: { metadata },
+      invoice_creation: { enabled: true },
+      metadata,
+      integration_identifier: INTEGRATION_IDS.platformPrepaid,
+      ...checkoutReturnUrls('/admin/settings'),
+    }, {
+      // The intent, not the clock: the family, the tier, the shape and the amount. A
+      // double-clicked button inside 24 hours gets the same session back.
+      idempotencyKey: intentKey(['upgrade', familyCode, nextTier, quote.dueNowCents, String(includeNextMonth)]),
+    })
+
+    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+
+    void trackMetaCheckoutStart({
+      sessionId: session.id, tier: nextTier, mode: 'prepaid', months: 1, userId,
+    })
+
+    return {
+      success: true,
+      url: session.url,
+      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents)}.`,
+    }
+  } catch (e) {
+    console.error(`[billing] upgrade checkout failed for ${familyCode} -> ${nextTier}: ${describe(e)}`)
+    return { success: false, message: 'Could not start the payment. Please try again.' }
+  }
+}
+
+/**
+ * Put a credit on the family's Stripe customer, so it draws against future invoices.
+ *
+ * ── A NEGATIVE AMOUNT IS A CREDIT, WHICH IS THE ONE THING TO GET RIGHT ──────────────
+ * Stripe's customer balance is signed the way a ledger is: negative means the customer is owed,
+ * and Stripe applies it automatically to the next invoice. A POSITIVE amount here would be a
+ * DEBT added to their next bill — the exact opposite, with no error and no warning, on a family
+ * that had just been told they had credit.
+ *
+ * Never throws. The tier has already moved by the time this runs, and a Stripe hiccup must not
+ * turn a completed upgrade into a failure message — it is logged loudly instead, because a
+ * credit that did not register is money the family is owed.
+ */
+async function recordStripeCredit(
+  stripe: NonNullable<ReturnType<typeof stripeClient>>,
+  customerId: string,
+  creditCents: number,
+  familyCode: string,
+): Promise<void> {
+  try {
+    await stripe.customers.createBalanceTransaction(customerId, {
+      amount: -creditCents,
+      currency: 'usd',
+      description: `Unused term carried forward (${familyCode})`,
+    }, { idempotencyKey: intentKey(['credit', familyCode, creditCents]) })
+  } catch (e) {
+    console.error(`[billing] CREDIT NOT REGISTERED at Stripe for ${familyCode} (${creditCents}c): ${describe(e)}`)
+  }
+}
+
+/**
+ * Move `families.tier` UP to what has been paid for. Never down.
+ *
+ * The same rule and the same reasoning as `promoteTier` in `lib/stripe/platform-events.ts`, and
+ * it is duplicated rather than shared for one reason worth stating: that module is imported by
+ * the webhook route and this one by a `'use server'` file, and exporting a tier-mover from
+ * either would give it a URL. Both refuse to move a tier downwards, because every downward move
+ * in this product goes through `scheduled_tier` and the sweep.
+ */
+async function promoteFamilyTier(
+  admin: AdminClient,
+  familyCode: string,
+  tier: FamilyTier,
+): Promise<void> {
+  const { data, error } = await admin
+    .from('families').select('tier').eq('family_code', familyCode).maybeSingle()
+  if (error || !data) {
+    console.error(`[billing] could not read the tier for ${familyCode}: ${error?.message ?? 'no row'}`)
+    return
+  }
+  const current = isFamilyTier(data.tier) ? data.tier : 'free'
+  if (TIER_RANK[tier] <= TIER_RANK[current]) return
+
+  const { error: writeError } = await admin
+    .from('families').update({ tier }).eq('family_code', familyCode)
+  if (writeError) {
+    console.error(`[billing] PAID BUT NOT GRANTED: ${familyCode} -> ${tier}: ${writeError.message}`)
   }
 }
 

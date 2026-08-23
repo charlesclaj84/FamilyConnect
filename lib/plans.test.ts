@@ -66,9 +66,13 @@ describe('TIER_PRICE', () => {
     // Free has NO price rather than a price of zero, and every surface branches on that:
     // `$0/month` is a figure where the word "Free" belongs.
     expect(TIER_PRICE.free).toBeNull()
-    expect(TIER_PRICE.standard).toEqual({ monthlyCents: 500 })
-    expect(TIER_PRICE.plus).toEqual({ monthlyCents: 1_500 })
-    expect(TIER_PRICE.premium).toEqual({ monthlyCents: 2_500 })
+    // RE-PRICED 2026-08-23 (5/15/25 -> 10/20/30). These literals are the ONE place in the test
+    // suite that pins the figures, deliberately: this is the assertion whose job is to make a
+    // price change deliberate rather than accidental, so it is meant to go red on one. Every
+    // other test that touches money derives from `TIER_PRICE` instead.
+    expect(TIER_PRICE.standard).toEqual({ monthlyCents: 1_000 })
+    expect(TIER_PRICE.plus).toEqual({ monthlyCents: 2_000 })
+    expect(TIER_PRICE.premium).toEqual({ monthlyCents: 3_000 })
   })
 
   it('states every tier, so a fifth cannot be added without a price decision', () => {

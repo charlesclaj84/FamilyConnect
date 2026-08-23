@@ -29,7 +29,7 @@
  *   1. **ONE RATE PER TIER, MONTHLY.** `TIER_PRICE[tier].monthlyCents` is the only figure,
  *      and there is deliberately no annual rate — `lib/plans.ts` records why one was
  *      withdrawn, and "do not put a yearly figure back by multiplying" is a rule this module
- *      obeys rather than reopens. Six months in advance is six months at the monthly rate.
+ *      obeys rather than reopens. A year in advance is twelve months at the monthly rate.
  *
  *   2. **EVERY FAMILY BILLS ON THE 1st.** Not on the anniversary of the day they signed up.
  *      The first payment is the REMAINDER OF THE CURRENT MONTH, prorated by the day and
@@ -38,9 +38,10 @@
  *      **`paid_through` is always the last day of a month** — which is what makes rules 3
  *      and 4 one expression rather than two.
  *
- *   3. **PAY IN ADVANCE, UP TO SIX MONTHS.** Either a monthly subscription that renews on
+ *   3. **PAY IN ADVANCE, UP TO SIXTY MONTHS.** Either a monthly subscription that renews on
  *      the 1st, or one payment covering the rest of this month plus N whole months.
- *      `MAX_PREPAY_MONTHS` is the ceiling and it is a practical one, not a pricing one.
+ *      `MAX_PREPAY_MONTHS` is the ceiling and it is a practical one, not a pricing one — and
+ *      it doubles as the longest a downgrade can be deferred, which its own note explains.
  *
  *   4. **NO REFUNDS, EVER, AND A DOWNGRADE WAITS FOR THE BILLING CYCLE.** Moving down takes
  *      nothing back and changes nothing today: it lands on the next 1st for a family paying
@@ -48,8 +49,10 @@
  *      ahead. Six months of Plus, downgraded in month two, is Plus for months two to six and
  *      Standard from month seven. `downgradeEffectiveOn` is one line because of rule 2.
  *
- *   5. **MOVING UP TAKES EFFECT AT ONCE**, and what is charged is a proration to the next
- *      1st rather than the difference across a whole prepaid term. See `prepaidPurchase`.
+ *   5. **MOVING UP TAKES EFFECT AT ONCE**, and what is charged is the shortfall between what
+ *      the new tier costs to the next 1st and what the unused old term is WORTH at the rate it
+ *      was bought at — often nothing. Never the difference across the whole prepaid term. See
+ *      `upgradeQuote`, and `prepaidPurchase` for the buying-months case it is not.
  *
  *   6. **`families.tier` IS MOVED BY ONE THING.** `apply_due_platform_tier_changes()` in
  *      SQL. Nothing here writes anything, and `entitlementOn` DESCRIBES rather than decides —
@@ -77,43 +80,70 @@ export function isBillingMode(value: unknown): value is BillingMode {
 /**
  * The furthest ahead a family may pay in one go.
  *
- * SIX MONTHS, LOWERED FROM THIRTY-SIX ON 2026-08-23. A practical ceiling rather than a
- * pricing one, and it is worth saying what it is protecting: a hosted Checkout page with an
+ * SIXTY MONTHS. It went 36 -> 6 -> 60 on 2026-08-23, and the middle step was a
+ * misunderstanding worth recording: 36 was never a DEFAULT anybody would be charged, it was the
+ * CEILING on an optional field, and it was briefly cut to 6 on the belief that a family
+ * pressing "pay in advance" would be asked for three years. They are not — the presets and the
+ * Months field decide what is BOUGHT, and this only decides what is REFUSED.
+ *
+ * What it is protecting: a hosted Checkout page with an
  * adjustable quantity is a number field a stranger can type into, and `999999` months is a
  * real charge for a real amount of money that we would then owe somebody a service for until
  * the 84th century. Stripe enforces the maximum on the page and `startPlanCheckout` enforces
  * it again in the action, because the page in front of an endpoint is a convenience and not a
  * gate (AGENTS.md §2).
  *
- * IT ALSO BOUNDS HOW FAR A DOWNGRADE CAN BE PUSHED OUT. Under rule 4 a family that has paid
- * ahead keeps its tier until the term is exhausted, so the prepay ceiling IS the longest a
- * downgrade can be deferred — three years of that was a long time to owe somebody a plan they
- * had asked to leave.
+ * ── AND IT BOUNDS HOW FAR A DOWNGRADE CAN BE PUSHED OUT, WHICH IS NOW FIVE YEARS ────
+ * Under rule 4 a family keeps its tier until a prepaid term is exhausted, so this ceiling IS
+ * the longest a downgrade can be deferred. A family that prepays sixty months of Plus and asks
+ * to move to Standard in month two stays on Plus for fifty-eight more months — correct by the
+ * no-refunds rule, and a long time to owe somebody a plan they asked to leave. A consequence
+ * of the ceiling rather than a separate decision, and the one worth knowing before raising it.
  */
-export const MAX_PREPAY_MONTHS = 6
+export const MAX_PREPAY_MONTHS = 60
 
 /**
  * The options a screen offers, in whole months ON TOP of the current month's remainder.
  *
  * PRESETS ARE NOT A LIMIT. The hosted page carries `adjustable_quantity`, so a family that
- * wants five months types five. These are the ones worth a button, and the labels are the
- * caller's business — 6 is "half a year" to a reader and "6" to this module.
+ * wants seven months types seven. These are the ones worth a button, and the labels are the
+ * caller's business — 12 is "a year" to a reader and "12" to this module.
  */
-export const PREPAY_PRESET_MONTHS: readonly number[] = [1, 2, 3, 6]
+export const PREPAY_PRESET_MONTHS: readonly number[] = [1, 3, 6, 12, 24, 60]
+
+/**
+ * The smallest FIRST payment this product will take on its own, in cents.
+ *
+ * ── A PRODUCT RULE, NOT A PROCESSOR LIMIT, AND THE DIFFERENCE IS THE POINT ──────────
+ * $5.00, decided 2026-08-23: *"if the prorated is under $5 then the initial payment will be the
+ * prorated + the following month."* Below it the rest of the month is not offered on its own,
+ * and the first payment covers this month AND next. `initialChargeOptions` decides that.
+ *
+ * It was 50¢ for a few hours — Stripe's own floor — and the two are different KINDS of number.
+ * 50¢ is what a card network will physically accept. $5 is what is worth putting on a family's
+ * statement, and it is a much bigger threshold: at Standard's $10 a month it is roughly half a
+ * month, so on any signup after about the 16th the combined option is the only one. That is a
+ * lot of families, and it is the intended behaviour rather than an edge case.
+ *
+ * **IT MUST NEVER GO BELOW `STRIPE_MINIMUM_CHARGE_CENTS`**, which is the hard floor: under
+ * that, Stripe refuses the charge and the family meets a hosted page that fails at the till
+ * after they have chosen it. `initialChargeOptions` takes the HIGHER of the two rather than
+ * this one, so lowering this constant can never reintroduce that failure — which is why both
+ * live here and why the comparison is not written inline at the call site.
+ */
+export const MINIMUM_FIRST_CHARGE_CENTS = 500
 
 /**
  * The smallest amount Stripe will accept as a charge, in cents.
  *
  * ── WHY A PAYMENT-PROCESSOR CONSTANT IS IN THE PURE MODULE ──────────────────────────
- * Because it changes an ARITHMETIC answer, not just an API call. Prorating the rest of the
- * month by the day means a family signing up on the 30th of a 31-day month owes two days:
- * Standard at $5 is `ceil(500 × 2 / 31)` = **33¢**, which Stripe refuses outright. So the
- * "just the remainder" option cannot always be offered, and deciding that is this module's
- * job rather than the action's — `initialChargeOptions` is where it is decided, and it is
- * checkable by value because the constant is here.
+ * Because it changes an ARITHMETIC answer, not just an API call, and because the product rule
+ * above has to stay above it — a bound is only checkable if both numbers are in one place.
  *
- * 50¢ is Stripe's USD minimum. A family billing in another currency would need its own
- * figure, which is one of several reasons nothing in this product is multi-currency yet.
+ * 50¢ is Stripe's USD minimum, and it is genuinely reachable rather than theoretical: one day
+ * of Standard in a 31-day month is `ceil(1000 / 31)` = 33¢. A family billing in another
+ * currency would need its own figure, which is one of several reasons nothing in this product
+ * is multi-currency yet.
  */
 export const STRIPE_MINIMUM_CHARGE_CENTS = 50
 
@@ -323,11 +353,13 @@ export function prorateRemainderCents(tier: FamilyTier, today: string): number |
  *   `remainderPlusNext`  the same plus the whole of next month, so the first invoice on the
  *                        1st is a month away rather than days away.
  *
- * `remainderOnly` IS NULL WHEN IT WOULD BE BELOW STRIPE'S MINIMUM, which is not a defensive
- * check — it is the ordinary case at the end of a month. Standard is $5, so two days left in a
- * 31-day month prorates to 33¢ and Stripe refuses the charge outright. Offering it would
- * produce a hosted page that fails at the till, after the family had chosen it. Below the
- * floor the combined option is the only one, and the screen says why.
+ * `remainderOnly` IS NULL BELOW THE FLOOR, which is not a defensive check — it is the ordinary
+ * case for half of every month. The floor is `max(MINIMUM_FIRST_CHARGE_CENTS,
+ * STRIPE_MINIMUM_CHARGE_CENTS)`: the first is the product rule ($5, decided), the second is
+ * what a card network will physically accept (50¢), and taking the HIGHER means lowering the
+ * product rule can never reintroduce a charge Stripe refuses. At Standard's $10 a month, $5 is
+ * about sixteen days — so a family signing up on the 20th is offered the combined option alone,
+ * and the screen says why rather than leaving them to wonder.
  *
  * `daysLeft` is returned so a screen can say "10 days" rather than making the reader work it
  * out from two dates, which is the difference between a sentence somebody trusts and a figure
@@ -350,11 +382,14 @@ export function initialChargeOptions(tier: FamilyTier, today: string): InitialCh
   const remainder = prorateRemainderCents(tier, today)
   const monthly = TIER_PRICE[tier]?.monthlyCents ?? null
   const next = nextFirstOfMonth(today)
+  // THE HIGHER OF THE TWO, so lowering the product rule can never drop below what Stripe will
+  // accept. See both constants.
+  const floor = Math.max(MINIMUM_FIRST_CHARGE_CENTS, STRIPE_MINIMUM_CHARGE_CENTS)
   return {
     daysLeft: daysLeftInMonth(today),
     daysInMonth: daysInMonth(today),
     nextBillingDate: next,
-    remainderOnly: remainder != null && remainder >= STRIPE_MINIMUM_CHARGE_CENTS ? remainder : null,
+    remainderOnly: remainder != null && remainder >= floor ? remainder : null,
     remainderPlusNext: remainder != null && monthly != null ? remainder + monthly : null,
     remainderPlusNextThrough: lastDayOfMonthISO(next),
   }
@@ -620,20 +655,20 @@ export interface UpgradeQuote {
 /**
  * What an upgrade costs today, in both shapes.
  *
- * ── IT HAS NO CALLER YET, AND THAT IS STATED RATHER THAN LEFT TO BE FOUND ───────────
- * The arithmetic is decided and tested; the checkout is not built. `changePlanTier` handles an
- * upgrade on a RECURRING plan through Stripe's own proration (`always_invoice`) and refuses a
- * PREPAID family outright — so the path this function exists for is the one still to be wired.
- * `lib/meta/billing.ts` sat in exactly this state for weeks and its own header is the
- * precedent: a tested module with no caller is honest, and a caller invented to make it look
- * finished is not.
+ * ── WIRED 2026-08-23, IN THREE PLACES THAT MUST AGREE ───────────────────────────────
+ *   `changePlanTier` -> `upgradeFromPrepaid`   creates the session, or applies it outright
+ *                                              when `dueNowCents` is zero — which is what the
+ *                                              worked example produces at the 10/20/30 prices,
+ *                                              and the branch a first draft forgets: routing it
+ *                                              through Checkout would show a family a payment
+ *                                              page for $0.00.
+ *   `onUpgradePaid` in lib/stripe/platform-events.ts   applies it once the shortfall is paid.
+ *   `UpgradeDialog` in components/admin/BillingPanel.tsx   shows the three figures.
  *
- * WHAT WIRING IT COSTS: a `credit_cents` column on `platform_billing_accounts` (migration), a
- * Checkout Session for `dueNowCents` when it is above zero, a
- * `customers.createBalanceTransaction(customer, { amount: -creditLeftCents })` so Stripe draws
- * the remainder down against future invoices, and the tier moved by the webhook on payment —
- * or moved immediately when `dueNowCents` is zero, which is the case the worked example
- * produces and the one a first draft will forget.
+ * All three call THIS function rather than repeating the arithmetic, which is what makes the
+ * number on the button the number Stripe asks for. The leftover is held as a Stripe customer
+ * credit balance (a NEGATIVE balance transaction — the sign is the one thing to get right) and
+ * mirrored in `platform_billing_accounts.credit_cents` for display only.
  *
  * `includeNextMonth` is the family's choice, not ours: settle the coming invoice now, or leave
  * it and let the credit draw against it on the 1st. Both end at the same place — this returns

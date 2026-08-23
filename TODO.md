@@ -148,8 +148,8 @@ from a client bundle.
 | `STRIPE_SECRET_KEY` | **Prefer a restricted key (`rk_`)** over `sk_`. It needs write on Checkout Sessions, Customers, Subscriptions, Prices (read), Billing Portal, and Connect accounts/account links. |
 | `STRIPE_PLATFORM_WEBHOOK_SECRET` | The signing secret of the endpoint in §3. Not interchangeable with the next one. |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | The **Connect** endpoint's. One shared secret would make the two endpoints indistinguishable, which is the mix-up that would credit a family's ledger with our revenue. |
-| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier. |
-| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**. Prepaid terms are `quantity: months` against it. |
+| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier: **$10 / $20 / $30**. |
+| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**, same figures. Prepaid terms are `quantity: months` against it, up to 60. |
 | `STRIPE_API_VERSION` | Leave unset. Pinned to `2026-07-29.dahlia` in code; this is the override for testing a bump. |
 
 **One Product per plan, not one Product with three prices.** Checkout and every invoice print
@@ -181,7 +181,10 @@ validation; these are:
 | Buy a month, then reload `/admin/settings` | **Paid through** moves and the tier is granted. Still Free means the webhook is not arriving — check the signing secret, not the code |
 | Replay the same event from the Stripe dashboard | Nothing changes. `platform_payments.stripe_ref` is unique; a second row means the ref is not the charge |
 | `SELECT * FROM stripe_webhook_events WHERE processed_at IS NULL` | Empty. A row here with a `last_error` is an event that failed and is being redelivered |
-| Buy 12 months, then change it to 3 on Stripe's page | `paid_through` is three months out, not twelve — the quantity is read off the session |
+| Buy 12 months, then change it to 3 on Stripe's page | `paid_through` is three months out, not twelve — the quantity is read off the session, and it is the MONTHS line that is read, not the part-month line beside it |
+| Sign up on the 20th of a 31-day month | The charge is the rest of the month prorated and rounded UP, and `paid_through` is the last day of that month. Every later invoice is on the 1st |
+| Sign up on the 29th on Standard | The remainder alone is under $5, so only the combined "this month and next" option is offered — and the screen says why |
+| Upgrade a family with a live prepaid term | Often **nothing to pay**: the unused term is valued at the old rate and spent first. Anything left is a NEGATIVE customer balance transaction at Stripe |
 | Move down a tier | The tier does NOT change today, and **Billing** names the date it will |
 | Connect a family account and pay a due | A `dues_payments` row with `source='stripe'`, `recorded_by` NULL, and `fund_contributions` rows against it |
 | Compare a charge against `platform_payments.amount_cents` | Cents, not dollars. A $5.00 charge stored as `5` is the failure |
@@ -327,9 +330,9 @@ Recorded 2026-08-23.
 
 ## BUILD: the delinquency ladder — decided 2026-08-23, and it needs the scheduler first
 
-**Action:** install `pg_cron` (the entry below), then build this. **Blocked until then**, and not
-by choice: seven of the eleven steps fire on a day with nobody watching, so without a scheduler
-the ladder would advance only when some other family's payment happened to arrive.
+**Action:** build it. `pg_cron` is installed as of `20260823000006`, so the ladder is no longer
+blocked — it needs its own daily `cron.schedule` line in the migration that builds it, asserted
+in the same file the way the tier sweep's is.
 
 What is built today is the DATA and nothing else: `invoice.payment_failed` stamps
 `platform_billing_accounts.delinquent_since` and `last_payment_failure`, the Billing band says
@@ -376,13 +379,24 @@ Day counted from `delinquent_since`. Every email goes to the ADMINS, meaning **w
    means clearing `delinquent_since` (it already does) AND unwinding the lockout in the same
    transaction. A family that pays and stays locked out is the worst possible bug here.
 
-### And one hazard that is not in the brief
+### RESOLVED: a family with no admin who could pay
 
-**A FAMILY WITH NO ADMIN WHO CAN PAY IS LOCKED OUT WITH NO ROUTE BACK.** The grant is
-`admin/settings:edit`; a family whose only holder has left, been disabled, or lost the grant
-gets the day-10 email sent to nobody and reaches day 60 in silence. That needs an answer before
-this ships — the cheapest is that the day-5 and day-10 sweeps report a family with zero
-qualifying admins to the GENORRA staff console rather than to the family.
+That hazard is closed rather than mitigated. `20260823000007` makes "a family with approved
+members always has at least one `admin/settings:edit` holder" an invariant enforced by three
+triggers, so the state the ladder could not recover from is now unreachable: moving the last
+holder to another template, switching them off, or taking the grant off the template that
+carries it are all refused, by the database, including through the service role.
+
+Two things about it are worth knowing before touching that migration:
+
+* **It refuses a statement that TAKES THE LAST HOLDER AWAY, not one that leaves a family
+  without one.** The obvious rule is the second, and it makes an already-broken family
+  UNREPAIRABLE — granting the missing permission is itself a template write. That was the first
+  version, and `tests/rls` caught it by refusing the very statement on its way to fixing things.
+* **It fires on UPDATE and not on DELETE.** Deleting the last administrator's `people` row in
+  SQL is not refused; nothing in the product does that, and firing on DELETE would abort
+  `reset_families.sql`. Stated in the migration as the honest boundary rather than a complete
+  one.
 
 Recorded 2026-08-23.
 
@@ -440,8 +454,8 @@ Recorded 2026-08-23.
 
 ## BUILD: a downgrade withholds for 60 days, then deletes — decided 2026-08-23
 
-**Action:** install `pg_cron` (the entry below), then build this. **Blocked until then** for the
-same reason the delinquency ladder is: four of the reminders fire on a day with nobody watching.
+**Action:** build it. `pg_cron` is installed as of `20260823000006`, so this is no longer
+blocked — it needs its own daily `cron.schedule` line in the migration that builds it.
 
 ### The rules, as decided
 
@@ -476,12 +490,17 @@ same reason the delinquency ladder is: four of the reminders fire on a day with 
    nothing else. Do NOT reach for a `SET LOCAL` escape hatch: `storage.protect_delete()` has one
    and its own note in AGENTS.md says a hatch is a thing any future action can set, where a depth
    test can only be satisfied by an actual cascade.
-3. **WITHHOLDING IS NOT THE SAME AS THE TIER GATE, AND THIS IS THE SUBTLE ONE.** Today a
-   downgrade closes the ROUTE and the rows stay readable to anything that asks — including
-   `/reporting/*`, the dashboard tiles, and the family tree's own `bloodlineIds` walk, none of
-   which live on the withheld route. So "withheld" has to mean something the whole app honours,
-   and the only mechanism that does is the one AGENTS.md §2c names: the data has to be gated
-   where it is READ, not where it is displayed. Expect this to be most of the work.
+3. **DECIDED 2026-08-23: WITHHOLDING IS *EXACTLY* THE TIER GATE, AND NOTHING MORE.** This item
+   asked whether "withheld" had to mean something stronger than closing the route — because the
+   rows stay readable to `/reporting/*`, the dashboard tiles and the family tree's own
+   `bloodlineIds` walk, none of which live on the withheld route. The answer is no: **a
+   downgrade removes the ROUTES, and 60 days later the data is deleted.** There is no third
+   state to build.
+   
+   That is the cheapest possible answer and it is already implemented — the tier gate has closed
+   routes since `lib/tiers.ts` shipped. What remains is the CLOCK and the DELETION, which is
+   what the rest of this list is about. It also removes the largest unknown from the estimate:
+   there is no read-layer gating to write.
 4. **A GRACE WINDOW IS NOT OPTIONAL AND 60 DAYS IS IT.** Recorded because the reminder schedule
    only makes sense against a fixed clock: `withheld_since` on the family, set by the sweep when
    the downgrade lands, and the four reminders keyed off it. Not off `scheduled_tier_on`, which
@@ -527,17 +546,26 @@ expensive to take later — the same ground `20260819000006` retired Events on.
 
 Recorded 2026-08-23.
 
-## The scheduler is one migration away, and it now BLOCKS TWO DECIDED FEATURES
+## RESOLVED 2026-08-23: `pg_cron` is installed, and `http` is what is left
 
-**Action:** enable `pg_cron` and `http` in a migration, and assert the job in the same file.
-Measured 2026-08-23, not inferred.
+**`pg_cron` is in** — `20260823000006` creates the extension and schedules
+`apply_due_platform_tier_changes()` hourly at five past, asserting in the same file that the job
+exists exactly once, is active, survives a re-schedule without duplicating, and that its command
+actually runs. That closes the prepaid-lapse gap the sweep shipped with: a family that paid three
+months in advance no longer keeps its tier until some other family's payment happens to arrive.
 
-**THIS IS THE CRITICAL PATH NOW, which it was not when this entry was written.** The
-delinquency ladder and the 60-day downgrade retention were both decided on 2026-08-23 and
-between them need eleven scheduled steps — emails at day 5, 10, 30, 45 and 59 of a delinquency;
-reminders 30, 15, 5 and 1 day before a deletion; the deletion itself; and the prepaid-lapse
-sweep below. Not one of them can fire without a scheduler, and the webhook is not a substitute:
-it only runs when some OTHER family pays.
+**The delinquency ladder and the 60-day retention are therefore UNBLOCKED**, and each needs its
+own `cron.schedule` line in the migration that builds it — daily rather than hourly, since every
+step of both is keyed to a date.
+
+**`http` IS STILL NOT INSTALLED**, and only the weather poller wants it. The note below about
+choosing it over `pg_net` stands and is untouched by any of this.
+
+**AND THE INVISIBILITY WARNING NOW HAS A LIVE EXAMPLE.** `cron.job` is database state:
+`db:check` compares migration versions, `db:audit` reads policies, and a fresh `db reset`
+schedules nothing until the migration runs. A job created in the dashboard is drift with nothing
+in the repo able to see it. The sweep's job is created in a migration and asserted there; the
+next one must be too.
 
 FutureFeature.md §1 carried *"there is no cron, no worker, no queue and no `vercel.json`"* for
 months and it is true of the **app layer only**. On this project's Postgres:
