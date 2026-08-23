@@ -9,7 +9,7 @@ than struck through — the git history is where "it used to be broken" lives, a
 still missing forward: a decision nobody has made, a defect on running code, or an argument
 that would otherwise be invented twice.
 
-**Everything below was re-derived on 2026-08-22.** Re-derive rather than quote — the commands
+**Everything below was re-derived on 2026-08-23.** Re-derive rather than quote — the commands
 are at the bottom.
 
 ---
@@ -18,17 +18,35 @@ are at the bottom.
 
 | | |
 |---|---|
-| `FEATURES[]` entries | **44** |
-| `status: 'live'` | **43** |
+| `FEATURES[]` entries | **45** |
+| `status: 'live'` | **44** |
 | `status: 'future'` | **1** — `/admin`, the fail-closed catch-all, which is not a page |
 | **Marketing claims with no code** | **6** — one on Plus, five on Premium |
 | Live features named on no marketing surface | **0**, and gated: `npm run marketing:check` |
 
-**Premium is no longer an empty tier.** `/community/distributions` shipped on 2026-08-22 and is
-the first `tier: 'premium'` route in the registry — `lib/features.ts` said "NOTHING IS PREMIUM"
-until then. That closes one of the six Premium bullets and changes nothing about the other five,
-which is the distinction to keep hold of: a family put on Premium today gains one screen over
-Plus.
+**Premium is no longer an empty tier, and since 2026-08-23 it holds two routes.**
+`/community/distributions` shipped on 2026-08-22 and was the first; `/community/safety-check-ins`
+is the second. `lib/features.ts` said "NOTHING IS PREMIUM" until the first and "ONE ROUTE" until
+the second.
+
+**The seventh claim is the one to keep hold of, because it is a NEW SHAPE for this register:
+a Premium bullet whose SCREEN is built and whose JUSTIFICATION is not.**
+`/community/safety-check-ins` shipped Free on 2026-08-23 and moved to Premium the same day,
+because the channel it is meant to run on is **SMS** — the ask arriving as a text message and the
+answer coming back as one — and SMS is the only thing in this product that costs money on every
+send. That is what Premium is for, and it is not built.
+
+So the table below counts six claims with NO code, and this is a seventh with PARTIAL code. The
+distinction matters in both directions:
+
+* A family on Premium today can raise a check-in and watch a roster fill in. That works.
+* What they cannot do is reach anybody by text, which is the reason the route is on their card
+  rather than on the Free one. **Neither `PLANS[]` nor `PLAN_ADDS` mentions SMS**, deliberately —
+  adding it would make this a seventh entry in the table below rather than a footnote to it, on
+  the card whose five other bullets are already there.
+
+§5 carries the design and the four decisions underneath it — the second of which is legal rather
+than technical, and gates the rest.
 
 **The registry is effectively fully shipped.** For most of this file's life the interesting
 question was *which built thing is still gated*; there is one entry left and it is a catch-all.
@@ -98,6 +116,36 @@ constraint on three of the five.** There is no cron, no worker, no queue and no 
 Distributions worked around it by making the client drive a resumable queue, which is fine for
 something a person initiates and useless for something that has to happen on the 1st of the
 month with nobody watching.
+
+### …AND IT IS ONE MIGRATION AWAY, WHICH THIS FILE SAID OTHERWISE FOR MONTHS
+
+Measured against the local stack on 2026-08-23. Four extensions are **available and not
+installed** on this project's Postgres:
+
+| Extension | Available | Installed |
+|---|---|---|
+| `pg_cron` | 1.6.4 | — |
+| `pg_net` | 0.20.3 | — |
+| `http` | 1.6 | — |
+| `postgis` | 3.3.7 | — |
+
+So "there is no cron anywhere in this product" is true of the APP LAYER and false of the
+database — and the database is reached by a migration, which is the one deployment path this repo
+already sanctions (`migrate.yml`), with no new infrastructure and nobody holding production
+credentials. Three things to know before building on it:
+
+* **`http` (synchronous) probably beats `pg_net` here.** `pg_net` is fire-and-forget — the
+  response lands in a `net` table for a limited window, so a job that needs the body is two
+  passes and a reaper. A poll that fetches, matches and writes in one statement wants the
+  synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
+* **A cron job is DATABASE STATE, and that is the trap.** It is the same invisibility class as
+  realtime publication membership: `db:check` compares migration versions, `db:audit` reads
+  policies, and a fresh `db reset` schedules nothing. A job created in the dashboard is drift.
+  **It must be created in a migration and asserted there**, or local and hosted diverge with
+  nothing able to notice — which is the incident "REALTIME NEEDS THE TABLE IN A PUBLICATION"
+  records, arriving through `cron.job` instead.
+* **It unblocks all three at once.** Reminders, alert polling and anything else on a timer are one
+  constraint rather than three.
 
 ### Push has two questions that are not engineering
 
@@ -201,7 +249,7 @@ one carries a stated verdict — the same shape and the same promise as `audit:p
 **This section said 167 and the real figure was 57.** The hand count matched `fn:` and missed
 the `read(id, mod, fn)` helper form that most of the suite is written in, which is the whole
 argument for the gate in one line: a backlog nobody can count is a backlog nobody can shrink.
-Today it is 262 actions, 205 with a case, 57 with a verdict — 48 `BACKLOG`, 3 `RIGHTS-ONLY`
+Today it is 273 actions, 216 with a case, 57 with a verdict — 48 `BACKLOG`, 3 `RIGHTS-ONLY`
 (the whole return value is booleans about the caller's own grants), 6 `STAFF`.
 
 `BACKLOG_CEILING` is a ratchet. Lower it freely — that is what writing a case looks like from
@@ -361,70 +409,172 @@ has built has no bullet to be counted against and no registry entry to be gated.
 is scheduled.** It is here so each design is argued once rather than invented twice, and so the
 decisions underneath are explicit *before* somebody writes the screen and discovers them.
 
-### Emergency check-in — asking the relatives in one area whether they are safe
+### SMS for check-ins — the channel the Premium tier is justified by, and the reason it is Premium
 
-A hurricane crosses the Gulf coast. Somebody with the right grant raises a check-in addressed to
-the relatives who live there; everybody addressed is asked one question — *are you safe?* — and
-answers with one tap. Whoever raised it watches a roster fill in: safe, needs help, not answered.
+`/community/safety-check-ins` is `tier: 'premium'` because the ask is meant to arrive as a **text
+message** and the answer is meant to come back as one. Today it goes out by email and by the bell,
+which is the channel §5's own first decision calls *"the one a disaster guarantees is closed"* —
+the bell needs an open tab and `IdleTimeout` signs a member out after 60 idle minutes.
 
-**The unanswered column is the product.** The other two are only how it gets shorter, and that
-governs every decision below: this would be the first capability in GENORRA whose value is
-entirely in the response *rate* rather than in the record.
+**This is the highest-value unbuilt item in the product**, because unlike the other six Premium
+claims it does not add a screen — it makes an existing screen actually work.
 
-1. **Reaching people is the whole feature, and the product cannot do it yet.** The bell needs an
-   open tab, and `IdleTimeout` signs a member out after 60 idle minutes — so the one channel
-   that exists is the one a disaster guarantees is closed. Email is the fallback and it **fails
-   soft by design**, which is right for an approval and wrong here: a caller must never render
-   *"everyone has been asked"* over mail that did not go (`inviteMember` is the pattern for
-   saying so honestly). **So this is downstream of a Premium bullet with no code** (push) or of
-   SMS, which is in no plan at all. Decide the channel before anybody designs the screen; a
-   check-in nobody receives is worse than none, because it is believed.
-2. **An area is not a chapter, and neither answer works alone.** A chapter is how a family
-   *organised* itself; a disaster addresses where people *are*. Self-reported city and state are
-   closer to the truth and stale by an unknown amount. All three — chapter, geography,
-   hand-picked names — must resolve to **one explicit roster at raise time**, and the roster is
-   then the list rather than the rule that built it. Anything else silently drops the relative
-   who moved, who is the person most likely to be in the wrong place. `lib/chapter-places.ts`
-   already derives a member's region on the admin client, so that half is a function call.
-3. **A record cannot answer, and must not read as unanswered.** A recorded grandmother is in the
-   family, on the tree and in the Directory, has a generated placeholder address and no account.
-   The roster owes a third state — *no way to reach them* — sitting apart from "not answered".
-   Leaving her in the unanswered column turns the one number this feature exists to drive to
-   zero into a number that cannot reach zero.
-4. **Two different gates, and the second is the abuse case.** Raising is family-wide with no
-   coherent "own" version, so `canAny` — a false alarm to the whole family at 3 a.m. is exactly
-   what the grant exists to prevent. **Answering is self-service**: `requireMember()`, the
-   caller's own row, the `submitGatheringTask` shape (refuse an approved one; write a NEW
-   submission rather than editing the refused one), with every client id checked by
-   `belongsToFamily` first. Note what that rules out: an *"I spoke to her, she's fine"* button.
-   It is the most requested feature in every system of this kind and it is a write to somebody
-   else's row.
-5. **A completed check-in is the sharpest PII this product would hold** — a list of relatives,
-   where they live, and which are unreachable, assembled at the moment it is most useful to
-   somebody else. Its own resource key with a **restricted** `resource_visibility` backfill (§6)
-   rather than the `everyone`-for-view default, and a retention answer, because an answered
-   check-in from three years ago is a location history nobody agreed to keep.
-6. **The colour does not exist yet, and it is not `--destructive`.** That token owns errors and
-   deletions, `FormError` owns reporting a failure, and `--brand-withheld` is a capability going
-   away. An emergency banner is none of the three. It needs a role added to `app/globals.css`
-   first, with an `on-` partner checked against AA in both themes.
+**HALF OF IT IS BUILT AS OF 2026-08-23.** Consent and a verified sending number shipped first,
+deliberately: they are what the sending half will have to ask, and they are the only part that is
+fully testable with no provider account. Decision 2 below is the record of what shipped; decisions
+1, 3 and 4 are what is left, and all three are behind the same external gate.
 
-**Which tier is genuinely undecided.** Free's premise is *"get your whole family in one place.
-All of them"*, and safety is a poor thing to sell back to a family; Plus is where coordination
-sits; Premium is where *reach* is sold, and this cannot work without push or SMS. **The
-dependency argues Premium and the ethics argue Free.**
+**And it is the only feature in this file with a LEGAL gate rather than an engineering one.** Read
+decision 2 before writing any code.
 
-**One defect it must not inherit.** Any audience mechanism it reuses: `announcements.scope`
-filters `chapter` only, and `addressedTo` documents "National and regional reach everybody" as
-deliberate. Defensible for an announcement and bad for a check-in — and region derivation now
-exists, so the cost of narrowing it is small. Decide it there before building on it.
+#### 1. A provider — the seam exists, nothing is behind it
 
-**At build time** it owes: a `FEATURES` entry with a stated `tier`; `permission_resources` rows
-in a new migration *and* in the `20260618000000` seed, with the restricted visibility backfill;
-at most two actions, and only ones something reads; a case per action in `cases.mjs` including a
-pending-member attacker, then broken on purpose and re-run; a grep for bare `people` embeds if
-the audience lands as a junction table; a real `<table>` with `COLLAPSING_CELL` and no `min-w`
-floor, because **a phone is the device this is used on**; and a list built for 150.
+`lib/sms/send.ts` is written and has NO provider: `smsConfigured()` reads four env vars and
+`sendSms` answers `{ sent: false, error: 'no SMS provider configured' }`. It copies
+`lib/email/send.ts` exactly — one recipient per call, fails soft, never exported from a
+`'use server'` file — and for the same reason with a worse payload: *"a `sendSms` export is an
+open relay"* is the same sentence about a message that reaches a phone on a nightstand.
+
+Twilio is the default and has the only inbound story worth having (a documented
+`X-Twilio-Signature` HMAC over the request URL and parameters, which is what makes an
+unauthenticated webhook trustworthy). Vonage, MessageBird and AWS SNS are the alternatives; SNS is
+cheapest and its inbound handling is the weakest.
+
+**Wiring one is one function body**, and the checklist is in that file: append the carrier-mandated
+opt-out line once (a property of the channel, not of any message), distinguish a permanent 4xx
+from a retryable 5xx/429 so a queue can requeue the right one, never log a body, and do not
+re-normalise `to` — `toE164` already did.
+
+#### 2. CONSENT — BUILT 2026-08-23, AND IT WAS NEVER A CODE DECISION
+
+**This half is done.** `20260823000002`, `lib/sms/consent.ts`, `app/actions/sms-consent.ts` and
+My Profile → **Text Messages**. It was built first, before any provider, because it is what the
+sending half will have to ask and because it is the only part that is fully testable with no
+account.
+
+The legal frame that shaped it, kept because it is what any change here has to respect: US
+**TCPA** statutory damages are $500–$1,500 **per message**, a hundred and forty relatives is not
+a number to be wrong about, and "it was an emergency" is a narrower exemption than it sounds.
+
+What shipped, and the four rules it encodes:
+
+* **Explicit per-person opt-in, defaulting to OFF** — an append-only `sms_consent_events` log
+  with the status DERIVED by `consentStatus()`, never stored. A boolean column cannot say *when*
+  somebody agreed and *how*, which is the only thing a challenge would ever ask for.
+* **A number verified by a code before it can be texted**, in `person_sms`, kept deliberately
+  separate from `people.phone`. That column is the DIRECTORY number and `normalizePhone` *"returns
+  anything it does not recognise unchanged rather than guessing"* — right for a number a human
+  dials, and nowhere near enough to send to. `toE164` refuses instead, and is the one normaliser
+  in the codebase that does.
+* **STOP is a dead end the product cannot undo.** `stopped` is its own status, `grantSmsConsent`
+  refuses it, and `consentStatus()` ignores a `granted` event folded over it — two layers,
+  because the writer is the thing most likely to be wrong. A carrier-level opt-out is revoked by
+  the handset, not by a checkbox.
+* **Withdrawing is never harder than granting.** One press, no confirm dialog, and idempotent.
+
+**WHAT IS STILL NOT BUILT, and one item on the old version of this list was PREMATURE:**
+
+* **A2P 10DLC registration.** A carrier requirement, not an option: US application-to-person SMS
+  needs a registered brand and campaign with a real-world identity behind it. **Nothing will
+  deliver until this exists**, and no migration fixes it. It gates decisions 3 and 4 entirely.
+* **The roster state on a check-in.** The earlier version of this section called for `no SMS
+  consent` as its own state beside *unreachable*, and that was written a step too early: SMS is
+  not a check-in channel yet, so a column about it today would be a claim with no code sitting on
+  a screen. **It lands in the same commit as the outbound queue** — which is when it becomes a
+  fact — and `smsBlockReason()` already returns exactly the five reasons that column will print.
+
+#### 3. Inbound replies are a NEW KIND OF SURFACE for this codebase
+
+Receiving a text means a **public, unauthenticated route handler**, and there is exactly one route
+handler in the whole app today (`app/auth/confirm/route.ts`). Five things follow and the third is
+the one with no precedent here:
+
+* **The caller is the provider, verified by signature.** Not a session. The signature IS the
+  authentication and there is nothing else.
+* **Idempotency.** Providers retry. A retried "SAFE" must not write a second answer.
+* **THE PHONE NUMBER IS AN IDENTITY ARRIVING AS A PARAMETER**, which is the shape §2b forbids in
+  every other context. What makes it admissible is that it is not *client*-supplied — the provider
+  asserts it and the signature vouches for the provider — and that resolution must be to a
+  **verified** number (decision 2) or the claim is worthless. This is the single most careful piece
+  of code in the feature.
+* **A number may resolve to more than one person**, across two families or on a shared family
+  phone. And a person may be on **two open check-ins**, so a bare "SAFE" is ambiguous. Decide it
+  explicitly: newest open check-in, and the confirmation reply names which one it answered.
+* **`answerCheckIn` must not be reused as-is.** It resolves the row from the caller's guard, which
+  is exactly right and exactly unavailable here. The shared rule belongs in a pure module both
+  paths call, or the two will drift on what an answer means.
+
+#### 4. The fan-out does not fit a request, again — and `reach` stops being one column
+
+A long code sends about 1 message per second, so 140 relatives is over two minutes of wall clock
+against a serverless ceiling of 10–15s. **The existing queue is the answer** —
+`safety_check_in_people` rows already ARE the work list and `claim_safety_check_in_asks()` already
+claims a bounded slice under `FOR UPDATE SKIP LOCKED` — but `reach` is currently a single-channel
+column and SMS makes it two.
+
+The shape that keeps the honest reporting: **one row per (person, channel) attempt**, with `reach`
+on the roster row becoming a DERIVED roll-up of *"did we reach them by anything at all"*. Do not
+add `sms_reach` beside `reach`: two columns describing one question is the `is_minor` trap (§4b),
+and the screen's whole job is to answer *could we reach this person* rather than *did the email
+work*.
+
+#### What it does NOT change
+
+`tierAllows` must stay out of `app/actions/safety-check-ins.ts`. Answering is `requireMember()` and
+the policies' `self_expr` on every channel, so a relative already asked can answer on any plan,
+including a family that lapses mid-emergency. A tier withholds screens, never rows.
+
+### Alert-driven check-in suggestions — the automation half of Safety Check-Ins
+
+`/community/safety-check-ins` shipped on 2026-08-23 and is **human-raised only**: a person decides
+that something is happening and asks. Nothing in the product watches for a disaster, and this is
+the entry for the half that does not exist.
+
+**The feeds are real and free, and that is not the hard part.** Measured 2026-08-23: the National
+Weather Service publishes CAP v1.2 alerts at `api.weather.gov/alerts/active/area/{ST}` with **no
+API key** — a `User-Agent` header is the only requirement — covering tornado, flood, hurricane,
+winter and heat. USGS earthquakes are free GeoJSON with no auth at all. FEMA's IPAWS All-Hazards
+feed needs registration through the IPAWS portal and is **not a superset**: since July 2023 NWS
+sends IPAWS only the CAP intended to activate Wireless Emergency Alerts, so IPAWS earns its place
+for non-weather state and local alerts (evacuation orders, civil emergencies) and not for weather.
+NASA FIRMS wildfire detections need a free `MAP_KEY` and are satellite heat pixels rather than
+evacuation orders — a hotspot thirty miles away is not a reason to ask a family whether they are
+safe, and NWS Red Flag warnings are the better signal.
+
+Four things stand between that and a feature, and the first two are the ones that matter.
+
+1. **THE JOB MUST SUGGEST. A PERSON MUST RAISE.** `raiseCheckIn` is `canAny` because *a false
+   alarm to the whole family at 3 a.m. is exactly what the grant exists to prevent* — and an
+   automated raiser IS that abuse case, unattended and at scale. NWS issues tens of thousands of
+   alerts a year and almost none warrants waking a family. So the shape is a SUGGESTION row
+   (*"A Tornado Warning covers 4 relatives in Travis County — raise a check-in?"*) that a human
+   confirms in one tap and that expires on its own if nobody acts. A false positive then costs a
+   dismissed notification rather than a panic across a hundred and forty people.
+2. **A SCHEDULED JOB HAS NO CALLER TO AUTHORIZE, and this codebase has no answer for that.** Every
+   action here derives its caller from `auth.uid()`; §2b forbids taking an identity as a parameter.
+   Automating the RAISE means inventing a system actor and hanging the family's most sensitive
+   write off it. Suggesting sidesteps it entirely: the human who confirms is the caller, and the
+   audit trail names a person. **Do not solve this by giving the job a service identity.**
+3. **THE MATCHING IS A DATA PROBLEM, NOT A CODE ONE.** `people` holds `city`, `state`, `zip_code`
+   — no latitude, no longitude, no geocoding, and PostGIS is not installed. NWS alerts carry county
+   FIPS and UGC zones. So:
+   * county-level matching needs a ZIP→county crosswalk, which is a data dependency;
+   * state-level matching needs no new data **except that `state` is not normalised** —
+     `pickProfileColumns` normalises exactly two things, name case and phone country code, so `TX`,
+     `Texas` and `texas` are three kinds of record and any state match silently misses two of them.
+     Whatever normaliser is added must be conservative and must never reject a value, per that
+     file's own header;
+   * and state-level is too coarse to be useful anyway. A tornado warning covers three counties out
+     of Texas's 254, and asking every Texan relative each time is how the feature gets ignored.
+4. **THE SCHEDULER.** See §1 — `pg_cron`, `pg_net` and `http` are all available-and-not-installed,
+   so this is one migration rather than new infrastructure. The job must be created IN that
+   migration and asserted there, because `cron.job` is database state nothing in the repo can see.
+
+**Sequence matters more than any of it.** The check-in's own first constraint is unchanged: the
+bell needs an open tab, `IdleTimeout` signs a member out after 60 idle minutes, and `sendEmail`
+fails soft. **Automation improves the TRIGGER, not the REACH — and reach is the feature.** Detecting
+a hurricane faster than the family's own group text is worth nothing if the message cannot land, so
+the channel (push, or SMS, which is in no plan at all) comes before this.
 
 ### Records, sources and images on the tree — the ancestry half GENORRA does not have
 
@@ -546,9 +696,9 @@ quote.
 **Re-derive, do not quote.** Every figure above came from these:
 
 ```bash
-grep -c "status: 'live',"   lib/features.ts          # 43
+grep -c "status: 'live',"   lib/features.ts          # 44
 grep -c "status: 'future'," lib/features.ts          # 1
-grep -c "^    href: '"      lib/features.ts          # 44
+grep -c "^    href: '"      lib/features.ts          # 45
 
 npm run marketing:check                              # every live feature is sold somewhere
 
@@ -556,7 +706,7 @@ npm run marketing:check                              # every live feature is sol
 # greps that used to live here reported 95 covered against a real 205, because it matched case
 # IDs rather than the (module, function) pairs a case actually names — and §3 then carried a
 # backlog of 167 against a real 57 for as long as anybody read it.
-npm run audit:rls-cases            # 262 actions, 205 with a case, 57 with a stated verdict
+npm run audit:rls-cases            # 273 actions, 216 with a case, 57 with a stated verdict
 
 grep -rn "no-img-element" components/ | wc -l                   # the resize decision
 ```

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
 import { createFamily } from '@/app/actions/my-families'
+import { trackPixelEvent } from '@/lib/meta/pixel'
 
 /**
  * Start a new family from an account that already has one.
@@ -54,6 +55,16 @@ export function CreateFamilyDialog() {
     startTransition(async () => {
       const result = await createFamily(name)
       if (result.success) {
+        // The browser half of the activation signal. Same id the server already sent to
+        // the Conversions API, so Meta deduplicates the pair into one conversion; null
+        // whenever the server did not send it, which is the only consent check needed
+        // here. Nothing about the family travels — see lib/meta/conversions.ts.
+        if (result.metaCreateFamilyEventId) {
+          trackPixelEvent('CreateFamily', {
+            eventId: result.metaCreateFamilyEventId,
+            customData: { content_name: 'Family Workspace', content_category: 'Activation' },
+          })
+        }
         setStep({ kind: 'done', familyCode: result.familyCode, familyName: result.familyName })
       } else {
         setError(result.message)

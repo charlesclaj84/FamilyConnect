@@ -13,6 +13,7 @@ import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/market
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { APP_NAME } from '@/lib/brand'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 const PAGE_TITLE = 'Why Families Choose Us Over Group Chats and Spreadsheets'
 // 128 characters. The first draft ran to 171, past the ~155 Google shows on desktop and
@@ -144,6 +145,7 @@ const REASONS: readonly {
 export default function WhyUsPage() {
   return (
     <>
+      <MetaViewContent content="whyUs" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/why-us',

@@ -45,6 +45,8 @@
   --color-brand-on-primary: var(--brand-on-primary);
   --color-brand-warm: var(--brand-warm);
   --color-brand-on-warm: var(--brand-on-warm);
+  --color-brand-urgent: var(--brand-urgent);
+  --color-brand-on-urgent: var(--brand-on-urgent);
   --color-brand-ink: var(--brand-ink);
   --color-brand-soft: var(--brand-soft);
   --color-brand-on-soft: var(--brand-on-soft);
@@ -240,6 +242,39 @@
      records it. Reach for `--brand-warm` itself when the Warmth is the TEXT. */
   --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
   --brand-on-warm: var(--genorra-light);         /* 4.78 on warm — ONLY on that fill */
+  /* AN EMERGENCY ASK. The banner that appears when somebody raises a safety check-in, and the
+     roster marker on a relative who has said they need help.
+
+     FutureFeature.md §5 asked for this role by name and ruled out the three obvious answers:
+     *"The colour does not exist yet, and it is not `--destructive`. That token owns errors and
+     deletions, `FormError` owns reporting a failure, and `--brand-withheld` is a capability
+     going away. An emergency banner is none of the three."* Right on all three counts — an
+     emergency is not a failure of the product, nothing has been deleted, and nothing is being
+     taken away.
+
+     IT RESOLVES TO THE SAME TONES AS `--brand-warm`, DELIBERATELY AND STATED. That is the
+     `--brand-withheld` arrangement exactly: two names on one pair of tones, because the JOB is
+     different and this file's whole argument is that a token names a job rather than a hue. What
+     it buys is that an emergency treatment can diverge later in ONE place — and what it costs is
+     a third name on Warmth, which is a real cost and is why the alias is written down here
+     rather than left to be discovered.
+
+     THE ALTERNATIVES WERE MEASURED, not assumed, so nobody re-litigates this blind:
+       `--genorra-rose` (#b86766, "the mark's warm mid-tone") is the one unconsumed hue in the
+       palette and is unusable as a pair in either direction — 3.80 against Light and 3.48
+       against Ink, both under AA. That is presumably why nothing consumes it, and it confirms
+       what the `--brand-legacy` note below already says: a colour between gold and terracotta,
+       distinguishable from both, does not exist in this ramp.
+       Gold cannot carry text on a pale ground at all (2.30). Heritage is `--brand-primary` and
+       would make an emergency banner look like every other filled control.
+
+     SO THE FIGURES ARE WARMTH'S: 4.78 in light, 4.83 in dark, both AA. Same pairing rule as
+     every other surface role — `--brand-on-urgent` goes ONLY on `bg-brand-urgent`, never on the
+     page. For urgent TEXT, use `--brand-urgent` itself, exactly as `--brand-warm` may be a
+     foreground; the outline form is
+     `border-brand-urgent bg-brand-urgent/10 text-brand-urgent`. */
+  --brand-urgent: var(--genorra-warmth-deep);
+  --brand-on-urgent: var(--genorra-light);       /* 4.78 on urgent — ONLY on that fill */
   /* Premium accent — SURFACE ONLY, see below. Its second job since the 2026-08-12 sweep
      is the ATTENTION PILL: `bg-brand-legacy text-brand-on-legacy` is what "Pending",
      "Nominations open", "Own scope" and every other look-at-this badge wears. Gold was
@@ -295,6 +330,11 @@
      reads as a chip at 5.79 against the card and still carries ink at 4.83. */
   --brand-warm: var(--genorra-warmth-lift);
   --brand-on-warm: var(--genorra-ink);           /* 4.83 on warm */
+  /* Flips with warm, for the reason stated above it: this role is deliberately an alias of that
+     pair, so the two must flip together or an emergency banner would go dark-on-dark in one
+     theme. If they are ever meant to diverge, that is the edit — not a value dropped in here. */
+  --brand-urgent: var(--genorra-warmth-lift);
+  --brand-on-urgent: var(--genorra-ink);         /* 4.83 on urgent */
   --brand-legacy: var(--genorra-legacy);
   /* Ink here too, NOT --genorra-nurturing. Gold is the one surface whose
      foreground must not flip: cream on gold is 1.65. */

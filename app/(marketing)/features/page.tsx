@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned, Send,
-  BarChart3, ShieldCheck, Users,
+  BarChart3, ShieldCheck, ShieldAlert, Users,
   Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
   NotebookPen, Gavel, Scale, CalendarDays, ListChecks, PieChart, Users2,
   Landmark, LifeBuoy, UsersRound, UserCog, UserRound,
@@ -29,6 +29,7 @@ import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 const PAGE_TITLE = 'Everything Your Family Organization Runs On'
 const PAGE_DESCRIPTION =
@@ -187,6 +188,22 @@ const ALSO: readonly {
   // the membership rather than a list somebody maintains — which is also the claim
   // `/pricing`'s Premium card has been making since it existed.
   { icon: Send, route: '/community/distributions', title: 'Email the whole family', blurb: 'One message to everyone, or to one region or chapter, drawn straight from your membership — nobody is missed, nobody gets it twice, and you can see exactly who it reached.' },
+  // ── SAFETY CHECK-INS, AND THE BLURB IS THE MOST CAREFULLY BOUNDED ONE ON THIS GRID ───
+  // It sits beside Distributions because they are the two ways the product reaches the whole
+  // family at once, and its tier tag reads FREE because `lib/features.ts` says so — argued at
+  // that entry, and the short version is that building it human-raised removed the push/SMS
+  // dependency that was the only reason to price it higher.
+  //
+  // THREE THINGS THE BLURB DELIBERATELY DOES NOT CLAIM, because none of them is true:
+  //   * that anything WATCHES for a disaster. There is no alert feed, no weather integration
+  //     and no automatic raise — a person raises a check-in, in their own words. A card
+  //     implying otherwise would be the RSVP screenshot mistake in text form.
+  //   * that a message is GUARANTEED to arrive. It is email plus an in-app notification;
+  //     `sendEmail` fails soft and there is no SMS anywhere in this product. So the copy sells
+  //     the ROSTER — knowing who has answered — which is the half that is genuinely built.
+  //   * that anybody is TRACKED. Nothing here records where a relative is; it records what they
+  //     said when they were asked.
+  { icon: ShieldAlert, route: '/community/safety-check-ins', title: 'Check that everyone is safe', blurb: 'When a storm or a fire hits, ask the relatives in that region — or a list you pick yourself — one question. They answer with a tap, and you see who is safe, who needs help, and who has not answered yet.' },
   // ── THE FAMILY TREE CARD WAS REMOVED AND IS BACK, WITHIN THE SAME DAY ────────────────
   // It went on the argument that it duplicated the family-record PILLAR 400px above it, and
   // that "Everything ELSE it does" meant other than the three pillars. Both were true. What
@@ -474,6 +491,7 @@ const ALSO_BY_TIER = TIERS
 export default function FeaturesPage() {
   return (
     <>
+      <MetaViewContent content="features" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/features',

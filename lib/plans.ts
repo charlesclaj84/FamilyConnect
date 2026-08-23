@@ -266,6 +266,18 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
       label: 'Email the whole family without building a list',
       detail: 'Distributions drawn straight from your membership.',
     },
+    // The member-facing half of `premium/safety-check-ins`, added 2026-08-23 in the same commit
+    // as its `PLANS[]` counterpart — which is what `marketing:check`'s claim-set comparison
+    // enforces, and what the two-bullet drift recorded below is the cost of forgetting.
+    //
+    // SHORTER AND FLATTER THAN THE PRICING COPY, as every entry here is: a member reading
+    // /admin/settings already belongs to the family and does not need selling. Same claim, same
+    // absence of any promise about text messages.
+    {
+      claim: 'premium/safety-check-ins',
+      label: 'Check that everyone is safe, in one tap each',
+      detail: 'Ask the relatives in one area whether they are safe, and see who has not answered.',
+    },
     {
       claim: 'premium/family-website',
       label: 'Your family’s own website, keeping itself current',

@@ -78,18 +78,31 @@
  *     can keep. Splitting the tier without that change would have left Free selling a calendar
  *     nothing could be put on.
  *
- * ONE ROUTE IS PREMIUM, SINCE 2026-08-22, and this bullet said "NOTHING IS PREMIUM" until
- * then. `/community/distributions` is it — email distributions, the first of that card's six
- * bullets to acquire any code. The other five (the apps, push notifications, automatic dues
- * reminders, the public family website and its address) are still unbuilt and have no route,
- * so there is still nothing here to mark for them.
+ * TWO ROUTES ARE PREMIUM, and this bullet said "NOTHING IS PREMIUM" until 2026-08-22 and "ONE
+ * ROUTE" until 2026-08-23. `/community/distributions` is the first — email distributions — and
+ * `/community/safety-check-ins` is the second. The four remaining card bullets (the apps, push
+ * notifications, automatic dues reminders, and the public family website with its address) are
+ * still unbuilt and have no route, so there is still nothing here to mark for them.
  *
- * WHICH MEANS THE PLAN IS STILL MOSTLY A PROMISE, and that is worth stating plainly here
- * rather than in FutureFeature.md alone: a family put on Premium today gains one screen over
- * Plus. What changed is that the tier is no longer EMPTY, so the next reader of this file
- * cannot conclude from "nothing is premium" that the card is entirely aspirational — and the
- * two states need telling apart, because a per-route field can only ever say which of the six
- * exist.
+ * THE TWO ARRIVED AT PREMIUM FROM OPPOSITE DIRECTIONS, which is worth knowing because it is the
+ * only thing in this file that shows what the field is actually FOR:
+ *
+ *   `/community/distributions`    was PULLED here by `/pricing`. The bullet was already on the
+ *                                Premium card, so any other value would have made the page
+ *                                false in the one direction that matters — a Free family
+ *                                reading a paid bullet and finding it works.
+ *   `/community/safety-check-ins` was PUSHED here by what it costs. Nothing sold it; it shipped
+ *                                Free and moved up because the channel it is meant to run on is
+ *                                SMS, which is metered per message. The bullet was written to
+ *                                match the decision rather than the decision to match a bullet.
+ *
+ * WHICH MEANS THE PLAN IS STILL MOSTLY A PROMISE, and that is worth stating plainly here rather
+ * than in FutureFeature.md alone: a family put on Premium today gains two screens over Plus, and
+ * on one of them the capability the price is justified by is not built yet. What changed is that
+ * the tier is no longer EMPTY, so the next reader cannot conclude from "nothing is premium" that
+ * the card is entirely aspirational — and the states need telling apart, because a per-route
+ * field can only ever say which of the six routes exist, never whether the thing inside one of
+ * them does.
  *
  * ── WHAT A TIER STILL CANNOT DO, RESTATED BECAUSE STANDARD MADE IT TEMPTING ─────────
  * It withholds SCREENS, never rows. A family moved down from Standard to Free keeps every
@@ -480,6 +493,71 @@ export const FEATURES: readonly Feature[] = [
     status: 'live',
     tier: 'premium',
     blurb: 'Email everyone in the family at once, drawn straight from your membership.',
+  },
+  // ── EMERGENCY CHECK-IN — `premium`, AND THE REASON IS SMS ─────────────────────────
+  //
+  // FutureFeature.md §5 argued this feature's design at length and left exactly one thing open:
+  // *"Which tier is genuinely undecided. Free's premise is 'get your whole family in one place.
+  // All of them', and safety is a poor thing to sell back to a family; Plus is where
+  // coordination sits; Premium is where REACH is sold, and this cannot work without push or SMS.
+  // The dependency argues Premium and the ethics argue Free."*
+  //
+  // **THE DEPENDENCY WINS, AND IT WINS BECAUSE SMS IS THE POINT.** This shipped on 2026-08-23 as
+  // `free` on the argument that building it human-raised removed the push/SMS dependency, so the
+  // ethics half stood alone. That argument was sound about the feature as built and wrong about
+  // the feature as intended: the ask is meant to arrive as a TEXT MESSAGE and the answer is meant
+  // to come back as one, and an SMS channel is the one thing in this product that costs real
+  // money on every single send. That is what Premium is for.
+  //
+  // ── WHAT A PREMIUM FAMILY GETS TODAY, SAID PLAINLY BECAUSE IT IS LESS THAN THAT ────
+  // SMS IS NOT BUILT. Today the ask goes out by email and by the bell, and the answer comes back
+  // through the screen — so a family on Premium currently gets a capability a Free family could
+  // have had, and the thing the tier is actually justified by is on the roadmap rather than in
+  // the product. FutureFeature.md §1 carries it as a Premium claim with partial code, which is
+  // the honest register for it, and §5 carries the design.
+  //
+  // MOVING A SHIPPED ROUTE UP A TIER IS A TAKEAWAY, and it is admissible here on exactly the
+  // ground `20260819000009` records for the whole Standard restructure: **no family is using this
+  // product yet**, so there is nobody to grandfather. If that stops being true, a move in this
+  // direction owes the argument that migration's header sets out.
+  //
+  // ── THE ETHICS OBJECTION IS REAL AND IS ANSWERED BY A BOUNDARY, NOT BY THE TIER ────
+  // The `free` version of this comment said the worst sentence this product could print is a
+  // family discovering during a hurricane that asking whether their relatives are alive is on a
+  // plan they did not buy. That is still true, and the answer is not to price the feature at zero
+  // — it is that **nothing about a check-in is withheld from a family that lapses.** A tier
+  // withholds SCREENS, never rows: a family moved down from Premium keeps every check-in it ever
+  // raised, every answer and every roster, and loses only the ability to raise a NEW one. And the
+  // ANSWERING half is not tier-gated at all — `answerCheckIn` and the Dashboard banner resolve
+  // `requireMember()` and the policies' `self_expr`, so a relative already asked can always
+  // answer, on any plan, including after a downgrade mid-emergency. That is the property to
+  // defend if anybody ever tier-checks an action in that module.
+  //
+  // WHAT THAT COSTS, STATED: `/features` derives its tier tag from THIS field, so the card moved
+  // with it and needed no edit. `PLANS[]` and `PLAN_ADDS` DID need one — a paid capability nobody
+  // is told about is worse than an unsold free one, because the family is paying for it — so both
+  // now carry `premium/safety-check-ins`. Neither mentions SMS, deliberately: §1's register is a
+  // list of claims with no code, and adding a seventh by selling an unbuilt channel is the one
+  // mistake this whole file exists to prevent.
+  //
+  // ── THE CAPTION IS "Safety Check-Ins" AND THE WORD "Safety" IS LOAD-BEARING ────────
+  // AGENTS.md lists **day-of check-in** among the three things Gatherings deliberately did NOT
+  // replace when Events was retired, alongside RSVPs and hotel room blocks — and the marketing
+  // copy that sold all three was swept in the same commit. A rail item captioned "Check-Ins"
+  // would read as that retired feature returning. The caption is the route and the route is the
+  // key, so this had to be settled before the migration was written.
+  //
+  // ── IT SITS BESIDE DISTRIBUTIONS, at sort_order 66 in the grid ─────────────────────
+  // The two are the ways this product reaches the whole family at once, and an administrator
+  // deciding who may do either wants the switches adjacent. They are NOT one key: mailing the
+  // family a newsletter and waking it at 3 a.m. are different jobs, and the second is the one
+  // whose grant exists to stop a false alarm.
+  {
+    href: '/community/safety-check-ins',
+    label: 'Safety Check-Ins',
+    status: 'live',
+    tier: 'premium',
+    blurb: 'Ask the relatives in one area whether they are safe, and watch the answers come in.',
   },
   // The family-wide tree, and since 2026-08-13 the ONLY tree: `/community/directory/family-tree` —
   // the per-member lineage view — has been deleted along with `FamilyTreeClient`,

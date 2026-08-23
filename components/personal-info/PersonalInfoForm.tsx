@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Camera, Loader2, User, MapPin, Info, ShieldCheck } from 'lucide-react'
+import {
+  Pencil, Camera, Loader2, User, MapPin, Info, MessageSquare, ShieldCheck,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +25,8 @@ import { formatDate as fmtDate } from '@/lib/date-utils'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity'
+import { TextMessagesSection } from '@/components/personal-info/TextMessages'
+import type { MySmsSettings } from '@/app/actions/sms-consent'
 import {
   PROFILE_SECTION_LABELS, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
@@ -833,6 +837,7 @@ const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
   { id: 'general', label: PROFILE_SECTION_LABELS.general, icon: User },
   { id: 'address', label: PROFILE_SECTION_LABELS.address, icon: MapPin },
   { id: 'additional', label: PROFILE_SECTION_LABELS.additional, icon: Info },
+  { id: 'texts', label: PROFILE_SECTION_LABELS.texts, icon: MessageSquare },
   { id: 'security', label: PROFILE_SECTION_LABELS.security, icon: ShieldCheck },
 ]
 
@@ -840,11 +845,18 @@ const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
  * Sections whose content is not an editable record, so the rail's Edit trigger would be
  * meaningless on them. Sign-in & Security carries its own two forms, each with its own
  * confirmation step; an Edit button above them would suggest a fourth thing to save.
+ *
+ * Text Messages is on the list for a sharper version of the same reason: its three controls each
+ * commit on their own press, and two of them are legally significant. An Edit/Save frame over
+ * them would imply consent is a draft you can revise before saving, which is the one thing it is
+ * not — it is an event, recorded when pressed.
  */
-const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> = new Set<ProfileSection>(['security'])
+const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> =
+  new Set<ProfileSection>(['texts', 'security'])
 
 export function PersonalInfoForm({
   existing, chapters = [], familyName = '', photosAllowed, initialSection, signInEmail,
+  smsSettings,
 }: {
   existing: PersonalInfoRecord | null
   chapters?: Chapter[]
@@ -860,6 +872,15 @@ export function PersonalInfoForm({
   initialSection: ProfileSection
   /** `auth.users.email` — the address the account signs in with, not `primary_email`. */
   signInEmail: string
+  /**
+   * The caller's own text-message state, resolved on the page.
+   *
+   * Threaded down rather than fetched here for `photosAllowed`'s reason: this is a client
+   * component, and every field of this is a database fact. It also means the panel paints with
+   * a real answer rather than flashing "no number on file" at somebody who has one — which on a
+   * consent screen would be the product appearing to have forgotten their choice.
+   */
+  smsSettings: MySmsSettings
 }) {
   const router = useRouter()
   const [section, setSection] = useState<ProfileSection>(initialSection)
@@ -926,8 +947,12 @@ export function PersonalInfoForm({
         editing={editingSection === 'additional'}
         onEditDone={() => setEditingSection(null)}
       />
-      {/* No `editing` prop: this section is never in the rail's edit mode — see
-          NO_EDIT_TRIGGER. Its two forms open and close themselves. */}
+      {/* Neither of the last two takes an `editing` prop: they are never in the rail's edit
+          mode — see NO_EDIT_TRIGGER. Each opens and closes its own controls. */}
+      <TextMessagesSection
+        visible={section === 'texts'}
+        settings={smsSettings}
+      />
       <SignInSecuritySection
         visible={section === 'security'}
         signInEmail={signInEmail}

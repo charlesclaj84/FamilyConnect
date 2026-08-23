@@ -616,3 +616,52 @@ export async function notifyMeetingScheduled(opts: {
     link: opts.link,
   })))
 }
+
+/**
+ * Tell everybody on a check-in's roster that their family is asking whether they are safe.
+ *
+ * ── IT IS A SUPPLEMENT TO THE EMAIL, NEVER THE ASK ITSELF ──────────────────────────
+ * The bell needs somebody with the app open, and `IdleTimeout` signs a member out after 60 idle
+ * minutes — so for an emergency this is the channel FutureFeature.md §5 says *"a disaster
+ * guarantees is closed"*. It goes out anyway, because the one person already looking at the
+ * product is the one who can answer in five seconds, and it costs one insert per relative.
+ *
+ * WHAT THIS MUST NOT BECOME is the thing a caller counts. `raiseCheckIn` reports how many
+ * relatives were ADDRESSED and how many have no mailbox; it does not report bell entries, and no
+ * surface may treat a delivered notification as somebody having been asked.
+ *
+ * ── ONE INSERT PER RECIPIENT, AND THE ERRORS ARE READ ──────────────────────────────
+ * supabase-js RETURNS errors rather than throwing them, so the `try/catch` the call site wraps
+ * this in — correctly, because a bell entry must never undo the check-in it announces — would
+ * catch nothing PostgREST produces. `createNotification` reads `error` and reports it, which is
+ * the rule the rest of this module is built on.
+ */
+export async function notifySafetyCheckIn(opts: {
+  familyCode: string
+  /** Every addressed relative's `people.id`. */
+  recipientPersonIds: readonly string[]
+  /** The raiser, who is not told about their own act. They are still on the roster. */
+  excludePersonId?: string
+  /** What is happening, in the raiser's words. */
+  title: string
+  link: string
+}): Promise<void> {
+  // AN EMPTY STRING IS NOT A UUID, and `getMyPersonId` answers one for a caller with no
+  // membership. Passed through, Postgres reports `invalid input syntax for type uuid: ""`, which
+  // the call site's try/catch would swallow entirely.
+  const recipients = opts.recipientPersonIds
+    .filter(id => Boolean(id) && id !== opts.excludePersonId)
+  if (recipients.length === 0) return
+
+  await Promise.all(recipients.map(recipientPersonId => createNotification({
+    familyCode: opts.familyCode,
+    recipientPersonId,
+    type: 'safety_check_in',
+    // THE TITLE IS THE QUESTION, not the emergency. Somebody glancing at a bell needs to know
+    // what is being asked of them, and "Hurricane Delia" alone is a headline they may well
+    // already have seen elsewhere without realising their family wants an answer.
+    title: 'Are you safe?',
+    body: `${clip(opts.title)} — your family is asking you to check in.`,
+    link: opts.link,
+  })))
+}

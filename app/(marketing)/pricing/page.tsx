@@ -13,6 +13,7 @@ import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { TIER_PRICE, formatPlanPrice, type TierPrice } from '@/lib/plans'
 import { TIERS, TIER_LABEL } from '@/lib/tiers'
 import { APP_NAME } from '@/lib/brand'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 const PAGE_TITLE = 'Pricing — Free to Start, No Card Required'
 const PAGE_DESCRIPTION =
@@ -492,6 +493,25 @@ const PLANS: readonly Plan[] = [
         label: 'Email the whole family without building a list',
         detail: 'Distributions that draw straight from your membership, so nobody is missed and nobody is on it twice.',
       },
+      // ── ADDED 2026-08-23 WITH THE TIER MOVE, and the copy is bounded on purpose ────────
+      // `/community/safety-check-ins` shipped Free and moved to Premium because the channel it is
+      // meant to run on is SMS, which costs money on every send. So a bullet was owed: a PAID
+      // capability nobody is told about is worse than an unsold free one, because the family is
+      // paying for it.
+      //
+      // IT DOES NOT MENTION TEXT MESSAGES, and that is the whole discipline of this page. SMS is
+      // not built. FutureFeature.md §1 is a register of claims with no code and this would be the
+      // seventh — on the card whose five other bullets are already in it. What the detail line
+      // claims is exactly what the screen does today: ask, one tap, and see who has not answered.
+      //
+      // WHEN SMS LANDS this bullet is where it gets said, and the `claim` id does not change —
+      // the id is what `marketing:check` holds the two lists to, and re-pricing or re-wording is
+      // not re-claiming.
+      {
+        claim: 'premium/safety-check-ins',
+        label: 'Check that everyone is safe, in one tap each',
+        detail: 'When a storm or a fire hits, ask the relatives in that region — or a list you pick yourself — whether they are safe. They answer with one tap, and you watch a roster fill in: who is safe, who needs help, and who has not answered yet.',
+      },
       {
         claim: 'premium/family-website',
         label: 'Your family’s own website, keeping itself current',
@@ -605,6 +625,12 @@ const FAQ = [
 export default function PricingPage() {
   return (
     <>
+      {/* The highest-intent page on the public site, and the one retargeting audience
+          worth having: "viewed pricing, did not register". Renders null and fires nothing
+          unless a Pixel is configured and consent granted. `content` is a key into the
+          closed catalogue in lib/meta/events.ts — never a page title, which in this
+          product can be a family's name. */}
+      <MetaViewContent content="pricing" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/pricing',

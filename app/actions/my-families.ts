@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { switchActiveFamily } from '@/app/actions/family'
 import { notifyMembershipRequest } from '@/lib/notifications'
+import { trackFamilyCreated } from '@/lib/meta/conversions'
 
 /**
  * Joining an existing family by its code, from /my-families.
@@ -44,7 +45,17 @@ export type JoinFamilyResult =
   | { success: false; message: string }
 
 export type CreateFamilyResult =
-  | { success: true; familyCode: string; familyName: string }
+  | {
+      success: true
+      familyCode: string
+      familyName: string
+      /**
+       * The `CreateFamily` event id the browser must fire with so its Pixel event and the
+       * Conversions API event Meta already received deduplicate into one conversion. Null
+       * when nothing was sent — see `RegisterMetaEvents` in app/actions/register.ts.
+       */
+      metaCreateFamilyEventId?: string | null
+    }
   | { success: false; message: string }
 
 /**
@@ -228,5 +239,33 @@ export async function createFamily(familyName: string): Promise<CreateFamilyResu
 
   revalidatePath('/my-families')
   revalidatePath('/dashboard')
-  return { success: true, familyCode: data.family_code, familyName: data.family_name ?? name }
+
+  // ── Advertising measurement ─────────────────────────────────────────────────
+  // THE SECOND OF THE TWO DOORS INTO `CreateFamily`, and it has to be here as well as in
+  // `registerUser` for the reason lib/notifications.ts gives about the five doors into the
+  // approvals queue: a signal fired at one of two call sites is a signal whose presence
+  // depends on which page somebody happened to start from. An organiser who registered by
+  // invitation months ago and establishes their own family today is exactly the activation
+  // this event is meant to capture.
+  //
+  // The matching fields are named one at a time rather than spread, and they come from the
+  // ACCOUNT — `user.email` and the name recorded at signup — never from the family being
+  // created. Nothing about the family goes to Meta; the code is hashed into the event id.
+  const meta = await trackFamilyCreated({
+    familyCode: data.family_code,
+    holder: {
+      userId: user.id,
+      email: user.email ?? null,
+      firstName: typeof user.user_metadata?.first_name === 'string' ? user.user_metadata.first_name : null,
+      lastName: typeof user.user_metadata?.last_name === 'string' ? user.user_metadata.last_name : null,
+    },
+    sourcePath: '/my-families',
+  })
+
+  return {
+    success: true,
+    familyCode: data.family_code,
+    familyName: data.family_name ?? name,
+    metaCreateFamilyEventId: meta.eventId,
+  }
 }

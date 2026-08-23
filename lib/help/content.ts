@@ -240,15 +240,38 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'sections',
-            heading: 'The four sections',
+            heading: 'The five sections',
             blocks: [
               p('The rail across the top of the page switches between them. Each saves on its own, so you can fill in one and come back later.'),
               defs(
                 { term: 'General', text: 'Name, preferred name, phone, email, birthday, and your photo.' },
                 { term: 'Address', text: 'Where you live. Used by the Directory and by anything the family posts to you.' },
                 { term: 'Additional Information', text: 'T-shirt size, chapter, and the other details events and reports ask for.' },
+                { term: 'Text Messages', text: 'A mobile number your family can reach you on for safety check-ins, and whether they may.' },
                 { term: 'Sign-in & Security', text: 'The address you sign in with, and your password.' },
               ),
+            ],
+          },
+          {
+            id: 'text-messages',
+            heading: 'Text messages',
+            blocks: [
+              p('**Text Messages** holds two separate things, and both have to be in place before your family can text you.'),
+              steps(
+                'A mobile number, confirmed. You type it, we send a six-digit code, and you type the code back. Until that is done the number is shown as **Not confirmed yet** and nothing is sent to it.',
+                'Your agreement. A separate **Agree to texts** control, because giving us a number is not the same as saying we may use it.',
+              ),
+              note('Text messages are not switched on yet. You can add your number and record your choice now — the page says so at the top — and the number will be confirmed as soon as they are.'),
+              p('The panel tells you if something is still missing. "Agreed" beside an unconfirmed number does not mean you will be texted, so the screen says which step is outstanding rather than leaving you to work it out.'),
+            ],
+          },
+          {
+            id: 'text-messages-stopping',
+            heading: 'Stopping texts',
+            blocks: [
+              p('**Turn off** stops them, immediately, with nothing to confirm and no reason asked for. You can turn them back on whenever you like.'),
+              p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. If you want them back, text **START** to the number that messaged you.'),
+              note('The number here is only for text messages. The phone number in your **General** details is what relatives see in the Directory, and changing one does not change the other — so you can list a landline for people to call and confirm a mobile for check-ins.'),
             ],
           },
           {
@@ -808,6 +831,110 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('Distributions is switched off for everybody until an administrator grants it, and it is granted separately from Announcements — being able to post on the board does not let somebody email the whole family. See [Who can do what](/help/who-can-do-what).'),
               p('There are three separate permissions. **View** shows the record of what has been sent. **Create** is what lets somebody write and send one, and stop a send. **Delete** removes the record of a distribution, which is a stronger thing to be able to do — it is the only copy of who was emailed and what happened to each message.'),
               p('Deleting the record does not unsend anything. A send that has not finished has to be stopped first.'),
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'safety-check-ins',
+        title: 'Safety Check-Ins',
+        summary: 'Asking the relatives in one area whether they are safe, and seeing who has answered.',
+        route: '/community/safety-check-ins',
+        sections: [
+          {
+            id: 'what-it-is',
+            heading: 'What it is',
+            blocks: [
+              p('A storm, a fire, a flood. Somebody raises a check-in addressed to the relatives who may be affected, and every one of them is asked a single question — are you safe? They answer with one tap, and whoever raised it watches the answers come in.'),
+              p('The point of the screen is the people who have **not** answered. Everything else on it exists to make that list shorter.'),
+              note('Nothing on this screen watches the weather. GENORRA does not know what is happening near your relatives and never claims to — a check-in is one person asking, in their own words, and it says who asked.'),
+            ],
+          },
+          {
+            id: 'raising',
+            heading: 'Raising one',
+            blocks: [
+              p('Press **Raise a check-in**. You need three things, and only the first two are required.'),
+              steps(
+                'Say what is happening — "Hurricane Delia". This becomes the subject of the email your relatives get, so make it something they will recognise in a crowded inbox.',
+                'Add anything else worth telling them: where to go, who to call, what you know. Optional.',
+                'Choose who to ask.',
+              ),
+              p('Then press **Ask them**. There is no confirmation step — the box above the button already says exactly how many relatives this reaches, which is the thing worth checking.'),
+            ],
+          },
+          {
+            id: 'who-to-ask',
+            heading: 'Choosing who to ask',
+            blocks: [
+              p('Four kinds of audience, and every one of them shows how many relatives it reaches before you send.'),
+              defs(
+                { term: 'Everyone in the family', text: 'Every approved member.' },
+                { term: 'A region', text: 'Everybody in the chapters that make up that region.' },
+                { term: 'A chapter', text: 'Everybody recorded as being in that chapter.' },
+                { term: 'Just the relatives I name', text: 'A list you pick by hand, with a search box. This is the one to use when the family\'s own chapters do not match where the trouble actually is.' },
+              ),
+              note('A relative who has not told the family which chapter they are in is not in any region either, so a regional check-in does not reach them. That is deliberate — the product does not guess where somebody lives. Use **Just the relatives I name** to include them.'),
+              p('A chapter is how your family organised itself. A storm does not follow it, and the relative who moved last year is the one an organised audience quietly leaves out — so the hand-picked list is there for exactly that person.'),
+            ],
+          },
+          {
+            id: 'answering',
+            heading: 'Answering one',
+            blocks: [
+              p('If your family is asking about you, it is the first thing on your [Dashboard](/dashboard) and the first thing on this screen. Two buttons: **I am safe** and **I need help**. Either one is recorded straight away — there is nothing to confirm and nothing to type.'),
+              p('Afterwards you can add a note — where you are, what you need — and you can change your answer as many times as you like while the check-in is open. Saying you need help and then saying you are safe is exactly what this is for.'),
+              note('Answering needs no permission at all, and no plan. Even if your family has switched this screen off for you — or has moved to a plan that no longer includes it — the ask still appears on your Dashboard and you can still answer it.'),
+            ],
+          },
+          {
+            id: 'the-roster',
+            heading: 'Reading the answers',
+            blocks: [
+              p('**See who was asked** opens the roster. Everybody is in one of four states, and the list is ordered by which of them needs attention first.'),
+              defs(
+                { term: 'Needs help', text: 'They have said so. Always at the top.' },
+                { term: 'Not reached', text: 'Either they have no email address on file, or the email did not go through. These need a person, not another attempt.' },
+                { term: 'Waiting', text: 'They were asked and have not answered yet. This is the number to drive to zero.' },
+                { term: 'Safe', text: 'They have said so.' },
+              ),
+              p('**Not reached** and **Waiting** are deliberately different. Somebody who was asked and has said nothing may simply be busy; somebody with no email address on file was never asked at all, and no amount of waiting will change that. The screen says which is which, and how many.'),
+              p('Where an email genuinely failed — a real address that bounced — **Try the failed ones again** re-sends to just those. It does not touch the relatives who have no address, because there is nothing to send to.'),
+            ],
+          },
+          {
+            id: 'reaching-people',
+            heading: 'What this can and cannot promise',
+            blocks: [
+              p('Be clear about this one, because it matters more here than anywhere else in the product: **a check-in is an email and a notification, and neither is a guarantee.**'),
+              bullets(
+                'The email goes to the address on each relative\'s profile. If that address is wrong, out of date, or a placeholder the family generated, they are not asked — and the screen says so rather than counting them as silent.',
+                'The notification only reaches somebody who has the product open.',
+                'Nothing here sends a text message or rings a phone.',
+              ),
+              p('So the screen never says everybody has been asked. It says how many were asked, how many could not be, and why — and the relatives nobody could reach are named as a job for a person to do.'),
+            ],
+          },
+          {
+            id: 'closing',
+            heading: 'Closing one',
+            blocks: [
+              p('**Close check-in** stands the family down. It stops any further asks going out and takes the banner off everybody\'s Dashboard.'),
+              p('Closing destroys nothing. Every answer, and every relative nobody could reach, stays on the record exactly as it was — a closed check-in is still the account of what the family asked and what came back.'),
+              p('**Delete** does destroy it, and it is a separate permission for that reason. There is no other copy of who answered.'),
+            ],
+          },
+          {
+            id: 'who-can',
+            heading: 'Who can do what',
+            blocks: [
+              p('Raising a check-in wakes a lot of people at once, so it is granted rather than assumed. There are three separate permissions.'),
+              defs(
+                { term: 'View', text: 'Read the check-ins and, at the widest setting, the full roster of who answered.' },
+                { term: 'Create', text: 'Raise a check-in, ask the rest of a queue, and close one. Whoever can raise the alarm can also sound the all-clear.' },
+                { term: 'Delete', text: 'Remove the record entirely. Stronger than the other two, because it destroys the only account of who was never reached.' },
+              ),
+              p('By default an ordinary member can open this screen, see the check-ins they raised, and answer anything they were asked about — but not the roster of who else has answered. That list is a set of relatives with their whereabouts and their reachability beside it, and it stays with the people the family has given it to. See [Who can do what](/help/who-can-do-what).'),
             ],
           },
         ],
@@ -2658,9 +2785,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'bands',
-            heading: 'Two panels',
+            heading: 'Two sections',
             blocks: [
-              p('The page is two panels, each with its own heading. **My Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('The page is two sections, chosen from the rail across the top. **Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
             ],
           },
           {
@@ -2682,7 +2809,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The panel under **My Plan**, at the top of the page, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('The **Plan** section, which Settings opens on, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
               p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way, and nothing is billed — there is no payment step yet.'),
             ],
           },
@@ -2690,7 +2817,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'removal',
             heading: 'Removing the family',
             blocks: [
-              p('**Remove this family**, at the bottom of the **Family** band, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
+              p('**Remove this family**, at the bottom of the **Family** section, switches the whole family off. Nobody can open it, the family code stops working, and any invitation still outstanding stops being accepted. It is offered only to somebody whose permission template grants **Remove Family**, which is separate from the one that lets you rename the family.'),
               note('Nothing is deleted. Every payment, fund, photograph, event, message, document and person stays exactly where it is. Removing closes the family\'s doors; it destroys no records at all.'),
               p('It takes two steps. **Email me a removal code** sends six digits to the address you sign in with — not to an address you type, and not to anybody else. **Enter the code and remove** then asks for those digits and for a confirmation. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries; ask for another with **Send another code**.'),
               p('Members of a removed family are not left guessing. Signing in shows a screen saying the family was removed and that nothing was deleted, [My Families](/my-families) lists it with a **Removed** badge, and the family menu at the top of the page badges it too — so an account that belongs to more than one family carries on in the others exactly as before.'),
@@ -2765,8 +2892,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plans',
             heading: 'The plans',
             blocks: [
-              p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed on the plan panel at the top of [Settings](/admin/settings), which is the copy that is kept current.'),
-              p('Each paid plan shows one price on that panel, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
+              p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed in the **Plan** section of [Settings](/admin/settings), which is the copy that is kept current.'),
+              p('Each paid plan shows one price there, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
               note('Free is free, and not a trial. The three paid plans have prices and none is on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Every paid card says so.'),
             ],
           },

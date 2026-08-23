@@ -22,7 +22,7 @@ import {
 import { cn } from '@/lib/utils'
 
 /**
- * The family's plan, and what each one includes — on Settings, at the top of the page.
+ * The family's plan, and what each one includes — the whole of Settings' **Plan** pane.
  *
  * ── IT REPLACED A LINK TO `/pricing`, WHICH IS THE WHOLE REASON IT EXISTS ───────────
  * "See what each plan includes" used to send a signed-in administrator out of the
@@ -34,9 +34,9 @@ import { cn } from '@/lib/utils'
  * ── THREE LINES, NOT THREE PRICE CARDS ─────────────────────────────────────────────
  * This panel used to render the whole offer at once: three columns, nineteen benefits
  * between them, each with a label and a sentence of mechanism. It was a fair rendering of
- * the data and the wrong shape for the page — it is the FIRST thing on Settings, above the
- * family name, the tier is the one fact an administrator came for, and everything below it
- * started a screen and a half down.
+ * the data and the wrong shape for the page — it is the pane Settings LANDS on, the tier is
+ * the one fact an administrator came for, and everything below it started a screen and a half
+ * down.
  *
  * So the panel answers the question at the altitude it is asked. Each plan is one row: its
  * name, whether the family is on it, one line saying who it is for, and a "Features" link
@@ -169,24 +169,24 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
   return (
     // ── IT SUPPLIES NO CARD OF ITS OWN, SINCE 2026-08-22 ─────────────────────────────
     // This was `rounded-xl border bg-card p-5 sm:p-6` — a card, because Settings was a flat
-    // stack of them. The page renders two PANELS now, one per band, and this is the body of
-    // the first; keeping the card would have put a border inside a border with four pixels
-    // of card showing between them. So the container, the padding and the ground all belong
-    // to `FamilySettingsClient`, and this renders content.
+    // stack of them. Settings is a rail of two panes now and this is the whole of the Plan
+    // one; keeping the card would have put a border inside a border with four pixels of card
+    // showing between them. So the container, the padding and the ground all belong to
+    // `FamilySettingsClient`, and this renders content.
     //
     // `<div>`, not `<section>`: a section needs an accessible name to be worth announcing as
-    // a landmark, and the one that names this content is the panel's own `My Plan` heading
-    // one level up. Two nested landmarks with one heading between them is worse than one.
+    // a landmark, and the rail item is what names this pane. Two nested landmarks with one
+    // heading between them is worse than one.
     <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          {/* AN `h3`, NOT AN `h2`, SINCE 2026-08-22. This sits under the page's own
-              **My Plan** panel heading, so a second `h2` here would put two headings of
-              the same rank on one band and leave a screen reader's outline saying the page
-              has two top-level sections where it has one. The caption changed with the
-              rank: the panel header answers "what are we on", so this answers the next
-              question rather than repeating the first. */}
-          <h3 className="text-lg font-semibold">What each plan includes</h3>
+          {/* AN `h2`. It was an `h3` for the day Settings was two panels, because a panel
+              header carrying **My Plan** sat directly above it; the rail replaced that
+              header, so there is nothing between this and the page's `h1` any more and an
+              `h3` would skip a rank. The caption stays as it was — the rail item answers
+              "which section", so this answers what the pane is FOR rather than repeating
+              the tab. Every pane on Members & Access reads the same way. */}
+          <h2 className="text-lg font-semibold">What each plan includes</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Your family&rsquo;s subscription covers everything on its own row and on every
             row above it.

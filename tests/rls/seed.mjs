@@ -453,6 +453,23 @@ async function teardown(db) {
     // leaving rows behind the day somebody changes a foreign key to SET NULL. That is the rule
     // the deleted `event_*` block recorded and the meeting tables above follow.
     'distribution_recipients', 'distributions',
+    // THE TWO SAFETY CHECK-IN TABLES, CHILD FIRST, for exactly the reason stated above them:
+    // `safety_check_in_people` cascades from `safety_check_ins` so the parent line alone would
+    // clear it today, and it is listed anyway because the row also references `people`.
+    //
+    // AND WITHOUT THESE LINES THE FIXTURE WOULD ACCUMULATE ACROSS RUNS, which on this feature is
+    // not merely untidy: `getMyOpenCheckIns` returns every OPEN check-in a member is on, so a
+    // second run would find two, a third three, and any assertion about "the check-in asking me"
+    // would start describing a pile.
+    'safety_check_in_people', 'safety_check_ins',
+    // ── THE SMS TABLES, AND ONE OF THEM IS NOT ON THIS LIST ─────────────────────────────
+    // `person_sms` and `phone_verifications` are ordinary family-scoped rows and are deleted
+    // here. **`sms_consent_events` IS DELIBERATELY ABSENT and must stay absent**: its
+    // `sms_consent_events_are_final` trigger refuses a direct DELETE for every role including
+    // `service_role`, so a line here would abort the whole teardown. It is emptied by the
+    // CASCADE from `people`, which this list sweeps further down — which is exactly the shape
+    // that trigger allows (`pg_trigger_depth() > 1`).
+    'person_sms', 'phone_verifications',
     'position_journal_notes', 'position_journal_entries',
     'person_relationships', 'user_roles', 'family_invitations',
     // THIRTEEN `event_*` LINES WERE HERE AND THE TABLES ARE DROPPED (20260819000006). What
@@ -1196,6 +1213,153 @@ export async function seed() {
       family_code: code, distribution_id: f.deletableDistribution.id,
       person_id: other.personId, email: other.email, state: 'sent',
       sent_at: new Date().toISOString(),
+    }))
+
+    // ── SAFETY CHECK-INS ──────────────────────────────────────────────────────
+    //
+    // SIX CHECK-INS PER FAMILY, and the count is `deletableChild`'s rule applied six times
+    // rather than enthusiasm: FIVE of the eleven actions on this feature MUTATE the check-in
+    // they are given (answer, ask, retry, close, delete), so any two of them sharing a row would
+    // leave the second describing a state the first produced — and `getCheckIn`'s control reads
+    // a roster, which every one of those mutations changes.
+    //
+    // That is the failure AGENTS.md §7 names as showing up only IN SEQUENCE: each case passes
+    // alone. It has already been paid for once in this file, when the chapter propagation started
+    // working and moved `f.child` out from under a later assertion.
+    //
+    // `other` (alphaOther) IS THE ANSWERER THROUGHOUT, and `owner` (alphaMember) is the raiser.
+    // Both are on the read fixture's roster, which is what gives `getMyOpenCheckIns` a control
+    // for two different actors — the one who raised it is asked about it too, which is the
+    // product's own rule (`notifySafetyCheckIn` suppresses their BELL entry and nothing more).
+    f.checkIn = must('safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} hurricane`,
+        detail: `secret check-in detail ${code}`,
+        scope: 'family', raised_by: owner.personId,
+        reply_to: owner.email, not_addressed: 0,
+      }).select().single())
+
+    // TWO ROWS, ONE ANSWERED AND ONE NOT, so the roster read has something to be wrong about.
+    // The note is a MARKER: it is the one free-text field a relative writes on this feature, so
+    // it is the string that would show up in a leaked roster.
+    // EVERY KEY ON EVERY ROW OF A BULK INSERT, INCLUDING THE NULLS. PostgREST builds one
+    // multi-row INSERT from the union of the keys it is given, so a key present on the first
+    // object and absent from the second arrives as an explicit NULL rather than taking the
+    // column's DEFAULT — which on `state NOT NULL DEFAULT 'awaiting'` is a 23502 rather than the
+    // 'awaiting' row it looks like. Measured here on the first run, and worth knowing before
+    // writing any other multi-row fixture insert with a partially-filled second row.
+    must('safety check-in roster', await db.from('safety_check_in_people').insert([
+      {
+        family_code: code, check_in_id: f.checkIn.id, person_id: owner.personId,
+        email: owner.email, reach: 'sent', asked_at: new Date().toISOString(),
+        state: 'safe', responded_at: new Date().toISOString(),
+        note: `secret check-in note ${code}`,
+      },
+      {
+        family_code: code, check_in_id: f.checkIn.id, person_id: other.personId,
+        email: other.email, reach: 'sent', asked_at: new Date().toISOString(),
+        state: 'awaiting', responded_at: null, note: null,
+      },
+    ]))
+
+    // FOR `answerCheckIn`. `other` is on it and has not answered, which is the only state that
+    // action's control can start from.
+    f.answerableCheckIn = must('answerable safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} flood`, scope: 'family',
+        raised_by: owner.personId, not_addressed: 0,
+      }).select().single())
+    must('answerable check-in roster', await db.from('safety_check_in_people').insert({
+      family_code: code, check_in_id: f.answerableCheckIn.id, person_id: other.personId,
+      email: other.email, reach: 'sent', asked_at: new Date().toISOString(),
+    }))
+
+    // FOR `sendCheckInAsks`. A `pending` row is a queue the action can claim — and note what the
+    // control actually asserts: every fixture address is `@rls.test`, a RESERVED TLD that
+    // `sendEmail` refuses before touching the network, so the row leaves `pending` and lands in
+    // `failed` with a reserved-TLD diagnostic. That is the boundary this suite can see; no mail
+    // is sent by these tests and none should be.
+    f.askableCheckIn = must('askable safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} wildfire`, scope: 'family',
+        raised_by: owner.personId, not_addressed: 0,
+      }).select().single())
+    must('askable check-in roster', await db.from('safety_check_in_people').insert({
+      family_code: code, check_in_id: f.askableCheckIn.id, person_id: other.personId,
+      email: other.email, reach: 'pending',
+    }))
+
+    // FOR `retryCheckInAsks`. A `failed` row, and a `skipped` one beside it — the second is the
+    // whole point of that action's rule: retry must move the failed row and must NOT touch the
+    // one with no mailbox, because mailing a generated address is a hard bounce and would file a
+    // relative who needs a PHONE CALL as one a machine should try again.
+    f.retryableCheckIn = must('retryable safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} storm with a bounce`, scope: 'family',
+        raised_by: owner.personId, not_addressed: 0,
+      }).select().single())
+    must('retryable check-in roster', await db.from('safety_check_in_people').insert([
+      {
+        family_code: code, check_in_id: f.retryableCheckIn.id, person_id: other.personId,
+        email: other.email, reach: 'failed', reach_error: 'seeded bounce',
+        asked_at: new Date().toISOString(), state: 'awaiting',
+      },
+      // Uniform keys, per the note above the first roster insert.
+      {
+        family_code: code, check_in_id: f.retryableCheckIn.id, person_id: owner.personId,
+        email: null, reach: 'skipped', reach_error: null,
+        asked_at: null, state: 'awaiting',
+      },
+    ]))
+
+    f.closableCheckIn = must('closable safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} check-in to close`, scope: 'family',
+        raised_by: owner.personId, not_addressed: 0,
+      }).select().single())
+
+    f.deletableCheckIn = must('deletable safety check-in',
+      await db.from('safety_check_ins').insert({
+        family_code: code, title: `${code} check-in to delete`, scope: 'family',
+        raised_by: owner.personId, not_addressed: 0,
+      }).select().single())
+    must('deletable check-in roster', await db.from('safety_check_in_people').insert({
+      family_code: code, check_in_id: f.deletableCheckIn.id, person_id: other.personId,
+      email: other.email, reach: 'sent', asked_at: new Date().toISOString(),
+    }))
+
+    // ── TEXT-MESSAGE CONSENT ──────────────────────────────────────────────────
+    //
+    // `owner` has a CONFIRMED number and a granted consent; `other` has a number that is NOT
+    // confirmed and no consent at all. Two rows rather than one, because the pair is what makes
+    // `smsBlockReason`'s two independent conditions visible — a confirmed number with no
+    // permission and a permission with no confirmed number are different refusals, and a fixture
+    // with only the happy path would exercise neither.
+    //
+    // THE NUMBERS ARE PER-FAMILY AND DISTINCTIVE (`…9101` for ALPHA, `…9102` for BRAVO) so a
+    // leaked one is legible. Note what that does NOT buy: `getMySmsSettings` returns only the
+    // LAST FOUR DIGITS by design, so the whole number never crosses the wire and the marker scan
+    // cannot find it. That is the §5 property working as intended, and it is why the cases for
+    // this module lean on their controls — see the block in cases.mjs.
+    f.smsNumber = `+1512555${side === 'alpha' ? '9101' : '9102'}`
+    must('person sms', await db.from('person_sms').insert([
+      {
+        family_code: code, person_id: owner.personId,
+        phone_e164: f.smsNumber, verified_at: new Date().toISOString(),
+      },
+      {
+        family_code: code, person_id: other.personId,
+        phone_e164: `+1512555${side === 'alpha' ? '9201' : '9202'}`, verified_at: null,
+      },
+    ]))
+
+    // ONE `granted` EVENT FOR `owner` AND NOTHING FOR `other`. The log is append-only —
+    // `sms_consent_events_are_final` refuses UPDATE and DELETE for every role including
+    // `service_role` — so this table is swept by the CASCADE from `people` and never by a
+    // direct delete. See the reset list's note.
+    must('sms consent', await db.from('sms_consent_events').insert({
+      family_code: code, person_id: owner.personId,
+      event: 'granted', source: 'profile', note: `${code} seeded consent`,
     }))
 
     f.collection = must('photo collection', await db.from('photo_collections').insert({

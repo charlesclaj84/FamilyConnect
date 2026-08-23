@@ -10,6 +10,7 @@ import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/market
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { APP_NAME } from '@/lib/brand'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 const PAGE_TITLE = 'How It Works — Set Up Your Family Portal in an Evening'
 const PAGE_DESCRIPTION =
@@ -104,6 +105,7 @@ const FAQ = [
 export default function HowItWorksPage() {
   return (
     <>
+      <MetaViewContent content="howItWorks" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/how-it-works',

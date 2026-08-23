@@ -1,15 +1,17 @@
 /**
- * The four emails the APPLICATION sends, as opposed to the five GoTrue sends.
+ * The five emails the APPLICATION sends, as opposed to the five GoTrue sends.
  *
- * All four carry data GoTrue has never heard of — which family, who invited you, which
- * family somebody is about to switch off, what a relative typed into a distribution — which
- * is the whole reason they cannot be templates in `supabase/templates/`. Chrome and voice
- * come from ./layout.ts; the reasoning behind both is in supabase/templates/README.md.
+ * All five carry data GoTrue has never heard of — which family, who invited you, which
+ * family somebody is about to switch off, what a relative typed into a distribution, what a
+ * relative is asking everybody to check in about — which is the whole reason they cannot be
+ * templates in `supabase/templates/`. Chrome and voice come from ./layout.ts; the reasoning
+ * behind both is in supabase/templates/README.md.
  *
- * THE FOURTH IS UNLIKE THE OTHER THREE and the difference is worth knowing before editing
- * anything here: `distributionEmail` is the only one whose CONTENT a member wrote. The other
- * three compose their own prose and interpolate a name or a token into it, so escaping there
- * is hygiene; in that one it is the security boundary. Its own header says so at length.
+ * TWO OF THE FIVE ARE UNLIKE THE OTHER THREE and the difference is worth knowing before
+ * editing anything here: `distributionEmail` and `safetyCheckInEmail` are the ones whose
+ * CONTENT a member wrote. The other three compose their own prose and interpolate a name or a
+ * token into it, so escaping there is hygiene; in those two it is the security boundary. Both
+ * headers say so.
  *
  * A plain module, deliberately: see the header of ./send.ts.
  */
@@ -264,6 +266,89 @@ export function distributionEmail(o: {
         ? `${sender} sent this to everyone in ${family} on ${esc(APP_NAME)}. Reply to this `
           + 'email to answer them directly.'
         : `This was sent to everyone in ${family} on ${esc(APP_NAME)}.`,
+    }),
+  }
+}
+
+/**
+ * Sent when somebody raises an emergency check-in.
+ *
+ * ── THE ONE DESIGN DECISION IN THIS TEMPLATE, AND IT IS A SECURITY ONE ─────────────
+ * The button does NOT answer. It links to the screen where the relative answers, and it
+ * would be a much better product if pressing "I'm safe" in the email were the whole
+ * interaction — one tap, no sign-in, done. That cannot be built as a link:
+ *
+ *   * A GET that mutates is prefetched. Gmail, Outlook and every corporate mail scanner
+ *     fetch the URLs in a message to render previews and check for malware, so a
+ *     one-tap-answer link would file half the family as SAFE within seconds of the email
+ *     going out — automatically, with nobody having read anything. The one number this
+ *     feature exists to drive to zero would drive itself to zero, wrongly, and the family
+ *     would believe it.
+ *   * And it would have to carry a bearer token in a URL, in an email, forever, for an
+ *     action whose whole subject is somebody's safety.
+ *
+ * So the email's job is to get somebody to the screen, and it says which two answers are
+ * waiting there so the ask is legible from the inbox.
+ *
+ * ── IT IS AN ASK, NOT AN ALERT, AND THE COPY MUST NOT DRIFT ────────────────────────
+ * This product cannot tell anybody whether they are in danger — it has no geography beyond a
+ * self-reported city, no feed, and no way to know what has happened. What it knows is that a
+ * relative asked. So the subject names the person who asked and the body says what they asked,
+ * and neither ever asserts that anything is happening near the reader. A family member who
+ * receives *"Flood warning in your area"* from us when there is none has been given a reason
+ * to stop reading these, which is the one failure this feature cannot recover from.
+ */
+export function safetyCheckInEmail(o: {
+  origin: string
+  familyName: string
+  /** What is happening, in the raiser's words. Member-authored — escaped here. */
+  title: string
+  /** The optional extra detail. Member-authored — escaped here. */
+  detail?: string | null
+  /** Display name of whoever raised it. Omitted rather than faked when unknown. */
+  raisedByName?: string | null
+  /** Absolute URL of the screen where they answer. */
+  link: string
+}): ComposedEmail {
+  const family = esc(o.familyName)
+  const title = esc(o.title)
+  const raiser = o.raisedByName?.trim() ? esc(o.raisedByName.trim()) : null
+  const detail = o.detail?.trim() ? esc(o.detail.trim()) : null
+
+  const paragraphs = [
+    raiser
+      ? `${raiser} has asked everyone in ${family} who may be affected by <strong>${title}</strong> `
+        + 'to say whether they are safe.'
+      : `${family} has asked everyone who may be affected by <strong>${title}</strong> to say `
+        + 'whether they are safe.',
+  ]
+  if (detail) paragraphs.push(detail)
+  paragraphs.push(
+    'Open the check-in and choose <strong>I am safe</strong> or <strong>I need help</strong>. '
+    + 'It takes one tap, and whoever asked will see your answer straight away.',
+  )
+
+  return {
+    // THE FAMILY NAME IS IN THE SUBJECT, unlike a distribution's — and the reason is the
+    // opposite of that template's. There, the From name says who it is from and a prefix eats
+    // the part of the subject a phone shows. Here the message has to be recognisable at a
+    // glance in a crowded inbox during an actual emergency, when the reader may be getting
+    // messages from several directions, so it says who is asking before it says why.
+    subject: `Are you safe? — ${o.familyName}`,
+    tag: 'safety-check-in',
+    html: renderEmailFrom(o.origin, {
+      preheader: `${o.title} — your family is asking you to check in.`,
+      heading: 'Are you safe?',
+      paragraphs,
+      button: { href: o.link, label: 'Answer the check-in', widthPx: 210 },
+      // NO EXPIRY LINE. A check-in stays answerable until it is closed, and inventing a
+      // deadline would tell somebody who reads this late that it is too late to answer —
+      // which for this feature specifically is the worst possible thing to say.
+      footnote: raiser
+        ? `${raiser} raised this check-in in ${family} on ${esc(APP_NAME)}. If you cannot open `
+          + 'the link, reply to this email and they will see it.'
+        : `This check-in was raised in ${family} on ${esc(APP_NAME)}. If you cannot open the `
+          + 'link, reply to this email.',
     }),
   }
 }

@@ -10,6 +10,7 @@ import {
   APP_NAME, APP_TAGLINE, APP_LEAD, APP_PUBLISHER,
   BRAND_MARK_SRC, APP_LOGO_ALT,
 } from '@/lib/brand'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 const PAGE_TITLE = `About ${APP_NAME} — Built for Whole Families`
 // 139 characters. The draft opened with APP_TAGLINE, which is 67 on its own and pushed the
@@ -91,6 +92,7 @@ const PRINCIPLES: readonly {
 export default function AboutPage() {
   return (
     <>
+      <MetaViewContent content="about" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/about',

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { markIdleActivity } from '@/lib/idle-timeout'
+import { trackPixelEvent } from '@/lib/meta/pixel'
 import { registerUser } from '@/app/actions/register'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -128,6 +129,34 @@ export function RegisterForm({
         setServerError(result.message)
       }
       return
+    }
+
+    // ── Advertising measurement, browser half ────────────────────────────────
+    // The server has already reported both of these to Meta's Conversions API and has
+    // handed back the event ids it used. Firing them here with the SAME ids is what makes
+    // the pair deduplicate into one conversion rather than count as two.
+    //
+    // FIRED BEFORE THE REDIRECT BELOW, deliberately: `router.push('/dashboard')` unmounts
+    // this component, and an event queued after it can be lost with the page.
+    //
+    // Each id is null unless the server actually sent that event — tracking off, consent
+    // refused, or an id already spent — so the browser cannot report a conversion the
+    // server declined to. There is no `&&` on a separate consent check here for the same
+    // reason: one decision, made once, on the server.
+    if (result.meta?.completeRegistration) {
+      trackPixelEvent('CompleteRegistration', {
+        eventId: result.meta.completeRegistration,
+        customData: {
+          content_name: 'GENORRA Account',
+          content_category: `Registration: ${inviteToken ? 'invite' : mode}`,
+        },
+      })
+    }
+    if (result.meta?.createFamily) {
+      trackPixelEvent('CreateFamily', {
+        eventId: result.meta.createFamily,
+        customData: { content_name: 'Family Workspace', content_category: 'Activation' },
+      })
     }
 
     // Attempt auto sign-in so the user lands in an authenticated state.

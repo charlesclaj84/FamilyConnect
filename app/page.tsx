@@ -14,6 +14,7 @@ import {
   APP_NAME, APP_LEAD, APP_BANNER_ALT,
   BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
+import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
 /**
  * The only page on this site most people will ever see in a search result, so its
@@ -94,6 +95,10 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Where an advertisement lands. Renders null and fires nothing unless a Pixel is
+          configured for this deployment and consent has been granted — see
+          components/meta/MetaViewContent.tsx. */}
+      <MetaViewContent content="home" />
       {/* The schema.org graph for the whole brand — organisation, site and product.
           It sits on this page rather than in the root layout on purpose: every
           other route is either behind a login or explicitly noindexed, so putting

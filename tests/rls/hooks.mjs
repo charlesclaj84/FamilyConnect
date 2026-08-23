@@ -8,7 +8,13 @@
  *   1. `@/x`            → the project's own file (Next's tsconfig path alias).
  *   2. `next/cache`     → a stub. `revalidatePath` throws outside a request scope.
  *   3. `next/navigation`→ a stub. `notFound()` throws a Next-internal signal.
- *   4. `@/lib/supabase/server` → a client authenticated as the current test
+ *   4. `next/server`    → a stub. The module cannot be RESOLVED by bare Node at all —
+ *      its export map is conditioned on a runtime Next sets — so `after()` in
+ *      `lib/meta/dispatch.ts` fails as a harness error rather than as a test failure.
+ *   5. `next/headers`   → a stub, for the same resolution reason. It THROWS, which is what
+ *      the real `cookies()`/`headers()` do outside a request and what the code under test
+ *      is written against.
+ *   6. `@/lib/supabase/server` → a client authenticated as the current test
  *      actor, instead of one built from `cookies()`.
  *
  * Everything else is real: the guards, `lib/auth/permissions.ts`, the admin
@@ -26,6 +32,8 @@ const ROOT = join(HERE, '..', '..')
 const STUBS = {
   'next/cache': join(HERE, 'stubs', 'next-cache.mjs'),
   'next/navigation': join(HERE, 'stubs', 'next-navigation.mjs'),
+  'next/server': join(HERE, 'stubs', 'next-server.mjs'),
+  'next/headers': join(HERE, 'stubs', 'next-headers.mjs'),
   '@/lib/supabase/server': join(HERE, 'stubs', 'supabase-server.mjs'),
 }
 

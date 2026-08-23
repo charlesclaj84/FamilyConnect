@@ -112,6 +112,24 @@ export function alphaMarkers(fx) {
     // row a case removes stops being findable for every case ordered after it.
     a.distribution.id, 'secret distribution body ALPHATEST',
     a.requeueableDistribution.id,
+    // ── THE SAFETY CHECK-INS, ADDED 2026-08-23 ──────────────────────────────────────────
+    //
+    // A LEAKED ROSTER ROW IS THE SHARPEST PII ON THIS LIST, and that is the feature's own
+    // assessment of itself: a relative's name, whether they answered, whether anybody could
+    // reach them at all, and — where they left one — a note about where they are and what they
+    // need. Assembled at the moment it is most useful to somebody else.
+    //
+    // TWO PROSE MARKERS, NOT THE TITLES. `${code} hurricane` would match a substring of almost
+    // any leaked ALPHA row that mentioned the family code; these two strings appear in exactly
+    // one column of one row each, which is what makes a hit legible. The NOTE is the one a
+    // relative writes, so it is the string that would come out of a leaked roster rather than a
+    // leaked ask.
+    a.checkIn.id, 'secret check-in detail ALPHATEST', 'secret check-in note ALPHATEST',
+    // The four whose rows survive their own cases. `a.deletableCheckIn.id` is deliberately NOT
+    // here — the same exclusion `a.deletableDistribution`, `f.customRole` and `journalDeletable`
+    // carry: its own delete control destroys it, and a marker whose row a case removes stops
+    // being findable for every case ordered after it.
+    a.answerableCheckIn.id, a.askableCheckIn.id, a.retryableCheckIn.id, a.closableCheckIn.id,
     a.announcement.id, a.document.id,
     a.collection.id, a.photo.id, a.room.id, a.message.id,
     a.schedule.id, a.optionalSchedule.id, a.payment.id, a.fund.id, a.milestone.id,
@@ -9566,3 +9584,785 @@ export const PHOTO_RAW_CASES = [
 ]
 
 CASES.push(...PHOTO_RAW_CASES)
+
+/**
+ * EMERGENCY CHECK-IN — `/community/safety-check-ins`, and it is unlike everything above it.
+ *
+ * ── WHAT MAKES THIS FEATURE DIFFERENT FROM EVERY OTHER ONE IN THIS FILE ────────────
+ * Everywhere else the worst outcome of a hole is that BRAVO reads or writes an ALPHA row. There
+ * are two worse outcomes here and they pull in opposite directions:
+ *
+ *   BRAVO ASKS ALPHA'S FAMILY IF THEY ARE ALIVE. A cross-family raise puts an emergency email in
+ *   a hundred and forty inboxes belonging to somebody else's family, over GENORRA's authenticated
+ *   domain. It cannot be recalled, and unlike a stray newsletter it teaches the recipients to
+ *   stop trusting the one message they must not ignore.
+ *
+ *   ALPHA'S OWN MEMBER CANNOT ANSWER. The opposite failure, and the one no cross-family
+ *   assertion can see. `self_expr` on both policies is what lets an addressed relative reach the
+ *   check-in they are being asked about at ANY scope — including `'none'` — and if it broke, a
+ *   family that had restricted this key would find its emergency check-in silently unanswerable.
+ *   That is what the positive controls below are really for, and it is why several of them assert
+ *   a specific value rather than merely a non-empty result.
+ *
+ * ── THE ATTACK IS BRAVO'S ADMINISTRATOR, WITH EVERY GRANT THEIR FAMILY CAN CONFER ──
+ * §7's rule, doing real work on this key: `community/safety-check-ins` is registered with all
+ * three actions and the Administrators template holds them at `'any'`, so whatever `bravoAdmin`
+ * still cannot do here, they cannot do because family isolation held.
+ *
+ * ── WHAT THESE CASES ARE AND ARE NOT EVIDENCE FOR, said out loud per §7 ────────────
+ * Five things, and the FIRST is the one that changes how to read the whole block:
+ *
+ *   1. ONE READ IN THIS FEATURE HAS A POLICY UNDERNEATH IT AND THE REST DO NOT.
+ *      `getMyOpenCheckIns` goes through the USER client, so its case is genuine evidence for
+ *      `perm:safety_check_in_people:select` and its `self_expr`. Every other read in
+ *      `app/actions/safety-check-ins.ts` is on the ADMIN client — deliberately, because a roster
+ *      that narrowed to what the reader may see would report a WRONG count rather than a withheld
+ *      one — so for those the conjunct being tested is the hand-written `.eq('family_code', …)`
+ *      (§3) and nothing else. Deleting `perm:safety_check_ins:select` entirely would leave every
+ *      case here green except the `getMyOpenCheckIns` pair. The policies are asserted in
+ *      `20260823000001`'s verify block, which reads them back out of `pg_policies`.
+ *   2. NO MAIL IS SENT AND NONE SHOULD BE. Every fixture address is `@rls.test`, which `sendEmail`
+ *      refuses by reserved TLD before touching the network. So `sendCheckInAsks`' control asserts
+ *      that the batch CLAIMED and RECORDED — the row leaves `pending` and lands in `failed` with a
+ *      reserved-TLD diagnostic — which is the boundary this suite can see. A control expecting
+ *      `sent` would pass only on a machine with a live `RESEND_API_KEY`, which is the one thing a
+ *      fixture must never depend on.
+ *   3. THE ROSTER ARITHMETIC IS `lib/safety-check-in.test.ts`. Who is addressed, who counts as
+ *      unreachable, and the rule that keeps an unreachable relative OUT of the awaiting column are
+ *      pure functions tested by value and by mutation there. This fixture has six people, one
+ *      chapter and no shared mailbox, so an assertion about any of it here would exercise one
+ *      branch and pass while testing nothing.
+ *   4. THE CONCURRENCY OF `claim_safety_check_in_asks`. `FOR UPDATE SKIP LOCKED` cannot be observed
+ *      from a single-session suite. The migration asserts it textually and says so.
+ *   5. THE DASHBOARD BANNER'S REACHABILITY. That it renders for a member whose family has set this
+ *      key to `'none'` is a property of `/dashboard` having no `permission_resources` row plus the
+ *      `self_expr` in (1). The second half is covered; the first is a fact about the registry that
+ *      no runtime case can assert.
+ *
+ * ── CHECKED BY MUTATION, per §7 — AND TWO OF THE PREDICTIONS WERE WRONG ───────────
+ * Measured 2026-08-23, and written down as MEASURED rather than as expected, because two of the
+ * five did not do what the first draft of this comment claimed:
+ *
+ *   1. `.eq('family_code', …)` deleted from `getCheckIn`'s PARENT read   attack  FAIL
+ *      A real isolation failure — BRAVO's administrator read ALPHA's check-in and its whole
+ *      roster. One line red, nothing else moved, which is the shape a case should have.
+ *
+ *   2. `belongsToFamily('safety_check_ins', …)` deleted from `closeCheckIn`  told  FAIL
+ *      The probe stays GREEN and the runner reports "1 ACTION(S) REPORTED SUCCESS OVER A WRITE
+ *      THAT DID NOT HAPPEN". The UPDATE's own `.eq('family_code', …)` is the second layer, so
+ *      the row really is untouched and what has gone wrong is that the caller was told
+ *      "That check-in was already closed" about somebody else's family. §8b exactly, and the
+ *      reason to read the `told` column rather than the attack column alone.
+ *
+ *   3. `.eq('family_code', …)` deleted from `getCheckIns`' ROSTER read    NOTHING FAILED
+ *      **Predicted a leak; there is none, and the reason is structural.** That read is
+ *      `.in('check_in_id', <the ids the parent read just returned>)`, and the parent read is on
+ *      the USER client — so RLS has already narrowed the ids to BRAVO's own check-ins and the
+ *      child read cannot reach past them. This is AGENTS.md's READ form of the blind spot
+ *      ("a child read narrowed by its parent is narrowed for free") arriving on schedule, and
+ *      the conjunct is TRANSITIVE defence-in-depth rather than the boundary. Worth keeping; not
+ *      worth believing a case tests it.
+ *
+ *   4. the PERSON conjunct alone deleted from `answerCheckIn`             NOTHING FAILED
+ *      **Predicted the "I spoke to her, she's fine" leak; the family conjunct refuses first.**
+ *      With BOTH the family and person conjuncts deleted the `told` assertion fires and the
+ *      probe stays green — the UPDATE's own family conjunct is again the second layer. So the
+ *      case is evidence for the PAIR of conjuncts rather than for either one, and the endpoint's
+ *      real protection against answering for somebody else is that there is no `personId`
+ *      PARAMETER at all. That is a fact about the signature, which no runtime case can assert.
+ *
+ *   5. `self_expr` reduced to `(false)` on `perm:safety_check_in_people:select`
+ *                                                                       control  FAIL
+ *      The `getMyOpenCheckIns` control goes red and nothing else moves. This is the one policy
+ *      probe in the block and the one assertion that a family cannot lock itself out of
+ *      answering.
+ *
+ * AND THE SIXTH, WHICH WAS NOT A MUTATION BUT A REAL BUG THESE CASES FOUND ON THEIR FIRST RUN:
+ * both SELECT policies referenced each other's tables, so every user-client read raised 42P17
+ * "infinite recursion detected in policy". `getCheckIns` and `getMyOpenCheckIns` both answered
+ * nothing to EVERYBODY — so both attack halves passed and both CONTROLS failed, which is §7's
+ * argument for the control half in one line. `20260823000001` §3 carries the fix and the
+ * assertion that stops it coming back.
+ */
+const SAFETY_CHECK_IN_CASES = [
+  // ── THE ASKS AND THEIR ROSTERS ────────────────────────────────────────────
+  // `getCheckIns` answers `null` on a refused read and `[]` on a family with none, so every
+  // cross-family assertion here is satisfied by BOTH — the control is the only thing standing
+  // between this case and an action that answered nothing to everybody.
+  read('safety-check-ins.getCheckIns', 'app/actions/safety-check-ins.ts', 'getCheckIns', {
+    positiveActor: 'alphaAdmin',
+    expectPositive: rows => Array.isArray(rows)
+      && rows.some(r => /hurricane/.test(r.title ?? '')),
+  }),
+  // ── [crux] AN ORDINARY MEMBER AT SCOPE `'own'`, AND THIS IS THE SUITE'S FIRST ─────
+  //
+  // TODO.md has carried *"`tests/rls` has no actor holding scope `'own'`, so no `own_expr` in the
+  // schema is tested"* since 2026-08-19, narrowed once when `photos:delete` gave General an
+  // `'own'` grant on a DELETE. **This is the read half that entry says is still missing**: the
+  // General template holds `community/safety-check-ins` at `view: 'own'`, so `alphaMember`'s
+  // answer is decided by the `'own'` disjunct and the `self_expr` — not by `= 'any'`, which is
+  // what satisfies every other read in the file.
+  //
+  // WHAT IT ASSERTS IS TWO THINGS AT ONCE, and both are load-bearing:
+  //
+  //   * an ordinary member CAN reach the screen. `requireView` resolves with `can()`, which is
+  //     true for `'own'` and false for `'none'` — so a `'none'` grant answers 404 and the
+  //     family's own emergency check-in becomes answerable only by administrators.
+  //   * and they see LESS than an administrator. `rosterVisible` is `canAny`, so it must be
+  //     false here while the same field is true for `alphaAdmin` in the case above — which is
+  //     what stops this passing if somebody ever "fixes" the grant by widening it to `'any'`.
+  //
+  // **IT IS A REGRESSION TEST FOR A REAL BUG, found 2026-08-23 by querying a freshly reset
+  // database rather than by any gate.** `20260823000002` §10 backfilled the General templates
+  // that EXISTED and did not teach `seed_family_permission_templates()`, so every family created
+  // afterwards got `view: 'none'` — and that migration's own assertion skipped, because on a
+  // fresh chain there is no General template yet for its `IF EXISTS` guard to find.
+  // `20260823000003` fixes both halves; this is what would have caught it.
+  read('safety-check-ins.getCheckIns (an ordinary member, scope own)',
+    'app/actions/safety-check-ins.ts', 'getCheckIns', {
+      attacker: 'alphaMember',
+      // Not an isolation claim — `alphaMember` is IN Alpha. The default marker scan does not run
+      // for a same-family actor, so `expectAttack` is the whole assertion, and what it says is
+      // "this member reaches the screen and is shown less than an administrator".
+      expectAttack: v => Array.isArray(v)
+        && v.some(r => /hurricane/.test(r.title ?? ''))
+        && v.every(r => r.rosterVisible === false),
+      positiveActor: 'alphaAdmin',
+      expectPositive: rows => Array.isArray(rows)
+        && rows.some(r => r.rosterVisible === true),
+    }),
+  // THE DETAIL READ IS THE ROSTER READ, and the control asserts BOTH halves: the ask's own
+  // detail line AND a named relative in the roster. A refusal that returned the ask with an
+  // empty roster would satisfy a detail-only assertion, and the roster is the half carrying
+  // every relative's name and answer.
+  read('safety-check-ins.getCheckIn', 'app/actions/safety-check-ins.ts', 'getCheckIn', {
+    args: fx => [fx.alpha.checkIn.id],
+    positiveActor: 'alphaAdmin',
+    expectPositive: (d, fx) => d?.detail?.includes('secret check-in detail')
+      && (d?.roster ?? []).some(r => r.personId === fx.users.alphaOther.personId),
+  }),
+  // ── [crux] THE ONE READ WITH A POLICY UNDERNEATH IT ───────────────────────
+  // `getMyOpenCheckIns` is the USER client and `requireMember()` and nothing else — no grant is
+  // consulted, because being asked whether you are safe is not a capability a family delegates.
+  // So this case is evidence for `perm:safety_check_in_people:select`'s `self_expr`, which is the
+  // only thing in the feature that makes a restricted key still answerable.
+  //
+  // THE ATTACK IS WEAK HERE AND THAT IS EXPECTED: `bravoAdmin` is on BRAVO's own roster, so they
+  // legitimately get BRAVO's check-in back and the marker scan is what asserts no ALPHA row came
+  // with it. THE CONTROL IS THE POINT — `alphaOther` is on ALPHA's roster and must see the ask.
+  // Reduce that `self_expr` to `(false)` and this one line goes red while the rest stay green.
+  read('safety-check-ins.getMyOpenCheckIns', 'app/actions/safety-check-ins.ts',
+    'getMyOpenCheckIns', {
+      positiveActor: 'alphaOther',
+      expectPositive: rows => Array.isArray(rows)
+        && rows.some(r => /hurricane/.test(r.title ?? '')),
+    }),
+  // THE COMPOSER CARRIES THE PICKER, which is every approved relative's NAME — so it is a roster
+  // read wearing a different hat, and it is gated on `create` rather than `view` because reading
+  // the audience list in order to raise a check-in is the same grant as raising one.
+  read('safety-check-ins.getCheckInComposer', 'app/actions/safety-check-ins.ts',
+    'getCheckInComposer', {
+      positiveActor: 'alphaAdmin',
+      // BOTH HALVES: an audience with a count, and the picker with a real relative in it. An
+      // action that returned audiences and an empty picker would satisfy a one-sided assertion,
+      // and the picker is the half that is PII.
+      expectPositive: (c, fx) => (c?.audiences ?? []).some(a => a.scope === 'family')
+        && (c?.people ?? []).some(p => p.personId === fx.users.alphaOther.personId),
+    }),
+
+  // ── [crux] RAISING A CHECK-IN AGAINST ANOTHER FAMILY'S CHAPTER ────────────
+  // §4 exactly, and the most expensive version of it in the product. `bravoAdmin` holds
+  // `community/safety-check-ins:create` at `'any'` IN BRAVO, so the grant check passes; the row
+  // they are asking to create would carry BRAVO's own `family_code`, so every policy would be
+  // satisfied; and the `chapter_id` they pass points into ALPHA. What refuses it is
+  // `belongsToFamily('chapters', …)` and nothing else.
+  //
+  // WHAT HAPPENS IF IT IS REMOVED — measured, not predicted: the check-in IS created in BRAVO
+  // naming ALPHA's chapter, `resolveRoster` then addresses nobody (BRAVO has no member in that
+  // chapter), and the raise is refused downstream with a different message. So the PROBE STAYS
+  // GREEN and `expectRefusal` is the only thing that fires. That downstream refusal is luck
+  // rather than a boundary, and it stops being luck the moment somebody belongs to both families
+  // — which is the ordinary case this product is built for.
+  {
+    kind: 'write',
+    id: "safety-check-ins.raiseCheckIn (another family's chapter as the audience)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'raiseCheckIn',
+    args: fx => [{
+      title: 'cross-family check-in',
+      scope: 'chapter',
+      areaId: fx.alpha.chapter.id,
+    }],
+    probe: (db, fx) => snapshot('safety_check_ins', 'id, title, family_code, chapter_id',
+      { chapter_id: fx.alpha.chapter.id })(db),
+    expectRefusal: v => v?.success === false && /chapter not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: chapter not found' }
+      : { ok: false, detail: `expected a chapter refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS ALPHA'S OWN ADMINISTRATOR RAISING ONE ON THAT SAME CHAPTER, which is what
+    // makes the refusal above about the FAMILY rather than about the chapter being unreachable
+    // for everybody. `alphaOther` is the member in `f.chapter`, so this addresses a real person
+    // — an audience resolving to nobody would be refused with "Nobody in the family matches that
+    // audience" and the control would then be asserting the wrong refusal.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'a legitimate chapter check-in',
+      scope: 'chapter',
+      areaId: fx.alpha.chapter.id,
+    }],
+  },
+  // AND THE REGION HALF, WHICH IS A SEPARATE `belongsToFamily` CALL. One case per id, the way
+  // `addRelative`'s two were split: the region and the chapter are checked by two different
+  // branches, and a case for one is no evidence about the other.
+  {
+    kind: 'write',
+    id: "safety-check-ins.raiseCheckIn (another family's region as the audience)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'raiseCheckIn',
+    args: fx => [{
+      title: 'cross-family regional check-in',
+      scope: 'region',
+      areaId: fx.alpha.region.id,
+    }],
+    probe: (db, fx) => snapshot('safety_check_ins', 'id, title, family_code, region_id',
+      { region_id: fx.alpha.region.id })(db),
+    expectRefusal: v => v?.success === false && /region not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: region not found' }
+      : { ok: false, detail: `expected a region refusal, got ${JSON.stringify(v)}` },
+    // A REAL CONTROL, because `f.region` holds `f.chapter` and `alphaOther` is in it.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'a legitimate regional check-in',
+      scope: 'region',
+      areaId: fx.alpha.region.id,
+    }],
+  },
+  // ── AND THE `named` AUDIENCE, WHICH IS THE ONE THAT TAKES PEOPLE IDS ──────
+  // The escape hatch this feature needs — a disaster addresses where people ARE, not how a
+  // family organised itself — and therefore the one parameter that is a list of `people.id`
+  // straight from a client. `scheduleMeeting`'s rule applies: the ids are INTERSECTED with this
+  // family's own approved roster rather than validated, so ALPHA's person ids resolve to nobody
+  // in BRAVO rather than to a refusal naming which of them were real.
+  //
+  // THAT REFUSAL IS THE `no audience` ONE RATHER THAN A `not found`, deliberately, and it is why
+  // this case reads its message loosely: the action must not confirm whether an id exists.
+  {
+    kind: 'write',
+    id: "safety-check-ins.raiseCheckIn (another family's people, named)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'raiseCheckIn',
+    args: fx => [{
+      title: 'cross-family named check-in',
+      scope: 'named',
+      personIds: [fx.alpha.otherPersonId, fx.alpha.ownerPersonId],
+    }],
+    probe: (db, fx) => snapshot('safety_check_in_people', 'id, person_id, family_code',
+      { person_id: fx.alpha.otherPersonId })(db),
+    expectRefusal: v => v?.success === false && /nobody in the family/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: nobody matches that audience' }
+      : { ok: false, detail: `expected an empty-audience refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      title: 'a legitimate named check-in',
+      scope: 'named',
+      personIds: [fx.alpha.otherPersonId],
+    }],
+  },
+
+  // ── [crux] ANSWERING FOR SOMEBODY ELSE ───────────────────────────────────
+  // THE ONE WRITE MUTATION ON THIS FEATURE THAT LEAKS RATHER THAN NO-OPS, and the reason it has
+  // a case of its own. `answerCheckIn` resolves the roster row from the CALLER's own guard —
+  // `.eq('person_id', g.personId)` beside `.eq('family_code', …)` — and there is deliberately no
+  // `personId` parameter to pass. Delete the person conjunct and the action would find and answer
+  // whichever row of that check-in came back first, which is the *"I spoke to her, she's fine"*
+  // button FutureFeature.md §5 rules out, arriving by accident.
+  //
+  // The attack is BRAVO's administrator naming ALPHA's check-in: the family conjunct answers
+  // first, so they are told they are not on it.
+  {
+    kind: 'write',
+    id: "safety-check-ins.answerCheckIn (another family's check-in)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'answerCheckIn',
+    args: fx => [{ checkInId: fx.alpha.answerableCheckIn.id, state: 'safe' }],
+    probe: (db, fx) => snapshot('safety_check_in_people', 'id, person_id, state, note',
+      { check_in_id: fx.alpha.answerableCheckIn.id })(db),
+    expectRefusal: v => v?.success === false && /not on this check-in/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not on this check-in' }
+      : { ok: false, detail: `expected a not-on-it refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS THE MEMBER WHO IS ACTUALLY ON IT, and it asserts the whole point of the
+    // feature: an ordinary member, with NO grant on this key beyond the General template's
+    // `view: 'own'`, can record that they are safe. `alphaOther` is neither the raiser nor an
+    // administrator, which is what makes this evidence for self-service rather than for a grant.
+    positiveActor: 'alphaOther',
+    positiveArgs: fx => [{
+      checkInId: fx.alpha.answerableCheckIn.id,
+      state: 'safe',
+      note: 'control answer',
+    }],
+  },
+
+  // ── DRIVING ANOTHER FAMILY'S ASK QUEUE ───────────────────────────────────
+  // The one that would actually put emergency mail in ALPHA's inboxes. `sendCheckInAsks` takes a
+  // check-in id from the client, claims its pending rows and mails them — so if the family
+  // conjunct on the read above the claim were dropped, BRAVO's administrator could drive ALPHA's
+  // queue to completion by id alone.
+  //
+  // TWO LAYERS ARE UNDERNEATH IT and this asserts the outer one: the action's `belongsToFamily`,
+  // and then `claim_safety_check_in_asks` raising 42501 for a mismatched family (§2b rule 3,
+  // written as if reachable). The migration's verify block exercises the inner one.
+  {
+    kind: 'write',
+    id: "safety-check-ins.sendCheckInAsks (another family's queue)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'sendCheckInAsks',
+    // `setup` RATHER THAN A `positiveSetup` — the runner has no such hook, and this is the better
+    // shape anyway: it runs before BOTH halves, so the attack and the control each start from a
+    // row that is genuinely `pending`. Without it the attack would pass against an empty queue,
+    // which is a refusal proving nothing.
+    setup: async (db, fx) => {
+      await db.from('safety_check_in_people')
+        .update({ reach: 'pending', reach_error: null, asked_at: null })
+        .eq('check_in_id', fx.alpha.askableCheckIn.id)
+    },
+    args: fx => [fx.alpha.askableCheckIn.id],
+    probe: (db, fx) => snapshot('safety_check_in_people', 'id, reach, email',
+      { check_in_id: fx.alpha.askableCheckIn.id })(db),
+    expectRefusal: v => v?.success === false && /not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not found' }
+      : { ok: false, detail: `expected a not-found refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL PROVES THE CLAIM-AND-RECORD LOOP WORKS, which is the half this suite can see:
+    // the batch claims the pending row, tries to mail an `@rls.test` address, `sendEmail` refuses
+    // it by reserved TLD, and the row moves `pending` -> `failed`. What is tested is that the
+    // queue ADVANCES and the outcome is RECORDED — not that mail arrives.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.askableCheckIn.id],
+  },
+  // RETRYING ANOTHER FAMILY'S FAILED ASKS. `belongsToFamily` again — the §4 check on a parameter
+  // that is not written onto a row but IS used to select rows for a write, which is
+  // `revokeRoleByAssignmentId`'s hole in a different costume.
+  {
+    kind: 'write',
+    id: "safety-check-ins.retryCheckInAsks (another family's failed asks)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'retryCheckInAsks',
+    setup: async (db, fx) => {
+      await db.from('safety_check_in_people')
+        .update({ reach: 'failed', reach_error: 'seeded bounce' })
+        .eq('check_in_id', fx.alpha.retryableCheckIn.id)
+        .not('email', 'is', null)
+    },
+    args: fx => [fx.alpha.retryableCheckIn.id],
+    probe: (db, fx) => snapshot('safety_check_in_people', 'id, reach',
+      { check_in_id: fx.alpha.retryableCheckIn.id })(db),
+    expectRefusal: v => v?.success === false && /not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not found' }
+      : { ok: false, detail: `expected a not-found refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.retryableCheckIn.id],
+  },
+
+  // ── CLOSING AND DELETING ANOTHER FAMILY'S CHECK-IN ───────────────────────
+  // Closing is the ALL-CLEAR, and it is `create` rather than a grant of its own — whoever may
+  // wake the family may also stand them down. A cross-family close is the quieter of the two
+  // holes and the more insidious: it takes an ALPHA emergency off every ALPHA dashboard while
+  // relatives are still unaccounted for, and nothing on ALPHA's screen would say who did it.
+  {
+    kind: 'write',
+    id: "safety-check-ins.closeCheckIn (another family's check-in)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'closeCheckIn',
+    setup: async (db, fx) => {
+      await db.from('safety_check_ins')
+        .update({ status: 'open', closed_at: null, closed_by: null })
+        .eq('id', fx.alpha.closableCheckIn.id)
+    },
+    args: fx => [fx.alpha.closableCheckIn.id],
+    probe: (db, fx) => snapshot('safety_check_ins', 'id, status, closed_by',
+      { id: fx.alpha.closableCheckIn.id })(db),
+    expectRefusal: v => v?.success === false && /not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not found' }
+      : { ok: false, detail: `expected a not-found refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.closableCheckIn.id],
+  },
+  // AND DELETE, WHICH IS THE ONE `deleteDistribution` SHIPPED WITHOUT A `belongsToFamily` CHECK.
+  // Its probe was green on the first run — the row really was untouched, because the DELETE's own
+  // `.eq('family_code', …)` matched nothing — and the `told` half is what reported it. §8b, and
+  // the reason to read that column rather than the attack column alone.
+  //
+  // `f.deletableCheckIn` IS ITS OWN ROW and is deliberately absent from `alphaMarkers`: the
+  // control removes it, so a marker on it would stop being findable for every case after this.
+  {
+    kind: 'write',
+    id: "safety-check-ins.deleteCheckIn (another family's check-in)",
+    mod: 'app/actions/safety-check-ins.ts', fn: 'deleteCheckIn',
+    args: fx => [fx.alpha.deletableCheckIn.id],
+    probe: (db, fx) => snapshot('safety_check_ins', 'id, title',
+      { id: fx.alpha.deletableCheckIn.id })(db),
+    expectRefusal: v => v?.success === false && /not found/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: not found' }
+      : { ok: false, detail: `expected a not-found refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.deletableCheckIn.id],
+  },
+]
+
+/**
+ * THE APPLICANT NOBODY HAS ADMITTED, on the feature where being refused matters most.
+ *
+ * `alphaPending` is INSIDE the family boundary by every test the cases above apply —
+ * `auth_family_code()` resolves ALPHATEST for them deliberately — so what refuses them is the
+ * MEMBERSHIP gate and nothing else.
+ *
+ * ── AND THAT IS EXACTLY WHY THESE ARE EVIDENCE FOR THE GUARD RATHER THAN THE POLICY ──
+ * AGENTS.md's warning, stated here because this block would otherwise read as stronger than it
+ * is: *"every applicant-shaped case in the suite whose action opens with `requireMember()` is
+ * evidence for the guard rather than for the conjunct."* Every action in
+ * `app/actions/safety-check-ins.ts` opens with `requireMember()`, so all of these are refused
+ * before a query is ever sent, and deleting `auth_membership_approved()` from either policy would
+ * leave them green.
+ *
+ * They are worth having anyway, and the reason is specific to this feature: an applicant is
+ * somebody the family has NOT let in, and a check-in roster is the family's contact list with
+ * everybody's whereabouts against it. The guard is the thing that stops them, so the guard is the
+ * thing worth asserting — and if a future refactor ever moved one of these actions off
+ * `requireMember()`, this is what would notice.
+ */
+const SAFETY_CHECK_IN_PENDING_CASES = [
+  // ── EVERY CONTROL HERE IS `alphaAdmin`, AND THAT IS NOT LAZINESS ──────────────────
+  // The default control actor is the family's ordinary member, and on this key the General
+  // template holds `view` at `'own'` — so `canAny`, which `getCheckIn` and `getCheckInComposer`
+  // both resolve, is FALSE for them and the control fails for a CORRECT reason. Measured on the
+  // first run: both returned the withheld shape and the runner reported "owner saw none of their
+  // own data", which is the fixture telling the truth about the product rather than a fixture
+  // problem. `getCheckInRights (an ordinary member)` above is where that default is asserted on
+  // purpose; here the control moves to the actor who is entitled to the call.
+  read('safety-check-ins.getCheckIns (pending member)', 'app/actions/safety-check-ins.ts',
+    'getCheckIns', {
+      attacker: 'alphaPending',
+      positiveActor: 'alphaAdmin',
+      expectPositive: rows => Array.isArray(rows) && rows.length > 0,
+    }),
+  read('safety-check-ins.getCheckIn (pending member)', 'app/actions/safety-check-ins.ts',
+    'getCheckIn', {
+      attacker: 'alphaPending',
+      args: fx => [fx.alpha.checkIn.id],
+      positiveActor: 'alphaAdmin',
+      expectPositive: d => Boolean(d?.id),
+    }),
+  // THE COMPOSER IS THE PICKER, so this one is an applicant being refused the family's whole
+  // roster of names — the reconnaissance read on this feature.
+  read('safety-check-ins.getCheckInComposer (pending member)', 'app/actions/safety-check-ins.ts',
+    'getCheckInComposer', {
+      attacker: 'alphaPending',
+      positiveActor: 'alphaAdmin',
+      expectPositive: c => (c?.audiences ?? []).length > 0,
+    }),
+  // AN APPLICANT MUST NOT BE ABLE TO RAISE ONE, which is the loudest thing anybody could do with
+  // an unadmitted membership: an emergency email to every relative in a family that has not let
+  // them in. Refused by `requireMember()`, with `canAny` behind it.
+  {
+    kind: 'write',
+    id: 'safety-check-ins.raiseCheckIn (pending member)',
+    mod: 'app/actions/safety-check-ins.ts', fn: 'raiseCheckIn',
+    attacker: 'alphaPending',
+    args: () => [{ title: 'an applicant should not be able to do this', scope: 'family' }],
+    probe: (db) => snapshot('safety_check_ins', 'id, title',
+      { title: 'an applicant should not be able to do this' })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: "the control for raising is the three cross-family cases above, which run as ALPHA's own "
+      + 'administrator. An approved-member control here would raise a fourth family-wide check-in '
+      + 'per run and put its rows under the marker scan for every case ordered after it.',
+  },
+  // AND ANSWERING. An applicant is on nobody's roster, so this is refused twice over — by the
+  // membership guard, and then by there being no row for them.
+  {
+    kind: 'write',
+    id: 'safety-check-ins.answerCheckIn (pending member)',
+    mod: 'app/actions/safety-check-ins.ts', fn: 'answerCheckIn',
+    attacker: 'alphaPending',
+    args: fx => [{ checkInId: fx.alpha.checkIn.id, state: 'safe' }],
+    probe: (db, fx) => snapshot('safety_check_in_people', 'id, person_id, state',
+      { check_in_id: fx.alpha.checkIn.id })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'answering has its own control above, run by `alphaOther` on `f.answerableCheckIn`. '
+      + 'Repeating it here would mutate `f.checkIn`, whose roster the detail read asserts on.',
+  },
+]
+
+CASES.push(...SAFETY_CHECK_IN_CASES, ...SAFETY_CHECK_IN_PENDING_CASES)
+
+/**
+ * `getCheckInRights` — and it is written rather than given a `RIGHTS-ONLY` verdict.
+ *
+ * A verdict would have been honest and would also have pushed `BACKLOG_CEILING` up by one, which
+ * AGENTS.md says is a deliberate act needing a sentence. There is a better sentence available:
+ * `bylaws.getBylawRights` is the worked example of writing one of these ANYWAY, and the second
+ * half of that pair is the reason — the assertion that a GENERAL member answers `false` is a real
+ * check on a real default, and it is one a future migration could silently widen.
+ *
+ * [not evidence for family isolation] Said out loud rather than left looking like proof. The
+ * answer is three booleans about the caller's own grants and carries no family data at all, so no
+ * cross-family assertion is available and the marker scan would pass over an action that returned
+ * anything.
+ */
+const SAFETY_CHECK_IN_RIGHTS_CASES = [
+  read('safety-check-ins.getCheckInRights', 'app/actions/safety-check-ins.ts',
+    'getCheckInRights', {
+      // BRAVO's administrator holds all three IN BRAVO, which is what an Administrators template
+      // means. What this half asserts is that the resolver answers per caller and does not throw.
+      expectAttack: v => v?.raise === true && v?.remove === true && v?.seeRoster === true,
+      positiveActor: 'alphaAdmin',
+      expectPositive: v => v?.raise === true && v?.remove === true && v?.seeRoster === true,
+    }),
+  read('safety-check-ins.getCheckInRights (an ordinary member)',
+    'app/actions/safety-check-ins.ts', 'getCheckInRights', {
+      // ── THE HALF THAT IS WORTH SOMETHING, AND IT IS THIS FEATURE'S CENTRAL DEFAULT ──
+      // `20260823000001` §10 gives the General template `view: 'own'` and `create`/`delete` at
+      // `'none'`, and argues both halves at length: a member must be able to OPEN the screen to
+      // answer, and must not be able to wake the whole family at 3 a.m. or destroy the record of
+      // who never answered.
+      //
+      // So `raise` and `remove` must be false while `seeRoster` — which is `canAny` on `view` —
+      // must ALSO be false, because `'own'` is not `'any'`. That last one is the assertion that
+      // keeps a completed check-in's roster (§5's "sharpest PII this product would hold") away
+      // from every member the roster is made of. A migration that widened that default to `'any'`
+      // to make the screen "more useful" would turn this line red, which is exactly what should
+      // happen.
+      attacker: 'alphaMember',
+      expectAttack: v => v?.raise === false && v?.remove === false && v?.seeRoster === false,
+      positiveActor: 'alphaAdmin',
+      expectPositive: v => v?.raise === true && v?.remove === true && v?.seeRoster === true,
+    }),
+]
+
+CASES.push(...SAFETY_CHECK_IN_RIGHTS_CASES)
+
+/**
+ * SMS CONSENT — and this block is a DIFFERENT SHAPE from every other one in this file.
+ *
+ * ── THE CLASSIC ATTACK IS STRUCTURALLY UNAVAILABLE, AND THAT IS THE FEATURE ────────
+ * Every case above works the same way: BRAVO's administrator passes an ALPHA id and must be
+ * refused. **Not one action in `app/actions/sms-consent.ts` takes an id.** The subject is always
+ * the caller, resolved from `requireMember()`, and there is no `personId` parameter to pass —
+ * so there is nothing for a cross-family attacker to aim.
+ *
+ * That is deliberate and it is the security design rather than a convenience: consent is the one
+ * thing in this product that must not be delegable, because an administrator who could grant SMS
+ * consent on somebody's behalf would be manufacturing the exact record that would be produced in
+ * answer to a TCPA complaint. `20260823000002` makes the same decision in SQL — no
+ * `permission_resources` row, no `permission_table_map` row, self-scoped SELECT policies.
+ *
+ * SO WHAT THESE CASES ASSERT IS THE OTHER TWO THINGS, and they are both real:
+ *
+ *   1. **AN APPLICANT IS REFUSED.** `requireMember()` demands an APPROVED membership, and
+ *      somebody who has joined by family code and not been admitted must not be able to put a
+ *      phone number into the family's tables or record a consent against it. Every write here has
+ *      an `alphaPending` case.
+ *   2. **AN APPROVED MEMBER CAN ACTUALLY DO IT.** The positive controls, which on this block are
+ *      carrying almost all of the weight — see below.
+ *
+ * ── WHAT THEY ARE NOT EVIDENCE FOR, said out loud per §7 ──────────────────────────
+ *   * **THE SELF-SCOPED SELECT POLICIES.** Every read in that module is on the ADMIN client, and
+ *     deliberately: `phone_verifications` has no SELECT policy at all (a table of code hashes
+ *     should be unreadable from the browser), so `codeOutstanding` is only reachable that way,
+ *     and splitting one screen's state across two clients would be worse. Dropping
+ *     `person_sms_select_own` entirely would leave every case here green. The policies are
+ *     asserted in the migration's verify block, which reads them back out of `pg_policies` and
+ *     refuses a non-self-scoped one by name.
+ *   * **THE MARKER SCAN, UNUSUALLY.** `getMySmsSettings` returns `numberEnding` — the last four
+ *     digits — and never the number. So even with every conjunct deleted, an ALPHA mobile number
+ *     could not appear in a BRAVO response, because the action does not put one in ANY response.
+ *     That is §5 working as designed and it is why the fixture's numbers are not in
+ *     `alphaMarkers`: a marker that cannot be leaked is a marker that proves nothing.
+ *   * **THE CONSENT FOLD.** `consentStatus()`'s STOP asymmetry, `toE164`'s refusal and the
+ *     keyword matching are pure functions tested by value and by mutation in
+ *     `lib/sms/consent.test.ts`. This fixture has one consent event per family; an assertion
+ *     about the fold here would exercise one branch and pass while testing nothing.
+ *   * **ANY ACTUAL SENDING.** There is no provider, `smsConfigured()` is false, and `sendSms`
+ *     answers `{ sent: false }`. So `setMyMobileNumber`'s control asserts that the NUMBER WAS
+ *     SAVED and that the caller was told no code went — which is the honest boundary this suite
+ *     can see, and is exactly what the action promises.
+ *
+ * ── CHECKED BY MUTATION, per §7 ───────────────────────────────────────────────────
+ * Measured 2026-08-23:
+ *
+ *   1. `requireMember()` swapped for a bare session read in `grantSmsConsent`   attack  FAIL
+ *      The applicant writes a consent row. This is the one that matters on this block.
+ *   2. the `stopped` guard removed from `grantSmsConsent`                       — not reachable
+ *      from a case: the fixture has no stopped member, and adding one would need an inbound
+ *      webhook that does not exist. `lib/sms/consent.test.ts` covers the fold's half of it and
+ *      the guard's own half is stated rather than asserted. A GAP, named.
+ *   3. `.eq('person_id', g.personId)` dropped from `getMySmsSettings`' read    control  FAIL
+ *      Not an attack failure — `maybeSingle()` over two rows errors, so the action returns the
+ *      empty shape and the CONTROL is what notices. Worth knowing: on this module the conjunct
+ *      that protects a member is caught by the half that proves the feature works.
+ */
+const SMS_CONSENT_CASES = [
+  read('sms-consent.getMySmsSettings', 'app/actions/sms-consent.ts', 'getMySmsSettings', {
+    // BRAVO's administrator reads their OWN settings, which is correct and is all this half can
+    // say. `bravoAdmin` is BRAVO's `other`, so they have an unconfirmed number and no consent.
+    expectAttack: v => v?.status === 'none' && v?.verified === false,
+    // THE CONTROL IS THE WEIGHT-BEARING HALF. `alphaMember` is the seeded `owner`: a confirmed
+    // number and a granted consent. It asserts all four facts the screen renders, so a read that
+    // returned the conservative empty shape — which is what every failure path in that action
+    // produces — goes red rather than passing as "no consent on file".
+    positiveActor: 'alphaMember',
+    expectPositive: v => v?.status === 'granted' && v?.verified === true
+      && v?.numberEnding === '9101' && v?.blockedBecause === null,
+  }),
+  read('sms-consent.getMySmsSettings (pending member)', 'app/actions/sms-consent.ts',
+    'getMySmsSettings', {
+      attacker: 'alphaPending',
+      // An applicant gets the conservative shape: no number, no consent, nothing to send to.
+      expectAttack: v => v?.hasNumber === false && v?.status === 'none',
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.status === 'granted',
+    }),
+
+  // ── THE NUMBER ────────────────────────────────────────────────────────────
+  // An applicant must not be able to put a phone number into the family's tables. The probe is
+  // the whole of `person_sms` for ALPHA, so a row appearing for the applicant is visible.
+  {
+    kind: 'write',
+    id: 'sms-consent.setMyMobileNumber (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'setMyMobileNumber',
+    attacker: 'alphaPending',
+    args: () => [{ phone: '512-555-8888' }],
+    probe: (db) => snapshot('person_sms', 'id, person_id, phone_e164, verified_at',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS `alphaOther`, whose number is unconfirmed — so saving a new one is a real
+    // state change the probe can see, and it does not disturb `alphaMember`'s confirmed row that
+    // the reads above assert on (`deletableChild`'s rule).
+    //
+    // AND IT EXPECTS `success: false`, WHICH IS THE HONEST ANSWER TODAY. There is no provider, so
+    // the number is saved and no code goes — and the action says exactly that rather than
+    // reporting success over a code that will never arrive. A control expecting `true` would be
+    // asserting a lie, and would start failing the day a provider IS wired for the wrong reason.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [{ phone: '512-555-9301' }],
+    expectPositive: v => v?.success === false
+      && /not switched on yet/i.test(v?.message ?? ''),
+  },
+  {
+    kind: 'write',
+    id: 'sms-consent.resendMyPhoneCode (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'resendMyPhoneCode',
+    attacker: 'alphaPending',
+    args: () => [],
+    probe: (db) => snapshot('phone_verifications', 'id, person_id',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // `alphaOther` has an UNCONFIRMED number, which is the only state this action acts on — it
+    // refuses a member with no number and a member whose number is already confirmed, so
+    // `alphaMember` would be refused for a correct reason and the control would prove nothing.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [],
+    expectPositive: v => v?.success === false
+      && /not switched on yet/i.test(v?.message ?? ''),
+  },
+  {
+    kind: 'write',
+    id: 'sms-consent.confirmMyMobileNumber (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'confirmMyMobileNumber',
+    attacker: 'alphaPending',
+    args: () => [{ code: '123456' }],
+    probe: (db) => snapshot('person_sms', 'id, person_id, verified_at',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'confirming needs a live code, and minting one needs a send — there is no provider, so '
+      + 'no case here can hold the plaintext of a challenge. What IS asserted is that a WRONG '
+      + 'code is refused and burns an attempt, by the case below; the happy path is '
+      + 'consume_phone_verification()\'s own five branches, exercised in the migration.',
+  },
+  // AND A WRONG CODE FROM A LEGITIMATE MEMBER, which is the reachable half of the challenge.
+  // `alphaOther` has an unconfirmed number and no outstanding challenge, so the function's
+  // "no code waiting" branch is what answers — and the assertion is that it does NOT confirm.
+  {
+    kind: 'write',
+    id: 'sms-consent.confirmMyMobileNumber (a code nobody issued)',
+    mod: 'app/actions/sms-consent.ts', fn: 'confirmMyMobileNumber',
+    attacker: 'alphaOther',
+    args: () => [{ code: '000000' }],
+    probe: (db) => snapshot('person_sms', 'id, person_id, verified_at',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: no code waiting' }
+      : { ok: false, detail: `a number was confirmed with no challenge: ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'the attacker here IS an approved member — the claim is that a confirmed number cannot '
+      + 'be produced without a challenge, which has no positive counterpart short of a real send.',
+  },
+  {
+    kind: 'write',
+    id: 'sms-consent.removeMyMobileNumber (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'removeMyMobileNumber',
+    attacker: 'alphaPending',
+    args: () => [],
+    probe: (db) => snapshot('person_sms', 'id, person_id, phone_e164',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'a control would clear a number the two reads above assert on, and removal has no spare '
+      + 'row of its own — `alphaOther`\'s is consumed by setMyMobileNumber\'s control. The '
+      + 'idempotence this action relies on is stated in its own header rather than asserted here.',
+  },
+
+  // ── [crux] CONSENT ────────────────────────────────────────────────────────
+  // The write that matters. An applicant recording a consent event would put a row in the
+  // family's legal record for somebody the family has not admitted — and because the log is
+  // append-only (`sms_consent_events_are_final` refuses UPDATE and DELETE for every role
+  // including `service_role`), a bad row here CANNOT BE REMOVED except by deleting the person.
+  //
+  // That is what makes this the sharpest write in the module: everywhere else a mistake is
+  // correctable, and here it is not.
+  {
+    kind: 'write',
+    id: 'sms-consent.grantSmsConsent (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'grantSmsConsent',
+    attacker: 'alphaPending',
+    args: () => [],
+    probe: (db) => snapshot('sms_consent_events', 'id, person_id, event, source',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // `alphaOther` has NO consent event, so granting one is a state change the probe sees — and
+    // it does not touch `alphaMember`'s, which `getMySmsSettings`' control asserts on.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [],
+    expectPositive: v => v?.success === true,
+  },
+  {
+    kind: 'write',
+    id: 'sms-consent.withdrawSmsConsent (pending member)',
+    mod: 'app/actions/sms-consent.ts', fn: 'withdrawSmsConsent',
+    attacker: 'alphaPending',
+    args: () => [],
+    probe: (db) => snapshot('sms_consent_events', 'id, person_id, event',
+      { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // ORDERED AFTER THE GRANT ABOVE, and `alphaOther` is the actor for both — so this withdraws
+    // the consent that case just recorded. Two events for one person, which is what an
+    // append-only log is supposed to look like, and it leaves `alphaMember`'s untouched.
+    //
+    // WITHDRAWAL IS IDEMPOTENT AND UNCONDITIONAL, so this control cannot fail for a state reason
+    // — which is the point of that design and is why it needs no setup.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [],
+    expectPositive: v => v?.success === true,
+  },
+]
+
+CASES.push(...SMS_CONSENT_CASES)

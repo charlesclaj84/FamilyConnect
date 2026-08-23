@@ -6,9 +6,27 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getFamilyStatus, isActiveFamily } from '@/lib/auth/family'
 import { redeemInvitationForNewUser } from '@/lib/invitations'
 import { notifyMembershipRequest } from '@/lib/notifications'
+import { trackFamilyCreated, trackRegistrationCompleted } from '@/lib/meta/conversions'
+import { persistAttributionForUser } from '@/lib/meta/attribution-store'
+
+/**
+ * The event ids the BROWSER must fire with, so the Pixel event and the Conversions API
+ * event Meta already received deduplicate into one conversion.
+ *
+ * Null for anything that was not sent — tracking off for this deployment, consent refused,
+ * or an id already spent. The form fires only what it is handed, so the browser cannot
+ * report a conversion the server decided against; see lib/meta/dispatch.ts.
+ *
+ * NOTHING SENSITIVE IS IN HERE. Both values are `<prefix>_<32 hex characters>`, derived by
+ * hashing the account id or the family code — see lib/meta/event-id.ts.
+ */
+export interface RegisterMetaEvents {
+  completeRegistration: string | null
+  createFamily: string | null
+}
 
 export type RegisterResult =
-  | { success: true; familyCode?: string }
+  | { success: true; familyCode?: string; meta?: RegisterMetaEvents }
   | { success: false; field?: string; message: string }
 
 export interface RegisterInput {
@@ -285,7 +303,23 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         // Swallowed: the account exists and the invitation is spent. See below.
       }
     }
-    return { success: true }
+
+    // Where this account came from, in GENORRA's own records, independently of Meta. Kept
+    // whether or not consent was granted, because what survives in the cookie for an
+    // objecting visitor is our own UTM labelling and nothing of Meta's — see
+    // lib/meta/attribution-store.ts.
+    await persistAttributionForUser(authData.user.id)
+
+    // The account exists — that is what CompleteRegistration means. No CreateFamily: an
+    // invited relative JOINS a family somebody else established, which is a different and
+    // considerably less valuable signal, and conflating the two would make every invited
+    // cousin look like a founder to the optimiser.
+    const meta = await trackRegistrationCompleted({
+      userId: authData.user.id,
+      holder: metaHolder(authData.user.id, input),
+      route: 'invite',
+    })
+    return { success: true, meta: { completeRegistration: meta.eventId, createFamily: null } }
   }
 
   // Stamp family_code into app_metadata. Unlike user_metadata (set via signUp's
@@ -394,5 +428,58 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   }
 
-  return { success: true, familyCode: input.mode === 'create' ? familyCode : undefined }
+  // ── Advertising measurement ───────────────────────────────────────────────
+  // LAST, and after every write above has committed. Both events are statements that
+  // something HAS HAPPENED — an account exists, a family exists — so they are made where
+  // that is established rather than where it was requested. Neither can fail this
+  // function: `trackServerEvent` schedules the network call with `after()` and never
+  // throws, which is the same fail-soft contract lib/email/send.ts is built on and for
+  // the same reason — a measurement outage must not roll back a registration.
+  //
+  // `familyCode` is safe to key CreateFamily on: it is hashed into the event id and never
+  // sent (lib/meta/event-id.ts).
+  if (authData.user) await persistAttributionForUser(authData.user.id)
+
+  const registration = authData.user
+    ? await trackRegistrationCompleted({
+        userId: authData.user.id,
+        holder: metaHolder(authData.user.id, input),
+        route: input.mode,
+      })
+    : null
+
+  const family = input.mode === 'create' && authData.user
+    ? await trackFamilyCreated({
+        familyCode,
+        holder: metaHolder(authData.user.id, input),
+        sourcePath: '/register',
+      })
+    : null
+
+  return {
+    success: true,
+    familyCode: input.mode === 'create' ? familyCode : undefined,
+    meta: {
+      completeRegistration: registration?.eventId ?? null,
+      createFamily: family?.eventId ?? null,
+    },
+  }
+}
+
+/**
+ * The permitted matching fields for the person registering, named one by one.
+ *
+ * Deliberately NOT a spread of `input`: that object carries a password, a family code and
+ * a family name, and `MetaAccountHolder` has no field for any of them — but building it
+ * by hand is what makes that a decision rather than a happy accident of the allow-list in
+ * lib/meta/identity.ts catching them. The password in particular must never be within one
+ * refactor of a payload bound for an ad platform.
+ */
+function metaHolder(userId: string, input: RegisterInput) {
+  return {
+    userId,
+    email: input.email,
+    firstName: input.firstName,
+    lastName: input.lastName,
+  }
 }

@@ -5,6 +5,10 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { APP_NAME, APP_SEO_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
 import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
+import { consentDefault, metaClientConfig } from '@/lib/meta/config'
+import { MetaPixel } from '@/components/meta/MetaPixel'
+import { MetaAttributionCapture } from '@/components/meta/MetaAttributionCapture'
+import { ConsentBanner } from '@/components/consent/ConsentBanner'
 import './globals.css'
 
 // The brand's two faces, per design/home/v1_0/README.txt: Cormorant Garamond for display,
@@ -118,6 +122,18 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Meta advertising measurement. Null on any deployment that must not track — a laptop, a
+  // preview build, or a production deployment with no META_PIXEL_ID — and then none of the
+  // three components below is rendered at all, so there is no inert script and no banner
+  // asking somebody to consent to tracking that is not happening. See lib/meta/config.ts.
+  //
+  // NOTHING HERE READS `cookies()`, deliberately. Doing so would opt every route in the
+  // product into dynamic rendering, including the statically generated marketing pages an
+  // advertisement lands on. The visitor's actual choice is read in the browser; what
+  // crosses from here is the deployment's DEFAULT. Both are explained on `MetaPixel`.
+  const meta = metaClientConfig()
+  const defaultConsent = consentDefault()
+
   return (
     // suppressHydrationWarning is required and narrow: the boot script below
     // mutates this element's className and style before React hydrates, so the
@@ -142,6 +158,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             covered; each no-ops off Vercel. */}
         <Analytics />
         <SpeedInsights />
+        {/* Advertising measurement, and the consent that governs it. All three render null
+            until they have something to do: the Pixel until consent is granted, the capture
+            until a URL carries campaign context, the banner until the visitor has not
+            chosen. They sit outside `<main key={familyCode}>` in the protected layout by
+            construction — being here — so switching family does not remount them and
+            restart a page view. */}
+        {meta && (
+          <>
+            <MetaPixel pixelId={meta.pixelId} defaultConsent={defaultConsent} />
+            <MetaAttributionCapture defaultConsent={defaultConsent} />
+            <ConsentBanner />
+          </>
+        )}
       </body>
     </html>
   )

@@ -137,9 +137,27 @@ DECLARE
   -- ON DELETE CASCADE from `auth.users`, and that script empties `auth.users`, so a staff row
   -- goes with the account it names whether or not the table is truncated. A keep-list entry
   -- would read as a guarantee it does not make.
+  --
+  -- `marketing_attribution` and `marketing_conversion_events` (20260823000000) are the
+  -- third and fourth, and they are the case §2 is MOST likely to misread — which is why
+  -- they are named in the same commit that creates them rather than after a red deploy.
+  -- Both have no `family_code` and their only foreign keys point into `auth`, so §2's
+  -- recursion cannot reach either from anywhere; and both are EMPTY on any database where
+  -- nobody has registered since the Meta integration was configured, which is every fresh
+  -- `db reset` and every deployment with no `META_PIXEL_ID`. Nothing seeds them and nothing
+  -- can: they accumulate from real visits, and there is no set of "the right" rows for a
+  -- migration to restore.
+  --
+  -- They are deliberately ABSENT from truncate_entire_database.sql's keep-list, on
+  -- `genorra_staff`'s exact reasoning: `marketing_attribution.user_id` is ON DELETE CASCADE
+  -- from `auth.users`, which that script empties, so those rows go with the accounts they
+  -- describe whether or not the table is truncated. A keep-list entry would read as a
+  -- guarantee it does not make.
   allowed_empty CONSTANT text[] := ARRAY[
     'user_family_settings',
-    'genorra_staff'
+    'genorra_staff',
+    'marketing_attribution',
+    'marketing_conversion_events'
   ];
   i        int;
   v_count  bigint;

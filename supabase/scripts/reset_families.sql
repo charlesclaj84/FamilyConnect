@@ -226,6 +226,42 @@ BEGIN
   DELETE FROM distribution_recipients;
   DELETE FROM distributions;
 
+  -- ── 6d. Safety check-ins ──────────────────────────────────────────────────
+  -- Child first, for §6c's reason exactly: `safety_check_in_people` cascades from
+  -- `safety_check_ins`, and both lines are written because the child also references
+  -- `people`, which §8 empties.
+  --
+  -- NEITHER IS KEPT, and on this one the argument is worth stating rather than assumed.
+  -- A completed check-in is the family's record of an emergency — who was asked, who
+  -- answered, who nobody could reach — so it is family data by every test in this script.
+  -- It is ALSO the sharpest contact-data surface in the product (a roster of relatives
+  -- with their whereabouts and their reachability), which if anything argues harder for
+  -- deleting it than for keeping it: a reset that left one behind would leave that list in
+  -- a database somebody had asked to be emptied.
+  DELETE FROM safety_check_in_people;
+  DELETE FROM safety_check_ins;
+
+  -- ── 6e. Text-message settings ─────────────────────────────────────────────
+  -- The number and any outstanding challenge go. Both are settings a member can re-establish
+  -- in a minute, and a phone number is not something a reset should leave lying about.
+  DELETE FROM phone_verifications;
+  DELETE FROM person_sms;
+  --
+  -- `sms_consent_events` IS DELIBERATELY NOT DELETED HERE, and it is on §11's keep-list. Two
+  -- reasons, and the first one makes the second unavoidable:
+  --
+  --   IT CANNOT BE. `sms_consent_events_are_final` (20260823000002) refuses a direct DELETE for
+  --   every role INCLUDING `service_role`, allowing one only inside a cascade
+  --   (`pg_trigger_depth() > 1`). A line here would abort this whole DO block, permanently.
+  --
+  --   AND IT SHOULD NOT BE. It is the record of when somebody agreed to be texted and how — the
+  --   thing that would be produced in answer to a TCPA complaint. A record that a maintenance
+  --   script can erase is not one. §8's `people` delete cascades it away for every member this
+  --   script removes; what survives belongs to the ONE account it keeps, alongside that
+  --   account's own profile row.
+  --
+  -- So the rows for everybody else go with their `people` row, and the survivor keeps their own.
+
   -- ── 7. Everything else family-scoped ──────────────────────────────────────
   DELETE FROM announcements;
   DELETE FROM notifications;
@@ -298,6 +334,22 @@ BEGIN
   UPDATE people SET chapter_id = NULL WHERE chapter_id IS NOT NULL;
   DELETE FROM chapters;
   DELETE FROM regions;
+
+  -- ── 8b. Marketing attribution and the conversion send ledger ──────────────
+  -- 20260823000000. Both are cleared OUTRIGHT rather than kept, and neither is on §11's
+  -- keep-list, because neither is seeded or global configuration: they accumulate from real
+  -- visits and real conversion sends.
+  --
+  -- The cascade from §9 below would take most of `marketing_attribution` anyway, and that is
+  -- precisely why the DELETE is here and explicit — it would leave the KEPT account's own
+  -- row behind, and `marketing_conversion_events.user_id` is ON DELETE SET NULL, so every
+  -- row of that table would survive the account purge entirely and trip §11.
+  --
+  -- Clearing the ledger is also the CORRECT reset rather than a tidy-up: its rows say "this
+  -- conversion has already been reported to Meta", and after a reset the accounts and
+  -- families those events described no longer exist.
+  DELETE FROM marketing_conversion_events;
+  DELETE FROM marketing_attribution;
 
   -- ── 9. The other auth accounts ────────────────────────────────────────────
   -- Every public FK to auth.users that is NO ACTION (chapters, chat_rooms,
@@ -408,7 +460,14 @@ BEGIN
            -- row in it is something this section SHOULD report.
            'permission_resources', 'permission_table_map', 'relationship_types',
            -- The kept account's active-family pointer.
-           'user_family_settings')
+           'user_family_settings',
+           -- AND THE KEPT ACCOUNT'S OWN CONSENT RECORD. On this list rather than in §6e for two
+           -- reasons: `sms_consent_events_are_final` (20260823000002) refuses a direct DELETE for
+           -- every role including `service_role`, so it CANNOT be deleted here; and it should not
+           -- be, because it is the record of when somebody agreed to be texted and how. Every
+           -- other member's rows go with their `people` row in §8, which is a cascade and is what
+           -- that trigger allows.
+           'sms_consent_events')
      AND (xpath('/row/c/text()', query_to_xml(
             format('select count(*) as c from public.%I', t.table_name),
             false, true, '')))[1]::text::bigint > 0;

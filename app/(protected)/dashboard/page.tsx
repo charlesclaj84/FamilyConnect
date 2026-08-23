@@ -16,6 +16,7 @@ import { LinkPersonBanner } from '@/components/dashboard/LinkPersonBanner'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { ProfileReminderBanner } from '@/components/dashboard/ProfileReminderBanner'
+import { SafetyCheckInBanner } from '@/components/dashboard/SafetyCheckInBanner'
 import { profileCompleteness } from '@/lib/profile-completeness'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
@@ -532,6 +533,22 @@ export default async function DashboardPage() {
           chapterName={myChapterName}
         />
       )}
+
+      {/* AN EMERGENCY CHECK-IN OUTRANKS EVERY OTHER BANNER, so it goes first — above the
+          linked-person prompt and above the profile nudge. Those are things a member should
+          get round to; this is their family asking whether they are alive, and it is
+          answerable in place with one tap.
+
+          IT IS ALSO THE ONE SURFACE FOR ANSWERING THAT CANNOT BE SWITCHED OFF. `/dashboard`
+          has no `permission_resources` row (20260806000006 removed the rows for the screens
+          that are a member's own), so this reaches every approved member whatever the family
+          has done to `community/safety-check-ins:view`. The policies' `self_expr` admits an
+          addressed relative's own row at every scope, including none —
+          `20260823000001`'s §10 argues why that redundancy is deliberate.
+
+          It renders `null` for nobody most of the time: one filtered read that returns
+          nothing for a member on no open check-in. */}
+      <SafetyCheckInBanner />
 
       {/* Banners sit between the hero and the grid: each one is a thing this member has
           to do, and burying an action item under four metric tiles is how it gets

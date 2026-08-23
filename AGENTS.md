@@ -898,6 +898,61 @@ red, which is what a probe is supposed to look like.
 The rule this leaves: **an approval or membership conjunct on a policy owes a `raw/` probe**,
 because no action that checks membership first can ever reach it.
 
+#### AND TWO POLICIES THAT READ EACH OTHER'S TABLES ARE 42P17. THE ADMIN CLIENT HIDES IT COMPLETELY
+
+Added 2026-08-23, and it is the one entry in this section where the suite found a REAL BUG rather
+than a gap in its own coverage — so it is worth reading as the argument for the control half
+rather than as another caveat.
+
+`20260823000001` shipped two tables with the ordinary shape: a parent, a child, and a `self_expr`
+on each so an addressed relative can always reach their own row (§7's `gathering_tasks` rule).
+Written the obvious way that is one line in each direction:
+
+| Policy | reads |
+|---|---|
+| `safety_check_ins:select` | `EXISTS` on `safety_check_in_people` — *"am I on this roster?"* |
+| `safety_check_in_people:select` | `EXISTS` on `safety_check_ins` — *"did I raise it?"* (`own_expr`) |
+
+Each table's policy needs the other, whose policy needs the first. **Every read through the user
+client raised `42P17`, "infinite recursion detected in policy".**
+
+**FOUR THINGS COULD NOT SEE IT, and that is the whole lesson:**
+
+* **The migration's verify block.** It reads `pg_policies` as TEXT, and a recursive policy is
+  perfectly well-formed text. Every assertion in that file passed.
+* **`npm run db:check` and `db:audit`.** Versions and shadowing; neither executes a query.
+* **The whole feature.** Every read in the action module but one is on the ADMIN client — which
+  ignores RLS entirely, deliberately, because a roster that narrowed to what the reader may see
+  would report a WRONG count rather than a withheld one (§3). So the screens all worked.
+* **Every attack assertion in the suite.** A policy that errors returns nothing to EVERYBODY, so
+  the cross-family halves passed perfectly.
+
+**WHAT FOUND IT WAS THE POSITIVE CONTROL** — ALPHA's own administrator getting `null` from their
+own family's list — which is §7's argument made a fourth time, alongside `getPhotoCollections`'
+dropped-table embed and the `photos` DELETE policy. *"An action that returns `[]` for everybody
+passes an isolation assertion trivially."*
+
+The fix is the one this codebase already had: **a `SECURITY DEFINER` function breaks the cycle**,
+because it runs as its owner and the read inside it does not re-enter RLS.
+`auth_uid_is_room_participant` (`20260603000001`) exists for precisely this shape;
+`auth_is_on_safety_check_in` is the second instance. Three rules come with it:
+
+* **Break ONE side, not both.** The child may still read the parent under RLS once the parent no
+  longer reads the child — the chain terminates. Wrapping both hides the cycle rather than
+  removing it, and leaves the next person adding a third table with no way to see the rule.
+* **The helper needs its `EXECUTE` grant to `authenticated`** (§2b rule 2) and `SET search_path
+  = ''`. Without the grant every read *errors* rather than being refused, which on the realtime
+  path is indistinguishable from a policy correctly withholding a row.
+* **The `permission_table_map` row must carry the FUNCTION CALL, not the subquery it replaced.**
+  That column is what a future policy sweep composes from, so the inline `EXISTS` left there
+  would have the sweep reintroduce the recursion — silently, in a diff that mentions only
+  "recomposing policies".
+
+**The general rule: a `self_expr` that reaches into another table whose own policy reaches back is
+a cycle, and the only thing that will tell you is a real query as a real role.** Before writing
+one, ask what the other table's policy reads — and `SET LOCAL ROLE authenticated; SELECT count(*)
+FROM <table>;` through `psql` is the ten-second check.
+
 ## 7b. Arithmetic is tested with `npm test`, not with `tests/rls`
 
 `vitest` runs the pure modules under `lib/`, and its `include` is `lib/**/*.test.ts` as a

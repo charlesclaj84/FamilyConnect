@@ -119,6 +119,386 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+### [ ] Meta advertising: two credentials, four dashboard settings, one decision
+
+**Action:** set five environment variables and untick one box. Nothing in this repo can
+detect any of it — same shape as the two `[auth]` values above, and the same reason it is
+on this list rather than in a commit.
+
+The integration itself is built and tested (`lib/meta/`, and its README is the reference).
+What is missing is everything that lives in somebody's Meta account.
+
+**1. Environment variables**, on Vercel. Production and Preview differ deliberately:
+
+| Variable | Production | Preview / QA | Notes |
+|---|---|---|---|
+| `META_PIXEL_ID` | set | set | The dataset id. Public — it is in the page source of every site that runs a Pixel |
+| `META_CONVERSIONS_API_ACCESS_TOKEN` | set | set | **Server only.** Never `NEXT_PUBLIC_`, never logged, never in a URL |
+| `META_TEST_EVENT_CODE` | **leave unset** | set | Preview is `off` until this exists — that is the deliberate QA opt-in |
+| `META_CONSENT_DEFAULT` | a decision — see 3 | same | `denied` unless set |
+| `META_GRAPH_API_VERSION` | leave unset | leave unset | Pinned to `v26.0` in code; this is the override for testing a bump |
+
+With no `META_PIXEL_ID` the whole integration is inert — the Pixel is not rendered, no
+server event is sent, and the consent banner does not appear. That is what makes it safe to
+merge before any of this is done.
+
+**2. Events Manager**, and the third item is the one that matters for this product:
+
+1. Create or identify the **Dataset / Pixel**; copy its id.
+2. Settings → Conversions API → **Generate access token**.
+3. **TURN OFF AUTOMATIC ADVANCED MATCHING.** Settings → *Automatic advanced matching*. Left
+   on, the Pixel reads form fields and sends what it finds — on a product whose forms hold
+   relatives' names, birthdays and relationships. The base code already disables
+   `autoConfig` (which stops button-text and page-metadata collection, and is enforced in
+   `lib/meta/pixel.ts` rather than left to a toggle), but AAM is a **separate**
+   dataset-level setting that no code can reach. Both are needed and only one is in the
+   repo.
+4. Brand Safety → **Domains** → verify `genorra.com`. Aggregated Event Measurement cannot be
+   configured without it.
+5. **Aggregated Event Measurement priorities**, once there is volume: Purchase, Subscribe,
+   CreateFamily, CompleteRegistration, ViewContent, in that order. This is the ranking iOS
+   attribution collapses to, so the most valuable event has to be first.
+
+**3. The consent default is a business and legal decision, not a code one.**
+`META_CONSENT_DEFAULT` is `denied` — opt-in — unless set, which is the only defensible
+default for a decision that turns on jurisdiction. `granted` produces the opt-out model
+common for US-only advertisers, and the banner then reads as a notice with a decline
+control. Both are implemented; which is lawful where is a question for a person.
+
+**Validation, and it is not "the API returned 200".** With `META_TEST_EVENT_CODE` set on a
+preview deployment, open Events Manager → Test Events, then load the preview with
+`?fbclid=TEST123&utm_source=facebook&utm_campaign=qa` and walk Home → Pricing → Register
+(create a family) → `/my-families` → create a second family. **Accept on the banner first;
+nothing fires before that, which is itself the first thing to confirm.**
+
+| Check | What wrong looks like |
+|---|---|
+| Sequence is `PageView`, `ViewContent`(Home), `PageView`, `ViewContent`(Pricing), `PageView`, `CompleteRegistration`, `CreateFamily` | A missing step means a page lost its `<MetaViewContent>` |
+| PageView appears **once** per page | Twice means the base snippet's own call came back, or a second effect was added |
+| `CompleteRegistration` is **one** event marked Browser **and** Server | Two rows means the event ids diverged — the whole deduplication contract |
+| `event_source_url` is the canonical origin with **no query string** | A query string here is a leak: invitation tokens and search terms live there |
+| `action_source` is `website` | — |
+| Matching parameters include `em`, `fn`, `ln`, `external_id`, `client_ip_address`, `client_user_agent`, `fbp`, `fbc` | A missing `fbc` after an `fbclid` landing means attribution is not surviving registration |
+| `content_name` reads `Family Workspace` / `GENORRA Account` | **A family's name here is the failure the whole allow-list exists to prevent** |
+| Diagnostics is empty of: duplicate events, missing `event_id`, missing currency/value, invalid `fbp`/`fbc` | — |
+
+Then **Event Match Quality** on the dataset. It is a number to improve only through the
+nine permitted account-holder fields; it must never be improved by widening
+`MetaAccountHolder`. That interface exists to make "send more" a reviewed decision, and the
+pressure on it is one-directional.
+
+**Do not set any of this with `supabase config push`** — unrelated to the auth block above,
+but worth saying in the same breath: none of these values lives in `config.toml` at all.
+They are Vercel environment variables and Meta dashboard settings.
+
+Recorded 2026-08-23.
+
+### [ ] SMS: an account, a registered campaign, and four environment variables
+
+**Action:** open a Twilio account, register a brand and campaign, set four Vercel variables.
+Nothing in this repo can detect any of it, and **the registration is not a credential — it is an
+onboarding process with a real-world identity behind it.**
+
+`/community/safety-check-ins` is `tier: 'premium'` because the ask is meant to arrive as a text
+message. The consent half is built (`20260823000002`, `lib/sms/consent.ts`,
+`app/actions/sms-consent.ts`, My Profile → **Text Messages**); the sending half is not, and this
+is what it is waiting on rather than on code.
+
+**1. A2P 10DLC REGISTRATION IS THE BINDING CONSTRAINT, and it is worth understanding before
+anybody estimates the rest.** US carriers will not deliver application-to-person SMS to a mobile
+number at all until a brand and a campaign are registered with The Campaign Registry. It is not a
+rate limit or a deliverability tax — unregistered traffic is blocked. Turnaround is days, not
+minutes, and the campaign has to declare what the messages are for and carry sample copy.
+
+Declare the use case honestly as transactional/notification with the two message shapes this
+product actually sends: a verification code, and a safety check-in ask. **A campaign registered
+as marketing would be the wrong one**, and re-registering is not free.
+
+**2. TCPA is the reason the consent half was built first**, and the registration does not replace
+it. Statutory damages are $500–$1,500 **per message**; the product's answer is an explicit
+per-person opt-in defaulting to off, a number verified by code before anything is sent, and STOP
+as a state the product cannot undo. All three are in place. What is still owed to that model is
+the inbound webhook that HONOURS a STOP — until it exists, a relative who replies STOP is
+recorded nowhere, which is the one gap in the consent story that matters.
+
+**3. Environment variables**, on Vercel. `smsConfigured()` in `lib/sms/send.ts` reads all four
+and the whole feature is inert until every one is present — which is what makes it safe to have
+merged:
+
+| Variable | Notes |
+|---|---|
+| `SMS_PROVIDER` | `twilio`. The seam exists for one other; nothing else is implemented |
+| `SMS_ACCOUNT_SID` | Public-ish, but keep it out of `NEXT_PUBLIC_` — nothing client-side needs it |
+| `SMS_AUTH_TOKEN` | **Server only.** It is also what verifies the inbound webhook signature |
+| `SMS_FROM_NUMBER` | The registered long code or toll-free number, E.164 |
+
+With any of them missing, `sendSms` answers `{ sent: false, error: 'no SMS provider configured' }`
+and the profile panel says *"Text messages are not switched on yet"* rather than offering a code
+that cannot arrive. **Check that sentence is gone from the screen** as the first sign it worked.
+
+**4. Validation, and "the API returned 201" is not it.** Send yourself a verification code from My
+Profile → Text Messages on a real handset, confirm it, then reply **STOP** to it and check the
+consent status moves to *stopped* on that screen and that `grantSmsConsent` then refuses. That last
+step is the whole of the legal model and is the one nobody tests.
+
+Recorded 2026-08-23.
+
+## The scheduler is one migration away, and three features are queued behind it
+
+**Action:** enable `pg_cron` and `http` in a migration, and assert the job in the same file.
+Measured 2026-08-23, not inferred.
+
+FutureFeature.md §1 carried *"there is no cron, no worker, no queue and no `vercel.json`"* for
+months and it is true of the **app layer only**. On this project's Postgres:
+
+| Extension | Available | Installed |
+|---|---|---|
+| `pg_cron` | 1.6.4 | — |
+| `pg_net` | 0.20.3 | — |
+| `http` | 1.6 | — |
+| `postgis` | 3.3.7 | — |
+
+All four are available and none is installed. The database is reached by a migration, which is
+the one deployment path this repo sanctions — so this is not new infrastructure, and it does not
+need anybody to hold production credentials.
+
+**What it unblocks, in the order the value falls:**
+
+1. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
+   elsewhere. `/reporting/dues-projections` computes what is owed and `app/actions/distributions.ts`
+   is a working resumable per-recipient fan-out. FutureFeature.md §1 has the one decision it still
+   needs (a uniqueness key on person/schedule/period, in the schema rather than in the job).
+2. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
+   which needs no API key.
+3. Anything else that has to happen with nobody watching.
+
+**Three things to get right, and the second is the one that will bite:**
+
+* **`http` (synchronous) probably beats `pg_net` here.** `pg_net` is fire-and-forget — the
+  response lands in a `net` table for a limited window, so a job that needs the body is two
+  passes and a reaper. A poll that fetches, matches and writes in one statement wants the
+  synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
+* **A CRON JOB IS DATABASE STATE, which is the same invisibility class as realtime publication
+  membership.** `db:check` compares migration versions, `db:audit` reads policies, and a fresh
+  `db reset` schedules nothing. A job created in the dashboard is drift. **It must be created in a
+  migration and asserted there** — AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the
+  same incident arriving through `cron.job`, and that section's warning about an instruction in a
+  migration addressed to a person applies word for word.
+* **A job has no `auth.uid()`, so it has no caller to authorize.** That is why the alert poller
+  must SUGGEST and a person must RAISE (FutureFeature.md §5 argues it): automating the raise means
+  inventing a system actor and hanging the family's most sensitive write off it, with §2b's rule
+  about never taking an identity as a parameter standing in the way. Whatever is scheduled first
+  sets the precedent for that, so it is worth deciding deliberately rather than by whichever job
+  lands first.
+
+Recorded 2026-08-23.
+
+## `tests/rls` has no member who has replied STOP
+
+**Action:** add a `stop_received` consent event to one ALPHA actor in the fixture, and a case
+asserting `grantSmsConsent` refuses them.
+
+`SMS_CONSENT_CASES` in `tests/rls/cases.mjs` names this as a stated gap and it is the one thing in
+the consent model with no runtime assertion. The rule it would cover is the sharpest one there:
+**a carrier-level opt-out is revoked by the handset, never by a checkbox on a website**, so
+`grantSmsConsent` refuses a `stopped` person and `consentStatus()` ignores a `granted` event folded
+over a STOP.
+
+**Both halves are tested — separately, and that is the gap.** `lib/sms/consent.test.ts` covers the
+FOLD by value and by mutation (removing the guard trips exactly one case). The ACTION's refusal is
+covered by nothing, because the fixture has no stopped member and the only way one arrives today
+is by texting STOP to an inbound webhook that does not exist.
+
+**Seeding it directly is legitimate and is the fix.** The event is an ordinary row —
+`{ event: 'stop_received', source: 'sms_reply' }` — and writing it in `seed.mjs` needs no provider.
+Worth doing on a THIRD actor rather than on `alphaMember` or `alphaOther`: both are already
+positive controls for the grant and withdraw cases, and a stopped actor cannot be a control for
+either (`deletableChild`'s rule).
+
+While there: the same fixture addition makes `smsBlockReason`'s `stopped` branch reachable from an
+action-shaped case, which is currently only exercised as a pure function.
+
+Recorded 2026-08-23.
+
+## A `permission_resources` row grants Administrators an action the resource does not declare
+
+**Action:** decide whether it matters, then either narrow the seed's Administrators insert or
+write this down as intended. Ten minutes either way.
+
+Observed 2026-08-23 while checking a new key's grants. `seed_family_permission_templates()` gives
+the Administrators template `'any'` on every action in `pr.actions` — correct — but the fixture
+shows an `edit` row for two keys that declare only `view`, `create` and `delete`:
+
+```
+community/distributions    | Administrators | edit | any
+community/safety-check-ins | Administrators | edit | any
+```
+
+**It is harmless today and the reason is worth stating**, because it is what makes this a note
+rather than a bug: Members & Access renders switches from `resource.actions` through `scopesFor()`,
+so the cell is never drawn; and nothing anywhere calls `auth_permission(key, 'edit')` for a key
+with no edit action, so the row is read by nothing. AGENTS.md's rule — *"a switch nothing consults
+reads as a control being honoured"* — is not violated, because no switch is rendered.
+
+What makes it worth an entry is that it is a row asserting a grant that does not exist, sitting in
+the table three resolvers agree about. If a future key gains an `edit` action, that key's
+Administrators template already grants it retroactively — which is probably the desired answer and
+is definitely not a decided one.
+
+**Both keys were added after the seed was written**, which is the likely cause: an earlier
+`ON CONFLICT DO UPDATE` on `permission_resources.actions` narrowing a key from four actions to
+three would leave the template row behind. If that is it, the repair is a sweep deleting
+`template_permissions` rows whose action is not in their resource's `actions` — and that sweep is
+worth a `verify.yml`-shaped assertion more than it is worth the delete.
+
+Recorded 2026-08-23.
+
+## Meta: the money half is built and has no caller
+
+**Action:** when a payment provider exists, call one function from its webhook. Until then
+there is nothing to do here and nothing is broken.
+
+`lib/meta/billing.ts` implements `InitiateCheckout`, `Purchase`, `Subscribe` and
+`SubscriptionRenewal` — typed, tested, deduplicated, idempotent — and **is imported by
+nothing**. That is not an oversight and must not be "finished" by finding something to fire
+it from.
+
+**Why it is parked rather than wired.** GENORRA has no payment provider.
+[payment_info.md](payment_info.md) is pre-implementation research, `TIER_IS_SOLD` in
+`lib/plans.ts` is `false` for every paid tier, and `setFamilyTier` is scaffolding that
+charges nothing and says so on screen. So there is no authoritative confirmation of a
+payment anywhere in the product to fire a `Purchase` from.
+
+Firing one from `setFamilyTier` was the obvious shortcut and is the anti-pattern the whole
+event is about: **the button press is not the payment.** It would teach Meta's optimiser to
+find people who press a free control, and report revenue the business never received — and
+value-based bidding would then be built on that figure.
+
+**What wiring it costs**, once a provider is chosen — one import in the verified webhook
+handler, after the charge is confirmed:
+
+```ts
+import { trackSubscriptionPayment } from '@/lib/meta/billing'
+
+await trackSubscriptionPayment({
+  transactionId: invoice.id,            // the CHARGE, never the subscription — see below
+  subscriptionId: invoice.subscription,
+  amountCents: invoice.amount_paid,     // what was charged, NEVER TIER_PRICE
+  currency: invoice.currency,
+  planId: 'standard',
+  billingInterval: 'monthly',
+  firstPayment: invoice.billing_reason === 'subscription_create',
+  holder: { userId, email, firstName, lastName },
+  occurredAtMs: invoice.created * 1000,
+})
+```
+
+Four things about that call that a future edit will get wrong, and each is argued at length
+in the file:
+
+* **`transactionId` must identify the CHARGE.** Every renewal of one subscription shares the
+  subscription id, so keying on that makes month two look like a duplicate of month one and
+  it is discarded forever — silently, because a suppressed duplicate is indistinguishable
+  from a working integration.
+* **`firstPayment` comes from the PROVIDER**, never inferred from our own records. Inferring
+  it ("have we seen this family pay before?") is wrong the first time a family cancels and
+  resubscribes, and the first time the ledger is restored from a backup.
+* **`amountCents` comes from the transaction.** After a proration, a coupon, a partial refund
+  or a tax line, the catalogue price and the charge disagree, and the reported figure has to
+  be the one the bank moved.
+* **A renewal is deliberately not a `Purchase`.** A subscription business sends far more
+  renewals than acquisitions; folding them together makes the new-customer count grow every
+  month with no new customers in it, and makes cost per acquisition fall as an artefact of
+  the existing base. The revenue is not lost — turn `SubscriptionRenewal` into a custom
+  conversion in Events Manager when lifetime revenue is wanted.
+
+**`InitiateCheckout` waits for a real checkout session** for the same reason: there is no
+flow to enter. **`Lead` waits for a real lead surface** — there is no waitlist, demo request
+or newsletter in this product, and using `Lead` to mean "viewed pricing" would make a
+Lead-optimised campaign chase readers instead of prospects.
+
+**Validation once it is wired**, and none of it is checkable today:
+
+| | |
+|---|---|
+| Refresh the success page repeatedly | One `Purchase` in Test Events, not one per refresh |
+| Replay the webhook from the provider's dashboard | Still one — the ledger claim is what covers a redelivery beyond Meta's 48-hour window |
+| Let a renewal charge settle | `SubscriptionRenewal` only. **No `Purchase`, no `Subscribe`** |
+| Compare `value` against the provider's charge | Dollars, not cents. A $5.00 charge reported as `500` is the failure |
+| `SELECT * FROM marketing_conversion_events WHERE delivery <> 'sent'` | Empty, or a readable reason in `detail` |
+
+**And the reporting half is owed too.** `marketing_attribution` records which campaign found
+each account, and the question it exists to answer — *which campaign produced this paying
+family?* — cannot be asked until a subscription joins to an account. A `/reporting` screen
+for it is the natural follow-up, and it belongs to whoever builds billing: it is one join
+away then and is nothing but an empty table now.
+
+Recorded 2026-08-23.
+
+## The consent banner has no privacy policy to link to
+
+**Action:** write a privacy page, then link it from the banner. One route, one link.
+
+`components/consent/ConsentBanner.tsx` names Meta, says what the measurement is for, and
+states the boundary — no names, relationships, birthdays, photographs or messages — because
+"we use cookies" tells nobody anything. What it does not do is link anywhere, and that is
+not a design choice: **there is no privacy policy page in this product.** `app/(marketing)`
+holds About, Features, How It Works, Pricing and Why Us, and nothing else.
+
+That is a gap the Meta integration makes sharper rather than one it created. A product
+holding family trees and children's records should have had one before it had a Pixel, and a
+consent banner that asks for agreement while pointing at no policy is the version of the gap
+somebody notices.
+
+**Two things to get right when it is written.** It goes under `app/(marketing)` and is
+therefore indexable, unlike everything behind the login (`app/(protected)/layout.tsx` sets
+`robots: { index: false }`). And it needs its own `alternates: { canonical: '/privacy' }`
+like every other page there — a canonical in the shared layout would tell Google that six
+pages are duplicates of one, which AGENTS.md calls the one metadata mistake worse than
+having none.
+
+`lib/marketing-nav.ts` is what puts it in the header, the footer and the sitemap at once, so
+adding it there is the whole of the wiring. `npm run sitemap:check` and `npm run help:check`
+will both have opinions.
+
+Recorded 2026-08-23.
+
+## `resource-groups.ts` pulls the admin client into the browser's module graph
+
+**Action:** move `PERMISSION_ACTIONS` into a pure module. Three lines, and it removes a
+chain that only luck is keeping harmless.
+
+Found 2026-08-23 by `lib/meta/no-client-secrets.test.ts` on its first run, and it predates
+the Meta integration entirely:
+
+```
+components/admin/resource-groups.ts   (plain module, imported by client components)
+  → @/lib/auth/permissions            (for the PERMISSION_ACTIONS value)
+    → @/lib/supabase/admin            (which reads SUPABASE_SERVICE_ROLE_KEY)
+```
+
+**It is not a leak today**, and the reason is worth being uncomfortable about: the key has no
+`NEXT_PUBLIC_` prefix, so Next does not inline it and the reference compiles to `undefined`.
+The protection is a build-time convention, not a boundary anybody drew — and the repair for
+a symptom of this shape is exactly the wrong instinct, because adding the prefix to "make it
+work" would ship the service-role key to every browser.
+
+**The fix is the shape this codebase already uses twice.** `lib/gathering-panes.ts` and
+`components/admin/account-sections.ts` both exist because a Server Component importing a
+runtime VALUE from a client module gets a client reference rather than the value — same
+boundary, opposite direction. `PERMISSION_ACTIONS` is a frozen array of four strings and
+wants the same treatment: a pure module under `lib/`, imported by both sides.
+
+`lib/auth/tier.ts` and `lib/auth/family.ts` are reachable the same way and are on the same
+list. All four are recorded as stated verdicts in `KNOWN_PRE_EXISTING` in that test file —
+an EXACT match on `path → name`, so a new occurrence in the same file fails rather than
+being tolerated. **Delete each entry as it is fixed**; the list is a backlog, not a
+suppression. Two assertions in that file are absolute and admit no entry at all: nothing may
+name `META_CONVERSIONS_API_ACCESS_TOKEN`, and nothing may import a `@/lib/meta/` server
+module.
+
+Recorded 2026-08-23.
+
 ## Sorting is on two tables of sixteen
 
 **Action:** work through the list. The pattern is proven and each table is three lines.
@@ -366,11 +746,39 @@ this entry.** `20260820000007` gave the General template `review/photos:delete` 
 comes from an `own_expr` (`uploader_id = auth_person_id()`) rather than from a missing grant.
 Mutation-checked by neutering that conjunct in the composed policy, which turns it red.
 
-That is one resource, on one action, and a DELETE. What is still missing — and what the fifth
-actor is really for — is an `'own'` grant on a resource with a **read** to narrow, which is
+That is one resource, on one action, and a DELETE. What was still missing — and what the fifth
+actor was really for — was an `'own'` grant on a resource with a **read** to narrow, which is
 where a wrong `own_expr` would quietly hand over rows instead of quietly refusing them.
 
-Recorded 2026-08-19; narrowed 2026-08-20.
+**THE READ HALF ARRIVED 2026-08-23, and it needed no fifth actor.**
+`community/safety-check-ins` gives the General template `view: 'own'`, so `alphaMember` is now an
+own-scoped READER on an existing template — and `safety-check-ins.getCheckIns (an ordinary member,
+scope own)` is the suite's first case whose answer is decided by the `'own'` disjunct and a
+`self_expr` rather than by `= 'any'`. It asserts both directions at once: the member reaches the
+screen, AND `rosterVisible` is false for them while true for `alphaAdmin` on the same data.
+
+**It also caught a real bug on its first run, which is the argument for the rest of this entry.**
+`20260823000002` §10 backfilled the General templates that EXISTED and did not teach
+`seed_family_permission_templates()`, so every family created afterwards got `view: 'none'` and
+`requireView` answered 404 — the feature's own members locked out of answering. Found by querying
+a freshly reset database, not by any gate, because that migration's assertion was written as
+`IF EXISTS (a General template) AND NOT EXISTS (…)` and on a fresh chain there is no template yet
+for the guard to find. `20260823000003` fixes both halves and asserts the FUNCTION SOURCE, which
+cannot skip. Mutation-checked by reverting the seed function in place: the new case goes red with
+`unexpected: null`.
+
+**What is left is narrower than it was**, and worth restating so nobody re-does the done part:
+
+* an own-scoped read where the `own_expr` names a **column on the row** rather than reaching
+  through a parent. `community/safety-check-ins`' is `raised_by = auth_person_id()`, which is that
+  shape — so this may be closed already and wants a mutation check rather than new fixture work.
+* an own-scoped **write** narrowed by an `own_expr` on a resource where the row is not the
+  caller's own by construction. `gatherings` (`created_by`), `announcements` and `chat_messages`
+  are still waiting.
+* and `resolveScope` in `lib/auth/permissions.ts` is pure enough to test under vitest, which
+  remains the cheaper half of the original entry and is untouched.
+
+Recorded 2026-08-19; narrowed 2026-08-20 and again 2026-08-23.
 
 ## Photo thumbnails download at full size
 
