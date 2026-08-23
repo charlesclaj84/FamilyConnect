@@ -258,7 +258,11 @@ export const BRAND_LOCKUP_DARK_SRC = '/identity/genorra-lockup-dark.svg'
 export const BRAND_LOCKUP_STACKED_DARK_SRC = '/identity/genorra-lockup-stacked-dark.svg'
 
 /**
- * The 512px app tile — the gold mark on a Heritage ground.
+ * The 512px app tile — the FULL-COLOUR mark on the kit's cream ground.
+ *
+ * It was the gold mark on Heritage burgundy until 2026-08-22; `app/manifest.ts` carries
+ * the argument for the swap, and the file at this path changed rather than the path, so
+ * both consumers moved together and neither had to be edited.
  *
  * Named here because it now has a SECOND consumer besides the web manifest: it is
  * the `logo` on the `Organization` structured data, which is what a search engine

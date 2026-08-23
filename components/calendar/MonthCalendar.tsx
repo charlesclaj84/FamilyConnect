@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Gavel, Star, Vote } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { monthLabel, type CalendarDay, type CalendarEntry, type CalendarMonth } from '@/lib/calendar'
+import {
+  monthLabel,
+  type CalendarBar, type CalendarDay, type CalendarEntry, type CalendarMonth,
+} from '@/lib/calendar'
 
 /**
  * One month of the family calendar: a real seven-column grid on a screen that can hold one,
@@ -20,13 +23,27 @@ import { monthLabel, type CalendarDay, type CalendarEntry, type CalendarMonth } 
  *     date and an entry, and squeezing it produces a grid that is technically present and
  *     unreadable.
  *   * The two renderings here cannot drift, because neither holds any data of its own. Both
- *     walk the SAME `CalendarMonth` — the same `CalendarDay` objects, with the same
- *     `entries` arrays — which is built once by `buildCalendarMonth` and passed in. Nothing is
- *     fetched twice and nothing is computed twice; the difference is which of the two loops
- *     the media query lets you see.
+ *     walk the SAME `CalendarMonth`, built once by `buildCalendarMonth` and passed in.
+ *     Nothing is fetched twice and nothing is computed twice; the difference is which of the
+ *     two loops the media query lets you see.
  *
  * The spec says this in one line ("the mobile calendar is an explicit decision, not a
  * fallback") and this is the decision.
+ *
+ * ── THEY READ DIFFERENT FIELDS OF THE SAME DAY, SINCE 2026-08-22 ────────────────────
+ * The grid reads `day.bars` and the list reads `day.entries`, and that is not the two
+ * renderings drifting — it is each asking the question its axis can answer.
+ *
+ *   * The GRID has a horizontal axis, so a span is a BAR: one element crossing every day of
+ *     its run in that week, with the title once at its left end. It was one chip per day
+ *     until 2026-08-22, which drew a two-day election window as two separate things with the
+ *     same name — reported exactly that way, and the reason `CalendarBar` exists.
+ *   * The LIST has no horizontal axis at all, so a span is one titled row under each of its
+ *     dates. That is what an agenda is; a bar would have nothing to stretch along.
+ *
+ * `lib/calendar.ts` computes both from one pass over one set of spans, so there is still
+ * nothing here that could disagree with itself. `packWeek` is where the lanes are decided and
+ * why they are decided per week rather than per cell.
  *
  * ── IT IS A `<table>`, DELIBERATELY ─────────────────────────────────────────────────
  * A month is tabular: weeks are rows and weekdays are columns, and `<th scope="col">Sunday`
@@ -121,7 +138,22 @@ const ENTRY_TONE = {
   premier:     'border border-transparent bg-brand-legacy text-brand-on-legacy font-medium',
   gathering:   'border border-transparent bg-brand-soft text-brand-on-soft',
   meeting:     'border border-transparent bg-brand-primary text-brand-on-primary',
-  nominations: 'border border-brand-warm bg-transparent text-brand-on-warm',
+  // ── THE NOMINATIONS CHIP WAS UNREADABLE, IN BOTH THEMES, AND THIS IS THE FIX ───────
+  // It was `bg-transparent text-brand-on-warm`, which is the pairs rule broken in the one
+  // way that is not merely unchecked but INVISIBLE: `--brand-on-warm` is the foreground for
+  // the warm FILL, and it is cream in light mode and near-black ink in dark — so on the page
+  // ground it was cream-on-cream one way and ink-on-near-black the other. The chip rendered,
+  // took up space, was a link, and had no visible text at all. Reported as "you cannot see
+  // the text for nominations".
+  //
+  // The outline treatment is worth keeping, because the two halves of an election have to
+  // read as one hue with the fill saying which is the consequential one — so what changes is
+  // the FOREGROUND, to `--brand-warm` itself, which is the same tone `--brand-withheld` is
+  // measured as a foreground with in both themes (5.10 on the card in light, 5.78 in dark;
+  // globals.css records it beside the token). The 10% tint is what the removal panel already
+  // does with the withheld token, and it is what stops an outline-only chip disappearing into
+  // a cell it shares with the day number.
+  nominations: 'border border-brand-warm bg-brand-warm/10 text-brand-warm',
   voting:      'border border-transparent bg-brand-warm text-brand-on-warm',
 } as const
 
@@ -140,8 +172,92 @@ function toneOf(entry: CalendarEntry): EntryTone {
   return entry.isPremier ? 'premier' : 'gathering'
 }
 
+/** The icon that says in a glyph what the tone says in colour. */
+function ToneIcon({ tone }: { tone: EntryTone }) {
+  if (tone === 'premier') return <Star aria-hidden="true" className="h-3 w-3 shrink-0" />
+  if (tone === 'meeting') return <Gavel aria-hidden="true" className="h-3 w-3 shrink-0" />
+  if (tone === 'nominations' || tone === 'voting') {
+    return <Vote aria-hidden="true" className="h-3 w-3 shrink-0" />
+  }
+  return null
+}
+
 /**
- * One entry, in a cell or on a day-list row.
+ * ── THE GRID'S CELL GEOMETRY, AS A NUMBER, BECAUSE A BAR HAS TO BRIDGE IT ───────────
+ * Each `<td>` below is `p-1` (4px a side) with a 1px `border-r`, so between one cell's
+ * content box and the next there are 9px of chrome. A bar spanning n days is therefore
+ * `n * 100% + (n - 1) * 9px` wide, where `100%` is one cell's content box: n cells plus the
+ * n-1 gutters it crosses.
+ *
+ * IT IS DERIVED FROM THE CELL CLASSES AND MUST MOVE WITH THEM. Change `p-1` or the border
+ * on the cell and every multi-day bar ends a few pixels short of, or past, its last day —
+ * which reads as a rendering bug rather than as a spacing change. There is no way to make
+ * CSS tell us this: `table-fixed` column widths are resolved by the layout engine.
+ */
+const CELL_GUTTER_PX = 4 + 4 + 1
+
+/**
+ * ONE CONTINUOUS BAR, spanning every day of its run within one week.
+ *
+ * ── IT IS ONE ELEMENT, WHICH IS THE WHOLE POINT ────────────────────────────────────
+ * The obvious implementation is a chip per covered day with the sides squared off, and it
+ * fails on the label: a box one day wide truncates its title to one day's width however long
+ * the run is, so "Voting — Texas Region" reads as "Voting…" four times over. This is a single
+ * anchor living in the cell its run STARTS in, given a width that reaches the end of the run
+ * and allowed to overflow the cell to the right. One element, one label with room for it, one
+ * hover target, one tab stop.
+ *
+ * The continuation days render an empty slot in the same lane, which is what reserves the
+ * vertical space the bar passes through. `packWeek` in `lib/calendar.ts` is what guarantees no
+ * other bar is ever assigned that lane while this run is in progress.
+ *
+ * ── WHY IT PAINTS OVER THE CELLS IT CROSSES ────────────────────────────────────────
+ * CSS paints ALL table cell backgrounds and borders before ANY cell content, so an overflowing
+ * child of one cell is already above the next cell's `bg-muted/30` and its `border-r`.
+ * `relative` is belt: a positioned element paints in a later layer than in-flow content, so
+ * the bar cannot be clipped behind a neighbour's fill even if a browser ordered it otherwise.
+ *
+ * ── THE ENDS SAY WHETHER THE RUN IS FINISHED OR CUT ────────────────────────────────
+ * A rounded end means the entry genuinely starts or finishes there; a square end means the
+ * week ran out. Rounding both ends of both halves of a four-day reunion would draw two
+ * complete things where there is one — which is exactly the misreading this whole change is
+ * about, moved from days to weeks.
+ */
+function EntryBar({ bar }: { bar: CalendarBar }) {
+  const tone = toneOf(bar.entry)
+  const cut = bar.continuesBefore || bar.continuesAfter
+  // Said in words, because the shape of the ends is not available to a screen reader. "n
+  // days" only where it is the WHOLE run: a cut bar's span is days-in-this-week, and calling
+  // that the length would be wrong on the screen it is read from.
+  const runWords = cut ? ', continuing' : bar.span > 1 ? `, ${bar.span} days` : ''
+  return (
+    <Link
+      href={bar.entry.href}
+      style={{ width: `calc(${bar.span} * 100% + ${(bar.span - 1) * CELL_GUTTER_PX}px)` }}
+      className={cn(
+        'relative flex h-5 items-center gap-1 overflow-hidden px-1.5 text-xs hover:opacity-90',
+        ENTRY_TONE[tone],
+        bar.continuesBefore ? 'rounded-l-none' : 'rounded-l',
+        bar.continuesAfter ? 'rounded-r-none' : 'rounded-r',
+      )}
+      title={bar.entry.title}
+    >
+      <ToneIcon tone={tone} />
+      <span className="sr-only">{ENTRY_KIND_WORD[tone]}{runWords}: </span>
+      {/* `min-w-0` is what lets a flex child shrink below its content, and without it the
+          title would push the bar wider than the width set above and out past the table. */}
+      <span className="min-w-0 truncate">{bar.entry.title}</span>
+    </Link>
+  )
+}
+
+/**
+ * One entry on a day-list row, below `sm`.
+ *
+ * THE GRID DOES NOT USE THIS ANY MORE — `EntryBar` does. The day list is an AGENDA: one
+ * titled row per day is what somebody scrolling a phone wants, and a two-day reunion
+ * legitimately appears under both dates with its name on both. There is no span to draw
+ * because there is no horizontal axis to draw it along.
  *
  * `truncate` inside a `min-w-0` block is what keeps a long title from widening its grid
  * track: without the `min-w-0` a flex or grid child refuses to shrink below its content and
@@ -158,10 +274,9 @@ function EntryChip({ entry }: { entry: CalendarEntry }) {
       )}
       title={entry.title}
     >
-      {tone === 'premier' && <Star aria-hidden="true" className="mr-1 inline h-3 w-3" />}
-      {tone === 'meeting' && <Gavel aria-hidden="true" className="mr-1 inline h-3 w-3" />}
-      {(tone === 'nominations' || tone === 'voting') && (
-        <Vote aria-hidden="true" className="mr-1 inline h-3 w-3" />
+      {/* Wrapped so it is not an empty margin for a plain gathering, which has no glyph. */}
+      {tone !== 'gathering' && (
+        <span className="mr-1 inline-flex align-[-2px]"><ToneIcon tone={tone} /></span>
       )}
       {/* Says in words what the colour says in colour. */}
       <span className="sr-only">{ENTRY_KIND_WORD[tone]}: </span>
@@ -246,48 +361,80 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
             </tr>
           </thead>
           <tbody>
-            {month.weeks.map(week => (
-              <tr key={week[0].iso} className="border-b last:border-0">
-                {week.map(day => (
-                  <td
-                    key={day.iso}
-                    // `h-24` on a cell is a MINIMUM in CSS, so a day with five entries grows
-                    // its row instead of clipping them — which is why nothing here caps the
-                    // list at three with a "+2 more" that has nowhere to lead.
-                    className={cn(
-                      'h-24 border-r p-1 align-top last:border-r-0',
-                      !day.inMonth && 'bg-muted/30',
-                      day.isToday && 'bg-brand-soft/30',
-                    )}
-                  >
-                    <div className="flex items-center gap-1">
-                      {day.isToday ? (
-                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-primary text-xs font-semibold text-brand-on-primary">
-                          {day.dayOfMonth}
-                          <span className="sr-only"> — today</span>
-                        </span>
-                      ) : (
-                        <span className={cn(
-                          'text-xs tabular-nums',
-                          day.inMonth ? 'text-muted-foreground' : 'text-muted-foreground/60',
-                        )}>
-                          {day.dayOfMonth}
-                        </span>
+            {month.weeks.map(week => {
+              // ── HOW MANY LANES THIS WEEK NEEDS, DERIVED PER WEEK ────────────────────
+              // Every cell in the week reserves the same number of slots, and that is the
+              // only reason a bar starting on Monday lines up with the empty space it
+              // passes through on Tuesday. `packWeek` has already assigned the lanes; this
+              // is just how many of them there turned out to be.
+              //
+              // A week with nothing on it reserves none, so an empty month is a grid of
+              // dates rather than a grid of dates over blank rows.
+              const lanes = week.reduce(
+                (most, day) => day.bars.reduce((m, bar) => Math.max(m, bar.lane + 1), most),
+                0,
+              )
+              return (
+                <tr key={week[0].iso} className="border-b last:border-0">
+                  {week.map(day => (
+                    <td
+                      key={day.iso}
+                      // `h-24` on a cell is a MINIMUM in CSS, so a week with five lanes
+                      // grows its row instead of clipping them — which is why nothing here
+                      // caps the stack at three with a "+2 more" that has nowhere to lead.
+                      className={cn(
+                        'h-24 border-r p-1 align-top last:border-r-0',
+                        !day.inMonth && 'bg-muted/30',
+                        day.isToday && 'bg-brand-soft/30',
                       )}
-                    </div>
-                    {day.entries.length > 0 && (
-                      <div className="mt-1 space-y-0.5">
-                        {day.entries.map(entry => (
-                          // The key is the pair, not the id: a multi-day entry is on every
-                          // day it covers, so the id alone repeats across cells.
-                          <EntryChip key={`${day.iso}:${entry.id}`} entry={entry} />
-                        ))}
+                    >
+                      {/* `h-5` IS LOAD-BEARING, NOT SPACING. Today's date is a 20px filled
+                          circle and every other date is a 16px line of text, so without a
+                          fixed height this row is 4px taller in one cell of the week — which
+                          pushes that cell's lanes down and puts a visible step in the middle
+                          of any bar crossing today. It did not matter while each cell held its
+                          own chips; it matters now that a bar spans them. */}
+                      <div className="flex h-5 items-center gap-1">
+                        {day.isToday ? (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-primary text-xs font-semibold text-brand-on-primary">
+                            {day.dayOfMonth}
+                            <span className="sr-only"> — today</span>
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            'text-xs tabular-nums',
+                            day.inMonth ? 'text-muted-foreground' : 'text-muted-foreground/60',
+                          )}>
+                            {day.dayOfMonth}
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
+                      {lanes > 0 && (
+                        <div className="mt-1">
+                          {Array.from({ length: lanes }, (_, lane) => {
+                            // At most one bar per lane per day — `packWeek` guarantees it —
+                            // and `undefined` is a run passing through, or nothing at all.
+                            const bar = day.bars.find(b => b.lane === lane)
+                            return (
+                              <div
+                                key={lane}
+                                // FIXED HEIGHT, NOT `min-h`. The slot is what a bar from an
+                                // earlier day is passing over, so a slot that shrank when
+                                // empty would break the alignment that makes the bar look
+                                // continuous. `h-5` matches `EntryBar`'s own height exactly.
+                                className={cn('h-5', lane > 0 && 'mt-0.5')}
+                              >
+                                {bar && <EntryBar bar={bar} />}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

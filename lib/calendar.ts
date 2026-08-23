@@ -70,6 +70,52 @@ export interface CalendarEntry {
   isPremier?: boolean
 }
 
+/**
+ * ONE CONTINUOUS BAR ON THE GRID, rather than one chip per day.
+ *
+ * ── WHY THE GRID NEEDED A SECOND SHAPE ─────────────────────────────────────────────
+ * `entries` says which entries cover a day, which is the right answer for a day LIST and
+ * the wrong one for a month GRID. A week of voting rendered as seven identical chips, each
+ * repeating the title, reads as seven separate things; it was reported exactly that way —
+ * "Voting — Texas is on the 24th and 25th, can you make it span both days instead of one
+ * per day". A calendar draws a span as a bar, and a bar has to know three things a per-day
+ * list cannot express: which ROW of the week's stack it occupies (so it is continuous
+ * rather than jumping up and down as neighbours come and go), how many days it covers in
+ * THIS week, and whether it is cut off at either end of the week.
+ *
+ * ── A BAR BELONGS TO THE DAY IT STARTS ON, AND ONLY THAT DAY ────────────────────────
+ * `bars` holds the runs that BEGIN on this day — clipped to this day's week, so a reunion
+ * crossing a Saturday appears as one bar in each of the two weeks. The continuation days
+ * carry nothing at all: the renderer reserves `lane` slots in every cell of the week and
+ * lets the starting cell's bar overflow across them, which is what makes it one element
+ * with one label and one hit target. Putting a segment on every covered day was the first
+ * design and it is worse in the way that matters — a label inside a one-day-wide box
+ * truncates to one day's width however long the bar is.
+ *
+ * ── AND `entries` IS UNCHANGED, DELIBERATELY ───────────────────────────────────────
+ * Both live on the day and neither is derived from the other at render time. The day list
+ * below `sm` genuinely wants one titled row per day (it is an agenda, not a grid), and the
+ * legend wants the set of kinds present. Building either from `bars` would mean the two
+ * renderings stopped reading the same data, which is the property `MonthCalendar`'s header
+ * rests its whole two-renderings exception on.
+ */
+export interface CalendarBar {
+  entry: CalendarEntry
+  /**
+   * 0-based row in this week's stack. THE SAME LANE FOR EVERY WEEK THE ENTRY TOUCHES is
+   * not promised and is not wanted — lanes are packed per week, so a bar can sit in row 0
+   * one week and row 1 the next. What IS promised is that the lane holds for the whole of
+   * one week's run, which is what continuity across days needs.
+   */
+  lane: number
+  /** Days it covers in this week, 1–7. The renderer's width is a multiple of this. */
+  span: number
+  /** The entry began before this week: draw the leading edge square, not rounded. */
+  continuesBefore: boolean
+  /** ...and it runs past the end of this week. */
+  continuesAfter: boolean
+}
+
 export interface CalendarDay {
   iso: string                 // YYYY-MM-DD
   dayOfMonth: number
@@ -78,7 +124,12 @@ export interface CalendarDay {
   isToday: boolean
   /** Every entry whose span covers this day — see `buildCalendarMonth`. */
   entries: readonly CalendarEntry[]
+  /** The bars that BEGIN on this day, within its week — see `CalendarBar`. */
+  bars: readonly CalendarBar[]
 }
+
+/** A day under construction: `bars` is filled per week, after every day exists. */
+type MutableDay = Omit<CalendarDay, 'bars'> & { bars: CalendarBar[] }
 
 export interface CalendarMonth {
   /** YYYY-MM of the month being shown. */
@@ -231,6 +282,13 @@ function spanEnd(entry: CalendarEntry): string {
  * simply marks nothing, and a garbled `today` marks nothing either. A highlight is the one
  * thing on this page that can degrade to absent without misinforming anybody, which is why
  * it takes no validation and throws nothing.
+ *
+ * ── AND EVERY DAY CARRIES BOTH `entries` AND `bars` ─────────────────────────────────
+ * Two shapes over the same spans, for two renderings that want different things: a per-day
+ * list for the agenda below `sm`, and per-week stacked bars for the grid. `packWeek` does
+ * the second, once per week, AFTER every day of that week exists — a lane is a property of
+ * the week and cannot be decided one cell at a time. `CalendarBar` argues why the grid
+ * needed it at all.
  */
 export function buildCalendarMonth(
   month: string,
@@ -267,7 +325,7 @@ export function buildCalendarMonth(
   // starting on a Sunday is 4 rows; 31 starting on a Saturday is 6.
   const cellCount = Math.ceil((firstWeekday + daysInMonth) / 7) * 7
 
-  const weeks: CalendarDay[][] = []
+  const weeks: MutableDay[][] = []
   for (let cell = 0; cell < cellCount; cell++) {
     // Counting from `1 - firstWeekday`, so the first cell is that many days BEFORE the 1st.
     // `Date.UTC` resolves a zero or negative day into the previous month and a day past the
@@ -275,7 +333,7 @@ export function buildCalendarMonth(
     // because a day is always a day, whereas a month is 28 to 31 of them.
     const date = new Date(Date.UTC(year, monthIndex, 1 - firstWeekday + cell))
     const iso = isoOf(date)
-    const day: CalendarDay = {
+    const day = {
       iso,
       dayOfMonth: date.getUTCDate(),
       inMonth: date.getUTCMonth() === monthIndex && date.getUTCFullYear() === year,
@@ -284,10 +342,14 @@ export function buildCalendarMonth(
       // Either bound made exclusive drops a one-day entry from the calendar entirely,
       // which is the majority of them.
       entries: spans.filter(span => span.from <= iso && iso <= span.to).map(span => span.entry),
+      // Filled per week, below — lanes are a property of the WEEK, not of the day.
+      bars: [] as CalendarBar[],
     }
     if (cell % 7 === 0) weeks.push([])
     weeks[weeks.length - 1].push(day)
   }
+
+  for (const week of weeks) packWeek(week, spans)
 
   return {
     month,
@@ -296,6 +358,92 @@ export function buildCalendarMonth(
     prevMonth: shiftMonth(month, -1),
     nextMonth: shiftMonth(month, 1),
   }
+}
+
+/**
+ * Turn one week's overlapping spans into stacked bars, and hang each on the day it starts.
+ *
+ * ── IT IS INTERVAL PARTITIONING, AND THE GREEDY ANSWER IS THE RIGHT ONE ─────────────
+ * Sort the week's runs by the day they start on and give each the LOWEST row whose previous
+ * occupant has already finished. That uses the fewest rows possible, which matters because
+ * every cell in the week has to reserve every row — one wasted lane is 24px of empty space
+ * across seven cells — and it is what every calendar does, so the result looks like one.
+ *
+ * ── THE ORDER IS TOTAL, AND THAT IS THE POINT ──────────────────────────────────────
+ * Start day, then the LONGER run first, then title, then id. Ties broken all the way down,
+ * because a greedy assignment is only stable if its input order is: two renders of the same
+ * month must not swap two bars between rows, or a family comparing two screens sees a
+ * different calendar. Longer-first is the one tie-break that is about appearance rather than
+ * determinism — a week-long bar above a one-day chip reads as a background for it, and the
+ * reverse reads as an interruption.
+ *
+ * ── THE LANE IS FIXED FOR THE WHOLE RUN, WHICH IS THE WHOLE FEATURE ────────────────
+ * `lastEnd[lane]` is the day index this lane is occupied until, so nothing is ever placed on
+ * top of a run in progress. That is what a per-day sort could not do: with entries filtered
+ * and sorted independently for each day, a two-day bar starting Monday sat in row 0 on Monday
+ * and row 1 on Tuesday as soon as something else started on Tuesday, and the "bar" was two
+ * chips at different heights.
+ *
+ * Days are compared as `YYYY-MM-DD` strings, and INDICES within the week are integers 0–6.
+ * No `Date` at all: the week already holds its own days in order, so `findIndex` is the
+ * conversion and there is nothing to get wrong about zones.
+ */
+function packWeek(
+  week: MutableDay[],
+  spans: readonly { entry: CalendarEntry; from: string; to: string }[],
+): void {
+  const weekStart = week[0].iso
+  const weekEnd = week[week.length - 1].iso
+
+  const runs = spans
+    .filter(span => span.from <= weekEnd && span.to >= weekStart)
+    .map(span => {
+      // Clipped to this week. `Math.max` on strings is not a thing, so the comparison is
+      // explicit — and the index is where that day sits in this week, which is what the
+      // renderer counts in.
+      const from = span.from > weekStart ? span.from : weekStart
+      const to = span.to < weekEnd ? span.to : weekEnd
+      return {
+        entry: span.entry,
+        fromIndex: week.findIndex(day => day.iso === from),
+        toIndex: week.findIndex(day => day.iso === to),
+        continuesBefore: span.from < weekStart,
+        continuesAfter: span.to > weekEnd,
+      }
+    })
+    // A run whose clipped ends are not in this week cannot happen — the filter above is
+    // exactly the overlap test — but `findIndex` answers -1 rather than throwing, and a
+    // bar at index -1 would render off the left edge of the grid.
+    .filter(run => run.fromIndex >= 0 && run.toIndex >= run.fromIndex)
+    .sort((a, b) =>
+      a.fromIndex - b.fromIndex
+      || (b.toIndex - b.fromIndex) - (a.toIndex - a.fromIndex)
+      || a.entry.title.localeCompare(b.entry.title)
+      || a.entry.id.localeCompare(b.entry.id))
+
+  /** Day index each lane is occupied until, or -1 for a lane never used. */
+  const lastEnd: number[] = []
+  for (const run of runs) {
+    let lane = lastEnd.findIndex(end => end < run.fromIndex)
+    if (lane === -1) {
+      lane = lastEnd.length
+      lastEnd.push(run.toIndex)
+    } else {
+      lastEnd[lane] = run.toIndex
+    }
+    week[run.fromIndex].bars.push({
+      entry: run.entry,
+      lane,
+      span: run.toIndex - run.fromIndex + 1,
+      continuesBefore: run.continuesBefore,
+      continuesAfter: run.continuesAfter,
+    })
+  }
+
+  // By lane, so a cell's bars come out in the order its rows are drawn. The renderer indexes
+  // by `lane` and does not depend on this, but a day whose bars are shuffled relative to its
+  // own rows is a trap for anything reading `bars` later.
+  for (const day of week) day.bars.sort((a, b) => a.lane - b.lane)
 }
 
 /** `YYYY-MM-DD` from a UTC instant, read through `getUTC*` for the reason above. */

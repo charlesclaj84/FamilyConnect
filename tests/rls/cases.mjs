@@ -2407,16 +2407,23 @@ export const MORE_CASES = [
       boardIds: [], positionIds: [], additionalIds: [fx.users.alphaOther.personId],
     }],
   },
-  // ── A BOARD ID IS RESOLVED IN THE CALLER'S OWN FAMILY, NEVER TAKEN AS PEOPLE ───
-  // BRAVO's administrator sends `boardIds: ['national']` and a chapter board keyed on one of
-  // ALPHA's chapters. Both are resolved by `getMeetingAttendeeOptions()` INSIDE the action,
-  // against BRAVO's own five family-scoped reads — so `national` means BRAVO's national board
-  // and ALPHA's chapter key matches no option at all. The client never sends people.
+  // ── A BODY IS RESOLVED IN THE CALLER'S OWN FAMILY, NEVER TAKEN AS PEOPLE ───────
+  // BRAVO's administrator sends every body field at once: `boardIds: ['national']`, a chapter
+  // BOARD keyed on one of ALPHA's chapters, that same ALPHA chapter as a whole-chapter body,
+  // and `wholeFamily`. All four are resolved by `getMeetingAttendeeOptions()` INSIDE the
+  // action, against BRAVO's own family-scoped reads — so `national` means BRAVO's national
+  // board, `wholeFamily` means BRAVO's adults, and ALPHA's chapter matches no option in either
+  // list. The client never sends people.
+  //
+  // `chapterIds` AND `wholeFamily` ARRIVED 2026-08-22 with the three-step scheduling form, and
+  // they are on this case rather than on one of their own because the claim is identical: a new
+  // way to NAME a body must not become a way to SEND one. `wholeFamily` is a boolean precisely
+  // so there is no list here for a client to substitute.
   //
   // WHAT THIS IS EVIDENCE FOR, said out loud per §7: that the action resolves bodies to people
   // itself rather than trusting a list the client worked out. It is NOT evidence for a family
-  // conjunct on any of the five reads — `resolveBoardAttendees` ignores an id it does not
-  // know, so dropping a conjunct would widen the OPTIONS without widening this result.
+  // conjunct on any of the five reads — `resolveMeetingRoom` ignores an id it does not know,
+  // so dropping a conjunct would widen the OPTIONS without widening this result.
   // `meetings.getMeetingAttendeeOptions` above is the case that watches those reads.
   {
     kind: 'write',
@@ -2426,7 +2433,10 @@ export const MORE_CASES = [
       title: 'borrowed board', meetsOn: '2026-10-04',
       secretaryId: fx.alpha.ownerPersonId,
       boardIds: ['national', `chapter:${fx.alpha.chapter.id}`],
-      positionIds: [], additionalIds: [],
+      positionIds: [],
+      chapterIds: [fx.alpha.chapter.id],
+      wholeFamily: true,
+      additionalIds: [],
     }],
     // WRAPPED, because `snapshot`'s filter is evaluated when the module loads and `fx` does
     // not exist then. The two age cases above filter on a literal family code and so need no

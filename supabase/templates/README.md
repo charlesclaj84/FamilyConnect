@@ -237,7 +237,20 @@ for f in supabase/templates/*.html; do echo "$(wc -c <"$f")  $f"; done
 ## No SVG, and the wordmark is text
 
 Gmail strips `<img>` pointing at SVG entirely, so the mark is served as PNG
-(`public/identity/genorra-app-256.png`) rather than `BRAND_MARK_SRC`.
+(`public/identity/genorra-mail-mark-256.png`) rather than `BRAND_MARK_SRC`.
+
+**That file exists for mail alone, and it did not until 2026-08-22.** These templates used
+`genorra-app-256.png` — the web manifest's tile — which worked for a year because that tile
+was the kit's DARK app icon and so had the band's own burgundy baked into it (see "The band
+does not change between themes" below). The manifest moved to the kit's **Light** tile, the
+full-colour mark on cream, because that is what an installed GENORRA shows on a home screen
+and monochrome gold was not recognisably the brand there (`app/manifest.ts` argues it).
+
+One shared file could not be both: repointing the manifest alone would have put a cream
+rounded square on the burgundy band in every transactional email the product sends. So the
+dark tile is now filed under its own role name and referenced by these five templates and
+`lib/email/layout.ts` — six places, exactly as before, and none of them shares a file with a
+surface that can be re-skinned for a different reason.
 
 The **wordmark is set as text**, not placed as artwork — the same rule as `.gn-wordmark`
 in `globals.css`, and doubly right here, because most clients block images by default and
@@ -250,10 +263,15 @@ twice.
 
 ## The band does not change between themes
 
-`#6b2d3a` in both. The PNG has that exact colour baked into its own rounded-square tile
-(sampled: ground `#6b2d3a`, marks `#d6a24a`, corners transparent), so a matching band
-makes the tile disappear and leaves the gold mark floating on burgundy. Recolour the band
-for dark mode and the tile reappears as a lighter square on a darker one.
+`#6b2d3a` in both. `genorra-mail-mark-256.png` has that exact colour baked into its own
+rounded-square tile (sampled: ground `#6b2d3a`, marks `#d6a24a`, corners transparent), so a
+matching band makes the tile disappear and leaves the gold mark floating on burgundy.
+Recolour the band for dark mode and the tile reappears as a lighter square on a darker one.
+
+**This is what makes the file mail-specific rather than merely mail-referenced.** Its ground
+is not decoration, it is a value that has to equal the band's — so swapping it for any other
+tile is a change to the header's composition, not to its artwork. That is the whole reason it
+is no longer shared with the web manifest.
 
 ## Colour literals in this directory
 

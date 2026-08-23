@@ -223,8 +223,23 @@
      Do not reach for this for errors or deletions. `--destructive` still owns those, and
      the 38 call sites that use it are correct. */
   --brand-withheld: var(--genorra-warmth-deep);  /* 5.10 on the card, 4.78 on the page */
+  /* AND IT IS LEGIBLE AS A FOREGROUND TOO, which is worth stating because the pairs rule
+     otherwise reads as forbidding it. `--brand-warm` and `--brand-withheld` resolve to the
+     SAME tone in both themes — warmth-deep in light, warmth-lift in dark — and the figures
+     measured on `--brand-withheld` above are therefore this token's figures as well: 5.10
+     on the card and 4.78 on the page in light, 5.78 and 6.22 in dark. So an OUTLINE chip
+     may be `border-brand-warm bg-brand-warm/10 text-brand-warm` without inventing an
+     unchecked combination — exactly the shape the removal panel already uses with the
+     withheld token.
+
+     WHAT IS STILL FORBIDDEN is crossing the pairs: `text-brand-on-warm` on anything that
+     is not `bg-brand-warm`. That one is not merely unchecked, it is INVISIBLE — on-warm is
+     cream in light and ink in dark, so on the page ground it is cream-on-cream one way and
+     near-black-on-near-black the other. The calendar's "Nominations open" chip shipped that
+     way and could not be read in either theme; `components/calendar/MonthCalendar.tsx`
+     records it. Reach for `--brand-warm` itself when the Warmth is the TEXT. */
   --brand-warm: var(--genorra-warmth-deep);      /* filled Warmth chip — the 4th accent */
-  --brand-on-warm: var(--genorra-light);         /* 4.78 on warm */
+  --brand-on-warm: var(--genorra-light);         /* 4.78 on warm — ONLY on that fill */
   /* Premium accent — SURFACE ONLY, see below. Its second job since the 2026-08-12 sweep
      is the ATTENTION PILL: `bg-brand-legacy text-brand-on-legacy` is what "Pending",
      "Nominations open", "Own scope" and every other look-at-this badge wears. Gold was

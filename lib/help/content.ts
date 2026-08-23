@@ -151,6 +151,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('If nothing is typed or clicked for 60 minutes you are signed out of this device and sent to the sign-in page, with a note saying why. A warning appears for the last minute so you can stay.'),
               p('Activity in any tab counts, so reading a long announcement in one tab does not sign you out of another. Signing out here does not sign you out of your phone — for that, use **Sign out other devices** on [Sign-in & Security](/personal-info?section=security).'),
+              p('**On a phone it happens when you come back.** A phone closes the page down while it is in the background, so nothing is running to count the hour and no warning can be shown; the check runs the moment you reopen it. If you were away longer than an hour you land on the sign-in page instead of where you left off, which is the same rule arriving a little later.'),
             ],
           },
           {
@@ -1223,8 +1224,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'reading',
             heading: 'Reading a day',
             blocks: [
-              p('Today is marked. Anything running over several days appears on every day it covers, and that is the whole reason a closing date exists \u2014 a three-day reunion is on the grid three times, a fortnight of voting fourteen times, and each one is the same link. An election contributes two spans rather than one: the nomination window and, after a gap, the voting window. The days between them are deliberately empty, because on those days the slate has closed and there is nothing to do yet.'),
+              p('Today is marked. **Anything running over several days is drawn as one bar across them**, with its name at the left-hand end \u2014 a three-day reunion is one bar three days wide, and a fortnight of voting is one bar in each of the two weeks it crosses. That is the whole reason a closing date exists. An election contributes two bars rather than one: the nomination window and, after a gap, the voting window. The days between them are deliberately empty, because on those days the slate has closed and there is nothing to do yet.'),
+              p('**A bar with a square end is cut off, not finished.** A run that crosses a Saturday has to be drawn as one bar per week, so the flat edges are where it carries on into the row above or below; rounded ends are where the thing itself starts and stops.'),
               p('The grid always shows whole weeks, so the first and last rows carry a few days from the months either side. Those days keep their entries: a reunion starting on the 1st is visible in the last row of the month before, which is where you would be looking for it a week earlier.'),
+              note('It was one chip per day until 2026-08-22 \u2014 a two-day election window read as two separate things with the same name.'),
             ],
           },
           {
@@ -1241,6 +1244,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Below the width a seven-column grid needs, the calendar becomes a list of the days that have something on them, in order, with the weekday and the date beside each. A day borrowed from a neighbouring month is labelled **Previous month** or **Next month**, since it no longer has a column to say so.'),
               p('That is a second view of the same month rather than a second calendar — the same entries, the same links. It is a deliberate choice over squeezing the grid: at phone width a day is too narrow to hold a date and a title, and a month of mostly empty cells is a screen of nothing when the question is what is coming up.'),
+              p('**A run of days is one row per day here, not a bar.** The list has no left-to-right axis for a bar to stretch along, so a three-day reunion appears under each of its three dates with its name on each — which is what you want from a list of days.'),
             ],
           },
           {
@@ -1490,37 +1494,43 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'scheduling',
             heading: 'Scheduling one',
             blocks: [
+              p('It is **three steps**, with **Next** and **Back**, and nothing is saved until the last one.'),
               steps(
                 'Press **Schedule a meeting**.',
-                'Give it a title and a date.',
-                'Choose **who is taking the minutes**. Only they can write in it, and they have to be an adult.',
-                'Choose **who is coming** \u2014 whole boards, whole offices, and anybody else by name.',
+                '**Step 1 \u2014 the basics.** A title, a date, and **who is taking the minutes**. That last one starts on you, because whoever schedules a meeting usually writes it up; change it to anybody else if not. Only the secretary can write in the meeting, and they have to be an adult.',
+                '**Step 2 \u2014 who is coming.** Say what kind of meeting it is first, then pick within that kind. See below.',
+                '**Step 3 \u2014 anybody else.** Add individual people on top of the body you chose, and check the room\u2019s count.',
                 'Press **Schedule meeting**.',
               ),
               p('**Everybody in the room is told and gets it on their calendar.** A notification goes to each attendee, and the meeting appears on [the calendar](/gatherings/calendar) for them \u2014 not for the whole family, because a committee meeting on everybody\u2019s calendar is a calendar nobody reads. The attendee list is also what decides who may vote.'),
               note('The secretary is added to the room automatically whether or not you ticked them. Somebody writing the minutes was there.'),
+              note('**Back never loses anything.** Going back to fix a date and returning leaves your picks where they were \u2014 with one deliberate exception: change the KIND of meeting on step 2 and the room follows the new kind, so a board you ticked before switching to a chapter meeting does not come along quietly.'),
             ],
           },
           {
             id: 'who-is-coming',
-            heading: 'Who is coming: boards, offices, and people',
+            heading: 'Who is coming: five kinds of meeting',
             blocks: [
-              p('A family meeting is almost always a **body** meeting rather than a list of eleven names \u2014 the national board, one chapter\u2019s board, every chapter president. So the dialog asks for the body, and works out who is in it when you schedule. Pick as many as you like from any of the three; they add together, and somebody who appears in two of them is one attendee.'),
+              p('A family meeting is almost always a **body** meeting rather than a list of eleven names \u2014 the whole family, one chapter, the national board, every chapter president. So step 2 asks which kind it is, shows only that kind\u2019s options, and works out who is in the body when you schedule.'),
               defs(
-                { term: 'Boards', text: 'Everybody holding an office at one level in one place \u2014 **National Board**, **Texas Region Board**, **Austin Chapter Board**. Only boards somebody is actually on are listed, and the number beside each says how many people that is.' },
-                { term: 'Positions', text: 'One office taken across every region or chapter that fills it. Ticking **Chapter President** invites the president of every chapter at once.' },
-                { term: 'Anybody else', text: 'Individual people, on top of the boards. **Adults only** \u2014 see below.' },
+                { term: 'A general family meeting', text: 'Every adult in the family. Nothing to pick \u2014 the step tells you how many people that is before you commit to it.' },
+                { term: 'A chapter meeting', text: 'Everybody recorded in a chapter, officer or not. **This is not the chapter\u2019s board**; it is the whole chapter. Only chapters with somebody in them are offered.' },
+                { term: 'A board meeting', text: 'Everybody holding an office at one level in one place \u2014 **National Board**, **Texas Region Board**, **Austin Chapter Board**. Only boards somebody is actually on are listed, and the number beside each says how many people that is.' },
+                { term: 'A positions meeting', text: 'One office taken across every region or chapter that fills it. Choosing **Chapter President** invites the president of every chapter at once.' },
+                { term: 'Just the people I name', text: 'Nobody to start with \u2014 for an ad-hoc committee of three, where there is no body to point at. You add them on step 3.' },
               ),
-              p('**A board is resolved when you schedule, not when it was set up.** If the Austin chapter elects a new treasurer next month, the board you ticked today invited the treasurer who held it today \u2014 which is right, because the meeting is the one they were told about. Set the offices up on **Members \u2192 Organization**; a family that has not has no boards to invite, and the dialog says so rather than showing an empty list.'),
-              p('The line under the controls counts the room and lists it behind **see who**, so you can check what a tick just added before you commit.'),
+              p('**A kind with nothing to pick cannot be chosen, and says why.** A family that has not set its offices up yet has no boards to invite; that row is greyed with a sentence pointing at **Members \u2192 Organization** rather than being hidden, so it is clear the product can do it once the family has.'),
+              p('**A body is resolved when you schedule, not when it was set up.** If the Austin chapter elects a new treasurer next month, the board you chose today invited the treasurer who held it today \u2014 which is right, because the meeting is the one they were told about. The same goes for a chapter: it is whoever is recorded in it on the day.'),
+              p('**Step 3 adds people on top.** Whatever the body works out to, you can name more; the two add together, and somebody who appears in both is one attendee. The line under the picker counts the room and lists it behind **see who**, so you can check what a choice just added before you commit.'),
             ],
           },
           {
             id: 'adults',
-            heading: 'Adults only, in two places',
+            heading: 'Adults only, and the one exception',
             blocks: [
               p('**The secretary must be an adult**, and so must anybody added to the room **by name**. Both pickers only offer adults, and the action refuses one anyway if it is asked directly.'),
-              p('**People invited as part of a board are not age-checked.** Somebody holding an office is somebody the family put there, and quietly dropping them from the room over a recorded birthday would be the product overruling that decision in a list nobody reads back.'),
+              p('**A chapter meeting and a general family meeting are adults too.** Nobody under eighteen is in either, so neither is a way round the rule above.'),
+              p('**People invited as part of a board or an office are not age-checked**, and that is the exception. Somebody holding an office is somebody the family put there, and quietly dropping them from the room over a recorded birthday would be the product overruling that decision in a list nobody reads back.'),
               note('Age is worked out from the date of birth on the person\u2019s profile, and a member with **no** recorded birthday counts as an adult. \u201cUnder eighteen\u201d is something the family has written down about somebody, not something to assume about a blank field.'),
             ],
           },
@@ -2648,9 +2658,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'bands',
-            heading: 'Two bands',
+            heading: 'Two panels',
             blocks: [
-              p('The page is in two parts. **My Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('The page is two panels, each with its own heading. **My Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
             ],
           },
           {
@@ -2813,6 +2823,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'I keep getting signed out',
             blocks: [
               p('Sixty minutes with nothing typed or clicked signs you out of that device. It is a real sign-out, not a lock screen, so signing back in is the whole fix. If it is happening while you are actively working, the tab may have been left on a screen that takes no input — the timer counts keys and clicks, not the page being open.'),
+              p('**On a phone, reopening the app after a while lands you on the sign-in page with no warning first.** That is the same hour, measured the only way it can be: a phone shuts the page down in the background, so nothing was running to warn you and the check happens when you come back. Signing in again picks up where you were.'),
             ],
           },
           {

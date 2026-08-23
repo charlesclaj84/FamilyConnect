@@ -2236,12 +2236,16 @@ An escape hatch in the `storage.protect_delete()` style was rejected here: a hat
 future action can set, where a depth test can only be satisfied by an actual cascade.
 
 **WHO IS COMING IS A BODY, NOT A LIST OF NAMES — 2026-08-22.** `scheduleMeeting` takes
-`boardIds`, `positionIds` and `additionalIds`, and the first two are resolved SERVER-SIDE
-against `getMeetingAttendeeOptions()`. A family meeting is almost always a body meeting — the
-national board, one chapter's board, every chapter president — and ticking eleven names to
-describe one is both tedious and wrong next month, when somebody has been replaced.
+`boardIds`, `positionIds`, `chapterIds`, `wholeFamily` and `additionalIds`, and everything but
+the last is resolved SERVER-SIDE against `getMeetingAttendeeOptions()`. A family meeting is
+almost always a body meeting — the whole family, one chapter, the national board, every chapter
+president — and ticking eleven names to describe one is both tedious and wrong next month, when
+somebody has been replaced.
 
-Three things about it are load-bearing:
+**THIS SAID "THREE INPUTS" FOR A DAY.** The scheduling form became a three-step wizard the same
+week (below), and its second step asks what KIND of meeting this is before showing anything to
+pick — which needed two bodies the office vocabulary cannot express: a whole chapter's
+membership, and the family's. Five things about the arrangement are load-bearing:
 
 * **There is no `boards` table and this must not grow one.** A board is the set of people
   holding an office at one SCOPE in one AREA, which is what `user_roles` already records
@@ -2250,25 +2254,45 @@ Three things about it are load-bearing:
   the pure shaping and `boardKey` is the composite id — `national`, `regional:<id>`,
   `chapter:<id>`, PREFIXED because a region id and a chapter id are both uuids from different
   tables and would otherwise collide.
-* **A BOARD IS LISTED ONLY WHERE SOMEBODY HOLDS AN OFFICE THERE.** Nine chapters with two
-  filled means two boards, not nine — seven empty boards is seven controls that select nobody.
-  The count on each option is what keeps that honest in the other direction.
+* **A CHAPTER IS NOT ITS BOARD, AND BOTH ARE OFFERED.** `chapter:<id>` in `boards` is whoever
+  holds an office there; `<id>` in `chapters` is every adult recorded in the place. The second
+  is the room a chapter actually meets in most often, and it is derived from `people.chapter_id`
+  rather than from `user_roles` — neither can be expressed as the other. The prefix on the
+  board key is what keeps the two ids from colliding.
+* **A BODY IS LISTED ONLY WHERE SOMEBODY IS IN IT.** Nine chapters with two filled means two
+  boards, not nine — seven empty boards is seven controls that select nobody. The same test
+  applies to `chapters`, and the count on each option is what keeps it honest in the other
+  direction.
 * **THE CLIENT NAMES BODIES AND NEVER SENDS PEOPLE.** `scheduleMeeting` re-resolves the ids
   itself, so `boardIds: ['national']` asks for whoever holds a national office at that moment.
   Accepting a resolved list would let a caller send any names at all — a server action is a
-  public HTTP endpoint. It also means a board key from another family resolves to nobody
-  rather than to that family's board.
+  public HTTP endpoint. It also means a board or chapter id from another family resolves to
+  nobody rather than to that family's body. **`wholeFamily` IS A BOOLEAN FOR EXACTLY THAT
+  REASON**: there is no id for "everybody", so a client can only ask, and what everybody turns
+  out to be comes from the roster the action reads. An `everyoneIds: string[]` parameter would
+  be the same endpoint with the rule removed.
+* **THE "KIND" NEVER CROSSES THE WIRE.** The form's audience question is a UI narrowing over
+  one union: the action takes the four body fields and unions whatever is present. There is
+  deliberately no `audience` parameter to validate the selection against — it would be a
+  second, weaker copy of what the fields already say, and it is the kind of field that comes
+  to disagree with them.
 
-**ADULTS ONLY, IN TWO PLACES, AND DELIBERATELY NOT IN A THIRD.** The SECRETARY must be an
-adult, and so must anybody added BY NAME. Both are the free choices somebody makes in the
-dialog, both pickers are filtered server-side (§5), and `scheduleMeeting` refuses one anyway
-because the dialog in front of it is a convenience (§2).
+**ADULTS ONLY EVERYWHERE EXCEPT AN OFFICE.** The SECRETARY must be an adult, and so must
+anybody added BY NAME — both are the free choices somebody makes in the dialog, both pickers
+are filtered server-side (§5), and `scheduleMeeting` refuses one anyway because the dialog in
+front of it is a convenience (§2). **A CHAPTER AND THE WHOLE FAMILY ARE ADULT-FILTERED TOO**,
+and not by a check in the action: both bodies are BUILT from the adult rows inside
+`getMeetingAttendeeOptions`, so a minor is never in them and there is nothing to refuse. That
+is the right place for it — one filter, three consumers, and the action's two error messages
+stay about the two things a person named themselves.
 
-**BOARD MEMBERS ARE NOT AGE-CHECKED**, and that asymmetry is the decision rather than an
-oversight. Somebody on a board is somebody the family put in an office; silently dropping them
-from the room over a recorded birthday would be the product overruling that appointment,
-invisibly, in a list nobody reads back. If a family should not be able to appoint a minor,
-that belongs on `assignBoardPosition` where it can be said out loud.
+**BOARD AND POSITION MEMBERS ARE NOT AGE-CHECKED**, and that asymmetry is the decision rather
+than an oversight. Somebody on a board is somebody the family put in an office; silently
+dropping them from the room over a recorded birthday would be the product overruling that
+appointment, invisibly, in a list nobody reads back. If a family should not be able to appoint
+a minor, that belongs on `assignBoardPosition` where it can be said out loud. **A chapter's
+membership is not an appointment**, which is why it takes the picker's reading rather than the
+board's — the two rules are not in tension, they are about two different kinds of fact.
 
 `isMinorOn` in `lib/age-utils.ts` is the ONE definition and **a member with no recorded
 birthday is an adult** — its own answer for a null, and the same reading the chapter
@@ -2280,6 +2304,41 @@ nobody entered take the minutes, with nothing on the screen to explain why.
 flat list with no idea which ids came from a board, so applying the rule there would refuse to
 re-save a room legitimately containing an officer under eighteen. The rule belongs where the
 distinction between "you chose this person" and "this person holds an office" still exists.
+
+## SCHEDULING A MEETING IS A THREE-STEP WIZARD, AND THE STEPS ARE THE MEETING'S OWN QUESTIONS
+
+Added 2026-08-22, because the one-screen form asked for six things at once — a title, a date, a
+secretary, two checkbox lists over the family's boards and offices, and a searchable
+multi-select over a hundred and forty adults, with a room summary under the lot. On a phone that
+is a form you scroll four times before you know what it wants.
+
+The split is not cosmetic and it is not "three because three fits": step 1 is WHAT and WHEN
+(and who writes it down), step 2 is WHO IS COMING, step 3 is ANYBODY ELSE. Four things about it
+are load-bearing, and the third is the one a later edit will get wrong:
+
+* **THE SECRETARY DEFAULTS TO THE CALLER.** `MeetingAttendeeOptions.myPersonId`, resolved from
+  the guard. Whoever schedules a meeting is usually the one who writes it up, and making them
+  find their own name in a picker of a hundred and forty is the friction that gets a required
+  field stared at. It is a DEFAULT and decides nothing on the server — `scheduleMeeting` takes
+  whatever secretary it is sent and checks it the same way either way.
+* **AN AUDIENCE WITH NOTHING TO PICK IS DISABLED AND SAYS WHY**, never hidden. A family that
+  has not set its offices up has no boards to invite, and dropping the choice off the list
+  leaves them wondering whether the product can do it at all. Same judgement `CheckGroup`'s
+  empty state used to make one level down, moved up to where the choice is.
+* **THE SELECTION IS READ THROUGH THE AUDIENCE, NOT CLEARED WHEN IT CHANGES.** `selection` in
+  `ScheduleDialog` derives each field from the chosen kind, so a member who ticks two boards,
+  presses Back, and switches to a general family meeting does not carry those boards into the
+  room. Clearing the tick lists on change would also work and is worse — pressing Back to
+  check a date and returning would throw the ticks away.
+* **THERE IS A FIFTH CHOICE, "Just the people I name", AND IT IS WHAT LETS STEP 2 BE
+  REQUIRED.** Before the wizard a meeting could be three people named by hand; making an
+  audience mandatory without an escape hatch would have deleted that. An ad-hoc committee is a
+  real meeting and there is no body to point at.
+
+**`submit` RE-CHECKS EVERY EARLIER STEP**, not just the last one. Nothing stops somebody
+clearing the title after passing step 1, and the action would then refuse it with a message
+they would read three steps away from the field — so a failure sends them back to the step that
+owns it.
 **A MEETING IS ON ITS ATTENDEES' CALENDARS AND NOBODY ELSE'S**, which is a per-VIEWER narrowing
 rather than a permission one and is unlike anything else on that grid. It is filtered in
 TypeScript in `app/actions/calendar.ts`, deliberately: the rows it drops are rows the caller may
@@ -2310,6 +2369,27 @@ Five things a fourth source has to get right, all of them learned from the three
   on every cell between its start and its end inclusively, so a three-day reunion appears
   three times and a fortnight of voting fourteen. Nothing has to be done to opt in; what has
   to be got right is that the window is the GRID's, six days either side of the month.
+* **AND ON THE GRID IT IS ONE BAR, NOT ONE CHIP PER DAY — 2026-08-22.** `day.entries` is the
+  per-day list and `day.bars` is the same spans packed into LANES per week: a bar lives in the
+  cell its run starts in, is given a width that reaches the end of the run, and overflows the
+  cells it crosses. Three things follow, and the first two have already bitten:
+
+  * **A LANE IS A PROPERTY OF THE WEEK, and `packWeek` decides it after every day of that week
+    exists.** Sorting entries per day cannot do this: a two-day bar sat in row 0 on Monday and
+    row 1 on Tuesday as soon as anything else started on Tuesday, and the "bar" was two chips
+    at different heights. Lanes are packed greedily by start day, longer run first, with every
+    tie broken down to the id — a greedy assignment is only stable if its input order is total,
+    and two renders of one month must not swap two bars between rows.
+  * **THE BAR'S WIDTH IS DERIVED FROM THE CELL'S PADDING AND BORDER** (`CELL_GUTTER_PX` in
+    `MonthCalendar.tsx`), so changing `p-1` or `border-r` on the cell moves every multi-day
+    bar's right edge and reads as a rendering bug. CSS cannot tell us this — `table-fixed`
+    column widths are resolved by the layout engine. For the same reason the day-number row
+    carries a fixed `h-5`: today's date is a 20px circle and every other date is 16px of text,
+    so without it one cell of the week starts its lanes 4px lower and a bar crossing today has
+    a step in it.
+  * **THE DAY LIST BELOW `sm` STAYS ONE ROW PER DAY**, reading `entries`. It is an agenda and
+    has no horizontal axis for a bar to stretch along, so this is not the two renderings
+    drifting — it is each asking the question its axis can answer.
 * **ONE ROW MAY BE MORE THAN ONE ENTRY, and then the ids must differ.** An election
   contributes TWO — the nomination window and, after a gap, the voting window — because they
   are two different things a member has to do and the days between them are deliberately
@@ -2372,6 +2452,49 @@ Four things about it are load-bearing, and the first is the one that gets undone
   from momentum scrolling, a nudged desk and animated content, so including them makes the
   timeout fail in the only direction that matters, which is never firing. A chat message
   arriving is not activity either; the point is somebody at the keyboard.
+
+## ON A PHONE THERE IS NO LOADED PAGE TO TIME, AND THAT DEFEATED IT ENTIRELY
+
+Added 2026-08-22. Everything above describes a timer running inside a loaded page, and this
+section used to treat "the browser was not running" as the half `inactivity_timeout` covers.
+**On a phone it is not a corner case, it is the ordinary session:** mobile browsers evict
+background tabs as a matter of routine, so a member uses the app, backgrounds it, and hours
+later reopens a page that LOADS AGAIN from scratch. No timer ran, because no page existed to
+run one. Reported as: mobile doesn't automatically log you out.
+
+The only thing that can notice is the MOUNT of that next page load, reading the marker the
+member's last activity left in `localStorage` — and the marker rule as written refused exactly
+that, on the argument that "a live tab signs ITSELF out on reaching the limit, so an expired
+marker can never describe one". True of a desktop tab, false of an evicted one.
+
+So `inheritedActivity` answers THREE ways now — adopt, expire, or start fresh — and three
+things hold it together:
+
+* **THE DISCRIMINATOR IS `user.last_sign_in_at`, RESOLVED ON THE SERVER** and passed to
+  `IdleTimeout` as a prop. A marker written after the session began and now past the limit is
+  this session's own idleness (sign out); one written before it is residue from an earlier
+  session (ignore). Both present identically as "an expired marker on a fresh mount", and
+  getting it backwards is not symmetrical — expiring wrongly locks somebody out of a session
+  they have just created, which is the unrecoverable-bounce bug this rule already carries a
+  paragraph about. **It must not be read from the client:** auth-js keeps the whole session in
+  `localStorage`, so a browser that could choose the sign-in time could choose the answer.
+* **NO SIGN-IN TIME KEEPS THE OLD, CONSERVATIVE ANSWER.** `last_sign_in_at` is optional on the
+  GoTrue user, and `null` falls through to `fresh` — never to `expired`. A gap in the data must
+  not sign anybody out.
+* **THE MARKER IS WRITTEN AT MOUNT when this tab starts its own clock.** Without it a member
+  who loads a page and reads it without touching anything leaves no trace, and the next load
+  after an eviction has nothing to measure against. Only in that branch: writing after
+  ADOPTING one would overwrite the older marker this tab was supposed to inherit.
+
+`visibilitychange`, `focus` and `pageshow` re-check immediately on return — iOS suspends
+JavaScript in a background tab outright, and a back-forward-cache restore resumes a page whose
+timers may not be re-armed, so on a phone that handler is frequently the only thing that runs.
+It is NOT activity and must never mark any: coming back to a tab is not having been at the
+keyboard for the last two hours.
+
+`lib/idle-timeout.test.ts` is the mutation-checked version of all of this, and both directions
+are in it — the pre-2026-08-22 code turns three cases red, and dropping the session guard turns
+three different ones red.
 
 ## The shared marker belongs to one session, and outlives it
 
@@ -3509,6 +3632,20 @@ worth understanding before touching a colour.
   surface of another — `text-brand-on-affirm` on `bg-brand-primary` is not a checked
   combination and there is no reason to expect it to pass.
 
+  **AND AN `on-` TOKEN ON NO SURFACE AT ALL IS THE WORST VERSION OF THAT, BECAUSE IT IS
+  INVISIBLE RATHER THAN MERELY UNCHECKED.** Measured on the calendar: the "Nominations open"
+  chip shipped as `bg-transparent text-brand-on-warm`, and `--brand-on-warm` is cream in light
+  mode and near-black ink in dark — so against the page ground it was cream-on-cream one way
+  and ink-on-near-black the other. The chip rendered, took up space, was a link, and had no
+  readable text in either theme. Reported as "you cannot see the text for nominations". An
+  unchecked pairing degrades; an `on-` token with its surface removed disappears.
+
+  **When the Warmth is the TEXT, reach for `--brand-warm` itself.** It and
+  `--brand-withheld` resolve to the same tone in both themes, so the figures measured on the
+  withheld token are this one's too, and `border-brand-warm bg-brand-warm/10 text-brand-warm`
+  is the outline form of the filled chip. `globals.css` records that beside the token, which
+  is where it belongs — it is a fact about two tokens rather than about one component.
+
   **`--brand-legacy` has no `on-` partner, deliberately.** Gold is 2.30 against white
   and 1.65 against sand: it can never carry text in light mode, and a partner token
   would invite exactly that. Use it as a surface with dark text on it (ink on gold is
@@ -3782,6 +3919,24 @@ hold and are why the copy into `identity/` is deliberate rather than lazy:
 the site serving the *previous* kit's artwork with no error anywhere — which is exactly
 what happened: `identity/` held the v1.0 mark for a full round after v1.1 landed, and
 v1.1 existed precisely to correct that mark's silhouette.
+
+**AND THE COPY IS NOT ONE-TO-ONE: THREE DIFFERENT KIT FILES DRESS THREE DIFFERENT SURFACES.**
+Since 2026-08-22 the app icons (`genorra-app-{192,256,512}.png` and `app/apple-icon.png`) are
+the kit's **Light** app icon — the FULL-COLOUR mark on cream — because that tile is what an
+installed GENORRA shows on a home screen, and the gold-on-burgundy treatment is monochrome
+there: it does not look like the brand people meet on the site, where the rail draws the
+full-colour mark at 64px. Reported by a member who installed it: the icon "wasn't colorful".
+
+The gold tile did not go away and **must not be folded back into the app icons.** It is
+`genorra-mail-mark-256.png`, used by the five auth templates and `lib/email/layout.ts`, and its
+ground is `#6b2d3a` — the same burgundy as the email header's band, because the tile is meant
+to DISAPPEAR into it and leave the gold mark on the band. One shared file could not be both:
+repointing the manifest alone would have put a cream square on that band in every transactional
+email the product sends. So the rule for this folder is **a file per ROLE, and a role is a
+surface with its own constraints** — `supabase/templates/README.md` carries the measurement.
+
+The favicon is neither tile: `app/favicon.ico` and the kit's own favicons are the burgundy
+mark, which is right at 16px. Do not sweep those to match either of the others.
 
 **Asset names move between kits.** v1.0's dark-ground lockup was `Horizontal_Reversed`;
 v1_1 renames it `Horizontal_Dark` and drops the old file. Both render, so pointing at

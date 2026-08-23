@@ -17,13 +17,14 @@ import { PlanPanel } from '@/components/admin/PlanPanel'
 import { HelpLink } from '@/components/help/HelpLink'
 
 /**
- * One field, and three facts that are not editable.
+ * Settings: two panels — the plan this family pays for, and the family itself.
  *
- * NO MainRail. The rail is the standard primary navigation for a page that SWITCHES
- * between panes, and this page has one; a rail with a single item is a rule under a
- * word. If Family Settings ever grows a second pane — the delete half, if it is ever
- * built — it gets one then, keyed to its own permission resource like every other rail
- * item.
+ * NO MainRail, and the two panels are not an argument for one. The rail is the standard
+ * primary navigation for a page that SWITCHES between panes, and switching is the point of
+ * it: one thing on screen at a time, each behind its own permission key. These two are both
+ * on screen at once and both governed by `admin/settings`, so a rail would be two tabs over
+ * one grant hiding half of a short page. If Settings ever grows a pane with a key of its own
+ * it gets a rail then, like every other rail item.
  *
  * THE FAMILY CODE IS SHOWN, AND IS NOT A FIELD. It is the join key carried by 34
  * tables and is immutable after insert (families_guard_family_code, 20260812000000), so
@@ -88,17 +89,33 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
   const created = formatDate(settings.createdAt)
 
   return (
-    // ── TWO BANDS, SINCE 2026-08-22: MY PLAN, THEN FAMILY ──────────────────────────────
+    // ── TWO PANELS: MY PLAN, THEN FAMILY ──────────────────────────────────────────────
     // The page held four unlabelled cards in a stack — plan, name, code, removal — and
     // three of the four are the same KIND of fact while the first is not. The plan is a
     // billing fact about this family's subscription; the other three are the family's own
     // identity and whether it is switched on. A reader scanning the page had to work that
     // out from the card captions.
     //
-    // The bands are `h2` and every card under them is an `h3`, which is what makes the
-    // outline a screen reader reads match the one a sighted reader sees. `PlanPanel`'s own
-    // heading was demoted in the same commit for that reason.
-    <div className="space-y-10">
+    // IT WAS TWO HEADINGS OVER THAT SAME STACK FOR A DAY, AND THAT WAS NOT ENOUGH. The
+    // markup had two `<section>`s with an `h2` each, so the outline was right and the SCREEN
+    // was not: an `h2` at `text-xl font-semibold` sitting a few pixels above a card whose own
+    // `h3` is `text-lg font-semibold` does not read as a boundary, and four bordered cards in
+    // one column read as one list however they are labelled. Reported as: everything is in a
+    // single section.
+    //
+    // So each band is now a real PANEL — one border, a header strip naming it, and its
+    // contents inside. Two boxes on the page, which is the thing that was being asked for.
+    //
+    // THE BORDER COUNT WENT DOWN, NOT UP, and that is what makes this work rather than look
+    // busy. The obvious version wraps the existing cards in two more borders and shows four
+    // pixels of card between each pair; instead the panel IS the card. `PlanPanel` gave up
+    // its own wrapper (its header says so), the name and code blocks became `divide-y` rows,
+    // and the removal block kept its Warmth tint and dropped its border. Four cards plus two
+    // panels would have been six boxes; this is two.
+    //
+    // The panel headings are `h2` and everything inside them is an `h3`, which is what makes
+    // the outline a screen reader reads match the one a sighted reader now sees.
+    <div className="space-y-8">
       {/* THE PLAN LEADS THE PAGE, since 2026-08-13. It used to be the last of three
           sections, under the name and the join code, on the reasoning that "what are we
           on?" is a fact of the same kind as the member count. It is not the same kind of
@@ -111,41 +128,37 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           the product to find out what they already have. The BUTTONS are gated separately,
           inside the panel, on the same `canEdit` the name field uses.
 
-          THE HELP LINK SITS OUTSIDE THE PANEL, not in it, and that is a boundary rather
-          than a placement whim: `PlanPanel` is about the three plans and what each includes,
-          and where to read more about them belongs to the PAGE. It is the inline variant
-          because there is room above the panel and because the sentence is the point — the
-          question somebody arrives with is "what does changing this actually do to us?", and
-          the answer (screens close, no record is deleted, moving back up restores them) is
-          `family-settings#plan` rather than anything on this screen. It sits UNDER the panel
-          so it reads as "more about this" rather than as a caption over the first thing on
-          the page. */}
-      <section aria-labelledby="settings-plan" className="space-y-2">
-        <div className="space-y-1">
-          <h2 id="settings-plan" className="text-xl font-semibold">My Plan</h2>
-          <p className="text-sm text-muted-foreground">
-            Which subscription this family is on, and what moving between them does.
-          </p>
+          THE HELP LINK IS THE PANEL'S LAST ROW, not part of `PlanPanel`, and that is a
+          boundary rather than a placement whim: `PlanPanel` is about the plans and what each
+          includes, and where to read more about them belongs to the PAGE. The question
+          somebody arrives with is "what does changing this actually do to us?", and the
+          answer (screens close, no record is deleted, moving back up restores them) is
+          `family-settings#plan` rather than anything on this screen. */}
+      <SettingsPanel
+        id="settings-plan"
+        heading="My Plan"
+        lede="Which subscription this family is on, and what moving between them does."
+      >
+        <div className="p-5 sm:p-6">
+          <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
         </div>
-        <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
-        <HelpLink
-          variant="inline"
-          slug="family-settings"
-          section="plan"
-          label="What changing the plan does"
-        />
-      </section>
-
-      <section aria-labelledby="settings-family" className="space-y-4">
-        <div className="space-y-1">
-          <h2 id="settings-family" className="text-xl font-semibold">Family</h2>
-          <p className="text-sm text-muted-foreground">
-            What this family is called, the code relatives join it with, and switching it
-            off. Nothing here is ever deleted.
-          </p>
+        <div className="px-5 py-4 sm:px-6">
+          <HelpLink
+            variant="inline"
+            slug="family-settings"
+            section="plan"
+            label="What changing the plan does"
+          />
         </div>
+      </SettingsPanel>
 
-        <div className="rounded-xl border bg-card p-5 sm:p-6">
+      <SettingsPanel
+        id="settings-family"
+        heading="Family"
+        lede={'What this family is called, the code relatives join it with, and switching it '
+          + 'off. Nothing here is ever deleted.'}
+      >
+        <div className="p-5 sm:p-6">
           <h3 className="text-lg font-semibold">Family name</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             What this family is called everywhere in the app — the switcher, the dashboard,
@@ -201,7 +214,7 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           </form>
         </div>
 
-        <div className="rounded-xl border bg-card p-5 sm:p-6">
+        <div className="p-5 sm:p-6">
           <h3 className="text-lg font-semibold">Family code</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Share this with relatives so they can join. Everyone who joins waits in Pending
@@ -242,18 +255,64 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
           </p>
         </div>
 
-        {/* THE PLAN SECTION MOVED TO THE TOP OF THIS COMPONENT — see the comment there. It
-            is no longer read-only, and it no longer links to /pricing: an in-product screen
-            answering "what do we get?" by sending a signed-in administrator to the marketing
-            site was the thing that change removed. `lib/plans.ts` carries the copy. */}
+        {/* THE PLAN IS ITS OWN PANEL, ABOVE — see the comment at the top of this component.
+            It is no longer read-only, and it no longer links to /pricing: an in-product
+            screen answering "what do we get?" by sending a signed-in administrator to the
+            marketing site was the thing that change removed. `lib/plans.ts` carries the
+            copy. */}
 
-        {/* AND REMOVAL IS LAST, which is the one thing about its position that is decided
-            rather than left over. It is the heaviest control in the product and the least
-            often wanted, so it sits below everything somebody actually came here to do —
-            the same reasoning that puts the plan at the top. */}
+        {/* AND REMOVAL IS THE LAST ROW, which is the one thing about its position that is
+            decided rather than left over. It is the heaviest control in the product and the
+            least often wanted, so it sits below everything somebody actually came here to do
+            — the same reasoning that puts the plan in the panel above. */}
         <RemoveFamilySection settings={settings} />
-      </section>
+      </SettingsPanel>
     </div>
+  )
+}
+
+/**
+ * One band of Settings: a header strip naming it, and its rows underneath.
+ *
+ * ── WHY THE PAGE OWNS THE CONTAINER AND NOT ITS CONTENTS ───────────────────────────
+ * Settings was four bordered cards in a column with two headings floated above them, and it
+ * read as one list — the complaint this exists to answer. The fix is not a third and fourth
+ * border around the same cards: it is for the BAND to be the box and the cards to stop being
+ * boxes. So `PlanPanel` renders without a wrapper, the name and code blocks are plain
+ * padded blocks, and `divide-y` on the body is what separates them. Two boxes on the page,
+ * not six.
+ *
+ * ── THE HEADER STRIP IS `bg-muted/40`, WHICH IS NOT AN ARBITRARY TINT ──────────────
+ * It is the same ground every table header in the app uses, so a strip that names a band and
+ * a strip that names columns look like the same kind of thing. Reaching for `bg-brand-soft`
+ * here would have made the two panel headers the loudest elements on a page whose actual
+ * subject is the plan rows and the join code.
+ *
+ * ── `aria-labelledby`, NOT `aria-label` ────────────────────────────────────────────
+ * The name a screen reader announces for the landmark is the same node a sighted reader
+ * reads, so the two cannot drift. `id` is passed in rather than slugged from the heading,
+ * because a heading is prose and this is a document id: nothing links to it today, and a
+ * `heading.toLowerCase().replace(...)` would quietly change it the first time the wording
+ * did. (It is NOT the manual's anchor — `family-settings#plan` on the help link below is a
+ * section of the help CHAPTER, which lives in `lib/help/content.ts` and moves with nothing.)
+ *
+ * `overflow-hidden` is what makes the header strip's corners follow the panel's radius; the
+ * body has no popovers in it, so there is nothing for it to clip.
+ */
+function SettingsPanel({ id, heading, lede, children }: {
+  id: string
+  heading: string
+  lede: string
+  children: React.ReactNode
+}) {
+  return (
+    <section aria-labelledby={id} className="overflow-hidden rounded-xl border bg-card">
+      <header className="border-b bg-muted/40 px-5 py-4 sm:px-6">
+        <h2 id={id} className="text-lg font-semibold text-brand-ink">{heading}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{lede}</p>
+      </header>
+      <div className="divide-y">{children}</div>
+    </section>
   )
 }
 
@@ -273,6 +332,15 @@ export function FamilySettingsClient({ settings }: { settings: FamilySettings })
  * for a downgrade and the dues ladder uses for an unpaid installment: a capability being
  * withheld. It has no `on-` partner deliberately, so it is used as a foreground and as a
  * tint under one, never as a fill with text on it.
+ *
+ * ── IT IS A ROW IN THE FAMILY PANEL NOW, NOT A CARD ────────────────────────────────
+ * The `rounded-xl border border-brand-withheld/40` went when Settings became two panels: the
+ * panel supplies the box and `divide-y` supplies the rule above this row, so the border was
+ * a second edge four pixels inside the first. **The TINT stayed**, and that is the half that
+ * was carrying the signal — with the icon and the withheld heading colour, a reader can still
+ * see at a glance that the last row of this panel is not like the two above it. What a
+ * removed border cost is nothing; what removing the tint would cost is the only visual
+ * warning on the control.
  *
  * The confirmation is likewise NOT `destructive: true`. That flag renders shadcn's alarm
  * red and an AlertTriangle, which `--destructive` owns for errors and deletions; the
@@ -308,7 +376,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
   // an administrator would come looking for it.
   if (settings.status !== 'active') {
     return (
-      <section className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-5 sm:p-6">
+      <section className="bg-brand-withheld/5 p-5 sm:p-6">
         <h3 className="flex items-center gap-2 text-lg font-semibold">
           <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
           This family has been removed
@@ -393,7 +461,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
   }
 
   return (
-    <section className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-5 sm:p-6">
+    <section className="bg-brand-withheld/5 p-5 sm:p-6">
       <h3 className="flex items-center gap-2 text-lg font-semibold">
         <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
         Remove this family

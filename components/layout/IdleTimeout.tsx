@@ -8,6 +8,8 @@ import {
   clearIdleActivity,
   idlePhase,
   inheritedActivity,
+  markIdleActivity,
+  sessionStartMs,
   SIGNED_OUT_KEY,
   TICK_MS,
   TIMEOUT_NOTICE,
@@ -40,11 +42,40 @@ import { Dialog } from '@/components/ui/dialog'
  * fires it calls `signOut({ scope: 'local' })`, which revokes this session server-side.
  * The cookie is not merely deleted.
  *
- * WHAT IT DOES NOT COVER, so nobody reads it as more than it is. It measures idleness
- * inside a loaded page. Close the tab and come back tomorrow and the session is still
- * valid, because nothing was running to time it out — that is the half `inactivity_timeout`
- * covers. This closes the case it is aimed at: a signed-in tab left unattended on a shared
- * or visible screen.
+ * ── AND A PHONE DOES NOT KEEP A PAGE LOADED, WHICH USED TO DEFEAT IT ENTIRELY ─────
+ * This section said "close the tab and come back tomorrow and the session is still valid,
+ * because nothing was running to time it out", and treated that as the half
+ * `inactivity_timeout` covers. On a phone it is not a corner: **mobile browsers evict
+ * background tabs as a matter of routine**, so "the tab was discarded and reloaded" IS the
+ * ordinary mobile session, and the feature never fired there at all. That was the report:
+ * mobile does not automatically log you out.
+ *
+ * A discarded tab runs no timer, so the only thing that can notice is the MOUNT of the next
+ * page load, reading the marker somebody's last activity left behind. That is
+ * `inheritedActivity`, and it now answers three ways rather than two — adopt, expire, or
+ * start fresh — with `sessionStartedAt` telling "this session's own stale marker" apart
+ * from "residue from an earlier session". Its header carries the whole argument, including
+ * why getting that discrimination wrong in one direction locks somebody out of a session
+ * they have just created.
+ *
+ * Two further consequences live in this file:
+ *
+ *   * **The marker is written at MOUNT when this tab starts its own clock.** Without it a
+ *     member who loads a page and reads it without touching anything leaves no trace at
+ *     all, so the eviction above has nothing to expire against. It is written only in the
+ *     `fresh` case — writing it after ADOPTING one would overwrite the older marker this
+ *     tab was supposed to inherit, restarting the clock it just joined.
+ *   * **Returning to a backgrounded tab re-checks immediately.** iOS suspends JavaScript in
+ *     a background tab, so the interval below simply does not run while the phone is
+ *     locked; it resumes on return and would expire within a second anyway. The explicit
+ *     check on `visibilitychange`, `focus` and `pageshow` makes that instant instead, and
+ *     covers a back-forward-cache restore where the timer's resumption is not guaranteed.
+ *     Same three events `ShellWatcher` watches, and for the same reason: coming back to a
+ *     tab is when a stale one is both most likely and most visible.
+ *
+ * It still measures idleness rather than absence, and it is still not
+ * `inactivity_timeout`'s job — but "the browser was not running" is no longer a gap it
+ * shrugs at, because on a phone that is most of the time.
  */
 
 /**
@@ -61,7 +92,18 @@ import { Dialog } from '@/components/ui/dialog'
  */
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const
 
-export function IdleTimeout() {
+export function IdleTimeout({ sessionStartedAt }: {
+  /**
+   * `user.last_sign_in_at`, resolved on the SERVER by `app/(protected)/layout.tsx`.
+   *
+   * A PROP AND NOT A CLIENT READ. It decides whether a stale marker ends this session, so
+   * it must not be a value the browser can choose — and the session object auth-js keeps in
+   * `localStorage` is exactly that. `null` where GoTrue did not send one, which
+   * `inheritedActivity` treats as "cannot tell" and falls back to the old, conservative
+   * answer for.
+   */
+  sessionStartedAt?: string | null
+}) {
   /** null when not warning; otherwise whole seconds left. */
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
 
@@ -118,16 +160,39 @@ export function IdleTimeout() {
     lastActivity.current = now
     lastWrite.current = now
 
-    // A tab opened while another has been idle for nine minutes should inherit that, not
-    // reset it — but only from a marker that could still belong to a live tab.
-    // `inheritedActivity` is where that judgement lives, and why: an expired marker is
-    // residue from a session that has already ended, and adopting it signs the member out
-    // one tick after they sign back in.
+    // ── WHAT THE MARKER LEFT BEHIND MEANS, AND WHAT TO DO ABOUT IT ───────────────────
+    // Three answers, and the middle one is what makes this work on a phone at all: a tab
+    // opened while another has been idle for nine minutes should INHERIT that clock; a
+    // marker this session wrote and then left to go stale means the page was evicted and
+    // nobody came back inside the window, which is a sign-out; and anything older than the
+    // session itself is residue that must decide nothing. `inheritedActivity` is where that
+    // judgement lives and why.
+    //
+    // `expired` returns immediately — `signOutNow` navigates, so there is nothing for this
+    // effect to go on and set up.
+    let expiredOnMount = false
     try {
-      const stored = inheritedActivity(localStorage.getItem(ACTIVITY_KEY), now)
-      if (stored !== null) lastActivity.current = stored
+      const stored = inheritedActivity(
+        localStorage.getItem(ACTIVITY_KEY), now, sessionStartMs(sessionStartedAt),
+      )
+      if (stored.kind === 'adopt') {
+        lastActivity.current = stored.at
+      } else if (stored.kind === 'expired') {
+        expiredOnMount = true
+      } else {
+        // STARTING THIS TAB'S OWN CLOCK, so record that a signed-in page exists NOW. A
+        // member who loads a page and reads it without touching anything otherwise leaves
+        // no trace at all, and the next load after an eviction has nothing to measure
+        // against. Only in this branch: writing after adopting would overwrite the older
+        // marker this tab was supposed to inherit.
+        markIdleActivity(now)
+      }
     } catch {
       // Ignore — an unreadable store just means this tab times itself.
+    }
+    if (expiredOnMount) {
+      signOutNow()
+      return
     }
 
     const markActive = () => {
@@ -156,12 +221,58 @@ export function IdleTimeout() {
       }
     }
 
+    /**
+     * ── COMING BACK TO A SUSPENDED TAB ─────────────────────────────────────────────
+     * Not activity, and it deliberately does not mark any: somebody switching back to a
+     * tab is not somebody who has been at the keyboard for the last two hours. All this
+     * does is ask the question the interval could not ask while the tab was frozen.
+     *
+     * IT IS NOT REDUNDANT WITH THE INTERVAL. iOS suspends JavaScript in a background tab
+     * outright, and a back-forward-cache restore resumes a page whose timers may not have
+     * been re-armed — so on a phone this is frequently the only thing that runs. Where the
+     * interval does resume it would reach the same answer within a second, and this makes
+     * the sign-out immediate rather than a beat late on the screen the member is looking
+     * at.
+     *
+     * It reads the SHARED marker as well as this tab's own ref, because another tab may
+     * have been the active one while this was frozen and `storage` events do not fire in a
+     * suspended document.
+     */
+    const recheck = () => {
+      if (document.visibilityState === 'hidden') return
+      let at = lastActivity.current
+      try {
+        const shared = Number(localStorage.getItem(ACTIVITY_KEY))
+        if (Number.isFinite(shared) && shared > at) at = shared
+      } catch {
+        // See above — this tab's own ref is the fallback and is always usable.
+      }
+      lastActivity.current = at
+      const state = idlePhase(Date.now() - at)
+      if (state.phase === 'expired') {
+        signOutNow()
+        return
+      }
+      if (state.phase === 'warn') {
+        warning.current = true
+        setSecondsLeft(state.secondsLeft)
+      } else {
+        warning.current = false
+        setSecondsLeft(null)
+      }
+    }
+
     for (const type of ACTIVITY_EVENTS) {
       // Passive: none of these handlers calls preventDefault, and saying so keeps wheel
       // and touchstart off the blocking path.
       window.addEventListener(type, markActive, { passive: true })
     }
     window.addEventListener('storage', onStorage)
+    document.addEventListener('visibilitychange', recheck)
+    window.addEventListener('focus', recheck)
+    // `pageshow` rather than `load`: it fires on a back-forward-cache restore too, which is
+    // the one resumption `visibilitychange` can miss.
+    window.addEventListener('pageshow', recheck)
 
     const id = setInterval(() => {
       // Wall clock against a marker, not a decrementing countdown: a laptop that slept
@@ -182,8 +293,11 @@ export function IdleTimeout() {
       clearInterval(id)
       for (const type of ACTIVITY_EVENTS) window.removeEventListener(type, markActive)
       window.removeEventListener('storage', onStorage)
+      document.removeEventListener('visibilitychange', recheck)
+      window.removeEventListener('focus', recheck)
+      window.removeEventListener('pageshow', recheck)
     }
-  }, [signOutNow])
+  }, [signOutNow, sessionStartedAt])
 
   const staySignedIn = () => {
     const at = Date.now()

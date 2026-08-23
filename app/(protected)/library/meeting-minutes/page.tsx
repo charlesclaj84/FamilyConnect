@@ -30,11 +30,12 @@ export const metadata = { title: 'Meeting Minutes' }
  * cannot open the dialog they would fill.
  *
  * ── WHAT IS FETCHED CHANGED ON 2026-08-22 ──────────────────────────────────────────
- * It was `getMembers()`. The dialog now asks who is coming as a BODY — a board, an office —
- * rather than as a list of names, so what it needs is the family's boards, its filled offices
- * and its ADULTS, which is `getMeetingAttendeeOptions()`. That action resolves the same grant
- * again and returns an empty shape if it is not held, so the `maySchedule` test here is the
- * outer of two narrowings rather than the only one.
+ * It was `getMembers()`. The dialog now asks who is coming as a BODY — a board, an office, a
+ * chapter, or the whole family — rather than as a list of names, so what it needs is the
+ * family's boards, its filled offices, its chapters and its ADULTS, which is
+ * `getMeetingAttendeeOptions()`. `maySchedule` decides only whether the BUTTON is drawn; that
+ * action gates its own read on the same grant, which is what makes §5 hold here (see the
+ * comment on the call).
  */
 export default async function MeetingMinutesPage() {
   const supabase = await createClient()
@@ -43,14 +44,22 @@ export default async function MeetingMinutesPage() {
 
   await requireView(user.id, 'library/meeting-minutes')
 
-  const [meetings, maySchedule] = await Promise.all([
+  // ── ONE CALL, AND IT GATES ITSELF ─────────────────────────────────────────────────
+  // This was a ternary on `maySchedule` with a hand-written `{ boards: [], positions: [],
+  // adults: [], names: {} }` in the else branch — a second copy of `MeetingAttendeeOptions`
+  // living in a page, which stopped compiling the moment that shape grew `chapters`,
+  // `everyoneIds` and `myPersonId`. `npm run typecheck` catches that, which is the good case;
+  // what it cannot catch is the next person adding a field with a `?` on it.
+  //
+  // `getMeetingAttendeeOptions` resolves the same grant itself and returns its own empty shape
+  // BEFORE it queries anything, so §5 is honoured by the ACTION rather than by the ternary: a
+  // caller who cannot schedule gets nothing in the RSC payload and pays for two already-cached
+  // permission checks. `NO_OPTIONS` in that file is now the only place the empty shape exists.
+  const [meetings, maySchedule, attendeeOptions] = await Promise.all([
     getMeetings(),
     mayScheduleMeeting(),
+    getMeetingAttendeeOptions(),
   ])
-  // NOT FETCHED AT ALL for somebody who cannot schedule — see the header.
-  const attendeeOptions = maySchedule
-    ? await getMeetingAttendeeOptions()
-    : { boards: [], positions: [], adults: [], names: {} }
 
   return (
     <PageShell className="space-y-6">

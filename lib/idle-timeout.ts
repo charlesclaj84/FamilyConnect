@@ -100,6 +100,21 @@ export function idlePhase(idleMs: number): IdlePhase {
 }
 
 /**
+ * What a tab should do with the stored marker when it mounts.
+ *
+ * THREE ANSWERS AND NOT TWO, since 2026-08-22. This returned `number | null` — a marker to
+ * adopt, or nothing — and the missing third answer is what made the timeout fail to fire on
+ * a phone at all. See `inheritedActivity`.
+ */
+export type IdleAdoption =
+  /** A live-looking marker from THIS session: inherit its clock instead of restarting. */
+  | { kind: 'adopt'; at: number }
+  /** THIS session's own marker, past the limit. Nobody has been at the keyboard: sign out. */
+  | { kind: 'expired'; at: number }
+  /** Nothing usable. Start this tab's own clock from now. */
+  | { kind: 'fresh' }
+
+/**
  * THE MARKER OUTLIVES THE SESSION THAT WROTE IT, and this is the rule that stops it
  * deciding anything about the next one.
  *
@@ -111,27 +126,83 @@ export function idlePhase(idleMs: number): IdlePhase {
  * sign-in bounced straight back to /login. `localStorage` survives the browser closing
  * too, so the same bounce met anybody returning the next morning.
  *
- * Returns the marker to adopt, or null to start this tab's own clock. Two rejections:
+ * ── WHY "OLDER THAN THE LIMIT → IGNORE" WAS WRONG ON A PHONE ────────────────────────
+ * The fix for that bounce was to treat an expired marker as residue and start a fresh
+ * clock, on the argument that "a live tab signs ITSELF out on reaching the limit, so an
+ * expired marker can never describe one". **That argument assumes the tab is still
+ * loaded, and on a phone it is not.** Mobile browsers evict background tabs — iOS Safari
+ * aggressively, and Android under memory pressure — so the ordinary mobile sequence is:
  *
- *   * **Older than the limit.** It cannot describe a live tab, because a live tab signs
- *     ITSELF out on reaching the limit. So an expired marker is always residue — from a
- *     closed browser, or from the sign-out this feature just performed — and residue is
- *     not evidence of somebody sitting idle in a loaded page, which is the only thing
- *     this component measures.
- *   * **In the future.** A clock that moved, not activity. Inheriting it would set a timer
- *     that never fires.
+ *   member uses the app → backgrounds it → the tab is discarded → hours later they
+ *   reopen the browser → the page LOADS AGAIN from scratch → `IdleTimeout` mounts,
+ *   finds an expired marker, calls it residue, and starts a brand-new hour.
  *
- * NOT SUFFICIENT ON ITS OWN, deliberately: a marker 74 minutes old is inside the window
- * and still residue if the session it belonged to has ended. `clearIdleActivity()` on
- * sign-out and `markIdleActivity()` on sign-in are the other half.
+ * No timer ever ran during those hours, because no page existed to run one. So the member
+ * was never signed out, which is what was reported: "mobile doesn't automatically log you
+ * out". The desktop half worked all along precisely because a desktop tab stays loaded.
+ *
+ * ── THE DISCRIMINATOR IS THE SESSION'S OWN SIGN-IN TIME ─────────────────────────────
+ * Both cases present identically — an expired marker on a fresh mount — and what tells
+ * them apart is whether the marker was written BEFORE or AFTER this session began.
+ * `sessionStartedAt` is `user.last_sign_in_at`, resolved on the SERVER by
+ * `app/(protected)/layout.tsx` and handed down as a prop, so it cannot be a value the
+ * browser chose.
+ *
+ *   * marker written before the session began → residue from an earlier one. Ignore it;
+ *     this is the bounce case, and nothing about a previous session may end this one.
+ *   * marker written after, and past the limit → THIS session's own page recorded that
+ *     activity and the limit has since passed with nobody at the keyboard. Sign out.
+ *
+ * ── AND WITH NO SIGN-IN TIME IT KEEPS THE OLD, CONSERVATIVE ANSWER ──────────────────
+ * `last_sign_in_at` is optional on the GoTrue user. Where it is missing there is no way to
+ * tell the two cases apart, and the two mistakes are not symmetrical: expiring wrongly
+ * locks somebody out of a session they just created, while adopting wrongly leaves the
+ * existing behaviour in place. So `null` falls through to `fresh`, exactly as before.
+ *
+ * ── THE NARROW LOOSENING THIS BUYS, STATED RATHER THAN DISCOVERED ───────────────────
+ * `last_sign_in_at` belongs to the ACCOUNT, not to one device, so signing in on a phone
+ * moves it forward for a laptop too. A laptop tab that was evicted while idle, reloaded
+ * after a phone sign-in, therefore reads its own marker as pre-dating "the session" and
+ * starts a fresh clock rather than expiring. That is one extra window on a page the member
+ * has just loaded themselves, and it is the direction to err in: the alternative reading
+ * signs somebody out of a session they are actively using.
+ *
+ * NOT SUFFICIENT ON ITS OWN, deliberately: `clearIdleActivity()` on sign-out and
+ * `markIdleActivity()` on sign-in are still the other half, and they are what keep the
+ * marker from describing a session that has ended.
  */
-export function inheritedActivity(raw: string | null, now: number): number | null {
+export function inheritedActivity(
+  raw: string | null,
+  now: number,
+  sessionStartedAt: number | null,
+): IdleAdoption {
   const at = Number(raw)
   // `Number(null)` and `Number('')` are both 0, so the falsy cases fall out here with NaN.
-  if (!Number.isFinite(at) || at <= 0) return null
-  if (at >= now) return null
-  if (now - at >= IDLE_LIMIT_MS) return null
-  return at
+  if (!Number.isFinite(at) || at <= 0) return { kind: 'fresh' }
+  // In the future: a clock that moved, not activity. Inheriting it would set a timer that
+  // never fires, and expiring on it would be worse.
+  if (at >= now) return { kind: 'fresh' }
+  // Older than this session — see above. Checked BEFORE the limit, because a marker that is
+  // both stale and pre-session must read as residue rather than as an expiry.
+  if (sessionStartedAt !== null && at < sessionStartedAt) return { kind: 'fresh' }
+  if (now - at >= IDLE_LIMIT_MS) {
+    return sessionStartedAt === null ? { kind: 'fresh' } : { kind: 'expired', at }
+  }
+  return { kind: 'adopt', at }
+}
+
+/**
+ * `user.last_sign_in_at` as milliseconds, or null if it is missing or unreadable.
+ *
+ * Here rather than at the call site so the parse and the rule that consumes it are checked
+ * by the same test. `Date.parse` on an ISO-8601 string with an explicit offset (which is
+ * what GoTrue sends) is unambiguous — this is the one date in the feature that is a real
+ * instant rather than a calendar day, so it is the one place a `Date` is the right tool.
+ */
+export function sessionStartMs(lastSignInAt: string | null | undefined): number | null {
+  if (!lastSignInAt) return null
+  const at = Date.parse(lastSignInAt)
+  return Number.isFinite(at) ? at : null
 }
 
 /**

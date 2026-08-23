@@ -167,14 +167,24 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
   }
 
   return (
-    <section className="rounded-xl border bg-card p-5 sm:p-6">
+    // ── IT SUPPLIES NO CARD OF ITS OWN, SINCE 2026-08-22 ─────────────────────────────
+    // This was `rounded-xl border bg-card p-5 sm:p-6` — a card, because Settings was a flat
+    // stack of them. The page renders two PANELS now, one per band, and this is the body of
+    // the first; keeping the card would have put a border inside a border with four pixels
+    // of card showing between them. So the container, the padding and the ground all belong
+    // to `FamilySettingsClient`, and this renders content.
+    //
+    // `<div>`, not `<section>`: a section needs an accessible name to be worth announcing as
+    // a landmark, and the one that names this content is the panel's own `My Plan` heading
+    // one level up. Two nested landmarks with one heading between them is worse than one.
+    <div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          {/* AN `h3`, NOT AN `h2`, SINCE 2026-08-22. This card sits under the page's own
-              **My Plan** band heading now, so a second `h2` here would put two headings of
+          {/* AN `h3`, NOT AN `h2`, SINCE 2026-08-22. This sits under the page's own
+              **My Plan** panel heading, so a second `h2` here would put two headings of
               the same rank on one band and leave a screen reader's outline saying the page
               has two top-level sections where it has one. The caption changed with the
-              rank: the band answers "what are we on", so the card answers the next
+              rank: the panel header answers "what are we on", so this answers the next
               question rather than repeating the first. */}
           <h3 className="text-lg font-semibold">What each plan includes</h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -313,7 +323,7 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
       {detail && (
         <PlanDetailDialog plan={detail} current={current} onClose={() => setDetail(null)} />
       )}
-    </section>
+    </div>
   )
 }
 

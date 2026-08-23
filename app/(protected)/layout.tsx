@@ -68,12 +68,27 @@ export default async function ProtectedLayout({ children }: { children: React.Re
    * cannot find the console by guessing at a URL either.
    */
   let isStaff = false
+  /**
+   * When THIS session began — `user.last_sign_in_at`, handed to the idle timer.
+   *
+   * IT HAS TO BE RESOLVED HERE. The timer's hardest question is what a stale activity
+   * marker in `localStorage` means when a page loads: this session's own idleness (sign
+   * out) or residue from an earlier one (ignore). The discriminator is whether the marker
+   * pre-dates the sign-in, and a browser that could choose the sign-in time could choose
+   * the answer — auth-js keeps the whole session in `localStorage`, so a client-side read
+   * would be exactly that. `getUser()` above went to GoTrue for this.
+   *
+   * `null` where GoTrue sent none; `inheritedActivity` treats that as "cannot tell" and
+   * keeps the conservative answer. See `lib/idle-timeout.ts`.
+   */
+  let sessionStartedAt: string | null = null
 
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       signedIn = true
+      sessionStartedAt = user.last_sign_in_at ?? null
       // The sidebar shows a page only if the member may view it. There is no
       // is_admin branch any more — group policy is the single authority.
       //
@@ -242,7 +257,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
           Not keyed on `familyCode` like `<main>` is: switching family must not restart the
           idle clock, and the component holds no family data to go stale. */}
-      {signedIn && <IdleTimeout />}
+      {signedIn && <IdleTimeout sessionStartedAt={sessionStartedAt} />}
 
       {/* THE SHELL ABOVE IS BUILT ONCE AND NEVER ASKS AGAIN.
           ─────────────────────────────────────────────────────────────────────
