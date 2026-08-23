@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency-utils'
 import {
-  MAX_PREPAY_MONTHS, PREPAY_PRESET_MONTHS, isPrepayMonths, prepayQuoteCents,
+  MAX_PREPAY_MONTHS, PREPAY_PRESET_MONTHS, initialChargeOptions, isPrepayMonths,
+  prepaidChargeCents, prepayQuoteCents,
 } from '@/lib/platform-billing'
 import { TIER_LABEL, TIERS, type FamilyTier } from '@/lib/tiers'
 import {
@@ -272,10 +273,15 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
         <BuyDialog
           tier={buying}
           purchasable={billing.purchasable[buying]}
+          // A live term means the current month is already owned, so there is no part month to
+          // sell and nothing is charged today. `startPlanCheckout` re-derives this from the
+          // record rather than trusting it — this only shapes what the dialog says.
+          extendingLiveTerm={billing.paidThrough != null && !billing.paidEntitlement.lapsed}
+          today={billing.today}
           onClose={() => setBuying(null)}
-          onBuy={(mode, months) => {
+          onBuy={(mode, months, firstPayment) => {
             setBuying(null)
-            run(() => startPlanCheckout({ tier: buying, mode, months }))
+            run(() => startPlanCheckout({ tier: buying, mode, months, firstPayment }))
           }}
         />
       )}
@@ -298,31 +304,87 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
  * checkout comes to ask for something the button did not promise.
  */
 function BuyDialog({
-  tier, purchasable, onClose, onBuy,
+  tier, purchasable, extendingLiveTerm, today, onClose, onBuy,
 }: {
   tier: FamilyTier
   purchasable: { recurring: boolean; prepaid: boolean }
+  /** A live paid term is being extended, so the current month is already owned. */
+  extendingLiveTerm: boolean
+  /** Resolved on the SERVER. See the note on the prop in `BillingPanel`. */
+  today: string
   onClose: () => void
-  onBuy: (mode: 'recurring' | 'prepaid', months: number) => void
+  onBuy: (
+    mode: 'recurring' | 'prepaid',
+    months: number,
+    firstPayment: 'remainder' | 'remainder-plus-next',
+  ) => void
 }) {
-  const [months, setMonths] = useState(12)
-  const quote = prepayQuoteCents(tier, isPrepayMonths(months) ? months : 1)
+  const [months, setMonths] = useState(6)
   const monthly = prepayQuoteCents(tier, 1)
+  const options = initialChargeOptions(tier, today)
+  const prepaid = prepaidChargeCents({
+    tier, months: isPrepayMonths(months) ? months : 1, today, extendingLiveTerm,
+  })
 
   return (
     <Dialog open onClose={onClose} title={`Pay for ${TIER_LABEL[tier]}`}>
       <div className="space-y-5">
         {purchasable.recurring && (
-          <section className="space-y-2">
+          <section className="space-y-3">
             <h4 className="text-sm font-semibold">Monthly</h4>
             <p className="text-sm text-muted-foreground">
-              {monthly != null ? formatCurrency(monthly) : '—'} a month, renewing until you stop
-              it. Change or stop it whenever — what you have already paid for stays open.
+              {monthly != null ? formatCurrency(monthly) : '—'} a month, taken on the 1st, until
+              you stop it. Change or stop it whenever — what you have already paid for stays
+              open.
             </p>
-            <Button variant="affirm" onClick={() => onBuy('recurring', 1)}>
-              <CreditCard className="h-4 w-4" />
-              Pay monthly
-            </Button>
+
+            {/* ── THE FIRST PAYMENT IS NOT A FULL MONTH, AND IT SAYS SO ────────────────
+                Every family bills on the 1st, so the first charge is the rest of THIS month
+                prorated by the day. That is the one thing about this model somebody has to be
+                told before they press the button, or the amount on their card statement is a
+                number they did not expect. Both options name their figure and their date. */}
+            {extendingLiveTerm
+              ? (
+                <p className="text-sm text-muted-foreground">
+                  Billing starts when the term you have already paid for ends. Nothing is
+                  charged today.
+                </p>
+              )
+              : (
+                <div className="space-y-2">
+                  {options.remainderOnly != null && (
+                    <Button
+                      variant="affirm"
+                      className="w-full justify-start"
+                      onClick={() => onBuy('recurring', 1, 'remainder')}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Pay {formatCurrency(options.remainderOnly)} for the{' '}
+                      {options.daysLeft} day{options.daysLeft === 1 ? '' : 's'} left this month
+                    </Button>
+                  )}
+                  <Button
+                    variant={options.remainderOnly == null ? 'affirm' : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => onBuy('recurring', 1, 'remainder-plus-next')}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Pay{' '}
+                    {options.remainderPlusNext != null
+                      ? formatCurrency(options.remainderPlusNext)
+                      : ''}{' '}
+                    for the rest of this month and next
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    {options.remainderOnly == null
+                      // NOT "invalid amount". The remainder alone is below the smallest charge
+                      // a card network will take, which is an ordinary state at the end of a
+                      // month on the cheaper plans — so it is explained rather than hidden.
+                      ? `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own — so the first payment covers next month too. Billing then moves to the 1st.`
+                      : `Either way, every payment after the first is on the 1st.`}
+                  </p>
+                </div>
+              )}
           </section>
         )}
 
@@ -330,8 +392,9 @@ function BuyDialog({
           <section className={cn('space-y-2', purchasable.recurring && 'border-t pt-5')}>
             <h4 className="text-sm font-semibold">In advance</h4>
             <p className="text-sm text-muted-foreground">
-              One payment covering however many months you like. Nothing renews it, so nothing
-              is charged again until you choose to.
+              One payment covering the rest of this month plus whole months after it, up to{' '}
+              {MAX_PREPAY_MONTHS}. Nothing renews it, so nothing is charged again until you
+              choose to.
             </p>
             <div className="flex flex-wrap gap-1.5">
               {PREPAY_PRESET_MONTHS.map(n => (
@@ -341,7 +404,7 @@ function BuyDialog({
                   size="sm"
                   onClick={() => setMonths(n)}
                 >
-                  {n === 12 ? '1 year' : n === 24 ? '2 years' : n === 36 ? '3 years' : `${n} mo`}
+                  {n === 6 ? '6 months' : `${n} mo`}
                 </Button>
               ))}
             </div>
@@ -360,12 +423,22 @@ function BuyDialog({
               <Button
                 variant="affirm"
                 disabled={!isPrepayMonths(months)}
-                onClick={() => onBuy('prepaid', months)}
+                onClick={() => onBuy('prepaid', months, 'remainder')}
               >
                 <CreditCard className="h-4 w-4" />
-                Pay {quote != null ? formatCurrency(quote) : ''} now
+                Pay {prepaid ? formatCurrency(prepaid.totalCents) : ''} now
               </Button>
             </div>
+            {/* BOTH HALVES OF THE FIGURE. "Why is it not six times five?" has one answer and
+                it is a part month nobody mentioned — so it is mentioned. */}
+            {prepaid && prepaid.prorationCents > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(prepaid.prorationCents)} for the {options.daysLeft} day
+                {options.daysLeft === 1 ? '' : 's'} left this month, plus{' '}
+                {formatCurrency(prepaid.monthsCents)} for {prepaid.months} whole month
+                {prepaid.months === 1 ? '' : 's'}.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               You can change the number of months on Stripe&rsquo;s page too — up to{' '}
               {MAX_PREPAY_MONTHS}.

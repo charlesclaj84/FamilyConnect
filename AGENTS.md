@@ -2736,6 +2736,36 @@ whether to redeliver; swallowing a failure into a 200 loses the event permanentl
 lost that way are the ones that grant a tier somebody paid for. `finish_stripe_event` leaves
 `processed_at` NULL on a failure for the same reason.
 
+## A TABLE WITH NO `family_code` OWES TWO SCRIPT ENTRIES, AND THIS ONE COST A RED DEPLOY
+
+`stripe_webhook_events` has no `family_code` — deliberately: a platform event is about
+GENORRA's own Stripe account and belongs to no family, and the Connect events that DO belong
+to one arrive before anything has resolved which. Its only outward-pointing column is a raw
+`acct_…` string with no foreign key.
+
+That makes it invisible to `audit_global_lookups.sql`'s §2, whose whole job is to derive rather
+than to be told: **any `public` table that is empty and has no transitive foreign-key path to a
+`family_code` is reported**, because that is precisely what an emptied global lookup looks
+like. It is a step in `migrate.yml`, so it held the Vercel alias with the schema already
+applied — the failure mode that section already warns about for a table retired from a list,
+arriving from the other direction.
+
+**So a new table with no `family_code` owes an entry in `allowed_empty` in the same commit**,
+with a sentence saying which case it is: empty by DESIGN (nothing seeds it and nothing can) or
+empty because something emptied it. `marketing_attribution` and `marketing_conversion_events`
+got that right in their own commit; this did not, and the entry now says so.
+
+**And `reset_families.sql` §11 is the second entry, which is easy to miss because it DERIVES
+its assertion too.** That script deletes by hand and checks dynamically — every `public` table
+either gets a DELETE or goes on the keep-list, or §11 rolls the whole reset back naming it. The
+four family-scoped billing tables are deleted (§6d-bis); the event ledger is kept, because a
+FAMILY reset is not a platform reset. The two scripts disagreeing about that one table is
+correct rather than an inconsistency: one empties a family, the other empties everything.
+
+The cheap way to check the second one is a static diff of the script's DELETE targets and
+keep-list against `information_schema.tables` — it cannot see cascades, so the residue needs
+reading by hand, but it finds a table nobody thought about in seconds.
+
 ## AND `/api` IS EXCLUDED FROM `proxy.ts`
 
 The first `app/api` routes in the product arrived with this, and the matcher had to learn about

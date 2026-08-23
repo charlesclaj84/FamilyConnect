@@ -153,11 +153,36 @@ DECLARE
   -- from `auth.users`, which that script empties, so those rows go with the accounts they
   -- describe whether or not the table is truncated. A keep-list entry would read as a
   -- guarantee it does not make.
+  --
+  -- `stripe_webhook_events` (20260823000004) is the fifth, and it is the one that arrived by
+  -- RED DEPLOY rather than in the commit that created it — so it is worth saying what the
+  -- reasoning should have been, because the marketing pair above got this right and this did
+  -- not.
+  --
+  -- It is the claim ledger that stops a redelivered Stripe event being applied twice. No
+  -- `family_code` — deliberately, and it is the whole reason §2 cannot classify it: a platform
+  -- event is about GENORRA's own Stripe account and belongs to no family, and the Connect
+  -- events that DO belong to one arrive before anything has resolved which. Its only other
+  -- column that points anywhere is `account_id`, a raw `acct_…` string with no foreign key at
+  -- all. So §2's recursion cannot reach it from any table that has a `family_code`.
+  --
+  -- AND IT IS EMPTY ON EVERY DATABASE THAT HAS NOT TAKEN A PAYMENT, which is every `db reset`,
+  -- every laptop, every preview deployment, and production until the day billing is switched
+  -- on. Nothing seeds it and nothing can: rows accumulate from real webhook deliveries, and
+  -- there is no set of "the right" events for a migration to restore. An empty one is correct
+  -- rather than damaged, which is exactly the distinction this list exists to record.
+  --
+  -- It is deliberately ABSENT from truncate_entire_database.sql's keep-list — that script
+  -- derives its TRUNCATE from everything NOT on the list, and emptying an idempotency ledger
+  -- alongside the families it was protecting is right: there is nothing left to double-apply.
+  -- It IS on reset_families.sql §11's keep-list, for the opposite reason: a family reset is not
+  -- a platform reset, and these rows describe GENORRA's account rather than any family's.
   allowed_empty CONSTANT text[] := ARRAY[
     'user_family_settings',
     'genorra_staff',
     'marketing_attribution',
-    'marketing_conversion_events'
+    'marketing_conversion_events',
+    'stripe_webhook_events'
   ];
   i        int;
   v_count  bigint;

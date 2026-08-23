@@ -241,6 +241,41 @@ BEGIN
   DELETE FROM safety_check_in_people;
   DELETE FROM safety_check_ins;
 
+  -- ── 6d-bis. Card payments: the family's processor, and what it pays GENORRA ─
+  --
+  -- FOUR TABLES, TWO DIRECTIONS OF MONEY, and both go. `family_stripe_accounts` and
+  -- `dues_autopay` are the family collecting dues by card; `platform_billing_accounts` and
+  -- `platform_payments` are what the family pays GENORRA for its plan (20260823000004,
+  -- 20260823000005). AGENTS.md keeps those two ledgers apart everywhere else; here they are
+  -- adjacent because a reset has the same answer for both.
+  --
+  -- NONE OF THE FOUR IS REMOVED BY ANY CASCADE, which is why all four are written out:
+  --   `family_stripe_accounts.connected_by`  ON DELETE SET NULL, so §8's people delete blanks
+  --                                          the column and leaves the row.
+  --   `platform_*`                           keyed on `family_code` with no foreign key to
+  --                                          `families` at all — the position
+  --                                          `resource_visibility` is in, and the reason both
+  --                                          are named rather than assumed.
+  -- `dues_autopay` DOES cascade from `people`, and is written anyway: it is deleted before the
+  -- account row it names so the ORDER states the dependency, which is the rule the thirteen
+  -- retired `event_*` lines left behind.
+  --
+  -- ── WHAT THIS DOES *NOT* DO, AND IT MATTERS ────────────────────────────────
+  -- **It cancels nothing at Stripe.** These are our records of subscriptions that live on
+  -- Stripe's side — a family's members paying dues by card, and the family's own plan. Deleting
+  -- the rows makes the product forget them; it does not stop a single charge. A relative would
+  -- go on being billed monthly with nothing in the database able to say why, and the Connect
+  -- webhook would then refuse each payment as "no autopay for subscription …".
+  --
+  -- So on any database that has ever taken a real payment, CANCEL FIRST — `disconnectProcessor`
+  -- for the family side, `cancelPlanRenewal` for ours, or the subscriptions themselves in the
+  -- Stripe Dashboard. This script is safe on a database that never transacted, which is every
+  -- laptop, and is a billing incident on one that did.
+  DELETE FROM dues_autopay;
+  DELETE FROM family_stripe_accounts;
+  DELETE FROM platform_payments;
+  DELETE FROM platform_billing_accounts;
+
   -- ── 6e. Text-message settings ─────────────────────────────────────────────
   -- The number and any outstanding challenge go. Both are settings a member can re-establish
   -- in a minute, and a phone number is not something a reset should leave lying about.
@@ -467,7 +502,19 @@ BEGIN
            -- be, because it is the record of when somebody agreed to be texted and how. Every
            -- other member's rows go with their `people` row in §8, which is a cascade and is what
            -- that trigger allows.
-           'sms_consent_events')
+           'sms_consent_events',
+           -- AND THE PLATFORM'S OWN WEBHOOK LEDGER. `stripe_webhook_events`
+           -- (20260823000004) is the claim record that stops a redelivered Stripe event being
+           -- applied twice. It has no `family_code` and describes GENORRA's own Stripe
+           -- account, so a FAMILY reset is not the thing that should empty it — the same
+           -- reasoning that keeps it off this script's DELETE list in §6d-bis, where the four
+           -- tables that ARE family data are removed.
+           --
+           -- `truncate_entire_database.sql` DOES take it, because that script is a platform
+           -- reset and derives its TRUNCATE from everything not on its own keep-list. The two
+           -- scripts disagreeing here is correct rather than an inconsistency: one empties a
+           -- family, the other empties everything.
+           'stripe_webhook_events')
      AND (xpath('/row/c/text()', query_to_xml(
             format('select count(*) as c from public.%I', t.table_name),
             false, true, '')))[1]::text::bigint > 0;

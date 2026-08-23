@@ -10,7 +10,8 @@ import { TIER_IS_SOLD, TIER_PRICE } from '@/lib/plans'
 import { TIER_LABEL, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
   MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, entitlementOn,
-  isPrepayMonths, prepayQuoteCents, scheduleDowngrade, tierMove,
+  initialChargeOptions, isPrepayMonths, nextFirstOfMonth, prepayQuoteCents,
+  prorateRemainderCents, scheduleDowngrade, tierMove,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { intentKey, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
@@ -96,6 +97,16 @@ export interface PlatformBilling extends PlatformBillingRecord {
   delinquentSince: string | null
   /** The most recent payments, newest first. Our receipts, never the family's ledger. */
   payments: PlatformPaymentRow[]
+  /**
+   * Today, `YYYY-MM-DD`, RESOLVED ON THE SERVER.
+   *
+   * The panel needs it to quote a part month — how many days are left, and what they cost —
+   * and a browser's own clock is the wrong one to ask. A family in Auckland on the 1st is
+   * still on the 31st in UTC, so a client-side `new Date()` would quote a whole month while
+   * `startPlanCheckout` charged one day, or the reverse. One clock, and it is the one that
+   * takes the money.
+   */
+  today: string
 }
 
 export interface PlatformPaymentRow {
@@ -178,6 +189,7 @@ export async function getPlatformBilling(): Promise<PlatformBilling | null> {
     paidEntitlement: entitlementOn(record, today),
     canManage: editable,
     purchasable: purchasability(),
+    today,
     unavailable: stripeUnavailableReason(),
     delinquentSince: typeof (accountRes.data as { delinquent_since?: unknown } | null)?.delinquent_since === 'string'
       ? (accountRes.data as { delinquent_since: string }).delinquent_since
@@ -230,6 +242,8 @@ export async function startPlanCheckout(input: {
   tier: string
   mode: string
   months?: number
+  /** Monthly path only: `'remainder'` or `'remainder-plus-next'`. See below. */
+  firstPayment?: string
 }): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
@@ -245,13 +259,25 @@ export async function startPlanCheckout(input: {
     return { success: false, message: 'Choose whether to pay monthly or in advance.' }
   }
   const mode: BillingMode = input.mode
-  const months = mode === 'prepaid' ? (input.months ?? 12) : 1
+  const months = mode === 'prepaid' ? (input.months ?? 6) : 1
   if (mode === 'prepaid' && !isPrepayMonths(months)) {
     return {
       success: false,
       message: `Choose between 1 and ${MAX_PREPAY_MONTHS} months.`,
     }
   }
+  // ── WHICH FIRST PAYMENT, ON THE MONTHLY PATH ──────────────────────────────────────
+  // 'remainder' pays the rest of this month and bills on the 1st. 'remainder-plus-next'
+  // pays the rest of this month AND the whole of next, and bills on the 1st after that —
+  // which is the option that matters at the end of a month, when the remainder alone is a
+  // few days. Narrowed rather than defaulted silently: an unrecognised value is a caller
+  // bug, and picking one for them would charge a family something they did not choose.
+  if (input.firstPayment != null
+      && input.firstPayment !== 'remainder'
+      && input.firstPayment !== 'remainder-plus-next') {
+    return { success: false, message: 'Choose which first payment to make.' }
+  }
+  const firstPayment = input.firstPayment ?? 'remainder'
 
   if (!TIER_IS_SOLD[tier]) {
     return { success: false, message: `${TIER_LABEL[tier]} is not on sale yet.` }
@@ -308,6 +334,69 @@ export async function startPlanCheckout(input: {
     genorra_mode: mode,
   }
 
+  // ── THE PART MONTH, AND WHEN THE CYCLE STARTS ─────────────────────────────────────
+  //
+  // A family with a LIVE paid term already owns the rest of this month, so there is no part
+  // month to sell them — that is the case which would otherwise be charged twice, once by the
+  // term they already bought and once by this session.
+  const today = todayISO()
+  const extendingLiveTerm =
+    record.paid_through != null && daysBetween(today, record.paid_through) >= 0
+
+  let prorationCents: number | null = null
+  if (!extendingLiveTerm) {
+    if (mode === 'prepaid') {
+      // THE RAW PRORATION, not the floored one. Stripe's minimum applies to the SESSION
+      // total, and a prepaid session also carries whole months — so a 33c part month is
+      // perfectly chargeable here even though it could not stand alone.
+      prorationCents = prorateRemainderCents(tier, today)
+    } else {
+      const options = initialChargeOptions(tier, today)
+      prorationCents = firstPayment === 'remainder-plus-next'
+        ? options.remainderPlusNext
+        : options.remainderOnly
+      if (prorationCents == null) {
+        // Only reachable for 'remainder' below Stripe's minimum, which is the ordinary state
+        // in the last days of a month on the cheaper tiers. Named rather than described: the
+        // family is being told which control to press, not that something failed.
+        return {
+          success: false,
+          message: `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
+        }
+      }
+    }
+  }
+
+  const prorationLine = prorationCents != null && prorationCents > 0
+    ? {
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: prorationCents,
+          product_data: {
+            name: firstPayment === 'remainder-plus-next' && mode === 'recurring'
+              ? `${TIER_LABEL[tier]} — rest of this month and next`
+              : `${TIER_LABEL[tier]} — rest of this month`,
+          },
+        },
+      }
+    : null
+
+  // The cycle. `day_of_month: 1` for the ordinary case; a real timestamp for
+  // 'remainder-plus-next', because next month is paid for in this session and the cycle has
+  // to skip it — which `day_of_month` cannot express. And NEITHER when a prepaid term is
+  // still running: `trial_end` is already holding the subscription off until the day after it
+  // ends, which under rule 2 is itself a 1st.
+  const anchor = extendingLiveTerm
+    ? {}
+    : firstPayment === 'remainder-plus-next'
+      ? {
+          billing_cycle_anchor: Math.floor(
+            Date.parse(`${nextFirstOfMonth(nextFirstOfMonth(today))}T00:00:00Z`) / 1000,
+          ),
+        }
+      : { billing_cycle_anchor_config: { day_of_month: 1 } }
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: mode === 'recurring' ? 'subscription' : 'payment',
@@ -322,15 +411,39 @@ export async function startPlanCheckout(input: {
               price: priceId,
               quantity: months,
               // PAY AS FAR AHEAD AS YOU LIKE, on Stripe's own page. The presets on our screen
-              // are buttons; this is the field that makes seven months possible without us
-              // building a stepper.
+              // are buttons; this is the field that makes five months possible without us
+              // building a stepper. Capped at `MAX_PREPAY_MONTHS`, which also caps how long a
+              // downgrade can be deferred — see that constant.
               adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
             },
+        // ── THE PART MONTH, AS OUR OWN LINE, AND ONLY WHEN IT IS OWED ─────────────────
+        // Every family bills on the 1st, so the first payment includes the rest of the
+        // current month. It is a line item OF OURS rather than a Stripe proration, because
+        // the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`, computed by
+        // `prorateRemainderCents` and quoted on the button before the family presses it. If
+        // Stripe prorated it instead the two figures would differ by a few cents and the
+        // hosted page would ask for a number the button did not promise.
+        //
+        // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
+        // extended — which is the case that would otherwise double-charge for it.
+        ...(prorationLine ? [prorationLine] : []),
       ],
       ...(mode === 'recurring'
         ? {
             subscription_data: {
               metadata,
+              // ── EVERYBODY BILLS ON THE 1st ───────────────────────────────────────
+              // Declarative rather than a computed timestamp: `day_of_month: 1` is what
+              // "the billing cycle is the calendar month" means, and Stripe handles the
+              // month lengths. For 'remainder-plus-next' the anchor is a real timestamp
+              // instead, because next month is already paid for and the cycle has to skip
+              // it — there is no way to say "the 1st, but not the next one" declaratively.
+              ...anchor,
+              // NOTHING PRORATED BY STRIPE. The default here is `create_prorations`, which
+              // would bill its own computed part-month ON TOP of the line item above — the
+              // family charged twice for the same days. `'none'` is what makes our line the
+              // only one.
+              proration_behavior: 'none' as const,
               // ── NOT DOUBLE-BILLING A FAMILY THAT ALREADY PAID IN ADVANCE ───────────
               // A prepaid term with time left on it is honoured by starting the subscription
               // at the end of it. Stripe models "do not charge until this date" as a trial,
@@ -471,8 +584,8 @@ export async function changePlanTier(nextTier: string): Promise<PlanChangeResult
       })
       const { error } = await admin.from('platform_billing_accounts')
         .update({
-          scheduled_tier: scheduled?.tier ?? nextTier,
-          scheduled_tier_on: scheduled?.on ?? todayISO(),
+          scheduled_tier: scheduled.tier,
+          scheduled_tier_on: scheduled.on,
         })
         .eq('family_code', g.familyCode)
       if (error) {
@@ -487,9 +600,7 @@ export async function changePlanTier(nextTier: string): Promise<PlanChangeResult
       revalidateBilling()
       return {
         success: true,
-        message: scheduled
-          ? `${TIER_LABEL[nextTier]} starts on ${scheduled.on}. Nothing changes before then, and there is no refund for the rest of this period.`
-          : `Moved to ${TIER_LABEL[nextTier]}.`,
+        message: `${TIER_LABEL[nextTier]} starts on ${scheduled.on} — the next billing date. Nothing changes before then, and there is no refund for the days already paid for.`,
       }
     }
 
@@ -540,7 +651,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
     .update({
       cancel_at_period_end: true,
       scheduled_tier: 'free',
-      scheduled_tier_on: scheduled?.on ?? todayISO(),
+      scheduled_tier_on: scheduled.on,
     })
     .eq('family_code', g.familyCode)
   if (error) {
@@ -554,9 +665,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
   revalidateBilling()
   return {
     success: true,
-    message: scheduled
-      ? `The plan stops on ${scheduled.on}. Every page stays open until then, and every record is kept afterwards.`
-      : 'The plan has been stopped.',
+    message: `The plan stops on ${scheduled.on}. Every page stays open until then, and every record is kept afterwards.`,
   }
 }
 

@@ -24,26 +24,34 @@
  * `lib/stripe/*` is the impure half: it holds the credentials and talks to the API. It
  * imports this; this imports nothing of it.
  *
- * ── THE BILLING MODEL, IN FIVE RULES ────────────────────────────────────────────────
+ * ── THE BILLING MODEL, IN SIX RULES ─────────────────────────────────────────────────
  *
  *   1. **ONE RATE PER TIER, MONTHLY.** `TIER_PRICE[tier].monthlyCents` is the only figure,
  *      and there is deliberately no annual rate — `lib/plans.ts` records why one was
  *      withdrawn, and "do not put a yearly figure back by multiplying" is a rule this module
- *      obeys rather than reopens. A year in advance is twelve months at the monthly rate.
+ *      obeys rather than reopens. Six months in advance is six months at the monthly rate.
  *
- *   2. **PAY IN ADVANCE, AS FAR AHEAD AS YOU LIKE.** Either a monthly subscription that
- *      renews, or one payment covering N months. `MAX_PREPAY_MONTHS` is the only ceiling and
- *      it is a practical one, not a pricing one.
+ *   2. **EVERY FAMILY BILLS ON THE 1st.** Not on the anniversary of the day they signed up.
+ *      The first payment is the REMAINDER OF THE CURRENT MONTH, prorated by the day and
+ *      rounded up; every payment after it lands on the 1st. `prorateRemainderCents` and
+ *      `nextFirstOfMonth` are the whole of it, and the consequence worth knowing is that
+ *      **`paid_through` is always the last day of a month** — which is what makes rules 3
+ *      and 4 one expression rather than two.
  *
- *   3. **NO REFUNDS, EVER.** Moving down a tier takes nothing back. The family keeps what it
- *      paid for until the term it paid for ends, and the tier changes then —
- *      `scheduled_tier` / `scheduled_tier_on` is that promise written down.
+ *   3. **PAY IN ADVANCE, UP TO SIX MONTHS.** Either a monthly subscription that renews on
+ *      the 1st, or one payment covering the rest of this month plus N whole months.
+ *      `MAX_PREPAY_MONTHS` is the ceiling and it is a practical one, not a pricing one.
  *
- *   4. **MOVING UP TAKES EFFECT AT ONCE, AND THE UNUSED TERM IS KEPT AS VALUE.** See
- *      `upgradeCreditDays` — the days left on the cheaper term are converted at the dearer
- *      tier's rate rather than refunded or forfeited.
+ *   4. **NO REFUNDS, EVER, AND A DOWNGRADE WAITS FOR THE BILLING CYCLE.** Moving down takes
+ *      nothing back and changes nothing today: it lands on the next 1st for a family paying
+ *      monthly, and on the 1st AFTER a prepaid term is exhausted for a family that paid
+ *      ahead. Six months of Plus, downgraded in month two, is Plus for months two to six and
+ *      Standard from month seven. `downgradeEffectiveOn` is one line because of rule 2.
  *
- *   5. **`families.tier` IS MOVED BY ONE THING.** `apply_due_platform_tier_changes()` in
+ *   5. **MOVING UP TAKES EFFECT AT ONCE**, and what is charged is a proration to the next
+ *      1st rather than the difference across a whole prepaid term. See `prepaidPurchase`.
+ *
+ *   6. **`families.tier` IS MOVED BY ONE THING.** `apply_due_platform_tier_changes()` in
  *      SQL. Nothing here writes anything, and `entitlementOn` DESCRIBES rather than decides —
  *      see its header for why that distinction is load-bearing rather than pedantic.
  */
@@ -69,23 +77,45 @@ export function isBillingMode(value: unknown): value is BillingMode {
 /**
  * The furthest ahead a family may pay in one go.
  *
- * THREE YEARS IS A PRACTICAL CEILING RATHER THAN A PRICING ONE, and it is worth saying what
- * it is protecting: a hosted Checkout page with an adjustable quantity is a number field a
- * stranger can type into, and `999999` months is a real charge for a real amount of money
- * that we would then owe someone a service for until the 84th century. Stripe enforces the
- * maximum on the page and `startPlanCheckout` enforces it again in the action, because the
- * page in front of an endpoint is a convenience and not a gate (AGENTS.md §2).
+ * SIX MONTHS, LOWERED FROM THIRTY-SIX ON 2026-08-23. A practical ceiling rather than a
+ * pricing one, and it is worth saying what it is protecting: a hosted Checkout page with an
+ * adjustable quantity is a number field a stranger can type into, and `999999` months is a
+ * real charge for a real amount of money that we would then owe somebody a service for until
+ * the 84th century. Stripe enforces the maximum on the page and `startPlanCheckout` enforces
+ * it again in the action, because the page in front of an endpoint is a convenience and not a
+ * gate (AGENTS.md §2).
+ *
+ * IT ALSO BOUNDS HOW FAR A DOWNGRADE CAN BE PUSHED OUT. Under rule 4 a family that has paid
+ * ahead keeps its tier until the term is exhausted, so the prepay ceiling IS the longest a
+ * downgrade can be deferred — three years of that was a long time to owe somebody a plan they
+ * had asked to leave.
  */
-export const MAX_PREPAY_MONTHS = 36
+export const MAX_PREPAY_MONTHS = 6
 
 /**
- * The options a screen offers, in months.
+ * The options a screen offers, in whole months ON TOP of the current month's remainder.
  *
  * PRESETS ARE NOT A LIMIT. The hosted page carries `adjustable_quantity`, so a family that
- * wants seven months types seven. These are the ones worth a button, and the labels are the
- * caller's business — 12 is "a year" to a reader and "12" to this module.
+ * wants five months types five. These are the ones worth a button, and the labels are the
+ * caller's business — 6 is "half a year" to a reader and "6" to this module.
  */
-export const PREPAY_PRESET_MONTHS: readonly number[] = [1, 3, 6, 12, 24, 36]
+export const PREPAY_PRESET_MONTHS: readonly number[] = [1, 2, 3, 6]
+
+/**
+ * The smallest amount Stripe will accept as a charge, in cents.
+ *
+ * ── WHY A PAYMENT-PROCESSOR CONSTANT IS IN THE PURE MODULE ──────────────────────────
+ * Because it changes an ARITHMETIC answer, not just an API call. Prorating the rest of the
+ * month by the day means a family signing up on the 30th of a 31-day month owes two days:
+ * Standard at $5 is `ceil(500 × 2 / 31)` = **33¢**, which Stripe refuses outright. So the
+ * "just the remainder" option cannot always be offered, and deciding that is this module's
+ * job rather than the action's — `initialChargeOptions` is where it is decided, and it is
+ * checkable by value because the constant is here.
+ *
+ * 50¢ is Stripe's USD minimum. A family billing in another currency would need its own
+ * figure, which is one of several reasons nothing in this product is multi-currency yet.
+ */
+export const STRIPE_MINIMUM_CHARGE_CENTS = 50
 
 /** A month count this product will accept. Integral, at least one, at most the ceiling. */
 export function isPrepayMonths(value: unknown): value is number {
@@ -96,17 +126,64 @@ export function isPrepayMonths(value: unknown): value is number {
 }
 
 /**
- * What N months of a tier costs, or null where there is nothing to sell.
+ * What N WHOLE MONTHS of a tier costs, or null where there is nothing to sell.
  *
- * NULL FOR FREE, deliberately, and callers must not read it as zero. Free has no price
- * because it is not bought — a `0` here would let a checkout session be created for it, and
- * Stripe would either refuse the line item or, worse, accept it and give us a paid-through
- * date for a tier nobody paid for.
+ * THE WHOLE MONTHS ONLY. Under rule 2 a prepaid purchase is also the current month's
+ * remainder, and `prepaidChargeCents` is the figure a family is actually asked for. This one
+ * is the half that goes on the recurring price line, which is why the two exist separately
+ * rather than one taking a flag.
+ *
+ * NULL FOR FREE, deliberately, and callers must not read it as zero. Free has no price because
+ * it is not bought — a `0` here would let a checkout session be created for it, and Stripe
+ * would either refuse the line item or, worse, accept it and give us a paid-through date for a
+ * tier nobody paid for.
  */
 export function prepayQuoteCents(tier: FamilyTier, months: number): number | null {
   const price = TIER_PRICE[tier]
   if (!price || !isPrepayMonths(months)) return null
   return price.monthlyCents * months
+}
+
+/**
+ * What a prepaid purchase actually costs TODAY: the rest of this month plus N whole months.
+ *
+ * The figure on the button, and the figure Stripe is asked for. Both halves are returned as
+ * well as the total, because a screen that shows one number for two things invites the
+ * question "why is it not six times five?" — and the answer is a stub month somebody should
+ * have been told about before they paid.
+ *
+ * `extendingLiveTerm` SKIPS THE PRORATION, and it is the case that would otherwise
+ * double-charge: a family whose term runs to 28 February buying six more months owes six
+ * months, not six months plus the rest of whatever month it happens to be. They already own
+ * the rest of this month.
+ */
+export interface PrepaidCharge {
+  /** The current month's remainder, or 0 when the family already owns it. */
+  prorationCents: number
+  /** `months × monthlyCents`. */
+  monthsCents: number
+  totalCents: number
+  months: number
+}
+
+export function prepaidChargeCents(input: {
+  tier: FamilyTier
+  months: number
+  today: string
+  /** True when a paid term is already live, so the current month needs no proration. */
+  extendingLiveTerm?: boolean
+}): PrepaidCharge | null {
+  const monthsCents = prepayQuoteCents(input.tier, input.months)
+  if (monthsCents == null) return null
+  const prorationCents = input.extendingLiveTerm
+    ? 0
+    : (prorateRemainderCents(input.tier, input.today) ?? 0)
+  return {
+    prorationCents,
+    monthsCents,
+    totalCents: prorationCents + monthsCents,
+    months: input.months,
+  }
 }
 
 // ── Dates ───────────────────────────────────────────────────────────────────────────
@@ -166,6 +243,121 @@ export function addMonthsClamped(iso: string, months: number): string {
  */
 export function daysBetween(from: string, to: string): number {
   return Math.round((parseISO(to).getTime() - parseISO(from).getTime()) / 86_400_000)
+}
+
+// ── The billing cycle: everybody on the 1st ─────────────────────────────────────────
+//
+// ── WHY A COMMON CYCLE RATHER THAN AN ANNIVERSARY ───────────────────────────────────
+// The obvious model is that a family's month runs from the day they signed up, which is what
+// Stripe does by default and what this module did until 2026-08-23. A common cycle is better
+// here for reasons that are about the PRODUCT rather than about billing:
+//
+//   * a downgrade has an obvious effective date, and it is the same date for everybody. Rule
+//     4 stops being a policy anybody has to remember and becomes "the next 1st".
+//   * `paid_through` is always a month end, which makes "the day after the term ends" and
+//     "the next billing date" the SAME EXPRESSION. Two rules collapse into one.
+//   * a family reading a statement sees calendar months, which is how a treasurer thinks
+//     about a budget. "Paid through 14 November" invites the question this avoids.
+//
+// The cost is the stub period at the start, and that is what `prorateRemainderCents` is for.
+
+/** The 1st of the month `iso` falls in. */
+export function firstOfMonth(iso: string): string {
+  return `${iso.slice(0, 7)}-01`
+}
+
+/** The 1st of the month AFTER the one `iso` falls in — the next billing date. */
+export function nextFirstOfMonth(iso: string): string {
+  const d = parseISO(iso)
+  return toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)))
+}
+
+/** The last day of the month `iso` falls in, as `YYYY-MM-DD`. */
+export function lastDayOfMonthISO(iso: string): string {
+  return addDays(nextFirstOfMonth(iso), -1)
+}
+
+/** How many days the month `iso` falls in has. 28, 29, 30 or 31. */
+export function daysInMonth(iso: string): number {
+  const d = parseISO(iso)
+  return lastDayOfMonth(d.getUTCFullYear(), d.getUTCMonth())
+}
+
+/**
+ * Days left in the month INCLUDING today.
+ *
+ * INCLUSIVE OF TODAY, because a family that pays on the 23rd is paying for the 23rd. The 1st
+ * of a 31-day month is 31 days and the 31st is 1 day; there is no zero.
+ */
+export function daysLeftInMonth(iso: string): number {
+  return daysBetween(iso, nextFirstOfMonth(iso))
+}
+
+/**
+ * What the rest of this month costs at a tier's monthly rate. Null for a tier with no price.
+ *
+ * ── ROUNDED UP, AND THE DENOMINATOR IS THE ACTUAL MONTH ─────────────────────────────
+ * `ceil(monthlyCents × daysLeft ÷ daysInMonth)`. Two decisions in one line:
+ *
+ *   ROUNDED UP to the cent, which is what was asked for. It also removes the case that would
+ *   otherwise need its own branch: a rate that divides to a fraction of a cent can never
+ *   produce a zero charge for a day somebody is being given service for.
+ *
+ *   THE DENOMINATOR IS THE DAYS IN THAT MONTH, not a flat 30. Ten days of Premium is $8.93 in
+ *   February and $8.07 in July, and that is the correct answer to "a tenth of this month":
+ *   a flat 30 would charge for 30 days in a 31-day month and give a day away every long month,
+ *   or charge February a day it does not have. It is also what Stripe's own proration does, so
+ *   our figure and any figure on their side agree.
+ */
+export function prorateRemainderCents(tier: FamilyTier, today: string): number | null {
+  const price = TIER_PRICE[tier]
+  if (!price) return null
+  return Math.ceil((price.monthlyCents * daysLeftInMonth(today)) / daysInMonth(today))
+}
+
+/**
+ * What a family can be offered as a FIRST payment, on a given day.
+ *
+ * ── TWO OPTIONS, AND SOMETIMES ONLY ONE ─────────────────────────────────────────────
+ *   `remainderOnly`   the rest of this month, prorated. Recurring billing starts on the 1st.
+ *   `remainderPlusNext`  the same plus the whole of next month, so the first invoice on the
+ *                        1st is a month away rather than days away.
+ *
+ * `remainderOnly` IS NULL WHEN IT WOULD BE BELOW STRIPE'S MINIMUM, which is not a defensive
+ * check — it is the ordinary case at the end of a month. Standard is $5, so two days left in a
+ * 31-day month prorates to 33¢ and Stripe refuses the charge outright. Offering it would
+ * produce a hosted page that fails at the till, after the family had chosen it. Below the
+ * floor the combined option is the only one, and the screen says why.
+ *
+ * `daysLeft` is returned so a screen can say "10 days" rather than making the reader work it
+ * out from two dates, which is the difference between a sentence somebody trusts and a figure
+ * they check.
+ */
+export interface InitialChargeOptions {
+  daysLeft: number
+  daysInMonth: number
+  /** The next billing date — the 1st. Every family's, whichever option is taken. */
+  nextBillingDate: string
+  /** The rest of this month, or null when it is below Stripe's minimum charge. */
+  remainderOnly: number | null
+  /** The rest of this month plus one whole month. Always available. */
+  remainderPlusNext: number | null
+  /** The last day the combined option covers, so a screen can name it. */
+  remainderPlusNextThrough: string
+}
+
+export function initialChargeOptions(tier: FamilyTier, today: string): InitialChargeOptions {
+  const remainder = prorateRemainderCents(tier, today)
+  const monthly = TIER_PRICE[tier]?.monthlyCents ?? null
+  const next = nextFirstOfMonth(today)
+  return {
+    daysLeft: daysLeftInMonth(today),
+    daysInMonth: daysInMonth(today),
+    nextBillingDate: next,
+    remainderOnly: remainder != null && remainder >= STRIPE_MINIMUM_CHARGE_CENTS ? remainder : null,
+    remainderPlusNext: remainder != null && monthly != null ? remainder + monthly : null,
+    remainderPlusNextThrough: lastDayOfMonthISO(next),
+  }
 }
 
 // ── The record, and what it entitles a family to ────────────────────────────────────
@@ -331,8 +523,158 @@ export function upgradeCreditDays(input: {
   return Math.floor((remaining * from.monthlyCents) / to.monthlyCents)
 }
 
+// ── Moving UP from a term that was paid in advance ──────────────────────────────────
+//
+// ── THE MODEL, AND IT IS NOT PRORATION-BY-DIFFERENCE ────────────────────────────────
+// The obvious approach is to bill the difference between the two rates across whatever is left
+// of the prepaid term. That is wrong and was ruled out explicitly: six prepaid months of
+// Standard lifted to Premium would be six months of the $20 difference — $120 — which is a bill
+// nobody asked for on the day they chose to spend more.
+//
+// What happens instead: the unused part of the old term is valued AT THE OLD RATE, and that
+// value is spent on the new tier. Nothing is refunded, nothing is forfeited, and the family is
+// never asked for more than the shortfall.
+//
+//     6 months of Standard bought 1 Jan, upgrading to Premium on 15 Feb
+//
+//     unused at the OLD rate    rest of Feb $2.50 + Mar..Jun $20.00   =  $22.50
+//     rest of Feb at the NEW rate                 $25 x 14/28         =  $12.50
+//     ------------------------------------------------------------------------
+//     due now                                                            $0.00
+//     credit carried                                                     $10.00
+//
+// and then a choice, because a family that has just upgraded mid-month is about to meet a
+// full invoice on the 1st and may rather settle it now:
+//
+//     take March as well        needed $12.50 + $25.00 = $37.50, less $22.50  =  $15.00 now
+//     leave it                  $0.00 now, and the $10.00 credit draws against
+//                               the 1 March invoice, making it $15.00 then
+//
+// Both come to the same $15; the only question is when. `upgradeQuote` answers both.
+//
+// ── THE CREDIT IS REAL MONEY AND STRIPE HOLDS IT ────────────────────────────────────
+// A customer credit balance, drawn down automatically against future invoices. It is mirrored
+// in `platform_billing_accounts.credit_cents` for display only — Stripe is the ledger of
+// record, exactly as it is for every other figure in this feature.
+
+/**
+ * Whole calendar months from the month of `fromDay` through the month of `throughDay`.
+ *
+ * INCLUSIVE OF BOTH ENDS, because that is what a term is: 1 March through 30 June is four
+ * months, not three. Off by one here is a month of somebody's money.
+ */
+export function wholeMonthsInclusive(fromDay: string, throughDay: string): number {
+  const a = parseISO(fromDay)
+  const b = parseISO(throughDay)
+  const months = (b.getUTCFullYear() * 12 + b.getUTCMonth())
+    - (a.getUTCFullYear() * 12 + a.getUTCMonth()) + 1
+  return Math.max(0, months)
+}
+
+/**
+ * What the unused part of a paid term is WORTH, at the rate it was bought at.
+ *
+ * Two parts, and both are needed: the rest of the current month prorated by the day, plus every
+ * whole month from the next 1st through the end of the term. Valued at the OLD tier's rate
+ * because that is what the family paid — valuing it at the new rate would be inventing money.
+ *
+ * ZERO for a lapsed term, a term that never existed, or a tier with no price (Free was never
+ * paid for, so there is nothing to carry).
+ */
+export function unusedTermValueCents(input: {
+  tier: FamilyTier | null
+  paidThrough: string | null
+  today: string
+}): number {
+  const { tier, paidThrough, today } = input
+  if (!tier || !paidThrough) return 0
+  const price = TIER_PRICE[tier]
+  if (!price) return 0
+  if (daysBetween(today, paidThrough) < 0) return 0
+
+  const thisMonth = prorateRemainderCents(tier, today) ?? 0
+  const nextFirst = nextFirstOfMonth(today)
+  // A term ending this month has no whole months left, and `wholeMonthsInclusive` floors at 0
+  // rather than going negative — which is what would otherwise SUBTRACT from the value.
+  const wholeMonths = daysBetween(nextFirst, paidThrough) >= 0
+    ? wholeMonthsInclusive(nextFirst, paidThrough)
+    : 0
+  return thisMonth + wholeMonths * price.monthlyCents
+}
+
+export interface UpgradeQuote {
+  /** The unused old term, valued at the old rate. */
+  creditCents: number
+  /** What the new tier costs for the period being bought now. */
+  neededCents: number
+  /** What the family is actually asked for. Never negative. */
+  dueNowCents: number
+  /** What is left over, to be held as a credit against future invoices. */
+  creditLeftCents: number
+  /** The new INCLUSIVE end of the paid term. Always a month end. */
+  paidThrough: string
+  /** True when this quote includes the whole of next month as well. */
+  includesNextMonth: boolean
+}
+
+/**
+ * What an upgrade costs today, in both shapes.
+ *
+ * ── IT HAS NO CALLER YET, AND THAT IS STATED RATHER THAN LEFT TO BE FOUND ───────────
+ * The arithmetic is decided and tested; the checkout is not built. `changePlanTier` handles an
+ * upgrade on a RECURRING plan through Stripe's own proration (`always_invoice`) and refuses a
+ * PREPAID family outright — so the path this function exists for is the one still to be wired.
+ * `lib/meta/billing.ts` sat in exactly this state for weeks and its own header is the
+ * precedent: a tested module with no caller is honest, and a caller invented to make it look
+ * finished is not.
+ *
+ * WHAT WIRING IT COSTS: a `credit_cents` column on `platform_billing_accounts` (migration), a
+ * Checkout Session for `dueNowCents` when it is above zero, a
+ * `customers.createBalanceTransaction(customer, { amount: -creditLeftCents })` so Stripe draws
+ * the remainder down against future invoices, and the tier moved by the webhook on payment —
+ * or moved immediately when `dueNowCents` is zero, which is the case the worked example
+ * produces and the one a first draft will forget.
+ *
+ * `includeNextMonth` is the family's choice, not ours: settle the coming invoice now, or leave
+ * it and let the credit draw against it on the 1st. Both end at the same place — this returns
+ * the numbers so a screen can put them side by side rather than asking somebody to work out
+ * which is cheaper. (Neither is. They are the same money at different times.)
+ *
+ * ── IT NEVER RETURNS A NEGATIVE `dueNowCents` ───────────────────────────────────────
+ * `max(0, …)` on both halves, and the two are not redundant: a family whose credit exceeds
+ * what they need owes nothing AND keeps the difference. Letting `dueNowCents` go negative would
+ * be a refund — the one direction this system does not move in — and letting `creditLeftCents`
+ * go negative would silently cancel out a real debt.
+ */
+export function upgradeQuote(input: {
+  fromTier: FamilyTier | null
+  toTier: FamilyTier
+  paidThrough: string | null
+  today: string
+  includeNextMonth: boolean
+}): UpgradeQuote | null {
+  const { fromTier, toTier, paidThrough, today, includeNextMonth } = input
+  const newPrice = TIER_PRICE[toTier]
+  if (!newPrice) return null
+
+  const creditCents = unusedTermValueCents({ tier: fromTier, paidThrough, today })
+  const thisMonth = prorateRemainderCents(toTier, today) ?? 0
+  const neededCents = thisMonth + (includeNextMonth ? newPrice.monthlyCents : 0)
+
+  return {
+    creditCents,
+    neededCents,
+    dueNowCents: Math.max(0, neededCents - creditCents),
+    creditLeftCents: Math.max(0, creditCents - neededCents),
+    paidThrough: includeNextMonth
+      ? lastDayOfMonthISO(nextFirstOfMonth(today))
+      : lastDayOfMonthISO(today),
+    includesNextMonth: includeNextMonth,
+  }
+}
+
 export interface PrepaidPurchase {
-  /** The new INCLUSIVE last day of the paid term. */
+  /** The new INCLUSIVE last day of the paid term. Always the last day of a month. */
   paidThrough: string
   /** Days carried over from a cheaper term — 0 unless this is an upgrade. */
   creditedDays: number
@@ -341,23 +683,50 @@ export interface PrepaidPurchase {
 }
 
 /**
+ * Where N whole months from a starting 1st ends — always a month end.
+ *
+ * `prepaidTermEnd('2026-09-01', 6)` is `2027-02-28`: September through February inclusive.
+ * The month-end clamp lives in `lastDayOfMonthISO`, so nothing here can produce a 31 February.
+ */
+export function prepaidTermEnd(firstDay: string, months: number): string {
+  const d = parseISO(firstDay)
+  return lastDayOfMonthISO(
+    toISO(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months - 1, 1))),
+  )
+}
+
+/**
  * Where a prepaid purchase of `months` at `tier` leaves the family's term.
  *
- * THREE ANCHORS, ONE PER SITUATION, and which one applies is the whole of the decision:
+ * ── EVERY ANSWER IS A MONTH END, WHICH IS THE CHANGE OF 2026-08-23 ──────────────────
+ * This used to count month ANNIVERSARIES from the day of purchase, so a six-month term bought
+ * on the 23rd ended on the 23rd. Under rule 2 a term runs to a month END, and `months` counts
+ * WHOLE CALENDAR MONTHS on top of the current month's remainder:
  *
- *   same tier, live term    the END of the current term. This is what paying in advance
- *                           MEANS — a second year bought in March starts when the first
- *                           one finishes, not in March.
- *   upgrade, live term      TODAY plus the converted remainder (`upgradeCreditDays`). The
- *                           better tier starts now, which is what somebody who just paid
- *                           more expects, and the days they had already bought come with
- *                           them at the new rate.
- *   no term, or lapsed      TODAY. There is nothing to stack on and nothing to convert.
+ *     bought 23 Aug, months = 6   ->   the rest of August (prorated) + Sep..Feb
+ *                                      paid_through = 28 Feb
  *
- * A DOWNGRADE IS NOT A PURCHASE and this function refuses to model one — it returns the
- * upgrade/lapsed shapes only, because moving down costs nothing, refunds nothing and changes
- * no date. It is `scheduleDowngrade` below, and keeping the two apart is what stops a
- * "downgrade" from ever being able to shorten a term somebody paid for.
+ * So the AMOUNT charged is `prorateRemainderCents(tier, today) + months × monthlyCents`, and
+ * the caller states both halves on screen rather than quoting one number for two things.
+ *
+ * TWO ANCHORS, ONE PER SITUATION:
+ *
+ *   no live term      the 1st of NEXT month. The current month's remainder is the prorated
+ *                     stub, and the whole months begin after it.
+ *   live term, same   the 1st after the current term ends. This is what paying in advance
+ *   tier              MEANS: a second six months bought in March starts when the first
+ *                     finishes, not in March. No proration — the family is not buying any
+ *                     part of a month they already own.
+ *
+ * ── AN UPGRADE DOES NOT COME THROUGH HERE, AND THAT IS NOT AN OPEN QUESTION ─────────
+ * It was one until 2026-08-23 and is now settled: `upgradeQuote` above is the rule — value the
+ * unused old term at the OLD rate, spend it on the new tier, carry the remainder as a credit.
+ * This function is for BUYING MONTHS, which an upgrade is not: an upgrade buys the rest of this
+ * month (and optionally next) and changes the tier at once.
+ *
+ * A caller that reaches this with an upgrade anyway gets the SAME-TIER answer — the term is
+ * extended and nothing is lost. That is the safe direction for a call that should not have
+ * happened: the family keeps what it paid for and is never overcharged.
  */
 export function prepaidPurchase(input: {
   record: PlatformBillingRecord
@@ -365,52 +734,57 @@ export function prepaidPurchase(input: {
   months: number
   today: string
 }): PrepaidPurchase {
-  const { record, tier, months, today } = input
+  const { record, months, today } = input
   const live = record.paidThrough != null && daysBetween(today, record.paidThrough) >= 0
 
-  if (!live) {
-    return { paidThrough: addMonthsClamped(today, months), creditedDays: 0, anchor: today }
-  }
+  // The 1st the whole months start on: after the current term for a live one, otherwise after
+  // the stub month the proration covers.
+  const anchor = live ? addDays(record.paidThrough as string, 1) : nextFirstOfMonth(today)
 
-  if (tierMove(record.paidTier, tier) === 'upgrade') {
-    const creditedDays = upgradeCreditDays({
-      fromTier: record.paidTier, toTier: tier, paidThrough: record.paidThrough, today,
-    })
-    const anchor = addDays(today, creditedDays)
-    return { paidThrough: addMonthsClamped(anchor, months), creditedDays, anchor }
-  }
-
-  // Same tier — or, unreachably, a downgrade that got here anyway, which stacks rather than
-  // shortening. The safe direction for a bug: the family keeps what it paid for.
-  const anchor = record.paidThrough as string
-  return { paidThrough: addMonthsClamped(anchor, months), creditedDays: 0, anchor }
+  return { paidThrough: prepaidTermEnd(anchor, months), creditedDays: 0, anchor }
 }
 
 export interface ScheduledDowngrade {
   tier: FamilyTier
-  /** The day the new tier starts — the day AFTER the paid term ends. */
+  /** The day the new tier starts. Always a 1st. */
   on: string
 }
 
 /**
- * When a downgrade takes effect: the day after the term the family already paid for.
+ * When a downgrade takes effect. **Always a 1st, and never today.**
  *
- * `paid_through` is INCLUSIVE, so a term ending on the 30th is served through the 30th and
- * the new tier starts on the 31st. Scheduling it ON `paid_through` would take a day the
+ * ── ONE EXPRESSION FOR BOTH CASES, WHICH IS WHAT RULE 2 BOUGHT ──────────────────────
+ * A family paying monthly moves on the next 1st. A family that paid six months ahead keeps
+ * its tier until that term is exhausted and moves on the 1st after it. Those look like two
+ * rules and are one, because under 1st-of-month billing `paid_through` is ALWAYS the last day
+ * of a month — so `paid_through + 1` is a 1st in both cases, and the only difference is which
+ * month it lands in.
+ *
+ * `paid_through` is INCLUSIVE, so a term ending on 31 December is served through the 31st and
+ * the new tier starts on 1 January. Scheduling it ON `paid_through` would take a day the
  * family paid for, which is a refund in the only direction this system does not do.
  *
- * NULL WHERE THERE IS NOTHING TO SCHEDULE — no paid term, or a term already lapsed. The
- * caller then applies the change at once, because nothing is being taken away.
+ * ── IT NEVER RETURNS NULL ANY MORE, AND THAT IS THE POINT OF THE CHANGE ─────────────
+ * It used to answer null for a family with no live term, meaning "apply it now". That was the
+ * anniversary model's answer and it is wrong under a billing cycle: a family on Free-by-lapse
+ * that presses downgrade on the 14th still moves on the 1st, because the 1st is when anything
+ * about a plan changes. A caller that wants "now" is asking for something this product does
+ * not do.
  */
 export function scheduleDowngrade(input: {
   record: PlatformBillingRecord
   toTier: FamilyTier
   today: string
-}): ScheduledDowngrade | null {
+}): ScheduledDowngrade {
   const { record, toTier, today } = input
-  if (!record.paidThrough) return null
-  if (daysBetween(today, record.paidThrough) < 0) return null
-  return { tier: toTier, on: addDays(record.paidThrough, 1) }
+  const live = record.paidThrough != null && daysBetween(today, record.paidThrough) >= 0
+  // `nextFirstOfMonth` RATHER THAN `+1 day`, and the difference only shows on a row that
+  // should not exist. Under rule 2 `paid_through` is always a month end, so the two agree —
+  // but a row left over from the anniversary model, or written by hand, could hold a mid-month
+  // date, and `+1` would then land a downgrade on the 24th of a month. This form is a 1st
+  // unconditionally, and where the two differ it errs by giving the family the rest of that
+  // month, which is the safe direction for a bad row.
+  return { tier: toTier, on: nextFirstOfMonth(live ? (record.paidThrough as string) : today) }
 }
 
 // ── Reading Stripe's own words back ─────────────────────────────────────────────────

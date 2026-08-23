@@ -325,10 +325,73 @@ step is the whole of the legal model and is the one nobody tests.
 
 Recorded 2026-08-23.
 
-## DISCUSS: what happens when a family stops paying
+## BUILD: the delinquency ladder — decided 2026-08-23, and it needs the scheduler first
 
-**Action:** a conversation, then a policy, then about a day of code. Nothing is broken today
-and nothing is guessing — the data is recorded and deliberately acted on by nothing.
+**Action:** install `pg_cron` (the entry below), then build this. **Blocked until then**, and not
+by choice: seven of the eleven steps fire on a day with nobody watching, so without a scheduler
+the ladder would advance only when some other family's payment happened to arrive.
+
+What is built today is the DATA and nothing else: `invoice.payment_failed` stamps
+`platform_billing_accounts.delinquent_since` and `last_payment_failure`, the Billing band says
+so, and no tier moves. Everything below is the decided policy, recorded so it can be built in
+one pass.
+
+### The ladder
+
+Day counted from `delinquent_since`. Every email goes to the ADMINS, meaning **whoever holds
+`admin/settings:edit`** — the exact grant that opens the Billing panel and can actually pay
+(decided; see "who is an admin" below).
+
+| Day | What happens |
+|---|---|
+| 0 | `invoice.payment_failed`. `delinquent_since` stamped. Nothing else. |
+| 5 | Email every admin asking for payment. Full access continues. |
+| 10 | **Members are locked out.** Only admins can sign in. Email every admin saying access is limited until the account is paid. A member signing in sees a message telling them to contact their family administrator about an accounting issue, and can do nothing else. Admins keep FULL access. |
+| 30 | **Admins lose full access too** — every screen except the one that takes a payment. Reactivating requires paying **all arrears plus the next month**. |
+| 45 | Email: the account will be **deleted** in 15 days. |
+| 59 | Email: it will be deleted **tomorrow** unless payment is received. |
+| 60 | **The family's records are deleted. This cannot be undone.** |
+
+### Six things to get right
+
+1. **EVERY DELETION EMAIL SAYS IT CANNOT BE REVERSED, in those words.** The day-45 and day-59
+   emails and the day-30 lockout screen all carry it. This is the one requirement stated twice
+   in the brief and it is the one a summary would smooth over.
+2. **THE LOCKOUT IS A GUARD, NOT A TIER.** `families.tier` must not be touched — no policy
+   consults it, and a family that pays on day 29 has to find everything where it was. It
+   belongs beside `requireFamilyActive` in `requireView`/`requireViewOrPending`, which is where
+   the removed-family check already lives and where a page cannot forget it. The day-30 state
+   needs its own `REMOVED_FAMILY_RESOURCES`-shaped exemption list containing only the billing
+   screen.
+3. **"PAY ALL PREVIOUS AND NEXT MONTH" IS ARITHMETIC NOBODY HAS WRITTEN.** It is arrears (every
+   month since `delinquent_since`) plus the coming month, and it belongs in
+   `lib/platform-billing.ts` as a pure function with tests — not in an action, and not left to
+   Stripe's own invoice total, which is what it happens to be rather than what was decided.
+4. **A MEMBER MUST NOT BE TOLD IT IS A MONEY PROBLEM IN DETAIL.** "Contact your family
+   administrator to resolve an accounting issue" is the whole message. What the family owes
+   GENORRA is not every relative's business.
+5. **THE DELETION IS THE SAME MECHANISM AS THE 60-DAY DATA DELETION BELOW** — one hard-delete
+   path, two callers. Writing it twice is how one of them ends up missing a table.
+6. **AN ADMIN WHO PAYS ON DAY 59 MUST BE FULLY RESTORED BY THE `invoice.paid` HANDLER**, which
+   means clearing `delinquent_since` (it already does) AND unwinding the lockout in the same
+   transaction. A family that pays and stays locked out is the worst possible bug here.
+
+### And one hazard that is not in the brief
+
+**A FAMILY WITH NO ADMIN WHO CAN PAY IS LOCKED OUT WITH NO ROUTE BACK.** The grant is
+`admin/settings:edit`; a family whose only holder has left, been disabled, or lost the grant
+gets the day-10 email sent to nobody and reaches day 60 in silence. That needs an answer before
+this ships — the cheapest is that the day-5 and day-10 sweeps report a family with zero
+qualifying admins to the GENORRA staff console rather than to the family.
+
+Recorded 2026-08-23.
+
+## SUPERSEDED 2026-08-23: what happens when a family stops paying
+
+**The conversation happened and the ladder above is the answer.** What survives here is the
+REASONING — the questions that had to be settled and why each one was left open rather than
+guessed at — because the next policy decision on this feature will meet the same shape. The
+schedule itself is above; do not build from this section.
 
 `invoice.payment_failed` stamps `platform_billing_accounts.delinquent_since` and
 `last_payment_failure` and stops there. No tier drops, no email goes, nothing is scheduled, and
@@ -375,74 +438,106 @@ the whole point of a soft failure is that paying fixes it with nothing to restor
 
 Recorded 2026-08-23.
 
-## BUILD: what a downgrade takes away
+## BUILD: a downgrade withholds for 60 days, then deletes — decided 2026-08-23
 
-**Action:** decide what "loses the data attached to that tier" means, table by table, then build
-it. This is a big piece of work and the shape of it matters more than the size.
+**Action:** install `pg_cron` (the entry below), then build this. **Blocked until then** for the
+same reason the delinquency ladder is: four of the reminders fire on a day with nobody watching.
 
-**The request, as given:** when a family moves down a tier, it should lose the data belonging to
-the tier it left.
+### The rules, as decided
 
-**THE CONCERN, STATED ONCE, BECAUSE IT CONTRADICTS AN INVARIANT THE PRODUCT IS BUILT ON.**
-Today a downgrade withholds SCREENS and touches no rows, and that is asserted in several places
-rather than merely being true: no RLS policy consults `families.tier` and none may
-(`20260813000003`), `PlanPanel`'s copy promises *"a family that moves down to Free keeps every
-record it has ever entered … so moving back up restores the pages with their data intact"*,
-`/help/family-settings#plan` says the same, and the removal flow makes the identical promise
-about a much bigger action. Deleting on downgrade inverts all of that, and three consequences
-follow that are worth being sure about before building it:
+* A downgrade takes effect on the **1st** — the next one for a family paying monthly, and the
+  1st after a prepaid term is exhausted. That half is BUILT (`scheduleDowngrade`, tested).
+* From that day the tier's data is **withheld, not deleted, for 60 days.**
+* Reminder emails at **30, 15, 5 and 1 day** before deletion, each saying the data will be
+  deleted unless the family moves back to their tier.
+* At 60 days, **any data not available on the family's current tier is deleted from the
+  database.**
+* Coming back inside the window is **the family's choice of two**:
+  * **keep the data** — pay for the months they were away, so the tier's billing has no hole
+    in it. Standard July, Standard August, back to Plus in September means Plus for July,
+    August and September.
+  * **start fresh** — pay nothing extra, lose the withheld data, carry on from today.
+* Deleting a family for non-payment (day 60 of the ladder above) **hard-deletes the family's
+  records and keeps the sign-in accounts**, because an account can belong to other families.
 
-* **It is irreversible in a way nothing else in this product is.** Removing a family — the
-  largest destructive act available — deletes nothing. A downgrade would become the one
-  operation that does, and a mis-clicked plan change would destroy a family tree.
-* **It makes a billing failure destructive.** With delinquency wired up (the entry above), an
-  expired card would eventually delete records. That is a very different product from one where
-  an expired card closes a page.
-* **The copy on four surfaces becomes false** in the same commit, and one of them is a
-  confirmation dialog somebody reads while deciding.
+### Nine things this costs, and the first three are the expensive ones
 
-**A middle position worth considering first**, because it may be the whole of what is actually
-wanted: keep the rows, and make the withholding HONEST — say what is being locked, how much of
-it there is, and that it comes back. *"Moving to Free closes the family tree. Its 147 people are
-kept and return if you move back up."* That is a day's work rather than a month's, it needs no
-new mechanism, and it is reversible.
+1. **A TIER→DATA MAP, PER TIER, DECIDED BY A PERSON.** `lib/features.ts` maps ROUTES to tiers
+   and says nothing about tables. Standard alone covers the family tree, the whole
+   dues-and-donations ledger, permission templates and the planning half of Gatherings — so
+   "Standard's data" is `person_relationships`, `dues_schedules`, `dues_payments`, `fund_*`,
+   `permission_templates`, `gathering_templates` and more. **There is no derivation available**:
+   `permission_table_map` maps keys to tables for POLICY purposes and is not the same question.
+   This map has to be written out and reviewed, and it is the single riskiest artefact in the
+   feature.
+2. **`dues_payments` IS APPEND-ONLY AND REFUSES A DELETE TO THE SERVICE ROLE**
+   (`20260806000002`). Deleting a family's ledger means an exemption inside that trigger — the
+   `meeting_votes_are_final` shape, where a `pg_trigger_depth() > 1` test admits a cascade and
+   nothing else. Do NOT reach for a `SET LOCAL` escape hatch: `storage.protect_delete()` has one
+   and its own note in AGENTS.md says a hatch is a thing any future action can set, where a depth
+   test can only be satisfied by an actual cascade.
+3. **WITHHOLDING IS NOT THE SAME AS THE TIER GATE, AND THIS IS THE SUBTLE ONE.** Today a
+   downgrade closes the ROUTE and the rows stay readable to anything that asks — including
+   `/reporting/*`, the dashboard tiles, and the family tree's own `bloodlineIds` walk, none of
+   which live on the withheld route. So "withheld" has to mean something the whole app honours,
+   and the only mechanism that does is the one AGENTS.md §2c names: the data has to be gated
+   where it is READ, not where it is displayed. Expect this to be most of the work.
+4. **A GRACE WINDOW IS NOT OPTIONAL AND 60 DAYS IS IT.** Recorded because the reminder schedule
+   only makes sense against a fixed clock: `withheld_since` on the family, set by the sweep when
+   the downgrade lands, and the four reminders keyed off it. Not off `scheduled_tier_on`, which
+   is cleared when the change applies.
+5. **THE "PAY THE MONTHS YOU WERE AWAY" FIGURE IS PURE ARITHMETIC AND BELONGS IN
+   `lib/platform-billing.ts`.** Whole months from `withheld_since` to the next 1st at the
+   returning tier's rate, plus the coming month. It is the same shape as the delinquency
+   arrears figure above and should be ONE function with one set of tests, not two that agree
+   today.
+6. **"START FRESH" DELETES IMMEDIATELY AND MUST SAY SO IRREVERSIBLY.** It is the same
+   hard-delete path as everything else here, taken deliberately by an administrator rather than
+   by a clock — so it needs the strongest confirmation in the product. The family-removal
+   pattern (an emailed six-digit code, `family_removal_challenges`) already exists and is the
+   right precedent; a plain confirm dialog is not enough for a button that destroys a family
+   tree.
+7. **ONE HARD-DELETE PATH, THREE CALLERS.** The 60-day sweep, "start fresh", and day 60 of the
+   delinquency ladder. Writing it three times is how one of them ends up missing a table — and
+   the check for that already exists in shape: `reset_families.sql` §11 derives its assertion
+   over `information_schema.tables` rather than trusting a list, and this needs the same.
+8. **THE ACCOUNTS SURVIVE, THE FAMILY'S ROWS DO NOT.** Decided. `auth.users` is untouched,
+   because an account may belong to another family and is a person's login identity. What that
+   leaves is an account with no membership, which the product already handles — `/my-families`
+   is reachable and the resolver falls through — so the state is not new.
+9. **AND THE COPY ON FOUR SURFACES BECOMES FALSE IN THE SAME COMMIT.** `PlanPanel` promises *"a
+   family that moves down to Free keeps every record it has ever entered … so moving back up
+   restores the pages with their data intact"*; `lib/plans.ts`, `/help/family-settings#plan` and
+   `/help/plans` say versions of it. All four are correct TODAY and all four have to change with
+   the code, or the product is lying on the screen where the decision is made.
 
-**If deletion is the decision, here is what it costs.** Recorded now because the shape is the
-expensive part:
+### The concern, stated once, because it inverts a documented invariant
 
-1. **A tier→data map, per tier, decided by a person.** `lib/features.ts` maps ROUTES to tiers;
-   it says nothing about tables. Standard covers the family tree, the whole dues-and-donations
-   ledger, permission templates and the planning half of Gatherings — so "Standard's data" is
-   `person_relationships`, `dues_schedules`, `dues_payments`, `fund_*`, `permission_templates`,
-   `gathering_templates` and more. **`dues_payments` is append-only** (`20260806000002` refuses
-   a DELETE even to the service role), so deleting a family's ledger means either dropping that
-   trigger or an exemption inside it. That alone is worth a separate conversation.
-2. **What happens to rows that CASCADE.** Deleting `dues_schedules` cascades to
-   `dues_member_plans` and nulls `dues_payments.schedule_id`. Deleting `permission_templates`
-   would leave every member's `permission_template_id` dangling — that is the whole permission
-   model, and Free families need one.
-3. **A grace window, and it is not optional.** Deleting at the moment a term ends means a card
-   that failed on the last day of the month destroys records the same night. An "archived until"
-   window with a restore path is the humane version, and it is a second feature.
-4. **Somewhere to say it, twice.** A confirmation naming what will be destroyed and how much of
-   it, and an email afterwards. Neither exists.
-5. **`apply_due_platform_tier_changes()` becomes destructive.** It is a SECURITY DEFINER sweep
-   with no caller and no `auth.uid()`, called from a webhook and one day from `pg_cron`. Wiring
-   deletion into it means an unattended job deleting family records, which is the single riskiest
-   shape in this codebase and would want its own confirmation path rather than a sweep.
-6. **Every promise above rewritten in the same commit** — `PlanPanel`, `lib/plans.ts`,
-   `/help/family-settings#plan`, `/help/plans`, and the marketing copy on `/pricing`.
+Today a downgrade deletes nothing, and that is asserted rather than merely true: no RLS policy
+consults `families.tier` and none may (`20260813000003`), and removing a family — the largest
+destructive act in the product — destroys no rows at all. After this, a downgrade becomes the
+one operation that does, which means a mis-clicked plan change can destroy a family tree, and a
+lapsed card can eventually do the same. The 60-day window and the reminders are what make that
+defensible, which is presumably why they are in the brief. It is worth knowing that the window
+and the emails are not decoration — they are the whole of the safety argument, so neither can be
+dropped later as a simplification.
 
 **No family is using this product yet**, which is what makes the decision cheap to take now and
-expensive to take later — the same ground `20260819000006` retired Events on. It is worth taking
-deliberately rather than as a side effect of building billing.
+expensive to take later — the same ground `20260819000006` retired Events on.
 
 Recorded 2026-08-23.
 
-## The scheduler is one migration away, and three features are queued behind it
+## The scheduler is one migration away, and it now BLOCKS TWO DECIDED FEATURES
 
 **Action:** enable `pg_cron` and `http` in a migration, and assert the job in the same file.
 Measured 2026-08-23, not inferred.
+
+**THIS IS THE CRITICAL PATH NOW, which it was not when this entry was written.** The
+delinquency ladder and the 60-day downgrade retention were both decided on 2026-08-23 and
+between them need eleven scheduled steps — emails at day 5, 10, 30, 45 and 59 of a delinquency;
+reminders 30, 15, 5 and 1 day before a deletion; the deletion itself; and the prepaid-lapse
+sweep below. Not one of them can fire without a scheduler, and the webhook is not a substitute:
+it only runs when some OTHER family pays.
 
 FutureFeature.md §1 carried *"there is no cron, no worker, no queue and no `vercel.json`"* for
 months and it is true of the **app layer only**. On this project's Postgres:

@@ -146,19 +146,31 @@ async function onCheckoutSession(
   const stripe = stripeClient()
   if (!stripe) return { handled: false, detail: 'Stripe is not configured' }
 
-  let line: Stripe.LineItem | undefined
+  // ── FIND THE PREPAID LINE, DO NOT TAKE THE FIRST ONE ───────────────────────────────
+  // A prepaid session carries TWO line items since 2026-08-23: the whole months on the
+  // catalogue price, and the current month's remainder as an ad-hoc `price_data` line (every
+  // family bills on the 1st, so the first payment includes the part month). `limit: 1` would
+  // return whichever Stripe happens to order first — and if that were the proration line,
+  // `tierForPriceId` would answer null and a real payment would be refused as "not a price we
+  // sell". Both figures are on the row that gets written; only the months line carries the
+  // quantity, so the months line is the one to identify.
+  let lines: Stripe.LineItem[] = []
   try {
-    const lines = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 })
-    line = lines.data[0]
+    const page = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 })
+    lines = page.data
   } catch (e) {
     return { handled: false, detail: `could not read line items: ${describe(e)}` }
   }
 
-  const priced = tierForPriceId(idOf(line?.price))
+  const monthsLine = lines.find(l => {
+    const p = tierForPriceId(idOf(l.price))
+    return p != null && p.shape === 'prepaid'
+  })
+  const priced = tierForPriceId(idOf(monthsLine?.price))
   if (!priced || priced.shape !== 'prepaid') {
     return { handled: false, detail: `session ${session.id} is not on a prepaid price we sell` }
   }
-  const months = line?.quantity
+  const months = monthsLine?.quantity
   if (!isPrepayMonths(months)) {
     return { handled: false, detail: `session ${session.id} has an unusable quantity` }
   }
