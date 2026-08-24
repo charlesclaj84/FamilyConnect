@@ -181,6 +181,20 @@ from a client bundle.
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | The **Connect** endpoint's. One shared secret would make the two endpoints indistinguishable, which is the mix-up that would credit a family's ledger with our revenue. |
 | `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier: **$10 / $20 / $30**. |
 | `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**, same figures. Prepaid terms are `quantity: months` against it, up to 60. |
+
+> **EVERY ONE OF THOSE SIX IS A `price_…`, NEVER A `prod_…`.** This is the mistake the sandbox
+> setup actually made (2026-08-23) and it is worth its own paragraph, because the error it
+> produces argues the opposite of the truth: Stripe answers `resource_missing`, *"No such
+> price: 'prod_…'"*, while the Dashboard shows a perfectly healthy Product under that very id.
+> A Product is the thing being sold; a Price is the amount charged for it. The id you want is
+> on the Product page under **Pricing**, or from `GET /v1/prices?product=prod_…`.
+>
+> `priceShapeError` in `app/actions/billing.ts` now refuses a non-`price_` id before any API
+> call and says which mistake it is, so this costs a log line rather than an afternoon. It
+> also catches the other four: the `_RECURRING`/`_PREPAID` slots swapped, an archived price, a
+> non-monthly interval, and — the one that would NOT have failed at Stripe — an amount that
+> disagrees with `TIER_PRICE`, which would have opened a hosted page asking for a figure the
+> button did not promise.
 | `STRIPE_API_VERSION` | Leave unset. Pinned to `2026-07-29.dahlia` in code; this is the override for testing a bump. |
 
 **One Product per plan, not one Product with three prices.** Checkout and every invoice print

@@ -1339,6 +1339,25 @@ async function priceShapeError(
     detail,
   })
 
+  // ── A PRODUCT ID IN A PRICE SLOT, CAUGHT WITHOUT AN API CALL ──────────────────────
+  //
+  // Measured on the first real sandbox checkout (2026-08-23): `STRIPE_PRICE_STANDARD_RECURRING`
+  // held `prod_…` and Stripe answered `resource_missing`, "No such price: 'prod_…'". It is the
+  // easiest mistake in the whole setup to make and the hardest to see, because the id is
+  // REAL — the Dashboard shows a healthy Product under it, so the natural conclusion from the
+  // error is that Stripe is wrong. A Product is the thing being sold; a Price is the amount
+  // charged for it, and `line_items[].price` takes the second.
+  //
+  // Checked by PREFIX rather than by asking Stripe, so it costs nothing and names the mistake
+  // exactly instead of reporting the 404 it would otherwise become. `price_` is the only form
+  // this parameter accepts.
+  if (!priceId.startsWith('price_')) {
+    return bad(priceId.startsWith('prod_')
+      ? 'a PRODUCT id (prod_…) is in the price variable; it needs the Price id (price_…) '
+        + 'from that product\'s Pricing section'
+      : `the id does not look like a Stripe Price (expected price_…, got ${priceId.slice(0, 6)}…)`)
+  }
+
   let price
   try {
     price = await stripe.prices.retrieve(priceId)
