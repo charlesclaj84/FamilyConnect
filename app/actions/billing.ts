@@ -320,6 +320,23 @@ export async function startPlanCheckout(input: {
   const priceId = platformPriceId(tier, mode)
   if (!stripe || !priceId) return { success: false, message: 'Online payments are not set up yet.' }
 
+  // ── IS THE PRICE THE RIGHT SHAPE? ASKED BEFORE THE SESSION, NOT AFTER ─────────────
+  //
+  // Added 2026-08-23, after the first real checkout against a Stripe sandbox answered "Could
+  // not start the payment. Please try again." — which is the catch at the end of this
+  // function reporting a PERMANENT misconfiguration as a transient failure. Retrying was
+  // never going to work, and Stripe's own message (the useful one) is deliberately withheld
+  // because it names a price id and an account.
+  //
+  // So the shape is checked here instead, where the failure can be described without naming
+  // anything: which plan, which way of paying, and that nothing was charged.
+  const shapeError = await priceShapeError(stripe, priceId, tier, mode)
+  if (shapeError) {
+    // The DETAIL, with the id, goes to the log — the same split the catch below makes.
+    console.error(`[billing] price ${priceId} unusable for ${tier}/${mode}: ${shapeError.detail}`)
+    return { success: false, message: shapeError.message }
+  }
+
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
 
@@ -1264,6 +1281,97 @@ async function ensureCustomer(
     console.error(`[billing] customer creation failed for ${input.familyCode}: ${describe(e)}`)
     return null
   }
+}
+
+/**
+ * Whether the Stripe Price behind a tier is actually usable for the way somebody is paying.
+ *
+ * ── WHY THIS EXISTS: A CONFIG ERROR WAS REPORTED AS "PLEASE TRY AGAIN" ──────────────
+ * `platformBillingConfigured` answers whether the variable is SET. It cannot answer whether
+ * the id in it names a price of the right shape, because that lives in Stripe — and until
+ * this function existed the answer arrived as a 400 from `checkout.sessions.create`, caught
+ * by a handler whose message asks the family to retry something that will fail forever.
+ *
+ * ── THE FOUR THINGS THAT GO WRONG, AND THE FIRST TWO ARE THE SAME MISTAKE ───────────
+ *
+ *   RECURRING/ONE-TIME SWAPPED  `mode: 'subscription'` needs a price with a `recurring`, and
+ *                               `mode: 'payment'` needs one without. The two variables per
+ *                               tier differ by one word (`_RECURRING` / `_PREPAID`) and are
+ *                               set in the same UI on the same afternoon, so this is the
+ *                               likeliest single misconfiguration in the whole integration.
+ *   ARCHIVED                    a price can be deactivated in the Dashboard long after it
+ *                               was wired up here, and an inactive price cannot be sold.
+ *   WRONG INTERVAL              a yearly price in the `_RECURRING` slot would bill twelve
+ *                               months at the monthly figure. There is one rate per tier and
+ *                               it is monthly (`lib/plans.ts`); anything else is not ours.
+ *   WRONG AMOUNT               `TIER_PRICE[tier].monthlyCents` is what every screen QUOTES
+ *                               and Stripe is what CHARGES. TODO.md's GO LIVE list said
+ *                               "nothing in this repo can check that" — this is that check,
+ *                               made at the one moment it matters and can be acted on.
+ *
+ * ── IT REFUSES RATHER THAN WARNS, AND THE AMOUNT IS WHY ─────────────────────────────
+ * The first three would fail at Stripe anyway, so refusing here only improves the message.
+ * The amount would NOT fail: the hosted page would open and ask for a different number from
+ * the one the button promised, and somebody would pay it. That is the one case where this
+ * function is the only thing standing between a family and being charged the wrong price.
+ *
+ * ── ONE EXTRA API CALL PER CHECKOUT START, WHICH IS THE RIGHT TRADE ─────────────────
+ * A `prices.retrieve` on a path a member reaches by pressing Pay — rare, deliberate, and
+ * already about to make a heavier call. It is NOT on any render path, so no screen gets
+ * slower and no page depends on Stripe being reachable to draw itself.
+ *
+ * A FAILED RETRIEVE IS NOT A FINDING. If Stripe cannot be reached the answer is null and the
+ * session call decides — that path already reports a transient failure honestly, and refusing
+ * a checkout because a preflight timed out would turn an outage into a misconfiguration.
+ */
+async function priceShapeError(
+  stripe: NonNullable<ReturnType<typeof stripeClient>>,
+  priceId: string,
+  tier: FamilyTier,
+  mode: BillingMode,
+): Promise<{ message: string; detail: string } | null> {
+  const way = mode === 'recurring' ? 'monthly' : 'paying in advance'
+  const bad = (detail: string) => ({
+    // NAMES NO ID AND NO ACCOUNT, per the same rule as the catch below — and says the thing
+    // the family most needs to know, which is that no money moved.
+    message: `${TIER_LABEL[tier]} is not set up correctly for ${way} on this deployment. `
+      + 'Nothing has been charged. Please report this rather than retrying.',
+    detail,
+  })
+
+  let price
+  try {
+    price = await stripe.prices.retrieve(priceId)
+  } catch (e) {
+    // A price id that does not exist on THIS account lands here, not below — and it is
+    // reported, because it is a configuration error rather than an outage. The commonest
+    // cause is a live-mode id against a sandbox key, or an id from another sandbox.
+    return bad(`could not be retrieved: ${describe(e)}`)
+  }
+
+  if (price.active === false) return bad('the price is archived')
+  if (mode === 'recurring' && !price.recurring) {
+    return bad('a ONE-TIME price is in the _RECURRING slot')
+  }
+  if (mode === 'prepaid' && price.recurring) {
+    return bad('a RECURRING price is in the _PREPAID slot')
+  }
+  if (mode === 'recurring'
+      && (price.recurring?.interval !== 'month' || (price.recurring?.interval_count ?? 1) !== 1)) {
+    return bad(`the recurring interval is ${price.recurring?.interval_count ?? 1} `
+      + `${price.recurring?.interval}, and there is one monthly rate per tier`)
+  }
+  if (price.currency !== 'usd') return bad(`the currency is ${price.currency}, not usd`)
+
+  // `unit_amount` is null for tiered pricing, which this product does not sell and cannot
+  // quote. Refused rather than skipped: a null here means the figure on the button came from
+  // somewhere the charge does not.
+  const expected = TIER_PRICE[tier]?.monthlyCents
+  if (expected != null && price.unit_amount !== expected) {
+    return bad(`Stripe charges ${price.unit_amount} and every screen quotes ${expected}`)
+  }
+
+  return null
 }
 
 /** Which tiers can actually be bought here, in each shape. Read by the panel (§5). */

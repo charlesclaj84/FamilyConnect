@@ -240,7 +240,19 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
         open={open}
         onClose={closeDialog}
         title="Schedule a gathering"
-        description="Say when and where. If there are templates, choose what it is built from."
+        // ── THE DESCRIPTION STOPPED MENTIONING TEMPLATES CONDITIONALLY (2026-08-23) ─────
+        // It read "Say when and where. If there are templates, choose what it is built from."
+        // — one sentence covering both plans, and on Free the second clause is a hint about a
+        // thing that can never appear. "If there are" is exactly the shape that makes somebody
+        // hunt for a control they do not have.
+        //
+        // `templates.length > 0` is the honest discriminator and it is the SAME expression the
+        // fieldset below renders on, so the description cannot promise a picker that is not
+        // there — including for the three non-tier reasons that list is empty (nobody has
+        // authored one, all of them are `who_may_schedule = 'admin'`, or all are archived).
+        description={templates.length > 0
+          ? 'Say when and where, and choose what it is built from.'
+          : 'Say when and where.'}
         className="max-w-lg"
       >
         <div className="mt-2 space-y-3">
