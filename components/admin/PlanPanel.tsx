@@ -49,9 +49,19 @@ import { cn } from '@/lib/utils'
  * ── WHAT THE BUTTONS DO, AND WHAT THEY DELIBERATELY DO NOT ─────────────────────────
  * They move `families.tier`, which decides which PAGES this family can open —
  * `requireView` compares it against `lib/features.ts` and the sidebar drops what is not
- * included. Nothing is billed, nothing is charged, and the panel says so rather than
- * dressing itself as a checkout: there is no billing, and a button that took money would
- * not be a `<button>`.
+ * included. Nothing here is billed and nothing here is charged; a button that took money
+ * would not be a `<button>`.
+ *
+ * ── AND SINCE 2026-08-23 THEY ONLY GO DOWN ─────────────────────────────────────────
+ * Standard and Plus are on sale, so `families.tier` is a thing families PAY for — and a
+ * button on this panel that moved a family up was the whole product for the cost of a
+ * click, because every gate in the app reads that column and nothing here takes a payment.
+ * `setFamilyTier` refuses every upgrade now (its header carries the argument) and this
+ * panel does not render a control it knows would be refused: an upgrade row points at the
+ * Billing section below instead, which is where the money actually changes hands.
+ *
+ * The downgrade half is untouched, and the asymmetry is the point. Giving a plan up costs
+ * the family nothing and takes nothing from us; acquiring one is a purchase.
  *
  * It withholds SCREENS, never rows. A family that moves down to Free keeps every record
  * it has ever entered — no RLS policy consults the tier and none may start to
@@ -104,6 +114,16 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
     if (next === current) return
     const change = planChange(current, next)
     const up = change.up
+    // ── UNREACHABLE FROM THE ROWS, AND CHECKED ANYWAY ─────────────────────────────────
+    // No upgrade row renders a button any more, so this cannot be entered today. It is here
+    // because the alternative is a trap: the confirmation below promises an upgrade "opens
+    // up immediately", `setFamilyTier` refuses every one of them, and a future edit that
+    // re-exposed the button would produce a dialog that lies and then an error. One rule,
+    // stated in both layers, saying the same thing.
+    if (up) {
+      setError(`${TIER_LABEL[next]} is a paid plan — set it up in the Billing section below.`)
+      return
+    }
     // Never carried between two confirmations — a downgrade cancelled and reopened must
     // ask again, and a password left in a ref is one a later action could spend.
     passwordRef.current = ''
@@ -115,9 +135,11 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
       // position — no "the pages below". It is what `aria-describedby` names, it is all
       // the native fallback can show, and on a phone the columns stack so there is no
       // "left" to point at. It says what HAPPENS; the columns say to WHAT.
+      // The `up` branch is unreachable — `choose` returns above for an upgrade — and is
+      // kept true rather than kept as it was: "nothing is billed" described a product with
+      // no billing in it, and a dead string that lies is what a future editor restores.
       description: up
-        ? `Everything on ${TIER_LABEL[next]} opens up immediately. Nothing is billed — `
-          + 'there is no payment step yet.'
+        ? `${TIER_LABEL[next]} is a paid plan and is set up in Billing.`
         : `Pages that are part of ${TIER_LABEL[current]} stop opening. Nothing is `
           + 'deleted: every record stays exactly where it is, and moving back up brings '
           + 'the pages back with their data intact.',
@@ -208,6 +230,10 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
         {PLAN_ORDER.map(plan => {
           const included = tierMeets(current, plan)
           const isCurrent = plan === current
+          // Above what the family is on. `tierMeets` is inclusive, so `meets(plan, current)`
+          // is true for the current tier too — hence the `!isCurrent` conjunct rather than a
+          // rank comparison, which would be a second expression of the ordering rule.
+          const isUpgrade = !isCurrent && tierMeets(plan, current)
           // `null` for Free, which has no price rather than a price of zero — see the
           // comment beside the figure below.
           const price = TIER_PRICE[plan]
@@ -286,7 +312,18 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                   <span className="sr-only"> in {TIER_LABEL[plan]}</span>
                 </button>
 
-                {canEdit && (
+                {/* ── ONLY DOWNGRADES ARE PRESSED HERE, SINCE 2026-08-23 ─────────────
+                    `setFamilyTier` refuses every move UP now that Standard and Plus are on
+                    sale, because `families.tier` is what every gate reads — so a button on
+                    this row was the whole product for the cost of a click. Its header
+                    carries the argument.
+
+                    A CONTROL THAT WOULD BE REFUSED IS NOT RENDERED. Leaving the button and
+                    letting the action answer with a message is the "offering a control that
+                    undoes itself" shape AGENTS.md rejects elsewhere; what belongs on an
+                    upgrade row is where the upgrade actually happens, which is the Billing
+                    section immediately below this one in the same pane. */}
+                {canEdit && (isCurrent || !isUpgrade) && (
                   <button
                     type="button"
                     disabled={isCurrent || isPending}
@@ -301,6 +338,15 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                     {isCurrent ? 'Current plan' : moveLabel(current, plan)}
                   </button>
                 )}
+                {/* Sold, and above what they are on: say where to buy it. Not a button,
+                    because the thing it would press is on the same screen — and not shown at
+                    all for a tier that is not sold, where the "Not sold yet" pill above has
+                    already said everything true. */}
+                {canEdit && !isCurrent && isUpgrade && TIER_IS_SOLD[plan] && (
+                  <span className="text-sm text-muted-foreground">
+                    Set up in <span className="font-medium text-brand-ink">Billing</span>, below
+                  </span>
+                )}
               </div>
             </li>
           )
@@ -308,10 +354,17 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
       </ul>
 
       {canEdit ? (
+        // ── REWRITTEN 2026-08-23, AND "NOTHING IS BILLED" WAS THE WHOLE OF IT ──────────
+        // That sentence was true of every plan while none was for sale, and became false for
+        // two of them on the day they went on sale — on the one screen an administrator reads
+        // before deciding to pay. What is still true, and is the more useful half, is the
+        // property this pane has always been built on: the tier withholds SCREENS and never
+        // rows, so nothing a family has entered is ever at stake in a plan change.
         <p className="mt-4 text-sm text-muted-foreground">
-          Nothing is billed. Choosing a plan changes which pages this family can open, and
-          nothing else &mdash; every record you have entered stays where it is, whichever
-          plan you are on.
+          A plan changes which pages this family can open, and nothing else &mdash; every
+          record you have entered stays where it is, whichever plan you are on. Paid plans are
+          set up in <span className="font-medium text-brand-ink">Billing</span> below; moving
+          down to a cheaper plan is free and takes effect here.
         </p>
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -593,16 +646,23 @@ function PlanDetailDialog({ plan, current, onClose }: {
             // already open, and the cut is what makes that sentence sayable at all.
             : `Your family is on ${TIER_LABEL[current]}. Here is what ${TIER_LABEL[plan]} `
               + 'would add, beside what you already have.'}
-        {!TIER_IS_SOLD[plan] && (() => {
+        {(() => {
           // THE PRICE BELONGS IN THIS SENTENCE, not only on the row behind the dialog.
           // Whoever opened "Features" is deciding, and the panel's own row is now covered
           // by the dialog they opened to decide with. `TIER_PRICE` again — one figure,
           // three renderings.
+          //
+          // THE WHOLE BLOCK WAS BEHIND `!TIER_IS_SOLD[plan]` UNTIL 2026-08-23, which was
+          // right while no plan was for sale and inverted the moment two of them were: the
+          // price disappeared from exactly the plans somebody might buy, and survived only
+          // on the one they cannot. The RATE is unconditional now; only the clause about
+          // there being no way to pay is conditional, because only for Premium is it true.
           const price = TIER_PRICE[plan]
-          const rate = price
-            ? ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, month to month.`
-            : ''
-          return `${rate} There is no payment step yet — nothing here is billed.`
+          if (!price) return ''
+          const rate = ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, month to month.`
+          return TIER_IS_SOLD[plan]
+            ? `${rate} It is set up in the Billing section of Settings.`
+            : `${rate} There is no payment step yet — nothing here is billed.`
         })()}
       </p>
 

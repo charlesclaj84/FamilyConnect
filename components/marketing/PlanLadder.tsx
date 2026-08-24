@@ -1,11 +1,34 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Check, Crown, Sparkles, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ComingSoonBadge } from '@/components/marketing/sections'
 import { ACCENTS, type AccentKey } from '@/components/marketing/tier-accent'
+import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import { TIERS, TIER_LABEL } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
+
+/**
+ * The register link for a plan, carrying the tier as `?plan=`.
+ *
+ * JOINED ON THE NAME, which is the join the pricing page already makes to reach
+ * `TIER_PRICE` — the card's `name` IS the tier's label, and that page's own comment says
+ * a rename breaking this would have to be a rename of the plan away from the tier's own
+ * name. One join rather than a second field to keep in step.
+ *
+ * FALLS BACK TO THE BARE REGISTER ROUTE rather than throwing. A card whose name no tier
+ * answers to is a copy edit, and the most it may cost is a preselection — never a broken
+ * link on the page that sells the product. `/register` re-reads the parameter and ignores
+ * anything it cannot sell, so this is a hint and not a decision.
+ */
+function planSignupHref(planName: string): string {
+  const tier = TIERS.find(t => TIER_LABEL[t] === planName)
+  return tier && tier !== 'free'
+    ? `${ACCOUNT_ROUTES.register}?plan=${tier}`
+    : ACCOUNT_ROUTES.register
+}
 
 /**
  * ── THE PAID TIERS, AS A LADDER RATHER THAN A LIST ──────────────────────────
@@ -334,7 +357,12 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               </span>
               <h3 className="text-2xl">{plan.name}</h3>
             </div>
-            <ComingSoonBadge className="mt-2" />
+            {/* GATED ON `available` SINCE 2026-08-23. This badge and the button at the
+                bottom of the card were both unconditional while nothing was for sale,
+                which was true of every paid tier and therefore invisible as a bug.
+                Standard and Plus are on sale now, so an ungated badge would put Coming
+                soon on a card whose button takes a payment. */}
+            {!plan.available && <ComingSoonBadge className="mt-2" />}
           </div>
           <p className="mt-2 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
 
@@ -417,13 +445,42 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               the three buttons come to rest on one line across the row. Which is
               worth having on its own: a price row's whole job is comparison, and
               three actions at three heights is three separate offers. */}
+          {/* ── ON SALE, OR NOT YET ───────────────────────────────────────────
+              The href carries the tier, which is what makes this a plan CHOICE
+              rather than a plain sign-up link: `/register?plan=plus` preselects
+              Plus on the form and the choice is recorded against the family, so
+              the member is asked to pay for the thing they clicked rather than
+              being dropped on a generic account screen to find it again.
+
+              IT IS NOT A CHECKOUT AND MUST NOT PRETEND TO BE. Nobody can be
+              charged before there is an account to attach the charge to, so the
+              caption says "Start" and the second line says when money is asked
+              for. A button reading "Buy Plus" here would take a card number on
+              the next screen, and the next screen asks for a family name. */}
           <div className="mt-8">
-            <Button size="lg" disabled className="w-full text-base">
-              Not yet available
-            </Button>
-            <p className="mt-3 text-center text-xs text-muted-foreground">
-              Create a free account and you will hear about it first.
-            </p>
+            {plan.available ? (
+              <>
+                {/* Link OUTSIDE the Button, which is this file's own idiom and the
+                    marketing sections' — `Button` here has no `asChild`. */}
+                <Link href={planSignupHref(plan.name)} className="block">
+                  <Button size="lg" className="w-full text-base">
+                    Start with {plan.name}
+                  </Button>
+                </Link>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  Create your account first — you choose how to pay once your family exists.
+                </p>
+              </>
+            ) : (
+              <>
+                <Button size="lg" disabled className="w-full text-base">
+                  Not yet available
+                </Button>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  Create a free account and you will hear about it first.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>

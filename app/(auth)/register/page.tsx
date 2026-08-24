@@ -7,6 +7,7 @@ import { StructuredData } from '@/components/marketing/StructuredData'
 import { authPageGraph } from '@/lib/structured-data'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_LEAD, APP_NAME } from '@/lib/brand'
+import { sellablePlanParam } from '@/lib/signup-plan'
 
 const REGISTER_PAGE_NAME = 'Create Your Free Family Account'
 const REGISTER_PAGE_DESCRIPTION =
@@ -76,10 +77,23 @@ export async function generateMetadata({
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invite?: string }>
+  searchParams: Promise<{ invite?: string; plan?: string }>
 }) {
-  const { invite } = await searchParams
+  const { invite, plan } = await searchParams
   const invitation = invite ? await peekInvitation(invite) : null
+
+  // ── `?plan=` — WHICH PLAN THE PRICING PAGE SENT THEM HERE FOR ─────────────────────
+  //
+  // NARROWED ON THE SERVER, and `sellablePlanParam` is the same function `registerUser`
+  // narrows with — so the form cannot preselect a plan the action would then drop, and a
+  // hand-typed `?plan=premium` preselects nothing rather than promising a checkout for a
+  // tier that is priced and not sold.
+  //
+  // A HINT AND NOT A DECISION. It preselects a card; the member can change it, and every
+  // paid plan is offered again on `/admin/settings` whatever happens here. It is also
+  // ignored entirely for an invited registrant and in join mode — a plan belongs to a
+  // family, and somebody joining one is not the person who buys it.
+  const chosenPlan = sellablePlanParam(plan)
 
   if (invitation?.valid && invitation.hasAccount) {
     return (
@@ -137,7 +151,7 @@ export default async function RegisterPage({
       {/* The auth layout's <main> is `flex items-center justify-center`, which is a ROW —
           two siblings there would sit side by side. `max-w-md` matches the card's own. */}
       <div className="w-full max-w-md space-y-6">
-        <RegisterForm />
+        <RegisterForm plan={chosenPlan} />
 
         {/* ── What the account is, and what happens after you make one ───────────
             THE SECOND HALF IS THE USEFUL HALF. This is the conversion page and the
@@ -165,8 +179,26 @@ export default async function RegisterPage({
             {APP_LEAD.toLowerCase()} There is no public profile and nothing is shared
             outside the family you join. Members can:
           </p>
+          {/* ── THE FIRST BULLET SOLD A RETIRED PRODUCT AND A FEATURE THAT NEVER EXISTED ──
+              Corrected 2026-08-23. It read "Plan reunions and events, and see who is
+              coming", and both halves were wrong in different ways:
+
+                * EVENTS IS GONE (20260819000006). Thirteen tables, four routes and six
+                  action modules were deleted, and Gatherings replaced it. This is the
+                  drift the Gatherings retirement swept out of `/pricing`, `/features`,
+                  `/how-it-works`, `/why-us` and `lib/plans.ts` — and it survived here,
+                  on the conversion page, because nothing walks this prose.
+                * "SEE WHO IS COMING" IS AN RSVP, and RSVPs are explicitly NOT replaced —
+                  no attendee count, no room block, no check-in list, anywhere in the
+                  product. A step of a gathering can ASK a relative for any of it; nothing
+                  counts the answers.
+
+              What replaces it is the sentence the product uses about itself everywhere
+              else — `TIER_TAGLINE.standard`, the help chapter and `lib/features.ts` all
+              say "who is doing what" — so this now claims the thing Gatherings actually
+              answers. */}
           <ul className="list-disc space-y-1 pl-5">
-            <li>Plan reunions and events, and see who is coming.</li>
+            <li>Plan reunions and gatherings — who is doing what, and whether it is done.</li>
             <li>Track dues and contributions, so nobody is chasing receipts.</li>
             <li>Share photographs in collections the whole family can add to.</li>
             <li>Build the family tree, and keep the record of who belongs to whom.</li>

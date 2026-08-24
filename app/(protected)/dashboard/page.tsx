@@ -17,6 +17,7 @@ import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { ProfileReminderBanner } from '@/components/dashboard/ProfileReminderBanner'
 import { SafetyCheckInBanner } from '@/components/dashboard/SafetyCheckInBanner'
+import { PlanSetupBanner } from '@/components/dashboard/PlanSetupBanner'
 import { profileCompleteness } from '@/lib/profile-completeness'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
@@ -32,6 +33,8 @@ import {
   getPremierGathering, getUpcomingGatheringCount, getMyGatheringTaskCount,
 } from '@/app/actions/gatherings'
 import { getMyActionableElection } from '@/app/actions/elections'
+import { getSignupPlanPrompt } from '@/app/actions/billing'
+import { anyPlatformBillingConfigured } from '@/lib/stripe/config'
 import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
@@ -251,12 +254,23 @@ export default async function DashboardPage() {
       : false,
   ])
 
+  // ── The plan they chose at signup, if they are still owed the checkout ─────────────
+  //
+  // NO GRANT RESOLVED HERE, unlike everything above, and that is deliberate rather than an
+  // omission: `getSignupPlanPrompt` opens with `requireEdit('admin/settings')` and answers
+  // null for anybody who could not act on it, so the §5 narrowing is inside the action. It
+  // returns one word or nothing, so there is nothing to withhold by not calling it.
+  //
+  // NOT TIER-GATED. It is a prompt to BUY a tier — asking whether the family's current plan
+  // permits it would be exactly backwards.
+
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
   const [
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
     premierGathering, upcomingGatheringCount, myTaskCount, actionableElection,
+    signupPlan,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -376,6 +390,17 @@ export default async function DashboardPage() {
     // the RSC payload whether the chip renders or not. The action checks the same grant itself
     // (it is a public endpoint), so this line is about not asking rather than about safety.
     canViewElections ? getMyActionableElection() : Promise.resolve(null),
+    // NO GRANT CONDITION, which every other line here has — `getSignupPlanPrompt` resolves
+    // `admin/settings:edit` itself and returns one tier or null, so there is no roster and
+    // no figure to withhold by not asking.
+    //
+    // WHAT IS CONDITIONAL IS WHETHER THIS DEPLOYMENT CAN TAKE A PAYMENT AT ALL, and it is
+    // asked HERE rather than inside the action on purpose. A credential check inside a read
+    // makes it answer null to everybody, which is perfectly isolated and therefore untestable
+    // — `tests/rls` has no Stripe key, so the two cases covering that action would become
+    // evidence about the key. Measured: it was written there first and the positive control
+    // caught it on the first run. Skipping the CALL is the same §5 shape as every line above.
+    anyPlatformBillingConfigured() ? getSignupPlanPrompt() : Promise.resolve(null),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -563,6 +588,17 @@ export default async function DashboardPage() {
           ProfileReminderBanner on why this one has no X. */}
       <ProfileReminderBanner completeness={completeness} />
       {needsChapter && <ChapterReminderBanner chapters={chapters} />}
+
+      {/* FIRST OF THE BANNERS IN INTENT AND LAST IN THE MARKUP, which is a deliberate
+          ordering rather than an accident of where it was added: the two above are things
+          the MEMBER has not finished, and this is a thing the FAMILY has not finished.
+          Putting a payment prompt above "add a photograph to your profile" would make the
+          product's first word to a new administrator a request for money.
+
+          It is its own component and not a row in Recent Updates because it is not news —
+          it is a decision waiting on somebody, and it goes away when they take it either
+          way. */}
+      {signupPlan && <PlanSetupBanner tier={signupPlan.tier} />}
 
       {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather
           than a deletion. Pinned news used to render here as its own card between the

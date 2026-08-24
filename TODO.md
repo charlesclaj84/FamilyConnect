@@ -130,18 +130,49 @@ Both flows are implemented and merged — `lib/stripe/`, `app/actions/billing.ts
 `20260823000004` / `20260823000005`. `payment_info.md` is the architecture and AGENTS.md's
 "MONEY HAS TWO DIRECTIONS" section is the rule.
 
-**1. THE PRODUCT FLAG, AND IT IS NOT A CREDENTIAL.** `TIER_IS_SOLD` in `lib/plans.ts` is
-`false` for every paid tier, and `startPlanCheckout` refuses on it before it looks at Stripe.
-So nothing can be bought until somebody decides it is for sale — deliberately, because
-`/pricing` says "Not yet available" on all three cards and a checkout that took money while
-that was on screen would be a sale nobody made. **Flipping it is two edits in one commit:**
-`TIER_IS_SOLD` and `PLANS[].available` on `/pricing`. `npm run marketing:check` will not catch
-that pair; it compares claim SETS, not availability.
+**1. THE PRODUCT FLAG — DONE for Standard and Plus (2026-08-23), still `false` for Premium.**
+`TIER_IS_SOLD` in `lib/plans.ts` is the decision and it is not a credential. Both edits were
+made in one commit, as this item required: `TIER_IS_SOLD` and `PLANS[].available` on
+`/pricing`. `npm run marketing:check` does not catch that pair — it compares claim SETS, not
+availability — so the two were checked by hand and the pricing page's header now says they
+move together.
+
+Premium stays off deliberately: it is sold on a mailbox and a website, and nothing provisions
+either. Flipping it is the same two edits plus whatever delivers those two things.
+
+**WHAT WENT WITH IT, because enabling a plan is not only a flag.** `setFamilyTier` — the plan
+picker on Settings — used to move `families.tier` in both directions with nothing charged,
+which was harmless while nothing was for sale and became a free upgrade for every family
+administrator the moment it was. It now refuses **every** move up (its header carries the
+argument), the Plan rows no longer render an upgrade button, and the only route into a paid
+tier is Billing. Do not undo that to restore the "put a family on Plus to see the gates work"
+affordance — on a laptop, `psql` and the service role still move the column.
+
+**AND THE SIGNUP HALF.** `/pricing`'s two sellable cards now link to `/register?plan=<tier>`,
+the registration form offers the same choice, and the answer is recorded on
+`platform_billing_accounts.signup_tier` (`20260823000008`) rather than charged — there is no
+family to bill and, with `enable_confirmations` on, no session to authorize a checkout. The
+dashboard prompts for it afterwards (`PlanSetupBanner`, `lib/signup-plan.ts`). **Nothing in
+that path grants a tier**, so it needs no item on this list; it needs the variables below,
+like everything else here.
 
 **2. Environment variables**, on Vercel. Nothing is `NEXT_PUBLIC_` and nothing may become so —
 this integration uses hosted Checkout, so the browser never loads Stripe.js and needs no
 publishable key at all. `lib/meta/no-client-secrets.test.ts` asserts none of them is reachable
 from a client bundle.
+
+> **PREVIEW IS DONE (2026-08-23); PRODUCTION IS NOT, AND THIS ITEM IS ABOUT PRODUCTION.**
+> The Preview environment — which builds off `dev` — has the keys, both webhook endpoints and
+> the Products, against the **Stripe sandbox**. So the flow below can be walked end to end on a
+> preview URL today, and every check in §3 is worth doing there FIRST, because a sandbox is
+> where a wrong signing secret is cheap.
+>
+> None of it carries over. Vercel environment variables are per-environment and a sandbox
+> Product has no live counterpart, so production needs its own keys, its own two endpoints
+> (pointed at `genorra.com`, not a preview URL) and its own six Prices — created again, by
+> hand, at the same figures. **Leave this item open until that is done.**
+
+
 
 | Variable | Notes |
 |---|---|
@@ -160,10 +191,15 @@ the screen quotes `TIER_PRICE`, so a mismatch shows up as a hosted page asking f
 number than the button promised.
 
 **A LIVE KEY IS REFUSED ON A PREVIEW DEPLOYMENT** (`liveKeyOnNonProduction` in
-`lib/stripe/config.ts`), so QA cannot charge a real card. **The opposite cannot be detected
-from inside the process and is the expensive one:** a TEST key on production means every
-checkout succeeds, every webhook fires, every tier is granted and no money is ever collected,
-with the product working perfectly. Check the key prefix on production by eye.
+`lib/stripe/config.ts`), so QA cannot charge a real card. A sandbox `sk_test_`/`rk_test_` key
+is what Preview is meant to hold and is accepted there, which is why the sandbox setup above
+works — the guard reads the key's PREFIX and `VERCEL_ENV`, nothing else.
+
+**The opposite cannot be detected from inside the process and is the expensive one:** a TEST
+key on production means every checkout succeeds, every webhook fires, every tier is granted and
+no money is ever collected, with the product working perfectly. **Now that a sandbox key exists
+in the project this is a live hazard rather than a hypothetical one** — the two variables differ
+by four characters and are set in the same UI. Check the key prefix on production by eye.
 
 **3. Two webhook endpoints.** Both are `POST` only and both verify a signature before parsing
 anything.

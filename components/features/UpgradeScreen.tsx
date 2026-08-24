@@ -27,10 +27,15 @@ import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tier
  * is the real figure and the same one `/pricing` renders, so this screen is quoting rather
  * than guessing — which is what makes it safe on a page a member reads as authoritative.
  *
- * And it says in the same breath that nothing can be bought yet (`TIER_IS_SOLD`). This is
- * the screen where that matters most: it is the one place in the product where somebody
- * WANTED a feature and was refused, so it is the one place a price with no way to pay would
- * read as a broken checkout rather than as information.
+ * And it says in the same breath whether the plan can be bought at all (`TIER_IS_SOLD`).
+ * This is the screen where that matters most: it is the one place in the product where
+ * somebody WANTED a feature and was refused, so it is the one place a price with no way to
+ * pay would read as a broken checkout rather than as information.
+ *
+ * SINCE 2026-08-23 THAT CLAUSE IS USUALLY ABSENT, because Standard and Plus went on sale and
+ * the sentence is derived rather than typed — which is the whole reason this needed no edit
+ * when they did. It still appears for Premium, and it is what stops "Change your plan" below
+ * reading as a checkout for a plan nothing can charge for.
  *
  * ── IT NO LONGER LINKS TO `/pricing`, since 2026-08-13 ──────────────────────────────
  * That link took a signed-in member out of the Dashboard and onto Home, where the answer

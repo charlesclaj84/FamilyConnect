@@ -8,7 +8,8 @@ import { canAny } from '@/lib/auth/permissions'
 import { requireDelete, requireEdit, requireRead } from '@/lib/auth/guard'
 import { getFamilyStatus, type FamilyStatus } from '@/lib/auth/family'
 import { getMyFamilyTier } from '@/lib/auth/tier'
-import { isFamilyTier, type FamilyTier } from '@/lib/tiers'
+import { isFamilyTier, normalizeTier, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
+import { tierMove } from '@/lib/platform-billing'
 // PLAIN MODULES, imported here and never re-exported. Everything exported from a
 // `'use server'` file gets a URL, so a `sendEmail` re-export would be an open relay
 // carrying GENORRA's SPF and DKIM — see the header of lib/email/send.ts.
@@ -287,16 +288,60 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
   // So while a paid term is live, the billing panel owns the decision and this refuses. A
   // family with NO billing row is untouched, which is every family today and every family in
   // `tests/rls` — see 20260823000004's header on why the sweep is joined the same way.
-  const { data: billing } = await admin
-    .from('platform_billing_accounts')
-    .select('paid_tier, paid_through')
-    .eq('family_code', g.familyCode)
-    .maybeSingle()
+  const [{ data: billing }, { data: familyRow }] = await Promise.all([
+    admin.from('platform_billing_accounts')
+      .select('paid_tier, paid_through')
+      .eq('family_code', g.familyCode)
+      .maybeSingle(),
+    // The tier the family is on TODAY, needed by the upgrade refusal below. Read rather than
+    // taken from the client for the reason every other id here is: the panel sends the tier it
+    // wants and this is a public endpoint, so the direction of the move has to be computed
+    // from what the database says rather than from what the caller claims to be on.
+    admin.from('families').select('tier').eq('family_code', g.familyCode).maybeSingle(),
+  ])
+  const currentTier = normalizeTier(familyRow?.tier)
   if (billing?.paid_tier && typeof billing.paid_through === 'string'
       && billing.paid_through >= new Date().toISOString().slice(0, 10)) {
     return {
       success: false,
       message: 'This family is on a paid plan. Change it from the Billing section of Settings, so the payment follows the plan.',
+    }
+  }
+
+  // ── AND NO MOVE UP AT ALL, ADDED 2026-08-23 WHEN THE PLANS WENT ON SALE ───────────
+  //
+  // The block above is not sufficient and stopped being sufficient the moment Standard and
+  // Plus became purchasable (`TIER_IS_SOLD` in lib/plans.ts). It refuses a family with a LIVE
+  // PAID TERM — which is precisely the family that has already paid. A family that has never
+  // paid has no billing row, falls straight through it, and could set `families.tier` to
+  // 'plus' by pressing a row on their own settings screen. `families.tier` is what every gate
+  // in the product reads, so that is the whole product, free, to anybody holding
+  // `admin/settings:edit` in their own family.
+  //
+  // That was not a hole while nothing was for sale — there was no payment to bypass, and this
+  // action's header calls the scaffolding the point. It is a hole now, and the header's own
+  // warning about moving up by hand is the description of it.
+  //
+  // ── WHY "NO UPGRADES" RATHER THAN "NO UPGRADES INTO A SOLD TIER" ──────────────────
+  // The narrower rule reads better and is worse: `TIER_IS_SOLD.premium` is false, so it would
+  // leave the one tier nobody can BUY as the one tier anybody can be GIVEN. Refusing every
+  // move up needs no special case, cannot be outflanked by a tier going off sale, and states
+  // the actual rule — a paid tier is acquired by paying for it, and Stripe is what says so.
+  //
+  // DOWNGRADES SURVIVE, deliberately. Giving something up costs the family nothing and takes
+  // nothing from us; a family with no paid term is entitled to drop itself to Free, and the
+  // panel's password step already stands in front of that because it closes pages for
+  // everybody at once.
+  //
+  // WHAT THIS COSTS is the development affordance in the header — "put a family on Free and
+  // the gates appear, put them back on Plus and they return". The second half is gone from
+  // the product, and that is the right trade: it was a convenience for one person on a laptop
+  // and a free upgrade for every administrator in production. On a laptop the service role and
+  // `psql` still move the column, which is where a thing with no authorization story belongs.
+  if (tierMove(currentTier, tier) === 'upgrade') {
+    return {
+      success: false,
+      message: `${TIER_LABEL[tier]} is a paid plan. Set it up in the Billing section of Settings — nothing here can move a family onto it.`,
     }
   }
 

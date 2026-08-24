@@ -8,6 +8,8 @@ import { redeemInvitationForNewUser } from '@/lib/invitations'
 import { notifyMembershipRequest } from '@/lib/notifications'
 import { trackFamilyCreated, trackRegistrationCompleted } from '@/lib/meta/conversions'
 import { persistAttributionForUser } from '@/lib/meta/attribution-store'
+import { sellablePlanParam } from '@/lib/signup-plan'
+import type { FamilyTier } from '@/lib/tiers'
 
 /**
  * The event ids the BROWSER must fire with, so the Pixel event and the Conversions API
@@ -26,7 +28,21 @@ export interface RegisterMetaEvents {
 }
 
 export type RegisterResult =
-  | { success: true; familyCode?: string; meta?: RegisterMetaEvents }
+  | {
+      success: true
+      familyCode?: string
+      meta?: RegisterMetaEvents
+      /**
+       * The paid plan that was recorded against the new family, or null.
+       *
+       * REPORTED RATHER THAN ASSUMED, because it is not always what was asked for: a plan
+       * that is not on sale, or a plan sent in join mode, is dropped (see below) and the
+       * form must not then promise a checkout nobody will be offered. Null covers "none
+       * asked for" and "asked for and not recorded" alike, which is all the caller needs —
+       * either way there is nothing to say about a plan.
+       */
+      plan?: FamilyTier | null
+    }
   | { success: false; field?: string; message: string }
 
 export interface RegisterInput {
@@ -43,6 +59,14 @@ export interface RegisterInput {
    * (they were never told one) and no family name.
    */
   inviteToken?: string
+  /**
+   * The paid plan picked on `/pricing` or on the form, as a raw string.
+   *
+   * A HINT, NOT A COMMITMENT. Nothing is charged here and no tier is granted — see the
+   * intent block further down for why registration cannot take a payment and must not
+   * fail over this parameter.
+   */
+  plan?: string
 }
 
 /**
@@ -345,6 +369,50 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   }
 
+  // ── THE PLAN THEY PICKED BEFORE THERE WAS ANYTHING TO CHARGE ──────────────────────
+  //
+  // NO MONEY MOVES HERE AND NO TIER IS GRANTED. `families.tier` keeps its default of
+  // 'free' and the only writers of that column are the Stripe webhook and the term sweep
+  // — a payment is a thing Stripe tells us happened, never a thing an action decides. What
+  // is recorded is that somebody asked for Plus, so the first authenticated moment can
+  // offer them the checkout instead of making them find the plan again.
+  //
+  // It cannot be a checkout at this point for two structural reasons: the Stripe Customer
+  // is the FAMILY and this row is seconds old, and `enable_confirmations` is on, so nobody
+  // is signed in for `startPlanCheckout`'s `requireEdit('admin/settings')` to authorize.
+  //
+  // ── CREATE MODE ONLY, AND NEVER FROM AN INVITATION ────────────────────────────────
+  // A plan is bought by the family, so somebody JOINING one cannot choose it — their
+  // family already has a plan and a `?plan=plus` on a join link would be a relative
+  // committing an existing family to a bill. Guarded on `inviteToken` as well as `mode`
+  // for the reason the family_name line above is: an invited registrant is never creating
+  // a family whatever `mode` the client happened to send.
+  //
+  // ── AND IT NEVER FAILS THE REGISTRATION ───────────────────────────────────────────
+  // The account is the thing being created; the plan is a preference about it. A tier we
+  // do not sell, or a write that errors, leaves `signupPlan` null and the caller is told
+  // as much in the result — it must not delete an account somebody has just made and an
+  // email has already been sent for. That is also why this sits AFTER the family insert
+  // and has no rollback of its own.
+  const signupPlan = !inviteToken && input.mode === 'create'
+    ? sellablePlanParam(input.plan)
+    : null
+  let recordedPlan: FamilyTier | null = null
+  if (signupPlan && authData.user) {
+    const { error: planError } = await admin.from('platform_billing_accounts').upsert({
+      family_code: familyCode,
+      signup_tier: signupPlan,
+      signup_tier_at: new Date().toISOString(),
+    }, { onConflict: 'family_code' })
+    // §8: supabase-js RETURNS errors rather than throwing, so this has to be read. A
+    // discarded one here would report a checkout to come that nothing would ever offer.
+    if (planError) {
+      console.error('[register] failed to record signup plan intent', planError)
+    } else {
+      recordedPlan = signupPlan
+    }
+  }
+
   // Seed the people table so the profile page is pre-populated.
   //
   // ALWAYS A FRESH ROW — never a claim of an existing one.
@@ -459,6 +527,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   return {
     success: true,
     familyCode: input.mode === 'create' ? familyCode : undefined,
+    plan: recordedPlan,
     meta: {
       completeRegistration: registration?.eventId ?? null,
       createFamily: family?.eventId ?? null,

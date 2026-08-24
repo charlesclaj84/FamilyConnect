@@ -2812,7 +2812,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'bands',
             heading: 'Two sections',
             blocks: [
-              p('The page is two sections, chosen from the rail across the top. **Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('The page is two sections, chosen from the rail across the top. **Plan** is which subscription this family is on, what moving between them does, and — underneath it — **Billing**, where a paid plan is set up and every payment made for it is listed. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('Paying for a plan is covered in [Paying for a plan](/help/plans#paying); this page is where the controls are.'),
             ],
           },
           {
@@ -2937,7 +2938,26 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed in the **Plan** section of [Settings](/admin/settings), which is the copy that is kept current.'),
               p('Each paid plan shows one price there, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
-              note('Free is free, and not a trial. The three paid plans have prices and none is on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Every paid card says so.'),
+              note('Free is free, and not a trial. Standard and Plus can be bought; Premium has a price and is not on sale yet, and its card says so. Nothing is ever billed for a plan a family has not paid for.'),
+            ],
+          },
+          {
+            id: 'paying',
+            heading: 'Paying for a plan',
+            blocks: [
+              p('Paid plans are set up in the **Billing** section of [Settings](/admin/settings), underneath the plans themselves, and only somebody with the Settings permission can open it. There are two ways to pay: **monthly**, which renews on the 1st, or **in advance**, which buys a set number of months outright and renews nothing.'),
+              p('Payment is taken by Stripe on their own pages. No card details are typed into GENORRA and none are stored here. The **Plan** section above cannot move a family up on its own — an upgrade is a payment, so the rows there point at Billing instead.'),
+              p('Moving to a cheaper plan is free and does not go through Billing. A monthly plan can also be stopped, which lets it run to the end of the month already paid for rather than ending it that day.'),
+              note('A plan only changes once the payment has actually gone through, which is Stripe telling us rather than the browser coming back. If you close the tab mid-payment, nothing is lost — the plan changes when the money does, and the Billing section shows what has been paid.'),
+            ],
+          },
+          {
+            id: 'chosen-at-signup',
+            heading: 'A plan chosen when the family was created',
+            blocks: [
+              p('Choosing Standard or Plus on the pricing page, or on the registration form, does not pay for it — there is no family to bill yet and no account to charge. The choice is remembered against the family instead.'),
+              p('Once the email address is confirmed and whoever created the family signs in, the dashboard carries **Finish setting up** with that plan named, which goes to the Billing section. Until then the family is on Free and nothing has been charged.'),
+              p('**Stay on Free** on that prompt stops it being shown. It cancels nothing and buys nothing — every plan is still on sale in Settings afterwards.'),
             ],
           },
           {

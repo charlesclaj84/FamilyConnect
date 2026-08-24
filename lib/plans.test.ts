@@ -162,13 +162,33 @@ describe('formatPlanPrice', () => {
 
 describe('TIER_IS_SOLD', () => {
   it('keeps a price and a purchase as separate facts', () => {
-    // The whole point of the 2026-08-17 split: Plus and Premium have real figures and
-    // neither can be bought, because there is no billing. Every surface that renders a
-    // price has to read this before it renders a control.
-    expect(TIER_IS_SOLD.free).toBe(true)
-    expect(TIER_IS_SOLD.plus).toBe(false)
+    // The 2026-08-17 split, and it is STILL the point after two of the three went on sale on
+    // 2026-08-23: Premium carries a real figure and cannot be bought. Every surface that
+    // renders a price has to read this before it renders a control.
     expect(TIER_IS_SOLD.premium).toBe(false)
-    expect(TIER_PRICE.plus).not.toBeNull()
+    expect(TIER_PRICE.premium).not.toBeNull()
+  })
+
+  it('sells what the checkout can actually charge for', () => {
+    // ── THE DIRECTION THAT MATTERS NOW ────────────────────────────────────────────────
+    // Flipped 2026-08-23 with the Stripe integration. This used to assert the opposite and
+    // reversing it was the whole of the change here — which is worth knowing, because an
+    // assertion that a plan is NOT for sale is one somebody deletes to make a test pass.
+    // It is written as the positive claim instead: these two are sold, and Free is free.
+    expect(TIER_IS_SOLD.free).toBe(true)
+    expect(TIER_IS_SOLD.standard).toBe(true)
+    expect(TIER_IS_SOLD.plus).toBe(true)
+  })
+
+  it('never sells a tier with no price', () => {
+    // The invariant underneath both blocks above, and the one that survives a fifth tier
+    // arriving: a sold tier is one somebody can be quoted a figure for. `TIER_PRICE[tier]`
+    // is what every screen quotes and `platformPriceId` is what Stripe charges, so a tier
+    // sold with a null price is a button whose next screen has no number on it.
+    for (const tier of TIERS) {
+      if (tier === 'free') continue
+      if (TIER_IS_SOLD[tier]) expect(TIER_PRICE[tier]).not.toBeNull()
+    }
   })
 })
 

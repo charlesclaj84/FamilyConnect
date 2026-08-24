@@ -74,9 +74,17 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
     return (
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-brand-ink">Billing</h3>
+        {/* ── THE FALLBACK SENTENCE WAS FALSE TWICE OVER AFTER 2026-08-23 ────────────
+            It read "Paid plans are not on sale yet. The plan above can still be changed and
+            nothing is charged for it." Standard and Plus went on sale, so the first half
+            stopped being true of the OFFER — this branch is now about the DEPLOYMENT having
+            no Stripe Prices, which is a different fact — and `setFamilyTier` stopped
+            accepting an upgrade, so the second half invited somebody to do the one thing the
+            panel above no longer offers. */}
         <p className="text-sm text-muted-foreground">
           {billing.unavailable
-            ?? 'Paid plans are not on sale yet. The plan above can still be changed and nothing is charged for it.'}
+            ?? 'Paid plans cannot be set up on this deployment yet. Moving to a cheaper plan '
+              + 'still works above, and nothing has been charged.'}
         </p>
       </div>
     )

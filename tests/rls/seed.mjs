@@ -1409,6 +1409,23 @@ export async function seed() {
       mode: 'prepaid',
       paid_tier: 'plus',
       paid_through: '2027-12-31',
+      // ── A SIGNUP INTENT, AND `plus` IS THE ONLY VALUE THAT PROMPTS HERE ────────────
+      // Both families are seeded `tier: 'standard'` (see the note above the families
+      // insert), and `signupPlanPrompt` skips anything the active tier already meets — so
+      // `standard` would answer 'already-held' and `premium` 'not-sold'. Plus is the one
+      // choice that leaves the family genuinely owed a checkout, which is the state the
+      // cases need to assert against.
+      //
+      // NOT DISMISSED, and the two cases that depend on that clear the column in their own
+      // `setup` rather than trusting this: `dismissSignupPlan`'s positive control writes it,
+      // so leaving the reads to rely on the seed would make them fail on reorder — the
+      // "fixture resting on the bug" shape, one file over.
+      signup_tier: 'plus',
+      // TODAY, not a literal. The prompt ages out after SIGNUP_PLAN_PROMPT_DAYS, so a fixed
+      // date here would quietly start answering 'stale' ninety days after it was written and
+      // take four assertions with it — a suite that goes red on a calendar rather than on a
+      // change. This is the one place in the fixture where the clock is load-bearing.
+      signup_tier_at: new Date().toISOString(),
     }).select().single())
 
     f.platformPayment = must('platform payment', await db.from('platform_payments').insert({

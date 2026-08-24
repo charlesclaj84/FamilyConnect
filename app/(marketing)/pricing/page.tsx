@@ -123,8 +123,16 @@ type Plan = MarketingPlan
  *
  * `price: null` renders NOTHING in the price slot — no figure and no "to be announced" line,
  * since the card already says Coming soon beside its name. All three paid tiers carry real
- * figures, derived from `TIER_PRICE` in `lib/plans.ts`; `available` is false on all three, so
- * each keeps the Coming soon badge and the disabled button. A price and a purchase are separate
+ * figures, derived from `TIER_PRICE` in `lib/plans.ts`.
+ *
+ * `available` WENT TRUE FOR STANDARD AND PLUS ON 2026-08-23, and it has to stay in step with
+ * `TIER_IS_SOLD` in `lib/plans.ts` — that constant is what the checkout actions and the plan
+ * panel read, this field is what the card says. A card offering to sell what
+ * `startPlanCheckout` refuses is the drift `npm run marketing:check` exists to catch on the
+ * bullets and cannot catch here, because availability is one boolean rather than a claim id.
+ *
+ * PREMIUM STAYS FALSE, so it keeps the Coming soon badge and the disabled button: it is sold
+ * on a mailbox and a website that nothing provisions yet. A price and a purchase are separate
  * facts and this page states both.
  *
  * FREE IS NOT RENDERED WITH THE OTHERS. It is pulled out into a full-width band above the
@@ -366,7 +374,7 @@ const PLANS: readonly Plan[] = [
         detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
       },
     ],
-    available: false,
+    available: true,
     // THE FEATURED CARD MOVED HERE FROM PLUS on 2026-08-19, and the rule is unchanged: exactly
     // one is true, and it marks where the eye should land. Standard is that card now because
     // it is the one whose every bullet is BUILT — Plus still sells card payments and reports
@@ -458,7 +466,7 @@ const PLANS: readonly Plan[] = [
         detail: 'Collections per gathering, with tagging.',
       },
     ],
-    available: false,
+    available: true,
     featured: false,
   },
   {

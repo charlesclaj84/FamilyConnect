@@ -10488,6 +10488,117 @@ const BILLING_CASES = [
       positiveActor: 'alphaAdmin',
       expectPositive: (v) => v?.accountId === 'acct_alphaseed',
     }),
+
+  // ── THE SIGNUP PLAN INTENT (20260823000008) ──────────────────────────────────────────
+  //
+  // `signup_tier` is what somebody chose on `/pricing` before there was a family to charge,
+  // and the two actions below are the only things that read and clear it. Both go through the
+  // admin client against a table with RLS enabled and ZERO policies, so a hand-written
+  // `.eq('family_code', …)` is the entire boundary — the same shape as the two cases above.
+  //
+  // ── WHAT THE READ'S ATTACK HALF IS AND IS NOT EVIDENCE FOR ───────────────────────────
+  // Said out loud, per §7's rule about labelling a case rather than letting it look stronger
+  // than it is. `getSignupPlanPrompt` answers `null` for THREE different reasons — refused,
+  // nothing to prompt, and a read that failed — and deleting the family conjunct produces the
+  // third (`maybeSingle()` over two rows errors, and §8's discarded-error rule is why that
+  // surfaces as null). So the attack half CANNOT distinguish a leak from a break here, and it
+  // stays green under the mutation.
+  //
+  // THE POSITIVE CONTROL IS THE WHOLE TEST, which is §7's argument for the control half made
+  // once more: an action that answers nothing to everybody is perfectly isolated.
+  //
+  // MUTATION-CHECKED (2026-08-23), and the signature is worth recording because it is the
+  // inverse of what a leak looks like:
+  //
+  //   `.eq('family_code', g.familyCode)` removed from `getSignupPlanPrompt`'s intent read
+  //       -> BOTH controls red, BOTH attacks green. ALPHA's own administrator stops being
+  //          offered the plan they chose, and nothing anywhere reports a boundary crossed.
+  //   `.eq('family_code', g.familyCode)` removed from `dismissSignupPlan`'s update
+  //       -> the WRITE case's attack red ("ROW MUTATED"), everything else green.
+  //
+  // The WRITE below is where the cross-family assertion actually bites, because a row either
+  // was stamped or was not, and that is a fact no error can imitate.
+  read('billing.getSignupPlanPrompt', 'app/actions/billing.ts', 'getSignupPlanPrompt', {
+    // Whatever family the attacker is in by now — see the note above about `createFamily`
+    // moving their active family — what comes back must not be ALPHA's outstanding choice.
+    // A freshly created family has no billing row at all, so null is the expected answer;
+    // the case is honest about that being weak evidence rather than dressed up.
+    expectAttack: (v) => v === null,
+    positiveActor: 'alphaAdmin',
+    expectPositive: (v) => v?.tier === 'plus',
+    // Order-independent: `dismissSignupPlan`'s control below stamps this column, and this
+    // case must not depend on running first.
+    setup: async (db, fx) => {
+      const { error } = await db.from('platform_billing_accounts')
+        .update({ signup_tier_dismissed_at: null })
+        .eq('family_code', fx.alpha.familyCode)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+  }),
+
+  // [evidence for the GUARD, not for the conjunct] `requireEdit` refuses an applicant before a
+  // query is issued, so no family conjunct underneath can change this answer. It is here
+  // because a prompt to PAY must never be shown to somebody the family has not admitted, and
+  // because swapping `requireEdit` for a bare session check would turn it red.
+  read('billing.getSignupPlanPrompt (pending member)', 'app/actions/billing.ts',
+    'getSignupPlanPrompt', {
+      attacker: 'alphaPending',
+      expectAttack: (v) => v === null,
+      positiveActor: 'alphaAdmin',
+      expectPositive: (v) => v?.tier === 'plus',
+      setup: async (db, fx) => {
+        const { error } = await db.from('platform_billing_accounts')
+          .update({ signup_tier_dismissed_at: null })
+          .eq('family_code', fx.alpha.familyCode)
+        if (error) throw new Error(`setup: ${error.message}`)
+      },
+    }),
+
+  // ── AND THE WRITE, WHICH IS THE ONE THAT CAN ACTUALLY CATCH A LEAK ───────────────────
+  //
+  // `dismissSignupPlan` takes NO ARGUMENTS, which is what makes this case unusual and worth
+  // reading: there is no id for an attacker to substitute, so the only way BRAVO could reach
+  // ALPHA's row is the action resolving the wrong family — and that is exactly what deleting
+  // `.eq('family_code', g.familyCode)` does, because the `UPDATE` then matches EVERY family
+  // with an outstanding intent. The probe is ALPHA's dismissal column, so a leak shows up as
+  // a stamped date on a family the caller was never in.
+  //
+  // ── AND THERE IS DELIBERATELY NO `expectRefusal` HERE ────────────────────────────────
+  // §8b's `told` assertion cannot apply to this one, and saying why is the point rather than
+  // an omission. The attacker is not SUPPOSED to be refused: they call it with no arguments,
+  // so they are dismissing their OWN family's intent, and success is the correct answer for
+  // them. Asserting a refusal would pin the case to whichever family `bravoAdmin` happens to
+  // be active in by this line — the ordering trap the note at the top of this block records —
+  // and would go red on a legitimate success. The probe is the whole assertion: ALPHA's
+  // column, untouched.
+  {
+    kind: 'write',
+    id: 'billing.dismissSignupPlan (cross-family)',
+    mod: 'app/actions/billing.ts',
+    fn: 'dismissSignupPlan',
+    args: () => [],
+    // Both families' intents are un-dismissed first, so the attacker HAS something of their
+    // own to dismiss and the control has something left to do. Without this the attack could
+    // pass because there was nothing to stamp anywhere, which is the vacuous-probe shape
+    // AGENTS.md warns about two paragraphs from here.
+    setup: async (db) => {
+      const { error } = await db.from('platform_billing_accounts')
+        .update({ signup_tier_dismissed_at: null })
+        .not('signup_tier', 'is', null)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => {
+      const { data } = await db.from('platform_billing_accounts')
+        .select('signup_tier_dismissed_at')
+        .eq('family_code', fx.alpha.familyCode)
+        .maybeSingle()
+      return data?.signup_tier_dismissed_at ?? null
+    },
+    // `alphaAdmin`, not the default `alphaMember`: this is gated on `admin/settings:edit`, so
+    // an ordinary member is refused on the PERMISSION and the control would report a family
+    // isolation failure that is really a missing grant.
+    positiveActor: 'alphaAdmin',
+  },
 ]
 
 CASES.push(...BILLING_CASES)

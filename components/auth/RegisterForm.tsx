@@ -16,8 +16,26 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
+import { TIER_IS_SOLD, TIER_PRICE, formatPlanPrice } from '@/lib/plans'
+import { TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
+import { cn } from '@/lib/utils'
 
 type Mode = 'join' | 'create'
+
+/**
+ * The plans this form may offer: Free, plus every tier that is actually on sale.
+ *
+ * DERIVED FROM `TIER_IS_SOLD` rather than listed, so a tier going on or off sale changes
+ * one boolean in `lib/plans.ts` and this form follows. A hand-written list here is how
+ * Premium comes to be offered on the signup screen months before anything can deliver it.
+ *
+ * THE PRICE IS CHECKED TOO, because a sold tier with no figure is a card with a blank
+ * where the amount goes — `lib/plans.test.ts` asserts that combination cannot exist, and
+ * this is the render-time half of the same rule.
+ */
+const PLAN_CHOICES: readonly FamilyTier[] = TIERS.filter(
+  t => t === 'free' || (TIER_IS_SOLD[t] && TIER_PRICE[t] != null),
+)
 
 const schema = z
   .object({
@@ -55,10 +73,19 @@ export function RegisterForm({
   invitedFamilyName,
   invitedFirstName,
   invitedLastName,
+  plan,
 }: {
   inviteToken?: string
   invitedEmail?: string
   invitedFamilyName?: string
+  /**
+   * The plan `/pricing` sent them here for, already narrowed by `sellablePlanParam` on
+   * the server — so it is a tier that exists AND is on sale, or null.
+   *
+   * PRESELECTS, NEVER COMMITS. It also flips the mode toggle to Create, because somebody
+   * who pressed "Start with Plus" is not here to join a family that already has a plan.
+   */
+  plan?: FamilyTier | null
   /**
    * The name on the invitation (20260813000002), used ONLY to prefill.
    *
@@ -72,11 +99,25 @@ export function RegisterForm({
   invitedLastName?: string
 } = {}) {
   const router = useRouter()
-  const [mode, setMode] = useState<Mode>('join')
+  // A plan can only be bought by the family that is being created, so arriving with one
+  // opens on Create. Without this the pricing page's button lands on a family-code field,
+  // which asks somebody buying a plan for a code they were never given.
+  const [mode, setMode] = useState<Mode>(plan ? 'create' : 'join')
   const [serverError, setServerError] = useState('')
   const [success, setSuccess] = useState(false)
   const [newFamilyCode, setNewFamilyCode] = useState('')
   const [autoSignedIn, setAutoSignedIn] = useState(false)
+  /**
+   * Which plan the new family is being started on. `null` is Free.
+   *
+   * LOCAL STATE SEEDED FROM A PROP, which is the shape "Switching family remounts the
+   * page" is about — and it is safe here for the reason that section gives about
+   * `[id]` routes: this component is not inside `<main key={familyCode}>`, there is no
+   * family to switch, and the whole form unmounts on success.
+   */
+  const [chosenPlan, setChosenPlan] = useState<FamilyTier | null>(plan ?? null)
+  /** The plan actually recorded against the family, as the SERVER reported it. */
+  const [recordedPlan, setRecordedPlan] = useState<FamilyTier | null>(null)
 
   const {
     register,
@@ -120,6 +161,9 @@ export function RegisterForm({
       familyCode: data.familyCode,
       familyName: data.familyName,
       inviteToken,
+      // Sent only in create mode. `registerUser` drops it for a join or an invitation
+      // anyway — this is the convenience half of that, not the control.
+      plan: !inviteToken && mode === 'create' && chosenPlan ? chosenPlan : undefined,
     })
 
     if (!result.success) {
@@ -180,6 +224,10 @@ export function RegisterForm({
     }
 
     if (result.familyCode) setNewFamilyCode(result.familyCode)
+    // THE SERVER'S ANSWER, not what was asked for. A plan it declined to record — one we
+    // do not sell, or a write that failed — must not leave the screen below promising a
+    // checkout that will never be offered.
+    setRecordedPlan(result.plan ?? null)
     setSuccess(true)
   }
 
@@ -203,6 +251,23 @@ export function RegisterForm({
           {!autoSignedIn && (
             <p className="text-center text-sm text-muted-foreground">
               We also sent a confirmation link to your inbox. Click it to activate your account.
+            </p>
+          )}
+          {/* ── THE PLAN IS WAITING, AND THIS SAYS SO IN THOSE WORDS ──────────────
+              Somebody who chose Plus on the pricing page has pressed a button
+              captioned "Start with Plus" and then been handed a family code — so
+              without this line the reasonable conclusion is that the plan was
+              forgotten, or worse, that they have already been charged for it.
+
+              IT READS OFF `recordedPlan`, the server's answer, so a plan that was
+              not recorded says nothing at all rather than promising a checkout
+              nobody will offer. And it never claims a payment has been taken: the
+              family is on Free until Stripe says otherwise. */}
+          {recordedPlan && (
+            <p className="text-center text-sm text-brand-on-soft">
+              Your family starts on <span className="font-medium">Free</span>. Nothing has
+              been charged — sign in and {APP_NAME} will ask you to set up{' '}
+              <span className="font-medium">{TIER_LABEL[recordedPlan]}</span>.
             </p>
           )}
         </CardContent>
@@ -359,6 +424,72 @@ export function RegisterForm({
               <p className="text-xs text-muted-foreground">A unique family code will be generated for you to share.</p>
               <FieldError message={errors.familyName?.message} />
             </div>
+          )}
+
+          {/* ── WHICH PLAN TO START ON ────────────────────────────────────────────
+              CREATE MODE ONLY. A plan belongs to the family, so the question is only
+              answerable by the person making one — a member joining an existing
+              family cannot commit it to a bill, and `registerUser` drops the
+              parameter for them regardless.
+
+              NOTHING IS CHARGED ON THIS SCREEN and the caption says so. There is no
+              family yet to be the Stripe customer and no session yet to authorize a
+              checkout, so what this collects is a CHOICE that is recorded and offered
+              back once both exist. Promising otherwise here would be the "the button
+              press is not the payment" rule broken at the very first press.
+
+              REAL RADIOS IN A FIELDSET, not divs with click handlers. A screen reader
+              gets the group name, the count and the current selection for free, and
+              arrow keys work — none of which a `role`-less clickable card provides.
+              Same argument MainRail makes for refusing `role="tablist"`. */}
+          {!inviteToken && mode === 'create' && (
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Plan</legend>
+              <div className="space-y-2">
+                {PLAN_CHOICES.map(tier => {
+                  const price = TIER_PRICE[tier]
+                  const selected = (chosenPlan ?? 'free') === tier
+                  return (
+                    <label
+                      key={tier}
+                      className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                        selected
+                          ? 'border-brand-primary bg-brand-soft'
+                          : 'border-border hover:bg-muted',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="plan"
+                        value={tier}
+                        checked={selected}
+                        onChange={() => setChosenPlan(tier === 'free' ? null : tier)}
+                        className="mt-1 accent-[var(--brand-primary)]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                          <span className={cn('text-sm font-medium', selected && 'text-brand-on-soft')}>
+                            {TIER_LABEL[tier]}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {price ? `${formatPlanPrice(price.monthlyCents)}/month` : 'Free forever'}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {TIER_TAGLINE[tier]}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {chosenPlan
+                  ? `Nothing is charged now. Once your family exists you will be asked to set up payment for ${TIER_LABEL[chosenPlan]}, and you can stay on Free instead.`
+                  : 'You can move to a paid plan at any time from Family Settings.'}
+              </p>
+            </fieldset>
           )}
 
           <FormError message={serverError} />

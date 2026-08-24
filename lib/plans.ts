@@ -337,9 +337,20 @@ export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
   // in one place — the alternative was a figure typed into six surfaces, one of which would
   // still say $5 today.
   //
-  // NOTHING IS GRANDFATHERED, because nothing has been sold: `TIER_IS_SOLD` is false for all
-  // three and no family has ever been charged. Re-pricing after that is a different job with
-  // a migration in it, and 20260819000009's header is the precedent for what it costs.
+  // NOTHING IS GRANDFATHERED, because at the time of the re-pricing nothing had been sold.
+  // THAT WINDOW CLOSED ON 2026-08-23, when `TIER_IS_SOLD` flipped for Standard and Plus: a
+  // figure edited here now moves what a family with a live subscription is billed at their
+  // next renewal, and it moves it WITHOUT their agreeing to it. Two things follow, and the
+  // second is the one that bites.
+  //
+  // A change here has to be made in Stripe TOO, on the Price objects
+  // `STRIPE_PRICE_*` name — this constant is what every screen quotes, and Stripe is what
+  // actually charges. Edit one and the family is shown one number and billed another.
+  //
+  // And a genuine re-pricing is no longer an edit at all: Stripe Prices are immutable, so it
+  // is a NEW Price per tier, existing subscriptions migrated or left on the old one
+  // deliberately, and a decision about who is grandfathered. 20260819000009's header is the
+  // precedent for what a restructure costs once there is somebody to grandfather.
   standard: { monthlyCents: 1_000 },
   plus: { monthlyCents: 2_000 },
   premium: { monthlyCents: 3_000 },
@@ -366,22 +377,36 @@ export function formatPlanPrice(cents: number): string {
 /**
  * Whether a tier can be BOUGHT today, as opposed to merely existing.
  *
- * Mirrors `PLANS[].available` on `/pricing`, which says "Available now" on Free and "Not
- * yet available" on the other two — because nothing has been sold and there is no billing.
- * Read it before writing any copy that implies a purchase: the plan panel is scaffolding
- * for a decision, not a checkout, and it says so.
+ * Mirrors `PLANS[].available` on `/pricing`, and the two must move together — that page's
+ * card says "Available now" or "Not yet available" off its own field, so a tier flipped here
+ * and not there is a checkout behind a card that says it cannot be bought.
  *
- * A PRICE AND A PURCHASE ARE NOW SEPARATE FACTS, since 2026-08-17. `TIER_PRICE` says what
- * Plus and Premium cost; this says neither can be bought yet. Both are true, and collapsing
- * them was the temptation to resist: a figure on the card with no way to pay is honest —
- * "here is what it will cost" — whereas a button that takes a decision nothing can charge
- * for is not. Every surface that shows a price must still read this before it shows a
- * control.
+ * A PRICE AND A PURCHASE ARE SEPARATE FACTS, since 2026-08-17, and that is what let the
+ * figures be announced a week before anything could be charged: a price on a card with no
+ * way to pay is honest — "here is what it will cost" — whereas a button that takes a
+ * decision nothing can charge for is not.
+ *
+ * ── STANDARD AND PLUS WENT ON SALE 2026-08-23; PREMIUM DID NOT ──────────────────────
+ * This was `false` for all three until the Stripe integration landed. The two that flipped
+ * are the two whose catalogue exists: each needs a real recurring Price and a real prepaid
+ * Price in Stripe, named by `STRIPE_PRICE_<TIER>_{RECURRING,PREPAID}`, and
+ * `platformBillingConfigured()` is what reports a tier that is sold here and unpriced there.
+ *
+ * SO THIS FLAG IS THE PRODUCT DECISION AND NEVER THE CAPABILITY. It says "we sell this",
+ * not "this deployment can take the money" — a laptop with no Stripe key sells Standard by
+ * this flag and refuses the checkout two lines later in `startPlanCheckout`. Keeping them
+ * separate is what makes the refusal a sentence about the deployment rather than a claim
+ * that the plan does not exist.
+ *
+ * PREMIUM STAYS FALSE deliberately rather than by omission: it is sold as the tier that
+ * comes with a mailbox and a website, and neither is provisioned by anything yet. Charging
+ * for it would be selling something nobody can deliver. Every surface that shows a price
+ * must still read this before it shows a control.
  */
 export const TIER_IS_SOLD: Record<FamilyTier, boolean> = {
   free: true,
-  standard: false,
-  plus: false,
+  standard: true,
+  plus: true,
   premium: false,
 }
 

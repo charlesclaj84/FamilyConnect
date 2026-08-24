@@ -100,8 +100,13 @@ export default async function LoginPage({
             lib/structured-data.ts is written to. */}
         <AuthAside heading="New here, or cannot get in?">
           <p>
+            {/* "reunions and events" until 2026-08-23 — the same retired product the
+                register page's bullet was selling, corrected in the same commit. Events
+                is gone (20260819000006) and Gatherings is what plans an occasion. Fixing
+                one of the two and not the other is how a claim comes to survive a
+                retirement in the first place. */}
             {APP_NAME} is a private site for one extended family — {APP_LEAD.toLowerCase()}{' '}
-            Members plan reunions and events together, keep track of dues and
+            Members plan reunions and gatherings together, keep track of dues and
             contributions, share photographs, and build out the family tree in a place
             only the family can see. There is no public profile, and one family cannot
             see another&apos;s pages at all.

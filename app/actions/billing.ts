@@ -15,9 +15,11 @@ import {
   prorateRemainderCents, scheduleDowngrade, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
+import { signupPlanPrompt, type SignupPlanPrompt } from '@/lib/signup-plan'
 import { intentKey, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
 import {
-  INTEGRATION_IDS, checkoutReturnUrls, platformBillingConfigured, platformPriceId,
+  INTEGRATION_IDS, checkoutReturnUrls, platformBillingConfigured,
+  platformPriceId,
 } from '@/lib/stripe/config'
 // A PLAIN MODULE, imported and never re-exported — everything exported from a `'use server'`
 // file gets a URL, and `trackCheckoutStarted` takes an email and a name (lib/email/send.ts'
@@ -50,12 +52,17 @@ import { trackCheckoutStarted } from '@/lib/meta/billing'
  *   `admin/settings:edit`   the permission. Choosing and paying for a plan is the same
  *                           decision as `setFamilyTier`, and it rides the same key rather
  *                           than inventing one — see `getPlatformBilling` for why.
- *   `TIER_IS_SOLD[tier]`    the PRODUCT decision. `/pricing` says "Not yet available" on
- *                           every paid tier, and a checkout that took money while the
- *                           marketing page said that would be a sale nobody made. Turning
- *                           billing on is therefore two edits in one commit: this flag (with
- *                           `PLANS[].available` beside it) and the Stripe credentials. The
- *                           GO LIVE list in TODO.md names both halves.
+ *   `TIER_IS_SOLD[tier]`    the PRODUCT decision, and it is still consulted after Standard
+ *                           and Plus went on sale on 2026-08-23 — because Premium has not.
+ *                           A checkout that took money while `/pricing` said "Not yet
+ *                           available" would be a sale nobody made, so this flag and
+ *                           `PLANS[].available` move in one commit, in both directions.
+ *
+ *                           IT IS NOT THE CAPABILITY. A tier can be sold here and have no
+ *                           Stripe Price on this deployment, which is the ordinary state of
+ *                           a laptop — hence `platformBillingConfigured` two lines below
+ *                           every one of these checks, answering with a sentence about the
+ *                           deployment rather than a claim about the plan.
  *
  * ── AND `setFamilyTier` IS STILL THERE, WHICH IS A COLLISION WORTH KNOWING ABOUT ────
  * That action has been scaffolding since 2026-08-13: pick a plan, nothing is charged. It now
@@ -85,6 +92,14 @@ export interface PlatformBilling extends PlatformBillingRecord {
   canManage: boolean
   /** Per tier, whether a checkout can actually be started. */
   purchasable: Record<FamilyTier, TierPurchasability>
+  /**
+   * The plan chosen at signup, if the family is still owed that checkout.
+   *
+   * NOT AN ENTITLEMENT, and it must never be read as one — `activeTier` is what the product
+   * enforces and this is a note about a button somebody pressed on `/pricing` before there
+   * was a family to charge. See 20260823000008's header and `lib/signup-plan.ts`.
+   */
+  signupPlan: SignupPlanPrompt
   /** Set when the deployment cannot transact at all, for a sentence on screen. */
   unavailable: string | null
   /**
@@ -182,14 +197,26 @@ export async function getPlatformBilling(): Promise<PlatformBilling | null> {
 
   const record = readRecord(accountRes.data)
   const today = todayISO()
+  const activeTier = isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free'
+  const row = accountRes.data as SignupIntentRow | null
 
   return {
     ...record,
     familyCode: g.familyCode,
-    activeTier: isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free',
+    activeTier,
     paidEntitlement: entitlementOn(record, today),
     canManage: editable,
     purchasable: purchasability(),
+    // The plan they chose on `/register` and have not paid for yet, or a skip reason.
+    // ONE DEFINITION, in `lib/signup-plan.ts`, shared with the dashboard banner — so the
+    // panel and the banner can never disagree about whether a family is still being asked.
+    signupPlan: signupPlanPrompt({
+      signupTier: row?.signup_tier,
+      signupTierAt: row?.signup_tier_at,
+      dismissedAt: row?.signup_tier_dismissed_at,
+      activeTier,
+      today,
+    }),
     today,
     unavailable: stripeUnavailableReason(),
     delinquentSince: typeof (accountRes.data as { delinquent_since?: unknown } | null)?.delinquent_since === 'string'
@@ -706,6 +733,133 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
 }
 
 /**
+ * Just the plan the family is still owed a checkout for, for the dashboard prompt.
+ *
+ * ── A SECOND, NARROWER READ RATHER THAN REUSING `getPlatformBilling` ────────────────
+ * §5, and it is the whole reason this exists. That function returns two years of payment
+ * history, the Stripe customer id and the delinquency date; the dashboard needs one word.
+ * Props are serialized into the RSC payload whether a component renders them or not, so
+ * calling it from the dashboard would publish the family's invoices to every page load of
+ * the screen every member lands on.
+ *
+ * ── GATED ON `requireEdit`, WHICH IS STRICTER THAN THE SCREEN IT LINKS TO ───────────
+ * Deliberately. A prompt is an invitation to act, and offering one to somebody who would be
+ * refused at the till is worse than showing them nothing — it sends them to a screen to
+ * press a button that answers "Not authorized". `getPlatformBilling` reads with
+ * `requireRead` because a viewer may legitimately READ what the family has paid; nobody
+ * needs to be ASKED to pay unless they can.
+ *
+ * NULL FOR EVERY "NO", with no reason attached. The skip reasons in `lib/signup-plan.ts`
+ * are for tests and support, not for a banner — and a dashboard that said "we are not
+ * asking you about Plus because you already have it" would be noise on the one screen
+ * every member sees.
+ */
+export async function getSignupPlanPrompt(): Promise<{ tier: FamilyTier } | null> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok || !g.familyCode) return null
+
+  // ── THE "CAN THIS DEPLOYMENT SELL ANYTHING" CHECK IS THE CALLER'S, NOT THIS ONE'S ──
+  //
+  // It belongs here by instinct and belongs at the page in fact, and the reason is the one
+  // AGENTS.md states for tier checks: where the withheld thing IS the whole answer, a check
+  // inside the action turns it into a function that answers null to everybody, and every
+  // assertion about it becomes evidence for the credential check instead of for family
+  // isolation. `tests/rls` has no `STRIPE_SECRET_KEY`, so putting
+  // `anyPlatformBillingConfigured()` here makes the two cases covering this action vacuous —
+  // measured, on the first run, through the positive control.
+  //
+  // So the dashboard skips the CALL when the deployment cannot take a payment (a laptop and
+  // every preview build), and this stays a database question with a testable answer.
+  const admin = createAdminClient()
+  // §3 by hand. Two reads because the prompt is a comparison between what was asked for and
+  // what the family actually holds — `families.tier` is the second half, and reading only the
+  // billing row would keep asking a family that has since paid.
+  const [intentRes, familyRes] = await Promise.all([
+    admin.from('platform_billing_accounts')
+      .select('signup_tier, signup_tier_at, signup_tier_dismissed_at')
+      .eq('family_code', g.familyCode)
+      .maybeSingle(),
+    admin.from('families').select('tier').eq('family_code', g.familyCode).maybeSingle(),
+  ])
+  // §8: a refused or failed read must not render as "nothing to set up" — but here the
+  // honest answer to a failure IS silence, because the alternative is a banner asking a
+  // family to pay for a plan we cannot confirm they chose. Logged so it is not invisible.
+  if (intentRes.error || familyRes.error) {
+    console.error(`[billing] could not read the signup plan for ${g.familyCode}`)
+    return null
+  }
+
+  const prompt = signupPlanPrompt({
+    signupTier: intentRes.data?.signup_tier,
+    signupTierAt: intentRes.data?.signup_tier_at,
+    dismissedAt: intentRes.data?.signup_tier_dismissed_at,
+    activeTier: isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free',
+    today: todayISO(),
+  })
+  return prompt.prompt ? { tier: prompt.tier } : null
+}
+
+/**
+ * "We will stay on our current plan" — stop asking about the plan chosen at signup.
+ *
+ * ── IT CANCELS A PROMPT AND NOTHING ELSE ────────────────────────────────────────────
+ * No money is involved in either direction. No subscription is touched, no tier moves, and
+ * `families.tier` is not read or written — the family is on whatever plan it was already on,
+ * and every paid plan is still on sale to them on this very screen one section further down.
+ * What stops is US ASKING, which is why there is no confirmation dialog in front of it: the
+ * action is reversible by pressing the plan they wanted, which is the thing the prompt was
+ * offering anyway.
+ *
+ * ── `requireEdit`, THE SAME GRANT AS THE CHECKOUT ───────────────────────────────────
+ * Deliberately not a lower bar. Deciding the family will not buy Plus is the same decision as
+ * deciding it will, taken by the same person — and a read-only viewer being able to silence
+ * the prompt would let somebody without the grant quietly cancel a choice the administrator
+ * made on the pricing page.
+ *
+ * ── AND IT IS AN UPDATE THAT CAN MATCH NOTHING (§8b) ────────────────────────────────
+ * The row exists only if a plan was recorded at signup, so a family with no intent has no row
+ * to update and PostgREST reports `{ error: null }` over zero rows. `confirmWrite` is not the
+ * tool here — this write goes through the service role with no policy underneath it, so there
+ * is no silent RLS refusal to catch — but the caller is still told the truth: the update is
+ * predicated on there BEING an unresolved intent, and a no-op reports that there was nothing
+ * to dismiss rather than reporting success.
+ */
+export async function dismissSignupPlan(): Promise<PlanChangeResult> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+
+  const admin = createAdminClient()
+  // §3 by hand: the service role sees past RLS, so the family conjunct is the only thing
+  // scoping this. `.is('signup_tier_dismissed_at', null)` makes a second press a no-op rather
+  // than re-stamping the date, and `.not(...)` keeps the CHECK constraint satisfiable — a
+  // dismissal with no intent is refused by the database (20260823000008).
+  const { data, error } = await admin.from('platform_billing_accounts')
+    .update({ signup_tier_dismissed_at: new Date().toISOString() })
+    .eq('family_code', g.familyCode)
+    .not('signup_tier', 'is', null)
+    .is('signup_tier_dismissed_at', null)
+    .select('family_code')
+
+  if (error) {
+    console.error(`[billing] could not dismiss the signup plan for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not update that. Please try again.' }
+  }
+  if (!data?.length) {
+    return { success: false, message: 'There was no plan waiting to be set up.' }
+  }
+
+  revalidateBilling()
+  // REVALIDATES THE SHELL TOO, because the prompt this clears lives on the dashboard and
+  // `revalidateBilling()` only covers the settings screen.
+  revalidatePath('/dashboard')
+  return {
+    success: true,
+    message: 'We will stop asking. You can move to a paid plan whenever you like.',
+  }
+}
+
+/**
  * A link into Stripe's own Customer Portal — cards, receipts, and the family's own copy of
  * every invoice.
  *
@@ -1001,6 +1155,20 @@ const EMPTY_ROW: BillingRow = {
   stripe_customer_id: null, stripe_subscription_id: null, mode: null,
   paid_tier: null, paid_through: null, subscription_status: null,
   cancel_at_period_end: false, scheduled_tier: null, scheduled_tier_on: null,
+}
+
+/**
+ * The signup-intent columns, read off the same `select('*')` `getPlatformBilling` already does.
+ *
+ * SEPARATE FROM `BillingRow` on purpose. That one is the shape `loadRecord` projects for the
+ * money path, and every field on it feeds `entitlementOn()` — putting a signup intent in it
+ * would put it one careless spread away from being read as a paid term, which is the single
+ * thing 20260823000008's header asks a future change not to do.
+ */
+interface SignupIntentRow {
+  signup_tier: string | null
+  signup_tier_at: string | null
+  signup_tier_dismissed_at: string | null
 }
 
 async function loadRecord(admin: AdminClient, familyCode: string): Promise<BillingRow> {
