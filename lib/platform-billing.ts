@@ -147,6 +147,49 @@ export const MINIMUM_FIRST_CHARGE_CENTS = 500
  */
 export const STRIPE_MINIMUM_CHARGE_CENTS = 50
 
+/**
+ * The shortest trial Stripe will accept, in days.
+ *
+ * ── WHY A SUBSCRIPTION STARTS AS A TRIAL AT ALL ─────────────────────────────────────
+ * Every family bills on the 1st, and the rest of the current month is sold as OUR OWN line
+ * item so the figure quoted on the button is the figure the hosted page asks for. That leaves
+ * the subscription itself with nothing to charge until the 1st, and Stripe has exactly one way
+ * to say "do not bill until this date": `subscription_data.trial_end`.
+ *
+ * The alternative — `billing_cycle_anchor` plus `proration_behavior: 'none'` — is what this
+ * used to do, and it is REFUSED OUTRIGHT: *"You cannot set `proration_behavior` to `none` in a
+ * Checkout Session with one-time prices."* Leaving the default `create_prorations` in its place
+ * is worse than the error, because it succeeds: Stripe bills its own computed part month on top
+ * of ours and the family is charged twice for the same days.
+ *
+ * ── AND WHY THE FLOOR IS THREE DAYS, NOT TWO ────────────────────────────────────────
+ * Stripe's own wording is *"has to be at least 48 hours in the future"*, an instant-to-instant
+ * comparison. `today` here is a DATE, and the request can be made at any hour of it — so a
+ * trial ending two calendar days out is only 24 hours away for somebody paying in the evening.
+ * `stripeTrialEnd` therefore demands strictly MORE than this many days, which holds whatever
+ * the clock says.
+ */
+export const STRIPE_MINIMUM_TRIAL_DAYS = 2
+
+/**
+ * When a subscription should start billing, as the Unix second Stripe's `trial_end` takes.
+ *
+ * Null when `startsOn` is inside Stripe's floor — and a caller must READ that rather than
+ * defaulting past it. Which answer is right depends on what else is in the session:
+ *
+ *   * Nothing else to charge (a prepaid term with a day left on it) — start billing now. That
+ *     loses at most one day, in the family's favour.
+ *   * A part month on the same session — REFUSE. Charging for days the subscription is about
+ *     to charge for again is the double-bill this whole arrangement exists to prevent.
+ *
+ * One of the two places in this feature where a date becomes an instant, and it is Stripe's
+ * calendar rather than ours: midnight UTC on `startsOn`.
+ */
+export function stripeTrialEnd(startsOn: string, today: string): number | null {
+  if (daysBetween(today, startsOn) <= STRIPE_MINIMUM_TRIAL_DAYS) return null
+  return Math.floor(Date.parse(`${startsOn}T00:00:00Z`) / 1000)
+}
+
 /** A month count this product will accept. Integral, at least one, at most the ceiling. */
 export function isPrepayMonths(value: unknown): value is number {
   return typeof value === 'number'

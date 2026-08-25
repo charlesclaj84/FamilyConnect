@@ -23,6 +23,8 @@ import {
   scheduleDowngrade,
   scheduledChangeDue,
   STRIPE_MINIMUM_CHARGE_CENTS,
+  STRIPE_MINIMUM_TRIAL_DAYS,
+  stripeTrialEnd,
   subscriptionIsCurrent,
   tierFromMetadata,
   tierMove,
@@ -599,6 +601,57 @@ describe('initialChargeOptions', () => {
     expect(o.remainderOnly).toBe(PLUS)
     expect(o.remainderPlusNext).toBe(PLUS * 2)
     expect(o.remainderPlusNextThrough).toBe('2026-09-30')
+  })
+})
+
+describe('stripeTrialEnd — when the subscription starts billing', () => {
+  const unix = (iso: string) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / 1000)
+
+  it('is midnight UTC on the day billing starts', () => {
+    expect(stripeTrialEnd('2026-09-01', '2026-08-16')).toBe(unix('2026-09-01'))
+    expect(stripeTrialEnd('2026-10-01', '2026-08-30')).toBe(unix('2026-10-01'))
+  })
+
+  it('crosses a year end without inventing a date', () => {
+    expect(stripeTrialEnd('2027-01-01', '2026-12-15')).toBe(unix('2027-01-01'))
+  })
+
+  it('refuses a day inside Stripe’s floor, and takes the one just outside it', () => {
+    // Stripe's wording is 48 hours, INSTANT to instant. `today` is a DATE and the request can
+    // be made at any hour of it, so the gap to midnight on a day N days out is somewhere in
+    // (24N − 24, 24N] hours. Three days out is therefore always more than 48; two days out is
+    // between 24 and 48 and would be refused for anybody paying after midday.
+    expect(stripeTrialEnd('2026-09-01', '2026-08-29')).toBe(unix('2026-09-01'))  // 3 days
+    expect(stripeTrialEnd('2026-09-01', '2026-08-30')).toBeNull()                // 2 days
+    expect(stripeTrialEnd('2026-09-01', '2026-08-31')).toBeNull()                // 1 day
+  })
+
+  it('refuses a day already gone, and today itself', () => {
+    expect(stripeTrialEnd('2026-09-01', '2026-09-01')).toBeNull()
+    expect(stripeTrialEnd('2026-09-01', '2026-09-05')).toBeNull()
+  })
+
+  it('is wider than Stripe’s own floor, never narrower', () => {
+    // The property, not the number: whatever `STRIPE_MINIMUM_TRIAL_DAYS` becomes, a day it
+    // accepts must be strictly more than that many days away.
+    expect(daysBetween('2026-08-28', '2026-09-01')).toBeGreaterThan(STRIPE_MINIMUM_TRIAL_DAYS)
+    expect(daysBetween('2026-08-30', '2026-09-01')).toBeLessThanOrEqual(STRIPE_MINIMUM_TRIAL_DAYS)
+  })
+
+  it('leaves the remainder option unreachable inside the floor, which is why it is not a branch anybody hits', () => {
+    // The coupling worth asserting: `MINIMUM_FIRST_CHARGE_CENTS` withholds "the rest of this
+    // month" long before the 1st is close enough to refuse as a trial. Every tier, every
+    // month length — so a part month is never charged on a session that would then start
+    // billing today. Lowering that constant is what would break it, and this is what says so.
+    for (const tier of ['standard', 'plus', 'premium'] as const) {
+      for (const month of ['2026-02-01', '2026-04-01', '2026-08-01', '2027-01-01']) {
+        for (let d = 0; d < daysInMonth(month); d += 1) {
+          const today = addDays(month, d)
+          if (initialChargeOptions(tier, today).remainderOnly == null) continue
+          expect(stripeTrialEnd(nextFirstOfMonth(today), today)).not.toBeNull()
+        }
+      }
+    }
   })
 })
 

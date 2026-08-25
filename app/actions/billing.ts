@@ -12,7 +12,7 @@ import { TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tier
 import {
   MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, entitlementOn,
   initialChargeOptions, isPrepayMonths, nextFirstOfMonth, prepayQuoteCents,
-  prorateRemainderCents, scheduleDowngrade, tierMove, upgradeQuote,
+  prorateRemainderCents, scheduleDowngrade, stripeTrialEnd, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { signupPlanPrompt, type SignupPlanPrompt } from '@/lib/signup-plan'
@@ -427,20 +427,48 @@ export async function startPlanCheckout(input: {
       }
     : null
 
-  // The cycle. `day_of_month: 1` for the ordinary case; a real timestamp for
-  // 'remainder-plus-next', because next month is paid for in this session and the cycle has
-  // to skip it — which `day_of_month` cannot express. And NEITHER when a prepaid term is
-  // still running: `trial_end` is already holding the subscription off until the day after it
-  // ends, which under rule 2 is itself a 1st.
-  const anchor = extendingLiveTerm
-    ? {}
-    : firstPayment === 'remainder-plus-next'
-      ? {
-          billing_cycle_anchor: Math.floor(
-            Date.parse(`${nextFirstOfMonth(nextFirstOfMonth(today))}T00:00:00Z`) / 1000,
-          ),
-        }
-      : { billing_cycle_anchor_config: { day_of_month: 1 } }
+  // ── WHEN THE SUBSCRIPTION STARTS BILLING, EXPRESSED AS A TRIAL ────────────────────
+  //
+  // The days above are already paid for by the line item, so the subscription itself has
+  // nothing to charge until the 1st — and `trial_end` is the only way to say that in a
+  // Checkout Session carrying a one-time price. See `STRIPE_MINIMUM_TRIAL_DAYS`, which
+  // records what the alternative was and why Stripe refuses it.
+  //
+  //   extendingLiveTerm      the day after the prepaid term ends, which under rule 2 is
+  //                          itself a 1st.
+  //   'remainder-plus-next'  the 1st AFTER next, because next month is paid for in this
+  //                          session and the cycle has to skip it.
+  //   otherwise              the next 1st.
+  //
+  // The cycle then anchors to the trial end, so every invoice after it lands on the 1st with
+  // no `billing_cycle_anchor` of our own.
+  //
+  // NULL FOR A PREPAID SESSION, which has no subscription and therefore nothing to defer: the
+  // whole term is the one payment, and `subscription_data` is never sent.
+  const billingStartsOn = mode !== 'recurring'
+    ? null
+    : extendingLiveTerm
+      ? (record.paid_through ? addDays(record.paid_through, 1) : null)
+      : firstPayment === 'remainder-plus-next'
+        ? nextFirstOfMonth(nextFirstOfMonth(today))
+        : nextFirstOfMonth(today)
+  const trialEnd = billingStartsOn ? stripeTrialEnd(billingStartsOn, today) : null
+
+  // A part month charged HERE while the subscription starts billing TODAY is the double-bill
+  // this whole arrangement exists to prevent, so it is refused rather than started.
+  //
+  // Unreachable at today's figures, and stated rather than assumed for that reason:
+  // `MINIMUM_FIRST_CHARGE_CENTS` withholds the remainder option long before the 1st is close
+  // enough for Stripe to refuse the trial (six days out at Premium, sixteen at Standard), and
+  // the combined option is a whole month further. Lowering that constant, or pricing a tier
+  // high enough that a couple of days clears $5, would otherwise reintroduce a silent double
+  // charge — `stripeTrialEnd`'s own test asserts the coupling across every tier and month.
+  if (mode === 'recurring' && prorationLine && trialEnd == null) {
+    return {
+      success: false,
+      message: 'Too few days are left this month to start a monthly plan today. Choose the option that covers this month and next.',
+    }
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -477,29 +505,26 @@ export async function startPlanCheckout(input: {
         ? {
             subscription_data: {
               metadata,
-              // ── EVERYBODY BILLS ON THE 1st ───────────────────────────────────────
-              // Declarative rather than a computed timestamp: `day_of_month: 1` is what
-              // "the billing cycle is the calendar month" means, and Stripe handles the
-              // month lengths. For 'remainder-plus-next' the anchor is a real timestamp
-              // instead, because next month is already paid for and the cycle has to skip
-              // it — there is no way to say "the 1st, but not the next one" declaratively.
-              ...anchor,
-              // NOTHING PRORATED BY STRIPE. The default here is `create_prorations`, which
-              // would bill its own computed part-month ON TOP of the line item above — the
-              // family charged twice for the same days. `'none'` is what makes our line the
-              // only one.
-              proration_behavior: 'none' as const,
-              // ── NOT DOUBLE-BILLING A FAMILY THAT ALREADY PAID IN ADVANCE ───────────
-              // A prepaid term with time left on it is honoured by starting the subscription
-              // at the end of it. Stripe models "do not charge until this date" as a trial,
-              // which is exactly the right shape: the card is collected now, the first
-              // invoice lands when the paid term runs out, and nobody is charged twice for
-              // the same month.
+              // ── EVERYBODY BILLS ON THE 1st, AND A TRIAL IS HOW IT IS SAID ─────────
+              // Stripe models "do not charge until this date" as a trial, and the card is
+              // still collected now — so the session charges the part month above, the
+              // subscription's first invoice lands on the day named here, and the cycle
+              // anchors to it. That covers all three cases at once: a family paying for the
+              // rest of this month, one paying for this month and next, and one whose
+              // prepaid term is still running and must not be billed twice for it.
               //
-              // The two-day floor is Stripe's, not ours — a trial ending sooner than that is
-              // refused — so a term with a day left starts billing immediately, which is
-              // correct to within one day and errs in the family's favour.
-              ...(trialEndFor(record) ? { trial_end: trialEndFor(record)! } : {}),
+              // NOT `billing_cycle_anchor` PLUS `proration_behavior: 'none'`, which is what
+              // this was until it met a real Checkout Session: that pair is refused outright
+              // when a one-time price is present, and the default in its place bills Stripe's
+              // own part month on top of ours. `STRIPE_MINIMUM_TRIAL_DAYS` carries the whole
+              // argument, and `billingStartsOn` above is where the day is decided.
+              //
+              // The floor is Stripe's, not ours — a trial ending too soon is refused — so a
+              // prepaid term with a day left simply starts billing now, which is correct to
+              // within one day and errs in the family's favour. A part month on the same
+              // session is refused above instead, because there the same day would be paid
+              // for twice.
+              ...(trialEnd != null ? { trial_end: trialEnd } : {}),
             },
           }
         : {
@@ -1212,26 +1237,6 @@ function toRecord(row: BillingRow): PlatformBillingRecord {
 
 function readRecord(row: unknown): PlatformBillingRecord {
   return row ? toRecord(row as BillingRow) : NO_PLATFORM_BILLING
-}
-
-/**
- * Where a subscription should start billing when a prepaid term is still running.
- *
- * A UNIX SECOND, which is what Stripe's `trial_end` takes — one of the two places in this
- * feature where a date becomes an instant, and it is Stripe's calendar rather than ours. The
- * conversion is at midnight UTC on the day AFTER `paid_through`, matching
- * `scheduleDowngrade`: the family paid through that day inclusive.
- *
- * Null when there is nothing to defer, and null inside Stripe's two-day floor — a trial
- * shorter than that is refused, so a term with a day left simply starts billing now. That
- * loses at most one day and loses it in the family's favour.
- */
-function trialEndFor(row: BillingRow): number | null {
-  if (!row.paid_through) return null
-  const today = todayISO()
-  const remaining = daysBetween(today, row.paid_through)
-  if (remaining < 2) return null
-  return Math.floor(Date.parse(`${addDays(row.paid_through, 1)}T00:00:00Z`) / 1000)
 }
 
 /**

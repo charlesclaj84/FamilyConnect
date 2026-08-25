@@ -119,7 +119,7 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
-### [ ] Stripe: two flags, seven variables, two webhook endpoints, one tax decision
+### [ ] Stripe: two flags, seven variables, two webhook endpoints, one Dashboard switch, one tax decision
 
 **Action:** set the environment variables, create the two webhook endpoints, and flip one
 constant. The integration is built and inert; every item below lives in somebody's Stripe
@@ -239,6 +239,30 @@ validation; these are:
 | Connect a family account and pay a due | A `dues_payments` row with `source='stripe'`, `recorded_by` NULL, and `fund_contributions` rows against it |
 | Compare a charge against `platform_payments.amount_cents` | Cents, not dollars. A $5.00 charge stored as `5` is the failure |
 
+**3b. MANAGED PAYMENTS MUST BE OFF, AND IT IS ON BY DEFAULT — IN BOTH MODES SEPARATELY.**
+Found the hard way on the first sandbox checkout (2026-08-23), which was refused with *"the
+product tax code is missing … Product tax code is required for Managed Payments, which is
+enabled by default on your account."*
+
+**This account is not eligible for it in the first place.** Stripe's own eligibility page says
+Managed Payments *"supports direct integrations only"* and does **not** support **Connect
+platforms** — which is exactly what GENORRA is, the moment one family connects an account. So
+the default is switched on for something that cannot legitimately be used here.
+
+**And it conflicts with rule 2, which is no refunds.** Under Managed Payments *"Stripe can
+issue refunds within 60 days of purchase in certain cases"* and applies regional cooling-off
+periods. There is no refund column, no credit-note table and `amount_cents > 0` is a CHECK, so
+a Stripe-initiated refund is a movement the ledger cannot represent.
+
+Turn it off at `dashboard.stripe.com/<acct>/settings/managed-payments`, **once per mode**. The
+setting is per-mode, so a sandbox that works proves nothing about live — and the failure is a
+refused checkout on the first real customer.
+
+*Why not `managed_payments[enabled]=false` per session, which the error suggests:* it is the
+wrong lever twice over. It would have to be added to all four session calls and remembered on
+the fifth, and the pinned SDK (22.5.0) does not type the parameter at all, so it would need an
+unchecked cast on the money path. An account-level setting for an account-level ineligibility.
+
 **4. Stripe Tax is a decision nobody has taken, and it is not a code change alone.**
 `automatic_tax` is NOT enabled on any session in this integration. Turning it on without an
 active tax registration in the buyer's jurisdiction collects nothing and reports no error — the
@@ -247,6 +271,14 @@ subscription sold across US states may need several. Read
 [Collect taxes for recurring payments](https://docs.stripe.com/billing/taxes/collect-taxes.md)
 before touching it. **The family side is not ours to decide at all:** on a direct charge the
 family is the merchant of record, so their tax position is theirs.
+
+**AND THE AUTOMATIC OPTION IS NOT AVAILABLE TO US, which narrows this item rather than
+answering it.** Managed Payments is the arrangement where Stripe takes on the indirect-tax
+liability, and §3b above records why this account cannot use it: it is a Connect platform.
+Stripe's eligibility page names the fallback in as many words — *"If you don't think your
+product is eligible for Managed Payments, you can use Stripe Tax to manage your compliance
+requirements."* So the choice is Stripe Tax with real registrations, or a considered decision
+not to collect; there is no third door where somebody else handles it.
 
 **5. Set a CSP header if Stripe.js is ever loaded.** It is not today — hosted Checkout is a
 redirect — and that is why `next.config.ts` needs no `frame-src`. An embedded Payment Element

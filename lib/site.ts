@@ -16,16 +16,23 @@
  *
  * Resolution order, most specific first:
  *
- *   1. NEXT_PUBLIC_SITE_URL — an explicit override. Not required any more (see
- *      PRODUCTION_ORIGIN below), but it still wins where it is set, which is how
- *      `.env.local` points a dev server's emails at localhost.
+ *   1. NEXT_PUBLIC_SITE_URL — an explicit override, and the one to reach for when a
+ *      preview must answer on a specific host. IT WINS EVERYWHERE, so on Vercel it
+ *      has to be SCOPED to the environment it is meant for: set for all three, it
+ *      points preview at production, which is the failure the whole of step 3 is a
+ *      note about.
  *   2. VERCEL_ENV === 'production' → PRODUCTION_ORIGIN, the custom domain.
- *   3. VERCEL_PROJECT_PRODUCTION_URL — the project's stable production host
- *      (`genorra-kappa.vercel.app`), injected by Vercel. Note this is NOT
- *      VERCEL_URL, which is the per-deployment preview host and changes on
- *      every push — using that would make every share link point at a frozen
- *      preview build. This is now the PREVIEW answer only.
- *   4. localhost, for `npm run dev`.
+ *   3. VERCEL_BRANCH_URL — the branch's own preview host, stable for the life of the
+ *      branch. THE PREVIEW ANSWER.
+ *   4. VERCEL_URL — per-deployment, changes on every push. A last resort for a
+ *      deployment with no branch host; never a share link worth keeping.
+ *   5. localhost, for `npm run dev`.
+ *
+ * EVERY STEP BELOW PRODUCTION MUST YIELD A NON-PRODUCTION ORIGIN. That is the
+ * invariant, and it is the one that was broken between the custom domain landing and
+ * 2026-08-23 — see the block on `VERCEL_PROJECT_PRODUCTION_URL` in `resolveSiteUrl`.
+ * A preview that resolves to production sends real Stripe redirects and real email
+ * links into the live site, from a build nobody has reviewed.
  */
 
 /**
@@ -92,8 +99,45 @@ function resolveSiteUrl(): string {
   // fall through to the preview host rather than misreport production.
   if (process.env.VERCEL_ENV === 'production') return PRODUCTION_ORIGIN
 
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  if (vercel) return `https://${vercel}`
+  // ── PREVIEW: THE BRANCH'S OWN HOST ────────────────────────────────────────────────
+  //
+  // `VERCEL_BRANCH_URL` is `<project>-git-<branch>-<team>.vercel.app` — stable for as long as
+  // the branch exists, so it does not change on every push the way `VERCEL_URL` does. That
+  // stability is the property this file has always wanted; what it had until 2026-08-23 was a
+  // variable that is stable for a different reason.
+  //
+  // ── WHAT WAS HERE, AND WHY IT WAS WRONG ──────────────────────────────────────────
+  // `VERCEL_PROJECT_PRODUCTION_URL`, described in the comment above as "the project's stable
+  // production host (genorra-kappa.vercel.app)". Vercel's own definition is the opposite of
+  // the use it was put to:
+  //
+  //     "A production domain name of the project. We select the shortest production CUSTOM
+  //      domain, or vercel.app domain if no custom domain is available. Note, that this is
+  //      always set, even in preview deployments. This is useful to reliably generate links
+  //      that point to PRODUCTION."
+  //
+  // It was the `.vercel.app` host — and therefore harmless — only while the project had no
+  // custom domain. The moment `genorra.com` was attached it started answering `genorra.com`,
+  // in every environment, and preview silently lost any origin of its own. Nothing failed
+  // loudly, because a URL that resolves is a URL that resolves.
+  //
+  // WHAT IT COST, and all three are the same bug wearing different clothes: a Stripe checkout
+  // begun on preview sent the payer back to PRODUCTION on return (found this way); an
+  // invitation or confirmation email sent from preview linked into production, where the token
+  // is for a different database; and `metadataBase` advertised production URLs from a build
+  // that is `noindex` anyway.
+  //
+  // A CUSTOM DOMAIN IS THE ORDINARY END STATE OF ANY PROJECT, so this was never a latent trap
+  // — it was one that arms itself on the day the product gets its name.
+  const branch = process.env.VERCEL_BRANCH_URL?.trim()
+  if (branch) return `https://${branch}`
+
+  // A Vercel deployment with no branch host — a CLI deploy, or a preview built outside a git
+  // branch. Per-deployment and therefore unstable, which is why it is the LAST resort rather
+  // than the preview answer: a link built from it points at one frozen build forever. Still
+  // strictly better than falling through to localhost, which is wrong on any deployment.
+  const deployment = process.env.VERCEL_URL?.trim()
+  if (deployment) return `https://${deployment}`
 
   return 'http://localhost:3000'
 }
