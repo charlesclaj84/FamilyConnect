@@ -128,7 +128,7 @@ const SCOPED_TABLES = new Set([
   'announcement_unpins', 'announcements', 'bylaws', 'chapters', 'chat_rooms',
   'distribution_recipients', 'distributions', 'documents', 'donation_beneficiaries',
   'dues_autopay', 'dues_member_plans', 'dues_payments', 'dues_schedules', 'elections',
-  'family_invitations', 'family_removal_challenges', 'family_roles',
+  'family_invitations', 'family_action_challenges', 'family_roles',
   'family_stripe_accounts', 'fund_allocations', 'fund_contributions',
   'fund_disbursements', 'fund_milestones', 'fund_transfers', 'funds',
   'gathering_task_submissions', 'gathering_tasks', 'gathering_template_steps',

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
-import { getMyDuesSummary } from '@/app/actions/dues'
+import { getMyDuesSummary, type DuesSummary } from '@/app/actions/dues'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatCurrency } from '@/lib/currency-utils'
@@ -126,28 +126,86 @@ export type PayDuesResult =
   | { success: true; url: string }
   | { success: false; message: string }
 
-/**
- * Pay some or all of one due, once.
- *
- * ── `price_data` RATHER THAN A CATALOGUE PRICE, WHICH IS THE OPPOSITE OF THE PLAN FLOW ─
- * `app/actions/billing.ts` argues for real Stripe Prices, and it is right there: GENORRA sells
- * three plans at three fixed rates, so the catalogue is the honest place for them. Here the
- * amount is a figure out of ONE family's own dues schedule, scaled by that member's age
- * proration and their arrears — a number that exists in our database, differs per member, and
- * changes when a treasurer edits a schedule. There is no catalogue that could hold it, and
- * pre-creating a Price per member per schedule per amount would be thousands of Price objects
- * on a family's account describing one due.
- *
- * So the amount is inline, and it is bounded server-side, which is the trade `price_data`
- * always is.
- */
-export async function startDuesCheckout(input: {
+/** One due, and how much of it this checkout is settling. */
+export interface DuesPayItem {
   scheduleId: string
   amountCents: number
+}
+
+/**
+ * The most dues one Checkout Session may settle.
+ *
+ * NOT A STRIPE LIMIT — Checkout takes a hundred line items and metadata takes fifty keys, and
+ * this is a family's dues list, which is a handful. It is a bound on the ALLOCATION metadata
+ * below, whose whole job is to survive a round trip through Stripe intact. A cap that is
+ * exceeded is REFUSED and named, never silently trimmed: a truncated allocation is a member
+ * paying for six dues and being credited for four, with the difference sitting in the family's
+ * account attributed to nothing.
+ */
+const MAX_PAY_ITEMS = 20
+
+/**
+ * Pay some or all of one due — or of several — in one card payment.
+ *
+ * ── ONE ACTION, NOT A SINGLE-DUE ONE BESIDE A BATCH ONE ────────────────────────────
+ * It took a bare `{ scheduleId, amountCents }` until 2026-08-25 and takes a LIST now, and
+ * a one-item convenience wrapper was written and then deleted. Two exports would be two
+ * public HTTP endpoints (§2) doing one thing, with the amount rules stated twice — and the
+ * wrapper had no caller of its own the moment the screen started sending lists, which is
+ * precisely the "live endpoint kept warm for nobody" AGENTS.md records as the cost of
+ * leaving `/admin/boardpositions` behind a flag.
+ *
+ * ── WHY ONE SESSION RATHER THAN SEVERAL ─────────────────────────────────────────────
+ * A member on three schedules pressing "pay everything due now" is doing one thing, and
+ * Checkout redirects to ONE hosted page — so several sessions is not an implementation
+ * choice, it is not available. One session, several line items, and the split back into the
+ * family's ledger happens on the way back in.
+ *
+ * ── THE SPLIT TRAVELS AS METADATA, AND IS RE-VERIFIED ON THE WAY BACK ──────────────
+ * `genorra_alloc_<n>` = `<schedule id>:<cents>`, one key per due, plus `genorra_alloc_count`.
+ * `lib/stripe/connect-events.ts` reads them, checks they sum to what Stripe actually took, and
+ * posts one `dues_payments` row per allocation — each through `postDuesPayment`, which
+ * re-reads the schedule with `.eq('family_code', …)` beside it (§4). So a Dashboard-edited
+ * allocation cannot reach another family's schedule, and one that does not add up is refused
+ * rather than reconciled, exactly as a mismatched `genorra_family_code` already is.
+ *
+ * `dues_autopay`'s header argues for reading ids out of OUR table rather than out of Stripe
+ * metadata, and that argument does not transfer: an autopay is a standing arrangement that
+ * outlives the session and has a row of its own to be read back from. A one-off allocation
+ * exists for the length of one redirect, and a table to hold it would be a row written before
+ * the money moved — with nothing to clean up the ones that are abandoned at the card form.
+ *
+ * ── EVERY §2 CHECK IS THE SINGLE-DUE ONE, N TIMES ──────────────────────────────────
+ * The person is the guard's and is never a parameter. Every schedule is re-resolved out of
+ * the caller's OWN summary, so an id that is not theirs resolves to nothing. Every amount is
+ * bounded against that row's `remainingBalanceCents`. And the summary is read ONCE — N reads
+ * of the same thing could disagree with each other mid-request.
+ */
+export async function startDuesCheckout(input: {
+  items: DuesPayItem[]
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
   if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+
+  // `input?.items`, not `input.items`. A server action is a public HTTP endpoint and its
+  // argument is whatever was deserialised off the wire — the TypeScript signature is erased
+  // at runtime, so a POST carrying `null` would throw here rather than be refused.
+  const items = Array.isArray(input?.items) ? input.items : []
+  if (items.length === 0) return { success: false, message: 'Choose at least one due to pay.' }
+  if (items.length > MAX_PAY_ITEMS) {
+    return {
+      success: false,
+      message: `Up to ${MAX_PAY_ITEMS} dues can be paid in one go. Pay some of them separately.`,
+    }
+  }
+  // A repeated schedule would post two rows against one due, and the second would collide on
+  // `(source, processor_ref)` and be discarded as a duplicate — so the member would be charged
+  // for it and credited once. Refused before any of that.
+  const seen = new Set(items.map(i => i.scheduleId))
+  if (seen.size !== items.length) {
+    return { success: false, message: 'The same due is listed twice.' }
+  }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
@@ -159,66 +217,98 @@ export async function startDuesCheckout(input: {
     return { success: false, message: 'This family is not set up to take card payments yet.' }
   }
 
-  // THE SCHEDULE COMES OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
+  // THE SCHEDULES COME OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
   // family's, a donation drive's, a due they have opted out of — resolves to nothing, so the
   // §4 check is structural rather than a conjunct somebody has to remember.
-  const summary = (await getMyDuesSummary()).find(s => s.schedule.id === input.scheduleId)
-  if (!summary) return { success: false, message: 'That due is not one of yours.' }
-  if (summary.schedule.kind !== 'dues') {
-    return { success: false, message: 'Donations are given from the Donations pane, not paid as dues.' }
-  }
+  const summary = await getMyDuesSummary()
 
-  const owed = summary.remainingBalanceCents
-  if (owed <= 0) return { success: false, message: 'There is nothing left to pay on this due.' }
-
-  const amount = Math.round(input.amountCents)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { success: false, message: 'Enter an amount to pay.' }
-  }
-  if (amount > owed) {
-    // NAMES THE CEILING. "Invalid amount" would leave somebody guessing at a figure the screen
-    // beside them is already showing, and this product has no concept of a credit balance, so
-    // the refusal has to be useful rather than merely correct.
-    return {
-      success: false,
-      message: `That is more than is owed. The most that can be paid on this due is ${formatCurrency(owed)}.`,
+  const resolved: { row: DuesSummary; amount: number }[] = []
+  for (const item of items) {
+    const row = summary.find(s => s.schedule.id === item.scheduleId)
+    if (!row) return { success: false, message: 'That due is not one of yours.' }
+    if (row.schedule.kind !== 'dues') {
+      return { success: false, message: 'Donations are given from the Donations pane, not paid as dues.' }
     }
+
+    const owed = row.remainingBalanceCents
+    if (owed <= 0) {
+      return { success: false, message: `There is nothing left to pay on ${row.schedule.label}.` }
+    }
+
+    const amount = Math.round(item.amountCents)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { success: false, message: 'Enter an amount to pay.' }
+    }
+    if (amount > owed) {
+      // NAMES THE CEILING, AND THE DUE. "Invalid amount" would leave somebody guessing at a
+      // figure the screen beside them is already showing, and this product has no concept of a
+      // credit balance — so the refusal has to be useful rather than merely correct. Naming
+      // the schedule matters more here than it did for one due: a combined payment refused
+      // without saying which line was wrong is a refusal nobody can act on.
+      return {
+        success: false,
+        message: `That is more than is owed. The most that can be paid on ${row.schedule.label} is ${formatCurrency(owed)}.`,
+      }
+    }
+
+    resolved.push({ row, amount })
   }
+
+  const single = resolved.length === 1 ? resolved[0] : null
+  const totalCents = resolved.reduce((sum, r) => sum + r.amount, 0)
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       // No `payment_method_types` — dynamic payment methods, per Stripe's guidance. A family
       // taking dues from relatives across a country benefits from that more than most.
-      line_items: [{
+      //
+      // ONE LINE PER DUE, NAMED. The hosted page is the last thing the member reads before
+      // they commit, so it has to itemize what they are about to pay rather than showing one
+      // total they would have to take on trust.
+      line_items: resolved.map(({ row, amount }) => ({
         quantity: 1,
         price_data: {
           currency: CURRENCY,
           unit_amount: amount,
           product_data: {
-            name: summary.schedule.label,
+            name: row.schedule.label,
             description: `Dues payment · ${g.familyCode}`,
           },
         },
-      }],
+      })),
       customer_email: await payerEmail(),
       client_reference_id: g.personId,
       payment_intent_data: {
-        metadata: duesMetadata(g.familyCode, g.personId, input.scheduleId),
+        metadata: duesAllocationMetadata(g.familyCode, g.personId, resolved),
         // ON THE FAMILY'S OWN STATEMENT, not ours. A relative who does not recognise a line on
         // their card statement disputes it, and a dispute on a direct charge is the family's
         // to answer — so the descriptor has to name the family, not the software.
-        statement_descriptor_suffix: statementSuffix(summary.schedule.label),
+        //
+        // A combined payment names no single due, because it is not one: the suffix says what
+        // the charge was FOR, and "Dues" is the honest answer where four schedules are being
+        // settled at once.
+        statement_descriptor_suffix: single
+          ? statementSuffix(single.row.schedule.label)
+          : statementSuffix('Dues'),
       },
-      metadata: duesMetadata(g.familyCode, g.personId, input.scheduleId),
+      metadata: duesAllocationMetadata(g.familyCode, g.personId, resolved),
       integration_identifier: INTEGRATION_IDS.familyDuesOnce,
       ...checkoutReturnUrls('/accounting/dues-and-donations'),
     }, {
       // The account header AND the idempotency key. `onAccount` is the only place in the
       // product that sets the first, so a grep for it is the complete list of calls made on a
       // family's behalf.
+      //
+      // The BODY digest carries the allocation, because the naming parts cannot: a key naming
+      // only the member and a total would hand a member paying $200 across two dues the
+      // session they created a minute earlier paying $200 across two DIFFERENT dues. See
+      // `intentKey` — a changed request has to be a changed key.
       ...onAccount(account),
-      idempotencyKey: intentKey(['dues-once', g.personId, input.scheduleId, amount]),
+      idempotencyKey: intentKey(
+        ['dues-once', g.personId, resolved.length, totalCents],
+        resolved.map(({ row, amount }) => [row.schedule.id, amount]),
+      ),
     })
 
     if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
@@ -449,6 +539,37 @@ function duesMetadata(familyCode: string, personId: string, scheduleId: string):
     genorra_person_id: personId,
     genorra_schedule_id: scheduleId,
   }
+}
+
+/**
+ * The one-off flow's metadata: who and where, plus how the charge splits across dues.
+ *
+ * ── `genorra_schedule_id` SURVIVES FOR A SINGLE DUE, DELIBERATELY ──────────────────
+ * It is what every session created before the batch existed carries, and what the webhook
+ * falls back to when it finds no allocation keys. Dropping it would strand any session already
+ * in flight at deploy time — a member sitting on Stripe's hosted page with their card out,
+ * whose payment would then post against nothing.
+ *
+ * ── AND THE ALLOCATION IS WRITTEN EVEN FOR ONE ─────────────────────────────────────
+ * So the webhook has ONE path rather than a batch path and a legacy path that could drift.
+ * The fallback above is for old sessions, not for new single ones.
+ */
+function duesAllocationMetadata(
+  familyCode: string,
+  personId: string,
+  resolved: readonly { row: DuesSummary; amount: number }[],
+): Record<string, string> {
+  const meta: Record<string, string> = {
+    genorra_flow: 'dues',
+    genorra_family_code: familyCode,
+    genorra_person_id: personId,
+    genorra_alloc_count: String(resolved.length),
+  }
+  if (resolved.length === 1) meta.genorra_schedule_id = resolved[0].row.schedule.id
+  resolved.forEach(({ row, amount }, i) => {
+    meta[`genorra_alloc_${i}`] = `${row.schedule.id}:${amount}`
+  })
+  return meta
 }
 
 /**

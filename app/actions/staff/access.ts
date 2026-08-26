@@ -303,7 +303,7 @@ function refuseSelf(actingUserId: string, targetUserId: string): StaffAccessResu
  *     revokes A. Both counts read 2, both writes land, the console has no owner and no screen
  *     can repair it. A count followed by a write in a separate statement DOES NOT CLOSE THIS,
  *     and pretending otherwise is worse than the gap. The stronger form is one SQL statement
- *     under `FOR UPDATE`, exactly as `consume_family_removal_challenge` does for the five-branch
+ *     under `FOR UPDATE`, exactly as `consume_family_action_challenge` does for the five-branch
  *     read-modify-write it replaced — a `staff_set_role(p_user_id, p_role)` that counted and
  *     wrote while holding the row locks. That is the right change the day two owners are ever
  *     plausibly clicking at once; today the team is small enough that the window is theoretical,

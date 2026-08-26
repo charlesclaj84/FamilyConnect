@@ -427,7 +427,7 @@ async function teardown(db) {
     // removing the people below would blank that column and LEAVE THE ROW, which is the shape
     // the deleted `event_*` block warned about: a table whose only inbound reference is SET
     // NULL is one nothing removes for you. Listed BEFORE `people` for the same reason
-    // `family_removal_challenges` is.
+    // `family_action_challenges` is.
     'bylaws',
     // BEFORE `user_roles` AND `family_roles` — `position_journal_entries.role_id` cascades
     // from `family_roles`, so listing it after would have it swept away as a side effect and
@@ -472,7 +472,7 @@ async function teardown(db) {
     'person_sms', 'phone_verifications',
     // ── THE BILLING TABLES ──────────────────────────────────────────────────────────────
     // Both keyed on `family_code` with no foreign key to `families`, so nothing else here
-    // removes them — the same position `resource_visibility` and `family_removal_challenges`
+    // removes them — the same position `resource_visibility` and `family_action_challenges`
     // are in, and the same reason they are listed by name.
     //
     // BEFORE `people`, because `family_stripe_accounts.connected_by` REFERENCES people(id)
@@ -500,7 +500,7 @@ async function teardown(db) {
     // `requested_by` REFERENCES people(id) — ON DELETE SET NULL, so leaving it would
     // silently blank the column rather than fail, and a challenge row belonging to nobody
     // would outlive the run it was seeded for.
-    'family_removal_challenges',
+    'family_action_challenges',
     'people',
     // AFTER `people`, and it has to be. dues_payments is append-only — 20260806000002
     // refuses a DELETE even to the service role — with ONE exception: the ON DELETE

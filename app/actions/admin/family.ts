@@ -1,6 +1,5 @@
 'use server'
 
-import { createHash, randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -15,6 +14,9 @@ import { tierMove } from '@/lib/platform-billing'
 // carrying GENORRA's SPF and DKIM — see the header of lib/email/send.ts.
 import { sendEmail, emailOrigin, deliveryNote } from '@/lib/email/send'
 import { familyRemovalCodeEmail } from '@/lib/email/templates'
+import {
+  CHALLENGE_CODE_MINUTES, hashChallengeCode, mintChallenge,
+} from '@/lib/action-challenge'
 import {
   FAMILY_RESOURCE, MAX_FAMILY_NAME, REMOVE_FAMILY_RESOURCE,
 } from '@/components/admin/family-settings'
@@ -396,8 +398,12 @@ const REMOVAL_CODE_LENGTH = 6
  * How long a code lasts. Stated once, because the email prints it and the challenge is
  * written with it — two copies is how the sentence somebody reads stops describing the
  * timer they are racing.
+ *
+ * IT MOVED TO `lib/action-challenge.ts` ON 2026-08-25, when a second act went behind a code:
+ * one lifetime for both, so a family cannot be told fifteen minutes on one screen and
+ * something else on another. This re-export keeps the name this file's readers know.
  */
-const REMOVAL_CODE_MINUTES = 15
+const REMOVAL_CODE_MINUTES = CHALLENGE_CODE_MINUTES
 
 export type RemovalCodeResult =
   | {
@@ -420,8 +426,7 @@ export type RemoveFamilyResult =
   | { success: false; message: string }
 
 /** SHA-256 hex, matching `encode(digest(code,'sha256'),'hex')` in the database. */
-const hashCode = (code: string): string =>
-  createHash('sha256').update(code).digest('hex')
+const hashCode = hashChallengeCode
 
 /**
  * Email the acting administrator a code that confirms removing their family.
@@ -496,42 +501,27 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
   }
   const familyName = (family?.family_name as string) ?? g.familyCode
 
-  const code = String(randomInt(100_000, 1_000_000))
-
-  // SUPERSEDE ANYTHING STILL OPEN before writing the new one. Without this, asking twice
-  // leaves two live codes and the older one keeps working — the verifying function takes
-  // the NEWEST unspent challenge, so the stale row would be unreachable rather than
-  // dangerous, but a code somebody has in their inbox and cannot use is worse than one
-  // that has visibly expired.
-  const { error: supersedeError } = await admin
-    .from('family_removal_challenges')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('family_code', g.familyCode)
-    .eq('requested_by', g.personId)
-    .is('consumed_at', null)
-  if (supersedeError) {
-    console.error(`[admin/family] could not close open removal challenges for ${g.familyCode}: ${supersedeError.message}`)
-    return { success: false, message: 'Could not send a code just now. Please try again.' }
-  }
-
-  const { error: insertError } = await admin
-    .from('family_removal_challenges')
-    .insert({
-      family_code: g.familyCode,
-      requested_by: g.personId,
-      code_hash: hashCode(code),
-      expires_at: new Date(Date.now() + REMOVAL_CODE_MINUTES * 60_000).toISOString(),
-    })
-  if (insertError) {
-    console.error(`[admin/family] could not mint a removal challenge for ${g.familyCode}: ${insertError.message}`)
+  // ── MINTED BY THE SHARED MODULE SINCE 2026-08-25 ─────────────────────────────────
+  // The supersede-then-insert, the digits, the hash and the lifetime moved to
+  // `lib/action-challenge.ts` when disconnecting Stripe became the second act behind an
+  // emailed code. What stays here is what is actually about REMOVAL: the grant above, the
+  // family name, and the message below. See that module for why the purpose conjunct is on
+  // both statements.
+  const minted = await mintChallenge(admin, {
+    familyCode: g.familyCode,
+    personId: g.personId,
+    purpose: 'family_removal',
+    logTag: '[admin/family]',
+  })
+  if (!minted.ok) {
     return { success: false, message: 'Could not send a code just now. Please try again.' }
   }
 
   const mail = familyRemovalCodeEmail({
     origin: emailOrigin(),
     familyName,
-    code,
-    expiresInMinutes: REMOVAL_CODE_MINUTES,
+    code: minted.code,
+    expiresInMinutes: minted.minutes,
   })
   const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, tag: mail.tag })
 
@@ -548,14 +538,15 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
  * Remove the family the caller is currently acting in.
  *
  * ── THE CODE IS VERIFIED AND CONSUMED IN ONE STATEMENT ─────────────────────────────
- * `consume_family_removal_challenge()` (20260817000007) does it under `FOR UPDATE`. A
+ * `consume_family_action_challenge()` (20260817000007, generalised by 20260825000000) does it
+ * under `FOR UPDATE`. A
  * read-then-write here would race itself — two tabs, or one double click, and the same
  * challenge is spent twice or a wrong guess and a right one interleave so only one of two
  * failures is counted. That function also owns the attempt cap, the expiry and the single
  * use, so none of them can be forgotten by a rewrite of this action.
  *
  * NO CHALLENGE ID CROSSES FROM THE CLIENT. The only argument is the six digits somebody
- * typed; the row is resolved from (family_code, requested_by), both derived from the
+ * typed; the row is resolved from (family_code, requested_by, purpose), all three derived from the
  * session — the same shape `appeal_membership_decision` uses, and the reason a guessed
  * code cannot spend another family's challenge.
  *
@@ -588,9 +579,10 @@ export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
   const admin = createAdminClient()
 
   const { data: challenge, error: challengeError } = await admin
-    .rpc('consume_family_removal_challenge', {
+    .rpc('consume_family_action_challenge', {
       p_family_code: g.familyCode,
       p_person_id: g.personId,
+      p_purpose: 'family_removal',
       p_code_hash: hashCode(typed),
     })
     .maybeSingle<{ ok: boolean; message: string | null; attempts_left: number }>()

@@ -1893,7 +1893,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'schedules',
             heading: 'Your schedules',
             blocks: [
-              p('The **Dues** pane lists every schedule you are on: what it costs a year, what one installment comes to, when the next one falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
+              p('The **Dues** pane lists every schedule you are on, in two tables: **Required dues**, which everybody on them owes, and **Optional dues**, which are yours to take on or decline. Each row says what the schedule costs a year, what the next payment has to be, when it falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
+              p('You only ever see a table you have a schedule in. A family that runs no optional dues shows one table and no empty heading — so a missing **Optional dues** table means there are none for you, not that something failed to load.'),
+              p('A row shaded and marked **Past due** is one the calendar has already asked for and the money has not covered. It is a marker rather than a warning: being behind is not an error, and the next payment simply carries the catch-up.'),
+              p('Two other markers appear beside a schedule name. **Declined** is an optional due you have opted out of. **Not yet due** is a due that starts at an age you have not reached — see [Dues that start at an age](#age).'),
             ],
           },
           {
@@ -1912,7 +1915,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'cadence',
             heading: 'Changing how often you pay',
             blocks: [
-              p('Each schedule has a **Pay cadence** you set for yourself — weekly, monthly, quarterly, annual, or one-time. The annual total does not change; the cadence divides it.'),
+              p('Each schedule has a pay cadence you set for yourself — weekly, monthly, quarterly, annual, or one-time. The annual total does not change; the cadence divides it. The one you are on is printed under the amount on the row.'),
+              p('To change it, open the row\u2019s menu — the button at the right-hand end — and press **Change pay cadence**. The dialog prices all five before you pick one: what each installment costs, and, where a switch would leave you catching up, what the very next payment would be.'),
               p('This is yours to set and needs no permission from anybody. Nobody else can set it for you.'),
             ],
           },
@@ -1920,12 +1924,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'pay-online',
             heading: 'Paying by card',
             blocks: [
-              p('A **Pay online** section appears under the table once your family has connected a card processor. It lists each due you still owe with the amount that is due now already filled in — change it if you want to pay more or clear the due entirely — and **Pay by card** takes you to Stripe\'s own page to enter it.'),
-              p('The payment posts to the family\'s books as soon as it clears. There is nothing for a treasurer to key in afterwards, and it appears in your own payment history alongside anything recorded by hand.'),
-              p('**Pay … automatically** sets up a standing card payment for that due, at the cadence you have already chosen above. It follows that cadence rather than asking again, so changing **Pay cadence** is how you change what is taken. Each due is separate: setting one up says nothing about the others.'),
+              p('Once your family has connected a card processor, every due you still owe carries a **Pay** button on its own row. It opens with the amount that is due now already filled in — change it if you want to pay more or clear the due entirely — and takes you to Stripe\u2019s own page to enter your card.'),
+              p('The payment posts to the family\u2019s books as soon as it clears. There is nothing for a treasurer to key in afterwards, and it appears in your own payment history alongside anything recorded by hand.'),
+              p('**Set up automatic payments**, in the row\u2019s menu, starts a standing card payment for that due at the cadence you have already chosen. It follows that cadence rather than asking again, so [changing your cadence](#cadence) is how you change what is taken. Each due is separate: setting one up says nothing about the others. A due you have set up says **Automatic** on its row, with what is taken and how often.'),
               note('Automatic payments are for dues only. A donation drive is a gift, and agreeing to give once is not agreeing to give every month — so drives are given to one at a time from the **Donations** pane.'),
-              p('**Stop** ends the automatic payments straight away, and everything already paid stays on your record. There is nothing to cancel elsewhere.'),
-              note('No **Pay online** section means your family has not connected a processor yet, or Stripe is still checking the account. Ask whoever keeps your family\'s accounting — it is the **Processing** section of [Accounting](/admin/accounting) — and pay by whatever means your family already uses in the meantime.'),
+              p('**Stop automatic payments**, in the same menu, ends them straight away, and everything already paid stays on your record. There is nothing to cancel elsewhere.'),
+              note('No **Pay** button anywhere means your family has not connected a processor yet, or Stripe is still checking the account. Ask whoever keeps your family\u2019s accounting — it is the **Processing** section of [Accounting](/admin/accounting) — and pay by whatever means your family already uses in the meantime.'),
+            ],
+          },
+          {
+            id: 'due-now',
+            heading: 'Paying everything at once',
+            blocks: [
+              p('**Due now**, under both tables, adds up what the calendar has asked for across every schedule you are on — required and optional on separate lines, then the total. It is what you would pay to be completely up to date today, catch-ups included.'),
+              p('**Pay … by card** takes the lot in one card payment. Stripe\u2019s page itemizes it, one line per due, so you can see what each part of the total is for before you commit — and it arrives in the family\u2019s books split the same way, one entry per schedule.'),
+              p('The dialog lists every due with its own amount, so you can change any of them before paying. Set one to zero to leave it out of this payment; it stays exactly where it was.'),
+              note('If your family has not connected a card processor, **Due now** still adds everything up — it just says so instead of offering a button. The figure is the same one to hand over by cheque.'),
             ],
           },
           {
@@ -1957,7 +1971,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
-              p('**Opt out** on a schedule says it does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** reverses it. Only an optional due offers it; a required one has no button.'),
+              p('**Opt out**, in the menu on a row of the **Optional dues** table, says the schedule does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** in the same menu reverses it. Only an optional due offers it; nothing in the **Required dues** table can be declined.'),
               note('Opting out is not the same as having paid. It removes the schedule from your balance going forward; it does not erase what was already owed.'),
             ],
           },
@@ -2323,7 +2337,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('**You will never be asked for a Stripe key, and you should never give one to anybody.** GENORRA stores only your account\'s id — enough to send a payment to you, and useless to anyone on its own. If a screen ever asks you to paste a key that begins `sk_`, it is not this product.'),
               p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/accounting/transactions) beside everything else.'),
               p('**Check with Stripe** asks Stripe for the account\'s current state, which is worth pressing if you have just finished something on their side. Until it says card payments are on, members see no **Pay online** section at all — better than a button that fails once somebody has decided to pay.'),
-              note('**Disconnecting stops every member\'s automatic payment as well.** The panel says how many there are before you confirm. Nothing already recorded is removed, and your family\'s Stripe account is untouched — this only stops GENORRA using it.'),
+              note('**Disconnecting stops every member\'s automatic payment as well, and those cannot be restarted.** Reconnecting brings the same Stripe account back with its history and bank details exactly as they were — but each relative who was paying automatically has to set their payment up again, because the arrangement was cancelled at Stripe rather than paused. The panel says how many people that is before you confirm. Nothing already recorded is removed, and your family\'s own Stripe account is untouched — this only stops GENORRA using it.'),
+              p('**Because of that, disconnecting asks for two things.** First your sign-in password, so it cannot happen by accident or by somebody sitting at an unlocked screen. Then a six-digit code emailed to the address you sign in with — not to an address you type, and not to anybody else. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries. It is the same gate as [removing a family](/help/family-settings#removal), and it is there for the same reason: the part you can undo hides a part you cannot.'),
+              p('If your family has disconnected, the pane says so and the button reads **Reconnect Stripe** rather than **Connect a Stripe account** — because it really is the same account coming back, not a new one being made.'),
             ],
           },
           {

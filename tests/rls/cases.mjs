@@ -5485,8 +5485,23 @@ const REMOVAL_FAMILIES = [ALPHA, BRAVO, CHARLIE]
 
 /** No open challenge anywhere, so a minting case starts from a known empty state. */
 const clearRemovalChallenges = async (db) => {
-  const { error } = await db.from('family_removal_challenges')
+  const { error } = await db.from('family_action_challenges')
     .delete().in('family_code', REMOVAL_FAMILIES)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * The same, for the OTHER purpose the table now serves (20260825000000).
+ *
+ * SCOPED TO `processor_disconnect` rather than clearing the table, deliberately: the removal
+ * cases and the disconnect cases share one table, and a setup that wiped everything would let
+ * whichever ran second silently depend on the first having been reset. Each purpose starts
+ * from a known empty state of its OWN rows, which is also what the `purpose` conjunct on the
+ * action's supersede is there to guarantee in the product.
+ */
+const clearDisconnectChallenges = async (db) => {
+  const { error } = await db.from('family_action_challenges')
+    .delete().in('family_code', REMOVAL_FAMILIES).eq('purpose', 'processor_disconnect')
   if (error) throw new Error(`setup: ${error.message}`)
 }
 
@@ -5534,11 +5549,17 @@ const resetRemoval = async (db, fx) => {
   await clearRemovalChallenges(db)
 
   const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-  const { error } = await db.from('family_removal_challenges').insert([
-    { family_code: ALPHA, requested_by: fx.users.alphaAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: ALPHA, requested_by: fx.users.alphaMember.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: ALPHA, requested_by: fx.users.alphaPending.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: CHARLIE, requested_by: fx.users.charlieAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+  // `purpose` IS STATED ON EVERY ROW, and it has to be: the column is NOT NULL with NO
+  // DEFAULT since 20260825000000, deliberately, so that a caller who forgot cannot mint a
+  // removal code by accident. This fixture WAS that caller for one run — the four inserts
+  // below threw and five removal assertions came back `harness`, which is the constraint
+  // doing exactly its job on the first thing that omitted the column.
+  const purpose = 'family_removal'
+  const { error } = await db.from('family_action_challenges').insert([
+    { family_code: ALPHA, requested_by: fx.users.alphaAdmin.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaMember.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaPending.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: CHARLIE, requested_by: fx.users.charlieAdmin.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
   ])
   if (error) throw new Error(`setup: ${error.message}`)
 }
@@ -5600,7 +5621,7 @@ const familyStatusProbe = async (db) => {
  *      mutation and was tried first: `admin/family` is a restricted admin key, so a plain
  *      member is refused by the view grant instead and all eight assertions stay green.
  *      A mutation has to remove the LAST layer, not a layer.
- *   B. `consume_family_removal_challenge` rewritten to find the newest unspent challenge
+ *   B. `consume_family_action_challenge` rewritten to find the newest unspent challenge
  *      globally — both `family_code` and `requested_by` dropped from its WHERE.
  *        -> cross-family FAILS: BRAVO's administrator types ALPHA's six digits, spends
  *           ALPHA's challenge, and BRAVOTEST comes back `status: "removed"`. That pair of
@@ -5634,7 +5655,7 @@ export const REMOVAL_CASES = [
     // the CALLER's family, and ALPHA's must be that family for nobody but ALPHA.
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5649,7 +5670,7 @@ export const REMOVAL_CASES = [
     attacker: 'alphaMember',
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5664,7 +5685,7 @@ export const REMOVAL_CASES = [
     attacker: 'alphaPending',
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -9461,7 +9482,7 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASE
  *     * THE RACE THAT COUNT DOES NOT CLOSE is likewise untested and untestable from here. Two
  *       owners revoking each other in the same instant both read a count of 2 and both writes
  *       land. The action says so itself and names the stronger form (one SQL statement under
- *       `FOR UPDATE`, as `consume_family_removal_challenge` does). A suite that calls actions
+ *       `FOR UPDATE`, as `consume_family_action_challenge` does). A suite that calls actions
  *       sequentially cannot see it.
  *     * `requireStaffOwner()` 404s AND THE ACTIONS ANSWER A FLAT SENTENCE, which is two
  *       different refusals for one condition — the guard for the PAGE, `NOT_AUTHORIZED` for a
@@ -10488,6 +10509,74 @@ const BILLING_CASES = [
       positiveActor: 'alphaAdmin',
       expectPositive: (v) => v?.accountId === 'acct_alphaseed',
     }),
+
+  // ── ASKING FOR THE DISCONNECT CODE (20260825000000) ──────────────────────────────────
+  //
+  // Disconnecting Stripe went behind a password and an emailed six-digit code, because half
+  // of it cannot be undone: every member's recurring payment is cancelled AT STRIPE on the
+  // way out and a cancelled subscription cannot be un-cancelled. `requestProcessorDisconnectCode`
+  // is the minting half.
+  //
+  // ── IT IS TESTABLE WHERE ITS SIBLINGS ARE NOT, AND THAT IS THE POINT ────────────────
+  // Every other write in `admin/processing.ts` carries the STRIPE-INERT verdict in
+  // `scripts/rls-coverage.mjs`: it resolves a Stripe credential before issuing any query, so
+  // in a harness with no key it refuses before touching the database and a case would be
+  // evidence about the credential check alone. THIS one does not — it goes guard, then
+  // GoTrue for the caller's own address, then the admin client — so every assertion below is
+  // about the thing the suite exists to assert.
+  //
+  // NO ARGUMENTS, on purpose, exactly as the removal cases explain: the action takes none, so
+  // there is no ALPHA id for BRAVO to pass and the usual "attacker supplies the owner's id"
+  // shape does not apply. What is asserted instead is that the derivation cannot be widened —
+  // a challenge is minted for the CALLER's family, and ALPHA's must be that family for
+  // nobody but ALPHA.
+  //
+  // ── MUTATION-CHECKED per §7 ─────────────────────────────────────────────────────────
+  //   `requireEdit(PROCESSING)` -> a bare session check
+  //       -> the 'member with no grant' and 'pending member' attacks BOTH go red: each mints
+  //          a real challenge under ALPHATEST.
+  //   `mintChallenge`'s `familyCode` taken from a parameter instead of the guard
+  //       -> cross-family goes red — BRAVO's administrator writes a row under ALPHATEST.
+  //   `purpose: 'processor_disconnect'` swapped for 'family_removal'
+  //       -> the CONTROL goes red: ALPHA's administrator asks for a disconnect code and the
+  //          probe finds no disconnect challenge. That is the half worth having, because a
+  //          purpose that silently drifted would mint codes nothing can ever spend.
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (cross-family)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (same family, member with no grant)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and approved;
+    // the only thing that may refuse them is `admin/accounting/processing:edit`.
+    attacker: 'alphaMember',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (pending member)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    // A code mailed to an applicant would be a mailbox the family never chose to trust
+    // holding one half of the gate in front of cancelling every relative's dues payment.
+    attacker: 'alphaPending',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
 
   // ── THE SIGNUP PLAN INTENT (20260823000008) ──────────────────────────────────────────
   //

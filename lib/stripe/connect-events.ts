@@ -123,12 +123,21 @@ async function onCheckoutSession(
   }
 
   const personId = typeof meta.genorra_person_id === 'string' ? meta.genorra_person_id : null
-  const scheduleId = typeof meta.genorra_schedule_id === 'string' ? meta.genorra_schedule_id : null
-  if (!personId || !scheduleId) {
-    return { handled: false, detail: `session ${session.id} names no member or schedule` }
+  if (!personId) {
+    return { handled: false, detail: `session ${session.id} names no member` }
   }
+  // ── THE SCHEDULE IS NOT ALWAYS ON THE SESSION, AND THAT IS THE BATCH ──────────────
+  // A combined one-off payment names its dues in `genorra_alloc_*` and carries no single
+  // `genorra_schedule_id`, so demanding one here would refuse every combined payment before
+  // the allocation was ever read. Autopay still requires it — one arrangement is one schedule
+  // by construction — and the one-off path treats it as the fallback for a session created
+  // before the allocation keys existed.
+  const scheduleId = typeof meta.genorra_schedule_id === 'string' ? meta.genorra_schedule_id : null
 
   if (session.mode === 'subscription') {
+    if (!scheduleId) {
+      return { handled: false, detail: `subscription session ${session.id} names no schedule` }
+    }
     // Autopay was set up. The first charge arrives as `invoice.paid`, which is what posts the
     // money; this only records the arrangement so the member's screen can show it and so
     // `cancelDuesAutopay` has something to cancel.
@@ -146,18 +155,125 @@ async function onCheckoutSession(
   const amount = session.amount_total ?? 0
   if (amount <= 0) return { handled: true, detail: `session ${session.id} carried no money` }
 
-  return postDuesPayment(admin, {
-    familyCode,
-    personId,
-    scheduleId,
-    amountCents: amount,
-    // The CHARGE, so a redelivery years later still collides on the unique index. Falling back
-    // to the session id keeps the row postable rather than dropping a real payment.
-    processorRef: idOf(session.payment_intent) ?? session.id,
-    paidAtSeconds: session.created ?? null,
-    planId: null,
-    note: 'One-off card payment',
-  })
+  // The CHARGE, so a redelivery years later still collides on the unique index. Falling back
+  // to the session id keeps the row postable rather than dropping a real payment.
+  const charge = idOf(session.payment_intent) ?? session.id
+
+  // ── HOW THIS CHARGE SPLITS ACROSS THE MEMBER'S DUES ───────────────────────────────
+  // One line per due since 2026-08-25, because "pay everything due now" is one card payment
+  // over several schedules. `readAllocations` answers the single-due shape too, from the same
+  // keys, so there is one path here rather than a batch path beside a legacy one — and it
+  // falls back to `genorra_schedule_id` for a session that was created before the allocation
+  // keys existed and was still sitting on Stripe's hosted page at deploy time.
+  const allocations = readAllocations(meta, scheduleId, amount)
+  if (!allocations) {
+    return { handled: false, detail: `session ${session.id} carries an allocation that cannot be read` }
+  }
+
+  // ── THE SPLIT MUST ADD UP TO WHAT STRIPE ACTUALLY TOOK ────────────────────────────
+  // Nothing in this flow adds tax, shipping or a discount, so `amount_total` IS the sum of the
+  // line items this product created. A disagreement therefore means the metadata was edited
+  // after the session was made — the same thing the family-code check above refuses, and
+  // refused the same way rather than reconciled. Scaling the allocation to fit would be this
+  // code inventing which due somebody paid.
+  const allocated = allocations.reduce((sum, a) => sum + a.amountCents, 0)
+  if (allocated !== amount) {
+    return {
+      handled: false,
+      detail: `session ${session.id} allocates ${allocated}c of a ${amount}c charge`,
+    }
+  }
+
+  // Sequentially, not in parallel: `postDuesPayment` routes each payment through the family's
+  // fund waterfall, which reads a fund balance and writes against it. Two of those racing over
+  // one fund is the shape `claim_distribution_recipients` is one statement to avoid.
+  const posted: string[] = []
+  for (const alloc of allocations) {
+    const result = await postDuesPayment(admin, {
+      familyCode,
+      personId,
+      scheduleId: alloc.scheduleId,
+      amountCents: alloc.amountCents,
+      // ONE REF PER ROW, because `(source, processor_ref)` is unique and a combined payment
+      // posts several rows from one charge. Derived from the charge and the schedule rather
+      // than from a counter, so a redelivery of the same event produces the same refs and
+      // collides row for row — which is the whole idempotency guarantee, kept intact.
+      //
+      // A single-due payment keeps the BARE charge id, which is what every row posted before
+      // 2026-08-25 carries. Suffixing those too would make a redelivery of an old event look
+      // like a new payment.
+      processorRef: allocations.length === 1 ? charge : `${charge}#${alloc.scheduleId}`,
+      paidAtSeconds: session.created ?? null,
+      planId: null,
+      note: allocations.length === 1
+        ? 'One-off card payment'
+        : 'One-off card payment (part of a combined payment)',
+    })
+    // A PARTIAL FAILURE IS A FAILURE (§8b's rule, on the webhook path). Answering `handled`
+    // over a charge that credited two of four dues would lose the other two permanently, so
+    // this reports and lets Stripe redeliver — the rows that DID post collide on their refs
+    // second time round and are skipped, which is what makes the retry safe.
+    if (!result.handled) return result
+    posted.push(result.detail ?? alloc.scheduleId)
+  }
+
+  return {
+    handled: true,
+    detail: allocations.length === 1
+      ? posted[0]
+      : `${familyCode}: ${amount}c posted across ${allocations.length} dues — ${posted.join('; ')}`,
+  }
+}
+
+/**
+ * The `genorra_alloc_*` metadata, as a list of dues and cents.
+ *
+ * Returns null rather than a partial list: a count that names more keys than are present, an
+ * unparseable pair, or an amount that is not a positive integer all mean the split cannot be
+ * trusted, and a partial answer here posts a charge against the wrong dues. The caller refuses
+ * the event, which is what `postDuesPayment` already does for every other id it cannot verify.
+ *
+ * THE SCHEDULE IDS ARE NOT VALIDATED HERE, deliberately — `postDuesPayment` re-reads each one
+ * with `.eq('family_code', …)` beside it (§4), which is the check that matters and the one
+ * place it should live.
+ */
+function readAllocations(
+  meta: Stripe.Metadata,
+  fallbackScheduleId: string | null,
+  fallbackAmountCents: number,
+): { scheduleId: string; amountCents: number }[] | null {
+  const raw = meta.genorra_alloc_count
+  // A session from before the allocation keys existed. One due, the whole charge — and null
+  // where there is no `genorra_schedule_id` either, because then the session names no due at
+  // all and the caller refuses it rather than posting the money against nothing.
+  if (typeof raw !== 'string') {
+    return fallbackScheduleId
+      ? [{ scheduleId: fallbackScheduleId, amountCents: fallbackAmountCents }]
+      : null
+  }
+
+  const count = Number(raw)
+  if (!Number.isInteger(count) || count < 1 || count > 50) return null
+
+  const out: { scheduleId: string; amountCents: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const value = meta[`genorra_alloc_${i}`]
+    if (typeof value !== 'string') return null
+    // The schedule id is a uuid and carries no colon, so the LAST colon separates the two
+    // halves either way — split on the last rather than the first, and a label creeping into
+    // this field one day cannot silently truncate an id.
+    const cut = value.lastIndexOf(':')
+    if (cut <= 0) return null
+    const scheduleId = value.slice(0, cut)
+    const amountCents = Number(value.slice(cut + 1))
+    if (!scheduleId) return null
+    if (!Number.isInteger(amountCents) || amountCents <= 0) return null
+    // A repeated schedule would post two rows, and the second's ref would collide with the
+    // first's and be discarded as a duplicate — money taken and credited once.
+    if (out.some(a => a.scheduleId === scheduleId)) return null
+    out.push({ scheduleId, amountCents })
+  }
+  return out
 }
 
 // ── Recurring dues: one settled period ──────────────────────────────────────────────

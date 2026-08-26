@@ -1,15 +1,20 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CreditCard, ExternalLink, RefreshCw, Unplug } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
+import { EmailedCodeField, PasswordReauthField } from '@/components/ui/challenge-fields'
+// THE THROWAWAY CLIENT, deliberately — never the app's own. Signing in on the app's client
+// would replace the session, and a new session's `created_at` resets GoTrue's 24-hour
+// reauthentication window. AGENTS.md states that rule where the Password panel lives.
+import { verifyCurrentPassword } from '@/lib/supabase/client'
 import {
-  disconnectProcessor, refreshProcessorStatus, startProcessorOnboarding,
-  type ProcessorStatus,
+  disconnectProcessor, refreshProcessorStatus, requestProcessorDisconnectCode,
+  startProcessorOnboarding, type ProcessorStatus,
 } from '@/app/actions/admin/processing'
 
 /**
@@ -50,12 +55,115 @@ import {
  * disagree precisely during "under review", which is the window in which a Pay button produces
  * a checkout that fails after somebody has decided to pay.
  */
+/**
+ * What disconnecting actually does, in one place, for every screen that has to say it.
+ *
+ * ── THE IRREVERSIBLE CLAUSE IS THE WHOLE REASON THIS IS A FUNCTION ─────────────────
+ * The reversible half is obvious and was the only half the product used to state: members
+ * stop being able to pay online, nothing recorded is lost, the family's own Stripe account is
+ * untouched, and reconnecting is one press. All true — and a treasurer who reads only that
+ * concludes a mistaken disconnect costs them a click. It does not: every recurring payment is
+ * cancelled AT STRIPE on the way out, a cancelled subscription cannot be un-cancelled, and so
+ * each of those relatives has to set theirs up again. That sentence has to appear wherever the
+ * act is described, which is why it is not typed at three call sites.
+ *
+ * THE COUNT CHANGES THE SENTENCE, because "4 relatives" is a different decision from
+ * "nobody" — and a family with no autopays should not be warned about an unwinding that will
+ * not happen to them.
+ */
+function disconnectConsequence(autopayCount: number): string {
+  const base = 'Members will no longer be able to pay online. Every payment already recorded '
+    + 'is kept, and the family’s own Stripe account is untouched.'
+  if (autopayCount === 0) {
+    return `${base} You can reconnect the same account at any time.`
+  }
+  const who = autopayCount === 1
+    ? '1 relative currently pays'
+    : `${autopayCount} relatives currently pay`
+  const them = autopayCount === 1 ? 'that relative' : 'each of them'
+  return `${base} ${who} their dues automatically, and those arrangements are cancelled at `
+    + `Stripe. Reconnecting brings the account back but NOT the payments — ${them} would `
+    + 'have to set theirs up again.'
+}
+
 export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) {
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pending, startTransition] = useTransition()
+  // ── A SECOND BUSY FLAG, FOR THE ONE FLOW THAT WAITS ON A PERSON ───────────────────
+  // Every other control here is one server call and `useTransition` covers it. The
+  // disconnection is a password, then a mail, then a code, then the act — so it awaits a
+  // human twice in the middle, and a transition held open across two dialogs would report
+  // the app as busy while it is in fact waiting for typing. Every button reads
+  // `pending || busy`, so the flow still locks the panel behind it.
+  const [busy, setBusy] = useState(false)
+  // Neither is ever carried between two confirmations: a cancelled dialog reopened must ask
+  // again, and a password or a code left in a ref is one a later action could spend. Both are
+  // refs rather than state for the reason `components/ui/challenge-fields.tsx` gives — the
+  // field lives inside a node `confirm()` captured and never re-renders from here.
+  const passwordRef = useRef('')
+  const codeRef = useRef('')
+
+  // ── COMING BACK FROM STRIPE, WHICH NOTHING USED TO NOTICE ─────────────────────────
+  // `startProcessorOnboarding` sends Stripe two addresses and both come back here with a
+  // marker: `?connect=return` when the family finishes, `?connect=refresh` when the link they
+  // were using had expired. Until 2026-08-25 NOTHING READ EITHER, while
+  // `refreshProcessorStatus`' own header claimed "the return page from onboarding calls it".
+  //
+  // What that cost is bigger than a stale badge, and it is why this is a fix rather than a
+  // nicety. `ensureConnectedAccount` returns early when a row already exists and writes
+  // nothing, so `disconnected_at` is cleared by exactly two things: the first-ever create, and
+  // this refresh. A family that disconnected and then reconnected therefore came back with
+  // `disconnected_at` still set, `connected` still false, and the panel still offering them
+  // **Connect a Stripe account** — forever, however many times they pressed it.
+  //
+  // ── FOUR THINGS ABOUT THE SHAPE ──────────────────────────────────────────────────
+  //   * IT IS AN EFFECT, NOT A CALL DURING RENDER. `refreshProcessorStatus` writes to the
+  //     database and calls `revalidatePath`, and Next refuses that inside a render.
+  //   * `window.location.search`, NOT `useSearchParams()`. The value is wanted once, on mount,
+  //     and the hook drags a Suspense boundary requirement onto a component that needs none.
+  //   * ONCE, guarded by a ref, and the marker is stripped from the address before the action
+  //     is even sent. `router.refresh()` re-renders this component, and a reload of a URL that
+  //     still carried the marker would re-fire it.
+  //   * ONLY FOR SOMEBODY WHO MAY WRITE. The action is `requireEdit`, so firing it for a
+  //     read-only viewer returns a refusal and paints an error on a screen where they have
+  //     done nothing wrong.
+  //
+  // It is placed ABOVE the early returns on purpose: three branches below return before the
+  // end of this function, and a hook after them would run conditionally.
+  const synced = useRef(false)
+  const canManage = status?.canManage === true
+  useEffect(() => {
+    if (synced.current || !canManage) return
+    const params = new URLSearchParams(window.location.search)
+    const marker = params.get('connect')
+    if (marker !== 'return' && marker !== 'refresh') return
+
+    synced.current = true
+    params.delete('connect')
+    const query = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (query ? `?${query}` : ''))
+
+    startTransition(async () => {
+      const result = await refreshProcessorStatus()
+      if (!result.success) {
+        setError(result.message)
+        return
+      }
+      // ── THE EXPIRED-LINK CASE GETS ITS OWN SENTENCE, AND NO AUTOMATIC REDIRECT ─────
+      // Stripe's `refresh_url` is meant to mint a new link and send the family straight back,
+      // and this deliberately does not: minting on page load turns a link that keeps expiring
+      // into an unbreakable bounce between Stripe and this screen, with no way out from the
+      // UI. The state is synced, the reason is stated, and the family presses the button —
+      // one click to buy an escape hatch.
+      setNotice(marker === 'refresh'
+        ? 'That Stripe link had expired before it was finished. Nothing was lost — press Continue in Stripe to pick up where the family left off.'
+        : result.message)
+      router.refresh()
+    })
+  }, [canManage, router])
 
   // Null means the read was refused or failed — NOT "no processor" (§8). Saying so is the
   // point: the alternative invites a treasurer to connect a second account on top of a working
@@ -107,15 +215,137 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
     router.refresh()
   })
 
+  /**
+   * Disconnecting: a password, then a code from the mailbox, then the act.
+   *
+   * ── WHY TWO FACTORS FOR SOMETHING THAT LOOKS UNDOABLE ────────────────────────────
+   * Because only half of it is. Reconnecting is one press and brings the SAME Stripe account
+   * back — but every member's recurring payment is cancelled at Stripe on the way out, and a
+   * cancelled subscription cannot be un-cancelled. So the screen offers something that reads
+   * as reversible and is not, which is the same shape as removing a family and now gets the
+   * same gate.
+   *
+   * ── WHAT EACH STEP IS WORTH, STATED HONESTLY ─────────────────────────────────────
+   * The PASSWORD is checked here, in the browser, on a throwaway client — so it is not a gate
+   * and the copy must not claim one: the caller already holds `admin/accounting/processing`
+   * at edit and this is a public endpoint either way. It stops an accident, and it stops
+   * somebody at an unlocked screen. The CODE is the real factor, verified in SQL.
+   *
+   * ── THE ORDER IS PASSWORD FIRST, AND THAT IS DELIBERATE ──────────────────────────
+   * The mail is only sent once somebody has proved they are sitting here. Minting first would
+   * make this endpoint a way to put a "confirm disconnecting Stripe" email in a treasurer's
+   * inbox on demand — noise at best, and a plausible phishing lure at worst.
+   */
+  async function beginDisconnect() {
+    passwordRef.current = ''
+    const okPassword = await confirm({
+      title: 'Disconnect Stripe?',
+      description: disconnectConsequence(status?.liveAutopayCount ?? 0),
+      body: (
+        <PasswordReauthField
+          valueRef={passwordRef}
+          id="processor-disconnect-password"
+          hint="Your sign-in password. We will then email you a code to finish."
+        />
+      ),
+      confirmLabel: 'Continue',
+      destructive: true,
+      verify: async () => {
+        const result = await verifyCurrentPassword(passwordRef.current)
+        return result.ok ? null : result.message
+      },
+    })
+    passwordRef.current = ''
+    if (!okPassword) return
+
+    setError('')
+    setNotice('')
+    setBusy(true)
+    try {
+      const requested = await requestProcessorDisconnectCode()
+      if (!requested.success) {
+        setError(requested.message)
+        return
+      }
+      // THE MAIL MAY NOT HAVE GONE, and `sendEmail` never throws (see lib/email/send.ts). A
+      // code box over an email that did not arrive is the failure `inviteMember` was
+      // rewritten to avoid, so the note is surfaced rather than swallowed.
+      if (!requested.emailed) {
+        setError(requested.note
+          ?? 'We could not send the code. Nothing has changed — please try again.')
+        return
+      }
+
+      codeRef.current = ''
+      const okCode = await confirm({
+        title: 'Enter the code we emailed you',
+        description: disconnectConsequence(requested.autopayCount),
+        body: (
+          <EmailedCodeField
+            valueRef={codeRef}
+            id="processor-disconnect-code"
+            sentTo={requested.sentTo}
+          />
+        ),
+        confirmLabel: 'Disconnect Stripe',
+        destructive: true,
+        // A SHAPE CHECK AND NOTHING MORE. This runs in the browser and cannot know whether the
+        // code is right — only `consume_family_action_challenge` decides that. What it buys is
+        // that an empty or half-typed box refuses inside the dialog instead of spending one of
+        // five attempts and closing it.
+        verify: async () =>
+          /^\d{6}$/.test(codeRef.current.trim())
+            ? null
+            : 'Enter the six digits from the email.',
+      })
+      const typed = codeRef.current.trim()
+      codeRef.current = ''
+      if (!okCode) return
+
+      const result = await disconnectProcessor(typed)
+      if (!result.success) {
+        // A refused code closes the dialog and says why HERE, beside the button that caused
+        // it. The code is spent either way, so the next attempt starts from the beginning —
+        // which is why the Disconnect button stays on screen.
+        setError(result.message)
+        return
+      }
+      setNotice(result.message)
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!status.connected) {
+    // ── DISCONNECTED IS NOT THE SAME AS NEVER CONNECTED ─────────────────────────────
+    // A family that has disconnected still HAS a `family_stripe_accounts` row carrying its
+    // `acct_…`; only `disconnected_at` is stamped. Pressing the button returns that same
+    // account rather than creating a second one — `ensureConnectedAccount` looks the row up
+    // and returns early — so calling it "Connect a Stripe account" describes something that
+    // does not happen and invites a treasurer to think they are about to start over with a
+    // new merchant account and new bank details. It says **Reconnect** since 2026-08-25.
+    const returning = status.accountId != null
     return (
       <Panel>
-        <p className="text-sm font-medium">No payment processor connected</p>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Connect this family&rsquo;s own Stripe account and members can pay their dues by card.
-          Payments post to the ledger and route into funds on their own, exactly as a payment
-          keyed in by hand does.
+        <p className="text-sm font-medium">
+          {returning ? 'Stripe is disconnected' : 'No payment processor connected'}
         </p>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          {returning
+            ? 'Members cannot pay their dues by card while this is disconnected. Reconnecting brings back the same Stripe account, with its history and its bank details exactly as they were.'
+            : 'Connect this family’s own Stripe account and members can pay their dues by card. Payments post to the ledger and route into funds on their own, exactly as a payment keyed in by hand does.'}
+        </p>
+        {/* THE CLAUSE, ON THIS SCREEN TOO. Somebody looking at a disconnected panel is
+            usually somebody deciding whether to undo it, and "the same account comes back"
+            is exactly the half that would let them assume the payments do as well. */}
+        {returning && (
+          <p className="text-sm text-brand-withheld max-w-md mx-auto">
+            Any recurring payments that were running were cancelled at Stripe when this was
+            disconnected. Those cannot be restarted &mdash; each of those relatives will need
+            to set their payment up again after you reconnect.
+          </p>
+        )}
         <p className="text-xs text-muted-foreground max-w-md mx-auto">
           The account belongs to the family, not to GENORRA. Money goes straight to the
           family&rsquo;s own bank, Stripe&rsquo;s fees come out of the family&rsquo;s side, and
@@ -125,11 +355,18 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
         {status.canManage
           ? (
             <>
-              <Button onClick={() => go(startProcessorOnboarding)} disabled={pending}>
+              <Button onClick={() => go(startProcessorOnboarding)} disabled={pending || busy}>
                 <CreditCard className="h-4 w-4" />
-                {pending ? 'Opening Stripe…' : 'Connect a Stripe account'}
+                {pending
+                  ? 'Opening Stripe…'
+                  : returning ? 'Reconnect Stripe' : 'Connect a Stripe account'}
               </Button>
               <FormError message={error} />
+              {/* THE NOTICE BELONGS IN THIS BRANCH TOO, and it was in the connected one
+                  alone until 2026-08-25. A family bounced back by an expired link lands here,
+                  still not connected — which is exactly when the sentence explaining why is
+                  worth reading, and exactly where it used to have nowhere to render. */}
+              {notice && <p className="text-sm text-brand-accent">{notice}</p>}
             </>
           )
           : (
@@ -195,39 +432,33 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
         {status.canManage && (
           <div className="flex flex-wrap gap-2">
             {!status.chargesReady && (
-              <Button onClick={() => go(startProcessorOnboarding)} disabled={pending}>
+              <Button onClick={() => go(startProcessorOnboarding)} disabled={pending || busy}>
                 <ExternalLink className="h-4 w-4" />
                 Continue in Stripe
               </Button>
             )}
-            <Button variant="outline" onClick={() => go(refreshProcessorStatus)} disabled={pending}>
+            <Button variant="outline" onClick={() => go(refreshProcessorStatus)} disabled={pending || busy}>
               <RefreshCw className="h-4 w-4" />
               Check with Stripe
             </Button>
-            <Button
-              variant="outline"
-              disabled={pending}
-              onClick={async () => {
-                // ── THE CONFIRMATION NAMES THE CONSEQUENCE, AND THE COUNT IS THE POINT ──
-                // Disconnecting cancels every member's recurring payment, because leaving
-                // relatives charged monthly for a processor the family removed is the worse
-                // outcome and — once we stop acting on that account — one nothing here could
-                // fix. A treasurer has to know that before pressing it, not after.
-                const ok = await confirm({
-                  title: 'Disconnect Stripe?',
-                  description: status.liveAutopayCount > 0
-                    ? `${status.liveAutopayCount} member${status.liveAutopayCount === 1 ? '' : 's'} pay automatically. Disconnecting stops those payments as well. Every payment already recorded is kept, and the family's Stripe account is untouched.`
-                    : 'Members will no longer be able to pay online. Every payment already recorded is kept, and the family\'s Stripe account is untouched.',
-                  confirmLabel: 'Disconnect',
-                  destructive: true,
-                })
-                if (ok) go(disconnectProcessor)
-              }}
-            >
+            <Button variant="outline" disabled={pending || busy} onClick={beginDisconnect}>
               <Unplug className="h-4 w-4" />
               Disconnect
             </Button>
           </div>
+        )}
+
+        {/* ── THE CLAUSE, BEFORE THE BUTTON IS PRESSED RATHER THAN INSIDE THE DIALOG ───
+            The confirmation says this too, and saying it twice is the point: a treasurer
+            weighing whether to disconnect at all should not have to open a destructive dialog
+            to find out that the recurring payments do not come back. `disconnectConsequence`
+            is the one sentence, so the two cannot drift, and it goes quiet — `--brand-withheld`
+            — when nobody is affected. Not `--destructive`: nothing has failed and nothing is
+            deleted, which is the line AGENTS.md draws between the two tokens. */}
+        {status.canManage && status.liveAutopayCount > 0 && (
+          <p className="text-xs text-brand-withheld">
+            {disconnectConsequence(status.liveAutopayCount)}
+          </p>
         )}
 
         <FormError message={error} />

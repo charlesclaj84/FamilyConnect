@@ -1697,13 +1697,39 @@ wrong.
   copy on the removal panel says so, because a reversible action whose reversal is invisible reads
   as an irreversible one.
 
-The emailed code is a `family_removal_challenges` row holding a SHA-256, never the code; 15
+The emailed code is a `family_action_challenges` row holding a SHA-256, never the code; 15
 minutes, five attempts, single use. It is minted in TypeScript and verified in SQL, and the split
 is deliberate: the plaintext has to exist in the Node process because that process composes the
 email, whereas verifying is a five-branch read-modify-write that races itself from the app — so
-`consume_family_removal_challenge` does it in one statement under `FOR UPDATE`. The challenge is
-resolved from `(family_code, requested_by)` and the hash is only ever COMPARED, never used to find
-the row.
+`consume_family_action_challenge` does it in one statement under `FOR UPDATE`. The challenge is
+resolved from `(family_code, requested_by, purpose)` and the hash is only ever COMPARED, never used
+to find the row.
+
+**IT IS ONE MECHANISM FOR MORE THAN ONE ACT SINCE 2026-08-25**, which is why the table is
+`family_action_challenges` rather than `family_removal_challenges` and why `purpose` is part of
+that key. **Disconnecting a family's Stripe account** is the second thing behind it, and it
+earned the gate for this section's own reason: the act LOOKS reversible and half of it is not.
+Reconnecting returns the same `acct_…` — `ensureConnectedAccount` finds the existing row and
+returns early — but `disconnectProcessor` cancels every member's recurring dues subscription AT
+STRIPE on the way out, and a cancelled subscription cannot be un-cancelled. So the connection
+comes back and the enrolments never do.
+
+Four things follow for anything that becomes the third:
+
+* **`purpose` has NO DEFAULT**, deliberately. A caller that forgets it fails loudly rather than
+  minting a removal code by accident — and `tests/rls`' own fixture was the first thing that
+  forgot, which is the constraint working.
+* **The conjunct is on the SUPERSEDE as well as the lookup.** Without it, asking for one kind of
+  code silently spends a live code of the other kind that the same person is midway through
+  using.
+* **Mint through `lib/action-challenge.ts`**, never by hand. The digits, the hash, the lifetime
+  and the supersede-then-insert live there for `lib/chapter-propagation.ts`'s reason: a second
+  copy is a second place for one of those decisions to drift.
+* **A password is not the second factor and must not be described as one.** It is checked in the
+  BROWSER against a throwaway client, so it stops an accident and somebody at an unlocked screen,
+  and nothing else. The CODE is the factor. Both `PlanPanel` and `ProcessingPanel` say exactly
+  that much and no more; `components/ui/challenge-fields.tsx` holds both fields so the wording
+  cannot drift into a promise.
 
 # Gatherings replaced Events, and Events is gone entirely
 

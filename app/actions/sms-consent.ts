@@ -48,7 +48,7 @@ import {
 /**
  * Ten minutes and five attempts.
  *
- * SHORTER THAN `family_removal_challenges`' fifteen, deliberately: that code is emailed and read
+ * SHORTER THAN `family_action_challenges`' fifteen, deliberately: that code is emailed and read
  * in a mail client, which is a slower loop than a text arriving on the phone in your hand. The
  * attempt cap matches, because `consume_phone_verification` holds the same constant and the two
  * must not disagree about the countdown it returns.
@@ -365,7 +365,7 @@ async function issueCode(
  * Confirm the number with the code.
  *
  * THE JUDGEMENT IS IN SQL. `consume_phone_verification` does the whole five-branch
- * read-modify-write under `FOR UPDATE`, for `consume_family_removal_challenge`'s reason: from the
+ * read-modify-write under `FOR UPDATE`, for `consume_family_action_challenge`'s reason: from the
  * app it races itself, and what a race produces here is an attempt counter that under-counts —
  * which is the cap that makes six digits safe at all.
  *

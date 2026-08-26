@@ -197,6 +197,59 @@ export function familyRemovalCodeEmail(o: {
 }
 
 /**
+ * The six-digit code that confirms disconnecting a family's Stripe account.
+ *
+ * ── THE SAME SHAPE AS THE REMOVAL CODE, AND FOR THE SAME REASONS ───────────────────
+ * It goes to the person who asked, because `requestProcessorDisconnectCode` takes no
+ * arguments and resolves the address from the session. There is NO BUTTON, because the code
+ * is a factor in a confirmation already open in another window and a one-click disconnect
+ * reachable from a forwarded inbox would defeat the gate. And it states plainly what the act
+ * does, because if somebody else has got at the account this message is the first and
+ * possibly only notice its owner gets. `familyRemovalCodeEmail` argues each of those.
+ *
+ * ── WHAT IT SAYS THAT THE SCREEN CANNOT ────────────────────────────────────────────
+ * The irreversible half. Reconnecting is one click and brings the same Stripe account back —
+ * so a reader who stopped at "you can undo this" would be right about the connection and
+ * wrong about the money: every relative's recurring payment is CANCELLED at Stripe, and a
+ * cancelled subscription cannot be un-cancelled. The count is interpolated because "4
+ * relatives" is a different decision from "nobody", and the caller has already counted them.
+ */
+export function processorDisconnectCodeEmail(o: {
+  origin: string
+  familyName: string
+  /** The digits. Never logged, never put in the subject, never stored in plaintext. */
+  code: string
+  /** How long it lasts, for the fine print. Comes from the action, so the two agree. */
+  expiresInMinutes: number
+  /** Members currently paying automatically, all of whom would be cancelled. */
+  autopayCount: number
+}): ComposedEmail {
+  const family = esc(o.familyName)
+  const autopay = o.autopayCount === 1
+    ? '<strong style="font-weight:600;">1 relative</strong> currently pays their dues automatically, and that arrangement will be cancelled at Stripe. Cancelled payments cannot be restarted — reconnecting brings the account back, but that relative would have to set their payment up again.'
+    : `<strong style="font-weight:600;">${o.autopayCount} relatives</strong> currently pay their dues automatically, and those arrangements will be cancelled at Stripe. Cancelled payments cannot be restarted — reconnecting brings the account back, but each of them would have to set their payment up again.`
+
+  return {
+    subject: `Your code to disconnect Stripe for ${o.familyName}`,
+    tag: 'processor-disconnect-code',
+    html: renderEmailFrom(o.origin, {
+      preheader: `The code lasts ${o.expiresInMinutes} minutes and can be used once.`,
+      heading: 'Confirm disconnecting Stripe',
+      paragraphs: [
+        `Somebody signed in as you asked to disconnect the Stripe account that <strong style="font-weight:600;">${family}</strong> collects dues through. Type this code into the confirmation to finish:`,
+        `<div style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:32px; font-weight:700; letter-spacing:8px; text-align:center; padding:8px 0;">${esc(o.code)}</div>`,
+        'Members will no longer be able to pay online, and every payment already recorded is kept. <strong style="font-weight:600;">The family’s Stripe account itself is untouched</strong> — the money, the bank details and the Stripe dashboard all stay exactly as they are.',
+        ...(o.autopayCount > 0 ? [autopay] : []),
+      ],
+      fine: `This code lasts ${o.expiresInMinutes} minutes and can be used once.`,
+      footnote:
+        'If you did not ask for this, do nothing — the code expires on its own and nothing '
+        + 'changes. Then change your password, because somebody else is signed in as you.',
+    }),
+  }
+}
+
+/**
  * One email distribution, to one relative.
  *
  * ── THE ONLY MESSAGE IN THIS MODULE WHOSE BODY A MEMBER WROTE ──────────────────────

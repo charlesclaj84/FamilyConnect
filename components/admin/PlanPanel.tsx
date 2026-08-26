@@ -6,8 +6,7 @@ import { Check, CreditCard, Crown, Lock, X } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { PasswordReauthField } from '@/components/ui/challenge-fields'
 import { verifyCurrentPassword } from '@/lib/supabase/client'
 import { useServerState } from '@/lib/use-server-state'
 import { setFamilyTier } from '@/app/actions/admin/family'
@@ -689,29 +688,19 @@ function PlanChangeColumns({ from, to, change }: {
  * keep — the same correction AGENTS.md records against the Password panel, which
  * described a field of this exact kind as protection it was not.
  */
+/**
+ * THE FIELD ITSELF MOVED TO `components/ui/challenge-fields.tsx` ON 2026-08-25, when
+ * disconnecting Stripe became the second act asking for a password. This is the thin wrapper
+ * that keeps this panel's own wording — the shared component takes `hint` per caller precisely
+ * so each act can say what is true of ITS act rather than a sentence that covers both badly.
+ */
 function DowngradeReauth({ valueRef }: { valueRef: { current: string } }) {
-  const [value, setValue] = useState('')
-
   return (
-    <div className="mt-4 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-4">
-      <Label htmlFor="plan-downgrade-password">Confirm with your password</Label>
-      <Input
-        id="plan-downgrade-password"
-        type="password"
-        // `current-password`, so a password manager offers the right entry rather than
-        // treating this as a new one to save over the account's real password.
-        autoComplete="current-password"
-        value={value}
-        onChange={e => {
-          setValue(e.target.value)
-          valueRef.current = e.target.value
-        }}
-        className="mt-1.5 max-w-sm"
-      />
-      <p className="mt-2 text-xs text-muted-foreground">
-        Your sign-in password, so a plan cannot be downgraded by accident.
-      </p>
-    </div>
+    <PasswordReauthField
+      valueRef={valueRef}
+      id="plan-downgrade-password"
+      hint="Your sign-in password, so a plan cannot be downgraded by accident."
+    />
   )
 }
 

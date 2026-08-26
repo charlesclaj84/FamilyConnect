@@ -1,11 +1,10 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
-import { createPortal } from 'react-dom'
+import { Fragment, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  MoreVertical, Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
+  Plus, Trash2, Pencil, ShieldCheck, Check, Ban, UserCheck,
   Users, KeyRound, Clock, Network, ChevronDown,
 } from 'lucide-react'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +16,7 @@ import { useConfirm, type ConfirmOptions } from '@/components/ui/confirm'
 import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
-import { useDismissWhenIdle } from '@/lib/use-dismiss-when-idle'
+import { RowMenu } from '@/components/ui/row-menu'
 import { cn } from '@/lib/utils'
 import {
   createTemplate, renameTemplate, deleteTemplate, setTemplatePermission,
@@ -1065,124 +1064,6 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
       </RowMenu>
       </td>
     </tr>
-  )
-}
-
-/**
- * The row overflow menu.
- *
- * Hand-rolled rather than pulled from a library because the project's ui/ primitives
- * are plain elements and one more dependency for a popover is not worth it. What it
- * still owes: closing on outside click and on Escape, and returning focus to the
- * trigger, or a keyboard user is stranded inside it.
- *
- * A DISCLOSURE, NOT AN ARIA MENU, deliberately. `role="menu"` is a promise about
- * keyboard behaviour — arrow keys move a roving focus between items, Home/End jump to
- * the ends, Tab leaves the whole widget — and a screen reader announces it as such and
- * changes its own key handling to match. This implements none of that, so claiming the
- * role would leave those users pressing arrow keys at something that does not respond.
- * As a plain expanding panel of buttons and links, Tab works, which is true of what is
- * actually here.
- *
- * THE PANEL IS PORTALLED TO document.body, and that is not decoration. The members table
- * scrolls horizontally inside its own container, and a container with `overflow-x: auto`
- * has `overflow-y: visible` computed to `auto` — so an absolutely positioned panel inside
- * it is clipped at the row, which is how this menu became unusable the moment the list
- * became a table. Rendering into the body with `position: fixed`, anchored to the
- * trigger's measured rect, takes it out of every ancestor's overflow.
- */
-function RowMenu({ label, disabled, children }: {
-  label: string
-  disabled?: boolean
-  children: (close: () => void) => React.ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  // Measured on open rather than tracked continuously: the panel closes on the first
-  // scroll or resize (below), so a stale rect can never be shown.
-  const [rect, setRect] = useState<{ top: number; right: number } | null>(null)
-  const panelId = useId()
-  const wrap = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-
-  // Ref-free on purpose. `children` is a render prop, so anything handed to it is
-  // traced into the render pass — a close() that read trigger.current would count as
-  // dereferencing a ref during render. Returning focus to the trigger therefore lives
-  // in the Escape handler below, inside an effect, where reading a ref is fine.
-  //
-  // Nothing is lost on the activation path: every item here opens a confirmation
-  // dialog, which takes focus itself and owns restoring it.
-  const close = useCallback(() => setOpen(false), [])
-
-  // Closes itself a few seconds after the pointer and focus have both left it — the same
-  // hook the three header panels use, so every dropdown in the app goes on the same beat.
-  // `parts` looks the portalled panel up by id for the reason the outside-click handler
-  // below does: it is not inside `wrap`, so there is no single subtree to test.
-  useDismissWhenIdle({
-    open,
-    close,
-    parts: () => [wrap.current, document.getElementById(panelId)],
-  })
-
-  useEffect(() => {
-    if (!open) return
-    // The panel lives outside `wrap` now, so an outside-click test against `wrap` alone
-    // would treat every click INSIDE the panel as outside and close it before the button
-    // fired. Both subtrees count as inside.
-    function onPointer(e: MouseEvent) {
-      const target = e.target as Node
-      if (wrap.current?.contains(target)) return
-      if (document.getElementById(panelId)?.contains(target)) return
-      setOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setOpen(false); trigger.current?.focus() }
-    }
-    // A fixed panel does not travel with the page. Closing is the honest response to
-    // either — cheaper than re-measuring on every frame, and it is what a menu whose
-    // anchor has moved should do anyway. Capture, so a scroll inside the table's own
-    // overflow container counts and not just one on the window.
-    function onMove() { setOpen(false) }
-    document.addEventListener('mousedown', onPointer)
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('scroll', onMove, true)
-    window.addEventListener('resize', onMove)
-    return () => {
-      document.removeEventListener('mousedown', onPointer)
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('scroll', onMove, true)
-      window.removeEventListener('resize', onMove)
-    }
-  }, [open, panelId])
-
-  function toggle() {
-    if (open) { setOpen(false); return }
-    const r = trigger.current?.getBoundingClientRect()
-    // Right-aligned to the trigger, which is what the absolute version did with
-    // `right-0`. Kept in viewport coordinates because the panel is position: fixed.
-    if (r) setRect({ top: r.bottom + 4, right: window.innerWidth - r.right })
-    setOpen(true)
-  }
-
-  const expanded: 'true' | 'false' = open ? 'true' : 'false'
-
-  return (
-    <div ref={wrap} className="relative shrink-0">
-      <button ref={trigger} type="button" disabled={disabled}
-        onClick={toggle}
-        aria-expanded={expanded} aria-controls={panelId} aria-label={label}
-        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40">
-        <MoreVertical className="h-4 w-4" />
-      </button>
-
-      {open && rect && createPortal(
-        <div id={panelId} aria-label={label}
-          style={{ top: rect.top, right: rect.right }}
-          className="fixed z-50 w-64 overflow-hidden rounded-xl border bg-card py-1 shadow-lg">
-          {children(close)}
-        </div>,
-        document.body,
-      )}
-    </div>
   )
 }
 

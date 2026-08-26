@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Check, Copy, CreditCard, Crown, Home, PowerOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { EmailedCodeField } from '@/components/ui/challenge-fields'
 import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
 import { useServerState } from '@/lib/use-server-state'
@@ -634,35 +635,14 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
  * silently drops a paste that is not a valid number. `autoComplete="one-time-code"` is what
  * lets a phone offer the digits straight from the message.
  */
+/**
+ * THE FIELD ITSELF MOVED TO `components/ui/challenge-fields.tsx` ON 2026-08-25, when
+ * disconnecting Stripe became the second act behind an emailed code. Kept as a named wrapper
+ * because the `id` has to be unique per screen and naming it here is what makes that visible.
+ */
 function RemovalCodeField({ valueRef, sentTo }: {
   valueRef: { current: string }
   sentTo: string
 }) {
-  const [value, setValue] = useState('')
-
-  return (
-    <div className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-4">
-      <Label htmlFor="family-removal-code">Confirmation code</Label>
-      <Input
-        id="family-removal-code"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={6}
-        placeholder="000000"
-        value={value}
-        onChange={e => {
-          // Digits only, so a pasted "123 456" or "123-456" still works rather than
-          // failing a shape check the person cannot see the reason for.
-          const next = e.target.value.replace(/\D/g, '').slice(0, 6)
-          setValue(next)
-          valueRef.current = next
-        }}
-        className="mt-1.5 max-w-[12rem] font-mono text-lg tracking-[0.4em]"
-      />
-      <p className="mt-2 text-xs text-muted-foreground">
-        The six digits we emailed to {sentTo}. It can be used once, and five wrong tries
-        cancel it.
-      </p>
-    </div>
-  )
+  return <EmailedCodeField valueRef={valueRef} id="family-removal-code" sentTo={sentTo} />
 }
