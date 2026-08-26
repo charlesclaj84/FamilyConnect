@@ -374,9 +374,9 @@ describe('describeAnswer', () => {
 
   it('formats a date through the app’s one date formatter', () => {
     // `formatDate` is imported rather than restated: `lib/date-utils.ts` is the only place
-    // in the app that turns a date into prose, and a second copy of "August 19th, 2026" is
+    // in the app that turns a date into prose, and a second copy of "August 19, 2026" is
     // how two screens come to disagree about the same day.
-    expect(describeAnswer('date', '2026-08-19', money)).toBe('August 19th, 2026')
+    expect(describeAnswer('date', '2026-08-19', money)).toBe('August 19, 2026')
   })
 
   it('formats money with the formatter it was handed, and never its own', () => {
@@ -450,7 +450,7 @@ describe('under a negative UTC offset', () => {
 
   it('still formats an answer’s date as the day that was chosen', () => {
     process.env.TZ = 'America/Los_Angeles'
-    expect(describeAnswer('date', '2026-08-01', money)).toBe('August 1st, 2026')
+    expect(describeAnswer('date', '2026-08-01', money)).toBe('August 1, 2026')
   })
 })
 

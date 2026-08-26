@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { interpolate, placeholdersIn, translate, translator } from './t'
-import { availableLocales, hasLanguageChoice, CATALOGUES } from './catalogues'
+import { availableLocales, hasLanguageChoice, tFor, CATALOGUES } from './catalogues'
 import { en } from './en'
 import { BASE_LOCALE, LOCALES, isSupportedLocale, negotiateLocale } from './locales'
 
@@ -210,5 +210,68 @@ describe('isSupportedLocale', () => {
     // caller who never loads the form cannot get past; this is the layer that tells them why.
     // Asserted as a set so adding a language here without the migration is visible.
     expect(LOCALES.map(l => l.code).sort()).toEqual(['en', 'es', 'fr'])
+  })
+})
+
+/**
+ * SPANISH IS LIVE (Phase 4), and this is what asserts it rather than assuming it.
+ *
+ * ── WHY THE REGISTRY TESTS ABOVE DO NOT COVER THIS ──────────────────────────────────
+ * They were written in Phase 3 to survive a second catalogue arriving —
+ * `hasLanguageChoice()` is compared against `availableLocales().length > 1`, which is true
+ * either way. That was deliberate so they would not go red on the day Spanish landed. The cost
+ * is that they say nothing about whether it DID, so the assertions below are the ones that
+ * would notice `es` being dropped from `CATALOGUES` or `es.ts` being emptied.
+ */
+describe('Spanish', () => {
+  it('is offered, so the switcher renders', () => {
+    // The one line that made the switcher appear. Before Phase 4 this was false and
+    // `LocaleSwitcher` returned null — a picker over one language is furniture.
+    expect(hasLanguageChoice()).toBe(true)
+    expect(availableLocales().map(l => l.code)).toContain('es')
+  })
+
+  it('resolves through the same `t` the components use', () => {
+    // End to end: the registry, the binder and the catalogue. Not `translate(es, en, …)`, which
+    // would test the resolver against a fixture and skip the wiring.
+    const t = tFor('es')
+    expect(t('nav.section.community')).toBe('Comunidad')
+    expect(t('nav.item./library/meeting-minutes')).toBe('Actas')
+  })
+
+  it('covers every English key, so nothing silently falls back', () => {
+    // `i18n:check` reports the backlog as a COUNT; this asserts it is zero. The two are
+    // different claims: the script's figure is informational and a test is a gate.
+    const missing = Object.keys(en).filter(k => !(k in CATALOGUES.es))
+    expect(missing).toEqual([])
+  })
+
+  it('addresses the reader FORMALLY, which is the decision most easily undone', () => {
+    // `usted`, never `tú`. It reaches every string that addresses the reader, so it cannot be
+    // changed one line at a time — and a well-meaning edit to a single control is exactly how a
+    // product ends up addressing you two ways. These two strings are where the second person
+    // actually appears, so they are the ones worth pinning.
+    expect(tFor('es')('language.choose')).toBe('Elija un idioma')   // not 'Elige'
+    expect(tFor('es')('switcher.heading')).toBe('Sus familias')     // not 'Tus familias'
+  })
+
+  it('keeps reunión and junta apart, which is why duplicate captions kept two keys', () => {
+    // English calls both a "gathering" and a "meeting"; Spanish distinguishes the social
+    // occasion from the formal proceeding. `en.ts` keeps a separate key for every caption that
+    // repeats, and this is the assertion that the separation was worth having: collapsing them
+    // would have forced one Spanish word onto both.
+    const t = tFor('es')
+    expect(t('nav.item./gatherings')).toBe('Reuniones')
+    expect(t('nav.item./reporting/meetings')).toBe('Juntas')
+    expect(t('nav.item./gatherings')).not.toBe(t('nav.item./reporting/meetings'))
+  })
+
+  it('formats numbers and dates with the Mexican tag, not the bare code', () => {
+    // `lib/i18n/locales.ts`' whole reason for carrying two codes. A bare `'es'` resolves to
+    // SPAIN's conventions, which is the wrong answer for a family in Monterrey and fails
+    // silently because the output is a plausible number either way.
+    const tag = availableLocales().find(l => l.code === 'es')!.intl
+    expect(tag).toBe('es-MX')
+    expect(tag).not.toBe('es')
   })
 })

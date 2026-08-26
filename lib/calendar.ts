@@ -259,10 +259,13 @@ export function shiftMonth(month: string, delta: number): string {
  * The cost is one `Intl` construction per heading. That is the right trade for a claim this
  * file states in capitals: an assertion that cannot fail is worse than no assertion.
  */
-export function monthLabel(month: string): string {
+export function monthLabel(month: string, locale: string = 'en-US'): string {
   if (!isValidMonth(month)) throw new TypeError(`monthLabel: not a YYYY-MM month: ${String(month)}`)
   const { year, monthNumber } = monthParts(month)
-  const format = new Intl.DateTimeFormat('en-US', {
+  // THE READER'S LOCALE. This is a heading somebody reads — "August 2026" / "agosto de 2026"
+  // — so unlike the field reads in `lib/tz.ts` it follows the reader. The `timeZone: 'UTC'`
+  // pin below is a different question entirely and stays; see the note above.
+  const format = new Intl.DateTimeFormat(locale, {
     month: 'long', year: 'numeric', timeZone: 'UTC',
   })
   return format.format(new Date(Date.UTC(year, monthNumber - 1, 1)))

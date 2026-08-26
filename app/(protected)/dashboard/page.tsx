@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { resolveLocale } from '@/lib/auth/locale'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
 import { FamilyRemoved } from '@/components/membership/FamilyRemoved'
@@ -117,6 +118,9 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // The reader's language, for the shell strings and the relative-time captions below.
+  const locale = await resolveLocale(user.id)
 
   // requireViewOrPending, not requireView: a pending member must be able to LAND
   // somewhere that tells them what is happening. The early return is above every fetch
@@ -672,6 +676,7 @@ export default async function DashboardPage() {
               feature — "pinned stays at the top, unpinned falls into natural order" —
               and it should be readable without a browser. */}
           <RecentUpdates
+            locale={locale}
             items={mergeUpdates(notifications, announcements)}
             mayViewArchive={mayViewUpdates}
           />

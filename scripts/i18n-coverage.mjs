@@ -33,6 +33,15 @@
  *                       says. `lib/i18n/translated-from.json` is the record it is compared
  *                       against.
  *
+ *   PINNED-FORMATTER    a date or money formatter called WITHOUT a locale. It renders English,
+ *                       silently and correctly, which is exactly why it needs counting: a
+ *                       half-localized product has no symptom. `lib/date-utils.ts` defaults
+ *                       every locale parameter so that ~250 call sites kept working when the
+ *                       formatters moved to `Intl`, and the price of that default is a backlog
+ *                       nobody can see. This is the ratchet over it — the same device
+ *                       `audit:rls-cases`' `BACKLOG_CEILING` is: lower it freely, raise it only
+ *                       deliberately.
+ *
  * ── ALL FIVE HAVE BEEN CHECKED AGAINST A REAL DEFECT ────────────────────────────────
  * A gate is worth what its own failure test is worth — `time-display.mjs` shipped a pattern
  * that was INERT and reported Clean over a codebase with the bug deliberately put back, and it
@@ -66,7 +75,7 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { register } from 'node:module'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, sep as SEP } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { stripComments } from './strip-code.mjs'
 
@@ -115,7 +124,19 @@ const { en } = await load('en.ts')
 const { CATALOGUES } = await load('catalogues.ts')
 const { placeholdersIn } = await load('t.ts')
 const { BASE_LOCALE } = await load('locales.ts')
-const SCAN = ['app', 'components']
+/**
+ * Where a `t('key')` call site may live.
+ *
+ * `lib/` JOINED THE LIST IN PHASE 4, and the reason is worth stating because the two halves of
+ * this script disagree about it. `formatTimeAgo` in `lib/i18n/catalogues.ts` maps `timeAgo`'s
+ * structured answer through `t` — a legitimate call site in `lib/`, and without it here the
+ * `time.*` keys were reported as defined-and-unused.
+ *
+ * The PINNED-FORMATTER check below still skips `lib/` deliberately: that is where the formatters
+ * are DEFINED, and a definition is not a call site. Same directory, opposite treatment, because
+ * the two checks are looking for different things.
+ */
+const SCAN = ['app', 'components', 'lib']
 const FINGERPRINTS = join(ROOT, 'lib', 'i18n', 'translated-from.json')
 
 /**
@@ -138,6 +159,37 @@ const KNOWN_DYNAMIC = [
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))
 
+/**
+ * Formatters whose locale is optional, and the ceiling on how many call sites may still default.
+ *
+ * ── WHY A COUNT RATHER THAN A FINDING PER SITE ──────────────────────────────────────
+ * Every one of these is CORRECT today: it renders English, which is what the product rendered
+ * before. Reporting 250 findings would be reporting the current state of the world as 250
+ * defects, and a gate that is red for a year is a gate people learn to pass with `--force`.
+ *
+ * A ceiling is the honest shape. It cannot grow — a new un-threaded call site fails the build —
+ * and it comes down surface by surface as Phase 4 translates each one. Same device as
+ * `audit:rls-cases`' `BACKLOG_CEILING`, and the same rule: lowering it is routine, raising it
+ * needs a sentence.
+ *
+ * ── WHAT COUNTS AS THREADED ─────────────────────────────────────────────────────────
+ * A second argument, of any shape. The sweep cannot tell `formatDate(d, locale)` from
+ * `formatDate(d, 'en-US')` and does not try: pinning a literal at a call site is a thing
+ * somebody did on purpose, and this gate's job is to find the ones nobody has thought about.
+ */
+const OPTIONAL_LOCALE = ['formatDate', 'formatDateRange', 'formatMonthDay', 'formatDateNumeric',
+  'formatTime', 'formatCurrency']
+
+/**
+ * MEASURED 2026-08-26, immediately after the formatters moved to `Intl` — 211 call sites in
+ * `app/` and `components/` render English because nobody has given them a locale yet.
+ *
+ * Set to the measured figure exactly, so it is a real ratchet rather than headroom. Lower it as
+ * surfaces are threaded in Phase 4; raising it is a deliberate act that owes a reason on this
+ * line.
+ */
+const PINNED_CEILING = 211
+
 // ── SCANNING ────────────────────────────────────────────────────────────────────────
 
 function walk(dir, out = []) {
@@ -148,6 +200,19 @@ function walk(dir, out = []) {
     else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) out.push(full)
   }
   return out
+}
+
+/** The balanced-paren argument text starting at the `(` at `open`. Shared with time-display. */
+function argsAt(src, open) {
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '(') depth++
+    else if (src[i] === ')') {
+      depth--
+      if (depth === 0) return src.slice(open + 1, i)
+    }
+  }
+  return src.slice(open + 1)
 }
 
 /** Every `t('key')` / `t("key")` literal in the tree, with where it was found. */
@@ -270,6 +335,53 @@ for (const [code, catalogue] of translations) {
   }
 }
 
+// 6. Date and money formatters still rendering English because nobody has given them a locale.
+let pinned = 0
+for (const dir of SCAN) {
+  for (const file of walk(join(ROOT, dir))) {
+    const rel = relative(ROOT, file).split(SEP).join('/')
+    // The module that DEFINES them, and the tests, are not call sites.
+    if (rel.startsWith('lib/')) continue
+    const code = stripComments(readFileSync(file, 'utf8'))
+    for (const fn of OPTIONAL_LOCALE) {
+      // `indexOf` rather than a RegExp. Two reasons, and the second is the honest one: the
+      // pattern only ever looks for a literal call, so a regex buys nothing — and every attempt
+      // to author one through a script in this repo has produced a mangled escape (a `\b` that
+      // became a backspace character in `time-display.mjs`, then a pair that vanished here).
+      // A string search cannot be silently wrong in that way.
+      const needle = fn + '('
+      let from = 0
+      for (;;) {
+        const at = code.indexOf(needle, from)
+        if (at === -1) break
+        from = at + needle.length
+        // A WORD BOUNDARY BY HAND: `formatDate(` must not match inside `formatInstantDate(`.
+        const before = at === 0 ? '' : code[at - 1]
+        if (before && /[A-Za-z0-9_$]/.test(before)) continue
+        // One argument means no locale. Counting commas at DEPTH ZERO, because an argument can
+        // itself be a call — `formatDate(dateIn(iso, zone))` is ONE argument, not two.
+        const args = argsAt(code, at + needle.length - 1)
+        let depth = 0
+        let top = 0
+        for (const ch of args) {
+          if (ch === '(' || ch === '[' || ch === '{') depth++
+          else if (ch === ')' || ch === ']' || ch === '}') depth--
+          else if (ch === ',' && depth === 0) top++
+        }
+        if (top === 0) pinned++
+      }
+    }
+  }
+}
+
+if (pinned > PINNED_CEILING) {
+  findings.push({
+    kind: 'PINNED-FORMATTER', key: `${pinned} call site(s)`,
+    detail: `above the ceiling of ${PINNED_CEILING} — a new date or money formatter call needs `
+      + 'the reader\'s locale, or the ceiling needs raising with a reason in the script',
+  })
+}
+
 // ── REPORT ──────────────────────────────────────────────────────────────────────────
 
 for (const [prefix, why] of KNOWN_DYNAMIC) {
@@ -284,6 +396,7 @@ const backlog = translations.map(([code, catalogue]) => {
 console.log(
   `\n  scanned  ${enKeys.size} key(s) · ${used.size} call site key(s) · `
   + `${translations.length} translation(s)${backlog.length ? ` · ${backlog.join(' · ')}` : ''}`
+  + `\n           ${pinned}/${PINNED_CEILING} date and money call site(s) still default to English`
 )
 
 // THE BACKLOG IS PRINTED EVEN WHEN THERE IS NOTHING TO SAY, which is deliberate: a product with

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
-import { tFor } from '@/lib/i18n/catalogues'
+import { tFor, formatTimeAgo } from '@/lib/i18n/catalogues'
 import { useRouter } from 'next/navigation'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -279,7 +279,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                       <div className={!n.read_at ? '' : 'pl-3.5'}>
                         <p className="text-xs font-medium leading-snug">{n.title}</p>
                         {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.created_at)}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTimeAgo(timeAgo(n.created_at), locale)}</p>
                       </div>
                     </div>
                   </li>

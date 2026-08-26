@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { timeAgo } from '@/lib/date-utils'
+import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { UPDATES_PAGE_SIZE } from '@/lib/updates-archive'
 import type { UpdatesArchive } from '@/app/actions/updates'
 
@@ -64,10 +65,12 @@ interface Props {
    * names. Anything else on the URL belongs to a pane this list is not.
    */
   keepParams?: Record<string, string>
+  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
+  locale: string
 }
 
 export function UpdatesArchiveClient({
-  archive, basePath = '/community/updates', keepParams,
+  archive, basePath = '/community/updates', keepParams, locale,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -192,7 +195,7 @@ export function UpdatesArchiveClient({
                   <p className="mt-1 text-xs text-muted-foreground">
                     {item.kind === 'announcement' ? 'Announcement' : 'Sent to you'}
                     {item.author && <> · {item.author}</>}
-                    {' · '}{timeAgo(item.at)}
+                    {' · '}{formatTimeAgo(timeAgo(item.at), locale)}
                   </p>
                 </div>
               </li>

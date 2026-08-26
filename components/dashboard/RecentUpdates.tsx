@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Bell, Eye, EyeOff, Megaphone } from 'lucide-react'
 import { timeAgo } from '@/lib/date-utils'
+import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { unpinAnnouncementForMe, repinAnnouncementForMe } from '@/app/actions/announcements'
 import type { UpdateItem } from '@/components/dashboard/updates'
 
@@ -43,11 +44,13 @@ import type { UpdateItem } from '@/components/dashboard/updates'
  * columns worth naming; these rows are one thing each.
  */
 export function RecentUpdates({
-  items, mayViewArchive = false,
+  items, mayViewArchive = false, locale,
 }: {
   items: UpdateItem[]
   /** Whether to offer the archive. Resolved on the dashboard; see the link below. */
   mayViewArchive?: boolean
+  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
+  locale: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -113,7 +116,7 @@ export function RecentUpdates({
                 </button>
               )}
 
-              <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">{timeAgo(item.at)}</span>
+              <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">{formatTimeAgo(timeAgo(item.at), locale)}</span>
             </li>
           ))}
         </ul>

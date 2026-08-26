@@ -1,15 +1,97 @@
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+import { DEFAULT_MONEY_LOCALE } from '@/lib/currency-utils'
 
 /**
- * Today as YYYY-MM-DD, in the caller's OWN timezone — the value every `<input
- * type="date">` in the app wants as its default.
+ * How a DATE or a TIME is worded.
  *
- * Deliberately not `new Date().toISOString().slice(0, 10)`, which every form here used
- * to do. That string is UTC, and for anyone west of Greenwich it is TOMORROW's date
- * for the last hours of each day: a treasurer in Pacific time opening a payment form
- * at 6pm got a date the family had not reached yet, and dated the cheque accordingly.
- * A date input holds a local calendar date, so its default has to be one too.
+ * ── EVERY FORMATTER HERE TAKES A LOCALE, AND THAT IS NEW (2026-08-26) ───────────────
+ * This module used to hold a `MONTHS` table, an `ordinal()` and a `'PM' : 'AM'`, and printed
+ * "June 12th, 2026" site-wide. That was a deliberate house voice and it was English-only by
+ * construction: month names, ordinal suffixes, AM/PM and month-first numeric order are all
+ * conventions of one language.
+ *
+ * **The ordinal is gone, in English too**, and that was the decision rather than a side effect.
+ * `Intl` cannot produce "12th", and the three alternatives were each worse:
+ *
+ *   per-locale voice modules   ordinals are not a table. Spanish uses none at all and French
+ *                              uses one only for the 1st, so each language needs its own FORMAT
+ *                              FUNCTION — three copies of one rule, which is exactly the drift
+ *                              `lib/chapter-propagation.ts` exists to prevent.
+ *   English keeps its voice    one product with two date conventions, chosen by who is reading.
+ *                              A screenshot in a support thread would look like a different
+ *                              application, and every future date decision gets made twice.
+ *   leave it English           not localizing at all.
+ *
+ * What `Intl` buys beyond correctness in Spanish and French: French renders times as `14:30`,
+ * which an AM/PM formatter can never do, and numeric dates stop being actively WRONG abroad —
+ * `12/6/2026` means 12 June nearly everywhere except the United States.
+ *
+ * ── `timeZone: 'UTC'` ON EVERY FORMATTER IS LOAD-BEARING, NOT TIDINESS ─────────────
+ * The values here are wall-clock LABELS — a bare `DATE` or `TIME` with no zone (AGENTS.md,
+ * "DATES ARE `DATE`"). The old implementation split the `YYYY-MM-DD` string and never
+ * constructed a `Date`, precisely so that no local clock could be consulted. `Intl` needs a
+ * `Date`, so the label is rebuilt with `Date.UTC(...)` AND read back with `timeZone: 'UTC'`.
+ *
+ * Both halves are required. Measured with `TZ=America/Los_Angeles`:
+ *
+ *     2026-08-01, pinned UTC   ->  "August 1, 2026"
+ *     2026-08-01, NOT pinned   ->  "July 31, 2026"
+ *
+ * That is the bug this whole module exists to prevent, and dropping the option reintroduces it
+ * on every date in the product. `lib/calendar.ts` makes the same argument for its month heading.
+ *
+ * ── THE LOCALE DEFAULTS, WHICH IS HOW 250 CALL SITES KEPT WORKING ──────────────────
+ * Every locale parameter is optional and falls back to `DEFAULT_MONEY_LOCALE` (`en-US`) — the
+ * same constant the money formatter uses, so the two cannot drift into different defaults. A
+ * call site that has not been given the reader's locale yet renders English, silently and
+ * correctly.
+ *
+ * That is a deliberate BACKLOG rather than a finished job, and it is counted rather than
+ * assumed: `npm run i18n:check` reports how many date and money call sites still default. The
+ * threading happens surface by surface as each is translated, because a component showing a date
+ * is a component showing text — it needs the locale anyway, and passing it twice would be waste.
+ *
+ * ── A FORMATTER IS CACHED ON ITS ARGUMENTS, WHICH IS SAFE HERE AND WAS NOT THERE ───
+ * `lib/calendar.ts` records that a module-level `Intl.DateTimeFormat` made a mutation ship green
+ * from CI: a formatter resolves its zone when CONSTRUCTED, so it never noticed `process.env.TZ`
+ * changing and the test asserted nothing. That hazard is about a formatter whose inputs come from
+ * the ENVIRONMENT.
+ *
+ * Here the locale is an argument and the zone is the literal `'UTC'`, so a cache keyed on the
+ * locale cannot go stale — there is nothing ambient left for it to miss. Worth having: 129 date
+ * call sites per render, and constructing an `Intl.DateTimeFormat` is not free.
  */
+
+/** The long form, shared by `formatDate` and `formatDateRange` so the two cannot diverge. */
+const LONG: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' }
+
+/** One formatter per (option-shape, locale). See the header for why caching is safe here. */
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+function dateFormatter(locale: string, options: Intl.DateTimeFormatOptions, tag: string) {
+  const key = `${tag}|${locale}`
+  let found = formatters.get(key)
+  if (!found) {
+    found = new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' })
+    formatters.set(key, found)
+  }
+  return found
+}
+
+/**
+ * A `YYYY-MM-DD` label as a `Date` at UTC midnight, or null.
+ *
+ * The label is REBUILT rather than parsed: `new Date('2026-08-01')` happens to be UTC midnight,
+ * but `new Date('2026-8-1')` is LOCAL midnight and the difference is invisible in review.
+ * Splitting the string and calling `Date.UTC` cannot be ambiguous.
+ */
+function utcDate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return null
+  const at = new Date(Date.UTC(y, m - 1, d))
+  return Number.isNaN(at.getTime()) ? null : at
+}
+
 /**
  * Whole days from now until `date`, floored at 0, or null when there is no date.
  *
@@ -34,31 +116,56 @@ export function daysUntil(date: string | null | undefined): number | null {
 }
 
 /**
- * "Just now" / "5m ago" / "3h ago", falling back to a full date past a day.
+ * How long ago an INSTANT was, as data rather than as a sentence.
  *
- * HERE RATHER THAN IN A COMPONENT for the reason spelled out on `daysUntil` above: it
- * reads the clock, and reading the clock during render makes a component's output depend
- * on when it happened to render, which `react-hooks/purity` is right to flag. Putting the
- * impurity behind a named call keeps the callers readable as pure functions of their data.
+ * ── IT RETURNED A STRING UNTIL 2026-08-26, AND THAT MADE IT UNTRANSLATABLE ─────────
+ * It produced `'Just now'`, `'5m ago'`, `'3h ago'` and fell back to `formatDate` past a day —
+ * four English strings assembled inside a pure module. A locale parameter would not have been
+ * enough either: the words belong in the catalogue with every other string, and a `lib/` module
+ * has no business importing it.
  *
- * It lived as a private helper inside `components/layout/NotificationBell.tsx` until the
- * Dashboard's Recent Updates card needed the same sentence. Two copies of a relative-time
- * formatter is how a bell starts saying "2h ago" beside a card saying "2 hours ago" about
- * the same row — so there is one, and both import it.
+ * So this answers WHICH sentence and the component says it. Three call sites map the result
+ * through `t` — the bell, the Dashboard's Recent Updates and the Updates archive — which is the
+ * same division `lib/gathering-when.ts` keeps between `whenProblems` (the rule) and
+ * `WHEN_PROBLEM_TEXT` (the words).
  *
- * The handover to `formatDate` at 24h is deliberate. Past a day "yesterday" and "3d ago"
- * stop being more useful than the date itself, and a member scanning a list wants
- * something they can match against a calendar.
+ * ── WHY IT STILL READS THE CLOCK ──────────────────────────────────────────────────
+ * `daysUntil` above states the argument and it is unchanged: reading the clock during render
+ * makes a component's output depend on when it happened to render, which `react-hooks/purity`
+ * is right to flag, so the impurity lives behind a named call.
+ *
+ * ── THE HANDOVER AT 24 HOURS IS DELIBERATE ────────────────────────────────────────
+ * Past a day, "yesterday" and "3d ago" stop being more useful than the date itself, and a
+ * member scanning a list wants something they can match against a calendar. The `date` variant
+ * carries the raw value so the caller formats it with the reader's locale — this module must not
+ * choose one for them.
  */
-export function timeAgo(iso: string): string {
+export type TimeAgo =
+  | { kind: 'now' }
+  | { kind: 'minutes'; n: number }
+  | { kind: 'hours'; n: number }
+  | { kind: 'date'; iso: string }
+
+export function timeAgo(iso: string): TimeAgo {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return { kind: 'now' }
+  if (mins < 60) return { kind: 'minutes', n: mins }
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return formatDate(iso) ?? ''
+  if (hours < 24) return { kind: 'hours', n: hours }
+  return { kind: 'date', iso }
 }
 
+
+/**
+ * Today as YYYY-MM-DD, in the caller's OWN timezone — the value every `<input
+ * type="date">` in the app wants as its default.
+ *
+ * Deliberately not `new Date().toISOString().slice(0, 10)`, which every form here used
+ * to do. That string is UTC, and for anyone west of Greenwich it is TOMORROW's date
+ * for the last hours of each day: a treasurer in Pacific time opening a payment form
+ * at 6pm got a date the family had not reached yet, and dated the cheque accordingly.
+ * A date input holds a local calendar date, so its default has to be one too.
+ */
 export function todayLocal(): string {
   const now = new Date()
   return [
@@ -68,25 +175,6 @@ export function todayLocal(): string {
   ].join('-')
 }
 
-function ordinal(n: number): string {
-  const v = n % 100
-  if (v >= 11 && v <= 13) return 'th'
-  switch (n % 10) {
-    case 1: return 'st'
-    case 2: return 'nd'
-    case 3: return 'rd'
-    default: return 'th'
-  }
-}
-
-/**
- * Format a date — either a date-only string (YYYY-MM-DD) or an ISO timestamp —
- * as "June 12th, 2026". Used site-wide (reports use formatDateNumeric instead).
- *
- * No weekday. It used to lead with one ("Monday June 12th, 2026"), which stretched
- * every date in the app to carry a fact almost none of them needed — a payment date,
- * a schedule start, a booking deadline are not read by day of the week.
- */
 /**
  * The latest of several `YYYY-MM-DD` strings, for the `min` of an END-date input.
  *
@@ -119,94 +207,132 @@ export function latestDate(...dates: (string | null | undefined)[]): string | un
   return present.reduce((a, b) => (b > a ? b : a))
 }
 
-export function formatDate(date: string | null | undefined): string | null {
-  if (!date) return null
-  const [y, m, d] = date.slice(0, 10).split('-').map(Number)
-  if (!y || !m || !d) return null
-  return `${MONTHS[m - 1]} ${d}${ordinal(d)}, ${y}`
-}
-
 /**
- * Format a date as "Feb 14th" — the month and the day, with NO YEAR.
+ * Format a date — a date-only string (`YYYY-MM-DD`) or an ISO timestamp's date part — in the
+ * reader's language. "June 12, 2026" / "12 de junio de 2026" / "12 juin 2026".
  *
- * For a date whose year the reader already knows or does not need. The Birthdays pane is the
- * case it was written for: every row is inside a 60-day horizon, so the year is either this
- * one or the next and printing it added four characters of noise to every line while quietly
- * inviting a misreading — the year shown is the year of the NEXT occurrence, not the year the
- * person was born, and those are the two numbers a reader is most likely to confuse on a
- * birthday list.
+ * NO WEEKDAY. It used to lead with one ("Monday June 12th, 2026"), which stretched every date in
+ * the app to carry a fact almost none of them needed — a payment date, a schedule start, a
+ * deadline are not read by day of the week. That decision survives the move to `Intl`.
  *
- * Same parsing as `formatDate` above and for the same reason: split the `YYYY-MM-DD` string
- * and never construct a `Date`. `new Date('2026-08-01')` is UTC midnight and renders as
- * 31 July in any negative offset, which on a birthday list puts the party on the wrong day.
+ * ── PASSING A TIMESTAMP HERE IS STILL A BUG, AND STILL CAUGHT ELSEWHERE ────────────
+ * This reads the first ten characters, so an ISO instant is read as its UTC calendar date — the
+ * defect `lib/tz.ts` was written for. `npm run audit:time` is what refuses it; the fix is
+ * `formatInstantDate(iso, zone)`.
  */
-export function formatMonthDay(date: string | null | undefined): string | null {
-  if (!date) return null
-  const [, m, d] = date.slice(0, 10).split('-').map(Number)
-  if (!m || !d) return null
-  return `${MONTHS[m - 1]} ${d}${ordinal(d)}`
-}
-
-/** Format a date as MM/DD/YYYY — used on reports. */
-export function formatDateNumeric(date: string | null | undefined): string | null {
-  if (!date) return null
-  const [y, m, d] = date.slice(0, 10).split('-').map(Number)
-  if (!y || !m || !d) return null
-  return `${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}/${y}`
-}
-
-/** Format a TIME string (HH:MM or HH:MM:SS) as "2:30 PM" */
-export function formatTime(time: string | null | undefined): string | null {
-  if (!time) return null
-  const [h, min] = time.split(':').map(Number)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const hour   = h % 12 || 12
-  return `${hour}:${min.toString().padStart(2, '0')} ${period}`
+export function formatDate(
+  date: string | null | undefined,
+  locale: string = DEFAULT_MONEY_LOCALE,
+): string | null {
+  const at = utcDate(date)
+  if (!at) return null
+  return dateFormatter(locale, LONG, 'long').format(at)
 }
 
 /**
- * Format a date range — "June 12th – June 14th, 2026", or just "June 12th, 2026".
+ * Format a date as month and day with NO YEAR — "February 14" / "14 de febrero".
  *
- * ── THE YEAR IS STATED ONCE, AND THAT IS THE WHOLE OF THIS FUNCTION ────────────────
- * This used to be `${formatDate(start)} – ${formatDate(end)}`, which for the ordinary
- * case — a weekend, a long weekend, a reunion — prints the month AND the year twice:
+ * For a date whose year the reader already knows or does not need. The Birthdays pane is the case
+ * it was written for: every row is inside a 60-day horizon, so the year is either this one or the
+ * next, and printing it added noise while inviting a misreading — the year shown is the year of
+ * the NEXT occurrence, not the year the person was born, and those are the two numbers a reader
+ * is most likely to confuse on a birthday list.
+ */
+export function formatMonthDay(
+  date: string | null | undefined,
+  locale: string = DEFAULT_MONEY_LOCALE,
+): string | null {
+  const at = utcDate(date)
+  if (!at) return null
+  return dateFormatter(locale, { month: 'long', day: 'numeric' }, 'monthDay').format(at)
+}
+
+/**
+ * Format a date numerically — "06/12/2026" in the United States, "12/06/2026" almost everywhere
+ * else. Used on reports.
  *
- *     June 12th, 2026 – June 14th, 2026
+ * ── THIS ONE WAS NOT A STYLE CHOICE, IT WAS A WRONG DATE ──────────────────────────
+ * It hard-coded `MM/DD/YYYY`. For a French or Mexican reader `12/06/2026` means 12 June, so the
+ * old output did not merely read oddly to them — it read as a DIFFERENT DAY, silently, on a
+ * report. The one formatter here whose localization is a correctness fix rather than a courtesy.
  *
- * Thirty-three characters where the Golden Master sets twenty-two, on the one band a
- * family has flagged as mattering more than the rest of the screen
- * (`design/dashboard/v1_0/01_REFERENCE/Dashboard_Golden_Master_OFFICIAL.png` draws it
- * "June 12 – June 14, 2026"). The repetition is not merely long: it reads as two dates
- * rather than as one span, which is the opposite of what a range is for. The doc comment
- * on this function had claimed the collapsed form — "Jun 15 – Jun 18, 2026" — since it
- * was written, so this is the implementation catching up to its own stated contract.
+ * Zero-padded deliberately (`2-digit` rather than `numeric`): a column of dates that changes
+ * width row to row is harder to scan, and a report is a column of dates.
+ */
+export function formatDateNumeric(
+  date: string | null | undefined,
+  locale: string = DEFAULT_MONEY_LOCALE,
+): string | null {
+  const at = utcDate(date)
+  if (!at) return null
+  return dateFormatter(
+    locale, { year: 'numeric', month: '2-digit', day: '2-digit' }, 'numeric',
+  ).format(at)
+}
+
+/**
+ * Format a `TIME` label (`HH:MM` or `HH:MM:SS`) — "2:30 PM", "2:30 p.m.", "14:30".
  *
- * ── WHAT IS DELIBERATELY NOT COLLAPSED ────────────────────────────────────────────
- *   * **The month repeats**, even within one month: "June 12th – June 14th, 2026", not
- *     "June 12th – 14th". That is what the kit draws, and a bare second number reads as
- *     a quantity rather than as a date at the size this renders at.
- *   * **The ordinal stays.** `formatDate` is the app's one date voice and prints "12th"
- *     everywhere; dropping it here would make a range and a single date two different
- *     conventions on the same screen — `AdminGatheringsClient` shows both, in one table.
- *   * **A range crossing a year keeps both years in full**, because that is precisely
- *     the case where the reader needs to be told the span crosses one.
+ * ── FRENCH GETS A 24-HOUR CLOCK, WHICH IS THE POINT ───────────────────────────────
+ * The old implementation computed `h >= 12 ? 'PM' : 'AM'`, so every language got a 12-hour clock
+ * whether or not it uses one. `Intl` reads the convention from the locale, and this is the
+ * single clearest argument for the move: no amount of care with an AM/PM formatter produces
+ * `14:30`.
  *
- * Comparison is on the raw `YYYY-MM-DD` prefix rather than on anything parsed: these are
- * bare DATEs with no time and no zone (AGENTS.md, "DATES ARE `DATE`"), and constructing a
- * `Date` to read a year back off it is the trap the rest of this module exists to avoid.
+ * The value is a wall-clock LABEL and is not converted — see `lib/tz.ts`. It is rebuilt on the
+ * epoch at UTC purely so `Intl` has an instant to format, and read back with `timeZone: 'UTC'`
+ * so the digits that come out are the digits that went in.
+ */
+export function formatTime(
+  time: string | null | undefined,
+  locale: string = DEFAULT_MONEY_LOCALE,
+): string | null {
+  if (!time) return null
+  const [h, m] = String(time).split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+  const at = new Date(Date.UTC(1970, 0, 1, h, m))
+  if (Number.isNaN(at.getTime())) return null
+  return dateFormatter(locale, { hour: 'numeric', minute: '2-digit' }, 'time').format(at)
+}
+
+/**
+ * Format a date range, stating the year once — "June 12 – 14, 2026".
+ *
+ * ── `Intl.formatRange` DOES THE COLLAPSE, PER LANGUAGE ────────────────────────────
+ * This used to be hand-rolled, and its own comment argued at length for stating the year once:
+ * `${formatDate(start)} – ${formatDate(end)}` prints the month AND the year twice, which "reads
+ * as two dates rather than as one span". That argument was right, and it could only ever be
+ * implemented for English — collapsing "12 juin – 14 juin 2026" needs to know where the year
+ * goes in French.
+ *
+ * `formatRange` knows, for every language:
+ *
+ *     en-US   June 12 – 14, 2026        December 30, 2026 – January 2, 2027
+ *     es-MX   12–14 de junio de 2026    30 de diciembre de 2026 – 2 de enero de 2027
+ *     fr-FR   12–14 juin 2026           30 décembre 2026 – 2 janvier 2027
+ *
+ * A range crossing a year keeps both years in full, which is exactly the case a reader needs to
+ * be told about — and nobody had to write that rule.
+ *
+ * ── ONE DEVIATION FROM THE DESIGN KIT, STATED ─────────────────────────────────────
+ * `design/dashboard/v1_0`'s Golden Master draws "June 12 – June 14, 2026", with the month
+ * repeated. `Intl` gives "June 12 – 14, 2026". Tighter, still unambiguous, and the alternative is
+ * the per-language hand-rolling this move rejected. Worth knowing before somebody reads the kit
+ * and files it as a regression.
  */
 export function formatDateRange(
   start: string | null | undefined,
-  end: string | null | undefined
+  end: string | null | undefined,
+  locale: string = DEFAULT_MONEY_LOCALE,
 ): string | null {
-  const s = formatDate(start)
-  if (!s) return null
-  const e = formatDate(end)
-  if (!e || e === s) return s
-
-  // Both parsed, so both are real strings — `formatDate` answers null for anything else.
-  const sameYear = String(start).slice(0, 4) === String(end).slice(0, 4)
-  return sameYear ? `${formatMonthDay(start)} – ${e}` : `${s} – ${e}`
+  const from = utcDate(start)
+  if (!from) return null
+  const to = utcDate(end)
+  // A range whose end is absent, unreadable, or not after its start is ONE date. Kept from the
+  // previous implementation: `ends_on` is NULL for a single-day gathering, which is most of them,
+  // and rendering "June 12 – June 12" would read as a two-day span.
+  if (!to || to.getTime() <= from.getTime()) return formatDate(start, locale)
+  return dateFormatter(locale, LONG, 'long').formatRange(from, to)
 }
 
 export const TIMEZONES = [

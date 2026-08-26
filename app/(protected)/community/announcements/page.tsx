@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { resolveLocale } from '@/lib/auth/locale'
 import {
   can, canAny, requireFamilyActive, requireTier, scopeFor, type PermissionScope,
 } from '@/lib/auth/permissions'
@@ -118,6 +119,9 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // The reader's language, for the shell strings and the relative-time captions below.
+  const locale = await resolveLocale(user.id)
+
   // `requireView`, taken apart — see the essay above. These two are unchanged in effect and
   // must stay above the fetches: a removed family is redirected and a page above the plan is
   // sent to /upgrade before anything about this family is read.
@@ -208,6 +212,7 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
 
       <AnnouncementsShell
         initialPane={initialPane}
+        locale={locale}
         mayViewBoard={mayViewBoard}
         mayViewUpdates={mayViewUpdates}
         mayViewBirthdays={mayViewBirthdays}

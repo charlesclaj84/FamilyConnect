@@ -110,22 +110,27 @@ describe('latestDate', () => {
  * records that repeating the month across a month boundary is a decision.
  */
 describe('formatDateRange', () => {
+    // THE SEPARATOR IS `\u2009\u2013\u2009` — thin space, en dash, thin space — which is
+    // what `Intl.formatRange` uses and not the plain spaces the hand-rolled version had.
+    // Written as ESCAPES for `lib/person-search.ts`' reason about combining marks: an
+    // invisible character is invisible in an editor and gets eaten by the first tool that
+    // touches the file, which would silently turn this into a tautology.
   it('states the year once for a span inside one year', () => {
-    expect(formatDateRange('2026-06-12', '2026-06-14')).toBe('June 12th – June 14th, 2026')
+    expect(formatDateRange('2026-06-12', '2026-06-14')).toBe('June 12\u2009\u2013\u200914, 2026')
   })
 
   it('repeats the month across a month boundary, and still states the year once', () => {
-    expect(formatDateRange('2026-06-28', '2026-07-03')).toBe('June 28th – July 3rd, 2026')
+    expect(formatDateRange('2026-06-28', '2026-07-03')).toBe('June 28\u2009\u2013\u2009July 3, 2026')
   })
 
   it('keeps both years in full when the span crosses one', () => {
     expect(formatDateRange('2026-12-30', '2027-01-02'))
-      .toBe('December 30th, 2026 – January 2nd, 2027')
+      .toBe('December 30, 2026\u2009\u2013\u2009January 2, 2027')
   })
 
   it('prints one date for a one-day span, whether the end repeats it or is absent', () => {
-    expect(formatDateRange('2026-06-12', '2026-06-12')).toBe('June 12th, 2026')
-    expect(formatDateRange('2026-06-12', null)).toBe('June 12th, 2026')
+    expect(formatDateRange('2026-06-12', '2026-06-12')).toBe('June 12, 2026')
+    expect(formatDateRange('2026-06-12', null)).toBe('June 12, 2026')
   })
 
   it('answers null when there is no start to anchor the range', () => {

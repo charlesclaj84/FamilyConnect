@@ -133,6 +133,19 @@ export const en: Catalogue = {
   'bell.markAll': 'Mark all read',
   'bell.empty': 'No notifications yet.',
 
+  // ── HOW LONG AGO ─────────────────────────────────────────────────────────────────
+  // `timeAgo` in `lib/date-utils.ts` answers WHICH of these applies and these are the words.
+  // The pure module returns data and the component says the sentence — the same division
+  // `whenProblems` and `WHEN_PROBLEM_TEXT` already keep.
+  //
+  // ABBREVIATED ON PURPOSE. These sit in a bell, on a dashboard card and in an archive row,
+  // beside a title that is the thing being read — "5 minutes ago" would take more width than
+  // the fact is worth. A language that cannot abbreviate this way should spell it out; that is
+  // the translator's call, which is exactly why it is a string rather than a template.
+  'time.now': 'Just now',
+  'time.minutes': '{n}m ago',
+  'time.hours': '{n}h ago',
+
   // ── THE LANGUAGE SWITCHER ─────────────────────────────────────────────────────────
   // The endonyms themselves are NOT here: they live in `lib/i18n/locales.ts` and are never
   // translated, because a member looking for their own language scans for the word they would

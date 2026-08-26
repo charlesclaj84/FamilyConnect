@@ -146,6 +146,20 @@ function zonedParts(iso: string | Date, zone: string): ZonedParts | null {
   const at = iso instanceof Date ? iso : new Date(iso)
   if (Number.isNaN(at.getTime())) return null
 
+  // ── `'en-US'` HERE IS LOAD-BEARING AND MUST NOT BE LOCALIZED ──────────────────────
+  // This reads FIELDS through `formatToParts`; it renders nothing. A locale tag chooses a
+  // CALENDAR SYSTEM and a NUMBERING SYSTEM, so the same instant comes back as different
+  // digits — measured on 2026-07-31:
+  //
+  //     en-US   2026-07-31
+  //     fr-FR   2026-07-31
+  //     ar-SA   ٢٠٢٦-٠٧-٣١      Arabic-Indic digits, same Gregorian date
+  //     fa-IR   ۱۴۰۵-۰۵-۰۹      the PERSIAN calendar — a different year entirely
+  //
+  // Every date comparison in the product is a string comparison on `YYYY-MM-DD`, so a
+  // localized field read would silently break the past/upcoming split, the overdue check and
+  // the election windows at once. `en-US` here means "Gregorian, ASCII digits" and nothing
+  // about the reader. `zoneAbbrev` below is the opposite case and takes a locale.
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: usableZone(zone),
     year: 'numeric',
@@ -236,8 +250,21 @@ export function todayIn(zone: string, now: Date = new Date()): string {
  * `timeZoneName: 'short'` gives a real abbreviation where one exists and a `GMT±H` form where
  * it does not, which is the honest output for zones that have no common abbreviation.
  */
-export function zoneAbbrev(zone: string, at: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
+export function zoneAbbrev(
+  zone: string,
+  at: Date = new Date(),
+  locale: string = 'en-US',
+): string {
+  // THE ONE FORMATTER IN THIS MODULE THAT TAKES A LOCALE, because it is the only one that
+  // produces a string for a reader rather than a field for a comparison. It genuinely varies —
+  // measured for America/Chicago in July:
+  //
+  //     en-US   CDT        es-MX   GMT-5        fr-FR   UTC−5
+  //
+  // A Spanish reader is better served by `GMT-5` than by an abbreviation from another
+  // language's conventions, so this follows them. Contrast `zonedParts` above, where the tag
+  // is pinned and the reason is calendar systems.
+  const parts = new Intl.DateTimeFormat(locale, {
     timeZone: usableZone(zone),
     timeZoneName: 'short',
   }).formatToParts(at)

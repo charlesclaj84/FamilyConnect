@@ -98,12 +98,14 @@ interface Props {
   // ── The Birthdays pane ────────────────────────────────────────────────────────────
   /** Already sorted, soonest first, by `lib/birthdays.ts`. Empty when not fetched. */
   birthdays: UpcomingBirthday[]
+  /** The reader's language, resolved by the page. See lib/i18n/catalogues.ts. */
+  locale: string
 }
 
 export function AnnouncementsShell({
   initialPane, mayViewBoard, mayViewUpdates, mayViewBirthdays,
   initialAnnouncements, chapters, canPost, canPin, deleteScope, myPersonId,
-  archive, birthdays,
+  archive, birthdays, locale,
 }: Props) {
   const [pane, setPane] = useState<AnnouncementPane>(initialPane)
 
@@ -180,6 +182,7 @@ export function AnnouncementsShell({
           archive={archive}
           basePath="/community/announcements"
           keepParams={{ pane: 'updates' }}
+        locale={locale}
         />
       )}
 
