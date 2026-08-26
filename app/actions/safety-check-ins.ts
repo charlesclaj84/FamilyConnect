@@ -8,6 +8,8 @@ import { can, canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
 import { emailOrigin, sendEmail } from '@/lib/email/send'
 import { safetyCheckInEmail } from '@/lib/email/templates'
+import { localesOfPeople } from '@/lib/auth/locale'
+import { storedLocale } from '@/lib/i18n/locales'
 import { notifySafetyCheckIn } from '@/lib/notifications'
 import {
   checkInProgress,
@@ -1037,11 +1039,22 @@ export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult
   const batch = (claimed ?? []) as { id: string; person_id: string; email: string | null }[]
   if (batch.length === 0) return { success: true, attempted: 0, sent: 0, failed: 0, more: false }
 
-  const [familyName, raiserName] = await Promise.all([
+  // ONE LOCALE READ FOR THE WHOLE BATCH, alongside the two name reads.
+  //
+  // Each relative gets the ask in THEIR OWN language — the reader's, resolved from the stored
+  // column and never from `resolveLocale`, whose second source is `Accept-Language` and would
+  // hand every recipient the language of whichever administrator's browser drove the batch.
+  // `localesOfPeople` exists for exactly that distinction; its header argues it.
+  //
+  // The raiser's `title` and `detail` still pass through in whatever language they were
+  // written in, which makes this the one deliberately bilingual message in the product. See
+  // `safetyCheckInEmail`.
+  const [familyName, raiserName, locales] = await Promise.all([
     familyNameOf(g.familyCode),
     row.raised_by
       ? nameMap(g.familyCode, [row.raised_by]).then(m => m.get(row.raised_by!) ?? null)
       : Promise.resolve(null),
+    localesOfPeople(g.familyCode, batch.map(b => b.person_id)),
   ])
   const origin = emailOrigin()
   const link = `${origin}/community/safety-check-ins?open=${checkInId}`
@@ -1067,6 +1080,10 @@ export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult
         detail: row.detail,
         raisedByName: raiserName,
         link,
+        // `storedLocale` again on the way out: a person missing from the map was not read, and
+        // English is the same answer an unset column gets. §8's distinction is logged inside
+        // `localesOfPeople` rather than branched on here — the mail must go either way.
+        locale: storedLocale(locales.get(target.person_id)),
       })
       result = await sendEmail({
         to: address,

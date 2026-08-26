@@ -7,6 +7,7 @@ import { requireRead } from '@/lib/auth/guard'
 import { getMyFamilyCode, getMyNameInFamily } from '@/lib/auth/family'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { familyInvitationEmail } from '@/lib/email/templates'
+import { storedLocale } from '@/lib/i18n/locales'
 import { notifyMembershipRequest } from '@/lib/notifications'
 // Plain modules, never re-exported from here: one takes an email address and answers
 // whether it has an account, which as an endpoint is an enumeration oracle. See the
@@ -195,7 +196,7 @@ export async function inviteMember(
 
     const { data: inviter } = await admin
       .from('people')
-      .select('first_name, last_name')
+      .select('first_name, last_name, locale')
       .eq('family_code', targetFamily ?? '')
       .eq('user_id', user.id)
       .maybeSingle()
@@ -215,6 +216,16 @@ export async function inviteMember(
       token: data.token,
       preApproved: data.pre_approved,
       expiresInDays: INVITATION_EXPIRY_DAYS,
+      // THE INVITER'S LANGUAGE, which is the one email where the reader's own is unavailable
+      // rather than unused: they have no account, so there is no `people.locale` and no
+      // `Accept-Language` — nobody has made a request yet. The inviter is the only evidence
+      // there is, and it is decent evidence: somebody writing to a relative in Spanish is
+      // usually writing to a Spanish-speaking relative. See `familyInvitationEmail`'s header.
+      //
+      // It comes off the row read above rather than from a parameter, deliberately. A
+      // caller-chosen locale on a public HTTP endpoint would let anybody pick which language
+      // a stranger's invitation arrives in (§2).
+      locale: storedLocale(inviter?.locale as string | null),
     })
 
     const result = await sendEmail({

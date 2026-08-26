@@ -6,7 +6,8 @@ GoTrue only speaks SMTP and a serverless function only comfortably speaks HTTPS.
 
 | | GoTrue (`supabase/templates/`) | App (`lib/email/`) |
 |---|---|---|
-| Sends | sign-up, recovery, email change, reauthentication, GoTrue invite | membership approved, family invitation, family-removal code, email distributions |
+| Sends | sign-up, recovery, email change, reauthentication, GoTrue invite | membership approved, family invitation, family-removal code, Stripe-disconnect code, email distributions, safety check-in |
+| Language | English only, today — Phase 6 moves these behind a Send Email Hook so they can be translated | translated; see below |
 | Composed from | static HTML pasted into the Supabase dashboard | `layout.ts` + `templates.ts` |
 | Knows about families | no | yes — which is the whole reason these are here |
 | Transport | SMTP → `smtp.resend.com` | HTTPS → `api.resend.com` |
@@ -83,11 +84,82 @@ constants that size a batch (`BATCH_SIZE`, `SEND_SPACING_MS`) are about two limi
 control — the provider's per-second cap and the platform's wall-clock ceiling. Raise either
 and do the multiplication first; the header on those constants says what goes wrong.
 
+## Which language a message is in is a rule, not a per-template choice
+
+Every template takes an optional `locale` and looks its prose up through `emailT` in
+[`strings/index.ts`](strings/index.ts). What decides the value is one question, and the
+answer divides the six cleanly:
+
+> **Whose thing is this message?**
+
+| Substance | Language | Templates |
+|---|---|---|
+| **ours** — a decision, a code, an ask | the **reader's** | membership approved, family-removal code, Stripe-disconnect code, safety check-in |
+| **one member's own words** | that **member's** | email distributions |
+| ours, but the reader has no account yet | the **inviter's** | family invitation |
+
+The third row is not a third rule. An invitee has no `people.locale` and has made no request,
+so there is no `Accept-Language` either — the inviter is the only evidence there is, and it is
+decent evidence: somebody writing to a relative in Spanish is usually writing to a
+Spanish-speaking relative.
+
+**Never resolve a recipient's language with `resolveLocale`.** That function answers *what
+language is the CALLER reading in* and falls through to the `Accept-Language` header, which for
+a piece of mail is the administrator's browser. Using it would mail a Spanish-speaking family
+in whatever language the treasurer's laptop asks for — silently, and visible only to them.
+`storedLocale` (`lib/i18n/locales.ts`) and `localesOfPeople` (`lib/auth/locale.ts`) are the
+recipient-facing pair: the stored column, else English, and no second source. The two code
+emails are the one place `resolveLocale` is right, because those actions take no arguments and
+resolve the address from the session — the reader **is** the caller.
+
+**The locale must never be a parameter a client chooses.** Same argument as `to` and
+`reply_to` below: it comes off a row the action already read.
+
+**The safety check-in is deliberately bilingual.** The ask, the two answers and the footnote
+are in the reader's language; the raiser's `title` and `detail` pass through in whatever
+language they were written in. We do not paraphrase what somebody said about an emergency, and
+we do not leave the ask in a language the reader does not use.
+
+### The bundle is `server-only`, and that is load-bearing
+
+`lib/i18n/catalogues.ts` is a static import a client component can reach, which is right for
+the shell and wrong for this: it would ship the prose of six emails to every reader.
+`strings/index.ts` carries `import 'server-only'`, so an import from a `'use client'` file is a
+**build failure**. `npm run i18n:check` reports the same thing as CLIENT-BUNDLE and names the
+file, because a build error on a transitive import points at the module rather than at whoever
+imported it.
+
+Two consequences worth knowing. `server-only` is **not an installed package** — Next aliases
+the specifier in its own bundler — so anything running under bare Node needs a stub:
+`tests/rls/stubs/server-only.mjs` and the hook inside `scripts/i18n-coverage.mjs` both exist
+for that, and both say what stubbing it costs. And a green RLS run is **not** evidence about
+this boundary; the build and `i18n:check` are.
+
+### Adding or editing a string
+
+One catalogue per language under [`strings/`](strings), one key per sentence, and
+`npm run i18n:check` gates the lot — a key nobody reads, a translation of English that has
+since changed (STALE), an invented `{placeholder}`, a key defined by two bundles. After
+re-checking wording, `npm run i18n:accept <locale>` records the new source hashes.
+
+Two conventions the checker cannot enforce:
+
+* **Interpolated values are escaped at the CALL SITE**, in `templates.ts`, where `esc()` is
+  visible next to the value. Subjects and preheaders take the **raw** value instead — neither
+  is HTML, and `&amp;` in a subject line is a visible defect.
+* **`<strong>` lives inside the string**, because the emphasis moves with word order. A
+  translator has to keep the tags, so the tags are kept few and simple.
+
+**One plural split is kept on purpose.** `email.disconnect.autopayOne` / `autopayMany` are two
+keys rather than one string carrying `{n}`, because English needs two — and a language with
+more plural forms than two can add its own, which a single string could never allow.
+
 ## `reply_to` is resolved on the server, never taken from a caller
 
-Added with distributions, and it is the only message here that sets it. The other three are
-*from the product about the product*, so a reply belongs at `support@`; a distribution was
-written by a relative, and a cousin pressing Reply means to reach them.
+Added with distributions, and the only two messages that set it are the two a relative wrote:
+a distribution, and a safety check-in. The other four are *from the product about the product*,
+so a reply belongs at `support@`; a distribution was written by a relative, and a cousin
+pressing Reply means to reach them.
 
 The rule that comes with it is rule 1 in a different costume: **the address must come from a
 row the caller already owns.** `sendDistribution` reads it off the sender's own `people` row
@@ -97,9 +169,11 @@ carrying GENORRA's SPF and DKIM is a phishing header on authenticated mail — t
 
 ## A member's words are the one payload that must be escaped
 
-`distributionEmail` is the only template here whose *content* somebody typed. The other three
-compose their own prose and interpolate a family name or a token, so `esc()` there is hygiene;
-in that one it is the boundary, because the string is rendered in somebody else's mail client.
+`distributionEmail` and `safetyCheckInEmail` are the two templates here whose *content*
+somebody typed — the whole body in the first, and `title`/`detail` in the second. The other
+four compose their own prose and interpolate a family name or a token, so `esc()` there is
+hygiene; in those two it is the boundary, because the string is rendered in somebody else's
+mail client.
 
 `bodyParagraphs()` in `lib/distribution-audience.ts` deliberately returns **plain text** and
 the escaping happens in the template, one line away — that module is pure and importing the

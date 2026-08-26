@@ -7,6 +7,7 @@ import { can, canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
 import { emailOrigin, sendEmail } from '@/lib/email/send'
 import { distributionEmail } from '@/lib/email/templates'
+import { storedLocale } from '@/lib/i18n/locales'
 import {
   bodyParagraphs,
   countStates,
@@ -396,6 +397,23 @@ function embedName(value: unknown): string | null {
   if (!row) return null
   if (typeof row.name === 'string') return row.name
   return `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim() || null
+}
+
+/**
+ * The author's language off a `people` embed.
+ *
+ * Separate from `embedName` rather than folded into it because the two are read in different
+ * places — the name goes on the history screen as well as into the mail — and because this one
+ * narrows through `storedLocale`, which is a decision about MAIL and does not belong in a
+ * general-purpose name reader.
+ *
+ * PostgREST answers a to-one embed as an object and sometimes as a one-element array, which is
+ * the array unwrap both of these do. A missing embed answers English, like an unset column.
+ */
+function embedLocale(value: unknown): string {
+  const row = (Array.isArray(value) ? value[0] : value) as
+    { locale?: string | null } | null | undefined
+  return storedLocale(row?.locale ?? null)
 }
 
 function isScope(value: string): value is DistributionScope {
@@ -812,7 +830,7 @@ export async function sendDistributionBatch(distributionId: string): Promise<Bat
   // function asserts the same thing again — see its header on being written as if reachable.
   const { data: row, error: readError } = await admin
     .from('distributions')
-    .select('id, subject, body, reply_to, people!distributions_sent_by_fkey(first_name, last_name)')
+    .select('id, subject, body, reply_to, people!distributions_sent_by_fkey(first_name, last_name, locale)')
     .eq('id', distributionId)
     .eq('family_code', g.familyCode)
     .maybeSingle()
@@ -847,6 +865,19 @@ export async function sendDistributionBatch(distributionId: string): Promise<Bat
     subject: distribution.subject,
     paragraphs: bodyParagraphs(distribution.body),
     senderName: embedName(distribution.people),
+    // THE AUTHOR'S LANGUAGE, NOT THE CALLER'S AND NOT EACH READER'S.
+    //
+    // Not each reader's, because the email IS the member's own message: a Spanish footnote
+    // around an English paragraph reads as a fault, and there is nothing to translate — we do
+    // not paraphrase what a member wrote. `distributionEmail`'s header states the rule this
+    // divides on.
+    //
+    // Not the caller's, which is the subtle half: any administrator may drive a batch, so the
+    // person pressing Continue is often not the person who composed the message. It comes off
+    // the `sent_by` embed above for that reason. `resolveLocale` here would have mailed the
+    // whole family in the wrong language whenever a second administrator picked up a stalled
+    // send.
+    locale: embedLocale(distribution.people),
   })
 
   for (const [index, recipient] of batch.entries()) {

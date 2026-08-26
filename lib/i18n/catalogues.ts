@@ -3,6 +3,7 @@ import { translator, type Catalogue, type T } from '@/lib/i18n/t'
 import { formatDate, type TimeAgo } from '@/lib/date-utils'
 import { en } from '@/lib/i18n/en'
 import { es } from '@/lib/i18n/es'
+import { fr } from '@/lib/i18n/fr'
 
 /**
  * Which languages the product can actually SPEAK, as opposed to which it intends to.
@@ -15,10 +16,18 @@ import { es } from '@/lib/i18n/es'
  *
  *   `CATALOGUES` here           what EXISTS. A locale is in here when its file is.
  *
- * Today that is English and Spanish. `fr` is declared in `LOCALES` and has no catalogue yet,
- * which is a state worth being able to represent rather than one to hide: the column accepts
- * `'fr'`, a member could already have it stored, and `translate` falls back to English for every
- * key. Nothing breaks and nothing lies.
+ * Today the two lists AGREE — en, es, fr — and that is a coincidence of Phase 4 finishing
+ * rather than a property to rely on. The gap is the state this record exists to represent: a
+ * locale declared and not yet written renders English per key, `people_locale_check` still
+ * accepts it, a member may already have it stored, and the switcher does not offer it. Nothing
+ * breaks and nothing lies. Keep it able to say that.
+ *
+ * ── THE SHELL AND THE MAIL ARE TRANSLATED SEPARATELY, AND MAY DISAGREE ──────────────
+ * `lib/email/strings/index.ts` keeps its own record of the same shape, because that bundle is
+ * `server-only` and this one is a static import a client component can reach. A language could
+ * legitimately exist in one and not the other — and the switcher reads THIS one, which is the
+ * right way round: the screen is what a member sees when they choose, and mail falls back to
+ * English per key until its catalogue lands.
  *
  * ── WHY THE SWITCHER READS THIS ONE ─────────────────────────────────────────────────
  * **A control that offers a language the product cannot speak is a control that lies.** A member
@@ -28,12 +37,13 @@ import { es } from '@/lib/i18n/es'
  * because a picker with one option is furniture.
  *
  * Phase 3 built the plumbing and left this record holding one entry, so the switcher did not
- * render. Adding `es.ts` in Phase 4 is what made it appear — and that ONE LINE was the whole
- * edit, which is what the phase split was for.
+ * render. Adding `es.ts` in Phase 4 is what made it appear, and `fr.ts` beside it is a second
+ * one-line edit — which is what the phase split was for.
  */
 export const CATALOGUES: Record<string, Catalogue> = {
   en,
   es,
+  fr,
 }
 
 /**

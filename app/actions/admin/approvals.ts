@@ -9,6 +9,7 @@ import { getMyFamilyCode, getMyFamilies } from '@/lib/auth/family'
 import { createNotification } from '@/lib/notifications'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { membershipApprovedEmail } from '@/lib/email/templates'
+import { storedLocale } from '@/lib/i18n/locales'
 
 /**
  * Member Approvals: review, admit or refuse the people who have asked to join.
@@ -350,7 +351,7 @@ async function decide(
       // true of the query rather than merely true of the argument.
       const { data: person } = await admin
         .from('people')
-        .select('first_name, user_id')
+        .select('first_name, user_id, locale')
         .eq('family_code', familyCode)
         .eq('id', personId)
         .maybeSingle()
@@ -376,6 +377,12 @@ async function decide(
           origin: emailOrigin(),
           firstName: (person?.first_name as string) ?? '',
           familyName: (family?.family_name as string) ?? familyCode,
+          // THE APPLICANT'S OWN CHOICE, off the row already read above — never
+          // `resolveLocale`, which would fall through to the APPROVER's `Accept-Language`
+          // and mail a Spanish-speaking applicant in the administrator's language. A
+          // pending member can set this on My Profile while they wait, so it is real
+          // evidence rather than a column nobody has touched.
+          locale: storedLocale(person?.locale as string | null),
         })
         await sendEmail({ to: authEmail, subject: mail.subject, html: mail.html, tag: mail.tag })
       }

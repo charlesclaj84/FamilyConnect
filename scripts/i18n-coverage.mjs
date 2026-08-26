@@ -33,6 +33,18 @@
  *                       says. `lib/i18n/translated-from.json` is the record it is compared
  *                       against.
  *
+ *   DUPLICATE-KEY       one key defined by two BUNDLES. Which string renders would then depend
+ *                       on which bundle the call site happened to reach for, and both would be
+ *                       fingerprinted separately — so a stale translation could hide behind its
+ *                       twin. Structurally impossible to notice by reading either file.
+ *
+ *   CLIENT-BUNDLE       a `'use client'` file importing `lib/email/strings`. The email bundle is
+ *                       the prose of six messages nobody reads in a browser, and an import
+ *                       from a client component ships all of it — silently, because the import
+ *                       works and the strings render. `import 'server-only'` in that module is
+ *                       the real gate and turns this into a build failure; this is the second
+ *                       opinion, and it names the file.
+ *
  *   PINNED-FORMATTER    a date or money formatter called WITHOUT a locale. It renders English,
  *                       silently and correctly, which is exactly why it needs counting: a
  *                       half-localized product has no symptom. `lib/date-utils.ts` defaults
@@ -57,7 +69,21 @@
  *   ORPHAN, BAD-        an `es` key with no English counterpart, and `{next}` renamed to
  *   PLACEHOLDER         `{siguiente}` in a Spanish string.
  *
- * The throwaway catalogue was then removed, which is why `CATALOGUES` holds one entry today.
+ * The throwaway catalogue was then removed. Phase 4's `es` is the first real one.
+ *
+ *   DUPLICATE-KEY       `email.approved.subject` copied into `lib/i18n/en.ts` as well.
+ *   CLIENT-BUNDLE       an `import { emailT } from '@/lib/email/strings'` added to
+ *                       `components/layout/ThemeToggle.tsx`, which is `'use client'`.
+ *
+ * ── TWO BUNDLES, ONE MECHANISM ──────────────────────────────────────────────────────
+ * The shell's catalogue is a STATIC import reachable from client components, and the email
+ * bundle is `server-only`. They are separate modules for that reason alone — one `Catalogue`
+ * type, one `translate`, one fingerprint file, one gate. `BUNDLES` below is what makes that
+ * true of the gate as well as of the app: adding Phase 5's manual bundle is one entry in that
+ * array, and every check above then applies to it with no further edit.
+ *
+ * The keys are globally unique ACROSS bundles, which DUPLICATE-KEY enforces, so the fingerprint
+ * file stays a flat map per language rather than growing a bundle level nobody would read.
  *
  * ── WHAT IT CANNOT SEE, NAMED RATHER THAN LEFT TO BE DISCOVERED ─────────────────────
  *   * **Whether the words are any good.** No script can. The fingerprint answers "was this
@@ -102,6 +128,20 @@ const ROOT = ${JSON.stringify(ROOT)}
 const EXTENSIONS = ['', '.ts', '.tsx', '.mjs', '.js', '/index.ts', '/index.tsx']
 
 export async function resolve(specifier, context, next) {
+  // ── server-only IS A THROWING MODULE OUTSIDE REACT ───────────────────────────────
+  // The package resolves to an empty module under the react-server condition and to one that
+  // throws on purpose everywhere else, which is exactly what makes it a useful gate -- and what
+  // stops bare Node importing lib/email/strings. Stubbed here rather than by passing
+  // --conditions=react-server on the command line: the flag would change resolution for every
+  // module this script loads, to fix one import, and it lives in package.json where a reader of
+  // this file would never see it.
+  //
+  // NO BACKTICKS IN THIS COMMENT. The whole hook is a template literal in the file below, so a
+  // backtick here ends it and the script fails to parse -- which is how this comment came to be
+  // written twice.
+  if (specifier === 'server-only') {
+    return { url: 'data:text/javascript,', format: 'module', shortCircuit: true }
+  }
   if (specifier.startsWith('@/')) {
     const base = join(ROOT, specifier.slice(2))
     for (const ext of EXTENSIONS) {
@@ -120,10 +160,36 @@ register(`data:text/javascript,${encodeURIComponent(HOOK)}`)
 // AFTER register(), which is load-bearing: a hook registered later cannot resolve an import
 // that has already been evaluated.
 const load = name => import(pathToFileURL(join(ROOT, 'lib', 'i18n', name)).href)
-const { en } = await load('en.ts')
 const { CATALOGUES } = await load('catalogues.ts')
 const { placeholdersIn } = await load('t.ts')
 const { BASE_LOCALE } = await load('locales.ts')
+const { EMAIL_BUNDLE } = await import(
+  pathToFileURL(join(ROOT, 'lib', 'email', 'strings', 'index.ts')).href)
+
+/**
+ * Every translation bundle in the product, and where its call sites live.
+ *
+ * `where` is DOCUMENTATION, not a filter — the sweep for `t('…')` covers `SCAN` as a whole and
+ * does not care which bundle a key belongs to, because a key can only belong to one
+ * (DUPLICATE-KEY). It is here so a finding names something a reader can go and look at.
+ *
+ * Phase 5's manual is the third entry and needs nothing else.
+ */
+const BUNDLES = [
+  {
+    id: 'shell',
+    catalogues: CATALOGUES,
+    where: 'app/ and components/ — the rail, the top bar, the switchers',
+  },
+  {
+    id: 'email',
+    catalogues: EMAIL_BUNDLE,
+    where: 'lib/email/templates.ts — server-only, never in a browser bundle',
+  },
+]
+
+/** The English side of one bundle. The source every translation of it is measured against. */
+const sourceOf = bundle => bundle.catalogues[BASE_LOCALE] ?? {}
 /**
  * Where a `t('key')` call site may live.
  *
@@ -259,15 +325,27 @@ function readFingerprints() {
 
 if (process.argv[2] === 'accept') {
   const locale = process.argv[3]
-  if (!locale || !CATALOGUES[locale] || locale === BASE_LOCALE) {
+  // A LOCALE IS ACCEPTABLE IF ANY BUNDLE HAS IT, and every bundle that has it is recorded in
+  // one pass. Accepting per bundle was the alternative and is a worse shape: somebody would
+  // accept the shell, believe they were done, and leave the email prose reported as STALE —
+  // which reads as the gate being broken rather than as half a job.
+  const present = BUNDLES.filter(b => b.catalogues[locale])
+  if (!locale || present.length === 0 || locale === BASE_LOCALE) {
+    const offered = new Set()
+    for (const b of BUNDLES) {
+      for (const code of Object.keys(b.catalogues)) if (code !== BASE_LOCALE) offered.add(code)
+    }
     console.error(`\n  usage: npm run i18n:accept <locale>   (one of: ${
-      Object.keys(CATALOGUES).filter(c => c !== BASE_LOCALE).join(', ') || 'none yet'})\n`)
+      [...offered].join(', ') || 'none yet'})\n`)
     process.exit(1)
   }
   const existing = JSON.parse(readFileSync(FINGERPRINTS, 'utf8'))
   const next = {}
-  for (const key of Object.keys(CATALOGUES[locale])) {
-    if (en[key] !== undefined) next[key] = fingerprint(en[key])
+  for (const bundle of present) {
+    const en = sourceOf(bundle)
+    for (const key of Object.keys(bundle.catalogues[locale])) {
+      if (en[key] !== undefined) next[key] = fingerprint(en[key])
+    }
   }
   existing[locale] = next
   writeFileSync(FINGERPRINTS, `${JSON.stringify(existing, null, 2)}\n`, 'utf8')
@@ -280,8 +358,27 @@ if (process.argv[2] === 'accept') {
 const findings = []
 const used = usedKeys()
 const fingerprints = readFingerprints()
-const enKeys = new Set(Object.keys(en))
-const translations = Object.entries(CATALOGUES).filter(([code]) => code !== BASE_LOCALE)
+
+// ── THE UNION, AND WHO OWNS EACH KEY ───────────────────────────────────────────────
+// One flat set of defined keys, because a call site names a key and not a bundle. `owner` is
+// what turns a finding into something a reader can act on, and building it is what detects a
+// key defined twice — see DUPLICATE-KEY in the header.
+const enKeys = new Set()
+const owner = new Map()
+for (const bundle of BUNDLES) {
+  for (const key of Object.keys(sourceOf(bundle))) {
+    const first = owner.get(key)
+    if (first !== undefined) {
+      findings.push({
+        kind: 'DUPLICATE-KEY', key,
+        detail: `defined by both the ${first} and ${bundle.id} bundles — one of them must rename it`,
+      })
+      continue
+    }
+    owner.set(key, bundle.id)
+    enKeys.add(key)
+  }
+}
 
 // 1. Every key a call site names exists in English.
 for (const [key, where] of used) {
@@ -300,8 +397,11 @@ for (const key of enKeys) {
   }
 }
 
-// 3-5. Per translation: orphans, invented placeholders, and staleness.
-for (const [code, catalogue] of translations) {
+// 3-5. Per bundle, per translation: orphans, invented placeholders, and staleness.
+for (const bundle of BUNDLES) {
+ const en = sourceOf(bundle)
+ for (const [code, catalogue] of Object.entries(bundle.catalogues)) {
+  if (code === BASE_LOCALE) continue
   const recorded = fingerprints[code] ?? {}
   for (const [key, value] of Object.entries(catalogue)) {
     const source = en[key]
@@ -330,6 +430,32 @@ for (const [code, catalogue] of translations) {
       findings.push({
         kind: 'STALE', key,
         detail: `the English changed after ${code} was translated — re-check the wording, then: npm run i18n:accept ${code}`,
+      })
+    }
+  }
+ }
+}
+
+// 5b. The email bundle must not be reachable from a client component.
+//
+// `import 'server-only'` in that module is what actually stops it, and this is the second
+// opinion — a grep that names the file, because a build error on a transitive import points at
+// the module rather than at whoever imported it. It looks for the DIRECT import only: an
+// indirect one through `templates.ts` is caught by the same `server-only` marker one level up,
+// and chasing the graph here would be a module resolver written in a gate.
+for (const dir of SCAN) {
+  for (const file of walk(join(ROOT, dir))) {
+    const rel = relative(ROOT, file).split(SEP).join('/')
+    const raw = readFileSync(file, 'utf8')
+    // The directive, not a mention of it: `'use client'` inside a comment or a string is what
+    // `stripComments` is for, and the directive itself is code.
+    const code = stripComments(raw)
+    if (!/^\s*(?:'use client'|"use client")/.test(code)) continue
+    if (code.includes('@/lib/email/strings')) {
+      findings.push({
+        kind: 'CLIENT-BUNDLE', key: rel,
+        detail: 'a client component imports the email bundle — that ships six messages\' prose '
+          + 'to the browser. Compose the mail in a server action and pass the result down.',
       })
     }
   }
@@ -388,21 +514,34 @@ for (const [prefix, why] of KNOWN_DYNAMIC) {
   console.log(`\n  note     ${prefix}*\n           ${why}`)
 }
 
-const backlog = translations.map(([code, catalogue]) => {
-  const done = Object.keys(catalogue).filter(k => enKeys.has(k)).length
-  return `${code} ${done}/${enKeys.size}`
-})
+// PER BUNDLE, and always printed. A single total would hide the state this is most likely to
+// be in — one bundle fully translated and the next one empty — which is exactly the half-job
+// `i18n:accept`'s note above is about.
+const languages = new Set()
+for (const bundle of BUNDLES) {
+  const en = sourceOf(bundle)
+  const total = Object.keys(en).length
+  const done = Object.entries(bundle.catalogues)
+    .filter(([code]) => code !== BASE_LOCALE)
+    .map(([code, catalogue]) => {
+      languages.add(code)
+      return `${code} ${Object.keys(catalogue).filter(k => en[k] !== undefined).length}/${total}`
+    })
+  console.log(
+    `\n  bundle   ${bundle.id} — ${total} key(s)${done.length ? ` · ${done.join(' · ')}` : ''}`
+    + `\n           ${bundle.where}`)
+}
 
 console.log(
-  `\n  scanned  ${enKeys.size} key(s) · ${used.size} call site key(s) · `
-  + `${translations.length} translation(s)${backlog.length ? ` · ${backlog.join(' · ')}` : ''}`
+  `\n  scanned  ${enKeys.size} key(s) across ${BUNDLES.length} bundle(s) · `
+  + `${used.size} call site key(s) · ${languages.size} translation(s)`
   + `\n           ${pinned}/${PINNED_CEILING} date and money call site(s) still default to English`
 )
 
 // THE BACKLOG IS PRINTED EVEN WHEN THERE IS NOTHING TO SAY, which is deliberate: a product with
 // one catalogue and two declared languages is a real state and it should be visible on every
 // run rather than inferred from silence. Same reason `help:check` prints its allowances.
-if (translations.length === 0) {
+if (languages.size === 0) {
   console.log(
     `\n           No translations yet. ${Object.keys(CATALOGUES).length} catalogue(s) exist, so the\n`
     + '           language switcher does not render — see lib/i18n/catalogues.ts.'

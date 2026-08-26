@@ -2,7 +2,7 @@
  * Module resolution hooks so the real server actions can be imported and called
  * outside a Next.js request.
  *
- * Three jobs, and deliberately no more than three — every extra substitution is
+ * Seven jobs, and deliberately no more than seven — every extra substitution is
  * a place where the code under test stops being the code that ships:
  *
  *   1. `@/x`            → the project's own file (Next's tsconfig path alias).
@@ -16,6 +16,10 @@
  *      is written against.
  *   6. `@/lib/supabase/server` → a client authenticated as the current test
  *      actor, instead of one built from `cookies()`.
+ *   7. `server-only`    → an empty module. The package is NOT INSTALLED — Next aliases the
+ *      specifier in its own bundler — so bare Node cannot resolve it at all, and every action
+ *      reaching `lib/email/strings` fails as a harness error. See the stub, which states what
+ *      the substitution costs and what enforces that boundary instead.
  *
  * Everything else is real: the guards, `lib/auth/permissions.ts`, the admin
  * client, and — the entire point of the exercise — the RLS policies in the
@@ -35,6 +39,7 @@ const STUBS = {
   'next/server': join(HERE, 'stubs', 'next-server.mjs'),
   'next/headers': join(HERE, 'stubs', 'next-headers.mjs'),
   '@/lib/supabase/server': join(HERE, 'stubs', 'supabase-server.mjs'),
+  'server-only': join(HERE, 'stubs', 'server-only.mjs'),
 }
 
 const EXTENSIONS = ['', '.ts', '.tsx', '.mjs', '.js', '/index.ts', '/index.tsx']

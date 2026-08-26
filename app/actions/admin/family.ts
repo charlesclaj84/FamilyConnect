@@ -15,6 +15,7 @@ import { tierMove } from '@/lib/platform-billing'
 // carrying GENORRA's SPF and DKIM — see the header of lib/email/send.ts.
 import { sendEmail, emailOrigin, deliveryNote } from '@/lib/email/send'
 import { familyRemovalCodeEmail } from '@/lib/email/templates'
+import { resolveLocale } from '@/lib/auth/locale'
 import {
   CHALLENGE_CODE_MINUTES, hashChallengeCode, mintChallenge,
 } from '@/lib/action-challenge'
@@ -608,6 +609,10 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
     familyName,
     code: minted.code,
     expiresInMinutes: minted.minutes,
+    // THE ONE PLACE `resolveLocale` IS RIGHT FOR MAIL: this action takes no arguments and
+    // resolves the address from the session, so the reader is by construction the caller —
+    // and for the caller `Accept-Language` is their own browser rather than somebody else's.
+    locale: await resolveLocale(g.userId),
   })
   const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, tag: mail.tag })
 

@@ -79,6 +79,25 @@ export function isSupportedLocale(code: string | null | undefined): boolean {
 }
 
 /** The locale for a code, or the base locale. Never null, so no caller branches on absence. */
+/**
+ * A stored `people.locale` narrowed to something a catalogue can be looked up with.
+ *
+ * ── THE RECIPIENT'S HALF OF THE RESOLUTION, AND IT MUST NOT BE `resolveLocale` ──────
+ * `lib/auth/locale.ts` answers *what language is the CALLER reading in*, and its second source
+ * is the `Accept-Language` header. For a piece of MAIL that header is the wrong browser
+ * entirely: it belongs to the administrator pressing Send, not to the relative who will open
+ * the message. Falling through to it would mail an English-speaking treasurer's whole family in
+ * English however many of them had chosen Spanish — silently, and only ever visible to them.
+ *
+ * So a recipient path reads the stored column and narrows it with this. There is no second
+ * source and there must not be: what the reader chose, or the language the catalogue is
+ * written in. A `null` is genuine evidence — the member has not chosen — and English is the
+ * honest answer to it.
+ */
+export function storedLocale(value: string | null | undefined): string {
+  return isSupportedLocale(value) ? (value as string) : BASE_LOCALE
+}
+
 export function localeFor(code: string | null | undefined): Locale {
   return LOCALES.find(l => l.code === code) ?? LOCALES[0]
 }

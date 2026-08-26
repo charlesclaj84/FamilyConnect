@@ -81,6 +81,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { stripComments } from './strip-code.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
@@ -211,6 +212,18 @@ const REVIEWED = {
   'app/actions/staff/accounts.ts:people':
     'STAFF — the GENORRA console reads across families by design (AGENTS.md, "Three words that '
     + 'name three different products"), gated by the staff guard rather than by a family.',
+  'lib/gathering-when-write.ts:gathering_occurrences':
+    'SCOPED IN THE PAYLOAD, NOT IN A FILTER — the same shape as `lib/notifications.ts` below, '
+    + 'and it is the INSERT rather than the DELETE beside it (which does carry the conjunct). '
+    + 'Every row `writeOccurrences` inserts is built with `family_code: familyCode` from the '
+    + 'caller’s own guard, and the rows are assembled above the `.from()` call, so the conjunct '
+    + 'is behind the window the sweep reads. `gathering_occurrences_guard_family` refuses a '
+    + 'cross-family `gathering_id` underneath it in any case (§4), which the trigger tests '
+    + 'against the parent rather than against the argument. '
+    + 'FOUND 2026-08-26, and only because the sweep started stripping comments: the window ran '
+    + 'forward into `readOccurrences`’ own header, whose §3 sentence contains the words '
+    + '`family_code`. A doc comment for the NEXT function was excusing this query.',
+
   'lib/notifications.ts:notifications':
     'SCOPED IN THE PAYLOAD, NOT IN A FILTER — and it is the one shape this script structurally '
     + 'cannot see. Every row `notifyAllMembers` inserts carries `family_code: opts.familyCode` '
@@ -253,7 +266,23 @@ let queries = 0
 for (const root of SCAN) {
   for (const file of walk(join(ROOT, root))) {
     const rel = relative(ROOT, file).split(sep).join('/')
-    const src = readFileSync(file, 'utf8')
+    // ── COMMENTS BLANKED, STRING CONTENTS KEPT — AND THIS IS NOT COSMETIC ────────────
+    // The statement window below runs from one `.from(` to the NEXT one, so every comment
+    // between two queries is inside the FIRST query's window. A doc comment that merely MENTIONS
+    // `family_code` therefore silences a real finding on the query above it.
+    //
+    // Measured 2026-08-26: `localesOfPeople` was added to `lib/auth/locale.ts` with a header
+    // explaining its own `.eq('family_code', …)`, and `resolveLocale` — which is genuinely
+    // unscoped, deliberately, and carries a SELF verdict — stopped reporting. The verdict was
+    // then flagged as stale, which is the only reason anybody noticed. Without the ratchet on
+    // unused verdicts this would have been a silent hole: a `family_code` in prose is worth
+    // nothing at runtime, and every §3 explanation in this codebase contains one.
+    //
+    // String contents are KEPT because they are what the sweep matches — `.from('people')` and
+    // `.eq('family_code', …)` are both string literals. `scripts/strip-code.mjs` carries the
+    // argument for one stripper with a flag rather than two scanners; `audit:time` takes the
+    // other setting for the opposite reason.
+    const src = stripComments(readFileSync(file, 'utf8'))
     scanned += 1
 
     if (rel in REVIEWED_FILES) { used.add(rel); continue }

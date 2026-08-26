@@ -275,3 +275,70 @@ describe('Spanish', () => {
     expect(tag).not.toBe('es')
   })
 })
+
+/**
+ * FRENCH IS LIVE (Phase 4), and this block is not a copy of the Spanish one.
+ *
+ * Three of its five assertions are the same CLAIM about a different language — offered,
+ * complete, formally addressed — and are worth repeating for the reason the Spanish header
+ * gives: the registry tests above are true whether or not a given catalogue exists, so only an
+ * assertion naming `fr` would notice it being dropped or emptied.
+ *
+ * The last two are things nothing else in the repo can see:
+ *
+ *   * **The no-break spaces.** French sets a space before `:`, `?` and `!`, and this file uses
+ *     U+00A0 so a label cannot wrap with the punctuation orphaned. `i18n:check` compares key
+ *     sets, placeholders and source hashes — it has no opinion about typography, and a plain
+ *     space is invisible in a diff and in a screenshot. An editor "tidying" one is exactly the
+ *     kind of change that would go unnoticed forever.
+ *   * **`fr-FR`, not `fr`.** The same trap `es-MX` is pinned against one describe above: a bare
+ *     code formats plausibly and wrongly.
+ */
+describe('French', () => {
+  it('is offered, so the switcher lists three languages', () => {
+    expect(hasLanguageChoice()).toBe(true)
+    expect(availableLocales().map(l => l.code)).toEqual(['en', 'es', 'fr'])
+  })
+
+  it('covers every English key, so nothing silently falls back', () => {
+    const missing = Object.keys(en).filter(k => !(k in CATALOGUES.fr))
+    expect(missing).toEqual([])
+  })
+
+  it('addresses the reader FORMALLY, which is the decision most easily undone', () => {
+    // `vous`, never `tu` — the same rule Spanish keeps, pinned on the two strings where the
+    // second person actually appears.
+    expect(tFor('fr')('language.choose')).toBe('Choisissez une langue')  // not 'Choisis'
+    expect(tFor('fr')('switcher.heading')).toBe('Vos familles')          // not 'Tes familles'
+  })
+
+  it('keeps rassemblement and réunion apart, the same distinction Spanish needs', () => {
+    // A `réunion` in French is the formal proceeding with a secretary and minutes, not the
+    // family picnic. Confirming the duplicate-caption rule in `en.ts` pays off in a SECOND
+    // language rather than being a property of Spanish alone.
+    const t = tFor('fr')
+    expect(t('nav.item./gatherings')).toBe('Rassemblements')
+    expect(t('nav.item./reporting/meetings')).toBe('Réunions')
+    expect(t('nav.item./gatherings')).not.toBe(t('nav.item./reporting/meetings'))
+  })
+
+  it('uses a NO-BREAK space before a colon, which no gate can see', () => {
+    // U+00A0, not U+0020. `i18n:check` compares key sets, placeholders and source hashes and has
+    // no opinion about typography, so this is the only thing standing between the French labels
+    // and somebody normalising the whitespace.
+    //
+    // U+202F is the more correct character and is deliberately not used: it renders as a
+    // missing-glyph box in some fallback fonts, and a visible box in a theme label is worse than
+    // a slightly wide space. Pinned so that choice is a decision rather than a drift.
+    const label = tFor('fr')('theme.currentLabel')
+    expect(label).toContain('\u00a0:')
+    expect(label).not.toContain(' :')
+    expect(label).not.toContain('\u202f')
+  })
+
+  it('formats numbers and dates with the France tag, not the bare code', () => {
+    const tag = availableLocales().find(l => l.code === 'fr')!.intl
+    expect(tag).toBe('fr-FR')
+    expect(tag).not.toBe('fr')
+  })
+})

@@ -15,6 +15,7 @@ import { CONNECT_ACCOUNT_COUNTRY, connectConfigured } from '@/lib/stripe/config'
 // and DKIM — see the header of lib/email/send.ts.
 import { sendEmail, emailOrigin, deliveryNote } from '@/lib/email/send'
 import { processorDisconnectCodeEmail } from '@/lib/email/templates'
+import { resolveLocale } from '@/lib/auth/locale'
 import { hashChallengeCode, mintChallenge } from '@/lib/action-challenge'
 import { SITE_URL } from '@/lib/site'
 
@@ -404,6 +405,8 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
     code: minted.code,
     expiresInMinutes: minted.minutes,
     autopayCount,
+    // The caller is the reader — same as the removal code. See that action.
+    locale: await resolveLocale(g.userId),
   })
   const sent = await sendEmail({ to, subject: mail.subject, html: mail.html, tag: mail.tag })
 
