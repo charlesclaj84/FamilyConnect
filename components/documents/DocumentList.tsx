@@ -18,7 +18,7 @@ import {
   deleteDocument, getDocumentDownloadUrl, uploadDocument, type DocumentRecord,
 } from '@/app/actions/documents'
 import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/document-categories'
-import { formatDate } from '@/lib/date-utils'
+import { formatInstantDate } from '@/lib/tz'
 
 /**
  * The family's filed documents.
@@ -41,13 +41,15 @@ import { formatDate } from '@/lib/date-utils'
  * `RowMeta` under the name. Same pattern as every other table here, and for the reason
  * AGENTS.md gives: the column that scrolls off is invariably the one somebody came for.
  */
-export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPersonId }: {
+export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPersonId, zone }: {
   initialDocuments: DocumentRecord[]
   canUpload: boolean
   /** `library/documents:delete` at scope 'any' — may remove anybody's. */
   canDeleteAny: boolean
   /** The caller's own `people.id`: an uploader may always remove their own. */
   myPersonId: string | null
+  /** The reader's timezone, resolved by the page. `created_at` is an instant. */
+  zone: string
 }) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -194,7 +196,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                       <span>{documentCategoryLabel(doc.category)}</span>
                       {doc.file_size_bytes ? <><MetaDot /><span>{formatSize(doc.file_size_bytes)}</span></> : null}
                       <MetaDot />
-                      <span>{formatDate(doc.created_at)}</span>
+                      <span>{formatInstantDate(doc.created_at, zone)}</span>
                     </RowMeta>
                   </td>
                   <td className={`px-3 py-2.5 text-muted-foreground ${COLLAPSING_CELL}`}>
@@ -204,7 +206,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                     {formatSize(doc.file_size_bytes)}
                   </td>
                   <td className={`px-3 py-2.5 text-muted-foreground ${COLLAPSING_CELL}`}>
-                    {formatDate(doc.created_at)}
+                    {formatInstantDate(doc.created_at, zone)}
                     {doc.uploaded_by_name && (
                       <span className="block text-xs">by {doc.uploaded_by_name}</span>
                     )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { formatInstant } from '@/lib/tz'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import type { CheckInReach, CheckInResponse, RosterRow } from '@/lib/safety-check-in'
 
@@ -88,7 +89,11 @@ function reachText(reach: CheckInReach, state: CheckInResponse): string | null {
   }
 }
 
-export function CheckInRoster({ rows }: { rows: readonly RosterRow[] }) {
+export function CheckInRoster({ rows, zone }: {
+  rows: readonly RosterRow[]
+  /** The reader's timezone. `responded_at` is an instant, not a wall-clock label. */
+  zone: string
+}) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -117,13 +122,16 @@ export function CheckInRoster({ rows }: { rows: readonly RosterRow[] }) {
             const bucket = bucketOf(row)
             const reach = reachText(row.reach, row.state)
             const when = row.respondedAt
-              ? new Date(row.respondedAt).toLocaleString(undefined, {
-                  // A TIME, NOT JUST A DATE, and the one place in this product where that is
-                  // right: everything else here is a DATE column with no time of day (AGENTS.md,
-                  // "DATES ARE `DATE`"), but `responded_at` is a real timestamptz and during an
-                  // emergency the hour is the fact somebody needs.
-                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                })
+              // A TIME, NOT JUST A DATE, and the one place in this product where that is
+              // right: everything else here is a DATE column with no time of day (AGENTS.md,
+              // "DATES ARE `DATE`"), but `responded_at` is a real timestamptz and during an
+              // emergency the hour is the fact somebody needs.
+              //
+              // Read in the READER's zone rather than the runtime's. It was
+              // `toLocaleString(undefined, …)`, which takes the browser's zone in a client
+              // component and UTC on the server — so during the one event where the hour is
+              // load-bearing, two coordinators could read different times off the same row.
+              ? formatInstant(row.respondedAt, zone)
               : null
 
             return (

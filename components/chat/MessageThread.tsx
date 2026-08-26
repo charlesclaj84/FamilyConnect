@@ -24,9 +24,11 @@ interface Props {
    * member would not appear until the whole page was reloaded.
    */
   onParticipantsChange: (roomId: string, next: ChatParticipant[]) => void
+  /** The reader's timezone, resolved by the page. Message timestamps are instants. */
+  zone: string
 }
 
-export function MessageThread({ room, currentUserId, onBack, onParticipantsChange }: Props) {
+export function MessageThread({ room, currentUserId, onBack, onParticipantsChange, zone }: Props) {
   const confirm = useConfirm()
   const [messages, setMessages]         = useState<ChatMessage[]>([])
   const [senderMap, setSenderMap]       = useState<SenderMap>({})
@@ -252,6 +254,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
                 message={msg}
                 senderName={resolveName(msg.sender_id)}
                 isOwn={msg.sender_id === currentUserId}
+                zone={zone}
               />
             ))}
             <div ref={bottomRef} />

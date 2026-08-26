@@ -83,6 +83,7 @@ export function SafetyCheckInsClient({
   audiences,
   people,
   rights,
+  zone,
 }: {
   /** `null` from the action means a REFUSED read, not an empty list. §8. */
   initialCheckIns: CheckInSummary[] | null
@@ -90,6 +91,8 @@ export function SafetyCheckInsClient({
   audiences: readonly CheckInAudienceOption[]
   people: readonly CheckInPickerPerson[]
   rights: CheckInRights
+  /** The reader's timezone. `responded_at` on a roster row is an instant. */
+  zone: string
 }) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -276,6 +279,7 @@ export function SafetyCheckInsClient({
                 detail={expanded === row.id ? detail : null}
                 busy={pending || sendingFor === row.id}
                 sending={sendingFor === row.id}
+                zone={zone}
                 onToggle={() => loadDetail(row.id)}
                 onAskRest={() => void drive(row.id)}
                 onRetry={() => act(() => retryCheckInAsks(row.id))}
@@ -303,6 +307,7 @@ export function SafetyCheckInsClient({
               detail={expanded === row.id ? detail : null}
               busy={pending}
               sending={false}
+              zone={zone}
               onToggle={() => loadDetail(row.id)}
               onDelete={() => remove(row)}
             />
@@ -326,11 +331,13 @@ export function SafetyCheckInsClient({
 
 /** One check-in, with its counts and — where the caller may read it — its roster. */
 function CheckInCard({
-  row, now, rights, expanded, detail, busy, sending,
+  row, now, rights, expanded, detail, busy, sending, zone,
   onToggle, onAskRest, onRetry, onClose, onDelete,
 }: {
   row: CheckInSummary
   now: Date | null
+  /** The reader's timezone — a roster row's `responded_at` is an instant. */
+  zone: string
   rights: CheckInRights
   expanded: boolean
   detail: CheckInDetail | null
@@ -457,7 +464,7 @@ function CheckInCard({
       {expanded && (
         <div className="mt-4">
           {detail
-            ? <CheckInRoster rows={detail.roster} />
+            ? <CheckInRoster zone={zone} rows={detail.roster} />
             : <p className="text-sm text-muted-foreground">Loading who was asked…</p>}
         </div>
       )}

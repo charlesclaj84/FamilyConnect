@@ -90,4 +90,59 @@ describe('pickProfileColumns', () => {
       expect(pickProfileColumns({ first_name: 42 })).toEqual({ first_name: 42 })
     })
   })
+
+  describe('Unicode normalisation', () => {
+    /**
+     * "José" spelled two ways. Both render identically; they are different strings, and which
+     * one arrives depends on the keyboard and the operating system — so one relative can
+     * legitimately produce both for their own name.
+     *
+     * A literal combining mark is invisible in an editor and can be eaten or normalised by
+     * the next tool that touches the file — which would silently turn this into a tautology
+     * comparing one string with itself. The `.length` assertions in the first test are the
+     * guard against that, and they are why that test exists at all: it asserts the PREMISE,
+     * so a fixture that has quietly lost its combining mark fails loudly instead of passing
+     * for the wrong reason.
+     */
+    const COMPOSED = 'José'          // e-acute as one code point
+    const DECOMPOSED = 'José'       // e + combining acute
+
+    it('the two encodings really are different strings', () => {
+      // The premise. If this ever fails, the test below is asserting nothing.
+      expect(COMPOSED).not.toBe(DECOMPOSED)
+      expect(COMPOSED.length).toBe(4)
+      expect(DECOMPOSED.length).toBe(5)
+    })
+
+    it('folds both spellings to one canonical value', () => {
+      // Without this, a unique index sees two values, a dedupe misses one, `===` is false and
+      // `ORDER BY` puts them apart — each failing quietly, because the screen shows the same
+      // word either way.
+      const a = pickProfileColumns({ first_name: COMPOSED })
+      const b = pickProfileColumns({ first_name: DECOMPOSED })
+      expect(a).toEqual(b)
+      expect(a.first_name).toBe(COMPOSED)
+    })
+
+    it('normalises columns that are not names or phones too', () => {
+      // The pass is over every string that reaches the row, not just the ones with their own
+      // normaliser. A city and a street are as capable of arriving decomposed as a name.
+      expect(pickProfileColumns({ city: 'Montréal' })).toEqual({ city: 'Montréal' })
+    })
+
+    it('runs BEFORE name-casing, so the case rule sees a canonical string', () => {
+      // `toNameCase` decides on `\p{Lu}`/`\p{Ll}`, and in the decomposed form the accent is a
+      // separate code point with no case at all. Normalising afterwards would leave the two
+      // spellings taking different branches of that rule.
+      expect(pickProfileColumns({ first_name: 'josé' }))
+        .toEqual({ first_name: 'José' })
+    })
+
+    it('leaves an already-canonical value untouched', () => {
+      // The 99% case, and the regression that would matter most: this pass runs on every
+      // string of every profile write, so it has to be a no-op for ordinary input.
+      expect(pickProfileColumns({ city: 'Austin', street_address: '123 Elm St.' }))
+        .toEqual({ city: 'Austin', street_address: '123 Elm St.' })
+    })
+  })
 })

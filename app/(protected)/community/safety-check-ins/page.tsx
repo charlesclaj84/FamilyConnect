@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import {
   getCheckInComposer, getCheckInRights, getCheckIns, getMyOpenCheckIns,
 } from '@/app/actions/safety-check-ins'
@@ -60,13 +61,14 @@ export default async function SafetyCheckInsPage() {
 
   const canRaise = await canAny(user.id, 'community/safety-check-ins', 'create')
 
-  const [checkIns, mine, rights, composer] = await Promise.all([
+  const [checkIns, mine, rights, composer, zone] = await Promise.all([
     getCheckIns(),
     getMyOpenCheckIns(),
     getCheckInRights(),
     // §5: the audience list is not fetched for somebody who cannot raise one. The action
     // resolves the same grant itself, because this page is a convenience and not a gate (§2).
     canRaise ? getCheckInComposer() : Promise.resolve({ audiences: [], people: [] }),
+    resolveZone(user.id),
   ])
 
   return (
@@ -81,6 +83,7 @@ export default async function SafetyCheckInsPage() {
         audiences={composer.audiences}
         people={composer.people}
         rights={rights}
+        zone={zone}
       />
     </PageShell>
   )

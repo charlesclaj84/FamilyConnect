@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
+import { resolveZone } from '@/lib/auth/zone'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
 import { PageShell } from '@/components/layout/PageShell'
@@ -28,11 +29,12 @@ export default async function DocumentsPage() {
 
   await requireView(user.id, 'library/documents')
 
-  const [documents, canUpload, canDeleteAny, myPersonId] = await Promise.all([
+  const [documents, canUpload, canDeleteAny, myPersonId, zone] = await Promise.all([
     getDocuments(),
     canAny(user.id, 'library/documents', 'create'),
     canAny(user.id, 'library/documents', 'delete'),
     getMyPersonId(user.id),
+    resolveZone(user.id),
   ])
 
   return (
@@ -45,6 +47,7 @@ export default async function DocumentsPage() {
         canUpload={canUpload}
         canDeleteAny={canDeleteAny}
         myPersonId={myPersonId || null}
+        zone={zone}
       />
     </PageShell>
   )

@@ -22,6 +22,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
+import { formatInstantDate } from '@/lib/tz'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { PAYMENT_STATUS_LABELS, type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
@@ -98,6 +99,15 @@ interface Props {
    * are watching themselves record.
    */
   myName: string
+  /**
+   * The reader's timezone, resolved once by the page (`resolveZone`).
+   *
+   * Every `created_at` on this screen is an INSTANT and has no calendar date of its
+   * own — `formatDate` on one printed the UTC day, so anything entered after 7pm
+   * Central was filed a day late. The DATE columns beside them are wall-clock labels
+   * and deliberately still go through `formatDate`. See lib/tz.ts.
+   */
+  zone: string
 }
 
 type IconComponent = React.ComponentType<{ className?: string }>
@@ -166,7 +176,7 @@ const recorderField = (name: string | null) => ({
   value: name ?? 'No longer in the family',
 })
 
-function viewOfPayment(p: DuesPayment | undefined): TransactionView | null {
+function viewOfPayment(p: DuesPayment | undefined, zone: string): TransactionView | null {
   if (!p) return null
   const isReversal = Boolean(p.reverses_id)
   const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
@@ -184,14 +194,14 @@ function viewOfPayment(p: DuesPayment | undefined): TransactionView | null {
       { label: 'Check # / Reference', value: p.payment_reference },
       { label: 'Notes', value: p.notes },
       recorderField(p.recorded_by_name),
-      { label: 'Entered', value: formatDate(p.created_at) },
+      { label: 'Entered', value: formatInstantDate(p.created_at, zone) },
       ...(p.reversed_by_id ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }] : []),
       ...(isReversal ? [{ label: 'Corrects', value: 'An earlier payment on this ledger' }] : []),
     ],
   }
 }
 
-function viewOfContribution(c: FundContribution | undefined): TransactionView | null {
+function viewOfContribution(c: FundContribution | undefined, zone: string): TransactionView | null {
   if (!c) return null
   return {
     title: c.contributor_name ?? 'Routed from a payment',
@@ -204,12 +214,12 @@ function viewOfContribution(c: FundContribution | undefined): TransactionView | 
       { label: 'Check # / Reference', value: c.payment_reference },
       { label: 'Notes', value: c.notes },
       recorderField(c.recorded_by_name),
-      { label: 'Entered', value: formatDate(c.created_at) },
+      { label: 'Entered', value: formatInstantDate(c.created_at, zone) },
     ],
   }
 }
 
-function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | null {
+function viewOfDisbursement(d: FundDisbursement | undefined, zone: string): TransactionView | null {
   if (!d) return null
   return {
     title: d.person_name ?? 'Unknown member',
@@ -222,7 +232,7 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
       { label: 'Check # / Reference', value: d.payment_reference },
       { label: 'Notes', value: d.notes },
       recorderField(d.recorded_by_name),
-      { label: 'Entered', value: formatDate(d.created_at) },
+      { label: 'Entered', value: formatInstantDate(d.created_at, zone) },
     ],
   }
 }
@@ -231,7 +241,7 @@ function viewOfDisbursement(d: FundDisbursement | undefined): TransactionView | 
  * A transfer has no counterparty to head the row with, so the two funds do the job:
  * the title is the movement itself and the subtitle says it changed no total.
  */
-function viewOfTransfer(t: FundTransfer | undefined): TransactionView | null {
+function viewOfTransfer(t: FundTransfer | undefined, zone: string): TransactionView | null {
   if (!t) return null
   return {
     title: `${t.from_fund_name ?? 'Unknown fund'} → ${t.to_fund_name ?? 'Unknown fund'}`,
@@ -243,7 +253,7 @@ function viewOfTransfer(t: FundTransfer | undefined): TransactionView | null {
       { label: 'Date', value: formatDate(t.transferred_date) },
       { label: 'Reason', value: t.reason },
       recorderField(t.recorded_by_name),
-      { label: 'Entered', value: formatDate(t.created_at) },
+      { label: 'Entered', value: formatInstantDate(t.created_at, zone) },
     ],
   }
 }
@@ -387,6 +397,7 @@ export function TransactionsClient({
   canRecordTransfers,
   canReverse,
   myName,
+  zone,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -747,12 +758,12 @@ export function TransactionsClient({
   const viewed: TransactionView | null = !viewing
     ? null
     : viewing.ledger === 'contributions'
-      ? viewOfContribution(contributions.find(c => c.id === viewing.id))
+      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone)
       : viewing.ledger === 'disbursements'
-        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id))
+        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone)
         : viewing.ledger === 'transfers'
-          ? viewOfTransfer(transfers.find(t => t.id === viewing.id))
-          : viewOfPayment(payments.find(p => p.id === viewing.id))
+          ? viewOfTransfer(transfers.find(t => t.id === viewing.id), zone)
+          : viewOfPayment(payments.find(p => p.id === viewing.id), zone)
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.

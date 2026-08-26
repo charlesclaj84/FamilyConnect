@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import {
   getOrCreateFamilyRoom,
   getRoomList,
@@ -54,10 +55,11 @@ export default async function ChatPage() {
 
   await requireView(user.id, 'community/chat')
 
-  const [{ room: familyRoom, error: chatError }, rooms, familyMembers] = await Promise.all([
+  const [{ room: familyRoom, error: chatError }, rooms, familyMembers, zone] = await Promise.all([
     getOrCreateFamilyRoom(),
     getRoomList(),
     getFamilyMembersWithAccounts(),
+    resolveZone(user.id),
   ])
 
   return (
@@ -84,6 +86,7 @@ export default async function ChatPage() {
             familyRoomId={familyRoom.id}
             currentUserId={user.id}
             familyMembers={familyMembers}
+            zone={zone}
           />
         ) : (
           <div className="mx-auto max-w-lg space-y-2 py-16 text-center">

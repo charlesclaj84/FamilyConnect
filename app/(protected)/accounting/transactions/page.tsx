@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
+import { resolveZone } from '@/lib/auth/zone'
 import { getDuesSchedules, getAllDuesPayments } from '@/app/actions/dues'
 import { getFunds, getAllDisbursements, getFundContributions, getFundTransfers } from '@/app/actions/funds'
 import { TransactionsClient } from '@/components/transactions/TransactionsClient'
@@ -114,7 +115,7 @@ export default async function TransactionsPage({
   const [
     schedules, payments, fundsData, disbursements, contributions, transfers,
     canRecordDues, canRecordDonations, canRecordContributions,
-    canRecordDisbursements, canRecordTransfers, canReverse,
+    canRecordDisbursements, canRecordTransfers, canReverse, zone,
   ] = await Promise.all([
     getDuesSchedules(),
     wantPayments ? getAllDuesPayments() : [],
@@ -128,6 +129,7 @@ export default async function TransactionsPage({
     canAny(user.id, LEDGER_RESOURCE.disbursements, 'create'),
     canAny(user.id, LEDGER_RESOURCE.transfers, 'create'),
     canAny(user.id, REVERSAL_RESOURCE, 'create'),
+    resolveZone(user.id),
   ])
 
   // How much of the roster this caller is entitled to see, which is NOT the same as
@@ -225,6 +227,7 @@ export default async function TransactionsPage({
 
       <TransactionsClient
         initialLedger={initialLedger}
+        zone={zone}
         visibleLedgers={visibleLedgers}
         initialPayments={visiblePayments}
         initialContributions={contributions}

@@ -15,9 +15,11 @@ interface Props {
   familyRoomId: string
   currentUserId: string
   familyMembers: { userId: string; firstName: string | null; lastName: string | null }[]
+  /** The reader's timezone, resolved by the page. Message timestamps are instants. */
+  zone: string
 }
 
-export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMembers }: Props) {
+export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMembers, zone }: Props) {
   const confirm = useConfirm()
   const [rooms, setRooms]               = useState<RoomWithMeta[]>(initialRooms)
   const [activeRoomId, setActiveRoomId] = useState(familyRoomId)
@@ -124,6 +126,7 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
               currentUserId={currentUserId}
               onBack={() => setShowThread(false)}
               onParticipantsChange={handleParticipantsChange}
+              zone={zone}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">

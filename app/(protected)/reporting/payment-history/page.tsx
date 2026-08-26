@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import { getMyPaymentHistory } from '@/app/actions/dues'
 import { PaymentHistorySection } from '@/components/account/PaymentHistorySection'
 import { PageShell } from '@/components/layout/PageShell'
@@ -28,12 +29,17 @@ export default async function PaymentHistoryPage() {
 
   await requireView(user.id, 'reporting/payment-history')
 
-  const history = await getMyPaymentHistory()
+  // Resolved once per request (`resolveZone` is React-`cache`d) and handed down, so the
+  // instants on this screen are read in the member's own zone rather than the server's.
+  const [history, zone] = await Promise.all([
+    getMyPaymentHistory(),
+    resolveZone(user.id),
+  ])
 
   return (
     <PageShell className="space-y-8">
       <h1 className="text-3xl font-bold">Payment History</h1>
-      <PaymentHistorySection history={history} />
+      <PaymentHistorySection history={history} zone={zone} />
     </PageShell>
   )
 }

@@ -167,6 +167,15 @@ const REVIEWED = {
     "SELF — `.eq('recipient_id', person.id)` where `person` is the caller's own row, which is "
     + 'narrower than the family.',
 
+  'lib/auth/zone.ts:people':
+    "SELF — `.eq('user_id', userId)`, the caller's own rows, which is narrower than a family. "
+    + 'The column read is `time_zone`, one of the columns `people_sync_shared_profile` '
+    + 'propagates across every family a user belongs to, so every one of the caller\'s own '
+    + 'rows holds the same answer and there is nothing for a family conjunct to '
+    + 'disambiguate. It is on the admin client rather than the user one because this resolver '
+    + 'is called from layouts that have not resolved a family yet — the same reason '
+    + 'lib/auth/family.ts is exempt as a whole file.',
+
   'app/actions/dues.ts:dues_payments':
     'TRANSITIVE — payment ids from family-scoped reads in the same function: the routing pass '
     + 'reads the payments it is routing, and `reverses_id` is matched against a payment already '

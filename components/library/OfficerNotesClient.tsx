@@ -14,7 +14,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { MainRail } from '@/components/layout/MainRail'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate } from '@/lib/date-utils'
+import { formatInstantDate } from '@/lib/tz'
 import {
   addJournalEntry, addJournalNote, deleteJournalEntry, deleteJournalNote, getJournalEntries,
   updateJournalEntry, updateJournalNote,
@@ -63,6 +63,15 @@ interface Props {
   offices: JournalOffice[]
   initialOffice: string
   initialEntries: JournalEntry[]
+  /**
+   * The reader's timezone, resolved once by the page (`resolveZone`).
+   *
+   * Every `created_at` on this screen is an INSTANT and has no calendar date of its
+   * own — `formatDate` on one printed the UTC day, so anything entered after 7pm
+   * Central was filed a day late. The DATE columns beside them are wall-clock labels
+   * and deliberately still go through `formatDate`. See lib/tz.ts.
+   */
+  zone: string
 }
 
 /** The composer, for a new topic or for retitling one that exists. */
@@ -83,7 +92,7 @@ interface NoteDraft {
 }
 
 export function OfficerNotesClient({
-  offices, initialOffice, initialEntries,
+  offices, initialOffice, initialEntries, zone,
 }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -308,6 +317,7 @@ export function OfficerNotesClient({
               key={entry.id}
               entry={entry}
               busy={isPending}
+              zone={zone}
               onAddNote={() => openNewNote(entry.id)}
               onEdit={() => openEditEntry(entry)}
               onDelete={() => removeEntry(entry)}
@@ -451,10 +461,12 @@ export function OfficerNotesClient({
  * implemented.
  */
 function EntryCard({
-  entry, busy, onAddNote, onEdit, onDelete, onEditNote, onDeleteNote,
+  entry, busy, zone, onAddNote, onEdit, onDelete, onEditNote, onDeleteNote,
 }: {
   entry: JournalEntry
   busy: boolean
+  /** The reader's timezone — every timestamp on a note is an instant. See lib/tz.ts. */
+  zone: string
   onAddNote: () => void
   onEdit: () => void
   onDelete: () => void
@@ -493,7 +505,7 @@ function EntryCard({
                 the office keeps the record when its author leaves the family, and "Unknown"
                 would make that read like data loss rather than like a record outliving the
                 person who wrote it. */}
-            Started by {entry.author_name ?? 'a former officer'} · {formatDate(entry.created_at)}
+            Started by {entry.author_name ?? 'a former officer'} · {formatInstantDate(entry.created_at, zone)}
           </p>
         </div>
 
@@ -534,9 +546,9 @@ function EntryCard({
                         silently destroy the structure of every list anybody wrote. */}
                     <p className="whitespace-pre-wrap text-sm text-muted-foreground">{note.body}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {note.author_name ?? 'A former officer'} · {formatDate(note.created_at)}
+                      {note.author_name ?? 'A former officer'} · {formatInstantDate(note.created_at, zone)}
                       {note.updated_at !== note.created_at
-                        && ` · edited ${formatDate(note.updated_at)}`}
+                        && ` · edited ${formatInstantDate(note.updated_at, zone)}`}
                     </p>
                   </div>
                   {note.mine && (

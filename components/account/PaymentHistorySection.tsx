@@ -8,6 +8,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
+import { formatInstantDate } from '@/lib/tz'
 import { PAYMENT_STATUS_LABELS } from '@/lib/dues-utils'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import type { DuesPayment } from '@/app/actions/dues'
@@ -38,7 +39,7 @@ const fmtDate = (s: string) => formatDate(s) ?? ''
  * Every value is pre-formatted to a string, exactly as the ledger dialog does it, so a
  * date or an amount cannot be shown one way in the table and another in the detail.
  */
-function viewOfMyPayment(p: DuesPayment): {
+function viewOfMyPayment(p: DuesPayment, zone: string): {
   title: string
   subtitle: string
   fields: { label: string; value: string | null }[]
@@ -60,7 +61,9 @@ function viewOfMyPayment(p: DuesPayment): {
       // When the family recorded it, which is not the same as when it was paid — a
       // cheque handed over in March and keyed in in May has two different dates, and
       // this is the one that explains why it only just appeared here.
-      { label: 'Recorded', value: formatDate(p.created_at) },
+      // `created_at` is an INSTANT, so it has no calendar date of its own — see lib/tz.ts.
+      // `payment_date` above is a DATE column and stays on `formatDate`.
+      { label: 'Recorded', value: formatInstantDate(p.created_at, zone) },
       ...(p.reversed_by_id
         ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }]
         : []),
@@ -79,14 +82,14 @@ function viewOfMyPayment(p: DuesPayment): {
  * too; unlike the dues cards there is no optimistic state to feed it, because nothing
  * on this screen writes.
  */
-export function PaymentHistorySection({ history }: { history: DuesPayment[] }) {
+export function PaymentHistorySection({ history, zone }: { history: DuesPayment[]; zone: string }) {
   // Which payment's detail dialog is open. Held as an ID rather than as the row itself,
   // for the reason TransactionsClient holds one: the dialog then re-derives from live
   // props, so a reversal posted while it is open updates the entry being read instead of
   // showing a stale snapshot of it.
   const [viewingId, setViewingId] = useState<string | null>(null)
   const viewedPayment = viewingId ? history.find(p => p.id === viewingId) ?? null : null
-  const viewed = viewedPayment ? viewOfMyPayment(viewedPayment) : null
+  const viewed = viewedPayment ? viewOfMyPayment(viewedPayment, zone) : null
 
   const [histSearch, setHistSearch] = useState('')
   const [histSort, setHistSort] = useState<{ col: HistCol; dir: SortDir }>({ col: 'date', dir: 'desc' })

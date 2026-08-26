@@ -125,6 +125,23 @@ jobs:
       - name: Every server action has an RLS case or a stated verdict
         run: npm run audit:rls-cases
 
+      # The fourth static audit, added 2026-08-26 with the timezone work. There are two kinds
+      # of time in the product and the bug is one being handled as the other: `formatDate` does
+      # string surgery on its argument, so handing it a `timestamptz` prints the UTC calendar
+      # date. Ten call sites did exactly that -- Payment History, Transactions, Documents,
+      # Officer Notes -- and every row entered after 7pm Central was filed a day late, with
+      # nothing to report it: the date rendered, it was plausible, and it was wrong.
+      #
+      # Also catches `toLocale*` and an `Intl.DateTimeFormat` with no `timeZone`, both of which
+      # resolve to whichever zone the RUNTIME is in -- the browser's in a client component and
+      # UTC on the server, so one row renders two ways depending on which side drew it.
+      #
+      # Same promise as the three above: it checks that a verdict EXISTS, never that it is true.
+      # It also fails on a STALE verdict, because an entry left behind after its call site was
+      # fixed is a claim about code that no longer exists. Static; no database, no network.
+      - name: Every rendered time is a label or a zoned instant
+        run: npm run audit:time
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

@@ -12,6 +12,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
 import { ShellWatcher } from '@/components/layout/ShellWatcher'
+import { ZoneHint } from '@/components/layout/ZoneHint'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
 
 /**
@@ -277,6 +278,12 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       {signedIn && shellFingerprint && (
         <ShellWatcher fingerprint={shellFingerprint} watchClosely={watchClosely} />
       )}
+
+      {/* Records which timezone this browser is in, so `resolveZone` can read dates in the
+          member's own zone before they have set a preference. Outside `<main
+          key={familyCode}>` for the same reason IdleTimeout is: a zone belongs to the
+          person, not to the family they are looking at. Renders nothing. */}
+      {signedIn && <ZoneHint />}
     </ConfirmProvider>
   )
 }

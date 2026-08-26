@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { BookText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
 import { OfficerNotesClient } from '@/components/library/OfficerNotesClient'
 import { HelpLink } from '@/components/help/HelpLink'
@@ -77,6 +78,8 @@ export default async function JournalPage() {
   // roster went with it, which means this page now reads nothing but the caller's own offices
   // and one office's notes.
   const entries = offices.length ? await getJournalEntries(offices[0].role_id) : []
+  // Every timestamp on a note is an instant, so it is read in the member's own zone.
+  const zone = await resolveZone(user.id)
 
   return (
     <PageShell className="space-y-8">
@@ -141,6 +144,7 @@ export default async function JournalPage() {
           offices={offices}
           initialOffice={offices[0].role_id}
           initialEntries={entries}
+          zone={zone}
         />
       )}
     </PageShell>
