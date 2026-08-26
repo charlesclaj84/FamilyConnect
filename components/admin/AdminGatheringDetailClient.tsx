@@ -186,10 +186,15 @@ interface Props {
  */
 function whenOf(gathering: AdminGatheringDetail): GatheringWhen {
   if (gathering.occurrences && gathering.occurrences.length > 0) {
-    return { isContinuous: gathering.isContinuous, occurrences: gathering.occurrences }
+    return {
+      isContinuous: gathering.isContinuous,
+      occurrences: gathering.occurrences,
+      timeZone: gathering.timeZone,
+    }
   }
   return {
     isContinuous: true,
+    timeZone: gathering.timeZone,
     occurrences: [{
       startsOn: gathering.startsOn,
       startTime: gathering.startTime,
@@ -486,6 +491,7 @@ export function AdminGatheringDetailClient({
                 ? formatWhen({
                   isContinuous: gathering.isContinuous,
                   occurrences: gathering.occurrences,
+                  timeZone: gathering.timeZone,
                 })
                 : formatWhenBrief(gathering)) ?? 'No dates yet'}
               {gathering.location && ` · ${gathering.location}`}

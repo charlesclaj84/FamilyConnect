@@ -105,6 +105,15 @@ interface Props {
   templates: { id: string; name: string; description: string | null }[]
   /** Whether the "no templates" sentence may link to the library. */
   mayAuthorTemplates: boolean
+  /**
+   * The AUTHOR's timezone, resolved by the page — the default for a new gathering's times.
+   *
+   * A default and never a decision: `WhenFields` only shows the control once a time is given,
+   * and `scheduleGathering` validates whatever it is sent because the form is a convenience
+   * (§2). It is the SCHEDULER's zone rather than the reader's, because the zone being recorded
+   * is the one the times are being stated in.
+   */
+  zone: string
 }
 
 /**
@@ -114,14 +123,19 @@ interface Props {
  * answer to "what day is it here", and the reason the dialog re-seeds during render rather than
  * in an effect is that this must not be a frame behind (see the re-seed below).
  */
-function todayWhen(): GatheringWhen {
+function todayWhen(zone: string): GatheringWhen {
   return {
+    // THE AUTHOR'S OWN ZONE AS THE DEFAULT, not blank. A member scheduling a picnic in the town
+    // they live in should not have to state which zone they are in — and `WhenFields` only shows
+    // the control once a time is given, so a date-only gathering never meets it. It stays a
+    // DEFAULT and decides nothing: `scheduleGathering` validates whatever it is sent (§2).
+    timeZone: zone,
     isContinuous: true,
     occurrences: [{ startsOn: todayLocal(), startTime: null, endsOn: null, endTime: null }],
   }
 }
 
-export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates }: Props) {
+export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates, zone }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
@@ -133,7 +147,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
    * several occasions. It was two date strings until 2026-08-26; `WhenFields` owns the controls
    * and `lib/gathering-when.ts` owns the rules, so nothing about either is decided here.
    */
-  const [when, setWhen] = useState<GatheringWhen>(() => todayWhen())
+  const [when, setWhen] = useState<GatheringWhen>(() => todayWhen(zone))
   const [error, setError] = useState('')
   // Set when the gathering was created and something about it still needs saying — a template
   // whose steps could not be added. The row EXISTS, so navigating away silently would lose the
@@ -159,7 +173,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
       // pre-filling it would make every gathering a one-day range somebody has to undo. The
       // times default to empty for the same reason, and because most gatherings are entered as
       // a date alone.
-      setWhen(todayWhen())
+      setWhen(todayWhen(zone))
     }
   }
 

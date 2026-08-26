@@ -1,11 +1,13 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, ChevronLeft, MapPin, Settings2, Star } from 'lucide-react'
+import { CalendarDays, ChevronLeft, Clock, MapPin, Settings2, Star } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
 import { familyPlansGatherings } from '@/lib/auth/tier'
 import { getGatheringDetail } from '@/app/actions/gatherings'
 import { formatWhen, formatWhenBrief } from '@/lib/gathering-when'
+import { resolveZone } from '@/lib/auth/zone'
+import { StatedTime } from '@/components/ui/stated-time'
 import { PageShell } from '@/components/layout/PageShell'
 import { BudgetBand } from '@/components/gatherings/BudgetBand'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
@@ -63,7 +65,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
   // `can`, not `canAny`, because `requireView` on the destination resolves through `can` — a
   // link offered on any other basis is a link to a 404. Resolved beside the fetch rather than
   // after it: it reads no family data, so there is nothing here to withhold.
-  const [gathering, mayOpenConsole, plansGatherings] = await Promise.all([
+  const [gathering, mayOpenConsole, plansGatherings, zone] = await Promise.all([
     getGatheringDetail(id),
     can(user.id, 'admin/gatherings', 'view'),
     // THE TIER, RESOLVED HERE RATHER THAN IN THE ACTION, which is AGENTS.md's rule about
@@ -73,6 +75,9 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
     // is withheld here is not rows — a gathering already carrying tasks keeps them — it is the
     // organizing machinery and the words that describe it.
     familyPlansGatherings(user.id),
+    // The READER's zone, for the secondary "your time" line. Distinct from the zone the
+    // gathering's times were STATED in, which is on the row and leads the display.
+    resolveZone(user.id),
   ])
   if (!gathering) notFound()
 
@@ -83,7 +88,11 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
   // means the read failed, not that there are no dates) and is an approximation rather than an
   // invention.
   const dates = gathering.occurrences
-    ? formatWhen({ isContinuous: gathering.isContinuous, occurrences: gathering.occurrences })
+    ? formatWhen({
+        isContinuous: gathering.isContinuous,
+        occurrences: gathering.occurrences,
+        timeZone: gathering.timeZone,
+      })
     : formatWhenBrief(gathering)
 
   return (
@@ -122,6 +131,24 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           {dates && (
             <span className="flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" /> {dates}
+            </span>
+          )}
+          {/* THE READER'S OWN TIME, SECOND AND SMALLER. `dates` above already carries the
+              stated time with its zone named — that is the primary and authoritative reading,
+              and `20260826000003` forbids inverting the two. This adds the local equivalent for
+              a relative who is not in the gathering's zone, and renders NOTHING when the two
+              clocks agree or when no time was given. First occurrence only: a series of five
+              Saturdays all share one zone, so repeating it per row would be noise. */}
+          {gathering.startTime && gathering.timeZone && (
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <StatedTime
+                day={gathering.startsOn}
+                time={gathering.startTime}
+                endTime={gathering.endTime}
+                zone={gathering.timeZone}
+                readerZone={zone}
+              />
             </span>
           )}
           {gathering.location && (

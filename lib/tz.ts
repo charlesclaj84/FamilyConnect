@@ -295,3 +295,45 @@ export function formatInstant(
   const time = formatTime(timeIn(iso, zone))
   return time ? `${date} at ${time}` : date
 }
+
+/**
+ * The instant at which `zone` reads `day` at `time`.
+ *
+ * ── THE ONE PLACE A LABEL IS DELIBERATELY TURNED INTO AN INSTANT ────────────────────
+ * Everything else in this module goes the other way, and the header is emphatic that a
+ * wall-clock label is never converted. This is the sanctioned exception and it is narrow: the
+ * result is used ONLY to render a secondary "your time" line beside the stated one, and the
+ * stored label is untouched and still what every screen leads with. `components/ui/stated-time.tsx`
+ * is the sole caller and states the display rule it serves.
+ *
+ * ── WHY IT TAKES TWO PASSES ─────────────────────────────────────────────────────────
+ * JavaScript has no "interpret this wall clock in that zone" primitive. `new Date('2026-07-04T11:00')`
+ * uses the RUNTIME's zone, which is exactly the bug this whole module exists to fix. So: take
+ * the naive UTC instant for those digits, ask what the target zone reads there, and shift by
+ * the difference.
+ *
+ * One correction is enough for every real offset — they are whole minutes and within a day —
+ * and the fold below handles the case where the naive reading lands on the adjacent DAY, which
+ * happens for every zone far enough from UTC (Auckland at 00:15 resolves to the previous UTC
+ * day). A second pass would only matter across a DST transition inside the affected hour, where
+ * every answer is arguable.
+ *
+ * MEASURED, not reasoned — see `tz.test.ts`, which asserts that the instant reads BACK as the
+ * stated time in the stated zone for Chicago in both seasons, Tokyo near midnight, Auckland
+ * across the day boundary, and Kolkata's half-hour offset.
+ */
+export function instantAt(day: string, time: string, zone: string): Date {
+  const naive = new Date(`${day}T${time}:00Z`)
+  if (Number.isNaN(naive.getTime())) return new Date()
+  const readsBack = timeIn(naive, zone)
+  if (!readsBack) return naive
+  const [wantH, wantM] = time.split(':').map(Number)
+  const [gotH, gotM] = readsBack.split(':').map(Number)
+  if (![wantH, wantM, gotH, gotM].every(Number.isFinite)) return naive
+  let deltaMinutes = (wantH * 60 + wantM) - (gotH * 60 + gotM)
+  // The reading can land on the previous or next day, which shows up as a delta near a whole
+  // day. Fold it back into the nearest twelve hours either way.
+  if (deltaMinutes > 720) deltaMinutes -= 1440
+  if (deltaMinutes < -720) deltaMinutes += 1440
+  return new Date(naive.getTime() + deltaMinutes * 60000)
+}

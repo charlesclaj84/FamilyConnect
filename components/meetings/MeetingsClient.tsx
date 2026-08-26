@@ -7,13 +7,14 @@ import { CalendarCheck, CheckCircle, Gavel, Plus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { PersonPicker } from '@/components/ui/person-picker'
 import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, todayLocal } from '@/lib/date-utils'
+import { formatDate, todayLocal , TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import { resolveMeetingRoom } from '@/lib/meeting-boards'
 import {
   scheduleMeeting, type MeetingAttendeeOptions, type MeetingSession,
@@ -42,8 +43,10 @@ import {
  * offset, which is how a meeting comes to move a day for half the family
  * (`lib/calendar.ts`'s rule).
  */
-export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule }: {
+export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, zone }: {
   initialMeetings: MeetingSession[]
+  /** The SCHEDULER's own timezone — the default for a new meeting's times. */
+  zone: string
   /**
    * The bodies and adults the scheduling dialog is built from — boards, offices, chapters, the
    * whole family, and the caller's own person id for the secretary default. EMPTY for a caller
@@ -102,6 +105,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule }
 
       {scheduling && (
         <ScheduleDialog
+          zone={zone}
           options={attendeeOptions}
           onClose={() => setScheduling(false)}
           onScheduled={id => { setScheduling(false); router.push(`/library/meeting-minutes/${id}`) }}
@@ -249,14 +253,25 @@ const STEPS = ['The basics', 'Who is coming', 'Anybody else'] as const
  * `scheduleMeeting`'s header: silently dropping an officer from the room over a recorded
  * birthday would be the product overruling an appointment the family made.
  */
-function ScheduleDialog({ options, onClose, onScheduled }: {
+function ScheduleDialog({ options, zone, onClose, onScheduled }: {
   options: MeetingAttendeeOptions
+  /** The SCHEDULER's own timezone — the default for the times below. */
+  zone: string
   onClose: () => void
   onScheduled: (id: string) => void
 }) {
   const [step, setStep] = useState(0)
   const [title, setTitle] = useState('')
   const [meetsOn, setMeetsOn] = useState('')
+  // ── THE TIMES, AND THE ZONE THEY ARE STATED IN (20260826000004) ──────────────────
+  // Optional: a family fixing the date first and the hour later is ordinary, and requiring an
+  // hour would block scheduling with nothing useful to say about why. The ZONE defaults to the
+  // scheduler's own, so a member arranging a meeting in the town they live in is not asked
+  // which zone they are in — and the control only appears once a start time exists, because a
+  // zone qualifying nothing is a value the server discards.
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
+  const [timeZone, setTimeZone] = useState(zone)
   // ── THE CALLER IS THE SECRETARY UNTIL THEY SAY OTHERWISE ─────────────────────────
   // Whoever schedules a meeting is usually the one who will write it down, and making them
   // find their own name in a picker of a hundred and forty is the friction that gets a
@@ -306,6 +321,14 @@ function ScheduleDialog({ options, onClose, onScheduled }: {
     if (which === 0) {
       if (!title.trim()) return 'Give the meeting a title'
       if (!meetsOn) return 'Choose a date'
+      // The same three rules the action and the database each state. Checked here so the
+      // message lands beside the box, not three steps away — `submit` re-checks every earlier
+      // step for exactly that reason.
+      if (endTime && !startTime) return 'Give a start time as well, or leave the end time empty'
+      if (startTime && endTime && endTime <= startTime) {
+        return 'The end time has to be after the start time'
+      }
+      if (startTime && !timeZone) return 'Choose the timezone the time is in'
       if (!secretaryId) return 'Choose who is taking the minutes'
       return ''
     }
@@ -346,6 +369,9 @@ function ScheduleDialog({ options, onClose, onScheduled }: {
       const result = await scheduleMeeting({
         title: title.trim(),
         meetsOn,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        timeZone: startTime ? timeZone : null,
         secretaryId,
         ...selection,
         additionalIds,
@@ -417,15 +443,52 @@ function ScheduleDialog({ options, onClose, onScheduled }: {
                 placeholder="Quarterly officers&rsquo; meeting" autoFocus />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="meeting-date">Date</Label>
-              {/* A BARE DATE. There is no time of day and no timezone anywhere in this
-                  product — `meets_on` is a DATE column, exactly as a gathering's and an
-                  election's dates are, and a TIME here would be a time in no particular
-                  zone. */}
-              <Input id="meeting-date" type="date" value={meetsOn}
-                onChange={e => setMeetsOn(e.target.value)} className="max-w-[12rem]" />
+            <div className="flex flex-wrap gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-date" required>Date</Label>
+                {/* A BARE DATE, and the TIME beside it is a bare time. Both are wall-clock
+                    labels: `meets_on`, `start_time` and `end_time` are DATE and TIME columns
+                    exactly as a gathering's are, and nothing converts them for anybody — the
+                    zone is recorded so a relative elsewhere can read them, not so the product
+                    can move them. See 20260826000004. */}
+                <Input id="meeting-date" type="date" value={meetsOn}
+                  onChange={e => setMeetsOn(e.target.value)} className="max-w-[12rem]" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-start">Start time</Label>
+                <Input id="meeting-start" type="time" value={startTime}
+                  onChange={e => setStartTime(e.target.value)} className="max-w-[9rem]" />
+                <p className="text-xs text-muted-foreground">Optional.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-end">End time</Label>
+                <Input id="meeting-end" type="time" value={endTime}
+                  disabled={!startTime}
+                  onChange={e => setEndTime(e.target.value)} className="max-w-[9rem]" />
+                <p className="text-xs text-muted-foreground">
+                  {startTime ? 'Optional.' : 'Give a start time first.'}
+                </p>
+              </div>
             </div>
+
+            {/* ONLY ONCE THERE IS A TIME. Absent rather than disabled: a greyed-out timezone
+                box beside two empty time boxes reads as something being wrong. */}
+            {startTime && (
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-zone" required>Timezone</Label>
+                <Select id="meeting-zone" value={timeZone}
+                  onChange={e => setTimeZone(e.target.value)} className="max-w-[20rem]">
+                  <option value="">Choose a timezone…</option>
+                  {TIMEZONES.map(tz => (
+                    <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Everyone sees the time exactly as you typed it, with this timezone named
+                  beside it. Nothing is converted.
+                </p>
+              </div>
+            )}
 
             {/* THE SECRETARY IS A `PersonPicker` over the ADULTS, pre-set to the caller. It
                 is the standard single-select control — searches accents and punctuation,

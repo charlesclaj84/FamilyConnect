@@ -13,6 +13,8 @@ import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
 import { ShellWatcher } from '@/components/layout/ShellWatcher'
 import { ZoneHint } from '@/components/layout/ZoneHint'
+import { LocaleSync } from '@/components/layout/LocaleSync'
+import { resolveLocale } from '@/lib/auth/locale'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
 
 /**
@@ -47,6 +49,14 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let familyCode = ''
   /** Gates the idle timer — there is nothing to sign out if nobody resolved. */
   let signedIn = false
+  /**
+   * The member's language, for `<html lang>` via LocaleSync at the bottom of this file.
+   *
+   * Empty until resolved, and LocaleSync does nothing with an empty string — so a request
+   * that never reaches the resolver leaves the root layout's `Accept-Language` answer in
+   * place rather than overwriting it with a guess.
+   */
+  let locale = ''
   /**
    * What this shell was built from, and whether the caller is sitting in front of a
    * reduced version of it waiting for that to change. Both feed ShellWatcher — see its
@@ -102,7 +112,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, code, shell, membership, staff] = await Promise.all([
+      const [resources, code, shell, membership, staff, resolvedLocale] = await Promise.all([
         viewableResources(user.id),
         getMyFamilyCode(user.id),
         // Costs one extra round of the same cache()-wrapped reads the three above
@@ -114,7 +124,11 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         // can see `genorra_staff` at all. Memoized per request, so the staff layout
         // asking again on the other window costs nothing here.
         isGenorraStaff(user.id),
+        // The member's chosen language, or their browser's, or English. One `people` read,
+        // cache()-wrapped like the rest, feeding LocaleSync at the bottom of this file.
+        resolveLocale(user.id),
       ])
+      locale = resolvedLocale
       // ── A REMOVED FAMILY GETS THE PERSONAL PAGES AND NOTHING ELSE ─────────────────
       // Navigation, not authorization, and the distinction is written out at length on
       // REMOVED_FAMILY_RESOURCES. Every page still gates on `requireView`, which knows
@@ -284,6 +298,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           key={familyCode}>` for the same reason IdleTimeout is: a zone belongs to the
           person, not to the family they are looking at. Renders nothing. */}
       {signedIn && <ZoneHint />}
+
+      {/* Puts the member's OWN language on `<html lang>`. The root layout negotiates
+          `Accept-Language`, which is right for Home and for anybody not signed in; this is
+          where a stored choice takes over. Outside `<main key={familyCode}>` for the same
+          reason ZoneHint is: a language belongs to the person, not to the family they are
+          looking at. Renders nothing. */}
+      {signedIn && <LocaleSync locale={locale} />}
     </ConfirmProvider>
   )
 }

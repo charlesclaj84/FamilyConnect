@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Inter, Cormorant_Garamond, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { APP_NAME, APP_SEO_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
 import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
+import { BASE_LOCALE, negotiateLocale } from '@/lib/i18n/locales'
 import { consentDefault, metaClientConfig } from '@/lib/meta/config'
 import { MetaPixel } from '@/components/meta/MetaPixel'
 import { MetaAttributionCapture } from '@/components/meta/MetaAttributionCapture'
@@ -121,7 +123,23 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * ── `lang` IS NEGOTIATED FROM THE REQUEST, AND DELIBERATELY NOT FROM THE MEMBER ─────
+ * This layout wraps all four products — Home, the auth pages, the Dashboard and the Staff
+ * console — and `<html>` exists only here, so the attribute has to be decided at a level that
+ * knows nothing about who is signed in.
+ *
+ * `Accept-Language` is the right source for that: it is on every request, needs no database and
+ * no session, and is correct for the case this layer actually serves — a first-time visitor to
+ * Home, before any JavaScript has run. Resolving the CALLER's stored preference here would mean
+ * a `getUser()` round trip plus a `people` read on every load of the marketing site, for a
+ * member who is not signed in to it.
+ *
+ * A signed-in member's stored choice is applied one level down by `LocaleSync`, mounted in
+ * `app/(protected)/layout.tsx` — the same division `resolveZone` and `ZoneHint` already use, and
+ * the same Home-versus-Dashboard split the whole localization plan is built on.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Meta advertising measurement. Null on any deployment that must not track — a laptop, a
   // preview build, or a production deployment with no META_PIXEL_ID — and then none of the
   // three components below is rendered at all, so there is no inert script and no banner
@@ -133,6 +151,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // crosses from here is the deployment's DEFAULT. Both are explained on `MetaPixel`.
   const meta = metaClientConfig()
   const defaultConsent = consentDefault()
+  // The browser's own request, narrowed to a language the product speaks. `BASE_LOCALE` where
+  // it asks for none we have — never a guess, because `lang` is what a screen reader uses to
+  // decide pronunciation and getting it wrong is worse than defaulting.
+  const lang = negotiateLocale((await headers()).get('accept-language')) ?? BASE_LOCALE
 
   return (
     // suppressHydrationWarning is required and narrow: the boot script below
@@ -140,7 +162,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // server's markup and the DOM genuinely differ here by design. It applies to
     // this element's own attributes only — it does not silence the tree beneath.
     <html
-      lang="en"
+      lang={lang}
       suppressHydrationWarning
       className={`${inter.variable} ${cormorant.variable} ${geistMono.variable} h-full antialiased`}
     >

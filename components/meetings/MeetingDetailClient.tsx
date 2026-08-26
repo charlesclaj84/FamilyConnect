@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, Check, ChevronDown, ChevronRight, Lock, LockOpen, Pencil, Plus, Trash2,
+  CalendarCheck, Check, ChevronDown, ChevronRight, Clock, Lock, LockOpen, Pencil, Plus, Trash2,
   Users, Vote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { formatDate } from '@/lib/date-utils'
+import { StatedTime } from '@/components/ui/stated-time'
 import {
   addMeetingNote, addMeetingTopic, castMeetingVote, deleteMeeting, deleteMeetingNote,
   deleteMeetingTopic, setMeetingClosed, setTopicVoting, updateMeetingNote, updateMeetingTopic,
@@ -51,7 +52,11 @@ const CHOICES = [
  * `meeting_votes_are_final` refuses an UPDATE in the database for every role, so a control
  * that offered it would be a control that cannot work.
  */
-export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: MeetingDetail }) {
+export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
+  meeting: MeetingDetail
+  /** The READER's timezone, for the secondary "your time" line beside the stated one. */
+  zone: string
+}) {
   const router = useRouter()
   const confirm = useConfirm()
   const [meeting] = useServerState(initialMeeting)
@@ -114,6 +119,21 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
               <span className="inline-flex items-center gap-1.5">
                 <CalendarCheck className="h-3.5 w-3.5" /> {formatDate(meeting.meetsOn)}
               </span>
+              {/* THE STATED TIME LEADS, the reader's own follows underneath and only when the
+                  two differ. `StatedTime` owns that relationship so the gathering page and this
+                  one cannot drift apart — see its header and 20260826000003's. */}
+              {meeting.startTime && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <StatedTime
+                    day={meeting.meetsOn}
+                    time={meeting.startTime}
+                    endTime={meeting.endTime}
+                    zone={meeting.timeZone}
+                    readerZone={zone}
+                  />
+                </span>
+              )}
               {meeting.secretaryName && (
                 <span>Minutes by <span className="font-medium text-foreground">{meeting.secretaryName}</span></span>
               )}

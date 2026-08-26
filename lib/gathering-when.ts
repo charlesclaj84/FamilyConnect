@@ -1,4 +1,5 @@
 import { formatDate, formatDateRange, formatMonthDay, formatTime } from '@/lib/date-utils'
+import { isValidZone, zoneAbbrev } from '@/lib/tz'
 
 /**
  * WHEN a gathering happens — the rules, in one pure module.
@@ -49,6 +50,26 @@ export interface GatheringWhen {
   isContinuous: boolean
   /** At least one, in the order the family entered them. */
   occurrences: GatheringOccurrence[]
+  /**
+   * The IANA zone the times above WERE STATED IN — never a zone to convert them into.
+   *
+   * ── IT QUALIFIES THE LABELS AND DOES NOT REINTERPRET THEM ─────────────────────────
+   * `20260826000003`'s header argues this at length and it is the one thing not to get wrong:
+   * `11:00` still means eleven o'clock where the gathering is, and nothing here or downstream
+   * converts it. What the zone buys is that a relative who is not local can read the label
+   * without guessing — `11:00 AM CDT` rather than `11:00`.
+   *
+   * `null` where no time was given, which is a complete answer ("the reunion is on 4 July")
+   * rather than a missing one. Required as soon as any occurrence carries a start time, and
+   * `whenProblems` refuses the pair without it — because `gatherings_time_needs_zone` in the
+   * database refuses it too, and an action that let it through would meet a 23514 it could
+   * only report as "could not save".
+   *
+   * ONE ZONE FOR THE WHOLE GATHERING, not one per occasion. A reunion in Austin is in Austin
+   * on all three of its days; a gathering whose Friday and Sunday are in different cities is a
+   * roadshow, and nothing in the product asks for one.
+   */
+  timeZone: string | null
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -78,6 +99,8 @@ export function normaliseDate(raw: string | null | undefined): string | null {
 
 export type WhenProblem =
   | { code: 'no-occurrence' }
+  | { code: 'time-needs-zone' }
+  | { code: 'bad-zone' }
   | { code: 'bad-date'; index: number }
   | { code: 'bad-time'; index: number }
   | { code: 'end-before-start'; index: number }
@@ -88,6 +111,11 @@ export type WhenProblem =
 /** What each problem says to somebody looking at the form. */
 export const WHEN_PROBLEM_TEXT: Record<WhenProblem['code'], string> = {
   'no-occurrence': 'Give a date for this gathering.',
+  // NAMES WHAT IS MISSING AND WHY IT MATTERS. "Invalid" would leave somebody looking at a time
+  // they typed correctly. The form defaults this field to the author's own zone, so reaching
+  // this message means it was actively cleared.
+  'time-needs-zone': 'Say which timezone the time is in, so relatives elsewhere can read it.',
+  'bad-zone': 'That is not a timezone we recognise.',
   'bad-date': 'That is not a date we can read.',
   'bad-time': 'That is not a time we can read.',
   // NAMES THE RULE, not the field. "Invalid" would leave somebody looking at two boxes with no
@@ -120,6 +148,24 @@ export function whenProblems(when: GatheringWhen): WhenProblem[] {
   // A continuous gathering is ONE span by definition. Several rows plus `isContinuous` is a
   // caller that has not decided which it means, and guessing either way loses information.
   if (when.isContinuous && list.length > 1) problems.push({ code: 'continuous-needs-one' })
+
+  // ── A TIME REQUIRES A ZONE, AND THE DATABASE SAYS SO TOO ───────────────────────────
+  // `gatherings_time_needs_zone` refuses the pair, and these actions write on the service role
+  // — so that constraint is the only thing underneath them and a 23514 is all a caller who got
+  // here would have to report. Checked here so the member is told which field to fill in.
+  //
+  // A zone with NO time is permitted and inert, deliberately matching the one-directional
+  // constraint: see 20260826000003's header for why the reverse conjunct would fail on a row
+  // nobody touched.
+  const anyTimed = list.some(o => normaliseTime(o?.startTime) !== null)
+  if (anyTimed && !when.timeZone) {
+    problems.push({ code: 'time-needs-zone' })
+  } else if (when.timeZone && !isValidZone(when.timeZone)) {
+    // Checked rather than coerced. `lib/tz.ts` falls back to Central for an unusable zone,
+    // which is right at a RENDER site where a 500 would be worse — but at a WRITE boundary a
+    // silent fallback would store Central over whatever the member meant and never say so.
+    problems.push({ code: 'bad-zone' })
+  }
 
   list.forEach((o, index) => {
     const startsOn = normaliseDate(o?.startsOn)
@@ -167,9 +213,17 @@ export function whenProblems(when: GatheringWhen): WhenProblem[] {
  * return on a failure.
  */
 export function normaliseWhen(when: GatheringWhen): GatheringWhen {
+  const occurrences = when.occurrences ?? []
+  // THE ZONE IS DROPPED WHERE NOTHING IS TIMED, so a gathering that had its times removed does
+  // not keep a zone qualifying nothing. `gatherings_time_needs_zone` permits that leftover —
+  // it is one-directional on purpose — but permitting it in the database is not a reason to
+  // write it: a stored value nothing reads is what the `dues_member_plans.start_date` note in
+  // AGENTS.md is about.
+  const anyTimed = occurrences.some(o => normaliseTime(o?.startTime) !== null)
   return {
+    timeZone: anyTimed ? (when.timeZone ?? null) : null,
     isContinuous: when.isContinuous !== false,
-    occurrences: (when.occurrences ?? []).map(o => {
+    occurrences: occurrences.map(o => {
       const startsOn = normaliseDate(o?.startsOn)
       const endsOn = normaliseDate(o?.endsOn)
       const startTime = normaliseTime(o?.startTime)
@@ -281,6 +335,36 @@ export function timeLabelFor(o: GatheringOccurrence | null): string | null {
  * CAPPED AT TWO NAMED DATES, then a count. `missingFieldsSentence` sets the precedent and the
  * reason is the same: a list of nine dates in a table cell is not a summary.
  */
+/**
+ * A time label with the zone it was STATED IN named after it — "11:00 AM CDT".
+ *
+ * ── THIS IS THE WHOLE OF THE DISPLAY RULE, AND IT IS ONE LINE ───────────────────────
+ * `20260826000003`'s header sets it out: the stated time is always primary and unconverted,
+ * and a viewer's local equivalent is secondary and attributed. This is the primary half. The
+ * secondary half is a separate line on the detail page, and inverting the two — the viewer's
+ * time large, the stated time small — is the thing that rule forbids, because two relatives on
+ * a telephone would then be reading different numbers off the same screen.
+ *
+ * `zoneAbbrev` takes an INSTANT because a zone has two names — CST in January and CDT in July —
+ * and printing the wrong one beside a summer gathering is exactly the detail a reader checks.
+ * It is given the gathering's own first day rather than `new Date()`, so a reunion in July
+ * reads "CDT" whenever the page is loaded rather than "CST" if somebody opens it at Christmas.
+ *
+ * No zone means no suffix. A date-only gathering has none by construction (`normaliseWhen`
+ * clears it), and a row written before `20260826000003` may legitimately have none either —
+ * printing "undefined" or guessing Central would both be worse than saying nothing.
+ */
+function withZone(time: string, zone: string | null, on?: string): string {
+  if (!zone) return time
+  // Midday on the gathering's own day, so the DST question is answered for the right date and
+  // not for whenever the page happened to render. Midday rather than midnight because a
+  // transition happens in the small hours and midnight is the one moment that can land on the
+  // wrong side of it.
+  const at = on ? new Date(`${on}T12:00:00Z`) : new Date()
+  const abbrev = zoneAbbrev(zone, Number.isNaN(at.getTime()) ? new Date() : at)
+  return abbrev ? `${time} ${abbrev}` : time
+}
+
 export function formatWhen(when: GatheringWhen): string | null {
   const list = when.occurrences.filter(o => o.startsOn)
   if (list.length === 0) return null
@@ -291,7 +375,7 @@ export function formatWhen(when: GatheringWhen): string | null {
       ?? formatDate(first.startsOn)
     if (!range) return null
     const time = timeLabelFor(first)
-    return time ? `${range} · ${time}` : range
+    return time ? `${range} · ${withZone(time, when.timeZone, first.startsOn)}` : range
   }
 
   // SORTED FOR THE SUMMARY ONLY. The stored order is the family's entry order (see

@@ -1109,7 +1109,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Both ends count.** An election whose nominations read "January 1st – January 5th" is open on the 5th, right up to the end of the day. The same is true of voting — with one exception, below.'),
               p('Voting never opens before nominations close, so the list of candidates you are voting on cannot change under you. There is often a gap in between, and the screen says what it is waiting for.'),
               p('**Voting may open on the same day nominations close, and then that day belongs to voting.** Nominations run through their closing date, or until voting opens, whichever comes first — so on a shared day the nomination form is already shut and the ballot is live. If your family wants the whole of that day for nominations, the closing date goes one day earlier.'),
-              note('Nothing here happens at a time of day, and no timezone is involved. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
+              note('Nothing here happens at a time of day. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
+              p('**"The end of the day" means the end of the day where your family is.** An election records the timezone it was scheduled in, and both the dates on screen and the moment the ballot actually shuts are read in that one timezone — so a relative in another part of the world sees the same closing date as everybody else, and the ballot stays open until your family\'s midnight rather than somebody else\'s.'),
             ],
           },
           {
@@ -1262,7 +1263,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               ),
               note('The difference matters more than it looks. Before this existed, three Saturdays had to be entered as a first day and a last day — which put a bar across the whole fortnight and told the family they were gathering for two weeks. Separate days say what is actually happening.'),
               p('**The end can never be before the start.** The date pickers grey out the impossible days, and if you get there another way the form says so rather than saving it. The same applies to times within one day — 2pm to 9am is not a gathering — while across days it is perfectly ordinary, so Friday 6pm to Sunday 11am is accepted.'),
-              note('A time here has no timezone. It means what it says where the gathering is, exactly as it would on a printed invitation, and nothing converts it for anybody.'),
+              p('**Give a time and you are asked which timezone it is in**, starting with your own. The time is then shown exactly as you typed it, with that timezone named beside it — 11:00 AM CDT.'),
+              note('Nothing is ever converted. A time here means what it says where the gathering is, exactly as it would on a printed invitation, and every relative sees the same figure — the timezone is named so somebody elsewhere knows what to make of it, not so the product can quietly move it.'),
             ],
           },
           {

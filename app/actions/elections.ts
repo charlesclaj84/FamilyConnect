@@ -7,7 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { can } from '@/lib/auth/permissions'
 import { requireScope, requireMember, type GuardOk } from '@/lib/auth/guard'
-import { formatDate, todayLocal } from '@/lib/date-utils'
+import { formatDate } from '@/lib/date-utils'
+import { DEFAULT_ZONE, todayIn } from '@/lib/tz'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import {
   electionPhase, windowProblem,
@@ -87,8 +88,18 @@ export interface Election {
   chapter_id: string | null
   /** "National", or the region or chapter by name. Resolved server-side; never empty. */
   scope_label: string
-  /** Derived from the four windows and today. See the note on the server above. */
+  /**
+   * Derived from the four windows and today IN THIS ELECTION'S OWN ZONE.
+   *
+   * Not the reader's zone, and this is the one place in the product where that is the wrong
+   * answer: a deadline is a family-wide fact, so if it resolved per viewer two members would
+   * disagree about whether the ballot was open — and the one whose browser said open would be
+   * refused by `election_window_open()` evaluating somebody else's midnight. See
+   * 20260826000005.
+   */
   phase: ElectionPhase
+  /** The zone the window dates are read in, for printing beside a deadline. */
+  time_zone: string | null
   created_at: string
 }
 
@@ -159,7 +170,7 @@ export interface ElectionNominee {
 /** The columns every projection of an election needs. One literal, for the reason §8 gives. */
 const ELECTION_COLUMNS =
   'id, title, description, status, scope, region_id, chapter_id, created_at, '
-  + 'nominations_open_on, nominations_close_on, voting_open_on, voting_close_on'
+  + 'nominations_open_on, nominations_close_on, voting_open_on, voting_close_on, time_zone'
 
 /** The raw row, before the phase and the scope label are resolved onto it. */
 interface RawElection {
@@ -175,6 +186,8 @@ interface RawElection {
   nominations_close_on: string | null
   voting_open_on: string | null
   voting_close_on: string | null
+  /** The zone the window DATES are read in. See 20260826000005. */
+  time_zone: string | null
 }
 
 /**
@@ -254,11 +267,30 @@ async function myChapterId(userId: string, familyCode: string): Promise<string |
 }
 
 /** The raw row plus the two derived fields every screen prints. */
+/**
+ * A raw row plus its derived phase and scope label.
+ *
+ * ── IT RESOLVES `today` ITSELF, AND THAT IS A CORRECTION ─────────────────────────────
+ * This took `today` as a parameter and every caller passed `todayLocal()` — the RUNTIME's
+ * zone, which on the server is UTC. So an election closing on the 15th was reported closed
+ * from 19:00 CDT on the 15th, matching `election_window_open()`'s own `CURRENT_DATE` bug
+ * exactly. The two halves agreed, and they agreed on the wrong answer.
+ *
+ * `20260826000005` repaired the SQL half. Taking the parameter AWAY is what keeps this half
+ * in step: today depends on the ELECTION's zone, so a caller mapping several elections cannot
+ * compute one `today` for all of them, and a signature that invites it is a signature that
+ * will be misused. There is no `today` to pass wrongly now.
+ *
+ * Reading the clock here is what an action module is allowed to do — the same licence
+ * `getUpcomingBirthdays` takes and states. `electionPhase` in `lib/` keeps its `today`
+ * parameter, which is where §7b's testability requirement actually lives.
+ */
 function mapElection(
   row: RawElection,
-  today: string,
   names: { regionNames: ReadonlyMap<string, string>; chapterNames: ReadonlyMap<string, string> },
 ): Election {
+  // THE ELECTION'S ZONE, never the reader's. See the note on `Election.phase`.
+  const today = todayIn(row.time_zone ?? DEFAULT_ZONE)
   return {
     id: row.id,
     title: row.title,
@@ -276,6 +308,7 @@ function mapElection(
       chapter: row.chapter_id ? names.chapterNames.get(row.chapter_id) : null,
     }),
     phase: electionPhase({ ...row, status: row.status ?? null }, today),
+    time_zone: row.time_zone,
     created_at: row.created_at,
   }
 }
@@ -316,12 +349,12 @@ export async function getElectionsForMember(): Promise<Election[]> {
     return []
   }
 
-  const today = todayLocal()
   return ((data ?? []) as unknown as RawElection[])
     .filter(row => electionAreaMatch({
       election: row, memberChapterId: chapterId, chapterRegions: places.chapterRegions,
     }) === 'in')
-    .map(row => mapElection(row, today, places))
+    // No shared `today`: each election resolves its own, in its own zone.
+    .map(row => mapElection(row, places))
 }
 
 /**
@@ -470,9 +503,8 @@ export async function getElectionsForOrganizer(): Promise<OrganizerElection[]> {
   const noms = tally(nomRes.data as { election_id: string }[] | null)
   const votes = tally(voteRes.data as { election_id: string }[] | null)
 
-  const today = todayLocal()
   return rows.map(row => ({
-    ...mapElection(row, today, places),
+    ...mapElection(row, places),
     positions: positions.get(row.id) ?? [],
     nomination_count: noms.get(row.id) ?? 0,
     vote_count: votes.get(row.id) ?? 0,
@@ -542,7 +574,7 @@ export async function getElectionDetail(id: string): Promise<{
     for (const v of votes ?? []) myVotes[v.position_id] = v.nominee_id
   }
 
-  const election = mapElection(row, todayLocal(), places)
+  const election = mapElection(row, places)
 
   // §8: an empty supporter list and a refused read look identical and are very different
   // facts. The first means nobody has been nominated; the second would silently strip every
@@ -816,7 +848,7 @@ export async function getElectionSummary(id: string): Promise<ElectionSummary | 
     return null
   }
 
-  const election = mapElection(raw, todayLocal(), places)
+  const election = mapElection(raw, places)
 
   // ── The electorate ───────────────────────────────────────────────────────────────
   const eligibleIds = new Set(
@@ -1459,7 +1491,13 @@ export async function submitNomination(
   const election = row as unknown as RawElection | null
   if (!election) return { success: false, message: 'Election not found' }
 
-  const phase = electionPhase({ ...election, status: election.status }, todayLocal())
+  // THE ELECTION'S OWN ZONE, matching election_window_open() in SQL. These two layers
+  // refuse in sequence — this one first, the policy second — so a disagreement between
+  // them is a member told the window is open and then refused by the database.
+  const phase = electionPhase(
+    { ...election, status: election.status },
+    todayIn(election.time_zone ?? DEFAULT_ZONE),
+  )
   if (phase !== 'nominations') {
     return { success: false, message: nominationsClosedMessage(election, phase) }
   }
@@ -1744,7 +1782,13 @@ export async function castVote(
   const election = row as unknown as RawElection | null
   if (!election) return { success: false, message: 'Election not found' }
 
-  const phase = electionPhase({ ...election, status: election.status }, todayLocal())
+  // THE ELECTION'S OWN ZONE, matching election_window_open() in SQL. These two layers
+  // refuse in sequence — this one first, the policy second — so a disagreement between
+  // them is a member told the window is open and then refused by the database.
+  const phase = electionPhase(
+    { ...election, status: election.status },
+    todayIn(election.time_zone ?? DEFAULT_ZONE),
+  )
   if (phase !== 'voting') {
     const opens = formatDate(election.voting_open_on)
     const closed = formatDate(election.voting_close_on)

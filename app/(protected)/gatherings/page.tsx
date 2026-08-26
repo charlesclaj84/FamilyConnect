@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
+import { resolveZone } from '@/lib/auth/zone'
 import {
   getGatherings, getMyGatheringTasks, getSchedulableTemplates, type MyTaskRow,
 } from '@/app/actions/gatherings'
@@ -164,6 +165,9 @@ export default async function GatheringsPage({ searchParams }: Props) {
   ])
 
   const today = todayLocal()
+  // The SCHEDULER's zone, defaulting the new-gathering dialog's timezone field. It is a
+  // default and decides nothing: `scheduleGathering` validates whatever it is sent.
+  const zone = await resolveZone(user.id)
   const rows: GatheringRow[] = gatherings.map(gathering => ({
     ...gathering,
     // `'today'` is every day of a multi-day span, not only the first — the second day of a
@@ -201,6 +205,7 @@ export default async function GatheringsPage({ searchParams }: Props) {
 
       <GatheringsShell
         initialPane={initialPane}
+        zone={zone}
         mayViewGatherings={mayViewGatherings}
         mayViewMyTasks={mayViewMyTasks}
         upcoming={upcoming}

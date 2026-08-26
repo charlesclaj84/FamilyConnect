@@ -153,6 +153,15 @@ export interface PersonalInfoData {
   tshirt_size?: string
   chapter_id?: string | null
   time_zone?: string | null
+  /**
+   * Which language this member reads the product in — a two-character code.
+   *
+   * Part of the SHARED profile, so it floats across every family they belong to
+   * (20260826000002). `null`/absent means they have not chosen, which resolves through
+   * `Accept-Language` and then English rather than through a stored default — see
+   * `lib/auth/locale.ts`.
+   */
+  locale?: string | null
 }
 
 export type PersonalInfoRecord = PersonalInfoData & {

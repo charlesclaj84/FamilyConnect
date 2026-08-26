@@ -6932,9 +6932,29 @@ export const GATHERING_CASES = [
     // THE §4 SHAPE ON A SET OF IDS. The row this would write is stamped with the ATTACKER's
     // family and satisfies every policy; what must refuse it is the `.eq('family_code', ...)`
     // on the template read, and `instantiateTemplateTasks` re-checking each id on its own.
+    // ── IT SENDS A TIMED `when`, AND THAT IS A DELIBERATE CHANGE (2026-08-26) ──────
+    // This passed the LEGACY `startsOn` shape, which carries no time — so the control created a
+    // date-only gathering and never exercised the write path that `20260826000003` changed.
+    // Measured: with that shape, creating a timed gathering was BROKEN in the app and this
+    // suite was green, because `gatherings_time_needs_zone` is a CHECK on the parent whose
+    // `start_time` is written by `tg_gathering_when_envelope` from the OCCURRENCE — so the
+    // failure only happens when an occurrence carries a time. The fixture had been patched to
+    // state a zone on its own gatherings, which made the suite greener still while the action
+    // was unusable.
+    //
+    // So the control now schedules a gathering WITH a time and a zone, and the probe reads both
+    // columns back. That is the assertion that would have caught it, and the reason it is worth
+    // writing down: a case that exercises the CHEAPEST shape of an input can be perfectly green
+    // over a feature nobody can use.
     args: fx => [{
       title: SCHEDULE_CASE_TITLE,
-      startsOn: CREATE_CASE_DATE,
+      when: {
+        isContinuous: true,
+        timeZone: 'America/Chicago',
+        occurrences: [{
+          startsOn: CREATE_CASE_DATE, startTime: '11:00', endsOn: null, endTime: '16:00',
+        }],
+      },
       templateIds: [fx.alpha.template.id],
     }],
     setup: clearCaseGatherings(SCHEDULE_CASE_TITLE),
@@ -6942,7 +6962,20 @@ export const GATHERING_CASES = [
     // from each family)` names: the damage here is a gathering in BRAVO built out of ALPHA's
     // steps — ALPHA's labels, help text and suggested budgets copied into BRAVO's task rows.
     // A probe scoped to ALPHA would watch the wrong side of the theft and report "no-op".
-    probe: (db) => snapshot('gatherings', 'id, family_code, title', { title: SCHEDULE_CASE_TITLE })(db),
+    // ── THE PROBE FILTERS ON THE ZONE, WHICH IS WHAT MAKES THE CONTROL EVIDENCE ────
+    // The runner's write control asserts only that the snapshot CHANGED, and that was not
+    // enough here: `scheduleGathering` inserts the parent row and THEN writes the occurrences,
+    // so when the occurrence insert fails the parent is already there — the snapshot changes,
+    // the control passes, and the action returned `{ success: false }`. Measured: with the zone
+    // stamping removed from `writeOccurrences`, this case stayed green over an action that
+    // could not schedule a timed gathering at all.
+    //
+    // Filtering on `time_zone` fixes it. A run that never stamps the zone matches no row, the
+    // snapshot does not change, and the control fails with "owner's own write did nothing" —
+    // which is exactly what happened. `start_time` is in the projection for the same reason
+    // one level down: the trigger has to have written the envelope, not merely left a row.
+    probe: (db) => snapshot('gatherings', 'id, family_code, title, start_time, time_zone',
+      { title: SCHEDULE_CASE_TITLE, time_zone: 'America/Chicago' })(db),
     positiveActor: 'alphaAdmin',
   },
 
@@ -8851,6 +8884,70 @@ const ELECTION_RAW_CASES = [
   // The other half of the same table: a member DOES still reach their own ballot. Asserted
   // because narrowing the organizer policy could have been done by dropping it, and the two
   // outcomes are indistinguishable from the attack half alone.
+  // ── THE REPAIRED WINDOW FUNCTION (20260826000005) ─────────────────────────────
+  //
+  // `election_window_open()` decided the window with `CURRENT_DATE` — UTC on hosted Supabase —
+  // so a Central-time family lost the last five hours of their closing day and gained five
+  // hours before nominations opened. It is composed into the write policies on
+  // `election_nominations` and `election_votes`, so the refusal came from the database.
+  //
+  // ── WHAT THIS CASE IS EVIDENCE FOR, AND WHAT IT IS NOT ───────────────────────────
+  // IT IS evidence for three things, and the second is the one that matters for the repair:
+  //
+  //   * the family conjunct — BRAVO's administrator asking about ALPHA's election gets false
+  //   * **the repaired expression still answers TRUE for an entitled member.** The most likely
+  //     way this repair could be wrong is a NULL propagating: without `COALESCE(e.time_zone,
+  //     …)` an election with no zone makes the whole comparison NULL, `BETWEEN` answers NULL,
+  //     and the window reads as CLOSED FOREVER for everybody. That failure is invisible to
+  //     every attack assertion in this suite — a function answering false to all comers is
+  //     perfectly isolated — and it is exactly what the control half catches.
+  //   * the `authenticated` EXECUTE grant, end to end through PostgREST (§2b rule 2). A lost
+  //     grant makes this ERROR rather than answer, which on a policy path is indistinguishable
+  //     from a refusal.
+  //
+  // IT IS NOT evidence that the function reads the ELECTION'S zone rather than UTC. Nothing
+  // reachable from a test can be: `now()` is not overridable from the client, so the only
+  // variable a probe can move is the zone — and a deterministic zone discriminator needs a
+  // dedicated election whose window boundary is TODAY, which would then be the soonest-closing
+  // election in the fixture and would take the Quick Actions cases with it. Stated here rather
+  // than left for a reader to assume, the way SWEEP_CASES and PHOTO_RAW_CASES state theirs.
+  //
+  // What DOES carry that half: `20260826000005`'s verify block proves `AT TIME ZONE` changes
+  // the calendar date at this instant and that `CURRENT_DATE` is gone from the body, and
+  // `lib/election-phase.test.ts` proves the TypeScript half — which must agree with this
+  // function or a member is told the window is open and then refused.
+  read('raw:election_window_open (an election in another family)',
+    'tests/rls/raw/elections.mjs', 'electionWindowOpen', {
+      attacker: 'bravoAdmin',
+      args: fx => [fx.alpha.election.id, 'voting'],
+      expectAttack: r => r.data === false,
+      // THE CONTROL IS THE WHOLE POINT HERE. `f.election` is seeded in its VOTING window
+      // (`voting_open_on: inDays(-5)`, `voting_close_on: inDays(25)`), so an entitled member
+      // must get true. If the repair had dropped the COALESCE, or resolved `v_today` to NULL,
+      // or lost the grant, this line goes red and the attack half above stays green.
+      positiveActor: 'alphaMember',
+      positiveArgs: fx => [fx.alpha.election.id, 'voting'],
+      expectPositive: r => r.data === true,
+    }),
+  // And the same function answering about a window that is NOT open, so the true above is not
+  // simply what this function says to everybody about everything. `f.election`'s nominations
+  // closed at `inDays(-10)`.
+  read('raw:election_window_open (a window that has closed)',
+    'tests/rls/raw/elections.mjs', 'electionWindowOpen', {
+      attacker: 'bravoAdmin',
+      args: fx => [fx.alpha.election.id, 'nominations'],
+      expectAttack: r => r.data === false,
+      positiveActor: 'alphaMember',
+      positiveArgs: fx => [fx.alpha.election.id, 'nominations'],
+      expectPositive: r => r.data === false,
+      positive: 'asserts-a-negative',
+      why: 'The control asserts FALSE, which is nearly vacuous on its own — it is the pair '
+        + 'with the voting case above that is the evidence: one member, one election, two '
+        + 'windows, two answers. It is not ENTIRELY vacuous, and the mutation check is what '
+        + 'showed that: with the COALESCE removed the function answers NULL rather than '
+        + 'false, so `=== false` fails here too. It distinguishes a refusal from an '
+        + 'expression that evaluated to nothing.',
+    }),
   read('raw:election_votes SELECT (their own ballot)',
     'tests/rls/raw/elections.mjs', 'selectElectionVotes', {
       attacker: 'bravoAdmin',

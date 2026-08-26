@@ -53,6 +53,8 @@ import type { MyTaskRow } from '@/app/actions/gatherings'
 interface Props {
   /** Resolved on the server from `?pane=`, so the first paint is already the right pane. */
   initialPane: GatheringPane
+  /** The scheduler's own timezone — the default for a new gathering's times. */
+  zone: string
   /** `gatherings:view`. False means the list was not fetched at all, not merely hidden. */
   mayViewGatherings: boolean
   /** `gatherings/my-tasks:view`. Same standing: false means the tasks were never read. */
@@ -76,7 +78,7 @@ interface Props {
 
 export function GatheringsShell({
   initialPane, mayViewGatherings, mayViewMyTasks,
-  upcoming, past, mayCreate, templates, mayAuthorTemplates,
+  upcoming, past, mayCreate, templates, mayAuthorTemplates, zone,
   tasks, today,
 }: Props) {
   const [pane, setPane] = useState<GatheringPane>(initialPane)
@@ -130,6 +132,7 @@ export function GatheringsShell({
           past={past}
           mayCreate={mayCreate}
           templates={templates}
+          zone={zone}
           mayAuthorTemplates={mayAuthorTemplates}
         />
       )}

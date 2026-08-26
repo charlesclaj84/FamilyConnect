@@ -140,6 +140,12 @@ export interface GatheringSummary {
    * child join per row. `formatWhenBrief` reads them and refuses to print a range for a series.
    */
   startTime: string | null
+  /**
+   * The zone the times above WERE STATED IN — never one to convert them into.
+   * `null` where no time was given. See 20260826000003.
+   */
+  timeZone: string | null
+
   endTime: string | null
   isContinuous: boolean
   occurrenceCount: number
@@ -298,7 +304,7 @@ export interface PremierGathering {
 // `start_time`, `end_time` and `is_continuous` arrived with `20260826000001` — the envelope,
 // materialised from `gathering_occurrences` by trigger, so a list can say when each gathering
 // is without a child join per row.
-const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, start_time, '
+const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, start_time, time_zone, '
   + 'end_time, is_continuous, status, is_premier, photo_path'
 
 interface GatheringRow {
@@ -313,6 +319,7 @@ interface GatheringRow {
   photo_path: string | null
   // Added with `20260826000001` — the envelope, materialised on `gatherings` by trigger.
   start_time: string | null
+  time_zone: string | null
   end_time: string | null
   is_continuous: boolean
 }
@@ -692,6 +699,7 @@ export async function getGatherings(): Promise<GatheringSummary[]> {
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
     startTime:  row.start_time ? String(row.start_time).slice(0, 5) : null,
+    timeZone:   row.time_zone ?? null,
     endTime:    row.end_time ? String(row.end_time).slice(0, 5) : null,
     isContinuous: row.is_continuous !== false,
     occurrenceCount: 1,
@@ -831,6 +839,7 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     startsOn:   gathering.starts_on,
     endsOn:     gathering.ends_on,
     startTime:  gathering.start_time ? String(gathering.start_time).slice(0, 5) : null,
+    timeZone:   gathering.time_zone ?? null,
     endTime:    gathering.end_time ? String(gathering.end_time).slice(0, 5) : null,
     isContinuous: gathering.is_continuous !== false,
     // NULL on a failed read, never an empty list — §8. An empty list would render as a

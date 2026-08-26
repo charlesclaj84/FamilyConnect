@@ -38,6 +38,11 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   'gender',
   'tshirt_category', 'tshirt_size',
   'time_zone',
+  // Writable, and confined to the supported set by `people_locale_check` (20260826000002)
+  // rather than here — the same arrangement `gender` has, and for the same reason: this
+  // list decides which KEYS reach the row and says nothing about their contents, so a
+  // caller who never loads the form is stopped by the constraint and not by this file.
+  'locale',
   // NO `chapter_id`, deliberately, and it is the one column here that was removed
   // rather than never added.
   //

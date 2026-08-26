@@ -65,6 +65,10 @@ function messageFor(problems: ReturnType<typeof whenProblems>): string {
       return 'A gathering with an end time needs a start time as well.'
     case 'continuous-needs-one':
       return 'A continuous gathering is one span, so it has one set of dates.'
+    case 'time-needs-zone':
+      return 'A gathering with a time needs the timezone that time is in.'
+    case 'bad-zone':
+      return 'That is not a timezone we recognise.'
     default:
       return 'Those dates are not something we can save.'
   }
@@ -94,6 +98,11 @@ export function whenFromInput(input: {
 }): GatheringWhen {
   if (input.when) return input.when
   return {
+    // NO ZONE, and none is needed: the legacy shape carries no times, so there is nothing for
+    // a zone to qualify and `whenProblems` does not ask for one. A tab open across the deploy
+    // therefore still schedules successfully rather than being refused for a field its form
+    // does not have — which is the whole reason this fallback exists.
+    timeZone: null,
     isContinuous: true,
     occurrences: [{
       startsOn: input.startsOn ?? '',
@@ -123,6 +132,7 @@ export function resolveWhen(when: GatheringWhen | undefined | null): WhenWriteRe
   const proposed: GatheringWhen = {
     isContinuous: when?.isContinuous !== false,
     occurrences: Array.isArray(when?.occurrences) ? when.occurrences : [],
+    timeZone: when?.timeZone ?? null,
   }
   const problems = whenProblems(proposed)
   if (problems.length > 0) return { ok: false, message: messageFor(problems) }
@@ -151,6 +161,30 @@ export async function writeOccurrences(
   gatheringId: string,
   when: GatheringWhen,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
+  // ── THE PARENT'S ZONE FIRST, AND THE ORDER IS LOAD-BEARING ───────────────────────
+  // `gatherings_time_needs_zone` is a CHECK on the PARENT, and the parent's `start_time` is
+  // written by `tg_gathering_when_envelope` from the rows inserted below — so inserting a timed
+  // occurrence against a parent with no zone fires the trigger, fails the constraint, and takes
+  // the whole insert with it. Measured before this line existed: `INSERT 0 1` on the parent,
+  // then `ERROR: new row for relation "gatherings" violates check constraint
+  // "gatherings_time_needs_zone"`.
+  //
+  // Stamped HERE rather than left to each caller, so the invariant holds for both of them and
+  // for a third written later. `scheduleGathering` also puts it on the parent insert, which is
+  // belt on this brace; `updateGathering` relies on this entirely.
+  //
+  // `normaliseWhen` has already cleared the zone where nothing is timed, so this writes NULL in
+  // that case rather than leaving a zone qualifying nothing.
+  const { error: zoneError } = await admin
+    .from('gatherings')
+    .update({ time_zone: when.timeZone })
+    .eq('id', gatheringId)
+    .eq('family_code', familyCode)
+  if (zoneError) {
+    console.error(`[gatherings] could not set the zone for ${gatheringId}: ${zoneError.message}`)
+    return { ok: false, message: 'Could not save when this gathering happens.' }
+  }
+
   const { error: deleteError } = await admin
     .from('gathering_occurrences')
     .delete()

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_ZONE,
   dateIn,
+  instantAt,
   isValidZone,
   sameClock,
   timeIn,
@@ -266,5 +267,66 @@ describe('sameClock', () => {
     expect(dateIn(EVENING_BEFORE, 'Pacific/Honolulu')).toBe('2026-07-30')
     expect(sameClock('Pacific/Kiritimati', 'Pacific/Honolulu', new Date(EVENING_BEFORE)))
       .toBe(false)
+  })
+})
+
+/**
+ * `instantAt` — the ONE place a wall-clock label is deliberately turned into an instant.
+ *
+ * Everything else in this module goes the other way and the header is emphatic that a stored
+ * label is never converted. This exception exists to render a secondary "your time" line beside
+ * the stated one, and the stored value is untouched.
+ *
+ * ── THE ASSERTION IS A ROUND TRIP, WHICH IS THE ONLY HONEST ONE ─────────────────────
+ * Checking the instant against a hand-written ISO string would be checking my arithmetic against
+ * my arithmetic. What has to be true is that the instant READS BACK as the stated time in the
+ * stated zone — so every case below converts and then converts back, and a wrong offset in
+ * either direction fails.
+ *
+ * The five cases are each a different way for the two-pass correction to be wrong:
+ *
+ *   Chicago in July / January   a DST offset and a standard one, from one zone
+ *   Tokyo at 23:30              a large POSITIVE offset near the end of a day
+ *   Auckland at 00:15           +12, so the naive UTC instant lands on the PREVIOUS DAY —
+ *                               the case the twelve-hour fold exists for
+ *   Kolkata at 11:00            a half-hour offset, which catches minute arithmetic done in hours
+ */
+describe('instantAt', () => {
+  const cases: [string, string, string][] = [
+    ['2026-07-04', '11:00', 'America/Chicago'],
+    ['2026-01-10', '11:00', 'America/Chicago'],
+    ['2026-07-04', '23:30', 'Asia/Tokyo'],
+    ['2026-07-04', '00:15', 'Pacific/Auckland'],
+    ['2026-07-04', '11:00', 'Asia/Kolkata'],
+  ]
+
+  it('produces an instant that reads back as the stated time in the stated zone', () => {
+    for (const [day, time, zone] of cases) {
+      const at = instantAt(day, time, zone)
+      expect(timeIn(at, zone)).toBe(time)
+      expect(dateIn(at, zone)).toBe(day)
+    }
+  })
+
+  it('crosses the UTC day boundary where the offset demands it', () => {
+    // Auckland is +12, so 00:15 on 4 July there is the PREVIOUS day in UTC. Asserted
+    // explicitly, because this is the case the twelve-hour fold in the correction exists for
+    // and it would otherwise be a whole day out with the round trip still passing on the time.
+    const at = instantAt('2026-07-04', '00:15', 'Pacific/Auckland')
+    expect(dateIn(at, 'UTC')).toBe('2026-07-03')
+    expect(dateIn(at, 'Pacific/Auckland')).toBe('2026-07-04')
+  })
+
+  it('gives a different instant for the same clock in two zones', () => {
+    // 11:00 in Chicago and 11:00 in Tokyo are fourteen hours apart. If the zone argument were
+    // ignored these would be equal, which is the shape of the bug this module exists for.
+    expect(instantAt('2026-07-04', '11:00', 'America/Chicago').getTime())
+      .not.toBe(instantAt('2026-07-04', '11:00', 'Asia/Tokyo').getTime())
+  })
+
+  it('survives nonsense rather than producing an Invalid Date', () => {
+    // It renders a secondary line on a page; an exception here would take the page with it.
+    expect(Number.isNaN(instantAt('not-a-day', '11:00', 'UTC').getTime())).toBe(false)
+    expect(Number.isNaN(instantAt('2026-07-04', 'nonsense', 'UTC').getTime())).toBe(false)
   })
 })

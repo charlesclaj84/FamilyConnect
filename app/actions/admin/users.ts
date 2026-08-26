@@ -148,6 +148,11 @@ export async function updateUserProfile(
   //      working mailbox and `invitePersonRecord` cannot mint an invitation to it. The
   //      address changes exactly once, when `redeem_family_invitation` clears both flags.
   delete fields.primary_email
+  // AND THE LANGUAGE, for the reason MemberProfileEditDialog's FormState states: a locale
+  // is a preference the member expresses, not a fact about them an administrator corrects.
+  // Deleted HERE and not only in the dialog, because the dialog is a convenience and this
+  // is a public HTTP endpoint (§2).
+  delete fields.locale
   if (Object.keys(fields).length === 0) return { success: true }
 
   //   3. A REFERENCE CHECK on chapter_id (AGENTS.md §4) — the SECOND layer, and today a

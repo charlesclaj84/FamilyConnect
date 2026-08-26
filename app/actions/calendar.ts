@@ -289,6 +289,10 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
               endsOn: row.ends_on ?? null,
               endTime: null,
             }],
+            // NO ZONE, deliberately: `whenToCalendarSpans` answers which DAYS a gathering
+            // covers, and a zone changes no date here — the dates are wall-clock labels and
+            // are not converted. Threading one through would imply otherwise.
+            timeZone: null,
           }
 
           for (const span of whenToCalendarSpans(row.id, when)) {

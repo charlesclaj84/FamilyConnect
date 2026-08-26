@@ -75,8 +75,18 @@ import type { PersonalInfoData } from '@/app/actions/personal-info'
  */
 
 /** The form's own state — every writable profile column, as strings. */
+/**
+ * `locale` IS EXCLUDED, and it is the same argument `primary_email` is excluded on.
+ *
+ * An administrator editing a member's record fixes facts about that person — their name, their
+ * address, the spelling of their surname. Which language they read the product in is not a fact
+ * about them, it is a preference they express, and choosing it on their behalf would silently
+ * change the interface under somebody who never asked. `updateUserProfile` deletes it from the
+ * patch as well, for the reason that action deletes `primary_email`: the dialog in front of it
+ * is a convenience and not a gate (§2).
+ */
 type FormState = Required<Omit<PersonalInfoData,
-  'primary_email' | 'chapter_id'
+  'primary_email' | 'chapter_id' | 'locale'
 >>
 
 const EMPTY: FormState = {

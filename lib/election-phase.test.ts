@@ -8,6 +8,7 @@ import {
   votingOpen,
   windowProblem,
 } from './election-phase'
+import { DEFAULT_ZONE, todayIn } from './tz'
 
 /**
  * The phase arithmetic, and the window rules the organizer's form and `createElection` share.
@@ -393,5 +394,84 @@ describe('electionWindowBounds', () => {
       .not.toBeNull()
     expect(windowProblem({ ...dates, voting_close_on: '2027-01-02' }, { requireAll: true }))
       .not.toBeNull()
+  })
+})
+
+/**
+ * THE ZONE THE PHASE IS RESOLVED IN — the TypeScript half of `20260826000005`.
+ *
+ * `election_window_open()` in SQL decides whether a nomination or a vote may be WRITTEN, and it
+ * used `CURRENT_DATE` — the database's date, UTC on hosted Supabase. `electionPhase` decides
+ * what the SCREEN says, and every caller passed `todayLocal()`, which is the runtime's zone and
+ * therefore also UTC on the server. **So the two halves agreed, and they agreed on the wrong
+ * answer**, which is why the repair had to be both or neither: fixing only the SQL would leave
+ * a member told the ballot is open and then refused by the database.
+ *
+ * The SQL half cannot be tested for this. `now()` is not overridable from a client, so the only
+ * variable a probe can move is the zone, and a deterministic zone discriminator would need an
+ * election whose window boundary is today — which would then be the soonest-closing election in
+ * the fixture and would take the Quick Actions cases with it. That gap is recorded in
+ * `20260826000005`'s header and in `cases.mjs`.
+ *
+ * **THIS is the half that CAN be proved by value**, because `electionPhase` takes `today` as a
+ * parameter and `todayIn` takes both the zone and the clock. So the composition the actions now
+ * perform is asserted directly, against a fixed instant, with no clock and no database in the way.
+ *
+ * THE INSTANT IS THE BOUNDARY, HAND-CHECKED: `2026-08-16T00:30:00Z` is 15 August, 19:30 in
+ * Chicago. An election whose voting closes on the 15th is therefore OPEN in the family's own
+ * zone and CLOSED in UTC — the five lost hours, expressed as one assertion.
+ */
+describe('the phase is resolved in the election own zone', () => {
+  /** 15 August 19:30 Chicago = 16 August 00:30 UTC. */
+  const AT = new Date('2026-08-16T00:30:00Z')
+
+  const closingOnTheFifteenth = {
+    status: 'published' as const,
+    nominations_open_on: '2026-08-01',
+    nominations_close_on: '2026-08-10',
+    voting_open_on: '2026-08-11',
+    voting_close_on: '2026-08-15',
+  }
+
+  it('is voting at 19:30 on the closing day in the family zone, and closed in UTC', () => {
+    // THE BUG AND THE FIX IN TWO LINES. Before the repair every caller passed the UTC answer,
+    // so a member with the ballot in front of them five hours before their own midnight was
+    // told the poll had shut — and election_window_open() refused the write to match.
+    expect(electionPhase(closingOnTheFifteenth, todayIn('America/Chicago', AT))).toBe('voting')
+    expect(electionPhase(closingOnTheFifteenth, todayIn('UTC', AT))).toBe('closed')
+  })
+
+  it('does not read the phase from the READER, which is the one inversion to avoid', () => {
+    // A deadline is a family-wide fact. Resolved per viewer, two members would disagree about
+    // whether the ballot is open — and the one whose browser said open would be refused by a
+    // policy evaluating somebody else's midnight. Tokyo is already on the 16th at this instant,
+    // so a reader's zone leaking in would answer 'closed' — a DIFFERENT value, which is what
+    // makes this able to fail rather than tautological.
+    expect(todayIn('Asia/Tokyo', AT)).toBe('2026-08-16')
+    expect(electionPhase(closingOnTheFifteenth, todayIn('Asia/Tokyo', AT))).toBe('closed')
+    expect(electionPhase(closingOnTheFifteenth, todayIn('America/Chicago', AT))).toBe('voting')
+  })
+
+  it('falls back to DEFAULT_ZONE for an election with no zone recorded', () => {
+    // The `?? DEFAULT_ZONE` every caller writes, and the SQL COALESCE it mirrors. Without that
+    // COALESCE the comparison goes NULL and the window reads as closed forever — measured, and
+    // it takes ten RLS assertions with it.
+    expect(electionPhase(closingOnTheFifteenth, todayIn(DEFAULT_ZONE, AT))).toBe('voting')
+    expect(DEFAULT_ZONE).toBe('America/Chicago')
+  })
+
+  it('the nominations window has the same boundary, in the other direction', () => {
+    // Not only the closing edge: nominations OPENING is where the old behaviour was five hours
+    // EARLY rather than five hours short, which is the half that let a nomination be filed
+    // before the family window began.
+    const opensOnTheSixteenth = {
+      status: 'published' as const,
+      nominations_open_on: '2026-08-16',
+      nominations_close_on: '2026-08-20',
+      voting_open_on: '2026-08-21',
+      voting_close_on: '2026-08-25',
+    }
+    expect(electionPhase(opensOnTheSixteenth, todayIn('America/Chicago', AT))).toBe('scheduled')
+    expect(electionPhase(opensOnTheSixteenth, todayIn('UTC', AT))).toBe('nominations')
   })
 })

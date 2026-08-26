@@ -25,8 +25,20 @@ const occ = (
   endTime: string | null = null,
 ): GatheringOccurrence => ({ startsOn, startTime, endsOn, endTime })
 
+/**
+ * A `when` with a zone already stated.
+ *
+ * DEFAULTED SO THAT EVERY TEST BELOW STAYS ABOUT WHAT IT WAS ABOUT. `20260826000003` made a
+ * zone mandatory wherever a time is given, so without a default every timed case in this file
+ * would report `time-needs-zone` alongside the rule it is actually testing — six of them did,
+ * which is how this line came to exist. The zone rule has its own block at the bottom.
+ */
 const when = (isContinuous: boolean, ...occurrences: GatheringOccurrence[]): GatheringWhen =>
-  ({ isContinuous, occurrences })
+  ({ isContinuous, occurrences, timeZone: 'America/Chicago' })
+
+/** The same, with no zone — for the rule that a time requires one. */
+const whenNoZone = (isContinuous: boolean, ...occurrences: GatheringOccurrence[]): GatheringWhen =>
+  ({ isContinuous, occurrences, timeZone: null })
 
 const codes = (w: GatheringWhen) => whenProblems(w).map(p => p.code)
 
@@ -243,7 +255,7 @@ describe('formatWhen', () => {
 
   it('appends the time where there is one', () => {
     expect(formatWhen(when(true, occ('2026-07-04', '11:00', null, '16:00'))))
-      .toBe('July 4th, 2026 · 11:00 AM – 4:00 PM')
+      .toBe('July 4th, 2026 · 11:00 AM – 4:00 PM CDT')
   })
 
   it('is a range for a continuous span', () => {
@@ -271,5 +283,85 @@ describe('formatWhen', () => {
 
   it('is null with nothing to say', () => {
     expect(formatWhen(when(true))).toBeNull()
+  })
+})
+
+/**
+ * A TIME REQUIRES A ZONE (20260826000003).
+ *
+ * The rule is one-directional and both halves are asserted, because the reverse conjunct is the
+ * thing somebody would add for symmetry and it would be wrong: a zone with no time is permitted
+ * in the database on purpose, so that a family deleting their last timed occasion does not meet
+ * a refusal on a column they never touched.
+ *
+ * These duplicate what `gatherings_time_needs_zone` states in SQL, deliberately. That
+ * constraint is the only thing underneath these actions — they write on the service role — and
+ * a member who reached it would get "could not save" with no field named. This layer is what
+ * tells them which box to fill in.
+ */
+describe('the zone a time is stated in', () => {
+  it('refuses a time with no zone', () => {
+    expect(codes(whenNoZone(true, occ('2026-07-04', '11:00')))).toContain('time-needs-zone')
+  })
+
+  it('accepts a DATE with no zone, which is a complete answer', () => {
+    // "The reunion is on 4 July" needs no zone, and demanding one would be demanding a fact
+    // about a gathering that has no time for it to qualify.
+    expect(codes(whenNoZone(true, occ('2026-07-04')))).toEqual([])
+  })
+
+  it('accepts a zone with no time, because the constraint is one-directional', () => {
+    // Permitted and inert. See 20260826000003's header for why the reverse conjunct would fail
+    // on a row nobody edited.
+    expect(codes(when(true, occ('2026-07-04')))).toEqual([])
+  })
+
+  it('refuses a zone the runtime does not know', () => {
+    expect(codes({
+      isContinuous: true,
+      occurrences: [occ('2026-07-04', '11:00')],
+      timeZone: 'Mars/Olympus_Mons',
+    })).toContain('bad-zone')
+  })
+
+  it('accepts a real zone', () => {
+    expect(codes(when(true, occ('2026-07-04', '11:00')))).toEqual([])
+  })
+
+  it('normaliseWhen DROPS a zone when nothing is timed', () => {
+    // Permitted by the constraint is not a reason to write it: a stored value nothing reads is
+    // the `dues_member_plans.start_date` trap. So the normaliser clears it rather than carrying
+    // a zone that qualifies nothing.
+    expect(normaliseWhen(when(true, occ('2026-07-04'))).timeZone).toBeNull()
+    expect(normaliseWhen(when(true, occ('2026-07-04', '11:00'))).timeZone)
+      .toBe('America/Chicago')
+  })
+})
+
+describe('formatWhen names the stated zone', () => {
+  it('appends the abbreviation beside a time', () => {
+    // The PRIMARY half of the display rule: what the family said, with the zone that makes it
+    // unambiguous. July, so Central is on daylight time and reads CDT.
+    expect(formatWhen(when(true, occ('2026-07-04', '11:00'))))
+      .toBe('July 4th, 2026 · from 11:00 AM CDT')
+  })
+
+  it('follows daylight saving from the GATHERING day, not from today', () => {
+    // A January gathering reads CST whenever the page is loaded. Reading the clock instead
+    // would print CDT on a winter reunion opened in summer — the kind of detail a reader checks
+    // and the reason `withZone` takes the occasion's own date.
+    expect(formatWhen(when(true, occ('2026-01-10', '11:00'))))
+      .toBe('January 10th, 2026 · from 11:00 AM CST')
+  })
+
+  it('says nothing where there is no zone', () => {
+    // A row written before 20260826000003 may legitimately have none. Guessing Central or
+    // printing "undefined" would both be worse than silence.
+    expect(formatWhen(whenNoZone(true, occ('2026-07-04', '11:00'))))
+      .toBe('July 4th, 2026 · from 11:00 AM')
+  })
+
+  it('adds no suffix to a date with no time', () => {
+    expect(formatWhen(when(true, occ('2026-07-04')))).toBe('July 4th, 2026')
   })
 })

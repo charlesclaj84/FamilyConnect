@@ -4,8 +4,10 @@ import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { FieldError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
+import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import {
   WHEN_PROBLEM_TEXT, whenProblems,
   type GatheringOccurrence, type GatheringWhen,
@@ -96,9 +98,9 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
    */
   function setMultiDay(on: boolean) {
     if (on) {
-      onChange({ isContinuous: true, occurrences: [{ ...first, endsOn: first.endsOn ?? '' }] })
+      onChange({ ...value, isContinuous: true, occurrences: [{ ...first, endsOn: first.endsOn ?? '' }] })
     } else {
-      onChange({ isContinuous: true, occurrences: [{ ...first, endsOn: null }] })
+      onChange({ ...value, isContinuous: true, occurrences: [{ ...first, endsOn: null }] })
     }
   }
 
@@ -111,9 +113,10 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
    */
   function setContinuous(on: boolean) {
     if (on) {
-      onChange({ isContinuous: true, occurrences: [{ ...first, endsOn: first.endsOn ?? '' }] })
+      onChange({ ...value, isContinuous: true, occurrences: [{ ...first, endsOn: first.endsOn ?? '' }] })
     } else {
       onChange({
+        ...value,
         isContinuous: false,
         // The first occasion loses its end DATE: a separate-days series is a list of days, and
         // an occasion that itself spans two of them is a shape nothing on the calendar could
@@ -256,6 +259,8 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
             </div>
           </div>
 
+          <ZoneRow value={value} onChange={onChange} idPrefix={idPrefix} disabled={disabled} />
+
           <FieldError message={problemAt(0) ? WHEN_PROBLEM_TEXT[problemAt(0)!] : ''} />
         </div>
       ) : (
@@ -378,9 +383,73 @@ function ShapeChoice({ name, checked, disabled, onSelect, label, hint }: {
   )
 }
 
-/** A fresh, empty `when` — one continuous occasion with nothing filled in. */
-export function emptyWhen(): GatheringWhen {
+/**
+ * WHICH TIMEZONE THE TIMES ABOVE ARE IN.
+ *
+ * ── IT APPEARS ONLY ONCE A TIME HAS BEEN GIVEN ──────────────────────────────────────
+ * A date-only gathering has nothing for a zone to qualify — "the reunion is on 4 July" is a
+ * complete answer — and `normaliseWhen` clears the field in that case, so showing the control
+ * would be offering a choice the server discards. It is not DISABLED but absent: a greyed-out
+ * timezone box next to two empty time boxes reads as something being wrong.
+ *
+ * ── THE LABEL SAYS WHAT IT DOES, WHICH IS THE OPPOSITE OF WHAT PEOPLE EXPECT ────────
+ * Every relative sees the time as it is typed here, WITH this zone named beside it. Nothing is
+ * converted for anybody — that is `20260826000001`'s rule and `20260826000003` only qualifies
+ * it — so the hint has to say so, or a member will reasonably assume a cousin in London is
+ * being shown 5pm for their 11am and will enter 11am meaning something else.
+ *
+ * ── THE LIST IS `TIMEZONES` FROM `date-utils`, WHICH IS THE SAME ONE MY PROFILE USES ─
+ * One list, so the zone a member picked for themselves is offered here too and the two screens
+ * cannot drift into different vocabularies. A zone stored on a gathering from outside that list
+ * still renders — `zoneAbbrev` and `formatInstant` take any IANA name — so the list is a
+ * convenience rather than a constraint, which is why the CHECK on this column does not exist.
+ */
+function ZoneRow({ value, onChange, idPrefix, disabled }: {
+  value: GatheringWhen
+  onChange: (next: GatheringWhen) => void
+  idPrefix: string
+  disabled?: boolean
+}) {
+  const anyTimed = value.occurrences.some(o => o.startTime)
+  if (!anyTimed) return null
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`${idPrefix}-zone`} required>Timezone</Label>
+      <Select
+        id={`${idPrefix}-zone`}
+        value={value.timeZone ?? ''}
+        disabled={disabled}
+        onChange={e => onChange({ ...value, timeZone: e.target.value || null })}
+      >
+        <option value="">Choose a timezone…</option>
+        {TIMEZONES.map(tz => (
+          <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+        ))}
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Everyone sees the time exactly as you typed it, with this timezone named beside it.
+        Nothing is converted.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * A fresh, empty `when` — one continuous occasion with nothing filled in.
+ *
+ * `zone` DEFAULTS THE TIMEZONE RATHER THAN LEAVING IT BLANK, and the caller passes the author's
+ * own. A required field that starts empty is a field somebody stares at; a member scheduling a
+ * picnic in the town they live in should not have to state which zone they are in. It stays a
+ * DEFAULT and decides nothing on the server — `scheduleGathering` validates whatever it is sent
+ * either way, because the form in front of it is a convenience (§2).
+ *
+ * It is only ever CONSULTED when a time is given: `normaliseWhen` clears it otherwise, so a
+ * date-only gathering does not carry a zone qualifying nothing.
+ */
+export function emptyWhen(zone: string): GatheringWhen {
   return {
+    timeZone: zone,
     isContinuous: true,
     occurrences: [{ startsOn: '', startTime: null, endsOn: null, endTime: null }],
   }

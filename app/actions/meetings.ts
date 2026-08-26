@@ -6,6 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
+import { normaliseTime } from '@/lib/gathering-when'
+import { isValidZone } from '@/lib/tz'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { notifyMeetingScheduled } from '@/lib/notifications'
 import { isIsoDate } from '@/lib/calendar'
@@ -93,6 +95,11 @@ export interface MeetingSession {
   id: string
   title: string
   meetsOn: string
+  /** `HH:MM` or null — a wall-clock label, never converted. */
+  startTime: string | null
+  endTime: string | null
+  /** The zone the times were STATED in, for printing beside them. */
+  timeZone: string | null
   secretaryId: string | null
   secretaryName: string | null
   createdBy: string | null
@@ -184,6 +191,9 @@ export async function getMeetings(): Promise<MeetingSession[]> {
     id: r.id as string,
     title: r.title as string,
     meetsOn: r.meets_on as string,
+    startTime: r.start_time ? String(r.start_time).slice(0, 5) : null,
+    endTime: r.end_time ? String(r.end_time).slice(0, 5) : null,
+    timeZone: (r.time_zone as string | null) ?? null,
     secretaryId: (r.secretary_id as string | null) ?? null,
     secretaryName: personName(r.people),
     createdBy: (r.created_by as string | null) ?? null,
@@ -268,6 +278,9 @@ export async function getMeetingDetail(id: string): Promise<MeetingDetail | null
     id: r.id as string,
     title: r.title as string,
     meetsOn: r.meets_on as string,
+    startTime: r.start_time ? String(r.start_time).slice(0, 5) : null,
+    endTime: r.end_time ? String(r.end_time).slice(0, 5) : null,
+    timeZone: (r.time_zone as string | null) ?? null,
     secretaryId: (r.secretary_id as string | null) ?? null,
     secretaryName: personName(r.people),
     createdBy: (r.created_by as string | null) ?? null,
@@ -591,6 +604,19 @@ export async function getMeetingAttendeeOptions(): Promise<MeetingAttendeeOption
 export async function scheduleMeeting(input: {
   title: string
   meetsOn: string
+  /**
+   * `HH:MM`, or absent. A WALL-CLOCK LABEL — two o'clock where the meeting is — never an
+   * instant, and never converted for anybody (20260826000004).
+   *
+   * OPTIONAL, which is a product decision rather than a schema convenience: a family fixing
+   * the date first and the hour later is ordinary, and requiring it would block scheduling
+   * with nothing useful to say about why.
+   */
+  startTime?: string | null
+  /** `HH:MM`, or absent. Only meaningful with a start, and must be after it. */
+  endTime?: string | null
+  /** The zone the two above were STATED in. Required as soon as there is a start time. */
+  timeZone?: string | null
   secretaryId: string
   boardIds?: string[]
   positionIds?: string[]
@@ -610,6 +636,40 @@ export async function scheduleMeeting(input: {
   if (!title) return { success: false, message: 'Give the meeting a title' }
   if (!isIsoDate(input.meetsOn)) return { success: false, message: 'Choose a date for the meeting' }
   if (!input.secretaryId) return { success: false, message: 'Choose who is taking the minutes' }
+
+  // ── THE TIMES, AND THE ZONE THEY ARE STATED IN ────────────────────────────────────
+  // Three CHECK constraints on `meeting_sessions` say the same three things
+  // (`20260826000004`), and they are the only thing underneath this action — every write here
+  // is on the service role. Checked in TypeScript as well so the member is told WHICH field is
+  // wrong; a 23514 would only ever surface as "could not schedule that meeting".
+  const startTime = normaliseTime(input.startTime)
+  const endTime = normaliseTime(input.endTime)
+  if (input.startTime && !startTime) {
+    return { success: false, message: 'That is not a time we can read' }
+  }
+  if (input.endTime && !endTime) {
+    return { success: false, message: 'That is not a time we can read' }
+  }
+  if (endTime && !startTime) {
+    return { success: false, message: 'Give a start time as well, or leave the end time empty' }
+  }
+  // ONE DAY, so no cross-day exemption — unlike a gathering, which may legitimately run
+  // overnight. `meets_on` is a single date and an end before its start is always a mistake.
+  if (startTime && endTime && endTime <= startTime) {
+    return { success: false, message: 'The end time has to be after the start time' }
+  }
+  // A time REQUIRES a zone; a zone with no time is dropped rather than refused, matching the
+  // one-directional constraint. See 20260826000003's header for why that asymmetry is right.
+  const timeZone = startTime ? (input.timeZone ?? null) : null
+  if (startTime && !timeZone) {
+    return {
+      success: false,
+      message: 'Say which timezone the time is in, so relatives elsewhere can read it',
+    }
+  }
+  if (timeZone && !isValidZone(timeZone)) {
+    return { success: false, message: 'That is not a timezone we recognise' }
+  }
 
   if (!(await belongsToFamily('people', input.secretaryId, g.familyCode))) {
     return { success: false, message: 'That secretary is not in this family' }
@@ -679,6 +739,9 @@ export async function scheduleMeeting(input: {
       family_code: g.familyCode,
       title,
       meets_on: input.meetsOn,
+      start_time: startTime,
+      end_time: endTime,
+      time_zone: timeZone,
       secretary_id: input.secretaryId,
       created_by: g.personId || null,
     })

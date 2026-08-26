@@ -23,6 +23,7 @@ import { GENDERS, GENDER_LABELS, genderLabel } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
 import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { LOCALES } from '@/lib/i18n/locales'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity'
 import { NotificationsSection } from '@/components/personal-info/Notifications'
@@ -706,6 +707,7 @@ const additionalSchema = z.object({
   tshirt_category: z.string().optional(),
   tshirt_size:     z.string().optional(),
   time_zone:       z.string().optional(),
+  locale:          z.string().optional(),
 })
 type AdditionalData = z.infer<typeof additionalSchema>
 
@@ -725,6 +727,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
       tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
       time_zone: tv(existing?.time_zone),
+      locale: tv(existing?.locale),
     },
   })
 
@@ -742,6 +745,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
       date_of_birth: tv(existing?.date_of_birth), sunset_date: tv(existing?.sunset_date),
       tshirt_category: tv(existing?.tshirt_category), tshirt_size: tv(existing?.tshirt_size),
       time_zone: tv(existing?.time_zone),
+      locale: tv(existing?.locale),
     })
     setServerError('')
     onEditDone()
@@ -815,6 +819,33 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
                   <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
                 ))}
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Dates and times the product records — when a payment was entered, when a message
+                was sent — are shown to you in this timezone.
+              </p>
+            </div>
+            {/* ── LANGUAGE ────────────────────────────────────────────────────────────
+                THE ENDONYM IS NOT TRANSLATED, and that is the one rule for this control:
+                a member looking for their own language scans for the word they would use
+                for it, and that word does not change with the interface they happen to be
+                reading. See `lib/i18n/locales.ts`.
+
+                No flags. A flag is a country and a language is not — Spanish is not Spain
+                to a family in Monterrey. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="locale">Language</Label>
+              <Select id="locale" {...register('locale')}>
+                <option value="">— Select —</option>
+                {LOCALES.map(l => (
+                  <option key={l.code} value={l.code}>
+                    {l.code.toUpperCase()} · {l.endonym}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Leave this empty and we follow your browser. Translation is still in progress,
+                so some screens are English whichever language you choose.
+              </p>
             </div>
           </div>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />

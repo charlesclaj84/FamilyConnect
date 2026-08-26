@@ -167,6 +167,13 @@ const REVIEWED = {
     "SELF — `.eq('recipient_id', person.id)` where `person` is the caller's own row, which is "
     + 'narrower than the family.',
 
+  'lib/auth/locale.ts:people':
+    "SELF — `.eq('user_id', userId)`, the caller's own rows, which is narrower than a family. "
+    + 'Identical shape and identical reasoning to lib/auth/zone.ts:people below: the column '
+    + 'read is `locale`, which `people_sync_shared_profile` propagates across every family a '
+    + 'user belongs to (20260826000002), so every one of the caller\'s own rows holds the same '
+    + 'answer and there is nothing for a family conjunct to disambiguate.',
+
   'lib/auth/zone.ts:people':
     "SELF — `.eq('user_id', userId)`, the caller's own rows, which is narrower than a family. "
     + 'The column read is `time_zone`, one of the columns `people_sync_shared_profile` '

@@ -5,6 +5,7 @@ import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { todayLocal } from '@/lib/date-utils'
+import { DEFAULT_ZONE, todayIn } from '@/lib/tz'
 import { electionPhase, ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { electionAreaMatch, electionScopeLabel } from '@/lib/election-area'
 import type { PositionCategory, PositionScope } from '@/lib/board-positions'
@@ -159,7 +160,7 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
   // one `Promise.all` — the ids have to exist before the second half can be asked.
   const electionsRes = await admin.from('elections')
     .select('id, title, status, scope, region_id, chapter_id, nominations_open_on, '
-      + 'nominations_close_on, voting_open_on, voting_close_on')
+      + 'nominations_close_on, voting_open_on, voting_close_on, time_zone')
     .eq('family_code', g.familyCode)
     .eq('status', 'published')
 
@@ -206,7 +207,6 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
   const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
   const people = rows(peopleRes.data)
 
-  const today = todayLocal()
   const input: ElectionReportInput[] = electionRows.map(e => {
     const area = {
       scope: e.scope as string | null,
@@ -219,7 +219,11 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
       nominations_close_on: (e.nominations_close_on as string | null) ?? null,
       voting_open_on: (e.voting_open_on as string | null) ?? null,
       voting_close_on: (e.voting_close_on as string | null) ?? null,
-    }, today)
+      // EACH ELECTION'S OWN ZONE, not one `today` shared across the report. A family running
+      // a national ballot and a chapter's may legitimately have stated them in different
+      // zones, and this figure has to match what the member's own screen says about the same
+      // election — otherwise the report contradicts the ballot. See 20260826000005.
+    }, todayIn((e.time_zone as string | null) ?? DEFAULT_ZONE))
     const nominations = rows(nominationsRes.data)
       .filter(n => n.election_id === e.id)
       .map(n => ({ positionId: n.position_id as string, accepted: Boolean(n.accepted) }))

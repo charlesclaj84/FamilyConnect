@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import {
   getMeetingAttendeeOptions, getMeetings, mayScheduleMeeting,
 } from '@/app/actions/meetings'
@@ -55,16 +56,20 @@ export default async function MeetingMinutesPage() {
   // BEFORE it queries anything, so §5 is honoured by the ACTION rather than by the ternary: a
   // caller who cannot schedule gets nothing in the RSC payload and pays for two already-cached
   // permission checks. `NO_OPTIONS` in that file is now the only place the empty shape exists.
-  const [meetings, maySchedule, attendeeOptions] = await Promise.all([
+  const [meetings, maySchedule, attendeeOptions, zone] = await Promise.all([
     getMeetings(),
     mayScheduleMeeting(),
     getMeetingAttendeeOptions(),
+    // The SCHEDULER's zone, defaulting the dialog's timezone field. A default and no more:
+    // `scheduleMeeting` validates whatever it is sent (§2).
+    resolveZone(user.id),
   ])
 
   return (
     <PageShell className="space-y-6">
       <MeetingsClient
         initialMeetings={meetings}
+        zone={zone}
         maySchedule={maySchedule}
         attendeeOptions={attendeeOptions}
       />

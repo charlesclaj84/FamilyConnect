@@ -112,6 +112,12 @@ export interface AdminGatheringRow {
    * is a fortnight, and claiming a fortnight is the misreading this whole feature exists to fix.
    */
   startTime: string | null
+  /**
+   * The zone the times above WERE STATED IN — never one to convert them into.
+   * `null` where no time was given. See 20260826000003.
+   */
+  timeZone: string | null
+
   endTime: string | null
   isContinuous: boolean
   /** How many occasions there are, so `formatWhenBrief` can say "3 days from…". */
@@ -272,7 +278,7 @@ const CREATOR_EMBED = 'creator:people!gatherings_created_by_fkey(first_name, las
 // per row. `occurrence_count` is the one thing that is not a column: a series needs to say how
 // many days it is rather than printing its envelope as a range, so it is counted separately.
 const GATHERING_COLUMNS =
-  'id, title, summary, location, starts_on, ends_on, start_time, end_time, is_continuous, '
+  'id, title, summary, location, starts_on, ends_on, start_time, end_time, is_continuous, time_zone, '
   + 'status, is_premier, photo_path, created_by'
 
 /**
@@ -302,6 +308,7 @@ interface GatheringDbRow {
   summary: string | null
   location: string | null
   start_time: string | null
+  time_zone: string | null
   end_time: string | null
   is_continuous: boolean
   starts_on: string
@@ -687,6 +694,7 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
     startTime:  trimTime(row.start_time),
+    timeZone:   row.time_zone ?? null,
     endTime:    trimTime(row.end_time),
     isContinuous: row.is_continuous !== false,
     // FILLED IN BY THE CALLER where it knows better. One is the honest default rather than
@@ -823,6 +831,7 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
     startTime:  trimTime(row.start_time),
+    timeZone:   row.time_zone ?? null,
     endTime:    trimTime(row.end_time),
     isContinuous: row.is_continuous !== false,
     occurrenceCount: occurrences?.length ?? 1,

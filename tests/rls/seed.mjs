@@ -2305,6 +2305,13 @@ export async function seed() {
       // being found for every case ordered after it.
       location: `${code} assembly hall`,
       starts_on: GATHERING_STARTS_ON, ends_on: GATHERING_ENDS_ON,
+      // THE ZONE THE TIMES BELOW ARE STATED IN (20260826000005... 20260826000003).
+      // `gatherings_time_needs_zone` refuses a row whose envelope carries a time and no zone,
+      // and the envelope is written by `tg_gathering_when_envelope` from the OCCURRENCE
+      // inserted further down — so this has to be here even though nothing on this insert
+      // mentions a time. The first run of that migration against this fixture failed exactly
+      // here, which is the constraint doing its job on a trigger-written column.
+      time_zone: 'America/Chicago',
       status: 'planning', is_premier: true,
       fund_id: f.fund.id, budget_cents: 50000,
       created_by: owner.personId,
