@@ -56,6 +56,22 @@ const fmtDate = (s: string) => formatDate(s) ?? ''
  * dues sees one table and no empty heading — an empty table under a heading reads as something
  * that failed to load, which is the same argument the Donations pane makes about itself.
  *
+ * ── EACH TABLE IS A CARD, AND NEITHER HAS A LEDE ──────────────────────────────────
+ * `rounded-xl border bg-card`, the panel every other section of this product sits in. Two
+ * bare tables stacked on a page have nothing marking where one ends: the rule under the last
+ * required row and the rule between two rows are the same rule. The heading goes inside the
+ * border with it.
+ *
+ * There is no sentence under either heading. "Required dues" and "Optional dues" already say
+ * what a lede was saying, and a paragraph on each card pushed the first row of the first
+ * table below the fold on a phone.
+ *
+ * ── EVERY SCHEDULE IS LISTED, INCLUDING SETTLED ONES ──────────────────────────────
+ * A due paid in full used to vanish from the screen. These tables are the member's ROSTER —
+ * what they are on and where they stand — so a settled due stays, says **Paid**, and shows a
+ * zero balance. What is OWED is the **Due now** card underneath, which is the one place a
+ * total belongs and the only place it can be acted on.
+ *
  * ── PAST DUE IS A ROW TINT, AND A WORD ─────────────────────────────────────────────
  * A schedule whose calendar has asked for installments the money never covered tints its row
  * `--brand-withheld`, which is the token AGENTS.md reserves for exactly this: something that
@@ -228,25 +244,18 @@ export function DuesPlanSection({ summary, online }: {
     })
   }
 
-  // ── What is listed at all ───────────────────────────────────────────────────────
-  // Still owed, declined, or not owed yet. A due settled in full for this period drops out
-  // of the list entirely, which is what the single table did before it was split — the
-  // screen answers "what is being asked of you", and [payment history](/reporting/payment-history)
-  // answers "what have you paid". Splitting the table was not a reason to change that.
+  // ── EVERY SCHEDULE IS LISTED, SETTLED ONES INCLUDED (2026-08-26) ────────────────
+  // A due paid in full for the period dropped off the screen entirely, and that was wrong in
+  // a way that is easy to miss: the member's question is "what am I on and where do I stand",
+  // and a schedule vanishing the moment it is settled answers neither. It reads as the due
+  // having been removed, or as the payment having lost it — and it made the two tables
+  // disagree with the roster an administrator sees on Accounting.
   //
-  // `isOutstanding` is false for an age-exempt row (its remaining balance is zero, so `paid`
-  // is already true of it), which is why `notYetOwed` is a third term rather than covered by
-  // the first: a due starting on somebody's eighteenth birthday has to be visible BEFORE it
-  // arrives, or it appears out of nowhere on the day.
-  const listed = rows.filter(r =>
-    isOutstanding(r) || r.optedOut || (r.ageExempt && !r.optedOut))
-
-  // ── What goes in which table ────────────────────────────────────────────────────
-  // A clean partition on `required`, which is the schedule's own flag. Nothing has to be
-  // decided about where a declined or a not-yet-due row goes: only an OPTIONAL due can be
-  // declined, and an age-gated one keeps whichever kind it is.
-  const requiredRows = listed.filter(r => r.required)
-  const optionalRows = listed.filter(r => !r.required)
+  // So the table is the ROSTER now, and standing is a state on the row: a settled due says
+  // **Paid** and shows a zero balance rather than leaving. What is owed is the **Due now**
+  // card underneath, which is where a total belongs and where it can be acted on.
+  const requiredRows = rows.filter(r => r.required)
+  const optionalRows = rows.filter(r => !r.required)
 
   // ── What the member can actually pay by card ───────────────────────────────────
   // `isOutstanding` is the whole predicate: it is false for a declined due, false for a
@@ -255,8 +264,6 @@ export function DuesPlanSection({ summary, online }: {
   // dues only — and it is kept because `startDuesCheckout` refuses a donation and a
   // screen offering something the action refuses is worse than one that does not offer it.
   const payable = rows.filter(r => isOutstanding(r) && r.schedule.kind === 'dues')
-  const payableRequired = payable.filter(r => r.required)
-  const payableOptional = payable.filter(r => !r.required)
   const autopayFor = (r: DuesSummary) =>
     online.autopay.find(a => a.scheduleId === r.schedule.id) ?? null
 
@@ -301,10 +308,17 @@ export function DuesPlanSection({ summary, online }: {
 
       <FormError message={error} />
 
-      {listed.length === 0 ? (
+      {/* A DIFFERENT SENTENCE SINCE SETTLED DUES STAY LISTED. This branch used to mean
+          "nothing outstanding" and now means "on no schedules at all", which is a fact about
+          the family rather than about the member — so "you're all caught up" would be
+          congratulating somebody on having paid nothing. Being caught up is what the **Paid**
+          rows and the zero total say now. */}
+      {rows.length === 0 ? (
         <div className="flex flex-col items-center py-10 gap-2">
           <CheckCircle2 className="h-10 w-10 text-muted-foreground/20" />
-          <p className="text-sm text-muted-foreground">You&apos;re all caught up — nothing due right now.</p>
+          <p className="text-sm text-muted-foreground">
+            You are not on any dues schedules — your family has not set any up for you.
+          </p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -313,28 +327,15 @@ export function DuesPlanSection({ summary, online }: {
               dues and this member is on none of them, which is a different fact and usually
               not the true one. */}
           {requiredRows.length > 0 && (
-            <DuesTable
-              title="Required dues"
-              lede="Everybody on these schedules owes them."
-              rows={requiredRows}
-              {...rowProps}
-            />
+            <DuesTable title="Required dues" rows={requiredRows} {...rowProps} />
           )}
 
           {optionalRows.length > 0 && (
-            <DuesTable
-              title="Optional dues"
-              lede="Yours to take on or decline. Declining one is not the same as having paid it."
-              rows={optionalRows}
-              {...rowProps}
-            />
+            <DuesTable title="Optional dues" rows={optionalRows} {...rowProps} />
           )}
 
           <DuesTotals
-            required={payableRequired}
-            optional={payableOptional}
-            showRequiredLine={requiredRows.length > 0}
-            showOptionalLine={optionalRows.length > 0}
+            lines={payable}
             chargesReady={online.chargesReady}
             isPending={isPending}
             onPayAll={() => setPayFor(payable)}
@@ -385,9 +386,8 @@ type RowHandlers = {
  * schedule, what the next payment is, and what you can do about it. The date and the
  * remaining balance fold into a meta line under the name.
  */
-function DuesTable({ title, lede, rows, ...handlers }: {
+function DuesTable({ title, rows, ...handlers }: {
   title: string
-  lede: string
   rows: DuesSummary[]
 } & RowHandlers) {
   const [sort, setSort] = useState<{ col: DuesCol; dir: SortDir }>({ col: 'due_date', dir: 'asc' })
@@ -395,9 +395,12 @@ function DuesTable({ title, lede, rows, ...handlers }: {
     setSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
   }
 
-  // Declined rows go at the END, after everything still owed, and are sorted among
-  // themselves by the same column. They belong in this table — it is the only place a
-  // member can opt back in — but never above something they still have to pay.
+  // ── FOUR BANDS, MOST ACTIONABLE FIRST ──────────────────────────────────────────
+  // Still owed, then settled, then declined, then not owed yet — and each band is sorted
+  // among itself by whichever column the reader chose. Everything below the first band is
+  // something the member cannot act on, so none of it may sit above something they still
+  // have to pay; and within that, a due they PAID is worth more of their attention than
+  // one they declined, which in turn beats one that has not started.
   //
   // NOT a useMemo, deliberately, and removing it made this component FASTER rather than
   // slower. React Compiler could not preserve the manual memoization — it cannot prove
@@ -407,9 +410,13 @@ function DuesTable({ title, lede, rows, ...handlers }: {
   // every other value in the file its automatic memoization.
   //
   // The spread is what makes it safe to sort: this is a fresh array, so no prop is
-  // touched. Not-yet-owed rows sort to the very end, after the declined ones: they are
-  // the least actionable thing in the table, being a due nobody can pay yet.
-  const rank = (s: DuesSummary) => s.ageExempt ? 2 : s.optedOut ? 1 : 0
+  // touched.
+  //
+  // ORDER OF THE TESTS MATTERS. `paid` is true of an age-exempt row as well — its remaining
+  // balance is zero — so age has to be asked about first, or a due nobody owes yet would be
+  // reported as one they had settled.
+  const rank = (s: DuesSummary) =>
+    s.ageExempt ? 3 : s.optedOut ? 2 : s.paid ? 1 : 0
   const sorted = [...rows].sort((a, b) => {
     if (rank(a) !== rank(b)) return rank(a) - rank(b)
     let cmp = 0
@@ -420,29 +427,52 @@ function DuesTable({ title, lede, rows, ...handlers }: {
   })
 
   return (
-    <section className="space-y-2">
-      <div>
-        <h2 className="text-lg font-semibold text-brand-ink">{title}</h2>
-        <p className="text-sm text-muted-foreground">{lede}</p>
+    // ── A CARD, NOT A FLAT BLOCK ────────────────────────────────────────────────
+    // Two tables in a row on one page need something saying where one ends and the next
+    // begins, and a heading alone does not do it — the rules between rows read exactly
+    // like the rule between tables. `rounded-xl border bg-card` is the panel every other
+    // section of this product sits in, so this is the house style rather than a new one.
+    //
+    // The heading is INSIDE the border, and there is no lede under it. "Required dues"
+    // and "Optional dues" say the whole of what a sentence underneath was saying, and a
+    // paragraph of explanation on every card pushes the first row down the screen — on a
+    // phone, below the fold. What genuinely needs explaining is on the row that needs it.
+    <section className="rounded-xl border bg-card">
+      <h2 className="px-4 pt-4 text-lg font-semibold text-brand-ink sm:px-5 sm:pt-5">{title}</h2>
+      <div className="px-4 pb-2 sm:px-5">
+        <table className="w-full text-sm">
+          {/* ── THE SCHEDULE COLUMN TAKES WHAT IS LEFT ──────────────────────────
+              Widths on the four narrow headings and none on the first, which is what auto
+              layout needs to hear: with nothing stated the browser shares the table
+              proportionally by content, and the schedule name — the only thing here that
+              wraps — ends up in a column narrower than the fixed-width figures beside it,
+              breaking "Building Maintenance Fund" over three lines next to acres of white
+              space. Naming the other four lets the name absorb the remainder.
+
+              ON THE HEADINGS, NOT IN A `<colgroup>`. Only a handful of properties apply to
+              a `<col>` and `display` is not reliably one of them, so a hidden column there
+              would be a browser-by-browser question. These four headings already fold with
+              their cells through `COLLAPSING_CELL`, and a `sm:` width on an element that is
+              `display: none` below `sm` contributes exactly nothing — which is the
+              behaviour wanted, stated in one place. */}
+          <thead>
+            <tr className="border-b">
+              <SortTh label="Schedule" active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
+              <SortTh label="Next Payment" active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="right" className="w-28 sm:w-36" />
+              <SortTh label="Next Due" active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={cn(COLLAPSING_CELL, 'sm:w-28')} />
+              <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL, 'sm:w-28')}>Remaining</th>
+              {/* `sr-only` like every other action column here: the cell holds controls that
+                  name themselves, and a visible "Actions" heading over two icons is noise. */}
+              <th className="w-20 py-2 text-xs font-medium text-muted-foreground text-right sm:w-24">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(s => <DuesRow key={s.schedule.id} row={s} {...handlers} />)}
+          </tbody>
+        </table>
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <SortTh label="Schedule" active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
-            <SortTh label="Next Payment" active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="right" />
-            <SortTh label="Next Due" active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={COLLAPSING_CELL} />
-            <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL)}>Remaining</th>
-            {/* `sr-only` like every other action column here: the cell holds controls that
-                name themselves, and a visible "Actions" heading over two icons is noise. */}
-            <th className="py-2 text-xs font-medium text-muted-foreground text-right">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(s => <DuesRow key={s.schedule.id} row={s} {...handlers} />)}
-        </tbody>
-      </table>
     </section>
   )
 }
@@ -463,6 +493,18 @@ function DuesRow({
    * choice the member made and the way back is on that row.
    */
   const notYetOwed = row.ageExempt && !declined
+  /**
+   * Settled in full for this period.
+   *
+   * A FOURTH STATE, and a positive one — which is why it does NOT join `quiet` below. A
+   * declined due and one that has not started are greyed because nothing is happening on
+   * them; a paid one is the good outcome and greying it would file success under the same
+   * heading as absence.
+   *
+   * `row.paid` is `remainingBalanceCents <= 0`, which is true of an age-exempt row too, so
+   * both other states are excluded explicitly rather than by ordering luck.
+   */
+  const settled = row.paid && !declined && !notYetOwed
   const quiet = declined || notYetOwed
 
   /**
@@ -498,6 +540,14 @@ function DuesRow({
         : undefined}
     >
       Past due
+    </span>
+  ) : settled ? (
+    // AFFIRM, the token for a good outcome — the same treatment "Goal met" gets on a
+    // donation drive. A settled due stays listed rather than dropping off the screen (see
+    // the section header), so it needs to say WHY it has no figures beside it, and it must
+    // not look like the muted rows below it.
+    <span className="inline-block whitespace-nowrap rounded-full bg-brand-affirm px-2 py-0.5 text-[11px] font-medium text-brand-on-affirm">
+      Paid
     </span>
   ) : quiet ? (
     // Declined and Not yet due were in the **Payment** column, which the required/optional
@@ -567,6 +617,9 @@ function DuesRow({
           {!quiet && (
             <>
               {row.nextInstallmentDate && <MetaDot />}
+              {/* A SETTLED ROW STILL SHOWS ITS BALANCE, and it is zero. That is the whole
+                  point of keeping it listed — "you are on this and you owe nothing on it"
+                  is a different sentence from the row not being there. */}
               <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix="Remaining" />
             </>
           )}
@@ -587,15 +640,19 @@ function DuesRow({
         {/* An em dash for a due nobody owes yet, not "$0.00". A zero here is a figure
             somebody would try to reconcile; a dash is the honest answer to "what is your
             next installment" when there is not going to be one this year. */}
-        <span className={cn(quiet && 'text-muted-foreground', declined && 'line-through')}>
-          {notYetOwed ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
+        {/* An em dash for a due with no next payment — one nobody owes yet, and one already
+            settled. A "$0.00" here is a figure somebody would try to reconcile; a dash is
+            the honest answer to "what is your next installment" when there is not going to
+            be one. The BALANCE column is where the zero belongs, and it says it there. */}
+        <span className={cn((quiet || settled) && 'text-muted-foreground', declined && 'line-through')}>
+          {notYetOwed || settled ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
         </span>
-        {!quiet && (
+        {!quiet && !settled && (
           <span className="block text-[11px] font-normal capitalize text-muted-foreground">
             {row.cadence}
           </span>
         )}
-        {!quiet && !row.onSchedule && row.followingInstallmentDate && (
+        {!quiet && !settled && !row.onSchedule && row.followingInstallmentDate && (
           <span className="block text-[11px] font-normal text-muted-foreground">
             then {formatCurrency(row.followingInstallmentCents)}
           </span>
@@ -610,8 +667,12 @@ function DuesRow({
           : row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
       </td>
 
+      {/* A dash for a due with no balance to speak of — declined, or not started — and the
+          real zero for a settled one. `--brand-accent` is reserved for money still to find:
+          a settled row printing "$0.00" in the owing colour would draw the eye to the one
+          line on the screen that needs nothing. */}
       <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
-        quiet ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
+        quiet || settled ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
         {quiet ? '—' : formatCurrency(row.remainingBalanceCents)}
       </td>
 
@@ -644,6 +705,9 @@ function DuesRow({
                     Opt back in
                   </RowMenuItem>
                 ) : (
+                  // A SETTLED ROW KEEPS THE WHOLE MENU. Nothing is owed now and the period
+                  // turns over, so changing the cadence or starting automatic payments is
+                  // exactly the thing somebody who has just cleared a due wants to do.
                   <>
                     <RowMenuLabel>Payment plan</RowMenuLabel>
                     <RowMenuItem icon={CalendarClock} onClick={() => { close(); onCadence(row) }}>
@@ -702,57 +766,77 @@ function DuesRow({
  * would be two figures a member then has to add up themselves — and the thing they want is
  * the sum, because it is what the card is about to be charged.
  *
- * ── THE LINES ARE SHOWN WHEN THE TABLE IS, NOT WHEN THE MONEY IS ───────────────────
- * A member with optional dues who has settled or declined all of them reads
- * "Optional dues — $0.00", which is a fact about them. Dropping the line instead would make
- * the total look like it was only ever about the required half. The line is absent only when
- * the table is, and then there is nothing it could describe.
+ * ── IT ITEMIZES, since 2026-08-26 ─────────────────────────────────────────────────
+ * It showed two subtotals — "Required dues", "Optional dues" — and a total, which is a
+ * receipt that names none of the things on it. A member reading a $525 total had to work out
+ * which of six schedules it covered by scanning back up two tables and adding the amounts
+ * themselves, which is the arithmetic this card exists to do for them.
  *
- * ── THE BUTTON IS THE SAME ACTION AS THE ROW'S, OVER A LONGER LIST ─────────────────
- * `startDuesCheckout` takes one list either way, and Stripe's hosted page itemizes it —
- * one line per due — so the last thing the member reads before committing names what each
- * part of the total is for.
+ * So one line per due, then the total. It is the same list the payment dialog will show and
+ * the same list Stripe's hosted page will show, in the same order — three renderings of one
+ * basket, which is what makes the figure on the button trustworthy.
+ *
+ * The optional ones are tagged rather than grouped. Grouping would rebuild the two tables
+ * above in miniature; the tag carries the one fact that the flat list would otherwise lose,
+ * which is that part of this total is a thing the member chose to take on and could decline.
+ *
+ * ── THE BUTTON SITS RIGHT, WITH THE FIGURES ───────────────────────────────────────
+ * Every amount on this card is right-aligned and the total is the last of them, so a button
+ * whose label is that same figure belongs on the same edge. Left-aligned it started a third
+ * column of its own under a card that has two.
  */
-function DuesTotals({
-  required, optional, showRequiredLine, showOptionalLine, chargesReady, isPending, onPayAll,
-}: {
-  required: DuesSummary[]
-  optional: DuesSummary[]
-  showRequiredLine: boolean
-  showOptionalLine: boolean
+function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
+  /** Every due with something to pay, in the order the tables list them. */
+  lines: DuesSummary[]
   chargesReady: boolean
   isPending: boolean
   onPayAll: () => void
 }) {
-  const sum = (rows: DuesSummary[]) => rows.reduce((t, r) => t + r.nextInstallmentCents, 0)
-  const requiredCents = sum(required)
-  const optionalCents = sum(optional)
-  const totalCents = requiredCents + optionalCents
-  const count = required.length + optional.length
+  // REQUIRED FIRST, then optional, then by name — the reading order of the two tables above,
+  // so a member checking the receipt against the list they just read finds the rows in the
+  // same sequence. Sorted from a fresh array; `lines` is a prop.
+  const ordered = [...lines].sort((a, b) =>
+    Number(b.required) - Number(a.required) || a.schedule.label.localeCompare(b.schedule.label))
+  const totalCents = ordered.reduce((t, r) => t + r.nextInstallmentCents, 0)
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-5">
       <h2 className="text-lg font-semibold text-brand-ink">Due now</h2>
       <p className="text-sm text-muted-foreground">
-        {count === 0
-          ? 'Nothing is waiting on you across either table.'
-          : `What the calendar has asked for across ${count === 1 ? 'one due' : `${count} dues`}, including anything still to catch up on.`}
+        {ordered.length === 0
+          ? 'Nothing is waiting on you — every due is settled or declined.'
+          : 'What the calendar has asked for, including anything still to catch up on.'}
       </p>
 
-      <dl className="mt-4 space-y-1.5 text-sm">
-        {showRequiredLine && (
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">Required dues</dt>
-            <dd className="font-semibold whitespace-nowrap">{formatCurrency(requiredCents)}</dd>
-          </div>
-        )}
-        {showOptionalLine && (
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-muted-foreground">Optional dues</dt>
-            <dd className="font-semibold whitespace-nowrap">{formatCurrency(optionalCents)}</dd>
-          </div>
-        )}
-        <div className="flex items-baseline justify-between gap-4 border-t pt-1.5">
+      {ordered.length > 0 && (
+        <dl className="mt-4 space-y-1.5 text-sm">
+          {ordered.map(r => (
+            <div key={r.schedule.id} className="flex items-baseline justify-between gap-4">
+              <dt className="min-w-0 text-muted-foreground">
+                <span className="text-foreground">{r.schedule.label}</span>
+                {!r.required && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">optional</span>
+                )}
+                {/* THE CATCH-UP, NAMED ON ITS OWN LINE. A member reading "$450" beside a due
+                    whose installment is $50 has to be told why here as well as in the table,
+                    because this is the card the payment is made from — an unexplained figure
+                    on a receipt is the one somebody abandons the checkout over. */}
+                {!r.onSchedule && r.periodsElapsed > 0 && (
+                  <span className="block text-xs text-brand-withheld">
+                    covers {r.periodsElapsed} earlier installment{r.periodsElapsed === 1 ? '' : 's'}
+                  </span>
+                )}
+              </dt>
+              <dd className="font-semibold whitespace-nowrap">
+                {formatCurrency(r.nextInstallmentCents)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      <dl className="mt-3 border-t pt-2 text-sm">
+        <div className="flex items-baseline justify-between gap-4">
           <dt className="font-medium">Total</dt>
           <dd className="text-lg font-bold text-brand-accent whitespace-nowrap">
             {formatCurrency(totalCents)}
@@ -762,15 +846,18 @@ function DuesTotals({
 
       {totalCents > 0 && (
         chargesReady ? (
-          <div className="mt-4">
-            <Button variant="affirm" disabled={isPending} onClick={onPayAll}>
-              <CreditCard className="h-4 w-4" />
-              Pay {formatCurrency(totalCents)} by card
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
+          // The small print LEFT and the button RIGHT, wrapping to two rows on a narrow
+          // screen with the button underneath. `items-end` so the two baselines meet when
+          // they do share a row.
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+            <p className="max-w-md text-xs text-muted-foreground">
               One payment, itemized by due. It posts to the family&rsquo;s books the moment it
               clears — there is nothing for anyone to key in afterwards.
             </p>
+            <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ml-auto">
+              <CreditCard className="h-4 w-4" />
+              Pay {formatCurrency(totalCents)} by card
+            </Button>
           </div>
         ) : (
           // Said once, below both tables, where the old per-row "Pay online (coming soon)"

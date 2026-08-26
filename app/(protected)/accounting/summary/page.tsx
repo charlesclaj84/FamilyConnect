@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getMyPaymentHistory, getDonationProgress } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
+import { getDuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import { FundsSection } from '@/components/account/FundsSection'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
@@ -72,7 +73,7 @@ export default async function AccountSummaryPage() {
     can(user.id, 'accounting/summary/funds', 'view'),
   ])
 
-  const [duesSummary, paymentHistory, donations, funds, canManageFunds] = await Promise.all([
+  const [duesSummary, paymentHistory, donations, funds, canManageFunds, online] = await Promise.all([
     canDues ? getMyDuesSummary() : [],
     canHistory ? getMyPaymentHistory() : [],
     canDonations ? getDonationProgress() : [],
@@ -81,6 +82,11 @@ export default async function AccountSummaryPage() {
     // so it is that section's own view grant that decides whether to offer it. Anything
     // looser renders a link that 404s for the person who follows it.
     can(user.id, 'admin/accounting/funds', 'view'),
+    // GATED ON THE DRIVES GRANT (§5), because the only thing it feeds is the Give button on
+    // one. A member who cannot see the drives has no button for this to decide about, and
+    // the empty shape is what `getDuesOnlineStatus` returns for every failure path anyway —
+    // so the fallback needs no second branch downstream.
+    canDonations ? getDuesOnlineStatus() : { chargesReady: false, autopay: [] },
   ])
 
   // OPEN DRIVES ONLY, and the closed ones are counted rather than dropped. A digest is
@@ -139,25 +145,35 @@ export default async function AccountSummaryPage() {
         </div>
       )}
 
-      {canDonations && openDrives.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading title="Open donation drives" href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
-          <DonationsSection donations={openDrives} />
-          {closedCount > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
-              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
-            </p>
-          )}
-        </section>
-      )}
-
       {canFunds && (
         <section className="space-y-3">
           {/* No SectionHeading: FundsSection is a Card with its own title and its own
               Manage Funds link. A heading above it would be the third thing on screen
               naming the same list. */}
           <FundsSection funds={funds} canManage={canManageFunds} />
+        </section>
+      )}
+
+      {/* ── DRIVES COME AFTER THE FUNDS, since 2026-08-26 ─────────────────────────
+          Both are the family's money rather than the reader's, and of the two the funds
+          are the standing answer — where the family's money lives and what the waterfall
+          is filling — while a drive is a thing currently being asked for. Reading the
+          pots first and then what is being raised into one is the order somebody thinks
+          in; the reverse asked them to take an appeal in before they knew what it fed. */}
+      {canDonations && openDrives.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading title="Open donation drives" href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
+          {/* `chargesReady` so a drive carries a real Give button here as well as on
+              [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
+              shows the ask and cannot take the gift sends somebody to another screen to press
+              the same button. */}
+          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} />
+          {closedCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
+              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
+            </p>
+          )}
         </section>
       )}
     </PageShell>

@@ -1895,6 +1895,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('The **Dues** pane lists every schedule you are on, in two tables: **Required dues**, which everybody on them owes, and **Optional dues**, which are yours to take on or decline. Each row says what the schedule costs a year, what the next payment has to be, when it falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
               p('You only ever see a table you have a schedule in. A family that runs no optional dues shows one table and no empty heading — so a missing **Optional dues** table means there are none for you, not that something failed to load.'),
+              p('**Every schedule you are on stays listed, including ones you have settled.** A due you have paid in full says **Paid** and shows a zero balance rather than disappearing — the tables are what you are on, and what you still owe is the **Due now** card underneath them.'),
               p('A row shaded and marked **Past due** is one the calendar has already asked for and the money has not covered. It is a marker rather than a warning: being behind is not an error, and the next payment simply carries the catch-up.'),
               p('Two other markers appear beside a schedule name. **Declined** is an optional due you have opted out of. **Not yet due** is a due that starts at an age you have not reached — see [Dues that start at an age](#age).'),
             ],
@@ -1936,7 +1937,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'due-now',
             heading: 'Paying everything at once',
             blocks: [
-              p('**Due now**, under both tables, adds up what the calendar has asked for across every schedule you are on — required and optional on separate lines, then the total. It is what you would pay to be completely up to date today, catch-ups included.'),
+              p('**Due now**, under both tables, lists every due with something to pay and what each one comes to, then the total. It is what you would pay to be completely up to date today, catch-ups included — and a line carrying one says so underneath itself.'),
               p('**Pay … by card** takes the lot in one card payment. Stripe\u2019s page itemizes it, one line per due, so you can see what each part of the total is for before you commit — and it arrives in the family\u2019s books split the same way, one entry per schedule.'),
               p('The dialog lists every due with its own amount, so you can change any of them before paying. Set one to zero to leave it out of this payment; it stays exactly where it was.'),
               note('If your family has not connected a card processor, **Due now** still adds everything up — it just says so instead of offering a button. The figure is the same one to hand over by cheque.'),
@@ -2001,7 +2002,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'giving',
             heading: 'Giving to one',
             blocks: [
-              p('Giving online is not built yet, which is why **Give** is there and does nothing. Hand your gift to whoever keeps the books and it appears here — and in your [payment history](/reporting/payment-history) — once they record it.'),
+              p('**Give**, on an open drive, takes you to Stripe\u2019s own page to enter your card. Type what you want to give — there is no set amount and no maximum, and the drive tells you what would meet its goal if it has one. It posts to the family\u2019s books as soon as it clears, and appears in your [payment history](/reporting/payment-history) alongside anything recorded by hand.'),
+              p('Giving is one drive at a time and never recurring, which is the difference from paying dues. Agreeing to give once is not agreeing to give every month, and giving to one drive says nothing about the others.'),
+              p('A gift goes whole into your family\u2019s **Donations** fund. It is not split across funds the way a dues payment is — see [Funds](/help/accounting#funds).'),
+              note('A drive that has met its goal keeps taking gifts, and one that has **Closed** takes none. A closed drive shows no **Give** button because its total cannot move any more.'),
+              note('No **Give** button on any drive means your family has not connected a card processor yet. Hand your gift to whoever keeps the books and it appears here once they record it.'),
               note('Nothing on this page says who gave what. Every figure is either a family total or your own.'),
             ],
           },

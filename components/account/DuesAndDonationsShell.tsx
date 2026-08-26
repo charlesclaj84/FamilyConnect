@@ -108,7 +108,20 @@ export function DuesAndDonationsShell({
             </p>
           </div>
         ) : (
-          <DonationsSection donations={donations} />
+          <div className="space-y-4">
+            <DonationsSection donations={donations} chargesReady={online.chargesReady} />
+            {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is the
+                same judgement the dues pane makes about its own totals card: a promise about
+                a capability is a property of the SCREEN, and repeating it per row makes the
+                widest control on a phone one that does nothing when tapped. */}
+            {!online.chargesReady && (
+              <p className="text-xs text-muted-foreground">
+                Your family has not connected a card processor yet, so drives cannot be given
+                to online. Hand your gift to whoever keeps the books and it appears here once
+                they record it.
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

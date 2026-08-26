@@ -290,4 +290,8 @@ export const INTEGRATION_IDS = {
   platformPrepaid: 'genorra-plan-prepaid-hvkrdnps',
   familyDuesOnce: 'genorra-dues-once-tzmlqvbf',
   familyDuesAutopay: 'genorra-dues-autopay-jxnpwsdc',
+  // Its OWN heading rather than sharing `familyDuesOnce`, because the whole purpose of this
+  // field is to let two flows be compared in the Dashboard — and "what did our members owe"
+  // and "what were we given" are exactly the two figures a treasurer wants separated.
+  familyDonation: 'genorra-donation-once-rkvhpszd',
 } as const

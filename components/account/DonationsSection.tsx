@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { buttonVariants } from '@/components/ui/button'
+import { GiveButton } from '@/components/account/GiveButton'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
@@ -8,14 +8,23 @@ import type { DonationSummary } from '@/app/actions/dues'
 /**
  * The family's donation drives and how far the FAMILY has got toward each goal.
  *
- * A server component: nothing here is interactive, because there is nothing a member
- * can do about a donation yet except give in person and have an admin record it.
+ * NO HOOKS AND NO HANDLERS, which is what lets it render from either side of the client
+ * boundary — [Summary](/accounting/summary) is a server component and the Dues & Donations
+ * shell is `'use client'`, and both render this. The one interactive thing on a drive lives
+ * in `GiveButton`, a client leaf, for exactly that reason; the property is the same one
+ * `NextInstallmentsCard` is built around.
  *
- * Deliberately NOT modelled on the dues card above it. No installment, no next-due
+ * Deliberately NOT modelled on the dues tables beside it. No installment, no next-due
  * date, no remaining balance, none of the attention colouring that marks money owed —
  * a goal not yet reached is not a debt, and framing it that way would turn an
- * invitation into a bill. Hence a progress bar:
- * it reads as "how far along" rather than "how much you are short".
+ * invitation into a bill. Hence a progress bar: it reads as "how far along" rather than
+ * "how much you are short".
+ *
+ * ── GIVING BY CARD IS REAL SINCE 2026-08-26, AND IS STILL NOT A DUE ────────────────
+ * `Give` was a disabled span saying "coming soon" while only dues could be paid. It opens a
+ * real checkout now — and the differences from the dues flow are deliberate rather than
+ * unfinished: one drive at a time, no ceiling on the amount, and NO recurring option. See
+ * `startDonationCheckout`, which argues each of the three.
  *
  * Every figure shown is either a family total or the reader's own. Nothing here
  * identifies another member's giving.
@@ -35,12 +44,24 @@ import type { DonationSummary } from '@/app/actions/dues'
  * keeps its own border — that separates one drive from the next, which is a different
  * job from fencing off the list.
  */
-export function DonationsSection({ donations }: { donations: DonationSummary[] }) {
+export function DonationsSection({ donations, chargesReady = false }: {
+  donations: DonationSummary[]
+  /**
+   * The family has a connected card processor whose card payments are active.
+   *
+   * DEFAULTS TO FALSE, so a caller that has not resolved it renders the screen it had
+   * before rather than a button that fails at the till. Both callers pass it today; the
+   * default is what makes adding a third caller safe rather than silently broken.
+   */
+  chargesReady?: boolean
+}) {
   if (donations.length === 0) return null
 
   return (
     <div className="space-y-4">
-      {donations.map(d => <DonationRow key={d.schedule.id} donation={d} />)}
+      {donations.map(d => (
+        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} />
+      ))}
     </div>
   )
 }
@@ -48,8 +69,14 @@ export function DonationsSection({ donations }: { donations: DonationSummary[] }
 /**
  * One drive: what it is, the window it runs in, and the family's progress to its goal.
  */
-function DonationRow({ donation: d }: { donation: DonationSummary }) {
+function DonationRow({ donation: d, chargesReady }: {
+  donation: DonationSummary
+  chargesReady: boolean
+}) {
   const { schedule, goalCents, raisedCents, myGivenCents, progressPercent, goalMet, closed } = d
+  // What would meet the goal, or null when there is no goal or it is already met. Context
+  // for the giver, never a proposed amount — see `GiveButton`.
+  const toGoalCents = goalCents && goalCents > raisedCents ? goalCents - raisedCents : null
   const window = [
     schedule.start_date && `from ${formatDate(schedule.start_date)}`,
     schedule.end_date && `${closed ? 'closed' : 'through'} ${formatDate(schedule.end_date)}`,
@@ -81,15 +108,16 @@ function DonationRow({ donation: d }: { donation: DonationSummary }) {
           {window && <p className="text-xs text-muted-foreground mt-0.5">{window}</p>}
         </div>
 
-        {!closed && (
-          // A styled span, not a disabled <Button>: there is no handler to attach, and
-          // this component stays server-rendered.
-          <span
-            className={cn(buttonVariants({ size: 'sm', variant: 'outline' }), 'pointer-events-none opacity-60')}
-            title="Giving online is coming soon"
-          >
-            Give (coming soon)
-          </span>
+        {/* A CLOSED DRIVE TAKES NOTHING, and shows no button rather than a disabled one:
+            its bar cannot move any more, and the action would be refused server-side too.
+            A family with no processor also gets no button — the sentence explaining that
+            is said once under the list rather than N times as a greyed-out control. */}
+        {!closed && chargesReady && (
+          <GiveButton
+            scheduleId={schedule.id}
+            label={schedule.label}
+            toGoalCents={toGoalCents}
+          />
         )}
       </div>
 
