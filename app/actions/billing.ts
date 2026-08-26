@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type Stripe from 'stripe'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -470,82 +471,95 @@ export async function startPlanCheckout(input: {
     }
   }
 
-  try {
-    const session = await stripe.checkout.sessions.create({
-      mode: mode === 'recurring' ? 'subscription' : 'payment',
-      customer: customerId,
-      // Shown in the Dashboard beside the payment, so a support question does not start with
-      // "which family is this?".
-      client_reference_id: g.familyCode,
-      line_items: [
-        mode === 'recurring'
-          ? { price: priceId, quantity: 1 }
-          : {
-              price: priceId,
-              quantity: months,
-              // PAY AS FAR AHEAD AS YOU LIKE, on Stripe's own page. The presets on our screen
-              // are buttons; this is the field that makes five months possible without us
-              // building a stepper. Capped at `MAX_PREPAY_MONTHS`, which also caps how long a
-              // downgrade can be deferred — see that constant.
-              adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
-            },
-        // ── THE PART MONTH, AS OUR OWN LINE, AND ONLY WHEN IT IS OWED ─────────────────
-        // Every family bills on the 1st, so the first payment includes the rest of the
-        // current month. It is a line item OF OURS rather than a Stripe proration, because
-        // the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`, computed by
-        // `prorateRemainderCents` and quoted on the button before the family presses it. If
-        // Stripe prorated it instead the two figures would differ by a few cents and the
-        // hosted page would ask for a number the button did not promise.
-        //
-        // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
-        // extended — which is the case that would otherwise double-charge for it.
-        ...(prorationLine ? [prorationLine] : []),
-      ],
-      ...(mode === 'recurring'
-        ? {
-            subscription_data: {
-              metadata,
-              // ── EVERYBODY BILLS ON THE 1st, AND A TRIAL IS HOW IT IS SAID ─────────
-              // Stripe models "do not charge until this date" as a trial, and the card is
-              // still collected now — so the session charges the part month above, the
-              // subscription's first invoice lands on the day named here, and the cycle
-              // anchors to it. That covers all three cases at once: a family paying for the
-              // rest of this month, one paying for this month and next, and one whose
-              // prepaid term is still running and must not be billed twice for it.
-              //
-              // NOT `billing_cycle_anchor` PLUS `proration_behavior: 'none'`, which is what
-              // this was until it met a real Checkout Session: that pair is refused outright
-              // when a one-time price is present, and the default in its place bills Stripe's
-              // own part month on top of ours. `STRIPE_MINIMUM_TRIAL_DAYS` carries the whole
-              // argument, and `billingStartsOn` above is where the day is decided.
-              //
-              // The floor is Stripe's, not ours — a trial ending too soon is refused — so a
-              // prepaid term with a day left simply starts billing now, which is correct to
-              // within one day and errs in the family's favour. A part month on the same
-              // session is refused above instead, because there the same day would be paid
-              // for twice.
-              ...(trialEnd != null ? { trial_end: trialEnd } : {}),
-            },
-          }
+  // HOISTED so the idempotency key below can fingerprint it — see `intentKey`. The
+  // annotation is what keeps `mode` and `currency` as the literals Stripe's types demand
+  // rather than widening to `string` the moment the object stops being an argument.
+  const params: Stripe.Checkout.SessionCreateParams = {
+    mode: mode === 'recurring' ? 'subscription' : 'payment',
+    customer: customerId,
+    // Shown in the Dashboard beside the payment, so a support question does not start with
+    // "which family is this?".
+    client_reference_id: g.familyCode,
+    line_items: [
+      mode === 'recurring'
+        ? { price: priceId, quantity: 1 }
         : {
-            payment_intent_data: { metadata },
-            // A one-time payment of this size wants a receipt the family can file. Without
-            // this, `mode: 'payment'` produces a charge and no invoice.
-            invoice_creation: { enabled: true },
-          }),
-      metadata,
-      // Groups sessions in the Dashboard so the two shapes can be compared. Needs API
-      // version 2026-03-25.dahlia or later, which lib/stripe/config.ts pins past.
-      integration_identifier: mode === 'recurring'
-        ? INTEGRATION_IDS.platformRecurring
-        : INTEGRATION_IDS.platformPrepaid,
-      allow_promotion_codes: true,
-      ...checkoutReturnUrls('/admin/settings'),
-    }, {
+            price: priceId,
+            quantity: months,
+            // PAY AS FAR AHEAD AS YOU LIKE, on Stripe's own page. The presets on our screen
+            // are buttons; this is the field that makes five months possible without us
+            // building a stepper. Capped at `MAX_PREPAY_MONTHS`, which also caps how long a
+            // downgrade can be deferred — see that constant.
+            adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
+          },
+      // ── THE PART MONTH, AS OUR OWN LINE, AND ONLY WHEN IT IS OWED ─────────────────
+      // Every family bills on the 1st, so the first payment includes the rest of the
+      // current month. It is a line item OF OURS rather than a Stripe proration, because
+      // the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`, computed by
+      // `prorateRemainderCents` and quoted on the button before the family presses it. If
+      // Stripe prorated it instead the two figures would differ by a few cents and the
+      // hosted page would ask for a number the button did not promise.
+      //
+      // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
+      // extended — which is the case that would otherwise double-charge for it.
+      ...(prorationLine ? [prorationLine] : []),
+    ],
+    ...(mode === 'recurring'
+      ? {
+          subscription_data: {
+            metadata,
+            // ── EVERYBODY BILLS ON THE 1st, AND A TRIAL IS HOW IT IS SAID ─────────
+            // Stripe models "do not charge until this date" as a trial, and the card is
+            // still collected now — so the session charges the part month above, the
+            // subscription's first invoice lands on the day named here, and the cycle
+            // anchors to it. That covers all three cases at once: a family paying for the
+            // rest of this month, one paying for this month and next, and one whose
+            // prepaid term is still running and must not be billed twice for it.
+            //
+            // NOT `billing_cycle_anchor` PLUS `proration_behavior: 'none'`, which is what
+            // this was until it met a real Checkout Session: that pair is refused outright
+            // when a one-time price is present, and the default in its place bills Stripe's
+            // own part month on top of ours. `STRIPE_MINIMUM_TRIAL_DAYS` carries the whole
+            // argument, and `billingStartsOn` above is where the day is decided.
+            //
+            // The floor is Stripe's, not ours — a trial ending too soon is refused — so a
+            // prepaid term with a day left simply starts billing now, which is correct to
+            // within one day and errs in the family's favour. A part month on the same
+            // session is refused above instead, because there the same day would be paid
+            // for twice.
+            ...(trialEnd != null ? { trial_end: trialEnd } : {}),
+          },
+        }
+      : {
+          payment_intent_data: { metadata },
+          // A one-time payment of this size wants a receipt the family can file. Without
+          // this, `mode: 'payment'` produces a charge and no invoice.
+          invoice_creation: { enabled: true },
+        }),
+    metadata,
+    // Groups sessions in the Dashboard so the two shapes can be compared. Needs API
+    // version 2026-03-25.dahlia or later, which lib/stripe/config.ts pins past.
+    integration_identifier: mode === 'recurring'
+      ? INTEGRATION_IDS.platformRecurring
+      : INTEGRATION_IDS.platformPrepaid,
+    allow_promotion_codes: true,
+    ...checkoutReturnUrls('/admin/settings'),
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create(params, {
       // Derived from the INTENT, never from a clock: a double-clicked button inside 24 hours
       // gets the same session back instead of a second one. `months` is in the key because
       // twelve months and one month are different intents.
-      idempotencyKey: intentKey(['plan', g.familyCode, tier, mode, months]),
+      //
+      // AND FROM THE PARAMS, which the naming parts cannot describe. Two things are in this
+      // body that "this family, this tier, monthly, one month" does not say: the part month's
+      // AMOUNT, which is prorated by the day and so differs between today and yesterday, and
+      // the SHAPE, which changes whenever this session is edited. Both were silently outside
+      // the key until 2026-08-25 — the second refused every checkout for a day after the
+      // trial change, and the first is quieter and worse, because a family returning the next
+      // morning was handed back yesterday's session quoting yesterday's figure.
+      idempotencyKey: intentKey(['plan', g.familyCode, tier, mode, months], params),
     })
 
     if (!session.url) {
