@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { todayIn } from './tz'
 import {
   buildBoardReport, buildElectionsReport, buildGatheringsReport, buildMeetingsReport,
   isOverdue, turnout,
@@ -371,5 +372,47 @@ describe('buildBoardReport', () => {
     expect(report.totals).toMatchObject({
       positions: 1, filled: 0, vacant: 1, officers: 0, assignments: 0,
     })
+  })
+})
+
+/**
+ * THE 7PM BOUNDARY ON A DEADLINE — the second bug Phase 2b fixed.
+ *
+ * `getActivityReports` passed `todayLocal()` into `isOverdue`, and on the server that is UTC,
+ * which rolls over at 7pm Central. `isOverdue` is `due_on < today`, so a task due today became
+ * overdue five hours before the member's own midnight — and the member had no way to tell,
+ * because the screen showed the due date they were still inside.
+ *
+ * **This is `election_window_open`'s bug in a second costume**, and worth recognising as the
+ * same shape: a DEADLINE enforced against the wrong clock. There the refusal came from an RLS
+ * policy; here it comes from a figure on a report that an organizer chases people with.
+ *
+ * The family's zone rather than the reader's, for `resolveFamilyZone`'s reason: two members
+ * reading "12 overdue" and "11 overdue" off the same report have no way to discover the
+ * difference is their own profiles.
+ */
+describe('the overdue boundary is the family zone, not the server', () => {
+  /** 26 August 19:30 Chicago = 27 August 00:30 UTC. */
+  const AT = new Date('2026-08-27T00:30:00Z')
+  const dueToday = { status: 'open' as const, due_on: '2026-08-26' }
+
+  it('a task due today is NOT overdue in the family zone, and IS in UTC', () => {
+    // THE BUG AND THE FIX. Five hours of a member's own deadline, taken away silently.
+    expect(isOverdue(dueToday, todayIn('America/Chicago', AT))).toBe(false)
+    expect(isOverdue(dueToday, todayIn('UTC', AT))).toBe(true)
+  })
+
+  it('a task genuinely past its date is overdue in both', () => {
+    // The control. Without it the assertion above would pass for a function that never reports
+    // anything as overdue, which is exactly the vacuous-control shape AGENTS.md §7 is about.
+    const stale = { status: 'open' as const, due_on: '2026-08-20' }
+    expect(isOverdue(stale, todayIn('America/Chicago', AT))).toBe(true)
+    expect(isOverdue(stale, todayIn('UTC', AT))).toBe(true)
+  })
+
+  it('and away from the boundary the two agree, which is why it went unnoticed', () => {
+    const MIDDAY = new Date('2026-08-26T17:00:00Z')
+    expect(isOverdue(dueToday, todayIn('America/Chicago', MIDDAY))).toBe(false)
+    expect(isOverdue(dueToday, todayIn('UTC', MIDDAY))).toBe(false)
   })
 })

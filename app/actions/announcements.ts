@@ -8,7 +8,8 @@ import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { requireEdit, requireOwn, requireMember, requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addressedTo, readMyChapterId } from '@/lib/announcement-audience'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/lib/birthdays'
 
 /**
@@ -792,21 +793,25 @@ export async function repinAnnouncementForMe(
  * 'approved' by default, so they have always been listed. This pane simply does not add a
  * `user_id` filter that the surfaces which genuinely need one do add.
  *
- * ── `todayLocal()`, ON THE SERVER, BECAUSE AN ACTION IS THE LAYER ALLOWED TO DECIDE ─
- * `getPremierGathering` in app/actions/gatherings.ts says it in those words, and the same
- * rule holds here: the pure module takes `today` as a parameter so it can be tested, and an
- * action is where a clock may be read. `todayLocal()` rather than an ISO instant sliced to
- * ten characters, because `date_of_birth` is a bare `DATE` with no time and no zone — the
- * slice is UTC, which is a day out for half the country every evening, and that is precisely
- * the class of bug `lib/birthdays.ts` exists to make impossible downstream of this line.
+ * ── TODAY IS THE FAMILY'S TODAY, AND THIS PARAGRAPH USED TO SAY OTHERWISE ──────────
+ * The pure module takes `today` as a parameter so it can be tested, and an action is where a
+ * clock may be read — that half was always right. What was wrong was WHICH clock.
  *
- * The residual imprecision is worth naming so nobody reads more into this than is there:
- * "today" is the SERVER's today, and on hosted that is UTC, so between midnight and dawn UTC
- * a family in the Americas is told about a day that has not begun for them. Every date read
- * in this product has that property, `/gatherings/calendar` and `/gatherings` included, and the fix
- * would be a `today` parameter arriving from the browser — which is a value from a caller, on
- * a public endpoint, deciding what the answer is. Not worth it for a birthday, and it is a
- * horizon of sixty days: the row is on the list either way, one day out on its countdown.
+ * This said: *"'today' is the SERVER's today, and on hosted that is UTC, so between midnight
+ * and dawn UTC a family in the Americas is told about a day that has not begun for them …
+ * the fix would be a `today` parameter arriving from the browser — which is a value from a
+ * caller, on a public endpoint, deciding what the answer is. Not worth it for a birthday."*
+ *
+ * The reasoning was sound and the option set was short by one. Taking a date from the browser
+ * really would be a caller deciding the answer, and the reader's own zone really is the wrong
+ * question for a FAMILY list — two members would see the same relative under Today and
+ * Tomorrow. `families.time_zone` (`20260826000006`) is the third option: one answer for the
+ * whole family, resolved on the server, from a column an administrator sets.
+ *
+ * So the imprecision this paragraph used to name is gone rather than accepted. It was never
+ * only a countdown being a day out either — the pane's Today and Tomorrow LABELS were wrong
+ * for the last five hours of every day, which is when somebody is most likely to be reading
+ * a birthday list.
  *
  * ── NO ARGUMENTS, ON PURPOSE ───────────────────────────────────────────────────────
  * Not even the horizon. This is a public HTTP endpoint like every other export from a
@@ -853,5 +858,8 @@ export async function getUpcomingBirthdays(): Promise<UpcomingBirthday[]> {
   // No sort, no filter, no date comparison here — see the section header. `upcomingBirthdays`
   // returns a total order, soonest first, with a null or impossible `date_of_birth` already
   // dropped.
-  return upcomingBirthdays(roster, todayLocal())
+  // THE FAMILY'S ZONE. A birthday list is the family's, so "today" on it has to be one
+  // answer — otherwise two members see the same relative under Today and Tomorrow. The old
+  // `todayLocal()` read UTC here, which shifted every label after 7pm Central.
+  return upcomingBirthdays(roster, todayIn(await resolveFamilyZone(g.familyCode)))
 }

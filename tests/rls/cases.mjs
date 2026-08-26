@@ -1533,6 +1533,20 @@ const resetAlphaName = async (db) => {
   if (error) throw new Error(`setup: ${error.message}`)
 }
 
+/**
+ * ALPHA's timezone back to the seeded default, so `setFamilyZone`'s attack and control can send
+ * the SAME argument.
+ *
+ * Without it the control would be setting a zone the attack had already set, and "the probe did
+ * not move" would mean the fixture agreeing with itself rather than the write being refused —
+ * which is the reason `resetAlphaName` above exists, one column over.
+ */
+const resetAlphaZone = async (db) => {
+  const { error } = await db.from('families')
+    .update({ time_zone: 'America/Chicago' }).eq('family_code', ALPHA)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
 /** Snapshot of a table's rows for a family — the ground truth a write test needs. */
 /**
  * Which of Dues Projections' three states one person came out as — 'active', 'invited' or
@@ -3327,6 +3341,39 @@ export const MORE_CASES = [
     args: () => ['Renamed by a member with no grant'],
     setup: resetAlphaName,
     probe: db => snapshot('families', 'id, family_code, family_name', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── THE FAMILY'S TIMEZONE (20260826000006) ────────────────────────────────
+  // Same two halves as `renameFamily` directly above, and for the same reason: this action
+  // writes on the USER client, so the composed UPDATE policy on `families` is what refuses
+  // both attackers and the case is a real test of it rather than of a guard.
+  //
+  // WHY IT MATTERS MORE THAN A NAME. This column decides whether a gathering has finished,
+  // whether a task is overdue and when an election window closes — for EVERY member of the
+  // family. Somebody who could move it could make a deadline pass or un-pass for the whole
+  // family, which is a wider capability than renaming them.
+  {
+    kind: 'write',
+    id: 'admin/family.setFamilyZone (cross-family)',
+    mod: 'app/actions/admin/family.ts', fn: 'setFamilyZone',
+    args: () => ['Asia/Tokyo'],
+    setup: resetAlphaZone,
+    probe: db => snapshot('families', 'id, family_code, time_zone', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.setFamilyZone (same family, member with no grant)',
+    mod: 'app/actions/admin/family.ts', fn: 'setFamilyZone',
+    // The half family scoping cannot catch. `alphaMember` is inside the boundary and approved;
+    // what has to refuse them is the grant. A family's zone is family-wide configuration with
+    // no owner, so scope 'own' must not be a way in either — which is why the action resolves
+    // through `requireEdit` on `admin/settings` rather than through `can`.
+    attacker: 'alphaMember',
+    args: () => ['Asia/Tokyo'],
+    setup: resetAlphaZone,
+    probe: db => snapshot('families', 'id, family_code, time_zone', { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
 

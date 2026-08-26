@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
-import { todayLocal } from '@/lib/date-utils'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { buildCalendarMonth, isValidMonth } from '@/lib/calendar'
 import { getCalendarMonth } from '@/app/actions/calendar'
 import { PageShell } from '@/components/layout/PageShell'
@@ -66,7 +68,11 @@ export default async function CalendarPage({
   // `?month=a&month=b` arrives as an array. Taking the first is the same recovery every other
   // page here makes for a hand-edited query string; an invalid one falls through to this month.
   const raw = Array.isArray(requested) ? requested[0] : requested
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, which decides both the month this opens on and which cell is marked
+  // as today. `todayLocal()` here read UTC, so on the last evening of a month the calendar
+  // opened on the NEXT one — and the today-marker sat on tomorrow's cell for five hours
+  // every day. `getMyFamilyCode` is cache()-wrapped and already warmed by the layout.
+  const today = todayIn(await resolveFamilyZone(await getMyFamilyCode(user.id)))
   const month = isValidMonth(raw) ? raw : today.slice(0, 7)
 
   const { entries, sources } = await getCalendarMonth(month)

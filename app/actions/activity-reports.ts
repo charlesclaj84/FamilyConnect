@@ -4,8 +4,8 @@ import { requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { todayLocal } from '@/lib/date-utils'
-import { DEFAULT_ZONE, todayIn } from '@/lib/tz'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { electionPhase, ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { electionAreaMatch, electionScopeLabel } from '@/lib/election-area'
 import type { PositionCategory, PositionScope } from '@/lib/board-positions'
@@ -120,7 +120,10 @@ export async function getGatheringsReport(): Promise<GatheringsReport | null> {
       due_on: (r.due_on as string | null) ?? null,
       budget_cents: (r.budget_cents as number | null) ?? null,
     })),
-    today: todayLocal(),
+    // THE FAMILY'S ZONE. Two members reading "12 overdue" and "11 overdue" would have no
+    // way to discover the difference was their own profiles — a family-wide figure has to
+    // have one value. See `resolveFamilyZone`.
+    today: todayIn(await resolveFamilyZone(g.familyCode)),
     money: showMoney,
   })
 }
@@ -207,6 +210,7 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
   const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
   const people = rows(peopleRes.data)
 
+  const familyZone = await resolveFamilyZone(g.familyCode)
   const input: ElectionReportInput[] = electionRows.map(e => {
     const area = {
       scope: e.scope as string | null,
@@ -223,7 +227,11 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
       // a national ballot and a chapter's may legitimately have stated them in different
       // zones, and this figure has to match what the member's own screen says about the same
       // election — otherwise the report contradicts the ballot. See 20260826000005.
-    }, todayIn((e.time_zone as string | null) ?? DEFAULT_ZONE))
+      // THE ELECTION'S OWN ZONE, THEN THE FAMILY'S — the same chain
+      // `election_window_open()` resolves in SQL (20260826000006). A report that disagreed
+      // with the ballot about which phase an election is in would be the worse of two wrong
+      // answers, because a figure is quoted later and a screen is not.
+    }, todayIn((e.time_zone as string | null) ?? familyZone))
     const nominations = rows(nominationsRes.data)
       .filter(n => n.election_id === e.id)
       .map(n => ({ positionId: n.position_id as string, accepted: Boolean(n.accepted) }))

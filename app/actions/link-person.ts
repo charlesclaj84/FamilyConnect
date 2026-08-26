@@ -5,7 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, isApprovedMember } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scoreMatch, type MatchReason } from '@/lib/match-utils'
-import { computeIsMinor } from '@/lib/age-utils'
+import { isMinorOn } from '@/lib/age-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 
 export interface UnlinkedPerson {
@@ -81,6 +83,11 @@ export async function getLinkPersonBannerData(): Promise<{
 
   if (!unlinked || unlinked.length === 0) return { showBanner: false, unlinkedPeople: [] }
 
+  // THE FAMILY'S ZONE for the age flag. `computeIsMinor` read `todayLocal()` internally,
+  // which on the server is UTC — five hours early every evening. `isMinorOn` takes the date,
+  // so the answer is stateable and the two surfaces that show it cannot disagree.
+  const familyToday = todayIn(await resolveFamilyZone(familyCode))
+
   // The stub's email may be empty if registration didn't copy it — fall back to
   // the auth email, which is the strongest signal a brand-new user has.
   const registrant = {
@@ -101,7 +108,7 @@ export async function getLinkPersonBannerData(): Promise<{
         first_name: p.first_name,
         last_name: p.last_name,
         date_of_birth: p.date_of_birth,
-        is_minor: computeIsMinor(p.date_of_birth),
+        is_minor: isMinorOn(p.date_of_birth, familyToday),
         score,
         reasons,
         isStrong,

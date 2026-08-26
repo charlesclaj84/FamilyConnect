@@ -19,6 +19,7 @@ import {
   type GatheringTaskKind,
   type GatheringTaskStatus,
 } from './gatherings'
+import { todayIn } from './tz'
 
 /**
  * The Gatherings vocabulary, the answer shapes, and where a gathering sits on the calendar.
@@ -484,5 +485,75 @@ describe('taskProgress', () => {
     expect(progress.total).toBe(2)
     expect(progress.approved).toBe(1)
     expect(progress.complete).toBe(false)
+  })
+})
+
+/**
+ * THE 7PM BOUNDARY — why the family's zone decides past from upcoming (Phase 2b).
+ *
+ * ── THE BUG THIS RECORDS ────────────────────────────────────────────────────────────
+ * Every server-side caller of `gatheringTiming` passed `todayLocal()`, which reads whatever
+ * zone the PROCESS is in — UTC on the server. UTC rolls over at 7pm Central, so for the last
+ * five hours of every day the server judged the family's gatherings against tomorrow:
+ *
+ *     an evening picnic on 26 August, read at 19:30 on 26 August in Chicago
+ *       UTC says today is the 27th   ->  'past'      the gathering is over
+ *       Chicago says it is the 26th  ->  'today'     the family is at it
+ *
+ * So a gathering dropped off Upcoming, and off the Dashboard's premier band, exactly as it
+ * started. `gatheringTiming` was never wrong — it compares `YYYY-MM-DD` strings and its own
+ * comment says why that cannot be a day out. What was wrong was the date handed to it.
+ *
+ * ── AND WHY THE FAMILY'S ZONE RATHER THAN THE READER'S ──────────────────────────────
+ * The reader's zone is the worst answer for the one person it matters to: a cousin in Tokyo
+ * would be told an Austin reunion is over while it is still Sunday evening in Austin. For a
+ * family in one place every candidate agrees; they differ exactly for the relative who moved
+ * away. `resolveFamilyZone` in `lib/auth/zone.ts` carries the full argument.
+ *
+ * These assertions are the composition the callers now perform, by value, with no clock.
+ */
+describe('the past/upcoming boundary is the family zone, not the server', () => {
+  /** 26 August 19:30 Chicago = 27 August 00:30 UTC. */
+  const AT = new Date('2026-08-27T00:30:00Z')
+
+  it('a gathering being held this evening is TODAY in the family zone and PAST in UTC', () => {
+    // THE BUG AND THE FIX IN TWO LINES.
+    expect(gatheringTiming('2026-08-26', null, todayIn('America/Chicago', AT))).toBe('today')
+    expect(gatheringTiming('2026-08-26', null, todayIn('UTC', AT))).toBe('past')
+  })
+
+  it('the last day of a multi-day span behaves the same way', () => {
+    // A three-day reunion ending on the 26th: still on for the family, over for the server.
+    // This is the case the Dashboard's premier band reads, so the band emptied at 7pm on the
+    // final evening — the one evening a family is most likely to be looking at it.
+    expect(gatheringTiming('2026-08-24', '2026-08-26', todayIn('America/Chicago', AT)))
+      .toBe('today')
+    expect(gatheringTiming('2026-08-24', '2026-08-26', todayIn('UTC', AT))).toBe('past')
+  })
+
+  it('a family AHEAD of UTC is wrong in the other direction', () => {
+    // Not only the Americas, and the instant is a DIFFERENT one — which is the point. The
+    // Chicago case needs UTC to be a day AHEAD; this one needs it a day BEHIND, and no single
+    // instant gives both. 26 August 16:00 UTC is 01:00 on the 27th in Tokyo and 11:00 on the
+    // 26th in Chicago, hand-checked.
+    //
+    // The symptom inverts: a gathering the family is already at does not appear under Today at
+    // all. The first draft of this test reused the Chicago instant and asserted 'upcoming'
+    // here, which was simply false — at 00:30 UTC it is the 27th in UTC too.
+    const AHEAD = new Date('2026-08-26T16:00:00Z')
+    expect(todayIn('Asia/Tokyo', AHEAD)).toBe('2026-08-27')
+    expect(todayIn('UTC', AHEAD)).toBe('2026-08-26')
+    expect(gatheringTiming('2026-08-27', null, todayIn('Asia/Tokyo', AHEAD))).toBe('today')
+    expect(gatheringTiming('2026-08-27', null, todayIn('UTC', AHEAD))).toBe('upcoming')
+  })
+
+  it('and away from the boundary every zone agrees, which is why this went unnoticed', () => {
+    // Midday Chicago. Nothing about the old behaviour was visible for nineteen hours of every
+    // day, which is the whole reason a bug like this survives: it is correct whenever anybody
+    // is likely to be checking.
+    const MIDDAY = new Date('2026-08-26T17:00:00Z')
+    for (const zone of ['America/Chicago', 'UTC', 'Europe/London']) {
+      expect(gatheringTiming('2026-08-26', null, todayIn(zone, MIDDAY))).toBe('today')
+    }
   })
 })

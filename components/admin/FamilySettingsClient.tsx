@@ -9,9 +9,10 @@ import { EmailedCodeField } from '@/components/ui/challenge-fields'
 import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { Select } from '@/components/ui/select'
 import {
-  renameFamily, removeFamily, requestFamilyRemovalCode, type FamilySettings,
+  renameFamily, removeFamily, requestFamilyRemovalCode, setFamilyZone, type FamilySettings,
 } from '@/app/actions/admin/family'
 import {
   MAX_FAMILY_NAME, SETTINGS_PANES, SETTINGS_PANE_LABEL,
@@ -109,26 +110,61 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
   // immediately rather than waiting for the revalidation to come back.
   const [savedName, setSavedName] = useServerState(settings.familyName)
   const [name, setName] = useState(settings.familyName)
+  const [savedZone, setSavedZone] = useServerState(settings.timeZone)
+  const [zone, setZone] = useState(settings.timeZone)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const trimmed = name.trim()
-  const dirty = trimmed !== savedName && trimmed.length > 0
+  // EITHER FIELD MAKES THE FORM DIRTY, and the name half keeps its "not empty" floor: a blank
+  // name is refused by the action, so offering Save for it would be offering a refusal.
+  const nameDirty = trimmed !== savedName && trimmed.length > 0
+  const zoneDirty = zone !== savedZone && zone.length > 0
+  const dirty = nameDirty || zoneDirty
 
+  /**
+   * ── TWO ACTIONS, ONE SAVE, AND THE ORDER MATTERS ──────────────────────────────────
+   * They are separate server actions because they are separate writes with separate reasons —
+   * `setFamilyZone`'s header explains why it is not folded into `renameFamily` — but one
+   * button, because to an administrator this is one panel.
+   *
+   * ONLY WHAT CHANGED IS SENT. Sending both every time would mean a rename revalidating the
+   * whole layout twice, and would report a zone failure to somebody who only touched the name.
+   *
+   * A PARTIAL SUCCESS IS REPORTED AS ONE, not swallowed and not reported as a total failure:
+   * if the name saves and the zone does not, the name really did save, and `FormError` says
+   * what did not. Same judgement `saveChapterAndPropagate` makes about its own two halves.
+   */
   function submit() {
     setError('')
     setSaved(false)
     startTransition(async () => {
-      const result = await renameFamily(trimmed)
-      if (result.success) {
-        setSavedName(result.familyName)
-        setName(result.familyName)
-        setSaved(true)
-      } else {
-        setError(result.message)
+      let failure = ''
+
+      if (nameDirty) {
+        const result = await renameFamily(trimmed)
+        if (result.success) {
+          setSavedName(result.familyName)
+          setName(result.familyName)
+        } else {
+          failure = result.message
+        }
       }
+
+      if (zoneDirty) {
+        const result = await setFamilyZone(zone)
+        if (result.success) {
+          setSavedZone(result.timeZone)
+          setZone(result.timeZone)
+        } else {
+          failure = failure ? `${failure} ${result.message}` : result.message
+        }
+      }
+
+      if (failure) setError(failure)
+      else setSaved(true)
     })
   }
 
@@ -308,6 +344,36 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                 maxLength={MAX_FAMILY_NAME}
                 disabled={!settings.canEdit || isPending}
               />
+            </div>
+
+            {/* ── THE FAMILY'S TIMEZONE ───────────────────────────────────────────────
+                Beside the name because it is the same KIND of thing — a fact about the family
+                an administrator maintains — and behind the same grant and the same Save.
+
+                THE HINT SAYS WHAT IT DECIDES AND WHAT IT DOES NOT, because a member reading
+                "timezone" on a family screen will reasonably assume it changes how times are
+                shown to them. It does not: a gathering's 11:00 is shown to everybody exactly
+                as it was typed (that is the gathering's own zone), and instants like "recorded
+                on" are read in the READER's zone from My Profile. This one decides the
+                questions every member has to get the same answer to. */}
+            <div className="max-w-md space-y-1.5">
+              <Label htmlFor="family-zone" required>Timezone</Label>
+              <Select
+                id="family-zone"
+                value={zone}
+                onChange={e => { setZone(e.target.value); setSaved(false) }}
+                disabled={!settings.canEdit || isPending}
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Where the family is. This decides whether a gathering has finished, whether a
+                task is overdue and when an election closes — the answers every member has to
+                agree on. It does not change the times on a gathering, which are always shown
+                as they were typed, or your own dates, which follow My Profile.
+              </p>
             </div>
 
             <FormError message={error} />

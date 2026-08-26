@@ -94,3 +94,73 @@ async function zoneHint(): Promise<string | null> {
     return null
   }
 }
+
+/**
+ * The FAMILY's zone — where the family is, for the questions every member must get the same
+ * answer to.
+ *
+ * ── THE RULE THIS EXISTS TO MAKE STATEABLE ──────────────────────────────────────────
+ * There are now two resolvers in this file and choosing between them is not a judgement call
+ * per screen. It is one line:
+ *
+ *   `resolveZone`        RENDERING AN INSTANT. A `timestamptz` — when a payment was recorded,
+ *                        when a message was sent, when somebody answered a check-in. Read in
+ *                        the zone of whoever is LOOKING, because "when did that happen" is a
+ *                        question about the reader's own clock.
+ *
+ *   `resolveFamilyZone`  JUDGING A DATE ABOUT THE FAMILY'S RECORDS. Is this gathering over, is
+ *                        this task overdue, how many are upcoming, is this person eighteen,
+ *                        whose birthday is in the next sixty days. Read in the FAMILY's zone,
+ *                        because two members must not disagree.
+ *
+ * ── WHY THE SECOND IS NOT THE READER'S ZONE, WHICH LOOKS SIMPLER ────────────────────
+ * **The reader's zone is the worst answer for the one person it matters to.** A cousin in Tokyo
+ * asking "is the Austin reunion over" would be told yes while it is still Sunday evening in
+ * Austin. For a family in one place every candidate agrees; they differ exactly for the
+ * relative who moved away, which is the case worth being right about.
+ *
+ * And a divergence here is worse than being a few hours out: two members comparing "12 tasks
+ * overdue" against "11 tasks overdue" have no way to discover that the difference is their own
+ * profiles. A family-wide figure has to have one value.
+ *
+ * ── WHAT IT REPLACED, AND HOW WRONG THAT WAS ────────────────────────────────────────
+ * `todayLocal()`, which reads whatever zone the PROCESS is in — the member's in a browser and
+ * **UTC on the server**. UTC rolls over at 7pm Central, so for the last five hours of every day
+ * the server believed it was already tomorrow:
+ *
+ *   * a gathering read "Past" while the family was at it — an evening picnic on the 26th was
+ *     filed as over at 19:00 on the 26th
+ *   * a task due today read "Overdue" five hours early, which is `election_window_open`'s bug
+ *     in a second costume
+ *
+ * `todayLocal()` is still correct in a CLIENT component (it reads the browser, which is the
+ * member's own zone) and is still what the form date-prefills use. `npm run audit:time` is what
+ * keeps a server module from reaching for it again.
+ *
+ * ── §3 ──────────────────────────────────────────────────────────────────────────────
+ * `families` is keyed BY `family_code`, so filtering on it is filtering by primary key and there
+ * is nothing to scope — which is why `families` is deliberately absent from
+ * `scripts/family-scope.mjs`' table list. The code itself comes from `getMyFamilyCode`, which
+ * resolves only families the caller belongs to.
+ *
+ * NOT NULL in the database, so this can always answer without a fallback of its own — the
+ * `DEFAULT_ZONE` below is for a caller with no family yet (during registration, on
+ * `/my-families`) rather than for a family with no zone.
+ */
+export const resolveFamilyZone = cache(async (familyCode: string | null | undefined): Promise<string> => {
+  if (!familyCode) return DEFAULT_ZONE
+
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('families')
+    .select('time_zone')
+    .eq('family_code', familyCode)
+    .maybeSingle()
+
+  // §8: a refused or failed read is indistinguishable from a family that does not exist, and
+  // both fall through to Central. Logged rather than swallowed, because a whole family silently
+  // reading Central would otherwise look like a setting nobody changed.
+  if (error) console.error('resolveFamilyZone: could not read families.time_zone', error)
+
+  return isValidZone(data?.time_zone) ? (data!.time_zone as string) : DEFAULT_ZONE
+})

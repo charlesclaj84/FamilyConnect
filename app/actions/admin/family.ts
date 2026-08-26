@@ -8,6 +8,7 @@ import { requireDelete, requireEdit, requireRead } from '@/lib/auth/guard'
 import { getFamilyStatus, type FamilyStatus } from '@/lib/auth/family'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { isFamilyTier, normalizeTier, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
+import { DEFAULT_ZONE, isValidZone } from '@/lib/tz'
 import { tierMove } from '@/lib/platform-billing'
 // PLAIN MODULES, imported here and never re-exported. Everything exported from a
 // `'use server'` file gets a URL, so a `sendEmail` re-export would be an open relay
@@ -39,6 +40,18 @@ import {
 export interface FamilySettings {
   familyCode: string
   familyName: string
+  /**
+   * WHERE THE FAMILY IS — the zone every family-wide date judgement is read in.
+   *
+   * Is this gathering over, is this task overdue, how many are upcoming, when does an election
+   * window close. NOT the zone times are displayed in for a reader (that is the member's own,
+   * `people.time_zone`) and NOT the zone a gathering's times were stated in (that is on the
+   * gathering). `lib/auth/zone.ts` states which is which and why these are three columns
+   * rather than one.
+   *
+   * NOT NULL in the database, so this is always a real zone (20260826000006).
+   */
+  timeZone: string
   /** Approved, admitted members — what "how big is this family" actually means. */
   memberCount: number
   createdAt: string | null
@@ -107,7 +120,7 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
   const [family, members, editable, removable, tier, status] = await Promise.all([
     supabase
       .from('families')
-      .select('family_code, family_name, created_at')
+      .select('family_code, family_name, created_at, time_zone')
       .eq('family_code', g.familyCode)
       .maybeSingle(),
     createAdminClient()
@@ -144,13 +157,18 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
     return null
   }
 
-  const row = family.data as { family_code: string; family_name: string; created_at: string } | null
+  const row = family.data as {
+    family_code: string; family_name: string; created_at: string; time_zone: string
+  } | null
 
   return {
     familyCode: g.familyCode,
     // A family with a people row but no `families` row predates that table. Showing
     // the code is honest; showing an empty name would read as a rename having failed.
     familyName: row?.family_name ?? g.familyCode,
+    // NOT NULL in the database, so the fallback is for a family with no `families` row at
+    // all — the same pre-dating case the name falls back for one line above.
+    timeZone: row?.time_zone ?? DEFAULT_ZONE,
     memberCount: members.count ?? 0,
     createdAt: row?.created_at ?? null,
     canEdit: editable,
@@ -224,6 +242,74 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
   // the dashboard — so the whole layout is revalidated rather than this route alone.
   revalidatePath('/', 'layout')
   return { success: true, familyName: name }
+}
+
+export type SetFamilyZoneResult =
+  | { success: true; timeZone: string }
+  | { success: false; message: string }
+
+/**
+ * Set the zone the family's dates are read in.
+ *
+ * ── IT WRITES ON THE USER CLIENT, UNLIKE `setFamilyTier` ────────────────────────────
+ * `families` carries three guard triggers — `families_guard_family_code`,
+ * `families_guard_tier` and `families_guard_removal` — each refusing the `authenticated` role,
+ * because the UPDATE policy admits an administrator's write and a policy has no opinion about
+ * WHICH column changed. So a tier and a removal have to go through the service role.
+ *
+ * **This column deliberately has no such guard**, and `20260826000006`'s verify block asserts
+ * that no trigger on `families` ever names it. The distinction is what the guarded columns ARE:
+ * an immutable identity, a billing fact, a disable switch — things an administrator must not be
+ * able to set by posting to an endpoint. A timezone is ordinary configuration: a family that
+ * moves, or that was defaulted wrongly, should be able to fix it the way they fix their own
+ * name. So this takes `renameFamily`'s path exactly, and the composed UPDATE policy authorizes
+ * it.
+ *
+ * If a guard is ever added to that column, THIS FUNCTION HAS TO MOVE TO THE SERVICE ROLE IN
+ * THE SAME COMMIT — the migration's assertion exists to make that impossible to forget.
+ *
+ * ── VALIDATED HERE, BECAUSE THE COLUMN HAS NO CHECK ─────────────────────────────────
+ * There is no CHECK constraint: the valid set is the runtime's tz database rather than a list
+ * this product maintains, which is the same call `elections.time_zone` makes. So `isValidZone`
+ * at this boundary is the only thing standing between a public HTTP endpoint and a column every
+ * date judgement in the product reads. A bad value would not error — `lib/tz.ts` coerces an
+ * unusable zone to Central — it would silently move the family's whole calendar.
+ *
+ * ── AND IT REVALIDATES THE WHOLE LAYOUT ─────────────────────────────────────────────
+ * `renameFamily`'s reason, for a wider set of screens: this decides past from upcoming on
+ * `/gatherings`, the Dashboard's premier band, every overdue count and the calendar's opening
+ * month. Revalidating this route alone would leave all of them on the old answer.
+ */
+export async function setFamilyZone(timeZone: string): Promise<SetFamilyZoneResult> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+
+  const zone = (timeZone ?? '').trim()
+  if (!zone) return { success: false, message: 'Choose a timezone' }
+  if (!isValidZone(zone)) return { success: false, message: 'That is not a timezone we recognise' }
+
+  // `.select()` for both reasons `renameFamily`'s comment gives at length: a write the policy
+  // matched zero rows with comes back as a failure rather than a silent success (§8b), and
+  // PostgreSQL ANDs the SELECT policy into an UPDATE carrying a RETURNING clause, which
+  // confines this to the caller's own family even with the `.eq` deleted.
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('families')
+    .update({ time_zone: zone })
+    .eq('family_code', g.familyCode)
+    .select('time_zone')
+
+  if (error) {
+    console.error(`[admin/family] zone change refused for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: 'Could not change the timezone. Please try again.' }
+  }
+  if (!data || data.length === 0) {
+    return { success: false, message: 'Not authorized' }
+  }
+
+  revalidatePath('/', 'layout')
+  return { success: true, timeZone: zone }
 }
 
 /**

@@ -11,7 +11,8 @@ import { requireMember, requireRead, requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { getMyNameInFamily } from '@/lib/auth/family'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { attachTemplatesToGathering } from '@/lib/gathering-instantiate'
 import { notifyGatheringTaskSubmitted } from '@/lib/notifications'
 import {
@@ -1154,7 +1155,10 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
   // modules take `today` as a PARAMETER (AGENTS.md §7b) — an action is the layer allowed to
   // decide what today is. Two places in this module do: here, and `getUpcomingGatheringCount`
   // below, which reuses this read's `.or(...)` span test verbatim and says why.
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, not the server's. `todayLocal()` here read UTC, which rolls over at
+  // 7pm Central — so for the last five hours of every day this judged the family's records
+  // against tomorrow. See `resolveFamilyZone` in lib/auth/zone.ts for the rule.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
 
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -1255,7 +1259,10 @@ export async function getUpcomingGatheringCount(): Promise<number> {
   const g = await requireRead('gatherings/calendar')
   if (!g.ok) return 0
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, not the server's. `todayLocal()` here read UTC, which rolls over at
+  // 7pm Central — so for the last five hours of every day this judged the family's records
+  // against tomorrow. See `resolveFamilyZone` in lib/auth/zone.ts for the rule.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
 
   const supabase = await createClient()
   const { count, error } = await supabase

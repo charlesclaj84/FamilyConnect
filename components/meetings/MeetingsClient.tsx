@@ -14,7 +14,7 @@ import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, todayLocal , TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { formatDate, TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
 import { resolveMeetingRoom } from '@/lib/meeting-boards'
 import {
   scheduleMeeting, type MeetingAttendeeOptions, type MeetingSession,
@@ -38,12 +38,12 @@ import {
  * cannot enforce (AGENTS.md §2) — and the form says so on the step where the room is shown.
  *
  * ── UPCOMING AND PAST ARE SPLIT ────────────────────────────────────────────────────
- * Against `todayLocal()`, which is a `YYYY-MM-DD` string compared as a string — never a
+ * Against the family's today, which is a `YYYY-MM-DD` string compared as a string — never a
  * `Date`. `new Date('2026-08-01')` is UTC midnight and reads as 31 July in any negative
  * offset, which is how a meeting comes to move a day for half the family
  * (`lib/calendar.ts`'s rule).
  */
-export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, zone }: {
+export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, zone, today }: {
   initialMeetings: MeetingSession[]
   /** The SCHEDULER's own timezone — the default for a new meeting's times. */
   zone: string
@@ -56,12 +56,25 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
    */
   attendeeOptions: MeetingAttendeeOptions
   maySchedule: boolean
+  /**
+   * Today IN THE FAMILY'S ZONE, resolved by the page — the past/upcoming boundary.
+   *
+   * ── IT WAS `todayLocal()` READ HERE, AND THAT WAS TWO BUGS ─────────────────────
+   * In a browser `todayLocal()` is the MEMBER's zone, so this screen split past from
+   * upcoming in the reader's zone while `/gatherings` did it on the server in UTC. The two
+   * screens put the same date on different sides of the line and neither was wrong on
+   * purpose.
+   *
+   * And the reader's zone is the wrong question anyway: whether a meeting has happened is a
+   * family-wide fact, so a cousin abroad must not be told a meeting is over while the family
+   * is still in it. See `resolveFamilyZone` in lib/auth/zone.ts.
+   */
+  today: string
 }) {
   const router = useRouter()
   const [meetings] = useServerState(initialMeetings)
   const [scheduling, setScheduling] = useState(false)
 
-  const today = todayLocal()
   const upcoming = meetings.filter(m => m.meetsOn >= today)
     .sort((a, b) => a.meetsOn.localeCompare(b.meetsOn))
   const past = meetings.filter(m => m.meetsOn < today)

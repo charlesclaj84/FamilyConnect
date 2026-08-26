@@ -3,7 +3,8 @@
 import { requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { isMinorOn } from '@/lib/age-utils'
 import { invitedPersonIds, memberStatus, type OpenInvitation } from '@/lib/dues-projection'
 import { disambiguatedName } from '@/lib/name-utils'
@@ -162,7 +163,13 @@ export async function getMembershipReport(): Promise<MembershipReport | null> {
   // `todayLocal()` and never `new Date()`: `date_of_birth` is a bare DATE and the age rule
   // compares YYYY-MM-DD strings, so handing it a Date would put the timezone back into a
   // question that has none. See lib/age-utils.ts.
-  return buildMembershipReport({ people, chapters, regions, invitedIds, today: todayLocal() })
+  // THE FAMILY'S ZONE. The report splits adults from minors, so "today" decides a COUNT —
+  // and two members must not read different totals off the same report. `todayLocal()` here
+  // was UTC, which moved the boundary by five hours every evening.
+  return buildMembershipReport({
+    people, chapters, regions, invitedIds,
+    today: todayIn(await resolveFamilyZone(g.familyCode)),
+  })
 }
 
 
@@ -350,7 +357,11 @@ export async function getMembershipSlice(
       .map((r): OpenInvitation => ({ personId: r.invited_person_id, email: r.email })),
   )
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, matching `buildMembershipReport` above — this is the DRILL-DOWN
+  // behind the same report, so the two must bucket identically. A drill-down that put a
+  // member in a different bucket from the total they clicked is the worst version of this
+  // bug, because it looks like a data problem rather than a clock problem.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
 
   // ONE PREDICATE PER BREAKDOWN, and each is the SAME bucketing rule `buildMembershipReport`
   // applies — restated here rather than shared, which is the one duplication in this feature and

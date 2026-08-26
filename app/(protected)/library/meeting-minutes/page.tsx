@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
-import { resolveZone } from '@/lib/auth/zone'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { resolveFamilyZone, resolveZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import {
   getMeetingAttendeeOptions, getMeetings, mayScheduleMeeting,
 } from '@/app/actions/meetings'
@@ -56,13 +58,16 @@ export default async function MeetingMinutesPage() {
   // BEFORE it queries anything, so §5 is honoured by the ACTION rather than by the ternary: a
   // caller who cannot schedule gets nothing in the RSC payload and pays for two already-cached
   // permission checks. `NO_OPTIONS` in that file is now the only place the empty shape exists.
-  const [meetings, maySchedule, attendeeOptions, zone] = await Promise.all([
+  const [meetings, maySchedule, attendeeOptions, zone, today] = await Promise.all([
     getMeetings(),
     mayScheduleMeeting(),
     getMeetingAttendeeOptions(),
     // The SCHEDULER's zone, defaulting the dialog's timezone field. A default and no more:
     // `scheduleMeeting` validates whatever it is sent (§2).
     resolveZone(user.id),
+    // Today in the FAMILY's zone — the past/upcoming boundary, which used to be computed
+    // in the browser and so disagreed with /gatherings about the same date.
+    getMyFamilyCode(user.id).then(resolveFamilyZone).then(todayIn),
   ])
 
   return (
@@ -70,6 +75,7 @@ export default async function MeetingMinutesPage() {
       <MeetingsClient
         initialMeetings={meetings}
         zone={zone}
+        today={today}
         maySchedule={maySchedule}
         attendeeOptions={attendeeOptions}
       />

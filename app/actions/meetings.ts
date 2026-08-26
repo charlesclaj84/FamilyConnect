@@ -7,12 +7,12 @@ import { requireMember } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
 import { normaliseTime } from '@/lib/gathering-when'
-import { isValidZone } from '@/lib/tz'
+import { isValidZone, todayIn } from '@/lib/tz'
+import { resolveFamilyZone } from '@/lib/auth/zone'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { notifyMeetingScheduled } from '@/lib/notifications'
 import { isIsoDate } from '@/lib/calendar'
 import { isMinorOn } from '@/lib/age-utils'
-import { todayLocal } from '@/lib/date-utils'
 import type { PositionScope } from '@/lib/board-positions'
 import {
   buildBoards, buildChapters, buildPositions, resolveMeetingRoom,
@@ -334,7 +334,10 @@ async function adultCheck(
     console.error(`[meetings] could not check ages for ${familyCode}: ${error.message}`)
     return { ok: false, message: 'Could not check who is an adult just now. Nothing was saved.' }
   }
-  const today = todayLocal()
+  // THE FAMILY'S ZONE. "Is this person eighteen?" changes at midnight in SOME zone, and
+  // two members must not disagree about whether a relative may take the minutes. The old
+  // `todayLocal()` read UTC, so somebody counted as an adult five hours early.
+  const today = todayIn(await resolveFamilyZone(familyCode))
   const minorNames = new Map<string, string>()
   for (const r of rows(data)) {
     if (!isMinorOn(r.date_of_birth as string | null, today)) continue
@@ -490,7 +493,10 @@ export async function getMeetingAttendeeOptions(): Promise<MeetingAttendeeOption
       }]
     })
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE. "Is this person eighteen?" changes at midnight in SOME zone, and
+  // two members must not disagree about whether a relative may take the minutes. The old
+  // `todayLocal()` read UTC, so somebody counted as an adult five hours early.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
   // ── ONE ADULT FILTER, THREE CONSUMERS ─────────────────────────────────────────────
   // `adults` (the pickers), `everyoneIds` (a general family meeting) and `chapters` (a
   // chapter meeting) are all derived from this array, so nothing here can disagree about who

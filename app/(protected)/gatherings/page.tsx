@@ -2,12 +2,13 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
-import { resolveZone } from '@/lib/auth/zone'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { resolveFamilyZone, resolveZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import {
   getGatherings, getMyGatheringTasks, getSchedulableTemplates, type MyTaskRow,
 } from '@/app/actions/gatherings'
 import { gatheringTiming } from '@/lib/gatherings'
-import { todayLocal } from '@/lib/date-utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { GatheringsShell } from '@/components/gatherings/GatheringsShell'
 import type { GatheringRow } from '@/components/gatherings/GatheringsClient'
@@ -164,7 +165,10 @@ export default async function GatheringsPage({ searchParams }: Props) {
     mayViewMyTasks ? getMyGatheringTasks() : Promise.resolve([] as MyTaskRow[]),
   ])
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE for the past/upcoming split, and the reader's for nothing on this page.
+  // `todayLocal()` read UTC, so a gathering was filed as Past from 7pm Central on its own day
+  // — an evening picnic disappeared from Upcoming as it started. See `resolveFamilyZone`.
+  const today = todayIn(await resolveFamilyZone(await getMyFamilyCode(user.id)))
   // The SCHEDULER's zone, defaulting the new-gathering dialog's timezone field. It is a
   // default and decides nothing: `scheduleGathering` validates whatever it is sent.
   const zone = await resolveZone(user.id)

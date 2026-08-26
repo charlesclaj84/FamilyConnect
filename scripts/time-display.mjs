@@ -33,12 +33,40 @@
  *       server — so the same row renders differently depending on which side drew it. They
  *       also pin a locale at the call site, which Phase 3 has to undo.
  *
+ *   SERVER-TODAY
+ *       `todayLocal()` in a module that runs on the SERVER. It reads whatever zone the process
+ *       is in — the member's in a browser, and **UTC on the server**, which rolls over at 7pm
+ *       Central. So for the last five hours of every day a server-side comparison judged the
+ *       family's records against tomorrow: a gathering read "Past" while the family was at it,
+ *       and a task due today read "Overdue" five hours early.
+ *
+ *       The fix is `todayIn(await resolveFamilyZone(familyCode))` for a judgement about the
+ *       family's records, or `todayIn(await resolveZone(userId))` for one about the reader.
+ *       `lib/auth/zone.ts` states which is which. `todayLocal()` stays CORRECT in a client
+ *       component, where it reads the member's own browser, and that is what the form
+ *       date-prefills use — so this pattern fires only on a file with no `'use client'`.
+ *
  *   UNPINNED-FORMATTER
  *       `new Intl.DateTimeFormat(...)` with no `timeZone` option anywhere in its arguments.
  *       Same defect as the above with more ceremony. `lib/calendar.ts` records the sharpest
  *       version of it: a formatter resolves its zone when it is CONSTRUCTED, so a
  *       module-level one never notices `process.env.TZ` changing — which made a mutation
  *       ship green from CI and fail only on a laptop.
+ *
+ * ── EVERY PATTERN HERE HAS BEEN MUTATION-CHECKED, AND ONE OF THEM SHIPPED INERT ─────
+ * A gate is only worth what its own failure test is worth, and `SERVER-TODAY` proved that on
+ * the day it was written: the regex was authored through a script that turned `` into a
+ * literal BACKSPACE character (0x08), so the pattern demanded a backspace before `todayLocal`
+ * and could never match anything. The audit reported **Clean** over a codebase with the bug
+ * deliberately reintroduced.
+ *
+ * Nothing about the output distinguished that from a genuinely clean tree. It was found only by
+ * putting the bug back and expecting a finding — which is AGENTS.md §7's "a green suite is not
+ * evidence until you have seen it fail", arriving in a script whose whole job is to be that
+ * evidence for somebody else.
+ *
+ * **So: adding a pattern here means reintroducing the defect it is for and watching this exit
+ * 1.** All four have been checked that way.
  *
  * ── WHAT IT CANNOT SEE, NAMED RATHER THAN LEFT TO BE DISCOVERED ─────────────────────
  *   * **A column that holds an instant and is not named `*_at`.** The instant-detection is
@@ -74,6 +102,13 @@ const LABEL_FORMATTERS = [
  * in the same file inherits the first one's verdict, so write the verdict about the file.
  */
 const REVIEWED = {
+  'lib/date-utils.ts:SERVER-TODAY':
+    'THE DEFINITION, not a call. `export function todayLocal()` matches the pattern because the '
+    + 'pattern is a call shape and a declaration looks like one. A verdict rather than skipping '
+    + 'the file, so the exemption is one LINE of this module rather than all of it — a real '
+    + '`todayLocal()` CALL added to date-utils.ts would inherit this verdict, which is the known '
+    + 'cost of keying on file-and-kind and is stated in the REVIEWED header above.',
+
   'components/layout/ZoneHint.tsx:UNPINNED-FORMATTER':
     'READING THE BROWSER\'S ZONE, WHICH IS THE ONE LEGITIMATE USE OF AN UNPINNED FORMATTER. '
     + '`Intl.DateTimeFormat().resolvedOptions().timeZone` is the only way to ask a browser '
@@ -192,7 +227,11 @@ for (const dir of SCAN) {
     const rel = relative(ROOT, file).split('\\').join('/')
     if (REVIEWED_FILES[rel]) continue
     scanned++
-    const code = strip(readFileSync(file, 'utf8'))
+    const raw = readFileSync(file, 'utf8')
+    // Read from the RAW source, before comments are blanked: the directive is a string
+    // literal at the top of the file, and `strip` blanks string CONTENTS.
+    const isClient = /^\s*['"]use client['"]/m.test(raw)
+    const code = strip(raw)
 
     const hits = []
 
@@ -217,7 +256,17 @@ for (const dir of SCAN) {
       }
     }
 
-    // 3. An `Intl.DateTimeFormat` with no `timeZone` anywhere in its arguments.
+    // 3. `todayLocal()` in a SERVER module. Correct in a client component — it reads the
+    //    member's own browser there — so the `'use client'` check is the whole discriminator.
+    if (!isClient) {
+      const re = /\btodayLocal\s*\(/g
+      let m
+      while ((m = re.exec(code))) {
+        hits.push({ kind: 'SERVER-TODAY', line: lineOf(code, m.index) })
+      }
+    }
+
+    // 4. An `Intl.DateTimeFormat` with no `timeZone` anywhere in its arguments.
     {
       const re = /Intl\.DateTimeFormat\s*\(/g
       let m
@@ -283,6 +332,10 @@ for (const f of findings) {
   } else if (f.kind === 'RUNTIME-ZONE') {
     console.log('       toLocale* reads the runtime\'s zone — the browser\'s or UTC, unpredictably.')
     console.log('       use formatInstant(value, zone) from lib/tz.ts, or add a verdict:')
+  } else if (f.kind === 'SERVER-TODAY') {
+    console.log('       todayLocal() on the server reads UTC, which rolls over at 7pm Central.')
+    console.log('       use todayIn(await resolveFamilyZone(code)) for a family-wide judgement,')
+    console.log('       or todayIn(await resolveZone(userId)) for one about the reader:')
   } else if (f.kind === 'STALE-VERDICT') {
     console.log('       a REVIEWED entry no site matches. The call site was fixed or moved;')
     console.log('       delete the entry rather than keep a verdict about absent code.')
