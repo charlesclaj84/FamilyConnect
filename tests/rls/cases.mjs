@@ -4678,6 +4678,56 @@ export const PENDING_CASES = [
     positive: 'not-applicable',
     why: 'the only legitimate way to move this column is set_membership_status(), which admin/approvals.approveApplicant exercises below',
   },
+
+  // ── CHOOSING A LANGUAGE (Phase 3) ─────────────────────────────────────────
+  //
+  // ── WHAT THIS CASE IS AND IS NOT EVIDENCE FOR ────────────────────────────
+  // `setMyLocale` is self-service: every member may choose their own language, so there is no
+  // grant to refuse and `requireMember()`-shaped attacks are not the risk. What it owes instead
+  // is AGENTS.md §2's OTHER check for a self-service action — that the row being touched is
+  // genuinely the caller's — and that is what these two halves are about.
+  //
+  // THE ATTACK IS NOT CROSS-FAMILY, WHICH IS UNUSUAL HERE AND DELIBERATE. A locale is part of
+  // the SHARED profile: it propagates to every family the caller belongs to, by design
+  // (`people_sync_shared_profile`, 20260826000002), so a write reaching more than one family is
+  // correct rather than a leak. The boundary that matters is the PERSON. So BRAVO's
+  // administrator writes their own locale, and the probe watches ALPHA's member's row: what must
+  // hold is that one member's choice cannot land on another member's row, which is the
+  // `.eq('user_id', user.id)` conjunct and the `people` UPDATE policy underneath it.
+  {
+    kind: 'write',
+    id: 'personal-info.setMyLocale (another member\'s row)',
+    mod: 'app/actions/personal-info.ts', fn: 'setMyLocale',
+    attacker: 'bravoAdmin',
+    args: () => ['fr'],
+    // ALPHA's member — a row the attacker has no business touching. The projection is `locale`
+    // alone: everything else on the row is irrelevant here, and a wider one would move for
+    // reasons other cases cause.
+    probe: (db, fx) => snapshot('people', 'id, locale',
+      { id: fx.users.alphaMember.personId })(db),
+    // The control writes their OWN locale, so the probe DOES move — which is what rules out
+    // this passing for an action that refuses everybody. Without it, a `setMyLocale` that
+    // returned early for every caller would look perfectly isolated.
+    positiveActor: 'alphaMember',
+    positiveArgs: () => ['fr'],
+  },
+  {
+    kind: 'write',
+    id: 'personal-info.setMyLocale (a language the product does not speak)',
+    mod: 'app/actions/personal-info.ts', fn: 'setMyLocale',
+    // NOT A FAMILY BOUNDARY AT ALL, and it is here because the column's CHECK is the only other
+    // thing standing behind this endpoint. `people_locale_check` (20260826000002) refuses
+    // anything outside en/es/fr, and `isSupportedLocale` in the action is what turns that into a
+    // sentence rather than a Postgres error a member cannot act on. Both layers are aimed at the
+    // same string; this asserts the pair.
+    attacker: 'alphaMember',
+    args: () => ['klingon'],
+    probe: (db, fx) => snapshot('people', 'id, locale',
+      { id: fx.users.alphaMember.personId })(db),
+    positive: 'not-applicable',
+    why: 'the legitimate write is the case above; a control here would be sending the same '
+      + 'unsupported code and expecting it to land, which is the thing being refused',
+  },
 ]
 
 /**

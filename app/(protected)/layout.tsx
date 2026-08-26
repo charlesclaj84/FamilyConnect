@@ -15,6 +15,7 @@ import { ShellWatcher } from '@/components/layout/ShellWatcher'
 import { ZoneHint } from '@/components/layout/ZoneHint'
 import { LocaleSync } from '@/components/layout/LocaleSync'
 import { resolveLocale } from '@/lib/auth/locale'
+import { BASE_LOCALE } from '@/lib/i18n/locales'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
 
 /**
@@ -187,7 +188,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           hides the round entirely. Cream is what the kit puts outside that corner. */}
       <div className="min-h-screen flex flex-col">
         <div className="flex flex-1 flex-col bg-background md:flex-row">
-          <Sidebar viewable={viewable} />
+          <Sidebar viewable={viewable} locale={locale || BASE_LOCALE} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
               ─────────────────────────────────────────────────────────────────────
               FamilySwitcher lands its change with `router.refresh()`, and a refresh
@@ -256,7 +257,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
                 what puts the shape over the bar's background is tree order alone. Moving
                 this line above TopBar hides the top third of the bite again. */}
             <div className="relative z-10">
-              <TopBar viewable={viewable} isStaff={isStaff} />
+              <TopBar viewable={viewable} isStaff={isStaff} locale={locale || BASE_LOCALE} />
               <ShellSwoop />
               {children}
             </div>

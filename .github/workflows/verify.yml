@@ -142,6 +142,22 @@ jobs:
       - name: Every rendered time is a label or a zoned instant
         run: npm run audit:time
 
+      # The fifth static audit, added 2026-08-26 with the translation catalogue. Four of its five
+      # findings are ordinary hygiene; the fifth is the one nothing else can see. `marketing:check`
+      # already gates that the SET of plan claims matches per tier and cannot tell whether a
+      # bullet's words still say the true thing — and the same gap opens for every string the
+      # moment a second language exists: somebody edits the English, does not touch the other
+      # catalogues, and that page renders a fluent sentence that is no longer true.
+      #
+      # So every translation records a hash of the English it was made from, and this reports a
+      # mismatch as STALE, by name. It also catches a key used and not defined (which renders as
+      # the key itself), a key nobody reads (a string somebody is asked to translate for no
+      # reason), an orphan, and a placeholder a translation invented (which renders literally).
+      #
+      # It cannot judge whether a translation is any good. Static; no database, no network.
+      - name: Every translation key is defined, used and current
+        run: npm run i18n:check
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

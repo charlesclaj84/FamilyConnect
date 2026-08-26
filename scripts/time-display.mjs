@@ -83,6 +83,7 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { stripCode } from './strip-code.mjs'
 
 const ROOT = process.cwd()
 const SCAN = ['app', 'lib', 'components']
@@ -129,48 +130,6 @@ function walk(dir, out = []) {
     else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) out.push(full)
   }
   return out
-}
-
-/**
- * Blank out comments and string literals, keeping the byte count so line numbers survive.
- *
- * NOT OPTIONAL, and it is the first thing that went wrong when this was written. This
- * codebase's doc comments discuss the very patterns being searched for — `lib/tz.ts`' own
- * header contains the words `formatDate(row.created_at)` as the example of what NOT to do —
- * so a raw text scan reports the documentation as the defect. String literals go too, because
- * `help/content.ts` and the migration prose quote these names.
- */
-function strip(src) {
-  const out = src.split('')
-  let i = 0
-  const blank = (from, to) => {
-    for (let k = from; k < to && k < out.length; k++) if (out[k] !== '\n') out[k] = ' '
-  }
-  while (i < src.length) {
-    const two = src.slice(i, i + 2)
-    if (two === '/*') {
-      const end = src.indexOf('*/', i + 2)
-      const stop = end === -1 ? src.length : end + 2
-      blank(i, stop); i = stop; continue
-    }
-    if (two === '//') {
-      let end = src.indexOf('\n', i)
-      if (end === -1) end = src.length
-      blank(i, end); i = end; continue
-    }
-    const ch = src[i]
-    if (ch === '"' || ch === "'" || ch === '`') {
-      let j = i + 1
-      while (j < src.length) {
-        if (src[j] === '\\') { j += 2; continue }
-        if (src[j] === ch) break
-        j++
-      }
-      blank(i + 1, j); i = j + 1; continue
-    }
-    i++
-  }
-  return out.join('')
 }
 
 /** The balanced-paren argument text starting at the `(` at `open`. */
@@ -231,7 +190,10 @@ for (const dir of SCAN) {
     // Read from the RAW source, before comments are blanked: the directive is a string
     // literal at the top of the file, and `strip` blanks string CONTENTS.
     const isClient = /^\s*['"]use client['"]/m.test(raw)
-    const code = strip(raw)
+    // COMMENTS AND STRING CONTENTS both, because this gate reads CODE — `lib/tz.ts`' own
+    // header names `formatDate(row.created_at)` as the example of what not to do. The
+    // stripper is shared with `i18n-coverage.mjs`; see scripts/strip-code.mjs.
+    const code = stripCode(raw)
 
     const hits = []
 

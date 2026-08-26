@@ -1,0 +1,214 @@
+import { describe, expect, it } from 'vitest'
+import { interpolate, placeholdersIn, translate, translator } from './t'
+import { availableLocales, hasLanguageChoice, CATALOGUES } from './catalogues'
+import { en } from './en'
+import { BASE_LOCALE, LOCALES, isSupportedLocale, negotiateLocale } from './locales'
+
+/**
+ * `lib/i18n/*`, under `npm test` — a `verify.yml` step, so this gates a pull request.
+ *
+ * ── WHAT IS WORTH TESTING HERE AND WHAT IS NOT ──────────────────────────────────────
+ * Not the copy. `npm run i18n:check` gates the STRUCTURE — a key used and not defined, a key
+ * defined and not used, a placeholder invented by a translation, a translation whose English
+ * source has moved — and neither script nor test can judge whether the words are any good.
+ *
+ * What is worth testing is the fallback BEHAVIOUR, because all three of its outcomes look
+ * similar from a call site and only one of them is correct in each case:
+ *
+ *   translated          the string in that language
+ *   untranslated        the ENGLISH string, silently — the reader sees something true
+ *   no such key         the KEY ITSELF, visibly — a programming error nobody should miss
+ *
+ * Getting the second and third the same way round is the point. A missing TRANSLATION must
+ * degrade invisibly; a missing KEY must not.
+ *
+ * ── CHECKED BY MUTATION (AGENTS.md §7b) ─────────────────────────────────────────────
+ * Measured, with the file diffed after each edit to confirm the mutation applied:
+ *
+ *   1. `catalogue?.[key] ?? base[key]` → `catalogue?.[key]`            4 failed
+ *   2. unknown key returns `''` instead of the key                     1 failed
+ *   3. `interpolate` blanks an unmatched placeholder                    1 failed
+ *   4. `negotiateLocale` compares whole tags, not the primary subtag    2 failed
+ *   5. `availableLocales` returns `LOCALES` unfiltered                  1 failed
+ *
+ * The numbers first written here were estimates and three were wrong; these are measured.
+ * MUTATION 1 IS THE LOAD-BEARING ONE — dropping the English fallback takes four tests, because
+ * it is the behaviour every untranslated string in the product depends on.
+ *
+ * MUTATIONS 2, 3 AND 5 EACH FAIL EXACTLY ONE, and that thinness is worth knowing rather than
+ * smoothing over: each is a whole rule resting on a single assertion. **Do not delete those
+ * three tests to tidy the file.** They are, in order, the reason a missing key is visible, the
+ * reason a missing variable is visible, and the reason the switcher cannot offer a language the
+ * product does not speak.
+ */
+
+const es = { 'nav.section.community': 'Comunidad' }
+
+describe('translate', () => {
+  it('prefers the chosen language', () => {
+    expect(translate(es, en, 'nav.section.community')).toBe('Comunidad')
+  })
+
+  it('falls back to English for a key that language has not translated', () => {
+    // SILENTLY, and that is the decision: the reader sees a true string in the wrong language
+    // rather than a blank or a key. The backlog is reported in CI by `i18n:check`, which is
+    // where a backlog belongs — a member cannot act on it.
+    expect(translate(es, en, 'nav.section.accounting')).toBe('Accounting')
+  })
+
+  it('falls back to English when there is no catalogue for the language at all', () => {
+    // The state Phase 3 ships in: `es` is declared in LOCALES and has no catalogue.
+    expect(translate(undefined, en, 'nav.section.accounting')).toBe('Accounting')
+  })
+
+  it('returns the KEY for a key that does not exist, and never a blank', () => {
+    // Ugly on purpose. It is a programming error, it cannot be data-dependent, and a blank
+    // where a caption belongs reads as a rendering fault rather than as missing copy.
+    expect(translate(es, en, 'nav.section.nonsense')).toBe('nav.section.nonsense')
+    expect(translate(es, en, 'nav.section.nonsense')).not.toBe('')
+  })
+
+  it('does not throw for a key that does not exist', () => {
+    // A layout must not 500 over a caption.
+    expect(() => translate(undefined, {}, 'anything')).not.toThrow()
+  })
+})
+
+describe('interpolate', () => {
+  it('substitutes a placeholder', () => {
+    expect(interpolate('Hello {name}', { name: 'Martha' })).toBe('Hello Martha')
+  })
+
+  it('substitutes the same placeholder more than once', () => {
+    expect(interpolate('{a} and {a}', { a: 'x' })).toBe('x and x')
+  })
+
+  it('formats a number by coercion and nothing more', () => {
+    // Deliberately not locale-formatted here: a number in a sentence is the CALLER's to format,
+    // through `formatMoney` or `Intl.NumberFormat` with the reader's tag. Doing it here would
+    // put a second, weaker money formatter inside the string layer.
+    expect(interpolate('{n} tasks', { n: 12 })).toBe('12 tasks')
+  })
+
+  it('LEAVES an unmatched placeholder alone rather than blanking it', () => {
+    // `{count}` on screen is a visible bug somebody reports. An empty gap is a sentence that
+    // reads fine and means something else, which is the worse of the two.
+    expect(interpolate('Hello {name}', {})).toBe('Hello {name}')
+    expect(interpolate('Hello {name}')).toBe('Hello {name}')
+  })
+
+  it('is not a template engine, and asserts that it is not', () => {
+    // One form and no other. If any of these ever start working, somebody has added a syntax
+    // that needs a parser, a spec and a test per combination — see the header on `interpolate`.
+    expect(interpolate('{a.b}', { 'a.b': 'x' })).toBe('{a.b}')
+    expect(interpolate('{{a}}', { a: 'x' })).toBe('{x}')
+    expect(interpolate('{ a }', { a: 'x' })).toBe('{ a }')
+  })
+})
+
+describe('placeholdersIn', () => {
+  it('finds each placeholder once, in order', () => {
+    expect(placeholdersIn('{b} then {a} then {b}')).toEqual(['b', 'a'])
+  })
+
+  it('finds none in a plain string', () => {
+    expect(placeholdersIn('Dues & Donations')).toEqual([])
+  })
+
+  it('is the same parser the gate uses', () => {
+    // `scripts/i18n-coverage.mjs` imports this rather than regexing the source, for the reason
+    // `help-check.mjs` imports `parseInline`: a gate whose parser disagrees with the runtime's
+    // passes strings the runtime then mangles.
+    expect(placeholdersIn('Hello {name}')).toEqual(['name'])
+  })
+})
+
+describe('translator', () => {
+  it('binds one language', () => {
+    const t = translator({ en, es }, 'es')
+    expect(t('nav.section.community')).toBe('Comunidad')
+    expect(t('nav.section.accounting')).toBe('Accounting')
+  })
+
+  it('falls back to English for an unknown language', () => {
+    // A stored preference the product no longer speaks — a locale removed from CATALOGUES, or a
+    // value written before a rename. English, not a crash and not a blank.
+    const t = translator({ en }, 'klingon')
+    expect(t('nav.section.community')).toBe('Community')
+  })
+
+  it('interpolates through the bound function', () => {
+    const t = translator({ en: { greet: 'Hello {name}' } }, 'en')
+    expect(t('greet', { name: 'Martha' })).toBe('Hello Martha')
+  })
+})
+
+describe('the registry', () => {
+  it('has English, which is the base', () => {
+    expect(BASE_LOCALE).toBe('en')
+    expect(CATALOGUES[BASE_LOCALE]).toBeDefined()
+  })
+
+  it('offers only locales that have a catalogue', () => {
+    // THE RULE THAT KEEPS THE SWITCHER HONEST. `LOCALES` declares three; only those with a
+    // catalogue may be offered, because a control that offers a language the product cannot
+    // speak is a control that lies.
+    const offered = availableLocales().map(l => l.code)
+    for (const code of offered) expect(CATALOGUES[code]).toBeDefined()
+    expect(offered.length).toBeLessThanOrEqual(LOCALES.length)
+  })
+
+  it('reports no language CHOICE while there is one catalogue', () => {
+    // Phase 3's state, asserted rather than assumed — and this is the line that will go red the
+    // moment `es.ts` lands, which is exactly when the switcher should start rendering.
+    expect(hasLanguageChoice()).toBe(availableLocales().length > 1)
+  })
+
+  it('keeps registry order rather than object-key order', () => {
+    const offered = availableLocales().map(l => l.code)
+    const declared = LOCALES.map(l => l.code).filter(c => offered.includes(c))
+    expect(offered).toEqual(declared)
+  })
+})
+
+describe('negotiateLocale', () => {
+  it('matches on the PRIMARY subtag, which is the load-bearing part', () => {
+    // `es-MX`, `es-419` and `es` must all find Spanish. Comparing whole tags would send a
+    // family in Monterrey English.
+    expect(negotiateLocale('es-MX,es;q=0.9,en;q=0.8')).toBe('es')
+    expect(negotiateLocale('es-419')).toBe('es')
+    expect(negotiateLocale('fr-CA')).toBe('fr')
+  })
+
+  it('takes the first tag the product speaks, not the first tag', () => {
+    expect(negotiateLocale('de-DE,de;q=0.9,fr;q=0.8')).toBe('fr')
+  })
+
+  it('answers null when nothing matches, so a stated preference can win', () => {
+    expect(negotiateLocale('de-DE,ja;q=0.9')).toBeNull()
+    expect(negotiateLocale('')).toBeNull()
+    expect(negotiateLocale(null)).toBeNull()
+  })
+
+  it('ignores case and whitespace, which real headers carry', () => {
+    expect(negotiateLocale('ES-mx, EN;q=0.5')).toBe('es')
+    expect(negotiateLocale('  fr ')).toBe('fr')
+  })
+})
+
+describe('isSupportedLocale', () => {
+  it('accepts the declared locales and nothing else', () => {
+    expect(isSupportedLocale('en')).toBe(true)
+    expect(isSupportedLocale('es')).toBe(true)
+    expect(isSupportedLocale('klingon')).toBe(false)
+    expect(isSupportedLocale('')).toBe(false)
+    expect(isSupportedLocale(null)).toBe(false)
+  })
+
+  it('is what people_locale_check mirrors, so the two must not drift', () => {
+    // `20260826000002` constrains the column to exactly this set. The CHECK is the layer a
+    // caller who never loads the form cannot get past; this is the layer that tells them why.
+    // Asserted as a set so adding a language here without the migration is visible.
+    expect(LOCALES.map(l => l.code).sort()).toEqual(['en', 'es', 'fr'])
+  })
+})

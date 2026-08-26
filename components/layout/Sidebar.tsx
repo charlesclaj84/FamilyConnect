@@ -37,6 +37,8 @@ import {
   BookText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { tFor } from '@/lib/i18n/catalogues'
+import type { T } from '@/lib/i18n/t'
 import { isFeatureFuture } from '@/lib/features'
 import { BetaBadge } from '@/components/ui/beta-badge'
 import { APP_NAME, BRAND_MARK_SRC } from '@/lib/brand'
@@ -74,7 +76,21 @@ interface NavItem {
 }
 
 interface NavGroup {
-  section?: { label: string; icon: React.ComponentType<{ className?: string }> }
+  /**
+   * The section this group sits under, or none (the first group, which holds Dashboard).
+   *
+   * ── `id` IS THE IDENTITY AND THE CAPTION COMES FROM `t` ───────────────────────────
+   * The caption used to live here as a `label`, and it was doing THREE jobs: the heading on
+   * screen, the key of the open/closed `Set` in `NavTree`, and the React `key` of each section.
+   * Translating it would have made all three change with the language — so switching to
+   * Español would silently collapse whichever section was open, and remount every one of them.
+   *
+   * So the identity is an `id` that never moves and the caption is `t('nav.section.<id>')`.
+   * Exactly the split `permission_resources.category` already keeps: `20260822000021` renamed
+   * that heading to "Library" and deliberately left the column reading `journal`, because *"a
+   * caption is one line here; a category is a column three resolvers agree about."*
+   */
+  section?: { id: string; icon: React.ComponentType<{ className?: string }> }
   items: NavItem[]
 }
 
@@ -265,7 +281,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // both came off together when the per-member lineage view was retired and this
       // became the only tree — see app/(protected)/family-tree/page.tsx. Nothing derives
       // it, so if a surface ever needs it again it is set here by hand exactly as it was.
-      section: { label: 'Community', icon: UsersRound },
+      section: { id: 'community', icon: UsersRound },
       items: [
         // GALLERY LEADS, since 2026-08-22, and the order of this group is now the ask rather
         // than the argument that used to be written here. What replaced the old reading
@@ -328,7 +344,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
     },
   ]
 
-  groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
+  groups.push({ section: { id: 'gatherings', icon: PartyPopper }, items: gatheringItems })
 
   // ── LIBRARY: FOUR ROWS, AND IT WAS ONE CALLED "JOURNALS" TWO DAYS AGO ─────
   // `NavSection` renders a single-item group as a static divider and a multi-item one as a
@@ -362,7 +378,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // AFTER GATHERINGS AND BEFORE ACCOUNTING: what the family has written down sits between
   // what it does together and what it does with money.
   groups.push({
-    section: { label: 'Library', icon: Library },
+    section: { id: 'library', icon: Library },
     items: [
       // THE ORDER IS THE ASK, 2026-08-22, and it inverts the reading recorded above this
       // group: the constitution first, then the record of the meetings held under it, then
@@ -396,7 +412,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // schedules, HeartHandshake for giving — which is what keeps these recognisable as the
   // screens that replaced them. History went with Payment History into Reporting below.
   groups.push({
-    section: { label: 'Accounting', icon: Wallet },
+    section: { id: 'accounting', icon: Wallet },
     items: [
       { href: '/accounting/summary',  label: 'Summary',         icon: Wallet },
       // ── ONE ROW SINCE 2026-08-20, WHERE THERE WERE TWO ──────────────────────────────
@@ -478,7 +494,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // one job the glyph is doing here; section icons are reused as item icons elsewhere in this
   // file already (BookOpen heads Resources and labels the manual).
   groups.push({
-    section: { label: 'Reporting', icon: BarChart3 },
+    section: { id: 'reporting', icon: BarChart3 },
     items: [
       // MEMBERSHIP LEADS, and the position is the point rather than alphabetical accident.
       // The other four rows are all readings of the MONEY; this one is a reading of the
@@ -552,7 +568,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // lands where the review says it belongs, which is not necessarily where it started. If
   // Photos and Documents both do the same, this group never comes back and the comment goes.
 
-  groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
+  groups.push({ section: { id: 'admin', icon: ShieldCheck }, items: adminItems })
 
   // ── THE REVIEW SECTION IS GONE, 2026-08-22 ───────────────────────────
   // It held the six routes that came off `status: future` on 2026-08-20 so somebody could
@@ -577,7 +593,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // nothing to collapse. A second item here would make it a slider automatically, which is
   // the correct behaviour and needs no change.
   groups.push({
-    section: { label: 'Help', icon: LifeBuoy },
+    section: { id: 'help', icon: LifeBuoy },
     items: [
       { href: '/help', label: 'How-To Manual', icon: BookOpen },
     ],
@@ -645,13 +661,15 @@ function isActive(pathname: string, href: string) {
  * as MainRail's stacked variant, and the reason the old `transparent` left marker is
  * gone rather than merely recoloured: the gold fill IS the marker now.
  */
-function NavLink({ href, label, icon: Icon, active, beta, onClick }: {
+function NavLink({ href, icon: Icon, active, beta, onClick, t }: {
   href: string
-  label: string
   icon: React.ComponentType<{ className?: string }>
   active: boolean
   beta?: boolean
   onClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   return (
     <Link
@@ -666,7 +684,9 @@ function NavLink({ href, label, icon: Icon, active, beta, onClick }: {
       )}
     >
       <Icon className={cn('h-4 w-4 shrink-0 transition-opacity', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
-      {label}
+      {/* THE CAPTION, KEYED ON THE HREF — which is also this item's permission key and its
+          route (AGENTS.md §1). One identifier, four jobs. */}
+      {t(`nav.item.${href}`)}
       {/* THE OUTLINE VARIANT, WHICH INHERITS THIS ROW'S COLOUR — and that is the whole
           reason it exists. A row sits on Heritage when inactive and on Legacy gold when
           active, and those grounds take different `on-` partners: naming either here would
@@ -719,12 +739,15 @@ function SectionDivider({ label, icon: Icon }: {
 // single-item sections (and the top-level Dashboard group) render statically.
 // `open`/`onToggle` are owned by NavTree, which decides how sections interact
 // with one another (see AUTO_COLLAPSE_SECTIONS).
-function NavSection({ group, pathname, open, onToggle, onNavClick }: {
+function NavSection({ group, pathname, open, onToggle, onNavClick, t }: {
   group: NavGroup
   pathname: string
   open: boolean
   onToggle: () => void
   onNavClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   const { section, items } = group
 
@@ -755,7 +778,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
     .reduce<string | null>((best, item) => (!best || item.href.length > best.length ? item.href : best), null)
 
   const links = items.map(item => (
-    <NavLink key={item.href} {...item} active={item.href === activeHref} onClick={onNavClick} />
+    <NavLink key={item.href} {...item} active={item.href === activeHref} onClick={onNavClick} t={t} />
   ))
 
   // No section header (e.g. Dashboard) — render the items plainly.
@@ -769,7 +792,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   if (items.length <= 1) {
     return (
       <div>
-        <SectionDivider label={section.label} icon={Icon} />
+        <SectionDivider label={t(`nav.section.${section.id}`)} icon={Icon} />
         <div className="flex flex-col gap-0.5 mt-0.5">{links}</div>
       </div>
     )
@@ -784,7 +807,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
         aria-expanded={open}
         className="group mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-brand-primary/50"
       >
-        <SectionLabel label={section.label} icon={Icon} />
+        <SectionLabel label={t(`nav.section.${section.id}`)} icon={Icon} />
         <ChevronDown
           className={cn(
             'h-3.5 w-3.5 shrink-0 text-brand-on-hero/50 transition-transform group-hover:text-brand-on-hero',
@@ -797,10 +820,13 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   )
 }
 
-function NavTree({ groups, pathname, onNavClick }: {
+function NavTree({ groups, pathname, onNavClick, t }: {
   groups: NavGroup[]
   pathname: string
   onNavClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   // Default to the section that contains the active route so the current page
   // stays visible. With AUTO_COLLAPSE_SECTIONS on this behaves as an accordion —
@@ -808,7 +834,9 @@ function NavTree({ groups, pathname, onNavClick }: {
   const collapsible = (g: NavGroup) => Boolean(g.section) && g.items.length > 1
   const activeSection = groups.find(g => collapsible(g) && g.items.some(it => isActive(pathname, it.href)))
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () => new Set(activeSection?.section?.label ? [activeSection.section.label] : []),
+    // KEYED ON THE ID, NOT THE CAPTION. The caption is now `t(...)`, so keying state on it
+    // would collapse whichever section was open the moment somebody changed language.
+    () => new Set(activeSection?.section?.id ? [activeSection.section.id] : []),
   )
 
   const toggleSection = (label: string) =>
@@ -841,15 +869,17 @@ function NavTree({ groups, pathname, onNavClick }: {
   return (
     <>
       {groups.map((group, i) => {
-        const label = group.section?.label ?? `group-${i}`
+        // The React key and the open/closed key, both the stable id — never the caption.
+        const key = group.section?.id ?? `group-${i}`
         return (
           <NavSection
-            key={label}
+            key={key}
             group={group}
             pathname={pathname}
-            open={openSections.has(label)}
-            onToggle={() => toggleSection(label)}
+            open={openSections.has(key)}
+            onToggle={() => toggleSection(key)}
             onNavClick={onNavClick}
+            t={t}
           />
         )
       })}
@@ -946,9 +976,20 @@ function RailBrand() {
  * Only the top-left. The kit rounds its bottom corners too, but its sidebar is a card on a
  * canvas; this one runs to the bottom of a page of unknown length.
  */
-export function Sidebar({ viewable }: { viewable: string[] }) {
+export function Sidebar({ viewable, locale }: {
+  viewable: string[]
+  /**
+   * The reader's language, resolved by the layout.
+   *
+   * A STRING AND NOT A `t`, because a function cannot cross the RSC boundary — props are
+   * serialized. Each side builds its own `t` from the same static registry; see
+   * `lib/i18n/catalogues.ts`.
+   */
+  locale: string
+}) {
   const pathname = usePathname()
   const navGroups = buildNavGroups(new Set(viewable))
+  const t = tFor(locale)
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
@@ -981,7 +1022,7 @@ export function Sidebar({ viewable }: { viewable: string[] }) {
       <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain py-3 pl-3 pr-9">
         <RailBrand />
         <nav className="mt-4 flex flex-col">
-          <NavTree groups={navGroups} pathname={pathname} />
+          <NavTree groups={navGroups} pathname={pathname} t={t} />
         </nav>
         <RailMotto />
       </div>
@@ -1002,10 +1043,21 @@ export function Sidebar({ viewable }: { viewable: string[] }) {
  *
  * `Sidebar` above is now desktop-only and holds no state at all.
  */
-export function MobileNav({ viewable }: { viewable: string[] }) {
+export function MobileNav({ viewable, locale }: {
+  viewable: string[]
+  /**
+   * The reader's language, resolved by the layout.
+   *
+   * A STRING AND NOT A `t`, because a function cannot cross the RSC boundary — props are
+   * serialized. Each side builds its own `t` from the same static registry; see
+   * `lib/i18n/catalogues.ts`.
+   */
+  locale: string
+}) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const navGroups = buildNavGroups(new Set(viewable))
+  const t = tFor(locale)
 
   // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)
@@ -1022,7 +1074,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
       <button
         onClick={() => setMobileOpen(true)}
         className="md:hidden flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-        aria-label="Open navigation menu"
+        aria-label={t('nav.open')}
         aria-expanded={mobileOpen ? 'true' : 'false'}
       >
         <Menu className="h-4 w-4" />
@@ -1053,7 +1105,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
               <button
                 onClick={() => setMobileOpen(false)}
                 className="mt-4 rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
-                aria-label="Close navigation menu"
+                aria-label={t('nav.close')}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1063,7 +1115,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
                 the rail. The drawer has no swoosh to protect, so this is proportion
                 alone. */}
             <nav className="relative z-10 flex flex-col overflow-y-auto py-3 pl-3 pr-9">
-              <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
+              <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} t={t} />
               <RailMotto />
             </nav>
             {/* The rail-windowed variant, not the shell one: a drawer is a 16rem panel

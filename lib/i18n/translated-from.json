@@ -1,0 +1,23 @@
+{
+  "_README": [
+    "THE ENGLISH EACH TRANSLATION WAS MADE FROM, as a short hash per key per language.",
+    "",
+    "WHY THIS FILE EXISTS. `marketing:check` already gates that the SET of plan claims matches",
+    "per tier, and it cannot see whether a bullet's words still say the true thing. The same gap",
+    "opens the moment a second language exists: somebody edits an English string, does not touch",
+    "the other catalogues, and the Spanish page goes on rendering a perfectly fluent sentence",
+    "that is no longer true. Nothing about translation quality prevents that and nothing on",
+    "screen reveals it.",
+    "",
+    "So `npm run i18n:check` recomputes the hash of the English string for every translated key",
+    "and compares it here. A mismatch is reported as STALE, by name, in CI.",
+    "",
+    "STALE IS REPORTED, NEVER AUTO-RESOLVED. The honest interim behaviour is to keep showing the",
+    "last good translation with the fact recorded here, rather than silently reverting one string",
+    "to English mid-page. `npm run i18n:accept <locale>` is what a person runs once they have",
+    "re-checked the wording.",
+    "",
+    "EMPTY UNTIL A SECOND CATALOGUE EXISTS, which is Phase 3's state. The mechanism is built and",
+    "tested now so that the first translation lands into a gate rather than in front of one."
+  ]
+}

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { pickProfileColumns } from '@/lib/profile-columns'
+import { isSupportedLocale } from '@/lib/i18n/locales'
 
 /**
  * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
@@ -227,6 +228,69 @@ async function chapterIsOurs(chapterId: unknown, familyCode: string): Promise<bo
 // Saves only the supplied fields — used by the section-level edit cards.
 // On conflict (existing record) Supabase updates ONLY the columns provided,
 // leaving all other columns unchanged.
+/**
+ * Change the language this member reads the product in.
+ *
+ * ── WHY NOT JUST `saveProfileSection({ locale })` ───────────────────────────────────
+ * It would work, and the switcher would be posting a PROFILE SECTION to change one dropdown in
+ * the top bar. Three things fall out of having its own action instead:
+ *
+ *   * **It takes one argument of one shape.** `saveProfileSection` takes a `Partial<>` off the
+ *     wire and leans on `pickProfileColumns` to decide what reaches the row; this takes a
+ *     locale code, checks it against the registry, and can write nothing else even in
+ *     principle. A narrower endpoint is a smaller thing to reason about.
+ *   * **It reports differently.** A profile save says "Saved"; this has to revalidate the whole
+ *     layout, because the rail, the top bar and every caption in the shell are what change.
+ *   * **The validation is here rather than only in the database.** `people_locale_check`
+ *     (`20260826000002`) refuses an unsupported code, but a CHECK violation surfaces as a
+ *     Postgres error a member cannot act on. `isSupportedLocale` is what turns it into a
+ *     sentence — and the CHECK remains the layer a caller who never loads the page cannot get
+ *     past (§2).
+ *
+ * ── IT IS SELF-SERVICE, SO `requireMember()` AND NOT A GRANT ────────────────────────
+ * Choosing a language is something every member may do by definition, exactly like sending a
+ * chat message or editing their own profile — `create` and `edit` default to scope `'none'`, so
+ * demanding a grant would lock the whole family out of their own interface. What it still owes
+ * is the OTHER check AGENTS.md §2 requires of a self-service action: that the row being touched
+ * is genuinely the caller's. `.eq('user_id', user.id)` is that, and it is the only filter here
+ * — the write deliberately reaches EVERY family the caller belongs to, because a language is
+ * part of the shared profile and `people_sync_shared_profile` would propagate it anyway.
+ */
+export async function setMyLocale(
+  locale: string
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, message: 'Not authenticated' }
+
+  if (!isSupportedLocale(locale)) {
+    return { success: false, message: 'That is not a language we speak yet' }
+  }
+
+  // The USER client, so the `people` UPDATE policy — which admits a member's write to their own
+  // row — is what authorizes this. `.select()` for §8b's reason: a write the policy matched zero
+  // rows with would otherwise come back as `{ success: true }` over an unchanged row.
+  const { data, error } = await supabase
+    .from('people')
+    .update({ locale })
+    .eq('user_id', user.id)
+    .select('id')
+
+  if (error) {
+    console.error(`[personal-info] locale change failed for ${user.id}: ${error.message}`)
+    return { success: false, message: 'Could not change the language. Please try again.' }
+  }
+  if (!data || data.length === 0) {
+    return { success: false, message: 'Not authorized' }
+  }
+
+  // THE WHOLE LAYOUT, not this route: the rail, the top bar, the account menu and every caption
+  // in the shell are what this changes. `renameFamily` revalidates the same way for a narrower
+  // reason.
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
 export async function saveProfileSection(
   fields: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; message?: string }> {
