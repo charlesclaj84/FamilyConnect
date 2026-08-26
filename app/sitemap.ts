@@ -45,16 +45,30 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // `/features` began deriving its tier tags on 2026-08-20. So the stamp
   // understated a substantial rewrite by nine days.
   //
-  // The one-line check, which is what nobody ran:
+  // NOBODY HAS TO RUN THAT CHECK ANY MORE — `npm run sitemap:check`
+  // (scripts/sitemap-freshness.mjs) is it, and it is a step in verify.yml. It
+  // compares this literal against the newest commit touching anything the public
+  // pages render and fails when the content is newer than the claim, so the stamp
+  // can no longer rot silently. What it cannot tell is a copy change from a
+  // refactor; that judgement is still the bumper's, and this comment is where the
+  // answer gets written down.
   //
-  //   git log -1 --date=short --format=%ad -- 'app/(marketing)' app/page.tsx   //     components/marketing lib/plans.ts
+  // ── 2026-08-22 -> 2026-08-23 ──────────────────────────────────────────────
+  // Reader-visible, and on the page that matters most: Standard and Plus went
+  // from `available: false` to true on `/pricing`, so two of the four cards
+  // stopped saying "Coming soon" behind a disabled button and started offering
+  // to sell something. A Premium bullet was added with them (safety check-ins),
+  // and `PlanLadder` grew the signup plan intent. `/about`, `/features`,
+  // `/how-it-works`, `/why-us` and the landing page were touched the same day
+  // by the Meta view-content tags, which a reader does NOT see — but the
+  // pricing change alone earns the bump.
   //
   // ONE DATE FOR EVERY URL, and it is a deliberate simplification rather than
   // an oversight: `/about` has not changed since before the old stamp, so this
   // overstates its freshness by a few days. `lastModified` is a hint crawlers
   // weigh, not a claim they audit, and six per-route dates in
   // `lib/marketing-nav.ts` would be six things to forget instead of one.
-  const lastModified = new Date('2026-08-22')
+  const lastModified = new Date('2026-08-23')
 
   return [
     {

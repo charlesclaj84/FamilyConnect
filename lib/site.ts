@@ -28,6 +28,10 @@
  *      deployment with no branch host; never a share link worth keeping.
  *   5. localhost, for `npm run dev`.
  *
+ * STEPS 1, 3 AND 4 ALL GO THROUGH `readOrigin`, which adds a missing scheme and drops a value
+ * that still will not parse. `SITE_URL` is therefore always a URL, which is what lets
+ * `SITE_ORIGIN` be a module-scope `new URL()` — see `readOrigin` for the build it broke.
+ *
  * EVERY STEP BELOW PRODUCTION MUST YIELD A NON-PRODUCTION ORIGIN. That is the
  * invariant, and it is the one that was broken between the custom domain landing and
  * 2026-08-23 — see the block on `VERCEL_PROJECT_PRODUCTION_URL` in `resolveSiteUrl`.
@@ -88,9 +92,56 @@ export const PRODUCTION_ORIGIN = 'https://genorra.com'
  * test. Host redirects for a host that serves a real deployment belong in Vercel, not here.
  */
 
+/**
+ * One env var, read as an origin — or null, meaning "carry on down the list".
+ *
+ * ── WHY EVERY STEP GOES THROUGH THIS, INCLUDING THE ONE THAT LOOKS SAFE ─────────────
+ * `SITE_URL` is fed straight into `new URL()` for `metadataBase`, at MODULE SCOPE. A value
+ * that does not parse therefore throws while Next is collecting page data, which is a build
+ * failure with no route, no variable name and no value in it:
+ *
+ *     Failed to collect configuration for /_not-found
+ *       [cause]: TypeError: Invalid URL … input: 'genorra-kappa.vercel.app'
+ *
+ * That is a real one, from 2026-08-25. `NEXT_PUBLIC_SITE_URL` was set on Vercel to the bare
+ * host with no scheme, and step 1 was the only step that returned its variable VERBATIM —
+ * the two `.vercel.app` steps below have always prefixed `https://`, because Vercel documents
+ * those as hosts. So the override was the odd one out precisely where it is least supervised:
+ * it is typed into a dashboard by a person, once, and it WINS EVERYWHERE.
+ *
+ * Two rules follow, and the second is the one that keeps a misconfiguration from becoming an
+ * outage:
+ *
+ *   * **A bare host is repaired, not rejected.** `https://` is added when no scheme is
+ *     present, which is the same reading Vercel's own variables get. A scheme is still the
+ *     right thing to write — a schemeless `localhost:3000` in a `.env.local` becomes `https`
+ *     and will not answer.
+ *   * **A value that still does not parse FALLS THROUGH**, loudly, rather than throwing. The
+ *     fall-through is safe in both directions and that is not a coincidence: it lands on
+ *     exactly the answer the rest of the order would have given — `PRODUCTION_ORIGIN` on
+ *     production, the branch host on preview — so a broken override can never leak production
+ *     into a preview, which is what the whole of step 3 is a warning about.
+ */
+function readOrigin(name: string): string | null {
+  const raw = process.env[name]?.trim().replace(/\/+$/, '')
+  if (!raw) return null
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+    ? raw
+    : `https://${raw.replace(/^\/+/, '')}`
+  try {
+    new URL(candidate)
+    return candidate
+  } catch {
+    // Named and valued, because the build log is where somebody will look for it and the
+    // thrown version of this told them neither.
+    console.warn(`[site] ${name} is not a usable origin and was ignored: ${raw}`)
+    return null
+  }
+}
+
 function resolveSiteUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (explicit) return explicit.replace(/\/+$/, '')
+  const explicit = readOrigin('NEXT_PUBLIC_SITE_URL')
+  if (explicit) return explicit
 
   // VERCEL_ENV is 'production' only for a production deployment — a preview build of
   // the same commit reports 'preview'. It is not a NEXT_PUBLIC_ variable, so it is
@@ -129,22 +180,28 @@ function resolveSiteUrl(): string {
   //
   // A CUSTOM DOMAIN IS THE ORDINARY END STATE OF ANY PROJECT, so this was never a latent trap
   // — it was one that arms itself on the day the product gets its name.
-  const branch = process.env.VERCEL_BRANCH_URL?.trim()
-  if (branch) return `https://${branch}`
+  const branch = readOrigin('VERCEL_BRANCH_URL')
+  if (branch) return branch
 
   // A Vercel deployment with no branch host — a CLI deploy, or a preview built outside a git
   // branch. Per-deployment and therefore unstable, which is why it is the LAST resort rather
   // than the preview answer: a link built from it points at one frozen build forever. Still
   // strictly better than falling through to localhost, which is wrong on any deployment.
-  const deployment = process.env.VERCEL_URL?.trim()
-  if (deployment) return `https://${deployment}`
+  const deployment = readOrigin('VERCEL_URL')
+  if (deployment) return deployment
 
   return 'http://localhost:3000'
 }
 
 export const SITE_URL = resolveSiteUrl()
 
-/** `metadataBase` wants a URL instance, not a string. */
+/**
+ * `metadataBase` wants a URL instance, not a string.
+ *
+ * This runs at MODULE SCOPE, so it cannot be allowed to throw — a failure here is not a bad
+ * Open Graph card, it is `next build` dying during page-data collection. `readOrigin` is what
+ * makes that structural rather than a hope about what is in the environment.
+ */
 export const SITE_ORIGIN = new URL(SITE_URL)
 
 /**

@@ -102,6 +102,57 @@ describe('resolveSiteUrl', () => {
     expect(SITE_URL).toBe('https://example.test')
   })
 
+  it('repairs a bare host in the override, which is the build that died', async () => {
+    // 2026-08-25, on Vercel: `NEXT_PUBLIC_SITE_URL` was typed in as the host with no scheme,
+    // and step 1 was the only step that did not add one. `new URL('genorra-kappa.vercel.app')`
+    // throws at module scope, so `next build` failed collecting page data for /_not-found with
+    // no variable name in the message.
+    const { SITE_URL, SITE_ORIGIN } = await siteWith({
+      NEXT_PUBLIC_SITE_URL: 'genorra-kappa.vercel.app',
+      VERCEL_ENV: 'preview',
+    })
+    expect(SITE_URL).toBe('https://genorra-kappa.vercel.app')
+    expect(SITE_ORIGIN.host).toBe('genorra-kappa.vercel.app')
+  })
+
+  it('always yields something `new URL` accepts, whatever is in the environment', async () => {
+    // The property, not the case above. `SITE_ORIGIN` is a module-scope `new URL(SITE_URL)`,
+    // so any input that survives to it and does not parse is a BUILD FAILURE rather than a bad
+    // link. Every step that reads a variable is covered, in both the repairable and the
+    // hopeless shape.
+    const inputs = [
+      { NEXT_PUBLIC_SITE_URL: 'genorra-kappa.vercel.app' },
+      { NEXT_PUBLIC_SITE_URL: 'https://example.test/' },
+      { NEXT_PUBLIC_SITE_URL: ':::not a url:::' },
+      { NEXT_PUBLIC_SITE_URL: 'http://' },
+      { VERCEL_ENV: 'preview', VERCEL_BRANCH_URL: 'https://genorra-git-dev-acme.vercel.app' },
+      { VERCEL_ENV: 'preview', VERCEL_BRANCH_URL: ':::not a url:::' },
+      { VERCEL_ENV: 'preview', VERCEL_URL: ':::not a url:::' },
+    ]
+    for (const env of inputs) {
+      const { SITE_URL, SITE_ORIGIN } = await siteWith(env)
+      expect(() => new URL(SITE_URL), `env ${JSON.stringify(env)} is not a URL`).not.toThrow()
+      expect(SITE_ORIGIN.protocol).toMatch(/^https?:$/)
+    }
+  })
+
+  it('falls THROUGH an unusable override rather than throwing, and never onto production', async () => {
+    // Which way to fail is the decision, and it is safe in both directions because the
+    // fall-through lands on exactly the answer the rest of the order would have given.
+    const preview = await siteWith({
+      NEXT_PUBLIC_SITE_URL: ':::not a url:::',
+      VERCEL_ENV: 'preview',
+      VERCEL_BRANCH_URL: 'genorra-git-dev-acme.vercel.app',
+    })
+    expect(preview.SITE_URL).toBe('https://genorra-git-dev-acme.vercel.app')
+
+    const production = await siteWith({
+      NEXT_PUBLIC_SITE_URL: ':::not a url:::',
+      VERCEL_ENV: 'production',
+    })
+    expect(production.SITE_URL).toBe(production.PRODUCTION_ORIGIN)
+  })
+
   it('NEVER resolves to production from a non-production deployment', async () => {
     // ── THE ONE THAT WOULD HAVE CAUGHT IT ────────────────────────────────────────────
     // A property of the whole function rather than of one branch, so a sixth step added
