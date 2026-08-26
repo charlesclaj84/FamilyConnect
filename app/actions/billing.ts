@@ -9,11 +9,12 @@ import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
 import { TIER_IS_SOLD, TIER_PRICE } from '@/lib/plans'
 import { formatCurrency } from '@/lib/currency-utils'
+import { monthLabel } from '@/lib/calendar'
 import { TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
-  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, entitlementOn,
-  initialChargeOptions, isPrepayMonths, nextFirstOfMonth, prepayQuoteCents,
-  prorateRemainderCents, scheduleDowngrade, stripeTrialEnd, tierMove, upgradeQuote,
+  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, daysLeftInMonth,
+  dueNowTotalCents, entitlementOn, initialChargeLines, isPrepayMonths, nextFirstOfMonth,
+  prepayQuoteCents, scheduleDowngrade, stripeTrialEnd, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { signupPlanPrompt, type SignupPlanPrompt } from '@/lib/signup-plan'
@@ -389,44 +390,35 @@ export async function startPlanCheckout(input: {
   const extendingLiveTerm =
     record.paid_through != null && daysBetween(today, record.paid_through) >= 0
 
-  let prorationCents: number | null = null
-  if (!extendingLiveTerm) {
-    if (mode === 'prepaid') {
-      // THE RAW PRORATION, not the floored one. Stripe's minimum applies to the SESSION
-      // total, and a prepaid session also carries whole months — so a 33c part month is
-      // perfectly chargeable here even though it could not stand alone.
-      prorationCents = prorateRemainderCents(tier, today)
-    } else {
-      const options = initialChargeOptions(tier, today)
-      prorationCents = firstPayment === 'remainder-plus-next'
-        ? options.remainderPlusNext
-        : options.remainderOnly
-      if (prorationCents == null) {
-        // Only reachable for 'remainder' below Stripe's minimum, which is the ordinary state
-        // in the last days of a month on the cheaper tiers. Named rather than described: the
-        // family is being told which control to press, not that something failed.
-        return {
-          success: false,
-          message: `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
-        }
-      }
+  // ── WHAT IS DUE TODAY, ITEMISED ───────────────────────────────────────────────────
+  // The arithmetic and the wording are both in `initialChargeLines`, which is pure and tested
+  // — see its header for why one rolled-up figure was not good enough on the hosted page.
+  // Empty when a live prepaid term already owns these days, which is the case that would
+  // otherwise be charged twice.
+  const dueNow = extendingLiveTerm
+    ? []
+    : initialChargeLines(tier, today, mode === 'prepaid' ? 'prepaid-remainder' : firstPayment)
+
+  if (dueNow == null) {
+    // Only reachable for 'remainder' below the product floor, which is the ordinary state of
+    // the back half of every month at Standard. Named rather than described: the family is
+    // being told which control to press, not that something failed.
+    const daysLeft = daysLeftInMonth(today)
+    return {
+      success: false,
+      message: `Only ${daysLeft} day${daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
     }
   }
 
-  const prorationLine = prorationCents != null && prorationCents > 0
-    ? {
-        quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: prorationCents,
-          product_data: {
-            name: firstPayment === 'remainder-plus-next' && mode === 'recurring'
-              ? `${TIER_LABEL[tier]} — rest of this month and next`
-              : `${TIER_LABEL[tier]} — rest of this month`,
-          },
-        },
-      }
-    : null
+  const dueNowLines = dueNow.map(item => ({
+    quantity: 1,
+    price_data: {
+      currency: 'usd',
+      unit_amount: item.cents,
+      product_data: { name: item.name },
+    },
+  }))
+  const dueNowCents = dueNowTotalCents(dueNow)
 
   // ── WHEN THE SUBSCRIPTION STARTS BILLING, EXPRESSED AS A TRIAL ────────────────────
   //
@@ -464,7 +456,7 @@ export async function startPlanCheckout(input: {
   // the combined option is a whole month further. Lowering that constant, or pricing a tier
   // high enough that a couple of days clears $5, would otherwise reintroduce a silent double
   // charge — `stripeTrialEnd`'s own test asserts the coupling across every tier and month.
-  if (mode === 'recurring' && prorationLine && trialEnd == null) {
+  if (mode === 'recurring' && dueNowCents > 0 && trialEnd == null) {
     return {
       success: false,
       message: 'Too few days are left this month to start a monthly plan today. Choose the option that covers this month and next.',
@@ -492,17 +484,20 @@ export async function startPlanCheckout(input: {
             // downgrade can be deferred — see that constant.
             adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
           },
-      // ── THE PART MONTH, AS OUR OWN LINE, AND ONLY WHEN IT IS OWED ─────────────────
+      // ── WHAT IS DUE TODAY, AS OUR OWN LINES, AND ONLY WHEN IT IS OWED ────────────
       // Every family bills on the 1st, so the first payment includes the rest of the
-      // current month. It is a line item OF OURS rather than a Stripe proration, because
-      // the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`, computed by
-      // `prorateRemainderCents` and quoted on the button before the family presses it. If
-      // Stripe prorated it instead the two figures would differ by a few cents and the
-      // hosted page would ask for a number the button did not promise.
+      // current month — and, when that remainder is under the product floor, the whole of
+      // next month with it. They are line items OF OURS rather than a Stripe proration,
+      // because the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`,
+      // computed by `prorateRemainderCents` and quoted on the button before the family
+      // presses it. If Stripe prorated it instead the two figures would differ by a few
+      // cents and the hosted page would ask for a number the button did not promise.
+      //
+      // ITEMISED — see `dueNow` above for why one combined line was not good enough.
       //
       // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
       // extended — which is the case that would otherwise double-charge for it.
-      ...(prorationLine ? [prorationLine] : []),
+      ...dueNowLines,
     ],
     ...(mode === 'recurring'
       ? {
@@ -543,6 +538,39 @@ export async function startPlanCheckout(input: {
       ? INTEGRATION_IDS.platformRecurring
       : INTEGRATION_IDS.platformPrepaid,
     allow_promotion_codes: true,
+    // ── THE BUTTON, AND WHAT CHECKOUT WILL AND WILL NOT LET US SAY ────────────────
+    // `submit_type` is a CLOSED ENUM — `auto | book | donate | pay | subscribe`. There is no
+    // free-text button label in Checkout, so "Join GENORRA" is not available at any price;
+    // `'pay'` is the honest one of the five, because money moves today.
+    //
+    // It is set on both shapes deliberately. On the recurring one Checkout may still render
+    // its own trial wording over the top — the trial is real, in Stripe's sense — which is
+    // exactly why the message below exists rather than being left to the button.
+    submit_type: 'pay',
+    // ── AND THE ONE SENTENCE THAT CORRECTS "N DAYS FREE" ─────────────────────────
+    // Stripe puts a "35 days free" badge on the subscription line whenever a trial is set,
+    // and it is not wrong on its own terms — the SUBSCRIPTION charges nothing until the 1st.
+    // It is badly wrong as the thing a family reads, because they are paying for those days
+    // right now, on the lines underneath. We cannot remove that badge; we can put the truth
+    // next to the button, which is the last thing read before paying.
+    //
+    // Only where there is something due today. On a session that genuinely charges nothing
+    // now — a live prepaid term being extended — this sentence would be the false one.
+    //
+    // THE DATE IS DERIVED FROM `billingStartsOn`, which is the same value that becomes
+    // `trial_end`. So the sentence and the trial cannot disagree: whatever Stripe's badge
+    // counts, this names the last month the family has actually bought.
+    ...(dueNowCents > 0 && mode === 'recurring' && billingStartsOn
+      ? {
+          custom_text: {
+            submit: {
+              message: `${formatCurrency(dueNowCents)} today covers you to the end of `
+                + `${monthLabel(addDays(billingStartsOn, -1).slice(0, 7))}. ${TIER_LABEL[tier]} then `
+                + `renews at ${formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0)} a month, on the 1st.`,
+            },
+          },
+        }
+      : {}),
     ...checkoutReturnUrls('/admin/settings'),
   }
 

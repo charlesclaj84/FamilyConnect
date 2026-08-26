@@ -59,8 +59,10 @@
  *      see its header for why that distinction is load-bearing rather than pedantic.
  */
 
+import { APP_NAME } from '@/lib/brand'
+import { monthLabel } from '@/lib/calendar'
 import { TIER_PRICE } from '@/lib/plans'
-import { DEFAULT_TIER, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
+import { DEFAULT_TIER, TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 
 /**
  * How a family is paying.
@@ -436,6 +438,100 @@ export function initialChargeOptions(tier: FamilyTier, today: string): InitialCh
     remainderPlusNext: remainder != null && monthly != null ? remainder + monthly : null,
     remainderPlusNextThrough: lastDayOfMonthISO(next),
   }
+}
+
+/**
+ * What is due TODAY, itemised — one line per thing the family is actually buying.
+ *
+ * ── WHY THIS IS A LIST AND NOT A FIGURE ─────────────────────────────────────────────
+ * It was a figure, and on Stripe's hosted page that produced something no reader could
+ * reconcile. A subscription whose first months are paid for as one-time lines starts in a
+ * TRIAL — the only way Checkout will accept "do not bill until the 1st" (see
+ * `STRIPE_MINIMUM_TRIAL_DAYS`) — and Stripe stamps the plan line with "35 days free". So the
+ * page read: `GENORRA Standard · $10.00/month after · 35 days free`, and underneath it one
+ * $11.94 line called "rest of this month and next".
+ *
+ * The badge is true in Stripe's sense and false in every sense a family has: they are paying
+ * for those 35 days, on the line below. The badge cannot be removed — no API withholds it —
+ * so the answer is for the lines beneath it to say exactly what each part is:
+ *
+ *     GENORRA Standard — September 2026            $10.00
+ *     GENORRA Standard — rest of August (6 days)    $1.94
+ *
+ * ── THE NAMES CARRY THE MONTH, NOT "THIS" AND "NEXT" ────────────────────────────────
+ * The page is read after a redirect, and again later in an emailed receipt, where "next
+ * month" no longer names anything. `monthLabel` is UTC-pinned for the reason `lib/calendar.ts`
+ * argues at length: a date rendered in the reader's zone is the previous month for half the
+ * country.
+ *
+ * ── NULL MEANS "NOT ON ITS OWN" AND THE CALLER OWES A SENTENCE ─────────────────────
+ * Only for `'remainder'` below `MINIMUM_FIRST_CHARGE_CENTS`, which is the ordinary state of
+ * the back half of every month at Standard — see `initialChargeOptions`. The caller names the
+ * other option rather than reporting a failure, because nothing has failed.
+ *
+ * `'prepaid-remainder'` is the part month of a prepaid session, which takes the RAW proration:
+ * Stripe's minimum applies to the session TOTAL and a prepaid session also carries whole
+ * months, so a 33¢ part month is perfectly chargeable there even though it could not stand
+ * alone.
+ */
+export interface DueNowLine {
+  /** What the family reads on Stripe's page and on the receipt. */
+  name: string
+  cents: number
+}
+
+export type FirstPaymentPlan = 'remainder' | 'remainder-plus-next' | 'prepaid-remainder'
+
+export function initialChargeLines(
+  tier: FamilyTier,
+  today: string,
+  plan: FirstPaymentPlan,
+): DueNowLine[] | null {
+  const remainder = prorateRemainderCents(tier, today)
+  const monthly = TIER_PRICE[tier]?.monthlyCents ?? null
+  if (remainder == null || monthly == null) return null
+
+  // ── THE PRODUCT NAME IS ON THESE LINES, AND IT HAS TO BE ──────────────────────────
+  // The plan line above them is drawn from the Stripe Product, which is named "GENORRA
+  // Standard". A line beside it reading "Standard — rest of August" is the same thing under a
+  // different name, on a page whose whole job is to say what the total is made of. `APP_NAME`
+  // rather than the literal, per AGENTS.md's "The product name lives in one place" — and if
+  // the Stripe Products are ever renamed, this is one of the two places that has to follow.
+  const planName = `${APP_NAME} ${TIER_LABEL[tier]}`
+  // ── "(proration)", NOT "rest of August (6 days)" ──────────────────────────────────
+  // One word that names what the figure IS. The day count was there to justify the amount and
+  // it read as a second, competing description of the same line — and the reader who wants to
+  // check the arithmetic is not on Stripe's page, they are on the plan panel, where the days
+  // are quoted before the button is pressed.
+  //
+  // ON THE 1st IT IS NOT A PRORATION, so it does not say so: the remainder IS the whole month
+  // at the full rate, and a line reading "August 2026 (proration)" for $10.00 beside a
+  // $10.00/month plan invites a query nobody can answer.
+  const partMonth = daysLeftInMonth(today) === daysInMonth(today)
+    ? `${planName} — ${monthLabel(today.slice(0, 7))}`
+    : `${planName} — ${monthLabel(today.slice(0, 7))} (proration)`
+
+  if (plan === 'prepaid-remainder') {
+    return remainder > 0 ? [{ name: partMonth, cents: remainder }] : []
+  }
+
+  if (plan === 'remainder') {
+    const only = initialChargeOptions(tier, today).remainderOnly
+    return only == null ? null : [{ name: partMonth, cents: only }]
+  }
+
+  // The whole month FIRST, because it is the larger figure and the one that matches the rate
+  // printed on the plan line above it. The part month then reads as the adjustment it is.
+  const lines: DueNowLine[] = [
+    { name: `${planName} — ${monthLabel(nextFirstOfMonth(today).slice(0, 7))}`, cents: monthly },
+  ]
+  if (remainder > 0) lines.push({ name: partMonth, cents: remainder })
+  return lines
+}
+
+/** What a list of due-now lines comes to. */
+export function dueNowTotalCents(lines: readonly DueNowLine[]): number {
+  return lines.reduce((sum, line) => sum + line.cents, 0)
 }
 
 // ── The record, and what it entitles a family to ────────────────────────────────────
