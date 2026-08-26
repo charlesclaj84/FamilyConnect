@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Crown, Lock, X } from 'lucide-react'
+import { Check, CreditCard, Crown, Lock, X } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -11,13 +11,17 @@ import { Label } from '@/components/ui/label'
 import { verifyCurrentPassword } from '@/lib/supabase/client'
 import { useServerState } from '@/lib/use-server-state'
 import { setFamilyTier } from '@/app/actions/admin/family'
+import { changePlanTier, startPlanCheckout, type PlatformBilling } from '@/app/actions/billing'
+import { BuyDialog, UpgradeDialog } from '@/components/admin/PlanCheckoutDialogs'
+import { formatDate } from '@/lib/date-utils'
+import { addDays } from '@/lib/platform-billing'
 import {
   PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
   planAddsBetween, planChange,
   type PlanChange, type PlanHighlight,
 } from '@/lib/plans'
 import {
-  TIER_LABEL, TIER_TAGLINE, tierMeets, tiersIncludedIn, type FamilyTier,
+  TIER_LABEL, TIER_RANK, TIER_TAGLINE, tierMeets, tiersIncludedIn, type FamilyTier,
 } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 
@@ -95,13 +99,77 @@ function moveLabel(current: FamilyTier, to: FamilyTier): string {
     : `Downgrade to ${TIER_LABEL[to]}`
 }
 
-export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolean }) {
+export function PlanPanel({ tier, canEdit, billing }: {
+  tier: FamilyTier
+  canEdit: boolean
+  /**
+   * What this family pays GENORRA, or null when the read failed.
+   *
+   * ── THE PANEL NEEDS IT BECAUSE THE BUY BUTTON LIVES ON THE ROW NOW ────────────────
+   * It used to need nothing: every upgrade row printed "Set up in Billing, below" and the
+   * actual buttons were in `BillingPanel`. The row is the control now, so this component has
+   * to know three things it did not before — whether the deployment can sell this tier
+   * (`purchasable`), whether the family already has a subscription or a live prepaid term
+   * (which decides WHICH of the three purchase routes a press takes), and what the term is,
+   * so a downgrade can say when it takes effect rather than implying it is immediate.
+   *
+   * NULL IS A FAILED READ, not "never paid" (§8). The panel keeps working — the plan rows and
+   * the downgrade path are unaffected — and the buy buttons are withheld rather than rendered
+   * over an unknown billing state, because the one thing worse than not offering a purchase is
+   * offering a second one to a family that already has a live subscription.
+   */
+  billing: PlatformBilling | null
+}) {
   const router = useRouter()
   const confirm = useConfirm()
   const [current, setCurrent] = useServerState(tier)
   const [detail, setDetail] = useState<FamilyTier | null>(null)
+  const [buying, setBuying] = useState<FamilyTier | null>(null)
+  const [upgrading, setUpgrading] = useState<FamilyTier | null>(null)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  // ── WHAT THE BILLING RECORD SAYS, FOLDED INTO THE THREE QUESTIONS THE ROWS ASK ─────
+  // Read once here rather than at four call sites, because every one of them is a `billing &&`
+  // away from being a crash and the answers have to agree with each other.
+  const term = billing?.paidEntitlement ?? null
+  /** A term that has been paid for and has not run out. */
+  const liveTerm = billing?.paidTier != null && term != null && !term.lapsed
+  /** A monthly plan at Stripe. Changing tier goes THROUGH it rather than around it. */
+  const liveSubscription = Boolean(billing?.subscriptionStatus)
+  /**
+   * A live term with no subscription behind it — the case `upgradeQuote` exists for.
+   *
+   * The three purchase routes are decided from this and `liveSubscription`, and which one a
+   * press takes is deliberately NOT the family's choice: a subscription is changed at Stripe,
+   * a live prepaid term is upgraded against its own unused value, and anything else is an
+   * ordinary purchase.
+   */
+  const upgradingFromPrepaid = liveTerm && !liveSubscription
+  /**
+   * Whether MONEY is involved in leaving the current plan.
+   *
+   * `setFamilyTier` is scaffolding that moves `families.tier` with nothing charged, and it
+   * REFUSES once a paid term is live (its own header argues why: the sweep would put the tier
+   * straight back). So a downgrade has to pick its door, and this is the test — the same one
+   * the action makes on the server, where it is the one that counts.
+   */
+  const billed = liveTerm || liveSubscription
+  /**
+   * The day a downgrade would actually land, for the confirmation to name.
+   *
+   * `paid_through` is INCLUSIVE, so it is the day AFTER — the same `+1` `scheduleDowngrade`
+   * applies on the server, where it is mutation-tested precisely because a day early is a
+   * refund in the one direction this system does not move in. Computed rather than read off
+   * `scheduledTierOn`, which is null until the downgrade has been made.
+   *
+   * NULL WHEN THERE IS NO TERM, and the sentence drops the clause rather than inventing a
+   * date. A family with a subscription but no `paid_through` on file is an ordinary state
+   * between a checkout and its webhook.
+   */
+  const downgradeEffective = billing?.paidThrough
+    ? formatDate(addDays(billing.paidThrough, 1))
+    : null
 
   // A REF, NOT STATE, and that is forced rather than chosen: the field lives inside the
   // confirmation's `body`, which is a node captured at the moment `confirm()` is called
@@ -110,48 +178,109 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
   // writes it out through this, and `verify` reads it at the moment it is asked.
   const passwordRef = useRef('')
 
+  /**
+   * Run a billing action: follow the hosted page when it hands one back, refresh when it does
+   * not.
+   *
+   * ONE HELPER SO NO CALLER CAN FORGET THE `url` BRANCH. Exactly one path returns one — an
+   * upgrade from a prepaid term whose credit does not cover the cost — and a caller that only
+   * refreshed would leave the family looking at an unchanged screen having pressed a button
+   * that did nothing visible. `PlanChangeResult`'s own comment makes the same point.
+   */
+  const run = (
+    action: () => Promise<{ success: boolean; message?: string; url?: string }>,
+  ) => startTransition(async () => {
+    setError('')
+    const result = await action()
+    if (!result.success) {
+      setError(result.message ?? 'Something went wrong.')
+      return
+    }
+    if (result.url) {
+      window.location.href = result.url
+      return
+    }
+    // NOT `setCurrent` HERE, deliberately, and it is the difference between this and the
+    // downgrade path below. A billed change is a PROMISE — a scheduled downgrade, or a tier
+    // that moves when the webhook says the money moved — so the panel must not claim the new
+    // tier on the strength of the button. `router.refresh()` re-reads what the server says.
+    router.refresh()
+  })
+
+  /**
+   * Buying a plan above the one this family is on. Three routes, and the family picks none.
+   *
+   * This is `BillingPanel`'s old button handler, moved to the row it belongs to. The routing
+   * is unchanged and each branch is a different Stripe shape rather than a different product
+   * decision: a subscription is re-priced in place, a live prepaid term is spent against the
+   * new tier first, and everything else is an ordinary purchase.
+   */
+  function beginUpgrade(next: FamilyTier) {
+    if (!billing) return
+    // An EXISTING monthly plan changes tier through Stripe: `changePlanTier` prorates an
+    // upgrade and schedules a downgrade with no page in between.
+    if (billing.mode === 'recurring' && liveSubscription) {
+      run(() => changePlanTier(next))
+      return
+    }
+    // A live PREPAID term being upgraded goes through `upgradeQuote` — the unused term is
+    // spent on the new tier and only the shortfall is charged, which is often nothing. Its
+    // dialog asks the one question that has a real answer: settle next month now, or leave it.
+    if (upgradingFromPrepaid && TIER_RANK[next] > TIER_RANK[billing.paidTier ?? 'free']) {
+      setUpgrading(next)
+      return
+    }
+    setBuying(next)
+  }
+
   async function choose(next: FamilyTier) {
     if (next === current) return
     const change = planChange(current, next)
     const up = change.up
-    // ── UNREACHABLE FROM THE ROWS, AND CHECKED ANYWAY ─────────────────────────────────
-    // No upgrade row renders a button any more, so this cannot be entered today. It is here
-    // because the alternative is a trap: the confirmation below promises an upgrade "opens
-    // up immediately", `setFamilyTier` refuses every one of them, and a future edit that
-    // re-exposed the button would produce a dialog that lies and then an error. One rule,
-    // stated in both layers, saying the same thing.
+    // ── UPGRADES LEAVE HERE, AND THIS IS THE GUARD THAT KEEPS THEM OUT ────────────────
+    // `setFamilyTier` refuses every move UP — `families.tier` is what every gate in the
+    // product reads, so a button that moved it would be the whole product for the cost of a
+    // click. The rows send an upgrade to `beginUpgrade` instead, and this stays as the second
+    // statement of one rule: a future edit that pointed an upgrade row back here would
+    // otherwise produce a confirmation promising something the action then refuses.
     if (up) {
-      setError(`${TIER_LABEL[next]} is a paid plan — set it up in the Billing section below.`)
+      beginUpgrade(next)
       return
     }
     // Never carried between two confirmations — a downgrade cancelled and reopened must
     // ask again, and a password left in a ref is one a later action could spend.
     passwordRef.current = ''
     const ok = await confirm({
-      title: up
-        ? `Upgrade this family to ${TIER_LABEL[next]}?`
-        : `Downgrade this family to ${TIER_LABEL[next]}?`,
-      // THE SENTENCE STILL STANDS ON ITS OWN, and neither half refers to the other's
-      // position — no "the pages below". It is what `aria-describedby` names, it is all
-      // the native fallback can show, and on a phone the columns stack so there is no
-      // "left" to point at. It says what HAPPENS; the columns say to WHAT.
-      // The `up` branch is unreachable — `choose` returns above for an upgrade — and is
-      // kept true rather than kept as it was: "nothing is billed" described a product with
-      // no billing in it, and a dead string that lies is what a future editor restores.
-      description: up
-        ? `${TIER_LABEL[next]} is a paid plan and is set up in Billing.`
+      title: `Downgrade this family to ${TIER_LABEL[next]}?`,
+      // THE SENTENCE STILL STANDS ON ITS OWN, and it does not refer to anything's position —
+      // no "the pages below". It is what `aria-describedby` names, it is all the native
+      // fallback can show, and on a phone the columns stack so there is no "left" to point at.
+      // It says what HAPPENS; the columns say to WHAT.
+      //
+      // ── AND SINCE 2026-08-25 IT SAYS *WHEN*, WHICH IT USED TO GET WRONG ─────────────
+      // "Pages stop opening" is true of a family that has never paid and false of one with a
+      // live term: nothing is revoked until the term runs out, which is the whole reason there
+      // is no refund. This is also now the ONLY way to stop a monthly plan — **Stop renewing**
+      // was removed, on the ground that ending a subscription and moving to Free are one
+      // decision and were two controls — so the copy has to carry what that button's own
+      // confirmation used to say.
+      description: billed
+        ? `Nothing changes today. ${TIER_LABEL[current]} stays open until the end of the `
+          + `period you have already paid for${downgradeEffective ? `, and ${TIER_LABEL[next]} starts on ${downgradeEffective}` : ''}. `
+          + 'There is no refund for the rest of this period — that is what keeps the pages '
+          + 'open until it ends. Nothing is deleted, whichever plan you finish on.'
         : `Pages that are part of ${TIER_LABEL[current]} stop opening. Nothing is `
           + 'deleted: every record stays exactly where it is, and moving back up brings '
           + 'the pages back with their data intact.',
       body: (
         <>
           <PlanChangeColumns from={current} to={next} change={change} />
-          {!up && <DowngradeReauth valueRef={passwordRef} />}
+          <DowngradeReauth valueRef={passwordRef} />
         </>
       ),
       wide: true,
       confirmLabel: moveLabel(current, next),
-      destructive: !up,
+      destructive: true,
       // ── THE PASSWORD STEP, ON THE WAY DOWN ONLY ────────────────────────────────────
       // An upgrade that was not meant costs nothing and is undone by pressing the row
       // above it; a downgrade closes pages for every member of the family at once, and
@@ -166,7 +295,7 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
       // emphatic about, and moving it into the action is expressly forbidden there: it
       // would put a plaintext password in a Next.js request and publish an endpoint that
       // accepts password guesses. The copy on screen promises exactly this much.
-      verify: up ? undefined : async () => {
+      verify: async () => {
         const result = await verifyCurrentPassword(passwordRef.current)
         return result.ok ? null : result.message
       },
@@ -175,6 +304,23 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
 
     passwordRef.current = ''
     setError('')
+
+    // ── TWO DOORS OUT OF A PLAN, AND THE RECORD DECIDES WHICH ─────────────────────────
+    // `changePlanTier` for a family that has paid: it schedules the move for the day after
+    // the term ends, and routes `free` to `cancelPlanRenewal`, which is what tells Stripe to
+    // stop billing. `setFamilyTier` for a family that has not: it moves `families.tier` today
+    // with nothing charged and nothing to cancel.
+    //
+    // Picking the wrong one is not a crash, which is why it is worth stating: `setFamilyTier`
+    // REFUSES while a paid term is live and answers with a message pointing at Billing, so a
+    // family that had paid would press Downgrade, pass the password step, and be told to go
+    // somewhere else. Both checks exist — this one so the right thing happens, and the one on
+    // the server because a `'use server'` export is a public endpoint either way.
+    if (billed) {
+      run(() => changePlanTier(next))
+      return
+    }
+
     startTransition(async () => {
       const result = await setFamilyTier(next)
       if (result.success) {
@@ -237,6 +383,13 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
           // `null` for Free, which has no price rather than a price of zero — see the
           // comment beside the figure below.
           const price = TIER_PRICE[plan]
+          // WHETHER THIS DEPLOYMENT CAN SELL THIS TIER. `purchasable` is resolved on the
+          // SERVER from the Stripe Price ids in the environment, per §5, so a build with no
+          // `STRIPE_PRICE_PLUS_*` set never renders a Plus button rather than rendering one
+          // that fails at the API call. False when `billing` is null, which is a failed read
+          // and not a licence to guess.
+          const buyable = billing?.purchasable[plan]
+          const canBuy = Boolean(buyable && (buyable.recurring || buyable.prepaid))
           return (
             <li
               key={plan}
@@ -257,12 +410,19 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                     Current
                   </span>
                 )}
-                {/* NOT SOLD YET is a fact about the OFFER, not about this family, and it
-                    is stated because the panel can put them on a plan nobody can buy.
-                    Leaving it out would make this read as a purchase that went through. */}
+                {/* COMING SOON is a fact about the OFFER, not about this family, and it is
+                    stated because the panel can otherwise show a plan with a price and no way
+                    to buy it — which reads as a purchase that failed.
+
+                    IT SAID "NOT SOLD YET" UNTIL 2026-08-25. Same fact, and the wrong end of
+                    it: "not sold" describes a decision GENORRA has taken and invites the
+                    question *are you going to?*, where "Coming Soon" answers it. Premium is
+                    the only plan this renders for (`TIER_IS_SOLD` is true for Free, Standard
+                    and Plus), so this pill is a roadmap note rather than a refusal — which is
+                    also the word the marketing site uses for a feature that is on its way. */}
                 {!TIER_IS_SOLD[plan] && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <Lock className="h-2.5 w-2.5" aria-hidden="true" /> Not sold yet
+                    <Lock className="h-2.5 w-2.5" aria-hidden="true" /> Coming Soon
                   </span>
                 )}
               </div>
@@ -280,9 +440,12 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                   "$0/month" on the row a family is already on is a number where a word
                   belongs — the tagline above has already said what Free is.
 
-                  NOT A CHECKOUT, and the row says so separately: `TIER_IS_SOLD` is what
-                  draws the "Not sold yet" pill above, and it is false for every priced tier —
-                  all three of them. A figure and a purchase are different facts. */}
+                  THE FIGURE IS NOT THE OFFER, and the row says so separately: `TIER_IS_SOLD`
+                  is what draws the "Coming Soon" pill above, and it is false for Premium
+                  alone — Standard and Plus went on sale on 2026-08-23. This comment said "for
+                  every priced tier, all three of them" until 2026-08-25, which was true on the
+                  day it was written and stopped being so two days later. A figure and a
+                  purchase are different facts. */}
               {price && (
                 <p className="mt-1 text-sm">
                   <span className="font-semibold text-brand-ink">
@@ -312,17 +475,28 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                   <span className="sr-only"> in {TIER_LABEL[plan]}</span>
                 </button>
 
-                {/* ── ONLY DOWNGRADES ARE PRESSED HERE, SINCE 2026-08-23 ─────────────
-                    `setFamilyTier` refuses every move UP now that Standard and Plus are on
-                    sale, because `families.tier` is what every gate reads — so a button on
-                    this row was the whole product for the cost of a click. Its header
-                    carries the argument.
+                {/* ── THE ACTION IS ON THE ROW, SINCE 2026-08-25 ─────────────────────
+                    An upgrade row printed "Set up in Billing, below" and the button that did
+                    the buying was in another panel. That was a defensible split when Billing
+                    lived on the same scroll and is indefensible now that it is a different
+                    pane — a row naming a plan and its price, and then pointing somewhere else,
+                    is a control describing a control. Somebody reading this row has already
+                    decided; the button goes where the decision is made.
 
-                    A CONTROL THAT WOULD BE REFUSED IS NOT RENDERED. Leaving the button and
-                    letting the action answer with a message is the "offering a control that
-                    undoes itself" shape AGENTS.md rejects elsewhere; what belongs on an
-                    upgrade row is where the upgrade actually happens, which is the Billing
-                    section immediately below this one in the same pane. */}
+                    THREE STATES, AND THE MIDDLE ONE IS THE ONLY NEW BEHAVIOUR:
+
+                      current    disabled, says so. Unchanged.
+                      upgrade    opens the purchase route `beginUpgrade` picks. It reaches
+                                 `startPlanCheckout` or `changePlanTier`, never
+                                 `setFamilyTier` — which still refuses every move up, so the
+                                 tier is granted by a webhook and not by this button.
+                      downgrade  the confirmation and the password step, exactly as before.
+
+                    `--brand-affirm` for an upgrade and `--brand-primary` for a downgrade, so
+                    the row that spends money does not look like the row that stops spending
+                    it. Not `--destructive` on either: nothing here deletes anything, which is
+                    the distinction AGENTS.md draws between an error and a capability being
+                    given up. */}
                 {canEdit && (isCurrent || !isUpgrade) && (
                   <button
                     type="button"
@@ -338,13 +512,33 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
                     {isCurrent ? 'Current plan' : moveLabel(current, plan)}
                   </button>
                 )}
-                {/* Sold, and above what they are on: say where to buy it. Not a button,
-                    because the thing it would press is on the same screen — and not shown at
-                    all for a tier that is not sold, where the "Not sold yet" pill above has
-                    already said everything true. */}
-                {canEdit && !isCurrent && isUpgrade && TIER_IS_SOLD[plan] && (
+
+                {/* AN UPGRADE ROW OFFERS THE BUTTON ONLY WHEN A PRESS COULD ACTUALLY WORK.
+                    Three things have to be true and each withholds it for a different reason:
+                    the plan is on sale at all (`TIER_IS_SOLD`), the billing record loaded (§8
+                    — never offer a second purchase over an unknown billing state), and this
+                    DEPLOYMENT has a Stripe Price for it (`purchasable`, resolved on the server
+                    per §5). Without the last one the button renders, the member decides to
+                    pay, and the checkout fails at the API call. */}
+                {canEdit && isUpgrade && TIER_IS_SOLD[plan] && canBuy && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => beginUpgrade(plan)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-affirm px-3 py-1.5 text-sm font-medium text-brand-on-affirm transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
+                    {moveLabel(current, plan)}
+                  </button>
+                )}
+
+                {/* SOLD, ABOVE WHAT THEY ARE ON, AND NOT PURCHASABLE HERE. Says so rather than
+                    rendering nothing, because a row with a price and no control reads as a
+                    bug. Not shown for a tier that is not sold at all — the "Coming Soon" pill
+                    above has already said everything true about that one. */}
+                {canEdit && isUpgrade && TIER_IS_SOLD[plan] && !canBuy && (
                   <span className="text-sm text-muted-foreground">
-                    Set up in <span className="font-medium text-brand-ink">Billing</span>, below
+                    {billing ? 'Not available on this deployment' : 'Billing could not be loaded'}
                   </span>
                 )}
               </div>
@@ -362,9 +556,16 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
         // rows, so nothing a family has entered is ever at stake in a plan change.
         <p className="mt-4 text-sm text-muted-foreground">
           A plan changes which pages this family can open, and nothing else &mdash; every
-          record you have entered stays where it is, whichever plan you are on. Paid plans are
-          set up in <span className="font-medium text-brand-ink">Billing</span> below; moving
-          down to a cheaper plan is free and takes effect here.
+          record you have entered stays where it is, whichever plan you are on.{' '}
+          {billed
+            // NAMES THE DATE, because for a family that has paid this is the single most
+            // asked question on the screen and "at the end of the period" is an answer they
+            // have to go and work out. `downgradeEffective` is the same `+1` the server
+            // schedules on.
+            ? <>Moving up takes effect as soon as it is paid for; moving down changes nothing
+                today and starts{downgradeEffective ? ` on ${downgradeEffective}` : ' when the term you have paid for ends'},
+                with no refund for the rest of the period.</>
+            : <>Moving down to a cheaper plan is free and takes effect straight away.</>}
         </p>
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -375,6 +576,43 @@ export function PlanPanel({ tier, canEdit }: { tier: FamilyTier; canEdit: boolea
 
       {detail && (
         <PlanDetailDialog plan={detail} current={current} onClose={() => setDetail(null)} />
+      )}
+
+      {/* ── THE TWO PURCHASE DIALOGS, OPENED BY THE ROWS ABOVE ────────────────────────
+          Both moved here from `BillingPanel` with the buttons that open them; neither charges
+          anything, and both hand a CHOICE back to an action. `billing` is non-null in both
+          branches because `canBuy` is false without it, but it is narrowed explicitly rather
+          than asserted — a `!` here would be the one place this component claimed to know
+          something the type system does not. */}
+      {buying && billing && (
+        <BuyDialog
+          tier={buying}
+          purchasable={billing.purchasable[buying]}
+          // A live term means the current month is already owned, so there is no part month to
+          // sell and nothing is charged today. `startPlanCheckout` re-derives this from the
+          // record rather than trusting it — this only shapes what the dialog says.
+          extendingLiveTerm={liveTerm}
+          today={billing.today}
+          onClose={() => setBuying(null)}
+          onBuy={(mode, months, firstPayment) => {
+            setBuying(null)
+            run(() => startPlanCheckout({ tier: buying, mode, months, firstPayment }))
+          }}
+        />
+      )}
+
+      {upgrading && billing && (
+        <UpgradeDialog
+          fromTier={billing.paidTier}
+          toTier={upgrading}
+          paidThrough={billing.paidThrough}
+          today={billing.today}
+          onClose={() => setUpgrading(null)}
+          onUpgrade={includeNextMonth => {
+            setUpgrading(null)
+            run(() => changePlanTier(upgrading, includeNextMonth))
+          }}
+        />
       )}
     </div>
   )

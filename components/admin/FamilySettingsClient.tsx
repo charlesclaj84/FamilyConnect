@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Crown, Home, PowerOff } from 'lucide-react'
+import { Check, Copy, CreditCard, Crown, Home, PowerOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
@@ -23,7 +23,9 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 
 /**
- * Settings: two panes on a `MainRail` — the plan this family pays for, and the family itself.
+ * Settings: three panes on a `MainRail` — what the family has paid, the plan it is on, and
+ * the family itself. Billing split out of the Plan pane on 2026-08-25, when the buy buttons
+ * moved onto the plan rows they buy; `components/admin/family-settings.ts` argues both halves.
  *
  * THE RAIL IS THE STANDARD PRIMARY NAVIGATION for a page that switches between panes, and
  * this is one: Members, Accounting, Announcements, Transactions and Dues & Donations all look
@@ -31,7 +33,7 @@ import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
  * however it is labelled — which is the complaint the two previous shapes of this page each
  * left behind. The full history is in the comment above the `return`.
  *
- * ONE PERMISSION KEY GOVERNS BOTH PANES, which is the part that reads as unusual and is not:
+ * ONE PERMISSION KEY GOVERNS ALL THREE PANES, which is the part that reads as unusual and is not:
  * `/accounting/dues-and-donations` is the same arrangement, and `lib/money-panes.ts` argues
  * it. So there is no per-pane gating here and no `rights` prop to thread — a caller on this
  * screen holds `admin/settings` and may see both halves by definition. The one grant that IS
@@ -50,6 +52,21 @@ import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
  * copyable — because this is now the one place in the app an administrator can reliably
  * come back to for it.
  */
+/**
+ * The rail glyphs, per pane.
+ *
+ * Here rather than in `components/admin/family-settings.ts` for the reason that module's
+ * header gives: a lucide import is a client concern, and the pure module is imported by the
+ * PAGE, which is a Server Component. A `Record` rather than a ternary because there are three
+ * of them now and a nested ternary over pane ids is how one of them silently gets the wrong
+ * icon.
+ */
+const PANE_ICON: Record<SettingsPane, typeof Crown> = {
+  billing: CreditCard,
+  plan: Crown,
+  family: Home,
+}
+
 export function FamilySettingsClient({ settings, initialPane, billing }: {
   settings: FamilySettings
   /**
@@ -128,10 +145,10 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
 
   const created = formatDate(settings.createdAt)
 
-  // Both items carry an `href`, because both panes have real addresses this page resolves —
+  // Every item carries an `href`, because every pane has a real address this page resolves —
   // so cmd-click, middle-click and copy-link-address all work. `MainRail` still intercepts
   // the plain left click, which is the point rather than an optimisation here: a real
-  // navigation refetches the RSC payload and remounts both panes, and the Family pane holds a
+  // navigation refetches the RSC payload and remounts every pane, and the Family pane holds a
   // half-typed family name and, further down, a removal challenge waiting on a code from an
   // inbox. Neither may be thrown away by looking at the plan.
   const items: MainRailItem<SettingsPane>[] = SETTINGS_PANES.map(id => ({
@@ -139,9 +156,10 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
     label: SETTINGS_PANE_LABEL[id],
     // `Crown` is the product's plan glyph already — the tier badge inside `PlanPanel`, the
     // upgrade screen, the marketing ladder — and `Home` is what `FamilySwitcher` and
-    // `/my-families` use for a family. Neither is a glyph doing a second job on this screen,
-    // which is the trap the Members rail avoided by not reusing `ShieldCheck`.
-    icon: id === 'plan' ? Crown : Home,
+    // `/my-families` use for a family. `CreditCard` is what every payment control in the
+    // product carries. None is a glyph doing a second job on this screen, which is the trap
+    // the Members rail avoided by not reusing `ShieldCheck`.
+    icon: PANE_ICON[id],
     href: `/admin/settings?pane=${id}`,
   }))
 
@@ -156,7 +174,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
   }
 
   return (
-    // ── TWO PANES ON A MAIN RAIL ──────────────────────────────────────────────────────
+    // ── THREE PANES ON A MAIN RAIL ────────────────────────────────────────────────────
     // This screen has been through three shapes and each one answered the complaint the last
     // one left. It was four unlabelled cards in a stack — plan, name, code, removal — which
     // read as one list with no boundary in it. Then two `<h2>`s over that same stack, which
@@ -184,12 +202,17 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
     // and `PlanPanel`'s `What each plan includes` are `h2`s now, directly under the page's
     // `h1`, so the outline a screen reader reads is the one a sighted reader sees.
     //
-    // BOTH PANES STAY MOUNTED — `hidden` rather than a conditional render, exactly as
+    // EVERY PANE STAYS MOUNTED — `hidden` rather than a conditional render, exactly as
     // `DuesAndDonationsShell` and `AdminAccountShell` do it. The Family pane holds a name
     // being typed and a removal challenge that has already sent a code to somebody's inbox,
     // and switching to the plan and back must discard neither. `hidden` also takes the
     // subtree out of the accessibility tree and the tab order, which a `sr-only`-style hide
     // would not.
+    //
+    // IT MATTERS MORE SINCE BILLING SPLIT OFF: the Plan pane can have a purchase dialog open
+    // with a prepay figure typed into it, and a conditional render would throw that away for
+    // anybody who tabbed over to check what they had already paid — which is exactly the
+    // thing somebody does mid-purchase.
     <div className="space-y-6">
       <MainRail
         label="Settings sections"
@@ -203,11 +226,36 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
           sentence moves here, which is what `/accounting/dues-and-donations` does. */}
       <p className="text-sm text-muted-foreground">{SETTINGS_PANE_LEDE[pane]}</p>
 
+      {/* ── BILLING ──
+          The RECORD: what has been paid, until when, what renews it, and every receipt. It
+          starts no purchase — the buy buttons live on the plan rows they buy, one pane over —
+          so nothing in here can charge anybody. `BillingPanel`'s header argues the split, and
+          `family-settings.ts` argues why it is a pane rather than a band. */}
+      <div hidden={pane !== 'billing'} className="overflow-hidden rounded-xl border bg-card">
+        <div className="p-5 sm:p-6">
+          <BillingPanel billing={billing} />
+        </div>
+        <div className="border-t px-5 py-4 sm:px-6">
+          <HelpLink
+            variant="inline"
+            slug="family-settings"
+            section="billing"
+            label="How paying for a plan works"
+          />
+        </div>
+      </div>
+
       {/* ── PLAN ──
           Shown to everyone who can view this page, not only to whoever can rename the
           family. Hiding it would leave a member reaching an upgrade screen with nowhere in
           the product to find out what they already have. The BUTTONS are gated separately,
           inside the panel, on the same `canEdit` the name field uses.
+
+          IT TAKES `billing` NOW. That is what moved with the buy buttons: the panel has to
+          know whether this deployment can sell a tier, whether the family already has a
+          subscription or a live prepaid term, and when a downgrade would land. It is passed
+          down rather than fetched there for the reason every other prop on this component is
+          (§5) — the page resolves the grant and the data together.
 
           THE HELP LINK IS THE PANE'S LAST ROW, not part of `PlanPanel`, and that is a
           boundary rather than a placement whim: `PlanPanel` is about the plans and what each
@@ -217,17 +265,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
           `family-settings#plan` rather than anything on this pane. */}
       <div hidden={pane !== 'plan'} className="overflow-hidden rounded-xl border bg-card">
         <div className="p-5 sm:p-6">
-          <PlanPanel tier={settings.tier} canEdit={settings.canEdit} />
-        </div>
-        {/* ── WHAT THIS FAMILY PAYS, BENEATH WHAT THE PLANS ARE ──────────────────────
-            A second band in the same box rather than a third pane on the rail. `PlanPanel`
-            above is a CATALOGUE — what the four plans include — and this is a STATEMENT: what
-            has been paid, until when, and what happens next. Two questions, read in that
-            order, so they are stacked and separated by a rule rather than merged.
-            `BillingPanel`'s header argues why merging them would have put a checkout inside a
-            component whose job is to explain. */}
-        <div className="border-t p-5 sm:p-6">
-          <BillingPanel billing={billing} />
+          <PlanPanel tier={settings.tier} canEdit={settings.canEdit} billing={billing} />
         </div>
         <div className="border-t px-5 py-4 sm:px-6">
           <HelpLink

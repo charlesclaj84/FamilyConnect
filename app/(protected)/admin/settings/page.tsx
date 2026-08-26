@@ -29,7 +29,7 @@ interface Props {
  * box itself; `FamilySettingsClient` caps that box instead, which is where the constraint
  * belongs. The page starts where its neighbours start.
  *
- * ── TWO PANES ON A RAIL, AND STILL ONE `requireView` ───────────────────────────────
+ * ── THREE PANES ON A RAIL, AND STILL ONE `requireView` ─────────────────────────────
  * `?pane=` is resolved HERE rather than in the shell, so the first paint is already the
  * right pane and a bookmarked `?pane=family` does not flash the plan on its way there.
  *
@@ -37,10 +37,11 @@ interface Props {
  * usually owes: `/admin/members` decomposes `requireView` because each of its four panes
  * carries its own resource key, and a page that does that must then re-do
  * `requireFamilyActive` and `requireTier` by hand (AGENTS.md, "A PAGE THAT RESOLVES PANES BY
- * HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND TOO"). Both of these panes are
+ * HAND OWES THE TIER AND REMOVED-FAMILY CHECKS BY HAND TOO"). All three of these panes are
  * governed by `admin/settings` alone, so the one guard is the whole gate and all three of its
  * folded checks are still made — the failure mode that rule exists to prevent cannot arise
- * here because nothing has been taken apart.
+ * here because nothing has been taken apart. Splitting Billing onto the rail on 2026-08-25
+ * did not change that: it is a third PANE, not a third KEY.
  *
  * The one grant that IS separate, `admin/settings/remove`, gates a control inside the Family
  * pane rather than a pane of its own, and `getFamilySettings()` resolves it on the server as
@@ -70,8 +71,8 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
       <div>
         <h1 className="mb-1 text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground">
-          Two sections: the plan this family is on, and the family itself — its name, the
-          code relatives join with, and switching it off.
+          Three sections: what this family has paid GENORRA, the plan it is on, and the
+          family itself &mdash; its name, the code relatives join with, and switching it off.
         </p>
       </div>
 

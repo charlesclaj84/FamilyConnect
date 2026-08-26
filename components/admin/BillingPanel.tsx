@@ -1,153 +1,140 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { CalendarClock, CreditCard, ExternalLink, Receipt } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
-import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency-utils'
-import {
-  MAX_PREPAY_MONTHS, PREPAY_PRESET_MONTHS, initialChargeOptions, isPrepayMonths,
-  prepaidChargeCents, prepayQuoteCents, upgradeQuote,
-} from '@/lib/platform-billing'
-import { TIER_LABEL, TIER_RANK, TIERS, type FamilyTier } from '@/lib/tiers'
-import {
-  cancelPlanRenewal, changePlanTier, openBillingPortal, startPlanCheckout,
-  type PlatformBilling,
-} from '@/app/actions/billing'
+import { formatDate } from '@/lib/date-utils'
+import { addDays } from '@/lib/platform-billing'
+import { TIER_LABEL } from '@/lib/tiers'
+import { openBillingPortal, type PlatformBilling } from '@/app/actions/billing'
+import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 
 /**
- * Settings → Plan: what this family PAYS, beneath what the plans ARE.
+ * Settings → **Billing**: what this family has paid GENORRA, until when, and every receipt.
  *
- * ── WHY IT IS A SECOND PANEL AND NOT A CHANGE TO `PlanPanel` ────────────────────────
- * `PlanPanel` answers *what do the four plans include* — it is a catalogue, it renders for
- * anybody who can open Settings, and its buttons move `families.tier` with nothing charged.
- * This answers *what have we paid, until when, and what happens next*, which is a different
- * question with a different audience and a different failure mode. Folding money into the
- * catalogue would have put a checkout inside a component whose job is to explain.
+ * ── IT IS THE RECORD. IT STARTS NO PURCHASE ────────────────────────────────────────
+ * Until 2026-08-25 this was a second band inside the Plan pane and it owned every buy button
+ * in the product. Those moved onto the plan rows they buy (`PlanPanel`), and the two dialogs
+ * went with them (`PlanCheckoutDialogs.tsx`) — a dialog belongs to whatever opens it.
+ * `components/admin/family-settings.ts` argues the split; the short version is that a
+ * CATALOGUE and a LEDGER were sharing one scroll, and the catalogue's rows had been reduced to
+ * pointing downwards at the controls that did the work.
  *
- * They are stacked rather than merged, and the boundary is worth keeping: a plan row above
- * says what Plus is; a term below says the family has it until the 31st of December.
+ * What is left here is everything with a date on it. That is a coherent pane rather than a
+ * leftover: *what are we paying, until when, what happens next, and what have we been
+ * charged* is one question asked in four parts, and none of its answers is a decision.
  *
- * ── THE SCAFFOLDING BUTTONS ABOVE STILL EXIST, AND NOW DEFER TO THIS ────────────────
- * `setFamilyTier` has moved the tier with nothing charged since 2026-08-13, and it still does
- * for a family that has never paid. Once a paid term is live it REFUSES and points here —
- * otherwise an administrator could move down by hand on Tuesday, keep every page (nothing
- * revokes anything until the term ends), and have the sweep put them back on Wednesday. Two
- * doors into one column, only one of which has money behind it.
+ * The one control that survived is **Cards and receipts**, and it is not a purchase either —
+ * it opens Stripe's own portal, where the card on file lives. It deliberately does NOT control
+ * the tier: the no-refund rule and the scheduled-downgrade rule are ours, and the portal's own
+ * plan switcher knows nothing about them.
  *
- * ── NOTHING ON THIS PANEL GRANTS ANYTHING ───────────────────────────────────────────
- * Every button either opens a hosted Stripe page or records a PROMISE. The tier moves when a
- * webhook says the money moved, and when a term ends — never when somebody presses a button
- * here. `lib/stripe/platform-events.ts` is where that happens and
- * `app/actions/billing.ts`'s header argues why it has to be there.
+ * ── "STOP RENEWING" IS GONE, ON PURPOSE ────────────────────────────────────────────
+ * It ended a monthly plan at the end of the paid period, which is the same decision as moving
+ * to Free — the same effective date, the same absence of a refund, the same records kept — and
+ * having both meant a family could stop paying without ever choosing what they were stopping
+ * at, then meet a second control for the plan itself. **Downgrade to Free** on the Plan pane
+ * is now the single door, and it reaches the same `cancelPlanRenewal`: `changePlanTier`
+ * routes `free` straight to it. Nothing was removed from the product except a second name for
+ * one act.
+ *
+ * ── AND NOTHING HERE APPEARS IN THE FAMILY'S OWN BOOKS ─────────────────────────────
+ * `platform_payments` is in no fund balance, no P&L and no dues projection — 20260823000004's
+ * header argues it at length. The pane's lede says so out loud, because an administrator who
+ * has just opened something called "Billing" inside their family's admin area is exactly the
+ * person about to assume otherwise.
  */
 export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
-  const router = useRouter()
-  const confirm = useConfirm()
+  // NO `useRouter` HERE ANY MORE, which is the tell that this pane changed nothing. It held
+  // one so it could `router.refresh()` after a purchase; the only action left opens Stripe's
+  // portal in the same tab, so there is no local state to re-read and nothing to revalidate.
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
-  const [buying, setBuying] = useState<FamilyTier | null>(null)
-  const [upgrading, setUpgrading] = useState<FamilyTier | null>(null)
 
   // §8: null is a refused or failed read, not "this family has never paid". Saying so beats
   // rendering an empty billing panel over a live subscription.
   if (!billing) {
     return (
       <p className="text-sm text-muted-foreground">
-        Billing could not be loaded. Refresh the page — do not start a new payment until it
-        appears, in case this family already has one.
+        Billing could not be loaded. Refresh the page &mdash; do not start a new payment on the
+        Plan tab until it appears, in case this family already has one.
       </p>
     )
   }
 
-  // Nothing is purchasable on this deployment. Not an error and not worth a red box: a
-  // developer laptop and every preview build is in this state by design.
-  const anySold = TIERS.some(t => billing.purchasable[t].recurring || billing.purchasable[t].prepaid)
-  if (!anySold) {
-    return (
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-brand-ink">Billing</h3>
-        {/* ── THE FALLBACK SENTENCE WAS FALSE TWICE OVER AFTER 2026-08-23 ────────────
-            It read "Paid plans are not on sale yet. The plan above can still be changed and
-            nothing is charged for it." Standard and Plus went on sale, so the first half
-            stopped being true of the OFFER — this branch is now about the DEPLOYMENT having
-            no Stripe Prices, which is a different fact — and `setFamilyTier` stopped
-            accepting an upgrade, so the second half invited somebody to do the one thing the
-            panel above no longer offers. */}
-        <p className="text-sm text-muted-foreground">
-          {billing.unavailable
-            ?? 'Paid plans cannot be set up on this deployment yet. Moving to a cheaper plan '
-              + 'still works above, and nothing has been charged.'}
-        </p>
-      </div>
-    )
-  }
-
-  const run = (
-    action: () => Promise<{ success: boolean; message?: string; url?: string }>,
-  ) => startTransition(async () => {
+  const openPortal = () => startTransition(async () => {
     setError('')
-    const result = await action()
+    const result = await openBillingPortal()
     if (!result.success) {
       setError(result.message ?? 'Something went wrong.')
       return
     }
-    if (result.url) {
-      window.location.href = result.url
-      return
-    }
-    router.refresh()
+    window.location.href = result.url
   })
 
   const term = billing.paidEntitlement
-  // A live term with no subscription behind it: the case `upgradeQuote` exists for. A
-  // subscription is changed at Stripe instead, and a lapsed term is an ordinary purchase.
-  const upgradingFromPrepaid = billing.paidTier != null && !term.lapsed && !billing.subscriptionStatus
+  const paidThrough = formatDate(billing.paidThrough)
+  // INCLUSIVE, so the next payment is the day after — the same `+1` `scheduleDowngrade`
+  // applies on the server. Only meaningful while a term is live; a lapsed one is already past.
+  const nextDue = billing.paidThrough && !term.lapsed
+    ? formatDate(addDays(billing.paidThrough, 1))
+    : null
+
+  // A PREPAID TERM RENEWS NOTHING, which makes "next payment" two different facts. On a
+  // subscription it is when the card is charged; on a prepaid term it is the day the pages
+  // close unless somebody buys again. The grid says which, because a family reading "next
+  // payment" and assuming it is automatic is the one that loses its pages.
+  const renews = billing.mode === 'recurring' && Boolean(billing.subscriptionStatus)
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-brand-ink">Billing</h3>
-
+    <div className="space-y-5">
       {/* ── WHAT IS PAID FOR, AND WHAT HAPPENS NEXT ─────────────────────────────────
-          Three facts, and each is a column rather than a sentence because an
-          administrator scans this rather than reading it. */}
-      <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 text-sm sm:grid-cols-3">
+          Four facts, and each is a column rather than a sentence because an administrator
+          scans this rather than reading it. The fourth — the date — used to be buried in a
+          clause of the third, which is how it came to be the thing people asked about.
+
+          DATES ARE FORMATTED, since 2026-08-25. Every one of these rendered as a raw
+          `YYYY-MM-DD` off the record, which is the only place in the signed-in product that
+          did; `formatDate` is what the rest of the app reads. */}
+      <dl className="grid gap-4 rounded-lg border bg-muted/30 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Paid plan</p>
-          <p className="font-medium">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Paid plan</dt>
+          <dd className="font-medium">
             {billing.paidTier ? TIER_LABEL[billing.paidTier] : 'None — on the free plan'}
-          </p>
+          </dd>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Paid through</p>
-          <p className="font-medium">{billing.paidThrough ?? '—'}</p>
-          {/* LAPSED IS ITS OWN SENTENCE, and `--brand-withheld` rather than
-              `--destructive`: a term running out is not an error and nothing has been
-              deleted. It is the same reading the dues ladder takes of a missed
-              installment. */}
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Paid through</dt>
+          <dd className="font-medium">{paidThrough ?? '—'}</dd>
+          {/* LAPSED IS ITS OWN SENTENCE, and `--brand-withheld` rather than `--destructive`:
+              a term running out is not an error and nothing has been deleted. It is the same
+              reading the dues ladder takes of a missed installment. */}
           {term.lapsed && (
-            <p className="text-xs text-brand-withheld">
-              This term has ended. Pay again to reopen the pages it covered — every record is
-              still here.
-            </p>
+            <dd className="text-xs text-brand-withheld">
+              This term has ended. Pay again on the Plan tab to reopen the pages it covered —
+              every record is still here.
+            </dd>
           )}
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">How it renews</p>
-          <p className="font-medium">
-            {billing.mode === 'recurring'
-              ? billing.cancelAtPeriodEnd ? 'Monthly — stopping at the end of this period' : 'Monthly'
-              : billing.mode === 'prepaid' ? 'Paid in advance — nothing renews it' : '—'}
-          </p>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+            {renews ? 'Next payment' : 'Next payment due'}
+          </dt>
+          <dd className="font-medium">{nextDue ?? '—'}</dd>
         </div>
-      </div>
+        <div>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">How it renews</dt>
+          <dd className="font-medium">
+            {billing.mode === 'recurring'
+              ? billing.cancelAtPeriodEnd ? 'Monthly — stopping at the end of this period' : 'Monthly, automatically'
+              : billing.mode === 'prepaid' ? 'Paid in advance — nothing renews it' : '—'}
+          </dd>
+        </div>
+      </dl>
 
       {/* A SCHEDULED CHANGE IS THE THING SOMEBODY CAME HERE TO CHECK, so it gets its own
           band rather than a line in the grid. It also states the no-refund rule at the one
@@ -157,9 +144,9 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
             Moving to <strong>{TIER_LABEL[billing.scheduledTier]}</strong> on{' '}
-            <strong>{billing.scheduledTierOn}</strong>. Nothing changes before then, and there is
-            no refund for the rest of this period — that is what keeps the pages open until it
-            ends.
+            <strong>{formatDate(billing.scheduledTierOn) ?? billing.scheduledTierOn}</strong>.
+            Nothing changes before then, and there is no refund for the rest of this period —
+            that is what keeps the pages open until it ends.
           </p>
         </div>
       )}
@@ -171,97 +158,35 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           about a family two weeks past due is a decision nobody has taken — TODO.md carries it
           — so this band says what is true and asks the family to fix the card.
 
-          `--brand-withheld` rather than `--destructive`, deliberately: nothing has failed on
-          the family's side of the screen, nothing is deleted, and the pages are still open. */}
+          `--brand-warm` rather than `--destructive`, deliberately: nothing has failed on the
+          family's side of the screen, nothing is deleted, and the pages are still open. */}
       {billing.delinquentSince && (
         <div className="flex items-start gap-2 rounded-lg border border-brand-warm bg-brand-warm/10 p-3 text-sm text-brand-warm">
           <CreditCard className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
-            A card payment has been failing since <strong>{billing.delinquentSince}</strong>.
+            A card payment has been failing since{' '}
+            <strong>{formatDate(billing.delinquentSince) ?? billing.delinquentSince}</strong>.
             Nothing has changed about what this family can reach. Update the card under{' '}
             <em>Cards and receipts</em> and Stripe will try again.
           </p>
         </div>
       )}
 
-      {/* ── BUYING ──────────────────────────────────────────────────────────────────
-          One button per tier the deployment can actually sell, per §5's shape: the page
-          resolved which those are on the server and this renders only those. */}
-      {billing.canManage && (
+      {billing.canManage ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {TIERS.filter(t => t !== 'free').map(tier => {
-              const buyable = billing.purchasable[tier]
-              if (!buyable.recurring && !buyable.prepaid) return null
-              const isCurrent = billing.paidTier === tier && !term.lapsed
-              return (
-                <Button
-                  key={tier}
-                  variant={isCurrent ? 'outline' : 'affirm'}
-                  disabled={pending}
-                  onClick={() => {
-                    // ── THREE ROUTES, AND WHICH ONE IS NOT THE FAMILY'S CHOICE ──────────
-                    // An EXISTING monthly plan changes tier through Stripe: `changePlanTier`
-                    // prorates an upgrade and schedules a downgrade with no page in between.
-                    if (billing.mode === 'recurring' && billing.subscriptionStatus && !isCurrent) {
-                      run(() => changePlanTier(tier))
-                      return
-                    }
-                    // A live PREPAID term being upgraded goes through `upgradeQuote` — the
-                    // unused term is spent on the new tier and only the shortfall is charged,
-                    // which is often nothing. Its dialog asks the one question that has a real
-                    // answer: settle next month now, or let the credit take it on the 1st.
-                    if (upgradingFromPrepaid && tierRank(tier) > tierRank(billing.paidTier)) {
-                      setUpgrading(tier)
-                      return
-                    }
-                    setBuying(tier)
-                  }}
-                >
-                  <CreditCard className="h-4 w-4" />
-                  {isCurrent
-                    ? `Extend ${TIER_LABEL[tier]}`
-                    : upgradingFromPrepaid && tierRank(tier) > tierRank(billing.paidTier)
-                      ? `Upgrade to ${TIER_LABEL[tier]}`
-                      : `Pay for ${TIER_LABEL[tier]}`}
-                </Button>
-              )
-            })}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {billing.mode === 'recurring' && !billing.cancelAtPeriodEnd && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={async () => {
-                  const ok = await confirm({
-                    title: 'Stop the monthly plan?',
-                    description:
-                      'Every page stays open until the end of the period you have already paid for, and every record is kept afterwards. There is no refund for the rest of this period.',
-                    confirmLabel: 'Stop renewing',
-                  })
-                  if (ok) run(cancelPlanRenewal)
-                }}
-              >
-                Stop renewing
-              </Button>
-            )}
-            {/* Stripe's own portal: cards, invoices, receipts. It deliberately does NOT
-                control the tier — the no-refund and scheduled-downgrade rules are ours, and
-                the portal's own plan switcher knows nothing about them. */}
-            <Button variant="outline" size="sm" disabled={pending} onClick={() => run(openBillingPortal)}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" disabled={pending} onClick={openPortal}>
               <ExternalLink className="h-4 w-4" />
               Cards and receipts
             </Button>
+            <p className="text-sm text-muted-foreground">
+              Stripe&rsquo;s own portal, where the card on file is changed and every invoice can
+              be downloaded.
+            </p>
           </div>
-
           <FormError message={error} />
         </div>
-      )}
-
-      {!billing.canManage && (
+      ) : (
         <p className="text-xs text-muted-foreground">
           You can see what this family pays but not change it. Ask an administrator with
           Settings access.
@@ -270,327 +195,77 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
 
       {/* ── WHAT WE HAVE CHARGED ────────────────────────────────────────────────────
           GENORRA's receipts to the family, and deliberately not in any of the family's own
-          money screens: `platform_payments` appears in no fund balance, no P&L and no dues
-          projection, which 20260823000004's header argues at length. */}
-      {billing.payments.length > 0 && (
-        <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-            <Receipt className="mr-2 inline h-4 w-4" aria-hidden="true" />
-            What GENORRA has charged ({billing.payments.length})
-          </summary>
-          <ul className="divide-y border-t text-sm">
-            {billing.payments.map(p => (
-              <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2">
-                <span>
-                  {TIER_LABEL[p.tier]}
-                  {p.months > 1 ? ` · ${p.months} months` : ''}
-                  {p.coversThrough ? ` · through ${p.coversThrough}` : ''}
-                </span>
-                <span className="font-medium">{formatCurrency(p.amountCents)}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+          money screens.
 
-      {upgrading && (
-        <UpgradeDialog
-          fromTier={billing.paidTier}
-          toTier={upgrading}
-          paidThrough={billing.paidThrough}
-          today={billing.today}
-          onClose={() => setUpgrading(null)}
-          onUpgrade={(includeNextMonth) => {
-            setUpgrading(null)
-            run(() => changePlanTier(upgrading, includeNextMonth))
-          }}
-        />
-      )}
+          IT WAS A `<details>` UNTIL 2026-08-25 and is a list now. Collapsing it was right when
+          it was the fourth band inside a pane about something else; on a pane whose whole
+          subject is what has been paid, a summary somebody has to open in order to find the
+          payments is the pane hiding its own content. */}
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">
+          <Receipt className="mr-2 inline h-4 w-4" aria-hidden="true" />
+          What GENORRA has charged
+        </h2>
 
-      {buying && (
-        <BuyDialog
-          tier={buying}
-          purchasable={billing.purchasable[buying]}
-          // A live term means the current month is already owned, so there is no part month to
-          // sell and nothing is charged today. `startPlanCheckout` re-derives this from the
-          // record rather than trusting it — this only shapes what the dialog says.
-          extendingLiveTerm={billing.paidThrough != null && !billing.paidEntitlement.lapsed}
-          today={billing.today}
-          onClose={() => setBuying(null)}
-          onBuy={(mode, months, firstPayment) => {
-            setBuying(null)
-            run(() => startPlanCheckout({ tier: buying, mode, months, firstPayment }))
-          }}
-        />
-      )}
+        {billing.payments.length === 0 ? (
+          // AN EMPTY LEDGER IS A FACT, and a different one from a failed read at the top of
+          // this file. It says which.
+          <p className="text-sm text-muted-foreground">
+            Nothing yet — this family has never been charged.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-lg border">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-4 py-2">Plan</th>
+                  {/* THE FOLDING COLUMNS. A phone keeps the plan and the amount — what was
+                      bought and what it cost — and the two dates move into the `RowMeta`
+                      under the plan name, which is the pattern AGENTS.md sets for every table
+                      in the app. No `min-w-*` floor and no sideways scroll. */}
+                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>Paid</th>
+                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>Covers</th>
+                  <th scope="col" className="px-4 py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {billing.payments.map(p => {
+                  const paid = formatDate(p.paidAt)
+                  const covers = p.coversThrough
+                    ? `${p.coversFrom ? `${formatDate(p.coversFrom)} – ` : 'through '}${formatDate(p.coversThrough)}`
+                    : null
+                  return (
+                    <tr key={p.id} className="align-top sm:align-middle">
+                      <td className="px-4 py-2">
+                        {TIER_LABEL[p.tier]}
+                        {p.months > 1 ? ` · ${p.months} months` : ''}
+                        <RowMeta>
+                          {paid && <span>Paid {paid}</span>}
+                          {paid && covers && <MetaDot />}
+                          {covers && <span>{covers}</span>}
+                        </RowMeta>
+                      </td>
+                      <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{paid ?? '—'}</td>
+                      <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{covers ?? '—'}</td>
+                      <td className="px-4 py-2 text-right font-medium">
+                        {formatCurrency(p.amountCents)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* THE DEPLOYMENT CANNOT SELL ANYTHING. Not an error and not worth a red box: a
+            developer laptop and every preview build is in this state by design. It sits here
+            rather than replacing the pane, because what a family HAS paid is still worth
+            showing on a deployment that cannot take a new payment. */}
+        {billing.unavailable && (
+          <p className="text-xs text-muted-foreground">{billing.unavailable}</p>
+        )}
+      </div>
     </div>
-  )
-}
-
-/**
- * Monthly, or N months in advance.
- *
- * ── "AS FAR AHEAD AS YOU LIKE" IS TWO MECHANISMS, NOT ONE ───────────────────────────
- * The presets here are buttons on a familiar set of terms. The hosted Stripe page then
- * carries `adjustable_quantity`, so a family that wants seven months types seven ON STRIPE'S
- * OWN PAGE — which is why the webhook reads the quantity back off the completed session and
- * never trusts the number this dialog sent. Building a stepper here would have been a second
- * place for that number to be decided.
- *
- * The quote is `prepayQuoteCents`, the same pure function the server uses, so the figure on the
- * button is the figure Stripe asks for. A price computed independently in the browser is how a
- * checkout comes to ask for something the button did not promise.
- */
-function BuyDialog({
-  tier, purchasable, extendingLiveTerm, today, onClose, onBuy,
-}: {
-  tier: FamilyTier
-  purchasable: { recurring: boolean; prepaid: boolean }
-  /** A live paid term is being extended, so the current month is already owned. */
-  extendingLiveTerm: boolean
-  /** Resolved on the SERVER. See the note on the prop in `BillingPanel`. */
-  today: string
-  onClose: () => void
-  onBuy: (
-    mode: 'recurring' | 'prepaid',
-    months: number,
-    firstPayment: 'remainder' | 'remainder-plus-next',
-  ) => void
-}) {
-  const [months, setMonths] = useState(6)
-  const monthly = prepayQuoteCents(tier, 1)
-  const options = initialChargeOptions(tier, today)
-  const prepaid = prepaidChargeCents({
-    tier, months: isPrepayMonths(months) ? months : 1, today, extendingLiveTerm,
-  })
-
-  return (
-    <Dialog open onClose={onClose} title={`Pay for ${TIER_LABEL[tier]}`}>
-      <div className="space-y-5">
-        {purchasable.recurring && (
-          <section className="space-y-3">
-            <h4 className="text-sm font-semibold">Monthly</h4>
-            <p className="text-sm text-muted-foreground">
-              {monthly != null ? formatCurrency(monthly) : '—'} a month, taken on the 1st, until
-              you stop it. Change or stop it whenever — what you have already paid for stays
-              open.
-            </p>
-
-            {/* ── THE FIRST PAYMENT IS NOT A FULL MONTH, AND IT SAYS SO ────────────────
-                Every family bills on the 1st, so the first charge is the rest of THIS month
-                prorated by the day. That is the one thing about this model somebody has to be
-                told before they press the button, or the amount on their card statement is a
-                number they did not expect. Both options name their figure and their date. */}
-            {extendingLiveTerm
-              ? (
-                <p className="text-sm text-muted-foreground">
-                  Billing starts when the term you have already paid for ends. Nothing is
-                  charged today.
-                </p>
-              )
-              : (
-                <div className="space-y-2">
-                  {options.remainderOnly != null && (
-                    <Button
-                      variant="affirm"
-                      className="w-full justify-start"
-                      onClick={() => onBuy('recurring', 1, 'remainder')}
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Pay {formatCurrency(options.remainderOnly)} for the{' '}
-                      {options.daysLeft} day{options.daysLeft === 1 ? '' : 's'} left this month
-                    </Button>
-                  )}
-                  <Button
-                    variant={options.remainderOnly == null ? 'affirm' : 'outline'}
-                    className="w-full justify-start"
-                    onClick={() => onBuy('recurring', 1, 'remainder-plus-next')}
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    Pay{' '}
-                    {options.remainderPlusNext != null
-                      ? formatCurrency(options.remainderPlusNext)
-                      : ''}{' '}
-                    for the rest of this month and next
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {options.remainderOnly == null
-                      // NOT "invalid amount". The remainder alone is below the smallest charge
-                      // a card network will take, which is an ordinary state at the end of a
-                      // month on the cheaper plans — so it is explained rather than hidden.
-                      ? `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own — so the first payment covers next month too. Billing then moves to the 1st.`
-                      : `Either way, every payment after the first is on the 1st.`}
-                  </p>
-                </div>
-              )}
-          </section>
-        )}
-
-        {purchasable.prepaid && (
-          <section className={cn('space-y-2', purchasable.recurring && 'border-t pt-5')}>
-            <h4 className="text-sm font-semibold">In advance</h4>
-            <p className="text-sm text-muted-foreground">
-              One payment covering the rest of this month plus whole months after it, up to{' '}
-              {MAX_PREPAY_MONTHS}. Nothing renews it, so nothing is charged again until you
-              choose to.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {PREPAY_PRESET_MONTHS.map(n => (
-                <Button
-                  key={n}
-                  variant={months === n ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setMonths(n)}
-                >
-                  {n === 6 ? '6 months' : `${n} mo`}
-                </Button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="w-28">
-                <Label htmlFor="prepay-months">Months</Label>
-                <Input
-                  id="prepay-months"
-                  type="number"
-                  min={1}
-                  max={MAX_PREPAY_MONTHS}
-                  value={months}
-                  onChange={e => setMonths(Number(e.target.value))}
-                />
-              </div>
-              <Button
-                variant="affirm"
-                disabled={!isPrepayMonths(months)}
-                onClick={() => onBuy('prepaid', months, 'remainder')}
-              >
-                <CreditCard className="h-4 w-4" />
-                Pay {prepaid ? formatCurrency(prepaid.totalCents) : ''} now
-              </Button>
-            </div>
-            {/* BOTH HALVES OF THE FIGURE. "Why is it not six times five?" has one answer and
-                it is a part month nobody mentioned — so it is mentioned. */}
-            {prepaid && prepaid.prorationCents > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency(prepaid.prorationCents)} for the {options.daysLeft} day
-                {options.daysLeft === 1 ? '' : 's'} left this month, plus{' '}
-                {formatCurrency(prepaid.monthsCents)} for {prepaid.months} whole month
-                {prepaid.months === 1 ? '' : 's'}.
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              You can change the number of months on Stripe&rsquo;s page too — up to{' '}
-              {MAX_PREPAY_MONTHS}.
-            </p>
-          </section>
-        )}
-      </div>
-    </Dialog>
-  )
-}
-
-/** Rank, tolerating a null "no paid tier" as Free. Local so the panel needs no second import. */
-function tierRank(tier: FamilyTier | null): number {
-  return TIER_RANK[tier ?? 'free']
-}
-
-/**
- * Upgrading a family that paid in advance: what the unused term is worth, and the one choice.
- *
- * ── IT SHOWS THE ARITHMETIC, WHICH IS THE WHOLE JOB OF THIS DIALOG ──────────────────
- * "Upgrade to Premium: $0.00" is a sentence nobody believes. The credit is what makes it true,
- * so the credit is on screen: what the old term is worth, what the new tier costs for the
- * period, and the difference. An administrator about to explain this to a treasurer needs the
- * three figures, not the conclusion.
- *
- * ── AND THE CHOICE IS REAL BUT NOT A PRICE DIFFERENCE ───────────────────────────────
- * Both options cost the same money. Taking next month now spends the credit today; leaving it
- * lets the credit draw against the invoice on the 1st. The copy says so explicitly, because a
- * screen offering two buttons with different numbers on them implies one is cheaper, and a
- * family that picks the "cheaper" one and is then billed the difference has been misled by
- * a layout.
- *
- * `upgradeQuote` is called twice — once per shape — and it is the SAME pure function the action
- * and the webhook use. That is what makes the figure on the button the figure Stripe asks for.
- */
-function UpgradeDialog({
-  fromTier, toTier, paidThrough, today, onClose, onUpgrade,
-}: {
-  fromTier: FamilyTier | null
-  toTier: FamilyTier
-  paidThrough: string | null
-  today: string
-  onClose: () => void
-  onUpgrade: (includeNextMonth: boolean) => void
-}) {
-  const leave = upgradeQuote({ fromTier, toTier, paidThrough, today, includeNextMonth: false })
-  const take = upgradeQuote({ fromTier, toTier, paidThrough, today, includeNextMonth: true })
-  if (!leave || !take) return null
-
-  const monthly = prepayQuoteCents(toTier, 1)
-
-  return (
-    <Dialog open onClose={onClose} title={`Upgrade to ${TIER_LABEL[toTier]}`}>
-      <div className="space-y-5">
-        <p className="text-sm text-muted-foreground">
-          {TIER_LABEL[toTier]} starts as soon as this is settled. What is left of the{' '}
-          {fromTier ? TIER_LABEL[fromTier] : 'current'} term you already paid for is not lost and
-          not refunded — it is worth{' '}
-          <strong>{formatCurrency(leave.creditCents)}</strong> and is spent on{' '}
-          {TIER_LABEL[toTier]} first.
-        </p>
-
-        {/* THE WORKINGS, as three lines rather than one total. */}
-        <dl className="space-y-1 rounded-lg border bg-muted/30 p-3 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">
-              Rest of this month at {TIER_LABEL[toTier]}
-            </dt>
-            <dd>{formatCurrency(leave.neededCents)}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">
-              Your {fromTier ? TIER_LABEL[fromTier] : 'current'} term, unused
-            </dt>
-            <dd>&minus;{formatCurrency(leave.creditCents)}</dd>
-          </div>
-          <div className="flex justify-between gap-4 border-t pt-1 font-medium">
-            <dt>Due now</dt>
-            <dd>{formatCurrency(leave.dueNowCents)}</dd>
-          </div>
-        </dl>
-
-        <div className="space-y-2">
-          <Button
-            variant="affirm"
-            className="w-full justify-start"
-            onClick={() => onUpgrade(false)}
-          >
-            <CreditCard className="h-4 w-4" />
-            {leave.dueNowCents === 0
-              ? `Upgrade now — nothing to pay`
-              : `Upgrade now — pay ${formatCurrency(leave.dueNowCents)}`}
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => onUpgrade(true)}
-          >
-            <CalendarClock className="h-4 w-4" />
-            {take.dueNowCents === 0
-              ? `Upgrade and cover next month too — nothing to pay`
-              : `Upgrade and cover next month too — pay ${formatCurrency(take.dueNowCents)}`}
-          </Button>
-        </div>
-
-        {/* THE SAME MONEY, SAID OUT LOUD. Two buttons with different figures imply one is
-            cheaper; neither is, and the family should know that before choosing. */}
-        <p className="text-xs text-muted-foreground">
-          {leave.creditLeftCents > 0
-            ? `Either way costs the same overall. Take the first and ${formatCurrency(leave.creditLeftCents)} stays as credit against your invoice on ${leave.paidThrough === take.paidThrough ? 'the 1st' : take.paidThrough}; take the second and it is spent now instead.`
-            : `Either way costs the same overall — the second just settles next month today rather than on the 1st.`}
-          {monthly != null && ` After that it is ${formatCurrency(monthly)} a month, on the 1st.`}
-        </p>
-      </div>
-    </Dialog>
   )
 }

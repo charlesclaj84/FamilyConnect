@@ -2810,9 +2810,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'bands',
-            heading: 'Two sections',
+            heading: 'Three sections',
             blocks: [
-              p('The page is two sections, chosen from the rail across the top. **Plan** is which subscription this family is on, what moving between them does, and — underneath it — **Billing**, where a paid plan is set up and every payment made for it is listed. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('The page is three sections, chosen from the rail across the top. **Billing** is what your family has paid GENORRA, until when, and every receipt. **Plan** is which subscription this family is on, what each one includes, and where you move between them. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('Settings opens on **Plan**, because that is the section most people came to look at or change.'),
               p('Paying for a plan is covered in [Paying for a plan](/help/plans#paying); this page is where the controls are.'),
             ],
           },
@@ -2835,15 +2836,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The **Plan** section, which Settings opens on, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('The **Plan** section, which Settings opens on, shows which plan the family is on, what each one costs a month, and what it includes. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('**Every plan row carries its own button.** A row above the one you are on says **Upgrade to …** and starts the payment; a row below says **Downgrade to …**. The row you are already on says **Current plan** and does nothing. A plan that has a price but is not on sale yet shows **Coming Soon** instead of a button.'),
               p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way.'),
+              note('**Moving down is also how you stop paying.** Downgrading to Free ends a monthly plan at the end of the period you have already paid for — there is no separate "stop renewing" control, because stopping the payment and choosing what you stop at are one decision. The confirmation names the date it takes effect.'),
             ],
           },
           {
             id: 'billing',
             heading: 'Paying for the plan',
             blocks: [
-              p('**Billing**, beneath the plans, is what your family has actually paid: which plan, the day it is paid through, and whether anything renews it. **Pay for …** opens Stripe\'s own page; nothing on this screen takes a card number.'),
+              p('**Billing** is what your family has actually paid: which plan, the day it is paid through, the day the next payment is due, and whether anything renews it. Nothing on it starts a payment — the buttons that do are on the plan rows in **Plan**, and they open Stripe\'s own page. Nothing on this screen takes a card number.'),
+              note('**"Next payment due" means two different things and the row beside it says which.** On a monthly plan it is the day the card is charged automatically. On a plan paid in advance nothing renews it, so it is the day the pages close unless somebody buys again.'),
               p('**Every family is billed on the 1st.** The first payment is only the rest of the current month, worked out by the day and rounded up — so joining on the 20th costs a few days, not a month, and every payment after it lands on the 1st.'),
               note('**If the rest of the month comes to less than $5, the first payment covers this month and next.** A charge of a pound or two is not worth putting on a card statement, and below about 50 cents a card network will not take it at all. The screen says which option you are being offered and why.'),
               p('There are two ways to pay and one rate. **Monthly** renews until you stop it. **In advance** is one payment covering the rest of this month plus however many whole months you like, up to 60 — which you can also change on Stripe\'s page. There is no discount for paying ahead and no annual price; a year in advance is twelve months at the monthly rate.'),
@@ -2852,9 +2856,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Moving down', text: 'Costs nothing and changes nothing today. It takes effect on the 1st — the next one if you pay monthly, or the 1st after your prepaid term runs out. Six months of Plus, moved down in month two, is Plus for months two to six and the cheaper plan from month seven. There is no refund, which is exactly what keeps those pages open until it finishes.' },
               ),
               note('**Nothing is granted by pressing a button here.** The plan changes when the payment clears, which can be a moment later — so if the band still shows the old plan straight after paying, give it a minute and reload. If a payment fails, this section says so and nothing your family can reach changes while Stripe keeps trying the card.'),
-              p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here.'),
-              note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this band appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
-              p('**Stop renewing** ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
+              p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here — what was bought, when it was paid, what it covers and how much.'),
+              note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this section appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
+              p('**To stop paying, move down to Free on the [Plan](/admin/settings) section.** That ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
             ],
           },
           {
@@ -2938,7 +2942,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed in the **Plan** section of [Settings](/admin/settings), which is the copy that is kept current.'),
               p('Each paid plan shows one price there, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
-              note('Free is free, and not a trial. Standard and Plus can be bought; Premium has a price and is not on sale yet, and its card says so. Nothing is ever billed for a plan a family has not paid for.'),
+              note('Free is free, and not a trial. Standard and Plus can be bought; Premium has a price and is not on sale yet, and its row is marked **Coming Soon**. Nothing is ever billed for a plan a family has not paid for.'),
             ],
           },
           {
