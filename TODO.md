@@ -701,6 +701,40 @@ need anybody to hold production credentials.
 
 Recorded 2026-08-23.
 
+## Every connected account is created as American, and the country cannot be changed
+
+**Action:** decide whether a non-US family is in scope. If it is, ask for the country in the
+Connect panel and pass it through; if it is not, say so on that panel rather than deciding it
+silently. Recorded 2026-08-25.
+
+`CONNECT_ACCOUNT_COUNTRY` in `lib/stripe/config.ts` is the constant `'us'`, sent as
+`identity.country` on every `v2.core.accounts.create`. It exists because Stripe refuses the
+account without it (`identity_country_required` for anything requesting the merchant
+configuration) and because there is nothing in the schema to derive it from: `families` has no
+country column, and `people.country` is free text describing where one relative lives.
+
+**Why it is a real gap rather than a theoretical one.** `lib/regions.ts` admits **United
+States, Canada and Mexico** for a member's address, so a Canadian family is a thing this
+product already supports everywhere except here — and here it would be created as an American
+merchant. `identity.country` decides the payout currency, which identity documents Stripe
+demands and which regulations apply, and **it cannot be changed after creation**. The failure
+is not an error message: onboarding would run, ask for US paperwork, and the family would be
+stuck with an account they cannot complete.
+
+**The fix is a question, not a better default.** One `<select>` on the Connect panel, defaulting
+to the US, its value passed to `ensureConnectedAccount`. Two things to get right when it is
+built: the value is written into `family_stripe_accounts.country` at creation (it already is,
+from the create response), so a family created before the picker is distinguishable from one
+that chose; and `cross_border_connected_account_creation_not_allowed` is a real refusal — the
+PLATFORM's country has to support the connected account's, so offering Canada is a claim about
+GENORRA's Stripe account and not only about the family's.
+
+**The rest of the product would need a second look in the same commit.** Every price is USD
+(`formatCurrency`, and `currency: 'usd'` on every session) and phone numbers assume +1, so a
+Canadian family collecting dues today would be charged in USD into a CAD account. That is
+allowed on a direct charge and settles with conversion; it is not obviously what anybody
+intended.
+
 ## BUILD: greet a relative on their birthday, and make it feel like a celebration
 
 **Action:** decide what "automatic" means here, then build it. Recorded 2026-08-25, out of the

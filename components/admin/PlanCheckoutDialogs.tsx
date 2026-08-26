@@ -297,20 +297,25 @@ export function UpgradeDialog({
   return (
     <Dialog open onClose={onClose} title={`Upgrade to ${TIER_LABEL[toTier]}`}>
       <div className="space-y-5">
-        <p className="text-sm text-muted-foreground">
-          {TIER_LABEL[toTier]} starts as soon as this is settled. What is left of the{' '}
-          {fromLabel} term you already paid for is not lost and not refunded — it is worth{' '}
-          <strong>{formatCurrency(leave.creditCents)}</strong> and is spent on{' '}
-          {TIER_LABEL[toTier]} first.
-        </p>
-
         {/* ── THE CHOICE ──────────────────────────────────────────────────────────────
             A `<fieldset>` so the two options are announced as one group with the legend as
             its name, and real radios so arrow keys work without this file implementing them.
-            The legend is visible: "how far ahead" is the actual question and hiding it would
-            leave two cards with no stated relationship. */}
+
+            THE LEGEND IS `sr-only`, NOT DELETED. It read "How far ahead to pay" on screen and
+            was removed on 2026-08-25 with the intro paragraph above it — two options with a
+            price and a date on each are self-evidently a choice, and a heading saying so is
+            the furniture the app-wide lede sweep was clearing. But a `<fieldset>` with no
+            `<legend>` has no accessible name, so the grouping stops being announced and the
+            two radios read as loose controls. Hiding it visually keeps the semantics and
+            costs the screen nothing.
+
+            WHAT THE DELETED PARAGRAPH SAID, and where it went: that the unused term is worth
+            `creditCents` and is spent on the new tier first. The `<dl>` below states the same
+            figure as a line item — "Your Standard term, unused  −$12.90" — against the two
+            numbers it is subtracted from, which is where somebody checking the arithmetic
+            wants it. Nothing was lost; a summary of a table sitting above the table went. */}
         <fieldset className="space-y-2">
-          <legend className="mb-2 text-sm font-semibold">How far ahead to pay</legend>
+          <legend className="sr-only">How far ahead to pay</legend>
           <UpgradeOption
             id="upgrade-leave"
             selected={!includeNext}
@@ -369,12 +374,13 @@ export function UpgradeDialog({
             : `Upgrade to ${TIER_LABEL[toTier]} — pay ${formatCurrency(chosen.dueNowCents)}`}
         </Button>
 
-        {/* THE SAME MONEY, SAID OUT LOUD — but no longer correcting an impression the layout
-            just made, since there is one commit button now rather than two competing prices. */}
+        {/* THE SAME MONEY, SAID OUT LOUD — and one sentence, since 2026-08-25. It carried two
+            more clauses (that nothing renews a prepaid term, and that every record is kept
+            either way); both are true, neither is about the choice being made here, and each
+            is already on the Billing pane and in `family-settings#billing`. The one thing a
+            reader needs at the moment of choosing is that neither option is cheaper. */}
         <p className="text-xs text-muted-foreground">
-          Both options cost the same overall; the second just settles next month today instead
-          of leaving it. Nothing renews a plan paid in advance, so when the term ends the pages
-          it covers stay open only if you pay again — and every record is kept either way.
+          Both options cost the same overall; the second just settles next month today.
         </p>
       </div>
     </Dialog>

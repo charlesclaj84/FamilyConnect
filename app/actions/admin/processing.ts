@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
-import { connectConfigured } from '@/lib/stripe/config'
+import { CONNECT_ACCOUNT_COUNTRY, connectConfigured } from '@/lib/stripe/config'
 import { SITE_URL } from '@/lib/site'
 
 /**
@@ -222,7 +222,12 @@ export async function refreshProcessorStatus(): Promise<ProcessorActionResult> {
 
   try {
     const account = await stripe.v2.core.accounts.retrieve(accountId, {
-      include: ['configuration.merchant', 'requirements'],
+      // `identity` was missing here until 2026-08-25, and its absence was silent: the update
+      // below reads `account.identity?.country`, `include` is what decides whether a field is
+      // on the response at all, so the column was written `null` on every single refresh over
+      // a value Stripe held all along. Nothing failed and nothing logged — the same shape as
+      // an embed nobody qualified. Add a field to that list before reading it.
+      include: ['configuration.merchant', 'requirements', 'identity'],
     })
 
     const status = account.configuration?.merchant?.capabilities?.card_payments?.status ?? null
@@ -388,6 +393,15 @@ async function ensureConnectedAccount(
       // Shown in the family's own Dashboard and on invoices Stripe sends them.
       display_name: (family?.family_name as string | undefined) ?? input.familyCode,
       dashboard: 'full',
+      // ── REQUIRED, NOT OPTIONAL, AND THE ACCOUNT CANNOT BE CREATED WITHOUT IT ──────
+      // Stripe answers `identity_country_required` for any account requesting the merchant
+      // configuration — which this one does, on the line below. `CONNECT_ACCOUNT_COUNTRY`
+      // carries the argument for the value and what it costs a non-US family.
+      //
+      // `entity_type` is deliberately absent: Stripe asks the family during onboarding, and
+      // it decides how the whole account is validated, so a guess here is worse than a
+      // question there.
+      identity: { country: CONNECT_ACCOUNT_COUNTRY },
       defaults: {
         responsibilities: { fees_collector: 'stripe', losses_collector: 'stripe' },
       },
@@ -395,7 +409,12 @@ async function ensureConnectedAccount(
         merchant: { capabilities: { card_payments: { requested: true } } },
       },
       metadata: { genorra_family_code: input.familyCode },
-      include: ['configuration.merchant'],
+      // `identity` as well as the merchant configuration, so `account.identity.country` comes
+      // back and the row below can record it. `include` is what decides whether a field is on
+      // the response at all — omit it and the field is silently `undefined`, which is how the
+      // `country` column came to be written as null on every refresh. See the same list in
+      // `refreshProcessorStatus`.
+      include: ['configuration.merchant', 'identity'],
     }, { idempotencyKey: intentKey(['connect-account', input.familyCode]) })
 
     // ── THE ROW IS WRITTEN BEFORE THE FAMILY SEES THE LINK ──────────────────────────
@@ -410,6 +429,11 @@ async function ensureConnectedAccount(
       disconnected_at: null,
       card_payments_status:
         account.configuration?.merchant?.capabilities?.card_payments?.status ?? null,
+      // Recorded at creation rather than waiting for the first refresh. It is the value we
+      // just sent, echoed back — so a row that disagrees with `CONNECT_ACCOUNT_COUNTRY` is a
+      // family created before that constant moved, which is exactly the thing somebody will
+      // need to be able to see.
+      country: account.identity?.country ?? null,
     }, { onConflict: 'family_code' })
     if (error) {
       console.error(`[processing] could not record account ${account.id} for ${input.familyCode}: ${error.message}`)

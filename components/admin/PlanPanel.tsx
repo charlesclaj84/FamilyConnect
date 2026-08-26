@@ -354,11 +354,12 @@ export function PlanPanel({ tier, canEdit, billing }: {
               `h3` would skip a rank. The caption stays as it was — the rail item answers
               "which section", so this answers what the pane is FOR rather than repeating
               the tab. Every pane on Members & Access reads the same way. */}
+          {/* NO SUB-CAPTION. It read "Your family's subscription covers everything on its own
+              row and on every row above it" until 2026-08-25 — which is what a ladder of plans
+              with a Current badge on one of them already looks like, and each row's Features
+              dialog states the inheritance for that plan in full. Part of the app-wide sweep
+              of captions that describe the thing under them. */}
           <h2 className="text-lg font-semibold">What each plan includes</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your family&rsquo;s subscription covers everything on its own row and on every
-            row above it.
-          </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-legacy px-3 py-1 text-sm font-semibold text-brand-on-legacy">
           <Crown className="h-3.5 w-3.5" aria-hidden="true" /> {TIER_LABEL[current]}
@@ -547,27 +548,27 @@ export function PlanPanel({ tier, canEdit, billing }: {
         })}
       </ul>
 
-      {canEdit ? (
-        // ── REWRITTEN 2026-08-23, AND "NOTHING IS BILLED" WAS THE WHOLE OF IT ──────────
-        // That sentence was true of every plan while none was for sale, and became false for
-        // two of them on the day they went on sale — on the one screen an administrator reads
-        // before deciding to pay. What is still true, and is the more useful half, is the
-        // property this pane has always been built on: the tier withholds SCREENS and never
-        // rows, so nothing a family has entered is ever at stake in a plan change.
-        <p className="mt-4 text-sm text-muted-foreground">
-          A plan changes which pages this family can open, and nothing else &mdash; every
-          record you have entered stays where it is, whichever plan you are on.{' '}
-          {billed
-            // NAMES THE DATE, because for a family that has paid this is the single most
-            // asked question on the screen and "at the end of the period" is an answer they
-            // have to go and work out. `downgradeEffective` is the same `+1` the server
-            // schedules on.
-            ? <>Moving up takes effect as soon as it is paid for; moving down changes nothing
-                today and starts{downgradeEffective ? ` on ${downgradeEffective}` : ' when the term you have paid for ends'},
-                with no refund for the rest of the period.</>
-            : <>Moving down to a cheaper plan is free and takes effect straight away.</>}
-        </p>
-      ) : (
+      {/* ── THE STANDING PARAGRAPH UNDER THE ROWS WENT ON 2026-08-25 ──────────────────
+          It opened "A plan changes which pages this family can open, and nothing else — every
+          record you have entered stays where it is", then named the date a downgrade would
+          land. The first half is a reassurance nobody had asked for yet, printed on every
+          visit; the second half was the third place the product states that date, and the
+          other two are the ones a reader is actually looking at when the question occurs to
+          them:
+
+            * the CONFIRMATION, before it is committed — "Nothing changes today. Plus stays
+              open until the end of the period you have already paid for, and Standard starts
+              on 1 October." Same `downgradeEffective`, which is why that variable is still
+              computed above.
+            * the BILLING pane's scheduled-change band, after it is committed.
+
+          "Nothing is deleted" survives in the confirmation too, which is where somebody is
+          deciding whether to risk it.
+
+          THE NON-EDITOR SENTENCE STAYS, and is not the same kind of thing. It explains why
+          the buttons a caller can see are absent for them and what to do about it — a fact
+          about THEM that no amount of looking at the screen will produce. */}
+      {!canEdit && (
         <p className="mt-4 text-sm text-muted-foreground">
           You can see the plan but not change it. Ask an administrator for the Settings
           permission.
