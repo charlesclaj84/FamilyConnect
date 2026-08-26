@@ -26,13 +26,19 @@ import { APP_NAME, APP_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/br
  * icon, not the icon's own ground, and the brand's splash is Heritage-dark whichever
  * tile sits on it — the gold one for a year, the colour one now.
  *
- * THE GOLD TILE DID NOT GO AWAY, AND IT MUST NOT BE FOLDED BACK IN HERE. It is
- * `public/identity/genorra-mail-mark-256.png` now, referenced by the five auth
- * templates and `lib/email/layout.ts`, because the email header's band is `#6b2d3a`
- * and that tile has the same burgundy baked into its ground — the tile is meant to
- * DISAPPEAR into the band and leave the gold mark on it. This swap would have put a
- * cream square on that band in every transactional email if the two had gone on
- * sharing one file; `supabase/templates/README.md` records it.
+ * MAIL USES THIS TILE TOO, SINCE 2026-08-26 — and it did not for four days. The five
+ * auth templates and `lib/email/layout.ts` pointed at
+ * `public/identity/genorra-mail-mark-256.png`, the gold-on-burgundy tile, because the
+ * email header's band is `#6b2d3a` and that tile has the same burgundy baked into its
+ * ground, so it DISAPPEARED into the band. Elegant, and it left mail as the only
+ * surface where GENORRA was monochrome — the same complaint that moved this manifest,
+ * one surface later. They share this file again, with a `border-radius` on the mail
+ * `<img>` so the cream ground reads as a badge on the band.
+ *
+ * SO A THIRD SURFACE WANTING A DIFFERENT TILE NOW HAS TO SPLIT THE FILE AGAIN, and the
+ * gold one is still in `public/identity/` for exactly that. Do not repoint this at it:
+ * an installed icon must be the full-colour mark, which is the whole reason this
+ * paragraph exists. `supabase/templates/README.md` records both directions.
  *
  * The burgundy mark is still right at favicon scale, which is why `app/favicon.ico`
  * and the kit's own favicons are neither tile. Do not sweep those to match this.

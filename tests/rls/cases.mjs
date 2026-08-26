@@ -10389,6 +10389,229 @@ const SMS_CONSENT_CASES = [
 CASES.push(...SMS_CONSENT_CASES)
 
 /**
+ * NOTIFICATION PREFERENCES — My Profile → Notifications, the grid.
+ *
+ * ── SAME SHAPE AS `SMS_CONSENT_CASES` ABOVE, AND FOR THE SAME REASON ───────────────
+ * **Neither action in `app/actions/notification-prefs.ts` takes a person id.** The subject is
+ * always the caller, resolved from `requireMember()`, so the classic attack — BRAVO's
+ * administrator passing an ALPHA id — has nothing to aim. That is the security design rather
+ * than a convenience: what somebody has agreed to be contacted about must not be delegable,
+ * because the SMS column of this grid writes `sms_consent_events`, which is the record a TCPA
+ * complaint would ask about.
+ *
+ * SO THESE ASSERT THE OTHER TWO THINGS:
+ *
+ *   1. **AN APPLICANT IS REFUSED THE WRITE.** `requireMember()` demands an APPROVED membership.
+ *      Somebody who has joined by family code and not been admitted must not be able to put a
+ *      preference row — or worse, a consent event — into the family's tables.
+ *   2. **AN APPROVED MEMBER CAN ACTUALLY DO IT.** The positive controls, which on this block
+ *      carry almost all of the weight.
+ *
+ * ── WHAT THEY ARE NOT EVIDENCE FOR, said out loud per §7 ──────────────────────────
+ *   * **`person_notification_prefs_select_own`.** Every read in that module is on the ADMIN
+ *     client, deliberately — `sms_consent_events` is folded rather than read raw and all four
+ *     reads belong to one screen. Dropping that policy entirely would leave every case here
+ *     green. It is asserted in `20260826000000`'s verify block, which reads it back out of
+ *     `pg_policies` and refuses a non-self-scoped one by name, and additionally refuses any
+ *     WRITE policy appearing on the table.
+ *   * **THE GUARD TRIGGER.** `tg_notification_pref_guard_family` is unreachable through the
+ *     product, because the action never takes a person id — so no action-shaped case can fire
+ *     it. That migration probes it directly with a real cross-family row.
+ *   * **THE MARKER SCAN.** `getMyNotificationSettings` returns an email address and the LAST FOUR
+ *     digits of a number, never the number — so even with every conjunct deleted an ALPHA mobile
+ *     could not appear in a BRAVO response, because the action does not put one in any response.
+ *     §5 working as designed, and the reason the assertions below are spelled out by value.
+ *
+ * ── MUTATION-CHECKED ──────────────────────────────────────────────────────────────
+ *   `.eq('person_id', …)` dropped from the prefs read        control  FAIL  (two rows for one
+ *                                                                     cell, so the grid reads
+ *                                                                     the wrong member's answer)
+ *   `requireMember()` -> a bare session check on the write   attack   FAIL
+ *   the `stopped` refusal deleted from the SMS branch        control  FAIL  (alphaMember's
+ *                                                                     consent event is written
+ *                                                                     twice and the fold moves)
+ */
+const NOTIFICATION_PREF_CASES = [
+  read('notification-prefs.getMyNotificationSettings', 'app/actions/notification-prefs.ts',
+    'getMyNotificationSettings', {
+      // BRAVO's administrator reads their OWN grid, which is correct and is all this half can
+      // say. `bravoAdmin` is BRAVO's `other`: an unconfirmed number, no consent.
+      expectAttack: v => Array.isArray(v?.prefs) && v?.smsConsent === 'none',
+      // THE CONTROL IS THE WEIGHT-BEARING HALF. `alphaMember` is the seeded `owner`: a confirmed
+      // number and a granted consent, both of which this screen renders. A read that returned
+      // the conservative empty shape — which is what every failure path in that action produces
+      // — goes red rather than passing as "nothing on file".
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.smsConsent === 'granted'
+        && v?.smsNumberVerified === true
+        && v?.contact?.phoneEnding === '9101',
+    }),
+  read('notification-prefs.getMyNotificationSettings (pending member)',
+    'app/actions/notification-prefs.ts', 'getMyNotificationSettings', {
+      attacker: 'alphaPending',
+      // An applicant gets the conservative shape. `requireMember()` refuses them before any
+      // read, so there is no grid and no contact detail — which is the same answer the module
+      // gives for a caller with no person row at all.
+      expectAttack: v => v?.smsConsent === 'none' && (v?.prefs ?? []).length === 0
+        && v?.contact?.email === null,
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.smsConsent === 'granted',
+    }),
+
+  // ── THE WRITE ─────────────────────────────────────────────────────────────
+  // An applicant must not be able to put a preference row into the family's tables. The probe is
+  // the whole of `person_notification_prefs` for ALPHA, so a row appearing for the applicant is
+  // visible whichever member it claims to be for.
+  {
+    kind: 'write',
+    id: 'notification-prefs.setMyNotificationPref (pending member)',
+    mod: 'app/actions/notification-prefs.ts', fn: 'setMyNotificationPref',
+    attacker: 'alphaPending',
+    args: () => [{ notificationKey: 'safety_check', channel: 'email', optedIn: false }],
+    probe: (db) => snapshot('person_notification_prefs',
+      'id, person_id, notification_key, channel, opted_in', { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS `alphaOther`, and it turns EMAIL off rather than SMS on — deliberately, so
+    // it does not write a consent event into the log `SMS_CONSENT_CASES` above asserts the fold
+    // of. `deletableChild`'s rule: a control must not mutate a row a later case depends on.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [{ notificationKey: 'safety_check', channel: 'email', optedIn: false }],
+    expectPositive: v => v?.success === true,
+  },
+  // ── A CHANNEL THE CATALOGUE MARKS `unavailable` IS REFUSED, FOR EVERYBODY ──────
+  // Not a family-boundary assertion at all. It is the "a switch wired to nothing is a control
+  // being honoured" rule — AGENTS.md states it about `permission_resources.actions` and this is
+  // the same failure one layer down — and it is here because both arguments arrive from a
+  // browser and nothing but the action checks them.
+  //
+  // THE ATTACKER IS A FULLY-ENTITLED MEMBER, deliberately, which is what makes the case mean
+  // something. Run as `alphaPending` it would pass on the membership gate alone and say nothing
+  // about the catalogue check; run as `alphaMember` the ONLY thing that can refuse it is the
+  // `channelDefault(...) === 'unavailable'` branch. Mutation-checked: delete that branch and
+  // this line goes red while every other case stays green.
+  {
+    kind: 'write',
+    id: 'notification-prefs.setMyNotificationPref (a channel that cannot send)',
+    mod: 'app/actions/notification-prefs.ts', fn: 'setMyNotificationPref',
+    attacker: 'alphaMember',
+    args: () => [{ notificationKey: 'safety_check', channel: 'push', optedIn: true }],
+    probe: (db) => snapshot('person_notification_prefs',
+      'id, person_id, notification_key, channel, opted_in', { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false && /not available/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: refused, and says which channel' }
+      : { ok: false, detail: `expected a refusal naming the channel, got ${JSON.stringify(v)}` },
+    // §7: where a control genuinely cannot apply, SAY SO rather than deleting it.
+    positive: 'not-applicable',
+    why: 'the runner requires a positive control to MOVE the probe, and the whole claim here is '
+      + 'that nobody — entitled or not — can write this cell, so any control would have to be a '
+      + 'successful write of the exact thing being refused. The cross-family and applicant '
+      + 'halves for this action are the two cases above, and both have real controls.',
+  },
+]
+
+CASES.push(...NOTIFICATION_PREF_CASES)
+
+/**
+ * GATHERING OCCURRENCES — when a gathering happens, reached with no action in the way.
+ *
+ * ── AGENTS.md §7's CHILD-TABLE RULE, OBEYED BEFORE IT COST ANYTHING ────────────────
+ * *"Every child table added under a scoped parent owes a `raw/` SELECT probe of its own... The
+ * tell is an action that reads a parent and then filters the child by ids the parent
+ * returned."* Both readers of `gathering_occurrences` are exactly that shape —
+ * `getGatheringDetail` asks for one gathering's occurrences by an id it already holds, and
+ * `getCalendarMonth` asks for the occurrences of the gatherings that came back. For a caller
+ * who may see no gathering, neither ever mentions an occurrence, so the PARENT's policy answers
+ * for both tables and `gathering_occurrences_select` is never consulted.
+ *
+ * That is what `position_journal_notes` cost to learn: 43 action-shaped assertions stayed green
+ * with the child's whole conjunct deleted. These probes ask PostgREST directly, which is what a
+ * member who knows a gathering id can do.
+ *
+ * ── AND THE POSITIVE CONTROLS ARE CARRYING AN UNUSUAL WEIGHT HERE ──────────────────
+ * `20260826000001` breaks a policy cycle with a SECURITY DEFINER helper —
+ * `auth_may_see_gathering()` — pre-empting §7's 42P17 entry. A recursive policy returns nothing
+ * to EVERYBODY, so every attack half below would pass over one. The controls are what would
+ * notice, which is the fourth time that argument has been made in this suite
+ * (`getPhotoCollections`' dropped embed, the `photos` DELETE policy, the safety check-in cycle).
+ *
+ * A MISSING `EXECUTE` GRANT ON THAT HELPER PRESENTS THE SAME WAY: a policy expression is
+ * evaluated as the querying role, so without the grant every read ERRORS rather than being
+ * refused, and an error and a refusal are indistinguishable in the attack half. The migration
+ * asserts the grant; the control is what proves reads work at all.
+ *
+ * ── MUTATION-CHECKED ──────────────────────────────────────────────────────────────
+ *   `auth_may_see_gathering(gathering_id)` dropped from the policy  attack  FAIL (pending)
+ *   the `family_code` conjunct dropped from the policy              attack  FAIL (cross-family)
+ *   an INSERT policy added to the table                             insert  FAIL
+ *   the helper's EXECUTE grant revoked                              control FAIL (both)
+ */
+const GATHERING_OCCURRENCE_RAW_CASES = [
+  // [crux] AN APPLICANT NOBODY HAS ADMITTED. `auth_family_code()` resolves ALPHATEST for them
+  // deliberately and permanently, so the FAMILY conjunct is true — the only thing refusing
+  // these rows is `auth_membership_approved()` inside the helper. A family's calendar, with
+  // times and places, is exactly what a stranger who has typed a family code should not read.
+  read('raw:gathering_occurrences SELECT (an applicant)',
+    'tests/rls/raw/gathering-occurrences.mjs', 'selectOccurrences', {
+      attacker: 'alphaPending',
+      expectAttack: (r, fx) => !r.rows.some(o => o.gathering_id === fx.alpha.gathering.id),
+      // ASSERTS THE TIMES, not a count. A policy handing back the wrong family's rows in the
+      // right quantity passes a count; a row carrying `11:00` and `16:00` against this
+      // gathering's id is the one the fixture seeded.
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(o =>
+        o.id === fx.alpha.gatheringOccurrence.id
+        && o.gathering_id === fx.alpha.gathering.id
+        && String(o.start_time ?? '').startsWith('11:00')
+        && String(o.end_time ?? '').startsWith('16:00')),
+    }),
+  // The family conjunct on the same policy, which the case above cannot stand in for: the
+  // applicant is INSIDE the family boundary by every test these probes apply.
+  read('raw:gathering_occurrences SELECT (another family\'s calendar)',
+    'tests/rls/raw/gathering-occurrences.mjs', 'selectOccurrences', {
+      expectAttack: (r, fx) => !r.rows.some(o => o.family_code === fx.alpha.familyCode),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(o => o.id === fx.alpha.gatheringOccurrence.id),
+    }),
+  // [crux] NO WRITE POLICY EXISTS, and this is what that means from outside.
+  //
+  // §2c: a table in `public` is born writable by `anon` AND `authenticated`, and RLS is the
+  // whole gate — so a SELECT policy with no INSERT policy denies the insert with a 42501. The
+  // migration asserts the policy COUNT; this asserts what the count buys.
+  //
+  // THE ATTACKER IS ALPHA'S OWN ADMINISTRATOR, deliberately: they hold every grant their family
+  // can confer and they are writing into their OWN family, so the family conjunct, the approval
+  // and every permission are true for them. The only thing refusing this row is the absence of
+  // a policy, which is precisely the claim.
+  {
+    kind: 'write',
+    id: 'raw:gathering_occurrences INSERT (no write policy exists)',
+    mod: 'tests/rls/raw/gathering-occurrences.mjs', fn: 'insertOccurrence',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.familyCode, fx.alpha.gathering.id, '2027-01-05'],
+    probe: (db) => snapshot('gathering_occurrences', 'id, gathering_id, starts_on',
+      { family_code: ALPHA })(db),
+    // 42501 is what a table with no INSERT policy answers. `rawInsert` returns the error rather
+    // than swallowing it, so this asserts the CODE and not merely that nothing arrived — a row
+    // silently dropped and a row refused are opposite facts.
+    expectRefusal: v => v?.error?.code === '42501'
+      ? { ok: true, detail: 'told: 42501, no insert policy' }
+      : { ok: false, detail: `expected 42501, got ${JSON.stringify(v?.error ?? v)}` },
+    // §7: where a control genuinely cannot apply, SAY SO rather than deleting it.
+    positive: 'not-applicable',
+    why: 'the claim is that NOBODY may insert through PostgREST — the actions write on the '
+      + 'service role, which ignores RLS — so any control would have to be a successful write '
+      + 'of the exact thing being refused. That the actions CAN write these rows is asserted by '
+      + 'the two SELECT cases above, whose fixture rows exist only because the seed wrote them.',
+  },
+]
+
+CASES.push(...GATHERING_OCCURRENCE_RAW_CASES)
+
+
+
+/**
  * ── BILLING: WHAT A FAMILY PAYS GENORRA, AND ITS OWN PAYMENT PROCESSOR ────────────────
  *
  * TWO COVERED ACTIONS OUT OF FIFTEEN, AND THE RATIO IS THE POINT OF THIS BLOCK.

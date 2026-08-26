@@ -399,7 +399,11 @@ async function teardown(db) {
     //
     // None of the six is append-only: no trigger refuses a DELETE, so each of these sweeps
     // does real work rather than documenting a cascade.
+    // `gathering_occurrences` cascades from `gatherings` too, and is listed AHEAD of it for
+    // the same reason the others are: this sweep does real work rather than documenting a
+    // cascade, and a table left out of it silently accumulates rows across runs.
     'gathering_task_submissions', 'gathering_tasks', 'gathering_template_uses',
+    'gathering_occurrences',
     'gatherings', 'gathering_template_steps', 'gathering_templates',
     'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
     // AFTER `funds`. Second table in this list to go append-only (20260807000002, after
@@ -2313,6 +2317,35 @@ export async function seed() {
       // `deleteGathering` has a subject it is allowed to remove.
       status: 'planning', created_by: owner.personId,
     }).select().single())
+
+    // ── WHEN EACH GATHERING HAPPENS (20260826000001) ──────────────────────────────
+    //
+    // SEEDED BY HAND, because this fixture inserts gatherings straight into the table rather
+    // than through `scheduleGathering` — so nothing creates the child rows the actions would.
+    // The migration's backfill covers rows that existed when it applied and cannot cover rows
+    // a later seed inserts, which is why this is here and not left to it.
+    //
+    // WITH TIMES ON THE FIRST, so `raw/gathering-occurrences.mjs`'s positive control can assert
+    // on a value rather than on a count — a count passes over a policy handing back the wrong
+    // family's rows in the right quantity.
+    //
+    // The insert fires `tg_gathering_when_envelope`, which recomputes the parent's four
+    // envelope columns from these — to exactly what was inserted above, so nothing moves. That
+    // is worth knowing: if these dates ever stop matching the parent's, the parent is what
+    // changes, and every case asserting `startsOn` would follow the child.
+    f.gatheringOccurrence = must('gathering occurrence', await db
+      .from('gathering_occurrences').insert({
+        family_code: code, gathering_id: f.gathering.id,
+        starts_on: GATHERING_STARTS_ON, start_time: '11:00',
+        ends_on: GATHERING_ENDS_ON, end_time: '16:00',
+        position: 0,
+      }).select().single())
+
+    must('spare gathering occurrence', await db
+      .from('gathering_occurrences').insert({
+        family_code: code, gathering_id: f.deletableGathering.id,
+        starts_on: SPARE_GATHERING_STARTS_ON, position: 0,
+      }).select().single())
 
     // A SEGMENT WITH A DAY AND A PLACE (20260819000001), not a bare junction row.
     //

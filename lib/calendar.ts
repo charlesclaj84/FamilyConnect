@@ -66,6 +66,21 @@ export interface CalendarEntry {
    * outline against the fill.
    */
   phase?: 'nominations' | 'voting'
+  /**
+   * "11:00 AM – 4:00 PM", "from 11:00 AM", or undefined where no time was given.
+   *
+   * ── OPTIONAL, AND UNDEFINED IS A REAL ANSWER ──────────────────────────────────────
+   * "The reunion is on 4 July" is complete, and most gatherings are entered that way — so a
+   * chip renders nothing rather than an empty element with its own padding. `timeLabelFor` in
+   * `lib/gathering-when.ts` builds it and returns null for exactly that case.
+   *
+   * ── IT IS A LABEL, NOT AN INSTANT, AND NOTHING HERE SORTS BY IT ────────────────────
+   * `20260826000001`'s header argues it: a gathering's time is wall-clock, never converted,
+   * never compared across zones. The grid's ordering is by DATE and by title, which is what it
+   * has always been — adding a time to the sort would put a 9am chip above an all-day one and
+   * make the same month read differently depending on whether anybody had entered a time.
+   */
+  timeLabel?: string
   href: string
   isPremier?: boolean
 }

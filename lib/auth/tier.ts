@@ -132,3 +132,38 @@ export async function tierAllows(userId: string, resourceKey: string): Promise<b
 export async function familyShowsPhotos(userId: string): Promise<boolean> {
   return tierAllows(userId, 'personal-info/photo')
 }
+
+/**
+ * Does the family currently being viewed PLAN its gatherings, or only put them on the calendar?
+ *
+ * ── THE BOUNDARY RUNS THROUGH THE FEATURE, WHICH IS WHY THIS EXISTS ────────────────
+ * `/gatherings`, `/gatherings/calendar` and `/admin/gatherings` are Free — the DATE, the place
+ * and the description — and the planning half is Standard: the templates a gathering is built
+ * from, the tasks handed out from them, the money band. So a Free family has real gatherings
+ * with no tasks, no segments and nothing to organize, and four surfaces have to say so
+ * consistently: the member-facing detail page, the organizer console, the scheduling form and
+ * the status vocabulary.
+ *
+ * ── ONE FUNCTION SO THE KEY IS TYPED ONCE ──────────────────────────────────────────
+ * `familyShowsPhotos` above carries the argument in full and it applies verbatim: an
+ * UNREGISTERED key resolves to Free rather than failing, so a key move that left one of the
+ * call sites behind would silently keep OFFERING the planning half to a family that cannot use
+ * it — and `20260820000004` shipped exactly that failure four times over with nothing catching
+ * it for two days.
+ *
+ * ── IT IS KEYED ON THE TASKS, NOT ON THE TEMPLATES ─────────────────────────────────
+ * `gatherings/my-tasks` and `admin/gatherings/templates` are both Standard, so either answers
+ * the same today. The tasks key is the honest one: what a Free family is missing is the WORK
+ * being handed out and tracked, and the template library is the mechanism rather than the
+ * point. If the two ever separate, this is the half a screen means when it asks.
+ *
+ * ── AND IT IS A RENDER GATE, NEVER A WRITE GATE ────────────────────────────────────
+ * The actions behind the planning screens are deliberately NOT tier-checked (AGENTS.md: "the
+ * server actions behind a paid page are deliberately not tier-checked") — the first time a
+ * family downgraded, one would start answering "Not authorized" for their own records. A
+ * gathering that already has tasks keeps them, and a Free family is simply not shown the
+ * machinery for making more.
+ */
+export async function familyPlansGatherings(userId: string): Promise<boolean> {
+  return tierAllows(userId, 'gatherings/my-tasks')
+}

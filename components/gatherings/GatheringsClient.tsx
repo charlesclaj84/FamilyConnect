@@ -12,7 +12,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
-import { formatDateRange, todayLocal } from '@/lib/date-utils'
+import { todayLocal } from '@/lib/date-utils'
+import { WhenFields } from '@/components/gatherings/WhenFields'
+import {
+  WHEN_PROBLEM_TEXT, formatWhenBrief, whenProblems, type GatheringWhen,
+} from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { scheduleGathering, type GatheringSummary } from '@/app/actions/gatherings'
 
@@ -103,6 +107,20 @@ interface Props {
   mayAuthorTemplates: boolean
 }
 
+/**
+ * A fresh `when`: today, one occasion, no times.
+ *
+ * `todayLocal()` rather than a `Date` read anywhere else in this file — it is the app's one
+ * answer to "what day is it here", and the reason the dialog re-seeds during render rather than
+ * in an effect is that this must not be a frame behind (see the re-seed below).
+ */
+function todayWhen(): GatheringWhen {
+  return {
+    isContinuous: true,
+    occurrences: [{ startsOn: todayLocal(), startTime: null, endsOn: null, endTime: null }],
+  }
+}
+
 export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -110,8 +128,12 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [location, setLocation] = useState('')
-  const [startsOn, setStartsOn] = useState(todayLocal())
-  const [endsOn, setEndsOn] = useState('')
+  /**
+   * WHEN it happens — one value covering the date, the times, and whether it is one block or
+   * several occasions. It was two date strings until 2026-08-26; `WhenFields` owns the controls
+   * and `lib/gathering-when.ts` owns the rules, so nothing about either is decided here.
+   */
+  const [when, setWhen] = useState<GatheringWhen>(() => todayWhen())
   const [error, setError] = useState('')
   // Set when the gathering was created and something about it still needs saying — a template
   // whose steps could not be added. The row EXISTS, so navigating away silently would lose the
@@ -132,11 +154,12 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
     if (open) {
       setChosen([])
       setTitle(''); setSummary(''); setLocation('')
-      setStartsOn(todayLocal())
-      // A CLOSING date defaults to empty, never to today. `ends_on` is NULL for a one-day
-      // gathering, which is most of them, and pre-filling it would make every gathering a
-      // one-day range that reads as a mistake somebody has to undo.
-      setEndsOn('')
+      // TODAY, ONE OCCASION, NO TIMES — see `todayWhen`. A closing date defaults to empty and
+      // never to today: `ends_on` is NULL for a one-day gathering, which is most of them, and
+      // pre-filling it would make every gathering a one-day range somebody has to undo. The
+      // times default to empty for the same reason, and because most gatherings are entered as
+      // a date alone.
+      setWhen(todayWhen())
     }
   }
 
@@ -163,8 +186,19 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
   function handleSchedule() {
     const name = title.trim()
     if (!name) { setError('Give the gathering a title'); return }
-    if (!startsOn) { setError('Choose the day it starts'); return }
-    if (endsOn && endsOn < startsOn) { setError('The last day cannot be before the first'); return }
+    // ── THE DATE RULES ARE `whenProblems`, NOT THREE LINES HERE ──────────────────
+    // They were: a start is required, and an end cannot precede it. `whenProblems` is the same
+    // function the ACTION runs, so the form and the endpoint cannot come to disagree — and it
+    // knows about the four rules those three lines did not (times, their order within a day, an
+    // end time with no start, a continuous gathering with several occasions).
+    //
+    // `WhenFields` has already shown each one against the row it belongs to, so the summary
+    // here is only for somebody who pressed the button anyway.
+    const problems = whenProblems(when)
+    if (problems.length > 0) {
+      setError(WHEN_PROBLEM_TEXT[problems[0].code])
+      return
+    }
 
     setError('')
     startTransition(async () => {
@@ -172,8 +206,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
         title: name,
         summary: summary.trim() || undefined,
         location: location.trim() || undefined,
-        startsOn,
-        endsOn: endsOn || undefined,
+        when,
         // Order matters: the tasks are instantiated template by template in the order they
         // were named, and `position` on the junction row is what preserves it.
         templateIds: chosen,
@@ -331,34 +364,15 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gathering-starts" required>First day</Label>
-              <Input
-                id="gathering-starts"
-                type="date"
-                value={startsOn}
-                onChange={e => { setStartsOn(e.target.value); setError('') }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {/* `min` IS THE START DATE — added 2026-08-20 across every start/end pair in the
-                  app. `gatherings_dates_ordered` refuses `ends_on < starts_on` in the database
-                  and the action turns that 23514 into a sentence, which is the right boundary
-                  and the wrong first line of defence: a picker that greys out the impossible
-                  days never produces one, so nobody meets the refusal at all. The CHECK stays
-                  underneath for a caller that is not this form. */}
-              <Label htmlFor="gathering-ends">Last day</Label>
-              <Input
-                id="gathering-ends"
-                type="date"
-                min={startsOn || undefined}
-                value={endsOn}
-                onChange={e => { setEndsOn(e.target.value); setError('') }}
-              />
-              <p className="text-xs text-muted-foreground">Leave empty for one day.</p>
-            </div>
-          </div>
+          {/* WHEN — one component, shared with the organizer's edit panel. Two copies would be
+              two answers to "is the end allowed to be before the start" the moment one was
+              edited; see `WhenFields`. */}
+          <WhenFields
+            value={when}
+            onChange={next => { setWhen(next); setError('') }}
+            idPrefix="gathering"
+            disabled={isPending}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="gathering-location">Where</Label>
@@ -447,7 +461,13 @@ function Section({ heading, rows, empty }: {
  * out terracotta (gold, in dark mode).
  */
 function GatheringCard({ row }: { row: GatheringRow }) {
-  const dates = formatDateRange(row.startsOn, row.endsOn)
+  // ── THE WHOLE ANSWER, NOT A RANGE OVER THE ENVELOPE ─────────────────────────────
+  // A series of three Saturdays has an envelope of a fortnight, and `formatDateRange` over it
+  // claims a fortnight the family is not gathering for — which is the misreading the When
+  // feature exists to fix, so no list may reintroduce it. `formatWhenBrief` reads the four
+  // materialised envelope fields plus the occurrence count and says "3 days from July 4th"
+  // instead, and appends the times where there are any.
+  const dates = formatWhenBrief(row)
   const { total, approved } = row.taskCounts
 
   return (

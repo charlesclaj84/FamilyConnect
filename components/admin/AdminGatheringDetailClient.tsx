@@ -17,13 +17,19 @@ import { PersonPicker } from '@/components/ui/person-picker'
 import { HelpLink } from '@/components/help/HelpLink'
 import type { SelectablePerson } from '@/components/ui/person-multi-select'
 import { GatheringStatusPill, TaskStatusPill } from '@/components/gatherings/StatusPill'
+import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
+import { WhenFields } from '@/components/gatherings/WhenFields'
+import {
+  WHEN_PROBLEM_TEXT, formatWhen, formatWhenBrief, whenProblems,
+  type GatheringWhen,
+} from '@/lib/gathering-when'
 import { BudgetBand } from '@/components/gatherings/BudgetBand'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { GATHERING_PILL_SHAPE, GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
 import { disambiguatedName } from '@/lib/name-utils'
-import { formatDate, formatDateRange } from '@/lib/date-utils'
+import { formatDate } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import {
   GATHERING_STATUSES, GATHERING_STATUS_LABEL, type GatheringStatus,
@@ -139,6 +145,16 @@ interface Props {
   members: SelectablePerson[]
   funds: FundOption[]
   templates: TemplateOption[]
+  /**
+   * Does the family's plan include the planning half at all?
+   *
+   * FALSE ON FREE, where a gathering is a date, a place and a description. It withholds the
+   * Segments and Tasks panels ENTIRELY rather than rendering their empty states, because both
+   * of those empty states are instructions — "add a template above and its steps become tasks
+   * here" — for a control the family does not have. The page resolves it from
+   * `admin/gatherings/templates`; see its header.
+   */
+  plansGatherings: boolean
   mayEdit: boolean
   mayDelete: boolean
   mayManageBudget: boolean
@@ -160,8 +176,31 @@ interface Props {
   mayViewAccounting: boolean
 }
 
+/**
+ * The gathering's `when`, from its occurrences — or from the ENVELOPE where those could not be
+ * read.
+ *
+ * The fallback is not a nicety: `occurrences` is null on a refused read, and a panel that
+ * refused to open over it would leave an organizer unable to edit a title. What it produces is
+ * exactly what the envelope already says, so saving it changes nothing about the dates.
+ */
+function whenOf(gathering: AdminGatheringDetail): GatheringWhen {
+  if (gathering.occurrences && gathering.occurrences.length > 0) {
+    return { isContinuous: gathering.isContinuous, occurrences: gathering.occurrences }
+  }
+  return {
+    isContinuous: true,
+    occurrences: [{
+      startsOn: gathering.startsOn,
+      startTime: gathering.startTime,
+      endsOn: gathering.endsOn,
+      endTime: gathering.endTime,
+    }],
+  }
+}
+
 export function AdminGatheringDetailClient({
-  gathering, members, funds, templates, mayEdit, mayDelete, mayManageBudget,
+  gathering, members, funds, templates, plansGatherings, mayEdit, mayDelete, mayManageBudget,
   mayViewMemberPage, mayViewAccounting,
 }: Props) {
   const router = useRouter()
@@ -174,8 +213,18 @@ export function AdminGatheringDetailClient({
   const [title, setTitle] = useServerState(gathering.title)
   const [summary, setSummary] = useServerState(gathering.summary ?? '')
   const [location, setLocation] = useServerState(gathering.location ?? '')
-  const [startsOn, setStartsOn] = useServerState(gathering.startsOn)
-  const [endsOn, setEndsOn] = useServerState(gathering.endsOn ?? '')
+  /**
+   * WHEN it happens — one value covering the dates, the times and the shape.
+   *
+   * `useServerState` on the WHOLE thing rather than on two date strings, so a save elsewhere on
+   * the page (or another organizer's) re-seeds it as one — a half-adopted `when` is two facts
+   * that disagree, which is what this feature's schema is arranged to prevent.
+   *
+   * THE ENVELOPE IS THE FALLBACK when `occurrences` is null, which means the read failed rather
+   * than that there are no dates. An approximate starting point beats a form that cannot open,
+   * and saving it writes exactly what the envelope already said.
+   */
+  const [when, setWhen] = useServerState<GatheringWhen>(whenOf(gathering))
   const [status, setStatus] = useServerState<GatheringStatus>(gathering.status)
   const [isPremier, setIsPremier] = useServerState(gathering.isPremier)
   const [budget, setBudget] = useServerState<GatheringBudgetView | null>(gathering.budget)
@@ -216,29 +265,36 @@ export function AdminGatheringDetailClient({
   const detailsDirty = title.trim() !== gathering.title
     || summary.trim() !== (gathering.summary ?? '')
     || location.trim() !== (gathering.location ?? '')
-    || startsOn !== gathering.startsOn
-    || endsOn !== (gathering.endsOn ?? '')
+    // A DEEP COMPARISON, because `when` is a structure and a shallow one would report every
+    // render as dirty. JSON is honest here: every field is a string, a boolean or null, in a
+    // fixed order that both sides build the same way.
+    || JSON.stringify(when) !== JSON.stringify(whenOf(gathering))
     || status !== gathering.status
 
   function handleSaveDetails() {
     const nextTitle = title.trim()
     if (!nextTitle) { setDetailsError('A gathering needs a title'); return }
-    if (!startsOn) { setDetailsError('Choose the date the gathering starts'); return }
-    // Checked here as well as in the action, which reads the STORED row to compare a field the
-    // form did not send. `gatherings_dates_ordered` is the boundary; this is the sentence.
-    if (endsOn && endsOn < startsOn) {
-      setDetailsError('The gathering cannot end before it starts')
+    // ── THE DATE RULES ARE `whenProblems`, NOT TWO LINES HERE ────────────────────
+    // They were: a start is required, and an end cannot precede it. `whenProblems` is the same
+    // function `updateGathering` runs, so the panel and the endpoint cannot come to disagree —
+    // and it knows about the rules those two lines did not (times, their order within a day, an
+    // end time with no start, a continuous gathering carrying several occasions).
+    //
+    // `WhenFields` has already shown each problem against the row it belongs to, so this is the
+    // summary for somebody who pressed Save anyway.
+    const problems = whenProblems(when)
+    if (problems.length > 0) {
+      setDetailsError(WHEN_PROBLEM_TEXT[problems[0].code])
       return
     }
-    setDetailsError('')
+
     startTransition(async () => {
       const result = await updateGathering({
         gatheringId: gathering.id,
         title:       nextTitle,
         summary:     summary.trim() || null,
         location:    location.trim() || null,
-        startsOn,
-        endsOn:      endsOn || null,
+        when,
         status,
       })
       if (!result.success) { setDetailsError(result.message ?? 'Could not save that gathering'); return }
@@ -423,7 +479,15 @@ export function AdminGatheringDetailClient({
           <div className="min-w-0">
             <h1 className="mb-1 text-3xl font-bold">{gathering.title}</h1>
             <p className="text-muted-foreground">
-              {formatDateRange(gathering.startsOn, gathering.endsOn) ?? 'No dates yet'}
+              {/* THE WHOLE ANSWER, not a range over the envelope. A series of three Saturdays
+                  has an envelope of a fortnight, and printing that as a range claims a
+                  fortnight the family is not gathering for — see `formatWhen`. */}
+              {(gathering.occurrences
+                ? formatWhen({
+                  isContinuous: gathering.isContinuous,
+                  occurrences: gathering.occurrences,
+                })
+                : formatWhenBrief(gathering)) ?? 'No dates yet'}
               {gathering.location && ` · ${gathering.location}`}
               {gathering.createdBy && ` · started by ${nameOf(gathering.createdBy)}`}
             </p>
@@ -485,36 +549,22 @@ export function AdminGatheringDetailClient({
                 disabled={isPending}
                 onChange={e => setStatus(e.target.value as GatheringStatus)}
               >
-                {GATHERING_STATUSES.map(s => (
-                  <option key={s} value={s}>{GATHERING_STATUS_LABEL[s]}</option>
-                ))}
+                {/* ── PLANNING IS NOT OFFERED WHERE NOTHING CAN BE PLANNED ─────
+                    On Free a gathering has no templates and no tasks, so "Planning" is a
+                    state it can be put into and never come out of by doing anything. The
+                    other three are all real there: Scheduled is where it starts, and
+                    Complete and Cancelled are both statements an organizer makes about a date.
+
+                    THE CURRENT VALUE IS KEPT IF IT IS ALREADY PLANNING, which covers the
+                    family that planned a gathering on Standard and has since lapsed. A select
+                    whose options exclude its own value renders as the first option instead,
+                    and the next save would silently move a status nobody touched. */}
+                {GATHERING_STATUSES
+                  .filter(s => plansGatherings || s !== 'planning' || gathering.status === 'planning')
+                  .map(s => (
+                    <option key={s} value={s}>{GATHERING_STATUS_LABEL[s]}</option>
+                  ))}
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gathering-starts" required>Starts</Label>
-              <Input
-                id="gathering-starts" type="date"
-                value={startsOn}
-                disabled={isPending}
-                onChange={e => { setStartsOn(e.target.value); setDetailsError('') }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {/* `min` IS THE START DATE — added 2026-08-20 across every start/end pair in the
-                  app. `gatherings_dates_ordered` refuses `ends_on < starts_on` in the database
-                  and the action turns that 23514 into a sentence, which is the right boundary
-                  and the wrong first line of defence: a picker that greys out the impossible
-                  days never produces one, so nobody meets the refusal at all. The CHECK stays
-                  underneath for a caller that is not this form. */}
-              <Label htmlFor="gathering-ends">Ends</Label>
-              <Input
-                id="gathering-ends" type="date"
-                min={startsOn || undefined}
-                value={endsOn}
-                disabled={isPending}
-                onChange={e => { setEndsOn(e.target.value); setDetailsError('') }}
-              />
-              <p className="text-xs text-muted-foreground">Leave empty for a single day.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gathering-location">Location</Label>
@@ -526,6 +576,16 @@ export function AdminGatheringDetailClient({
               />
             </div>
           </div>
+          {/* WHEN — one component, shared with the member's scheduling dialog. Outside the
+              two-column grid above because it is a fieldset with its own layout: squeezed into
+              one column its own date/time pairs would stack into a ladder. */}
+          <WhenFields
+            value={when}
+            onChange={next => { setWhen(next); setDetailsError('') }}
+            idPrefix="gathering-when"
+            disabled={isPending}
+          />
+
           <div className="space-y-1.5">
             <Label htmlFor="gathering-summary">Summary</Label>
             <Textarea
@@ -690,6 +750,21 @@ export function AdminGatheringDetailClient({
         </section>
       )}
 
+      {/* ── PLANNING, OR THE ONE SENTENCE THAT SAYS IT IS NOT INCLUDED ───────────
+          Segments and Tasks are the whole planning half and they go together: a segment is a
+          template attached to this gathering and a task is a step of one. On Free the page
+          above has already declined to fetch any template, so both panels would render their
+          empty states — and both of those empty states are INSTRUCTIONS ("add a template above
+          and its steps become tasks here") for a control that is not on the screen. That is
+          worse than absence: it reads as a broken feature rather than an unbought one.
+
+          Everything ABOVE this line stays: what the gathering is, when and where, its status,
+          and the budget band where the plan includes it. A Free family's organizer console is a
+          real console — it just edits a date rather than running a plan. */}
+      {!plansGatherings ? (
+        <PlanningUpsell />
+      ) : (
+      <>
       {/* ── Segments ─────────────────────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
         <div>
@@ -911,6 +986,9 @@ export function AdminGatheringDetailClient({
         )}
         <FormError message={taskError} />
       </section>
+
+      </>
+      )}
 
       {managing && (
         // Keyed by the task, so opening a different row remounts the dialog and its drafts are

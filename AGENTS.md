@@ -4154,13 +4154,28 @@ installed GENORRA shows on a home screen, and the gold-on-burgundy treatment is 
 there: it does not look like the brand people meet on the site, where the rail draws the
 full-colour mark at 64px. Reported by a member who installed it: the icon "wasn't colorful".
 
-The gold tile did not go away and **must not be folded back into the app icons.** It is
-`genorra-mail-mark-256.png`, used by the five auth templates and `lib/email/layout.ts`, and its
-ground is `#6b2d3a` — the same burgundy as the email header's band, because the tile is meant
-to DISAPPEAR into it and leave the gold mark on the band. One shared file could not be both:
-repointing the manifest alone would have put a cream square on that band in every transactional
-email the product sends. So the rule for this folder is **a file per ROLE, and a role is a
-surface with its own constraints** — `supabase/templates/README.md` carries the measurement.
+**MAIL USES THE FULL-COLOUR TILE TOO, SINCE 2026-08-26, AND THE GOLD ONE IS NOW REFERENCED BY
+NOTHING.** This paragraph said the gold tile was "used by the five auth templates and
+`lib/email/layout.ts`" because its ground is `#6b2d3a` — the same burgundy as the email
+header's band — so the tile DISAPPEARED into the band and left the gold mark on it. That was
+the more elegant composition and it had one cost that outweighed it: **mail was the only
+surface where GENORRA was monochrome.** The rail draws the full-colour mark at 64px, the
+installed icon is the full-colour tile, and the first thing a new member ever saw from this
+product was gold on burgundy — so it did not look like the product. Same complaint as the
+manifest's, one surface later.
+
+The templates and `lib/email/layout.ts` point at `genorra-app-256.png` now, on the same
+burgundy band, with `border-radius:14px` so a cream tile on burgundy reads as an app-icon badge
+rather than as a rendering fault. **That cream square is now deliberate** — it is precisely
+what the old note warned about happening by accident, which is why it is worth saying twice.
+
+`genorra-mail-mark-256.png` stays in `public/identity/` referenced by nothing: it is the
+artwork a dark-banded design would need, and re-deriving it from the kit is a `design/` lookup
+rather than a copy. **Do not repoint the manifest at it.** The rule for this folder is still
+**a file per ROLE, and a role is a surface with its own constraints** — what changed is that
+two roles turned out to want the same file, not that the rule stopped applying.
+`supabase/templates/README.md` carries the measurements, including the two dark-mode gaps that
+made the confirm button's label invisible.
 
 The favicon is neither tile: `app/favicon.ico` and the kit's own favicons are the burgundy
 mark, which is right at 16px. Do not sweep those to match either of the others.

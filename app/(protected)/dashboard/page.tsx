@@ -582,23 +582,30 @@ export default async function DashboardPage() {
         <LinkPersonBanner unlinkedPeople={linkBannerData.unlinkedPeople} />
       )}
 
-      {/* BOTH BANNERS CAN SHOW AT ONCE, and the profile one goes first: it is the broader
-          ask, and the chapter picker below it is one of the things a member would otherwise
-          go looking for on the profile page. Neither is dismissible in the same way — see
-          ProfileReminderBanner on why this one has no X. */}
-      <ProfileReminderBanner completeness={completeness} />
-      {needsChapter && <ChapterReminderBanner chapters={chapters} />}
+      {/* FIRST IN THE MARKUP SINCE 2026-08-26, AND IT USED TO BE LAST. The old ordering was
+          argued from the reader's side — the two banners below are things the MEMBER has not
+          finished, this is a thing the FAMILY has not finished, and a payment prompt above
+          "add a photograph to your profile" would make the product's first word to a new
+          administrator a request for money.
 
-      {/* FIRST OF THE BANNERS IN INTENT AND LAST IN THE MARKUP, which is a deliberate
-          ordering rather than an accident of where it was added: the two above are things
-          the MEMBER has not finished, and this is a thing the FAMILY has not finished.
-          Putting a payment prompt above "add a photograph to your profile" would make the
-          product's first word to a new administrator a request for money.
+          Right instinct, wrong reader. This renders ONLY for somebody who holds
+          `admin/family:edit` and whose family recorded a paid plan at signup: they chose it,
+          they are expecting to be charged, and finishing it is the thing they are most likely
+          to have come looking for. Reported as: created a family on Standard, logged in, and
+          was never reminded or directed to complete the payment. A prompt nobody notices is
+          not restraint — see PlanSetupBanner.
 
           It is its own component and not a row in Recent Updates because it is not news —
           it is a decision waiting on somebody, and it goes away when they take it either
           way. */}
       {signupPlan && <PlanSetupBanner tier={signupPlan.tier} />}
+
+      {/* BOTH OF THESE CAN SHOW AT ONCE, and the profile one goes first of the two: it is
+          the broader ask, and the chapter picker below it is one of the things a member would
+          otherwise go looking for on the profile page. Neither is dismissible in the same way
+          — see ProfileReminderBanner on why this one has no X. */}
+      <ProfileReminderBanner completeness={completeness} />
+      {needsChapter && <ChapterReminderBanner chapters={chapters} />}
 
       {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather
           than a deletion. Pinned news used to render here as its own card between the

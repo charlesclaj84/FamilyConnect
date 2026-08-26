@@ -247,31 +247,43 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'General', text: 'Name, preferred name, phone, email, birthday, and your photo.' },
                 { term: 'Address', text: 'Where you live. Used by the Directory and by anything the family posts to you.' },
                 { term: 'Additional Information', text: 'T-shirt size, chapter, and the other details events and reports ask for.' },
-                { term: 'Text Messages', text: 'A mobile number your family can reach you on for safety check-ins, and whether they may.' },
+                { term: 'Notifications', text: 'What your family may contact you about and how — a switch per notification, per channel.' },
                 { term: 'Sign-in & Security', text: 'The address you sign in with, and your password.' },
               ),
             ],
           },
           {
-            id: 'text-messages',
-            heading: 'Text messages',
+            id: 'notifications',
+            heading: 'Notifications',
             blocks: [
-              p('**Text Messages** holds two separate things, and both have to be in place before your family can text you.'),
-              steps(
-                'A mobile number, confirmed. You type it, we send a six-digit code, and you type the code back. Until that is done the number is shown as **Not confirmed yet** and nothing is sent to it.',
-                'Your agreement. A separate **Agree to texts** control, because giving us a number is not the same as saying we may use it.',
+              p('**Notifications** is a grid: a row for each thing your family can contact you about, and a column for each way it could reach you — **Email**, **SMS** and **Push Notification**. Each cell is one press, **On** or **Off**, and it saves the moment you press it. There is nothing to submit.'),
+              p('It uses the email address and mobile number already in your **General** details. Both are shown at the top of the screen so you can see where a notification would go, and changing either one there changes it for every notification at once. This screen never asks you for a second number.'),
+              defs(
+                { term: 'Safety Check', text: 'Your family raises a check-in during a storm, an evacuation or an emergency and asks whether you are safe. Email is on unless you turn it off; SMS is off unless you turn it on.' },
               ),
-              note('Text messages are not switched on yet. You can add your number and record your choice now — the page says so at the top — and the number will be confirmed as soon as they are.'),
-              p('The panel tells you if something is still missing. "Agreed" beside an unconfirmed number does not mean you will be texted, so the screen says which step is outstanding rather than leaving you to work it out.'),
+              note('**Email is on by default and SMS is not**, and that is deliberate rather than inconsistent. A check-in that reaches nobody is the thing worth avoiding, and your family already has your address — but a text has to be agreed to before anybody sends one, so nothing about SMS is ever on because you did not notice it.'),
+              note('**Push Notification** says **Not built yet** on every row. The column is there so you can see what is coming rather than being surprised by it later; nothing in the product sends one today.'),
             ],
           },
           {
-            id: 'text-messages-stopping',
+            id: 'notifications-delivery',
+            heading: 'When On does not mean it will arrive',
+            blocks: [
+              p('A switch says what you have asked for. Whether we can actually deliver it is a separate question, and the screen says so underneath the grid rather than letting **On** imply more than it should.'),
+              bullets(
+                'No email address on file, or only a placeholder one — nothing marked on for Email can arrive. Add a real address under **General**.',
+                'No mobile number on file — nothing marked on for SMS can arrive.',
+                'A mobile number we have not confirmed yet — we send a six-digit code to it before we text you anything.',
+                'Text messages not switched on yet at our end. You can record your choice now and we will start using it as soon as they are.',
+              ),
+            ],
+          },
+          {
+            id: 'notifications-stopping',
             heading: 'Stopping texts',
             blocks: [
-              p('**Turn off** stops them, immediately, with nothing to confirm and no reason asked for. You can turn them back on whenever you like.'),
-              p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. If you want them back, text **START** to the number that messaged you.'),
-              note('The number here is only for text messages. The phone number in your **General** details is what relatives see in the Directory, and changing one does not change the other — so you can list a landline for people to call and confirm a mobile for check-ins.'),
+              p('Turning the **SMS** cell off stops them immediately, with nothing to confirm and no reason asked for. You can turn it back on whenever you like.'),
+              p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. The cell says **Stopped** rather than offering a switch. If you want them back, text **START** to the number that messaged you.'),
             ],
           },
           {
@@ -1209,7 +1221,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('The page is two lists. **Coming up** holds everything that has not finished, soonest first; **Already held** holds the rest, most recent first. A gathering running over several days stays under Coming up on every one of them and is marked **Happening now** while it does.'),
               p('Each card carries the dates, the place, how far the work has got — "4 of 9 tasks approved", or **No tasks yet** for a gathering nothing has been added to — and a status. The status is set by whoever is organising rather than worked out from the calendar, because a gathering can be called off without its dates moving:'),
               defs(
-                { term: 'Planning', text: 'Being put together. Dates may still move.' },
+                { term: 'Planning', text: 'Being put together. Dates may still move. Only a gathering built from templates starts here — one that is just a date starts at Scheduled, because there is nothing to plan.' },
                 { term: 'Scheduled', text: 'Settled, and going ahead.' },
                 { term: 'Complete', text: 'Finished, and said to be finished by whoever ran it.' },
                 { term: 'Cancelled', text: 'Called off. Nothing is deleted and it can be set back.' },
@@ -1225,11 +1237,32 @@ export const HELP_PARTS: readonly HelpPart[] = [
               steps(
                 'Press **Schedule a gathering**.',
                 'Tick any templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out, and each template you tick becomes a segment of the gathering. Tick none and the gathering is a date with no tasks.',
-                'Fill in **Title** and **First day**, and **Last day** only if it runs more than one day.',
+                'Fill in **Title**.',
+                'Fill in **When** — see below. A date is all that is required.',
                 '**Where** and **What it is** are optional.',
                 'Press **Schedule gathering**. You land on the gathering itself, where any tasks it just made are waiting.',
               ),
               p('Each template decides for itself who may schedule from it, so the list offered here is not the whole library — one set to Administrators only is not on it unless you can manage gatherings, and an archived template cannot start anything new. Where nothing is offered at all, the form says the gathering will be a date with no tasks and points at the library for whoever can author one: nothing is wrong with your access.'),
+            ],
+          },
+          {
+            id: 'when',
+            heading: 'When it happens',
+            blocks: [
+              p('**When** is the same set of controls wherever a gathering is created or edited. A date is the only thing it insists on; everything else is there when you need it.'),
+              defs(
+                { term: 'Starts', text: 'The day it begins, and — if you want to say so — the time. Leave the time empty and the gathering is just "on that day", which is how most are entered.' },
+                { term: 'End time', text: 'When it finishes. On a single day this is a time and nothing else: a picnic that runs from 11 to 4 has an end time and no end date.' },
+                { term: 'Runs over more than one day', text: 'Tick this and one more question appears, because two very different things both take more than a day.' },
+              ),
+              p('That question is the important one:'),
+              defs(
+                { term: 'One continuous block', text: 'A reunion from Friday evening to Sunday lunchtime. Give the day it ends and, if you like, the time. It draws as one bar spanning those days on [the calendar](/gatherings/calendar).' },
+                { term: 'Separate days, same gathering', text: 'A committee meeting on three Saturdays. Add a row for each day, each with its own times. Every one draws as its own entry on the calendar, all carrying this gathering\'s title.' },
+              ),
+              note('The difference matters more than it looks. Before this existed, three Saturdays had to be entered as a first day and a last day — which put a bar across the whole fortnight and told the family they were gathering for two weeks. Separate days say what is actually happening.'),
+              p('**The end can never be before the start.** The date pickers grey out the impossible days, and if you get there another way the form says so rather than saving it. The same applies to times within one day — 2pm to 9am is not a gathering — while across days it is perfectly ordinary, so Friday 6pm to Sunday 11am is accepted.'),
+              note('A time here has no timezone. It means what it says where the gathering is, exactly as it would on a printed invitation, and nothing converts it for anybody.'),
             ],
           },
           {
@@ -1244,7 +1277,16 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Approved', text: 'Accepted. That answer is the family\'s record of it and the person who sent it cannot change it.' },
                 { term: 'Needs another look', text: 'Handed back with notes. The notes are on the row, and whoever holds the task reads them on [My Gathering Tasks](/gatherings/my-tasks).' },
               ),
-              p('**Organize this gathering** appears for somebody who can run it and leads to the same gathering on [Gathering Management](/admin/gatherings), where the work is handed out and ruled on.'),
+              p('**Organize this gathering** appears for somebody who can run it and leads to the same gathering on [Gathering Management](/admin/gatherings), where the work is handed out and ruled on. On the Free plan it says **Edit this gathering** instead and goes to the same place — there is no work to hand out, so the console is where the title, the dates, the place and the status are changed.'),
+            ],
+          },
+          {
+            id: 'free-plan',
+            heading: 'Gatherings on the Free plan',
+            blocks: [
+              p('A gathering is a date, a place and a description on the Free plan, and that is a complete feature: it goes on [the calendar](/gatherings/calendar), every relative can see it, and it can be edited or cancelled at any time.'),
+              p('What Free does not include is the planning half — the checklists a gathering is built from, the tasks handed out to relatives by name, and the budget drawn on a fund. So there is no **Planning** status, no **Segments**, no **Tasks**, and nothing to organise; the gathering\'s page says what those would add rather than showing empty panels for them.'),
+              note('Nothing is lost by staying on Free and nothing is lost by leaving it. A family that upgrades can start handing out work on gatherings it already has, and one that lapses keeps every task and answer already recorded — they simply cannot add more.'),
             ],
           },
           {
@@ -2981,8 +3023,12 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'A plan chosen when the family was created',
             blocks: [
               p('Choosing Standard or Plus on the pricing page, or on the registration form, does not pay for it — there is no family to bill yet and no account to charge. The choice is remembered against the family instead.'),
-              p('Once the email address is confirmed and whoever created the family signs in, the dashboard carries **Finish setting up** with that plan named, which goes to the Billing section. Until then the family is on Free and nothing has been charged.'),
-              p('**Stay on Free** on that prompt stops it being shown. It cancels nothing and buys nothing — every plan is still on sale in Settings afterwards.'),
+              p('Once the email address is confirmed and whoever created the family signs in, the dashboard leads with **Finish paying for** that plan, above everything else it has to say. It carries two buttons.'),
+              defs(
+                { term: 'Pay Now', text: 'Takes you straight to Stripe to pay monthly, starting with the rest of this month. There is no separate screen to find first.' },
+                { term: 'Cancel', text: 'Drops the plan the family asked for and leaves it on Free. It cancels nothing at Stripe and buys nothing — every plan is still on sale in Settings afterwards.' },
+              ),
+              p('A link under the buttons goes to the Billing section instead, which is where months can be bought in advance. Until a payment goes through the family is on Free and nothing has been charged.'),
             ],
           },
           {

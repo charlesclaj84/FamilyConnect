@@ -240,10 +240,19 @@ function EntryBar({ bar }: { bar: CalendarBar }) {
         bar.continuesBefore ? 'rounded-l-none' : 'rounded-l',
         bar.continuesAfter ? 'rounded-r-none' : 'rounded-r',
       )}
-      title={bar.entry.title}
+      title={bar.entry.timeLabel
+        ? `${bar.entry.title} · ${bar.entry.timeLabel}`
+        : bar.entry.title}
     >
       <ToneIcon tone={tone} />
-      <span className="sr-only">{ENTRY_KIND_WORD[tone]}{runWords}: </span>
+      {/* THE TIME IS IN THE HOVER TITLE AND THE SCREEN-READER RUN, NOT ON THE BAR ITSELF.
+          A bar is `h-5` and already truncates its title, so a time rendered inside it would be
+          the first thing cut off — a half-shown "11:0" is worse than no time at all. The agenda
+          below has room and prints it; this keeps the grid legible at its own size. */}
+      <span className="sr-only">
+        {ENTRY_KIND_WORD[tone]}{runWords}
+        {bar.entry.timeLabel ? `, ${bar.entry.timeLabel}` : ''}:{' '}
+      </span>
       {/* `min-w-0` is what lets a flex child shrink below its content, and without it the
           title would push the bar wider than the width set above and out past the table. */}
       <span className="min-w-0 truncate">{bar.entry.title}</span>
@@ -272,7 +281,7 @@ function EntryChip({ entry }: { entry: CalendarEntry }) {
         'block min-w-0 truncate rounded px-1.5 py-0.5 text-xs hover:opacity-90',
         ENTRY_TONE[tone],
       )}
-      title={entry.title}
+      title={entry.timeLabel ? `${entry.title} · ${entry.timeLabel}` : entry.title}
     >
       {/* Wrapped so it is not an empty margin for a plain gathering, which has no glyph. */}
       {tone !== 'gathering' && (
@@ -281,6 +290,14 @@ function EntryChip({ entry }: { entry: CalendarEntry }) {
       {/* Says in words what the colour says in colour. */}
       <span className="sr-only">{ENTRY_KIND_WORD[tone]}: </span>
       {entry.title}
+      {/* THE TIME, on the agenda only — see `EntryBar` for why the grid's bars carry it in
+          their hover title instead. `opacity-80` rather than a muted token: this sits ON a
+          filled tone, so a foreground from another pair is not a checked combination
+          (AGENTS.md, "the pairs are load-bearing") and dimming the one that IS checked is the
+          way to make it secondary without leaving the pair. */}
+      {entry.timeLabel && (
+        <span className="ml-1 opacity-80">· {entry.timeLabel}</span>
+      )}
     </Link>
   )
 }

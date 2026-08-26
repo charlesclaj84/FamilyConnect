@@ -130,6 +130,12 @@ export default async function AdminGatheringDetailPage({
         mayManageBudget={mayManageBudget}
         mayViewMemberPage={mayViewMemberPage}
         mayViewAccounting={mayViewAccounting}
+        /* WHETHER THE PLANNING HALF IS IN THE FAMILY'S PLAN AT ALL. `templatesInPlan` already
+           withheld the two template FETCHES above, which left this screen rendering a Segments
+           panel with nothing addable and a Tasks panel saying "add a template above" —
+           instructions for a control that is not there. This flag is what lets the client
+           replace both with the one honest sentence. Same key, one question. */
+        plansGatherings={templatesInPlan}
       />
     </PageShell>
   )

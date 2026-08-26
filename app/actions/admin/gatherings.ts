@@ -2,6 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  readOccurrences, resolveWhen, whenFromInput, writeOccurrences,
+} from '@/lib/gathering-when-write'
+import type { GatheringWhen } from '@/lib/gathering-when'
 // The USER client, for the ONE storage write in this module — so the `photos` bucket's own
 // family-folder policy is actually evaluated rather than bypassed by the service role.
 import { createClient } from '@/lib/supabase/server'
@@ -99,6 +103,19 @@ export interface AdminGatheringRow {
   location: string | null
   startsOn: string
   endsOn: string | null
+  /**
+   * The ENVELOPE's times, and whether it is one block or several occasions.
+   *
+   * All three are materialised on `gatherings` by `tg_gathering_when_envelope`, so a LIST of
+   * gatherings can say when each one is without a child join per row. `formatWhenBrief` is what
+   * reads them, and it refuses to print a range for a series — the envelope of three Saturdays
+   * is a fortnight, and claiming a fortnight is the misreading this whole feature exists to fix.
+   */
+  startTime: string | null
+  endTime: string | null
+  isContinuous: boolean
+  /** How many occasions there are, so `formatWhenBrief` can say "3 days from…". */
+  occurrenceCount: number
   status: GatheringStatus
   isPremier: boolean
   /**
@@ -183,6 +200,17 @@ export interface AdminGatheringTaskRow {
 }
 
 export interface AdminGatheringDetail extends AdminGatheringRow {
+  /**
+   * Every occasion, in entry order — what the edit panel loads into `WhenFields`.
+   *
+   * NULL where the read failed, which is different from a gathering with no dates: the database
+   * does not permit that. The panel falls back to the envelope so the form can still be opened
+   * and saved, which beats a form that cannot open. Same field and same rule as
+   * `GatheringDetail.occurrences` on the member's side.
+   */
+  occurrences:
+    { startsOn: string; startTime: string | null; endsOn: string | null; endTime: string | null }[]
+    | null
   tasks: AdminGatheringTaskRow[]
 }
 
@@ -238,8 +266,14 @@ type AdminClient = ReturnType<typeof createAdminClient>
 
 const CREATOR_EMBED = 'creator:people!gatherings_created_by_fkey(first_name, last_name)'
 
+// `start_time`, `end_time` and `is_continuous` arrived with `20260826000001`. All three are on
+// the parent because they are the ENVELOPE — materialised from `gathering_occurrences` by
+// trigger — and a list of gatherings must be able to say when each one is without a child join
+// per row. `occurrence_count` is the one thing that is not a column: a series needs to say how
+// many days it is rather than printing its envelope as a range, so it is counted separately.
 const GATHERING_COLUMNS =
-  'id, title, summary, location, starts_on, ends_on, status, is_premier, photo_path, created_by'
+  'id, title, summary, location, starts_on, ends_on, start_time, end_time, is_continuous, '
+  + 'status, is_premier, photo_path, created_by'
 
 /**
  * Two select strings, and the difference between them is §5.
@@ -252,11 +286,24 @@ const GATHERING_COLUMNS =
 const GATHERING_SELECT = `${GATHERING_COLUMNS}, ${CREATOR_EMBED}`
 const GATHERING_SELECT_WITH_MONEY = `${GATHERING_COLUMNS}, budget_cents, fund_id, ${CREATOR_EMBED}`
 
+/**
+ * Postgres hands a TIME back as `11:00:00` and every consumer expects `HH:MM`.
+ *
+ * Trimmed HERE rather than at each consumer, so no screen has to remember — and never parsed
+ * into a `Date`: these are wall-clock labels, not instants (`20260826000001`'s header).
+ */
+function trimTime(raw: string | null | undefined): string | null {
+  return raw ? String(raw).slice(0, 5) : null
+}
+
 interface GatheringDbRow {
   id: string
   title: string
   summary: string | null
   location: string | null
+  start_time: string | null
+  end_time: string | null
+  is_continuous: boolean
   starts_on: string
   ends_on: string | null
   status: string
@@ -639,6 +686,13 @@ export async function getAdminGatherings(): Promise<AdminGatheringRow[]> {
     location:   row.location,
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
+    startTime:  trimTime(row.start_time),
+    endTime:    trimTime(row.end_time),
+    isContinuous: row.is_continuous !== false,
+    // FILLED IN BY THE CALLER where it knows better. One is the honest default rather than
+    // zero: every gathering has at least one occurrence (the backfill guarantees it), and a
+    // zero here would make `formatWhenBrief` print "0 days from…".
+    occurrenceCount: 1,
     status:     row.status as GatheringStatus,
     isPremier:  row.is_premier,
     // Built rather than stored — see the interface. `getPublicUrl` is a pure string build
@@ -748,12 +802,18 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     ((templatesRes.data ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name]),
   )
 
-  const [submissions, budgets] = await Promise.all([
+  const [submissions, budgets, occurrenceMap] = await Promise.all([
     submissionsFor(admin, g.familyCode, taskRows.map(t => t.id)),
     canSeeBudget
       ? budgetsFor(admin, g.familyCode, [row])
       : Promise.resolve(new Map<string, GatheringBudgetView>()),
+    // ── EVERY OCCASION, WHICH IS WHAT THE EDIT PANEL LOADS ─────────────────────────
+    // On the ADMIN client with `.eq('family_code', …)` inside `readOccurrences` (§3), like
+    // every other read in this function — the console reads across a family's own records by
+    // design and the family conjunct is what keeps it to one.
+    readOccurrences(admin, g.familyCode, [gatheringId]),
   ])
+  const occurrences = occurrenceMap?.get(gatheringId) ?? null
 
   return {
     id:         row.id,
@@ -762,6 +822,13 @@ export async function getAdminGatheringDetail(gatheringId: string): Promise<Admi
     location:   row.location,
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
+    startTime:  trimTime(row.start_time),
+    endTime:    trimTime(row.end_time),
+    isContinuous: row.is_continuous !== false,
+    occurrenceCount: occurrences?.length ?? 1,
+    // NULL on a failed read, never an empty list — §8. The panel falls back to the envelope so
+    // the form can still be opened and saved, which beats a form that cannot open.
+    occurrences,
     status:     row.status as GatheringStatus,
     isPremier:  row.is_premier,
     // Built rather than stored — see the interface. `getPublicUrl` is a pure string build
@@ -1085,7 +1152,8 @@ function normalizeDate(value: string | null | undefined): string | null | undefi
  *  * **Money and the premier flag are accepted here.** Both are organizer decisions. `fund_id`
  *    is §4-checked before it is written, and a `budgetCents` with no fund is refused with a
  *    sentence rather than left to `gatherings_budget_needs_fund`'s 23514.
- *  * **`status` still takes its default of `'planning'`.** Creating the work and announcing it
+ *  * **`status` IS SET, and it is not always `'planning'`** — see the insert. Creating the work
+ *    and announcing it
  *    are two decisions; `updateGathering` moves it.
  *
  * `templateIds` MAY BE EMPTY IN BOTH, as of 2026-08-19, and this said the opposite — "a
@@ -1105,7 +1173,17 @@ export async function createGathering(input: {
   title: string
   summary?: string
   location?: string
-  startsOn: string
+  /**
+   * WHEN it happens — one continuous block, or several occasions carrying one title.
+   *
+   * `startsOn`/`endsOn` are the shape every caller sent until 2026-08-26 and are still read, as
+   * a one-occasion continuous `when`, where this is absent. Not politeness to an imaginary
+   * caller: this is a `'use server'` export, so a browser tab open across the deploy posts the
+   * old shape, and refusing it would fail a create with a message about a field that form does
+   * not have. `when` wins where both arrive.
+   */
+  when?: GatheringWhen
+  startsOn?: string
   endsOn?: string
   templateIds: string[]
   fundId?: string | null
@@ -1121,13 +1199,20 @@ export async function createGathering(input: {
   const title = (input.title ?? '').trim()
   if (!title) return { success: false, message: 'A gathering needs a title' }
 
-  const startsOn = normalizeDate(input.startsOn)
-  if (startsOn == null) return { success: false, message: 'Choose the date the gathering starts' }
-  const endsOn = normalizeDate(input.endsOn)
-  if (endsOn === undefined) return { success: false, message: 'That end date is not a real date' }
-  if (endsOn !== null && endsOn < startsOn) {
-    return { success: false, message: 'The gathering cannot end before it starts' }
-  }
+  // ── WHEN, RESOLVED THROUGH THE ONE RULE ────────────────────────────────────────
+  // This was three hand-written checks — a start, an end, and the ordering between them — and
+  // they are now `whenProblems`, which is the same function the form ran (§2: the form in front
+  // of an action is a convenience) and the same one `scheduleGathering` runs. The three CHECK
+  // constraints on `gathering_occurrences` state the same rules a third time, and that is not
+  // redundancy: this writes on the service role, so those constraints are the only thing
+  // underneath it.
+  //
+  // It hands back the ENVELOPE, which the insert below needs — `gatherings.starts_on` is NOT
+  // NULL and the parent row exists before its occurrences do.
+  const when = resolveWhen(whenFromInput(input))
+  if (!when.ok) return { success: false, message: when.message }
+  const startsOn = when.startsOn
+  const endsOn = when.endsOn
 
   const money = normalizeBudget(input.fundId ?? null, input.budgetCents ?? null)
   if ('message' in money) return { success: false, message: money.message }
@@ -1166,6 +1251,17 @@ export async function createGathering(input: {
       budget_cents: money.budgetCents,
       is_premier:   input.isPremier === true,
       created_by:   g.personId,
+      // ── SCHEDULED WHEN THERE IS NOTHING TO PLAN ──────────────────────────────────
+      // Same rule as `scheduleGathering`, and the same reason: 'Planning' describes a
+      // gathering with work in it that nobody has answered yet. A bare date with no templates
+      // has no work, so the status would never move off Planning and an organizer would be
+      // left setting it by hand on every gathering they create. See that action for the whole
+      // argument, including why this is a fact about the REQUEST rather than about the plan.
+      status:       templateIds.length > 0 ? 'planning' : 'scheduled',
+      // ONE BLOCK OR SEVERAL OCCASIONS. Written on the parent because every reader that only
+      // needs to know how to DRAW it — the calendar, the summary line — would otherwise have to
+      // count occurrences, and a series with one occasion entered so far is still a series.
+      is_continuous: when.normalised!.isContinuous,
     })
     .select('id')
     .single()
@@ -1175,6 +1271,14 @@ export async function createGathering(input: {
     return { success: false, message: error?.message ?? 'Could not create the gathering' }
   }
   const gatheringId = (created as { id: string }).id
+
+  // ── THE OCCURRENCES, WHICH ARE THE ONLY PLACE THE DATES REALLY LIVE ────────────
+  // The parent already carries the envelope from the insert above; the trigger recomputes it
+  // from these and its `WHERE` makes that a no-op. A failure here leaves the envelope and no
+  // occurrences, which `tg_gathering_when_envelope`'s zero-row branch is written for: the dates
+  // stay, so the gathering is visible and fixable rather than lost.
+  const written = await writeOccurrences(admin, g.familyCode, gatheringId, when.normalised!)
+  if (!written.ok) return { success: false, message: written.message }
 
   // `templates.rows` is in the order the caller named them (`resolveTemplates` puts it back
   // into that order), and `attachTemplatesToGathering` consumes it in order — which is what
@@ -1295,12 +1399,22 @@ async function resolveTemplates(
 /**
  * Edit a gathering's details, or move its status.
  *
- * ── THE DATE CHECK IS MADE AGAINST THE STORED ROW, NOT THE INPUT ────────────────────
- * A form that sends only `endsOn` still has to be checked against the `starts_on` already on
- * the row, and a form that sends only `startsOn` against the stored `ends_on`. Validating each
- * field in isolation is how a reunion comes to end before it begins with the CHECK constraint
- * as the only thing that notices — a 23514 naming `gatherings_dates_ordered`, which is not a
- * sentence for a person.
+ * ── `when` REPLACES THE DATES WHOLESALE, AND THE OLD PAIR IS STILL READ ─────────────
+ * A gathering's dates live in `gathering_occurrences` since 2026-08-26, so an edit to them is a
+ * REPLACEMENT of that set rather than a patch to two columns — an occurrence has no identity a
+ * form could carry, so "the same day, moved" and "one day removed and another added" are
+ * indistinguishable from outside and a diff would have to guess (`writeOccurrences` argues it).
+ *
+ * The four envelope columns on `gatherings` are maintained by trigger and refused to the
+ * `authenticated` role outright, so `starts_on` and `ends_on` are NOT in the patch any more.
+ * They arrive as `when` and are written through the child table.
+ *
+ * `startsOn`/`endsOn` are still accepted, read as a one-occasion continuous `when`, for the
+ * reason `whenFromInput` states: a browser tab open across the deploy posts the old shape.
+ * WHICH MATTERED MORE HERE than on the create actions — the previous version of this function
+ * checked a partial edit against the STORED row, so a form sending only `endsOn` was validated
+ * against the `starts_on` already there. A `when` is whole by construction, so that class of
+ * half-edit no longer exists; the stored row is read only to know whether anything is changing.
  *
  * `status` is checked against `GATHERING_STATUSES` rather than trusted: the parameter's type
  * annotation is erased at runtime and this is a public HTTP endpoint, so the only thing
@@ -1311,6 +1425,8 @@ export async function updateGathering(input: {
   title?: string
   summary?: string | null
   location?: string | null
+  /** The whole of when it happens. Replaces every occurrence; see the header. */
+  when?: GatheringWhen
   startsOn?: string
   endsOn?: string | null
   status?: GatheringStatus
@@ -1344,22 +1460,28 @@ export async function updateGathering(input: {
   if (input.summary !== undefined) patch.summary = (input.summary ?? '').trim() || null
   if (input.location !== undefined) patch.location = (input.location ?? '').trim() || null
 
-  let startsOn = current.starts_on
-  if (input.startsOn !== undefined) {
-    const parsed = normalizeDate(input.startsOn)
-    if (parsed == null) return { success: false, message: 'Choose the date the gathering starts' }
-    startsOn = parsed
-    patch.starts_on = parsed
-  }
-  let endsOn = current.ends_on
-  if (input.endsOn !== undefined) {
-    const parsed = normalizeDate(input.endsOn)
-    if (parsed === undefined) return { success: false, message: 'That end date is not a real date' }
-    endsOn = parsed
-    patch.ends_on = parsed
-  }
-  if (endsOn !== null && endsOn < startsOn) {
-    return { success: false, message: 'The gathering cannot end before it starts' }
+  // ── WHEN, IF THE CALLER SENT ANY OF IT ─────────────────────────────────────────
+  // Resolved BEFORE the parent update, so an unreadable set of dates refuses the whole edit
+  // rather than saving the title and then failing. `patch` deliberately gets no `starts_on` or
+  // `ends_on`: those are maintained by `tg_gathering_when_envelope` and refused to the
+  // `authenticated` role by `gatherings_guard_when` — writing them here would be a second
+  // answer to a question the child table owns.
+  const sentWhen = input.when !== undefined
+    || input.startsOn !== undefined
+    || input.endsOn !== undefined
+  let resolved: ReturnType<typeof resolveWhen> | null = null
+  if (sentWhen) {
+    resolved = resolveWhen(whenFromInput({
+      when: input.when,
+      // The stored envelope as the fallback for a half-edit, which is what the old signature
+      // allowed: a form sending only `endsOn` still means "keep the day it starts on".
+      startsOn: input.startsOn ?? current.starts_on,
+      endsOn: input.endsOn !== undefined ? input.endsOn : current.ends_on,
+    }))
+    if (!resolved.ok) return { success: false, message: resolved.message }
+    // The SHAPE goes on the parent — the calendar reads it to decide bar-or-chips, and a
+    // reader that only needs to draw the thing should not have to count child rows.
+    patch.is_continuous = resolved.normalised!.isContinuous
   }
 
   if (input.status !== undefined) {
@@ -1369,18 +1491,38 @@ export async function updateGathering(input: {
     patch.status = input.status
   }
 
-  if (Object.keys(patch).length === 0) return { success: true }
+  // `resolved` is checked as well as `patch`, because a `when` that changes only the child rows
+  // — a time moved, a day added to a series — leaves `patch` empty while there is real work to
+  // do. Returning early on the old condition alone would silently discard it.
+  if (Object.keys(patch).length === 0 && !resolved) return { success: true }
 
-  const { error: updateError } = await admin
-    .from('gatherings')
-    .update(patch)
-    .eq('id', input.gatheringId)
-    .eq('family_code', g.familyCode)
+  if (Object.keys(patch).length > 0) {
+    const { error: updateError } = await admin
+      .from('gatherings')
+      .update(patch)
+      .eq('id', input.gatheringId)
+      .eq('family_code', g.familyCode)
 
-  if (updateError) {
-    console.error(`[admin/gatherings] update failed for ${input.gatheringId} in ${g.familyCode}: ${updateError.message}`)
-    return { success: false, message: updateError.message }
+    if (updateError) {
+      console.error(`[admin/gatherings] update failed for ${input.gatheringId} in ${g.familyCode}: ${updateError.message}`)
+      return { success: false, message: updateError.message }
+    }
   }
+
+  if (resolved) {
+    const written = await writeOccurrences(
+      admin, g.familyCode, input.gatheringId, resolved.normalised!,
+    )
+    // REPORTED, and the earlier patch stands. A partial success is the honest answer: the title
+    // really did save, and saying otherwise would send somebody back to re-type it. The
+    // envelope trigger's zero-row branch means the gathering keeps the dates it had rather than
+    // losing them, so nothing is destroyed by the failure.
+    if (!written.ok) {
+      revalidateGathering(input.gatheringId)
+      return { success: false, message: written.message }
+    }
+  }
+
   revalidateGathering(input.gatheringId)
   return { success: true }
 }

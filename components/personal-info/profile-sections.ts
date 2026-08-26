@@ -9,7 +9,7 @@
  */
 
 export const PROFILE_SECTIONS =
-  ['general', 'address', 'additional', 'texts', 'security'] as const
+  ['general', 'address', 'additional', 'notifications', 'security'] as const
 
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number]
 
@@ -17,16 +17,19 @@ export const PROFILE_SECTION_LABELS: Record<ProfileSection, string> = {
   general: 'General',
   address: 'Address',
   additional: 'Additional Information',
-  // ── `texts` IS NAMED FOR WHAT IT HOLDS, NOT FOR WHAT IT MIGHT ────────────────────
-  // "Notifications" was the obvious label and is the wrong one: there is no email or bell
-  // preference in this product, so a section called that would promise four controls and
-  // offer one. It holds a mobile number, a confirmation, and consent to be texted — which is
-  // exactly what "Text Messages" says.
+  // ── IT WAS `texts`/"Text Messages" UNTIL 2026-08-26, AND THE OLD NOTE WAS RIGHT ──
+  // That note argued against calling this "Notifications" on the grounds that there was no
+  // email or bell preference in the product, so the name would promise four controls and offer
+  // one. True when it was written, and the fix was the product rather than the label: there is
+  // a GRID now — a row per notification, a column per channel — so the name is what it holds.
   //
-  // It is a SECTION rather than a band inside Sign-in & Security because a number we may send
+  // The old name is kept as an alias below. A member with `?section=texts` bookmarked, or a
+  // help chapter linking it, lands where they meant to.
+  //
+  // It is a SECTION rather than a band inside Sign-in & Security because an address we may send
   // to is not an account credential. Confusing the two is how a member ends up believing that
   // removing their mobile number affects how they log in.
-  texts: 'Text Messages',
+  notifications: 'Notifications',
   // The account, not the profile: sign-in address and password. It carries no
   // permission_resources row and needs no migration, because My Profile is one of the
   // pages 20260806000006 deliberately put outside the permission grid — see the header
@@ -48,11 +51,18 @@ const ALIASES: Record<string, ProfileSection> = {
   'additional-information': 'additional',
   other: 'additional',
   extra: 'additional',
-  text: 'texts',
-  'text-messages': 'texts',
-  sms: 'texts',
-  mobile: 'texts',
-  phone: 'texts',
+  // The old section id and everything anybody would type for it. `texts` itself is on the
+  // list because it WAS the id: a bookmark or a help link carrying it must not silently land
+  // on General.
+  texts: 'notifications',
+  text: 'notifications',
+  'text-messages': 'notifications',
+  sms: 'notifications',
+  mobile: 'notifications',
+  phone: 'notifications',
+  notification: 'notifications',
+  alerts: 'notifications',
+  email: 'notifications',
   'sign-in': 'security',
   signin: 'security',
   account: 'security',

@@ -20,9 +20,10 @@ import type { GatheringTemplate } from '@/app/actions/admin/gathering-templates'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { GATHERING_PILL_SHAPE, GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
+import { formatWhenBrief } from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, formatDateRange, todayLocal } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { TaskProgress } from '@/lib/gatherings'
@@ -298,7 +299,8 @@ export function AdminGatheringsClient({
                             <p className="mt-0.5 text-xs text-muted-foreground">{row.location}</p>
                           )}
                           <RowMeta className="gap-x-2">
-                            <MetaIf value={formatDateRange(row.startsOn, row.endsOn)} />
+                            {/* The whole answer, never a range over the envelope — see `formatWhenBrief`. */}
+                            <MetaIf value={formatWhenBrief(row)} />
                             <MetaDot />
                             <MetaIf value={progressCaption(row.taskCounts)} />
                             {mayManageBudget && row.budget && (
@@ -319,7 +321,7 @@ export function AdminGatheringsClient({
                           </RowMeta>
                         </td>
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                          {formatDateRange(row.startsOn, row.endsOn) ?? '—'}
+                          {formatWhenBrief(row) ?? '—'}
                         </td>
                         <td className="px-3 py-2.5">
                           <GatheringStatusPill status={row.status} />
