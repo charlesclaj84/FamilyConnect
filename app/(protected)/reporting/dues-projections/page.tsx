@@ -57,11 +57,7 @@ export default async function DuesProjectionsPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Dues Projections</h1>
-        <p className="text-muted-foreground">
-          What the family is owed this year, what has been collected against it, and which
-          members still have something outstanding.
-        </p>
+        <h1 className="text-3xl font-bold">Dues Projections</h1>
       </div>
 
       <ProjectionsLegend />

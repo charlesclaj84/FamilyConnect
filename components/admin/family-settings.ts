@@ -128,24 +128,23 @@ export const SETTINGS_PANE_LABEL: Record<SettingsPane, string> = {
   family: 'Family',
 }
 
-/**
- * The sentence under the rail, per pane.
+/*
+ * ── `SETTINGS_PANE_LEDE` WAS HERE AND WAS DELETED ON 2026-08-25 ────────────────────
+ * A sentence under the rail, one per pane, saying what the pane was: "Which subscription this
+ * family is on…" underneath a tab captioned **Plan**. It restated its own caption, cost a line
+ * above the fold on every pane, and was the first thing a reader had to skip on every visit to
+ * reach what they came for — which is the definition of furniture.
  *
- * These were the panel ledes, kept word for word where the pane is the panel it came from. A
- * panel header could carry its lede beside its heading; a rail item is one word, so the
- * sentence moves under the rail — which is what `/accounting/dues-and-donations` does with the
- * same problem.
+ * It went as part of a sweep of the same shape across the signed-in app, and the sweep was
+ * catching up rather than innovating: the newer screens had already stopped shipping one.
+ * Dashboard, Gallery, Distributions, Bylaws, Meeting Minutes, Transactions and Announcements
+ * all lead with a heading and then the content.
  *
- * BILLING'S SAYS WHAT IT IS *NOT*, in its second clause, and that is the load-bearing half.
- * `platform_payments` appears in no fund balance, no P&L and no dues projection — 20260823000004's
- * header argues it at length — and an administrator who has just opened a pane called Billing
- * inside their family's own admin area is exactly the person about to assume otherwise.
+ * **DO NOT REINTRODUCE ONE AS A DESCRIPTION.** A line of prose above a pane earns its place
+ * only when it carries a fact the screen cannot show — and then it belongs beside the control
+ * it is about, or in the help chapter, where somebody looking for it a second time can find
+ * it. Billing is the worked example: the real content of its lede was that GENORRA's charges
+ * appear in none of the family's own books, which is a genuine trap — so it is stated in
+ * `family-settings#billing` and in 20260823000004's header, rather than in a sentence every
+ * administrator reads once and scrolls past forever.
  */
-export const SETTINGS_PANE_LEDE: Record<SettingsPane, string> = {
-  billing: 'What this family has paid GENORRA, until when, and every receipt. These are our '
-    + 'charges to you — nothing here touches your family\'s own funds, dues or reports.',
-  plan: 'Which subscription this family is on, what each one includes, and how to move '
-    + 'between them.',
-  family: 'What this family is called, the code relatives join it with, and switching it off. '
-    + 'Nothing here is ever deleted.',
-}

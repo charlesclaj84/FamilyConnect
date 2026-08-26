@@ -5,7 +5,7 @@ import { ClipboardCheck, PartyPopper } from 'lucide-react'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { GatheringsClient, type GatheringRow } from '@/components/gatherings/GatheringsClient'
 import { MyTasksClient } from '@/components/gatherings/MyTasksClient'
-import { GATHERING_PANE_LEDE, type GatheringPane } from '@/lib/gathering-panes'
+import { type GatheringPane } from '@/lib/gathering-panes'
 import type { MyTaskRow } from '@/app/actions/gatherings'
 
 /**
@@ -119,8 +119,6 @@ export function GatheringsShell({
         active={pane}
         onSelect={selectPane}
       />
-
-      <p className="text-muted-foreground">{GATHERING_PANE_LEDE[pane]}</p>
 
       {/* Both conjuncts are kept: the page falls back to a pane the caller can see, so the
           second should never decide anything — which is exactly why it is written down. A

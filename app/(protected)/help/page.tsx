@@ -7,7 +7,6 @@ import { resolveHelpAvailability } from '@/lib/help/availability'
 import { HELP_PARTS } from '@/lib/help/content'
 import { HelpAvailabilityBadge } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
-import { APP_NAME } from '@/lib/brand'
 
 export const metadata = { title: 'Help' }
 
@@ -57,11 +56,7 @@ export default async function HelpIndexPage() {
           FamilySettingsClient capping its name box: a constraint on one element belongs on
           that element, and the page keeps the measure its neighbours have. */}
       <div className="max-w-3xl">
-        <h1 className="mb-2 text-3xl font-bold">Help</h1>
-        <p className="text-muted-foreground">
-          How every screen in {APP_NAME} works — what it is for, what each control does, and
-          what to do when something is not where you expected it.
-        </p>
+        <h1 className="text-3xl font-bold">Help</h1>
       </div>
 
       {gate.pending && (

@@ -8,7 +8,7 @@ import { PayOnlineSection } from '@/components/account/PayOnlineSection'
 import type { DuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import {
-  MONEY_PANES, MONEY_PANE_LABEL, MONEY_PANE_LEDE, type MoneyPane,
+  MONEY_PANES, MONEY_PANE_LABEL, type MoneyPane,
 } from '@/lib/money-panes'
 import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
 
@@ -83,11 +83,6 @@ export function DuesAndDonationsShell({
   return (
     <div className="space-y-6">
       <MainRail label="Dues and donations" items={items} active={pane} onSelect={select} />
-
-      {/* The pane's own sentence, under the rail. It is the `blurb` each of the two retired
-          `FEATURES` entries carried — a merged entry can only hold one, and this is where the
-          other one went rather than being lost. */}
-      <p className="text-sm text-muted-foreground">{MONEY_PANE_LEDE[pane]}</p>
 
       <div hidden={pane !== 'dues'}>
         <div className="space-y-8">

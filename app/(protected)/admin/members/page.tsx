@@ -370,15 +370,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Members</h1>
-        {/* Broadened when Organization arrived: the sentence about templates was the whole
-            of this page when three of its four panes were about permissions, and it now
-            describes only three of them. Both halves are stated because both are what an
-            administrator comes here to change. */}
-        <p className="text-muted-foreground">
-          Who is in the family and how it is organized. Every member is on one permission
-          template, and that template is what they can do.
-        </p>
+        <h1 className="text-3xl font-bold">Members</h1>
       </div>
 
       <AdminAccessClient

@@ -56,11 +56,7 @@ export default async function FamilyFinancesPage() {
   return (
     <PageShell className="space-y-10">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">P&amp;L Summary</h1>
-        <p className="text-muted-foreground">
-          Everything the family has collected, everything it has paid out, and what each fund
-          holds today.
-        </p>
+        <h1 className="text-3xl font-bold">P&amp;L Summary</h1>
       </div>
 
       <section className="space-y-3">

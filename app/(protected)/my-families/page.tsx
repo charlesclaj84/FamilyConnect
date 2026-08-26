@@ -30,10 +30,7 @@ export default async function MyFamiliesPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">My Families</h1>
-        <p className="text-muted-foreground">
-          Choose which family opens when you log in, or switch the one you&apos;re viewing now.
-        </p>
+        <h1 className="text-3xl font-bold">My Families</h1>
       </div>
 
       <MyFamiliesSection families={families} />

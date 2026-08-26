@@ -135,11 +135,7 @@ export default async function FamilyTreePage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Family Tree</h1>
-        <p className="text-muted-foreground">
-          One tree for the whole family. Start from anybody, fill in the gaps around them,
-          and click a relative to carry on from there.
-        </p>
+        <h1 className="text-3xl font-bold">Family Tree</h1>
       </div>
 
       <TreeLegend />

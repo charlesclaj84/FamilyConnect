@@ -37,8 +37,7 @@ export default async function MembersPage() {
           one click from the answer, without having to notice the rail. */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1">Directory</h1>
-          <p className="text-muted-foreground">All family members and their roles.</p>
+          <h1 className="text-3xl font-bold">Directory</h1>
         </div>
         <Link href="/community/family-tree">
           <Button variant="outline">

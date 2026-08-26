@@ -41,15 +41,20 @@ export default async function ElectionsReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
-        <p className="text-muted-foreground">
-          Turnout, nominations and offices nobody stood for, one row per published election.
-          Drafts are not counted — an election nobody has been told about has no electorate.
-        </p>
+        <h1 className="text-3xl font-bold">Elections</h1>
       </div>
 
+      {/* THE EXCLUSION RIDES ON THE FIGURE IT QUALIFIES. It was the second sentence of a lede
+          above the heading until 2026-08-25; a reader who does not know that drafts are left
+          out reads this count as "every election we have", and the place that misreading
+          happens is at the number rather than four lines above it. The full argument — an
+          election nobody has been told about has no electorate — is in `elections-report`. */}
       <ReportStats stats={[
-        { label: 'Elections', value: totals.elections, hint: `${totals.open} open right now` },
+        {
+          label: 'Elections',
+          value: totals.elections,
+          hint: `${totals.open} open now · published only`,
+        },
         { label: 'Nominations', value: totals.nominations, hint: 'across every election' },
         {
           label: 'Offices nobody stood for',

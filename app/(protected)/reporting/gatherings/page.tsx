@@ -54,16 +54,20 @@ export default async function GatheringsReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Gatherings</h1>
-        <p className="text-muted-foreground">
-          What the family has planned, how much of the work is done, and who is behind.
-          Cancelled gatherings are left out entirely — their open tasks are not work anybody
-          owes.
-        </p>
+        <h1 className="text-3xl font-bold">Gatherings</h1>
       </div>
 
+      {/* THE EXCLUSION RIDES ON THE FIGURE IT QUALIFIES — see the same note on
+          /reporting/elections. Every figure on this screen leaves cancelled gatherings out,
+          rows and totals alike, because their open tasks are not work anybody owes; without
+          it a family that called one thing off reads as permanently behind. Argued in full in
+          `gatherings-report`. */}
       <ReportStats stats={[
-        { label: 'Gatherings', value: totals.gatherings, hint: `${totals.upcoming} still to come` },
+        {
+          label: 'Gatherings',
+          value: totals.gatherings,
+          hint: `${totals.upcoming} still to come · cancelled excluded`,
+        },
         {
           label: 'Tasks approved',
           value: `${totals.tasks.approved} / ${totals.tasks.total}`,

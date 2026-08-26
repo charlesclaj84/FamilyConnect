@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
 import { OfficerNotesClient } from '@/components/library/OfficerNotesClient'
+import { HelpLink } from '@/components/help/HelpLink'
 import { PageShell } from '@/components/layout/PageShell'
 
 export const metadata = { title: 'Officer' }
@@ -82,13 +83,34 @@ export default async function JournalPage() {
       {/* THE HEADING IS THE RAIL CAPTION, which is the convention every other page here
           follows (AGENTS.md, "Captions come from the screen"): "Members", "Membership", "Dues
           & Donations" are each their own rail word. The section heading above it in the rail
-          supplies the rest, and the lede says what an officer's journal IS. */}
-      <div>
-        <h1 className="mb-1 text-3xl font-bold">Officer</h1>
-        <p className="text-muted-foreground">
-          A journal for each office you hold. Notes stay with the office — whoever holds it
-          next will read them.
-        </p>
+          supplies the rest.
+
+          ── THE LEDE WENT ON 2026-08-25 AND LEFT A LINK BEHIND ──────────────────────────
+          It read "A journal for each office you hold. Notes stay with the office — whoever
+          holds it next will read them." The first sentence restated the heading; the second
+          is the single most surprising rule in this screen, and it is not furniture — a
+          notebook that a successor inherits is the whole feature, and nothing on the page
+          shows it, because it is a fact about a handover that has not happened yet.
+
+          So the sentence moved rather than being deleted. It is stated twice in `journal` —
+          once in "What this screen is" and once in "Who can read it" — and this is the link
+          to it. A `HelpLink` rather than a paragraph because the rule is read ONCE, by
+          somebody who has just been given an office, and then never needed again; a caption
+          every officeholder scrolls past on every visit is what the sweep was removing.
+
+          THE EMPTY STATE BELOW ALREADY SAYS IT IN FULL, for the opposite reader — somebody
+          with no office at all, who has no notebook to look at and needs to be told what the
+          screen would be for. That branch is untouched. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Officer</h1>
+        {offices.length > 0 && (
+          <HelpLink
+            variant="inline"
+            slug="journal"
+            section="what-it-is"
+            label="Why notes stay with the office"
+          />
+        )}
       </div>
 
       {offices.length === 0 ? (

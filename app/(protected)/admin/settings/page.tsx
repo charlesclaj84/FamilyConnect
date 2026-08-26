@@ -69,11 +69,7 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">
-          Three sections: what this family has paid GENORRA, the plan it is on, and the
-          family itself &mdash; its name, the code relatives join with, and switching it off.
-        </p>
+        <h1 className="text-3xl font-bold">Settings</h1>
       </div>
 
       {settings

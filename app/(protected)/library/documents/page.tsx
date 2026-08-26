@@ -38,11 +38,7 @@ export default async function DocumentsPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Documents</h1>
-        <p className="text-muted-foreground">
-          The family&rsquo;s records — forms, filings and signed copies, in one place that is
-          not somebody&rsquo;s inbox.
-        </p>
+        <h1 className="text-3xl font-bold">Documents</h1>
       </div>
       <DocumentList
         initialDocuments={documents}

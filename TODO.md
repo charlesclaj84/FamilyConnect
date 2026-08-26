@@ -701,6 +701,49 @@ need anybody to hold production credentials.
 
 Recorded 2026-08-23.
 
+## BUILD: greet a relative on their birthday, and make it feel like a celebration
+
+**Action:** decide what "automatic" means here, then build it. Recorded 2026-08-25, out of the
+lede sweep — the Birthdays pane used to spend a sentence apologising that **nothing is sent
+automatically**, and a caption explaining what the product does not do is a feature request
+wearing a caption's clothes.
+
+**What exists today.** `/community/announcements?pane=birthdays` lists every relative with a
+birthday in the next `BIRTHDAY_HORIZON_DAYS` (60), soonest first, one click from the composer.
+That is a list an organizer works through by hand. Nothing is posted, nothing is mailed, nothing
+appears on the dashboard, and a birthday that passes unremarked leaves no trace anywhere.
+
+**Three decisions before any code, and the first is the whole feature.**
+
+1. **WHO GREETS — the family, or the product?** A card the product posts in the family's name is
+   the cheap version and is worse than nothing: a relative who realises the warm message was
+   generated has been told the family did not remember. The alternative is that the product
+   PROMPTS — the dashboard says "It's Ada's birthday today" with a composer already open — and
+   every word that reaches Ada was typed by a person. **Prefer the second.** It is also the only
+   version consistent with the Birthdays pane's own design, which has always been a list to act
+   on rather than a machine.
+2. **WHERE IT LANDS.** A dashboard band on the day is the obvious surface and reaches only
+   whoever opens the app. An announcement pinned for the day reaches everybody and costs a row in
+   `announcements` that nobody chose to write. Email is the loudest and needs the distribution
+   rules in "MAILING THE WHOLE FAMILY IS A QUEUE IN THE DATABASE" — including that a recorded
+   relative's placeholder address must never be mailed.
+3. **WHAT "CELEBRATION" MEANS ON SCREEN.** Confetti, a gold band, the person's avatar at size.
+   Whatever it is, it is `--brand-legacy` or `--brand-warm` territory and never `--destructive`;
+   and it has to degrade to something dignified for a relative with no photograph and no
+   recorded birth year, which is most of an older generation on a real family tree.
+
+**Two things the schema already gives you and one it does not.** `people.date_of_birth` is there
+and `lib/age-utils.ts` derives from it — and **a NULL birthday is not a birthday**, the same
+reading `isMinorOn` takes, so nobody with a blank field is ever greeted or ever counted as
+missed. `lib/birthdays.ts` already computes the horizon list. What does not exist is any record
+that a greeting HAPPENED, so "did anyone say anything to Ada?" is unanswerable — and without it a
+prompt reappears every year whether or not the family acted on it last time.
+
+**And there is no scheduler**, which is the constraint that shapes the whole thing. `pg_cron` is
+installed (see the resolved item above) but nothing in the product runs on a clock except the
+Stripe webhook's opportunistic sweep. A prompt rendered when somebody OPENS the app needs no
+scheduler at all and is another reason to prefer option 1.
+
 ## `tests/rls` has no member who has replied STOP
 
 **Action:** add a `stop_received` consent event to one ALPHA actor in the fixture, and a case

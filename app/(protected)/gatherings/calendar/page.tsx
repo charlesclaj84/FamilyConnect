@@ -96,13 +96,7 @@ export default async function CalendarPage({
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Calendar</h1>
-        <p className="text-muted-foreground">
-          Every gathering, every meeting you are down for, and every election window, a month
-          at a time. Anything that runs over several days — a reunion, a week of voting —
-          shows on each of them, and the month is in the address bar, so a link to it is a
-          link to that month.
-        </p>
+        <h1 className="text-3xl font-bold">Calendar</h1>
       </div>
 
       {withheld.length > 0 && (

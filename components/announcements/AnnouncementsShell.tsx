@@ -137,6 +137,8 @@ export function AnnouncementsShell({
     }] : []),
   ]
 
+  const lede = paneLede(pane, BIRTHDAY_HORIZON_DAYS)
+
   return (
     <div className="space-y-5">
       {/* No `action` slot. The board's composer is not a "New…" trigger — it is a form that
@@ -149,7 +151,10 @@ export function AnnouncementsShell({
         onSelect={selectPane}
       />
 
-      <p className="text-muted-foreground">{paneLede(pane, BIRTHDAY_HORIZON_DAYS)}</p>
+      {/* NOT EVERY PANE HAS ONE. `paneLede` answers null for Updates, whose lede described a
+          searchable list to somebody looking at a searchable list; rendering an empty `<p>`
+          would leave its margin behind, which is the gap the 2026-08-25 sweep removed. */}
+      {lede && <p className="text-muted-foreground">{lede}</p>}
 
       {/* The active pane, and only ever the pane the caller may open. Both conjuncts are
           kept: the page falls back to a pane the caller can see, so the second half should

@@ -54,15 +54,19 @@ export function isGatheringPane(value: unknown): value is GatheringPane {
  * lede describing the board over a birthday list is worse than no lede. These two are further
  * apart than that pair — one is the family's plans, the other is the reader's own to-do list.
  */
-export const GATHERING_PANE_LEDE: Record<GatheringPane, string> = {
-  gatherings:
-    'Everything the family is planning together, built from a template so nothing is '
-    + 'forgotten and every job has a name against it.',
-  'my-tasks':
-    'Everything the family has asked you to do for a gathering, soonest deadline first. '
-    + 'Send an answer back and an organizer reviews it — if they need something changed, '
-    + 'their notes appear here with the task.',
-}
+/*
+ * ── `GATHERING_PANE_LEDE` WAS HERE AND WAS DELETED ON 2026-08-25 ──────────────────
+ * A sentence under the rail per pane, describing the pane. Part of the app-wide sweep of
+ * these — `components/admin/family-settings.ts` carries the argument, and the rule it leaves
+ * behind: a line of prose above a pane earns its place only when it states a fact the screen
+ * cannot show, and then it belongs beside the control it is about or in the help chapter.
+ *
+ * The My Tasks lede is the one worth naming, because its second half was doing real work: it
+ * told a member that a rejected answer comes back with an organizer's notes ATTACHED TO THE
+ * TASK. That is not visible until it happens to you, so it is not furniture — and it is
+ * already said where it can be acted on, on the task row itself, and in
+ * `gatherings#my-tasks`. It was deleted from here rather than from the product.
+ */
 
 // ── /admin/gatherings ───────────────────────────────────────────────────────────────
 

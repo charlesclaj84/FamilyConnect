@@ -92,13 +92,7 @@ export default async function MembershipReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Membership</h1>
-        <p className="text-muted-foreground">
-          How the family is made up today — where its members are, how many have finished
-          joining, and how many are children. Every figure is worked out when the page loads;
-          nothing here is stored. Press any row beside a chart to see who is in it, and to put
-          right what it is pointing at.
-        </p>
+        <h1 className="text-3xl font-bold">Membership</h1>
       </div>
 
       <MembershipReportView report={report} rights={rights} />

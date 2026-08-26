@@ -36,12 +36,7 @@ export default async function AdminElectionsPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
-        <p className="text-muted-foreground">
-          Set the nomination and voting windows, choose which part of the family votes, and
-          publish the ballot. Once published, the dates run it — nominations and voting open
-          and close on their own.
-        </p>
+        <h1 className="text-3xl font-bold">Elections</h1>
       </div>
       <AdminElectionsClient
         initialElections={elections}

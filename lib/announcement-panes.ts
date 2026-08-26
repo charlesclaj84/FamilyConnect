@@ -41,24 +41,42 @@ export function isAnnouncementPane(value: unknown): value is AnnouncementPane {
 }
 
 /**
- * The sentence under the rail, per pane.
+ * The sentence under the rail, per pane — or `null` where the pane needs none.
+ *
+ * ── MOST OF THESE WENT ON 2026-08-25, AND THE SURVIVORS SAY WHY ────────────────────
+ * The app-wide sweep of pane ledes is argued in `components/admin/family-settings.ts`, and
+ * the rule it leaves is that a line of prose above a pane earns its place only when it states
+ * a fact the screen cannot show. Two here do and one did not:
+ *
+ *   general      KEPT. Where a pinned post ends up — the top of every relative's Recent
+ *                Updates, until each of them dismisses it — happens on somebody ELSE'S
+ *                screen. Nothing on this pane can show it, and it is the difference between
+ *                pinning something and posting it.
+ *   updates      REMOVED. "Everything the family has announced… newest first, searchable" is
+ *                a description of a searchable list, printed above a searchable list.
+ *   birthdays    KEPT, REWRITTEN. It used to spend its second sentence saying that nothing is
+ *                sent automatically. The horizon is the more useful fact and the one a reader
+ *                will otherwise get wrong: a relative whose birthday is in four months is
+ *                absent from this list, and without the window that reads as a missing person
+ *                rather than as a list that has not reached them yet.
  *
  * The birthday horizon is interpolated from `BIRTHDAY_HORIZON_DAYS` for the reason that
  * constant exists: it is stated in the arithmetic, in the pane's empty state and in the manual
  * chapter, and a hand-typed "60" in any of them is a sentence that eventually disagrees with
  * the list underneath it.
+ *
+ * NULL RATHER THAN AN EMPTY STRING, so the shell renders no element at all. An empty `<p>`
+ * still occupies its margin, which is the gap the sweep was removing.
  */
-export function paneLede(pane: AnnouncementPane, birthdayHorizonDays: number): string {
+export function paneLede(pane: AnnouncementPane, birthdayHorizonDays: number): string | null {
   switch (pane) {
     case 'general':
       return 'News from across your family. Pinned posts ride at the top of everyone’s Recent '
         + 'Updates until each person dismisses them.'
     case 'updates':
-      return 'Everything the family has announced and everything that has been sent to you, '
-        + 'newest first — searchable, however far back it goes.'
+      return null
     case 'birthdays':
-      return `Every relative with a birthday in the next ${birthdayHorizonDays} days, soonest `
-        + 'first. Nothing is sent automatically — this is the list, and posting the greeting is '
-        + 'still somebody’s job.'
+      return `Only the next ${birthdayHorizonDays} days are shown, soonest first — a birthday `
+        + `further out than that appears here once it is within ${birthdayHorizonDays} days.`
   }
 }

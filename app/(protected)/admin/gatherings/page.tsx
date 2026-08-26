@@ -217,11 +217,7 @@ export default async function AdminGatheringsPage({
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Gatherings</h1>
-        <p className="text-muted-foreground">
-          Author the checklist a gathering is built from, schedule one, hand each step to a
-          relative, and rule on what comes back.
-        </p>
+        <h1 className="text-3xl font-bold">Gatherings</h1>
       </div>
       <AdminGatheringsClient
         initialPane={initialPane}

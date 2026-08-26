@@ -42,11 +42,7 @@ export default async function MeetingsReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Meetings</h1>
-        <p className="text-muted-foreground">
-          How often the family meets, how big each room was, and how much of it answered when a
-          vote was called.
-        </p>
+        <h1 className="text-3xl font-bold">Meetings</h1>
       </div>
 
       <ReportStats stats={[

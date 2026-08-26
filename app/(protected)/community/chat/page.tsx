@@ -18,8 +18,10 @@ export const metadata = { title: 'Chat' }
  * Chat was the one signed-in screen with no visible title — it had the `metadata.title`
  * that names the browser tab and no `<h1>`, so a member landing here from the rail got a
  * room list with nothing naming the page, and a screen reader got a document whose only
- * headings were room names. Every other page under (protected) leads with an h1 and a
- * one-line description; this one now does too.
+ * headings were room names. It leads with an h1 like every other page now. (It carried a
+ * one-line description under it too until 2026-08-25, when those were swept out of the app —
+ * "Group threads and private messages with your family" is what a room list already looks
+ * like, and a caption that restates its own heading is furniture.)
  *
  * The heading could not simply be prepended, because `ChatShell` used to size ITSELF at
  * `h-[calc(100vh-4rem)]` — the viewport less the TopBar — so anything above it pushed the
@@ -61,10 +63,7 @@ export default async function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <div className={cn(PAGE_MEASURE, 'shrink-0 pb-6 pt-10')}>
-        <h1 className="mb-1 text-3xl font-bold">Chat</h1>
-        <p className="text-muted-foreground">
-          Group threads and private messages with your family.
-        </p>
+        <h1 className="text-3xl font-bold">Chat</h1>
       </div>
 
       {/* THE BODY IS INSET TO THE SAME MEASURE AS THE HEADING, and until 2026-08-13 it was

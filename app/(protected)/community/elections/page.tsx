@@ -48,10 +48,7 @@ export default async function ElectionsPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
-        <p className="text-muted-foreground">
-          Nominate somebody, accept your own nomination, and vote — while the windows are open.
-        </p>
+        <h1 className="text-3xl font-bold">Elections</h1>
       </div>
 
       {elections.length === 0 ? (

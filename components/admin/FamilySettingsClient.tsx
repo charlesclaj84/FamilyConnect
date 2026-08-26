@@ -13,7 +13,7 @@ import {
   renameFamily, removeFamily, requestFamilyRemovalCode, type FamilySettings,
 } from '@/app/actions/admin/family'
 import {
-  MAX_FAMILY_NAME, SETTINGS_PANES, SETTINGS_PANE_LABEL, SETTINGS_PANE_LEDE,
+  MAX_FAMILY_NAME, SETTINGS_PANES, SETTINGS_PANE_LABEL,
   DEFAULT_SETTINGS_PANE, type SettingsPane,
 } from '@/components/admin/family-settings'
 import { PlanPanel } from '@/components/admin/PlanPanel'
@@ -220,11 +220,6 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
         active={pane}
         onSelect={selectPane}
       />
-
-      {/* The pane's own sentence, under the rail. These were the two panel ledes; a panel
-          header could carry one beside its heading, and a rail item is one word — so the
-          sentence moves here, which is what `/accounting/dues-and-donations` does. */}
-      <p className="text-sm text-muted-foreground">{SETTINGS_PANE_LEDE[pane]}</p>
 
       {/* ── BILLING ──
           The RECORD: what has been paid, until when, what renews it, and every receipt. It

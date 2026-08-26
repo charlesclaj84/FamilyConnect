@@ -46,10 +46,7 @@ export default async function BoardReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Board &amp; Offices</h1>
-        <p className="text-muted-foreground">
-          Every office the family has defined, who holds it, and which ones are standing empty.
-        </p>
+        <h1 className="text-3xl font-bold">Board &amp; Offices</h1>
       </div>
 
       <ReportStats stats={[
