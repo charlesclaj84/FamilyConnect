@@ -4247,6 +4247,216 @@ only ground that qualifies: the line was not a record of anything, it was an *in
 it was false, and following it caused a production incident. See "How migrations reach the
 hosted project". Prose that merely reads oddly today does not qualify.
 
+# THE PRODUCT READS IN THREE LANGUAGES, AND A LITERAL IN A COMPONENT IS A BUG
+
+English, Spanish and French. `usted` and `vous` throughout — the product addresses a
+relative formally, in every language, on every surface. **No user-facing string is written
+as a literal in `app/` or `components/`.** Not "preferred"; the gate below reports every one
+and its ceiling is **zero**.
+
+## FOUR BUNDLES, ONE MECHANISM, AND A KEY LIVES IN EXACTLY ONE OF THEM
+
+| Bundle | Where | Reached by |
+|---|---|---|
+| `shell` | `lib/i18n/{en,es,fr}.ts` | everything in `app/` and `components/` — static import, client-reachable |
+| `email` | `lib/email/strings/` | `lib/email/templates.ts` — **`server-only`**, never in a browser bundle |
+| `help` | `lib/help/strings/` | the manual. `server-only`, and its ENGLISH is **derived** from `lib/help/content.ts` |
+| `marketing` | `lib/marketing/strings/` | Home and the five public pages |
+
+`marketing` is neither `server-only` nor in `catalogues.ts`, and that is deliberate: it is
+kept out of the Dashboard's chunk by the IMPORT GRAPH alone. Nothing under
+`app/(protected)` may import it, and `i18n:check`'s CLIENT-BUNDLE finding is what stops the
+email one crossing.
+
+**One key, one bundle.** `i18n:check` reports a DUPLICATE-KEY, because which string rendered
+would then depend on which bundle a call site happened to reach for, and both would be
+fingerprinted separately — so a stale translation could hide behind its twin. The
+consequence to know: a marketing Server Component that needs a SHELL key imports `tFor` and
+resolves a second translator, rather than the key being copied. `/features` does exactly
+that for `tier.tagline.*`, and the note there says why it costs the browser nothing.
+
+## HOME'S LANGUAGE IS A PATH SEGMENT. THE DASHBOARD'S IS A COLUMN
+
+This follows from the two-products rule at the top of this file, and getting it backwards
+breaks one of them.
+
+* **Home is indexed**, so `/es/pricing` and `/fr/pricing` are real URLs with their own
+  `hreflang` — three languages at one address are three thin pages competing with each
+  other. `proxy.ts` rewrites the prefix onto the unprefixed route and passes the language
+  down as a header; `lib/i18n/route-locale.ts` is the pure parser and `localizedAlternates`
+  is the `alternates` block every public page owes.
+* **English is unprefixed.** `/en/…` 307-redirects to the bare path. A first visit is
+  negotiated from `Accept-Language` ONCE and then the URL records it, and
+  `LOCALE_PICK_COOKIE` is what stops the negotiation firing again — without it the English
+  option in the picker is unusable for a Spanish browser.
+* **The Dashboard is `noindex`**, so there is nothing for `hreflang` to consolidate and a
+  prefix would only be a second address for a page nobody may link to. `/es/dashboard` 404s,
+  deliberately.
+
+**`LOCALIZED_ROOTS` INCLUDES THE FOUR AUTH ROUTES**, and that is the one entry that is not
+about crawling: a reader who has been on Spanish Home for four pages must not be handed an
+English form by the one click that matters. It was, for a day — see below.
+
+## `resolveLocale` HAS FOUR SOURCES AND THE ORDER IS THE WHOLE FILE
+
+`lib/auth/locale.ts` reads them; `preferredLocale` in `lib/i18n/locales.ts` decides which
+wins, and `lib/i18n/locales.test.ts` pins it.
+
+1. **`people.locale`** — what the member SET. An explicit statement about the reader.
+2. **the `/es` or `/fr` path segment** — a statement about this PAGE. Below the stored
+   choice, because a member who chose Spanish and then opened an English-addressed link has
+   not changed their mind; above the browser, because a path segment is something somebody
+   navigated to and `Accept-Language` is something their browser was configured with.
+3. **`Accept-Language`.**
+4. **English**, which always answers, so no call site branches on "we do not know".
+
+**THE SECOND RUNG WAS MISSING AND THE SIGN-IN PAGE WAS THE COST.** This resolver's header
+said the URL was none of its business — true of a marketing page, which resolves through
+`marketingLocale()` and never comes here, and false of the auth routes. Measured against a
+real server:
+
+    GET /es/login   Accept-Language: en-US   →   <html lang="es">, every word English
+
+The `lang` was right because `app/layout.tsx` reads the header itself; the CONTENT was wrong
+because `LocaleProvider` in the auth layout came here and got the browser's answer. A screen
+reader was told Spanish and given English, which is worse than either being wrong alone.
+
+**The ORDER lives in the pure module for a reason.** `resolveLocale` reads `next/headers` and
+queries Supabase, so nothing under `npm test` can call it (§7b's boundary) — and a four-rung
+chain that a fifth source might join is worth being able to assert.
+
+## HOW A SURFACE GETS ITS TRANSLATOR — FIVE SHAPES, AND THE FILE'S OWN DIRECTIVE DECIDES
+
+| Surface | How |
+|---|---|
+| a `'use client'` component | `useT()` / `useIntlTag()` from `LocaleProvider` |
+| a Server Component page | `const { t, intl } = await callerI18n(user?.id ?? null)` |
+| a nested Server Component | `t` as a PROP — server-to-server is by reference, and a missing prop is a type error |
+| a server ACTION | **`g.t`**, off the guard. See below |
+| a module-level registry | `Record<K, {label}>` → `function(t)`. The ids are the contract; the words are looked up |
+
+**`GuardOk` CARRIES `t` AND `intl`, RESOLVED IN THE `Promise.all` `resolve()` ALREADY AWAITS.**
+So an action reads `g.t('act.…')` with no extra round trip and no extra line. The alternative
+was `const { t } = await callerI18n(g.userId)` written out at a hundred call sites, each
+adding a third read of `people` for the same user in the same request — and a line every
+action must also remember is a line three actions will not have, which is the argument
+`requireView` already makes for folding `requireTier` in.
+
+`lib/auth/guard.ts`'s own five refusals resolve theirs **in the failure branch**, which is
+what keeps that free: the success path makes no extra call at all.
+
+**A pure helper takes `t` as a LAST parameter** rather than resolving a second one —
+`buildNavGroups`, `recorderField`, `adultCheck`, `normalizeBudget`. And **`t` as a prop is
+the answer for a component whose other caller ships no JS**: `PillarVignette` takes one
+because `FeatureShowcase` opens by saying it is data and markup, and a hook there would put
+`'use client'` back on that band by the back door. `PlanningUpsell` and `Avatar` went the
+other way on the same day and that is not an inconsistency — one of each of their callers was
+already a client component, so the module was in the browser bundle either way.
+
+**Watch for a variable already called `t`.** Four had to move: a string coercer, a loaded
+topic, a fund transfer and a `find` callback's row. Every one was a compile error rather than
+a silent shadow, which is the lucky direction and is not guaranteed.
+
+## TWO GATES, AND THEY ARE BLIND TO OPPOSITE THINGS
+
+```bash
+npm run i18n:check         # every KEY is defined, used, fingerprinted and current
+npm run i18n:literals      # every user-facing STRING is keyed at all. Ceiling 0
+```
+
+Both are steps in `verify.yml`. The second exists because the first is **structurally blind
+to a string nobody keyed** — all seven of its findings are about a key — and that is not a
+corner case. With four bundles, 3,900 keys and `i18n:check` clean, a probe against a real
+server found **224 lines identical in all three languages**: the sign-in page, the sign-up
+page, the quote carousel's chrome, the three pillar drawings and every page title on the auth
+flow. Nothing in the tree could say so.
+
+**`i18n:check`'s STALE finding is the one it exists for.** Every translation records a hash
+of the English it was made from (`lib/i18n/translated-from.json`), so an edit to the English
+that leaves the other two alone is reported by name. Nothing else can see it: the Spanish
+string is still fluent, still grammatical, and no longer says what the English says. After a
+deliberate re-wording, `npm run i18n:accept <locale>` records the new source — **read the
+translation before you run it**, because that command's whole job is to say "I checked".
+
+**The literal gate's CEILING IS A RATCHET at zero.** Raising it is a deliberate act needing a
+sentence in the file; the honest reason to want to is a false positive, and the better answer
+to one of those is `NOT_COPY` — a named entry with a reason, which is diffable, rather than a
+number that quietly admits an unknown quantity of English. It does not sweep `lib/`: the
+catalogues live there and their English IS the source.
+
+## WHAT MUST NOT BE TRANSLATED, AND EACH FOR ITS OWN REASON
+
+* **`lib/testimonials.ts`.** Rule 4 in that file: **a translation IS an edit of the words**,
+  and one produced during an i18n pass is by construction a sentence the family did not say,
+  in quotation marks over their name. That is the fabrication rule 1 is about — 16 CFR Part
+  465 — arriving through a door that feels like housekeeping. The quotes stay verbatim, the
+  CHROME around them is fully translated, and the section carries one line explaining it to
+  readers who are not reading English.
+* **A plan name, a person's name, a family's name, a fund a family named.** Proper nouns.
+  `TIER_LABEL` is interpolated as `{plan}`, never typed into a value.
+* **The product name.** `lib/brand.ts` is still the one place it lives; it reaches a
+  catalogue value as `{app}`.
+* **A `permission_resources.category` value, a `regconfig` name, a database identifier.**
+  Not copy. `SEARCH_CONFIG` in `lib/search-config.ts` is the worked example of one that looks
+  like it might be.
+
+## THREE MORE RULES THAT COST SOMETHING TO LEARN
+
+**A COMPARISON AGAINST A RENDERED STRING IS A COMPARISON TRANSLATION BREAKS, SILENTLY, IN THE
+LANGUAGE NOBODY READS.** Found twice on `/pricing`, where a card was matched to a tier by its
+LABEL. Both are now joins on the `tier` itself. Grep for `=== TIER_LABEL` and its family
+before adding one.
+
+**THE WORDS AROUND A FIGURE ARE COPY TOO.** `formatPlanPrice` takes the reader's `Intl` tag
+— its old `.replace(/\.00$/, '')` was an English-decimal assumption, so French price cards
+kept the zero cents the mechanism existed to remove — and ` a month`, `/month` and `(… a
+month)` are keys, because they are English word order with an English preposition. Same for
+a CONJUNCTION: `Intl.ListFormat`, never `" and "`.
+
+**A `t`-BEARING REGISTRY IS A FUNCTION, AND ITS TESTS MUST NOT SHADOW.**
+`TIERS.reduce((n, t) => n + planAdds(t, t).length, 0)` type-checks and passes a tier as the
+translator.
+
+## THE RLS SUITE READS REFUSAL MESSAGES, SO A FIXTURE THAT SETS A LOCALE POISONS IT
+
+`personal-info.setMyLocale`'s positive control wrote `'fr'` onto `alphaMember` — the suite's
+default CONTROL actor — and its attack wrote `'fr'` onto `bravoAdmin`, its default ATTACKER.
+`resolveLocale` reads `people.locale`, so every action either of them called for the rest of
+the run composed its refusal in French, and the **twelve** later `expectRefusal` predicates
+that match message text all went red together on `Point de contact introuvable`.
+
+That is §8b's named trap — *a case whose positive control mutates a row a later case depends
+on* — arriving through a column that did not exist when the case was written. The tell was the
+SHAPE: twelve unrelated modules, all in the `told` phase, all passing their probe.
+`alphaOther`/`bravoOther` exist for exactly this and `seed.mjs` says so.
+
+**So a case that writes a SHARED-PROFILE column runs as a spare actor.** `locale` is one;
+`people_sync_shared_profile` names the rest.
+
+## SEARCH AND SORTING ARE THE TWO PLACES A LANGUAGE REACHES THE DATABASE
+
+**Full-text search folds accents.** `public.genorra_search` is `english` with `unaccent` in
+front of the stemmer (`20260827000000`), and `SEARCH_CONFIG` is the one name the query sites
+read. That migration argues at length why `'simple'` was the first plan and was strictly
+worse, why a per-row `spanish`/`french` dictionary is a feature rather than a correction, and
+why `asciiword` is not `word` — the last of which is why its verify block reads
+`pg_ts_config_map` directly rather than inferring the mapping from a token.
+
+**A sortable table sorts in the READER's alphabet.** `lib/sort-rows.ts` took the runtime's
+default collation, and `ñ` is a LETTER OF ITS OWN in Spanish that files after `n` — so a
+family with a Muñoz in it saw the name in the English position. `sensitivity: 'base'` does
+not collapse it, measured. Everything else on the Latin surface sorts identically in all
+three, which is the finding that makes threading a locale through the other 81 bare
+`localeCompare` sites NOT worth doing.
+
+## WHAT IS STILL ENGLISH, SO NOBODY REPORTS IT AS A BUG
+
+**The five GoTrue auth emails** in `supabase/templates/`. They are sent by GoTrue rather than
+by this app, so `lib/email/`'s catalogue cannot reach them — the fix is a Send Email Hook that
+moves them into `lib/email/`, and it is not built. `TODO.md` carries it. Every piece of mail
+the APP composes is already translated, and `localesOfPeople` is how a batch send addresses
+each relative in their own language.
+
 # Page width is a component, not a per-page guess
 
 `components/layout/PageShell.tsx` is **the page container**. Every page under
